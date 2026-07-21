@@ -56,9 +56,20 @@ learning. Owner: Eddie Pettis (github.com/epettis). Repo:
   in the ingest script. OPEN ITEM: **Chamber of Mirrors** is a cross shape, but
   its four arms only connect after each door is entered from outside — this
   gated traversal is not a normal cross and is not yet modeled (see
-  `meta.layout_note`). Wiki rooms still missing from the sim entirely:
-  Mechanarium, Planetarium, Lost & Found, Treasure Trove, Tunnel,
-  Closed Exhibit, Throne Room.
+  `meta.layout_note`).
+- **OPEN ITEM — 7 rooms to add later.** These appear on the wiki but are
+  absent from the sim entirely (not in the datamined sheet or
+  `supplemental_rooms.json`). They each have unusual behaviors that must be
+  modeled, not just a shape/stat record — so they were deliberately deferred
+  rather than stubbed in. Add with full records (rarity, gem cost, effects,
+  flags, pool) plus their special behavior:
+  - **Mechanarium** (cross)
+  - **Planetarium** (dead_end)
+  - **Lost & Found** (corner)
+  - **Treasure Trove** (corner)
+  - **Tunnel** (straight)
+  - **Closed Exhibit** (t)
+  - **Throne Room** (t)
 
 ## Training state (cloud run, stopped)
 
