@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "luck": {
+    "day_start": 10,
+    "max_effect_at": 29,
+    "floor": 0,
+    "curve": "linear",
+    "penalty_two_plus_items": -1,
+    "rabbits_foot_bonus": 3,
+    "meta": {
+      "confidence": "wiki",
+      "source": "blueprince.wiki.gg/wiki/Luck: start at 10; at 29 every room grants its max additional items; 2+ items found in one room decreases luck",
+      "notes": "Curve shape between floor and 29 is not documented; linear is an inferred placeholder, editable here."
+    }
+  },
+  "coins": { "pile_min": 1, "pile_max": 5 },
+  "item_values": {
+    "comment": "Relative resource values used by shaped rewards and greedy policies; not game data.",
+    "key": 3.0,
+    "gem": 3.0,
+    "coin": 1.0,
+    "die": 4.0,
+    "step": 0.5
+  },
+  "meta": { "confidence": "wiki", "source": "wiki.gg Luck + Item Spawns prose (extracted 2026-07-20)" }
+}

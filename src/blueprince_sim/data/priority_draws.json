@@ -1,0 +1,36 @@
+{
+  "schema_version": 1,
+  "comment": "Two mechanisms. 'priority_draws': chance to force a specific room (or one of a named set) into slot 3 whenever it is draftable. 'category_biases': conditional biases that force a category re-deal with the given chance while their condition holds (King's Chess Piece variants, constellations, room auras). Chances are fractions.",
+  "priority_draws": [
+    { "rooms": ["patio", "veranda", "greenhouse", "morning_room", "secret_passage"], "label": "patio_rooms", "chance": 0.05, "chance_with_greenhouse": 0.5, "meta": { "confidence": "datamined", "source": "sheet constants: 'Patio Rooms 5%'; Greenhouse boost from wiki.gg Drafting/Advanced" } },
+    { "rooms": ["commissary", "observatory"], "label": "commissary_observatory", "chance": 0.13, "meta": { "confidence": "datamined", "source": "sheet constants: 'Commissary / Observatory 13%'" } },
+    { "rooms": ["classroom"], "label": "classroom", "chance": 0.03, "meta": { "confidence": "datamined", "source": "sheet constants: 'Classrooms 3%'" } }
+  ],
+  "forced_draw_precedence": {
+    "order": ["conservatory", "garage", "morning_room", "utility_closet"],
+    "meta": { "confidence": "wiki", "source": "wiki.gg Drafting/Advanced: only one forced draw fires; this precedence decides which" }
+  },
+  "category_biases": [
+    { "category": "green", "chance": 0.4, "condition": "greenhouse_or_king", "label": "Green Rooms (Greenhouse / King)" },
+    { "category": "red", "chance": 0.3, "condition": "furnace_or_king", "label": "Red Rooms (Furnace / King)" },
+    { "category": "blueprint", "chance": 0.5, "condition": "king", "label": "Blueprints (King)" },
+    { "category": "hallway", "chance": 0.3, "condition": "king", "label": "Hallways (King)" },
+    { "category": "bedroom", "chance": 0.28, "condition": "king", "label": "Bedrooms (King)" },
+    { "category": "shop", "chance": 0.25, "condition": "king", "label": "Shops (King)" },
+    { "category": "blackprint", "chance": 0.4, "condition": "king", "label": "Blackprints (King)" },
+    { "layout": "cross", "chance": 0.4, "condition": "southern_cross_constellation", "label": "4-Door Rooms (Southern Cross Constellation)" },
+    { "layout": "dead_end", "chance": 0.3, "condition": "draxus_constellation", "label": "Dead Ends (Draxus Constellation)" },
+    { "rooms": ["classroom"], "chance": 0.35, "condition": "schoolhouse", "label": "Classrooms (Schoolhouse)" },
+    { "category": "mechanical_or_rotunda", "chance": 0.4, "condition": "electromagnet", "label": "Mechanical Rooms & Rotunda (Electromagnet)" },
+    { "category": "tomorrow", "chance": 0.4, "condition": "chronograph", "label": "Tomorrow Rooms (Chronograph)" },
+    { "rooms": ["bookshop"], "chance": 0.5, "condition": "drafting_from_library", "label": "Bookshop (Library)" },
+    { "rarity": "rare", "chance": 1.0, "condition": "drafting_from_library", "label": "Rare Rooms (Library)" },
+    { "flag": "powered", "chance": 0.4, "condition": "adjacent_duct", "label": "Powered Rooms (From Duct Room)" },
+    { "flag": "duct", "chance": 0.4, "condition": "adjacent_powered", "label": "Duct Rooms (From Powered Room)" }
+  ],
+  "meta": {
+    "source": "TFMurphy decompiled sheet v1.3 constants block (extracted 2026-07-20); precedence order from wiki.gg Drafting/Advanced",
+    "confidence": "datamined",
+    "notes": "The exact procedural interpretation of category_biases (re-deal vs pre-filter) is TFMurphy prose, implemented as a biased re-deal hook."
+  }
+}

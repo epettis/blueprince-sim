@@ -1,0 +1,107 @@
+{
+  "schema_version": 1,
+  "rarity_order": ["commonplace", "standard", "unusual", "rare"],
+  "comment": "Values are percentages, stored verbatim from TFMurphy's decompiled v1.3 tables. Rows are ranks 1-9 (rank 1 = entrance row). 'slot1' = the always-free first option; 'slot23' = options 2 and 3. Week 1 has a single undifferentiated table in the source data (no slot split) - it is duplicated into both slot classes here on purpose. The Solarium table overrides slot23 (never slot1) whenever a Solarium is in the house.",
+  "tables": {
+    "week1": {
+      "slot1": {
+        "1": [99.48, 0.5, 0.01, 0.01],
+        "2": [99.28, 0.7, 0.01, 0.01],
+        "3": [97.89, 2.0, 0.1, 0.01],
+        "4": [95.49, 4.0, 0.5, 0.01],
+        "5": [91.95, 7.0, 1.0, 0.05],
+        "6": [89.65, 7.5, 2.5, 0.35],
+        "7": [88.6, 8.0, 3.0, 0.4],
+        "8": [87.5, 8.5, 3.5, 0.5],
+        "9": [86.0, 9.0, 4.0, 1.0]
+      },
+      "slot23": {
+        "1": [99.48, 0.5, 0.01, 0.01],
+        "2": [99.28, 0.7, 0.01, 0.01],
+        "3": [97.89, 2.0, 0.1, 0.01],
+        "4": [95.49, 4.0, 0.5, 0.01],
+        "5": [91.95, 7.0, 1.0, 0.05],
+        "6": [89.65, 7.5, 2.5, 0.35],
+        "7": [88.6, 8.0, 3.0, 0.4],
+        "8": [87.5, 8.5, 3.5, 0.5],
+        "9": [86.0, 9.0, 4.0, 1.0]
+      }
+    },
+    "week2": {
+      "slot1": {
+        "1": [99.48, 0.5, 0.01, 0.01],
+        "2": [98.0, 1.4, 0.5, 0.1],
+        "3": [93.8, 5.0, 1.0, 0.2],
+        "4": [78.1, 18.0, 3.5, 0.4],
+        "5": [73.0, 22.0, 4.5, 0.5],
+        "6": [70.5, 23.0, 5.5, 1.0],
+        "7": [65.0, 26.0, 7.0, 2.0],
+        "8": [62.0, 27.5, 8.0, 2.5],
+        "9": [57.0, 30.0, 10.0, 3.0]
+      },
+      "slot23": {
+        "1": [93.0, 5.0, 1.8, 0.2],
+        "2": [90.7, 7.0, 2.0, 0.3],
+        "3": [88.6, 8.0, 3.0, 0.4],
+        "4": [70.0, 24.0, 5.6, 0.4],
+        "5": [68.0, 25.0, 6.4, 0.6],
+        "6": [64.0, 28.0, 7.0, 1.0],
+        "7": [60.0, 29.5, 8.0, 2.5],
+        "8": [50.0, 35.0, 12.0, 3.0],
+        "9": [41.0, 40.0, 15.5, 3.5]
+      }
+    },
+    "late": {
+      "slot1": {
+        "1": [91.8, 7.0, 1.0, 0.2],
+        "2": [89.7, 8.0, 2.0, 0.3],
+        "3": [87.5, 9.0, 3.0, 0.5],
+        "4": [74.3, 20.0, 5.0, 0.7],
+        "5": [71.0, 22.0, 6.0, 1.0],
+        "6": [64.0, 26.5, 7.5, 2.0],
+        "7": [60.0, 28.0, 9.0, 3.0],
+        "8": [57.0, 29.5, 10.0, 3.5],
+        "9": [56.0, 30.0, 11.0, 3.0]
+      },
+      "slot23": {
+        "1": [90.0, 8.2, 1.6, 0.2],
+        "2": [88.0, 10.0, 1.7, 0.3],
+        "3": [80.0, 15.0, 4.0, 1.0],
+        "4": [70.0, 23.0, 5.5, 1.5],
+        "5": [55.0, 30.0, 13.0, 2.0],
+        "6": [48.0, 28.0, 20.0, 4.0],
+        "7": [30.0, 43.0, 22.0, 5.0],
+        "8": [25.0, 45.0, 24.0, 6.0],
+        "9": [19.0, 49.0, 24.0, 8.0]
+      }
+    }
+  },
+  "solarium_slot23": {
+    "1": [30.0, 30.0, 30.0, 10.0],
+    "2": [30.0, 30.0, 30.0, 10.0],
+    "3": [30.0, 30.0, 30.0, 10.0],
+    "4": [18.0, 36.0, 34.0, 12.0],
+    "5": [16.0, 34.0, 36.0, 14.0],
+    "6": [14.0, 31.0, 39.0, 16.0],
+    "7": [13.0, 30.0, 40.0, 17.0],
+    "8": [12.0, 25.0, 45.0, 18.0],
+    "9": [10.0, 20.0, 50.0, 20.0]
+  },
+  "stage_day_boundaries": {
+    "week1_days": [1, 7],
+    "week2_days": [8, 14],
+    "late_days": [15, null],
+    "meta": { "confidence": "inferred", "notes": "The sheet labels tables Week 1 / Week 2 / unlabeled-late; exact day cutoffs are not spelled out. 1-7 / 8-14 / 15+ is the community assumption." }
+  },
+  "deck_size_gates": {
+    "free": [3, 3, 3, 3],
+    "gem": [5, 5, 4, 4],
+    "gem_gate_condition": "veteran_or_room46_or_day16",
+    "meta": { "confidence": "wiki", "source": "blueprince.wiki.gg/wiki/Drafting/Advanced (TFMurphy prose, not in the sheet)" }
+  },
+  "meta": {
+    "source": "TFMurphy decompiled sheet v1.3, docs.google.com/spreadsheets/d/1DGozAX_yHmQqAvrWBegxNg5b92d5zigtPOshj_7FoZ8 (extracted 2026-07-20)",
+    "confidence": "datamined",
+    "game_version": "1.3"
+  }
+}
