@@ -33,6 +33,22 @@ LAYOUT_MAP = {
     "4-Door": "cross",
 }
 
+# Wiki-sourced shape corrections where the datamined layout column disagrees
+# with the observed in-game room shape (blueprince.wiki.gg/wiki/Category:Room_shapes).
+# The raw sheet stays verbatim; these override its parsed layout by room id.
+# Each entry: id -> {"layout", "alt_layouts", "note"}.
+LAYOUT_OVERRIDE: dict[str, dict] = {
+    # Datamine "Dead End / Straight"; wiki lists it as a straight-shape room.
+    # (Its special end-of-room draw lets you pick the next room's color.)
+    "secret_passage": {"layout": "straight", "alt_layouts": [],
+                       "note": "wiki: straight-shape"},
+    # Datamine "Dead End"; wiki lists it as 4-way (cross). OPEN ITEM: the cross
+    # arms have gated traversal (each door entered from outside), so its
+    # connectivity is not a normal cross and is not yet modeled.
+    "chamber_of_mirrors": {"layout": "cross", "alt_layouts": [],
+                           "note": "wiki: 4-way; OPEN: gated arm traversal not modeled"},
+}
+
 CONDITION_MAP = {
     "West Wing": ["west_wing"],
     "East Wing": ["east_wing"],
@@ -194,6 +210,11 @@ def build_room(row: dict) -> dict | None:
         raise ValueError(f"bad rarity {row['rarity']!r} for {name}")
 
     layouts = [LAYOUT_MAP[p.strip()] for p in row["layout"].split("/")]
+    layout_note = None
+    if rid in LAYOUT_OVERRIDE:
+        ov = LAYOUT_OVERRIDE[rid]
+        layouts = [ov["layout"], *ov["alt_layouts"]]
+        layout_note = ov["note"]
     category = CATEGORY_FROM_TYPE1.get(row["type1"].split("/")[0].strip(), "blueprint")
     if row["type2"] == "Objective" or name in ("Antechamber", "Room 46"):
         category = "objective"
@@ -258,6 +279,8 @@ def build_room(row: dict) -> dict | None:
     if name in GLYPH_MAP:
         entry["meta"]["glyph_resolution"] = [
             {"icon": icon, "confidence": conf} for icon, conf in GLYPH_MAP[name]]
+    if layout_note:
+        entry["meta"]["layout_note"] = layout_note
     return entry
 
 

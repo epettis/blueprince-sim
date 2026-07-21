@@ -50,6 +50,15 @@ learning. Owner: Eddie Pettis (github.com/epettis). Repo:
 - Known simplifications & open questions: README "Known simplifications"
   section (Antechamber entry model, step costs, week boundaries, luck curve,
   redraw semantics).
+- **Room shapes audited against `blueprince.wiki.gg/wiki/Category:Room_shapes`.**
+  Supplemental layouts were mostly wrong (wiki-guessed) and are now corrected;
+  two datamined rooms disagreed with the wiki and are fixed via `LAYOUT_OVERRIDE`
+  in the ingest script. OPEN ITEM: **Chamber of Mirrors** is a cross shape, but
+  its four arms only connect after each door is entered from outside — this
+  gated traversal is not a normal cross and is not yet modeled (see
+  `meta.layout_note`). Wiki rooms still missing from the sim entirely:
+  Mechanarium, Planetarium, Lost & Found, Treasure Trove, Tunnel,
+  Closed Exhibit, Throne Room.
 
 ## Training state (cloud run, stopped)
 

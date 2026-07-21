@@ -1991,7 +1991,7 @@
    "category": "blueprint",
    "rarity": "rare",
    "gem_cost": 0,
-   "layout": "dead_end",
+   "layout": "cross",
    "alt_layouts": [],
    "draft_conditions": [],
    "flags": {
@@ -2016,7 +2016,8 @@
     "confidence": "datamined",
     "directory_number": "28",
     "internal_index": 24,
-    "effect_text": "You can now draft second copies of rooms you already have in your house."
+    "effect_text": "You can now draft second copies of rooms you already have in your house.",
+    "layout_note": "wiki: 4-way; OPEN: gated arm traversal not modeled"
    }
   },
   {
@@ -3825,10 +3826,8 @@
    "category": "hallway",
    "rarity": "unusual",
    "gem_cost": 1,
-   "layout": "dead_end",
-   "alt_layouts": [
-    "straight"
-   ],
+   "layout": "straight",
+   "alt_layouts": [],
    "draft_conditions": [],
    "flags": {
     "no_library_draft": false,
@@ -3848,7 +3847,8 @@
     "confidence": "datamined",
     "directory_number": "60",
     "internal_index": 123,
-    "effect_text": "Leads to a room of a color of your choice."
+    "effect_text": "Leads to a room of a color of your choice.",
+    "layout_note": "wiki: straight-shape"
    }
   },
   {
