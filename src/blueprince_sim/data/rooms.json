@@ -1,0 +1,5627 @@
+{
+ "schema_version": 1,
+ "source": "TFMurphy decompiled sheet v1.3 (rooms 1-77 + variants) + supplemental_rooms.json",
+ "rooms": [
+  {
+   "id": "the_foundation",
+   "name": "The Foundation",
+   "category": "blueprint",
+   "rarity": "rare",
+   "gem_cost": 0,
+   "layout": "t",
+   "alt_layouts": [],
+   "draft_conditions": [],
+   "flags": {
+    "no_library_draft": false,
+    "powered": false,
+    "duct": false
+   },
+   "deck_copies": 1,
+   "effects": [],
+   "items": {
+    "guaranteed": [],
+    "additional_max": 1,
+    "dig_spots": 0
+   },
+   "pool": "none",
+   "meta": {
+    "source": "tfmurphy_sheet_v1.3",
+    "confidence": "datamined",
+    "directory_number": "1",
+    "internal_index": 150,
+    "effect_text": "Does not reset each day."
+   }
+  },
+  {
+   "id": "entrance_hall",
+   "name": "Entrance Hall",
+   "category": "blueprint",
+   "rarity": null,
+   "gem_cost": 0,
+   "layout": "cross",
+   "alt_layouts": [],
+   "draft_conditions": [],
+   "flags": {
+    "no_library_draft": false,
+    "powered": false,
+    "duct": false
+   },
+   "deck_copies": 1,
+   "effects": [],
+   "items": {
+    "guaranteed": [],
+    "additional_max": 1,
+    "dig_spots": 0
+   },
+   "pool": "none",
+   "meta": {
+    "source": "tfmurphy_sheet_v1.3",
+    "confidence": "datamined",
+    "directory_number": "2",
+    "internal_index": 59,
+    "effect_text": ""
+   }
+  },
+  {
+   "id": "spare_room",
+   "name": "Spare Room",
+   "category": "blueprint",
+   "rarity": "commonplace",
+   "gem_cost": 0,
+   "layout": "straight",
+   "alt_layouts": [],
+   "draft_conditions": [],
+   "flags": {
+    "no_library_draft": false,
+    "powered": false,
+    "duct": false
+   },
+   "deck_copies": 1,
+   "effects": [],
+   "items": {
+    "guaranteed": [],
+    "additional_max": 1,
+    "dig_spots": 0
+   },
+   "pool": "base",
+   "meta": {
+    "source": "tfmurphy_sheet_v1.3",
+    "confidence": "datamined",
+    "directory_number": "3",
+    "internal_index": 130,
+    "effect_text": ""
+   }
+  },
+  {
+   "id": "spare_bedroom__ix131",
+   "name": "Spare Bedroom",
+   "category": "bedroom",
+   "rarity": "commonplace",
+   "gem_cost": 0,
+   "layout": "straight",
+   "alt_layouts": [],
+   "draft_conditions": [],
+   "flags": {
+    "no_library_draft": false,
+    "powered": false,
+    "duct": false
+   },
+   "deck_copies": 1,
+   "effects": [],
+   "items": {
+    "guaranteed": [],
+    "additional_max": 1,
+    "dig_spots": 0
+   },
+   "pool": "upgrade_variant",
+   "meta": {
+    "source": "tfmurphy_sheet_v1.3",
+    "confidence": "datamined",
+    "directory_number": "3",
+    "internal_index": 131,
+    "effect_text": "",
+    "unlock": "Upgrade Spare Room"
+   },
+   "variant_of": "spare_room"
+  },
+  {
+   "id": "spare_greenroom__ix132",
+   "name": "Spare Greenroom",
+   "category": "green",
+   "rarity": "commonplace",
+   "gem_cost": 0,
+   "layout": "straight",
+   "alt_layouts": [],
+   "draft_conditions": [],
+   "flags": {
+    "no_library_draft": false,
+    "powered": false,
+    "duct": false
+   },
+   "deck_copies": 1,
+   "effects": [],
+   "items": {
+    "guaranteed": [],
+    "additional_max": 1,
+    "dig_spots": 0
+   },
+   "pool": "upgrade_variant",
+   "meta": {
+    "source": "tfmurphy_sheet_v1.3",
+    "confidence": "datamined",
+    "directory_number": "3",
+    "internal_index": 132,
+    "effect_text": "",
+    "unlock": "Upgrade Spare Room"
+   },
+   "variant_of": "spare_room"
+  },
+  {
+   "id": "spare_hall__ix133",
+   "name": "Spare Hall",
+   "category": "hallway",
+   "rarity": "commonplace",
+   "gem_cost": 0,
+   "layout": "straight",
+   "alt_layouts": [],
+   "draft_conditions": [],
+   "flags": {
+    "no_library_draft": false,
+    "powered": false,
+    "duct": false
+   },
+   "deck_copies": 1,
+   "effects": [],
+   "items": {
+    "guaranteed": [],
+    "additional_max": 1,
+    "dig_spots": 0
+   },
+   "pool": "upgrade_variant",
+   "meta": {
+    "source": "tfmurphy_sheet_v1.3",
+    "confidence": "datamined",
+    "directory_number": "3",
+    "internal_index": 133,
+    "effect_text": "",
+    "unlock": "Upgrade Spare Room"
+   },
+   "variant_of": "spare_room"
+  },
+  {
+   "id": "servants_spare_quarters__ix134",
+   "name": "Servant's Spare Quarters",
+   "category": "bedroom",
+   "rarity": "commonplace",
+   "gem_cost": 0,
+   "layout": "straight",
+   "alt_layouts": [],
+   "draft_conditions": [],
+   "flags": {
+    "no_library_draft": false,
+    "powered": false,
+    "duct": false
+   },
+   "deck_copies": 1,
+   "effects": [],
+   "items": {
+    "guaranteed": [],
+    "additional_max": 1,
+    "dig_spots": 0
+   },
+   "pool": "upgrade_variant",
+   "meta": {
+    "source": "tfmurphy_sheet_v1.3",
+    "confidence": "datamined",
+    "directory_number": "3",
+    "internal_index": 134,
+    "effect_text": "+1\u00f0 for each Bedroom in your house.",
+    "unlock": "Upgrade Spare Bedroom",
+    "glyph_resolution": [
+     {
+      "icon": "key",
+      "confidence": "datamined"
+     }
+    ]
+   },
+   "variant_of": "spare_bedroom__ix131"
+  },
+  {
+   "id": "her_ladyships_spare_room__ix135",
+   "name": "Her Ladyship's Spare Room",
+   "category": "bedroom",
+   "rarity": "commonplace",
+   "gem_cost": 0,
+   "layout": "straight",
+   "alt_layouts": [],
+   "draft_conditions": [],
+   "flags": {
+    "no_library_draft": false,
+    "powered": false,
+    "duct": false
+   },
+   "deck_copies": 1,
+   "effects": [],
+   "items": {
+    "guaranteed": [],
+    "additional_max": 1,
+    "dig_spots": 0
+   },
+   "pool": "upgrade_variant",
+   "meta": {
+    "source": "tfmurphy_sheet_v1.3",
+    "confidence": "datamined",
+    "directory_number": "3",
+    "internal_index": 135,
+    "effect_text": "The next time you enter BOUDOIR, gain 10\u00f0\u00a3  The next time you enter WALK-IN CLOSET, gain 3\u00f0",
+    "unlock": "Upgrade Spare Bedroom",
+    "glyph_resolution": [
+     {
+      "icon": "gem",
+      "confidence": "datamined"
+     }
+    ]
+   },
+   "variant_of": "spare_bedroom__ix131"
+  },
+  {
+   "id": "spare_master_bedroom__ix136",
+   "name": "Spare Master Bedroom",
+   "category": "bedroom",
+   "rarity": "commonplace",
+   "gem_cost": 0,
+   "layout": "straight",
+   "alt_layouts": [],
+   "draft_conditions": [],
+   "flags": {
+    "no_library_draft": false,
+    "powered": false,
+    "duct": false
+   },
+   "deck_copies": 1,
+   "effects": [],
+   "items": {
+    "guaranteed": [],
+    "additional_max": 1,
+    "dig_spots": 0
+   },
+   "pool": "upgrade_variant",
+   "meta": {
+    "source": "tfmurphy_sheet_v1.3",
+    "confidence": "datamined",
+    "directory_number": "3",
+    "internal_index": 136,
+    "effect_text": "+1\u00f0\u00a3 for each room in your house.",
+    "unlock": "Upgrade Spare Bedroom"
+   },
+   "variant_of": "spare_bedroom__ix131"
+  },
+  {
+   "id": "spare_foyer__ix137",
+   "name": "Spare Foyer",
+   "category": "hallway",
+   "rarity": "commonplace",
+   "gem_cost": 0,
+   "layout": "straight",
+   "alt_layouts": [],
+   "draft_conditions": [],
+   "flags": {
+    "no_library_draft": false,
+    "powered": false,
+    "duct": false
+   },
+   "deck_copies": 1,
+   "effects": [],
+   "items": {
+    "guaranteed": [],
+    "additional_max": 1,
+    "dig_spots": 0
+   },
+   "pool": "upgrade_variant",
+   "meta": {
+    "source": "tfmurphy_sheet_v1.3",
+    "confidence": "datamined",
+    "directory_number": "3",
+    "internal_index": 137,
+    "effect_text": "Hallway Doors are always unlocked.",
+    "unlock": "Upgrade Spare Hall"
+   },
+   "variant_of": "spare_hall__ix133"
+  },
+  {
+   "id": "spare_secret_passage__ix138",
+   "name": "Spare Secret Passage",
+   "category": "hallway",
+   "rarity": "commonplace",
+   "gem_cost": 0,
+   "layout": "straight",
+   "alt_layouts": [],
+   "draft_conditions": [],
+   "flags": {
+    "no_library_draft": false,
+    "powered": false,
+    "duct": false
+   },
+   "deck_copies": 1,
+   "effects": [],
+   "items": {
+    "guaranteed": [],
+    "additional_max": 1,
+    "dig_spots": 0
+   },
+   "pool": "upgrade_variant",
+   "meta": {
+    "source": "tfmurphy_sheet_v1.3",
+    "confidence": "datamined",
+    "directory_number": "3",
+    "internal_index": 138,
+    "effect_text": "Leads to a room of a color of your choice.",
+    "unlock": "Upgrade Spare Hall"
+   },
+   "variant_of": "spare_hall__ix133"
+  },
+  {
+   "id": "spare_great_hall__ix139",
+   "name": "Spare Great Hall",
+   "category": "hallway",
+   "rarity": "commonplace",
+   "gem_cost": 0,
+   "layout": "cross",
+   "alt_layouts": [],
+   "draft_conditions": [],
+   "flags": {
+    "no_library_draft": false,
+    "powered": false,
+    "duct": false
+   },
+   "deck_copies": 1,
+   "effects": [],
+   "items": {
+    "guaranteed": [],
+    "additional_max": 1,
+    "dig_spots": 0
+   },
+   "pool": "upgrade_variant",
+   "meta": {
+    "source": "tfmurphy_sheet_v1.3",
+    "confidence": "datamined",
+    "directory_number": "3",
+    "internal_index": 139,
+    "effect_text": "7 Locked Doors",
+    "unlock": "Upgrade Spare Hall"
+   },
+   "variant_of": "spare_hall__ix133"
+  },
+  {
+   "id": "spare_veranda__ix140",
+   "name": "Spare Veranda",
+   "category": "green",
+   "rarity": "commonplace",
+   "gem_cost": 0,
+   "layout": "straight",
+   "alt_layouts": [],
+   "draft_conditions": [],
+   "flags": {
+    "no_library_draft": false,
+    "powered": false,
+    "duct": false
+   },
+   "deck_copies": 1,
+   "effects": [],
+   "items": {
+    "guaranteed": [],
+    "additional_max": 1,
+    "dig_spots": 0
+   },
+   "pool": "upgrade_variant",
+   "meta": {
+    "source": "tfmurphy_sheet_v1.3",
+    "confidence": "datamined",
+    "directory_number": "3",
+    "internal_index": 140,
+    "effect_text": "Greater chance of finding items in Green Rooms.",
+    "unlock": "Upgrade Spare Greenroom"
+   },
+   "variant_of": "spare_greenroom__ix132"
+  },
+  {
+   "id": "spare_terrace__ix141",
+   "name": "Spare Terrace",
+   "category": "green",
+   "rarity": "commonplace",
+   "gem_cost": 0,
+   "layout": "straight",
+   "alt_layouts": [],
+   "draft_conditions": [],
+   "flags": {
+    "no_library_draft": false,
+    "powered": false,
+    "duct": false
+   },
+   "deck_copies": 1,
+   "effects": [],
+   "items": {
+    "guaranteed": [],
+    "additional_max": 1,
+    "dig_spots": 0
+   },
+   "pool": "upgrade_variant",
+   "meta": {
+    "source": "tfmurphy_sheet_v1.3",
+    "confidence": "datamined",
+    "directory_number": "3",
+    "internal_index": 141,
+    "effect_text": "Green Rooms do not cost \u00f0 to draft.",
+    "unlock": "Upgrade Spare Greenroom",
+    "glyph_resolution": [
+     {
+      "icon": "gem",
+      "confidence": "datamined"
+     }
+    ]
+   },
+   "variant_of": "spare_greenroom__ix132"
+  },
+  {
+   "id": "spare_patio__ix142",
+   "name": "Spare Patio",
+   "category": "green",
+   "rarity": "commonplace",
+   "gem_cost": 0,
+   "layout": "straight",
+   "alt_layouts": [],
+   "draft_conditions": [],
+   "flags": {
+    "no_library_draft": false,
+    "powered": false,
+    "duct": false
+   },
+   "deck_copies": 1,
+   "effects": [],
+   "items": {
+    "guaranteed": [],
+    "additional_max": 1,
+    "dig_spots": 0
+   },
+   "pool": "upgrade_variant",
+   "meta": {
+    "source": "tfmurphy_sheet_v1.3",
+    "confidence": "datamined",
+    "directory_number": "3",
+    "internal_index": 142,
+    "effect_text": "Spread \u00f0 in each Green Room.",
+    "unlock": "Upgrade Spare Greenroom",
+    "glyph_resolution": [
+     {
+      "icon": "gem",
+      "confidence": "datamined"
+     }
+    ]
+   },
+   "variant_of": "spare_greenroom__ix132"
+  },
+  {
+   "id": "rotunda",
+   "name": "Rotunda",
+   "category": "blueprint",
+   "rarity": "rare",
+   "gem_cost": 3,
+   "layout": "cross",
+   "alt_layouts": [],
+   "draft_conditions": [],
+   "flags": {
+    "no_library_draft": false,
+    "powered": false,
+    "duct": false
+   },
+   "deck_copies": 1,
+   "effects": [],
+   "items": {
+    "guaranteed": [],
+    "additional_max": 1,
+    "dig_spots": 0
+   },
+   "pool": "base",
+   "meta": {
+    "source": "tfmurphy_sheet_v1.3",
+    "confidence": "datamined",
+    "directory_number": "4",
+    "internal_index": 118,
+    "effect_text": "Can Rotate"
+   }
+  },
+  {
+   "id": "parlor",
+   "name": "Parlor",
+   "category": "blueprint",
+   "rarity": "commonplace",
+   "gem_cost": 0,
+   "layout": "corner",
+   "alt_layouts": [],
+   "draft_conditions": [],
+   "flags": {
+    "no_library_draft": false,
+    "powered": false,
+    "duct": false
+   },
+   "deck_copies": 1,
+   "effects": [],
+   "items": {
+    "guaranteed": [],
+    "additional_max": 1,
+    "dig_spots": 0
+   },
+   "pool": "base",
+   "meta": {
+    "source": "tfmurphy_sheet_v1.3",
+    "confidence": "datamined",
+    "directory_number": "5",
+    "internal_index": 107,
+    "effect_text": "",
+    "glyph_resolution": [
+     {
+      "icon": "gem",
+      "confidence": "datamined"
+     }
+    ]
+   }
+  },
+  {
+   "id": "parlor__ix108",
+   "name": "Parlor",
+   "category": "blueprint",
+   "rarity": "commonplace",
+   "gem_cost": 0,
+   "layout": "corner",
+   "alt_layouts": [],
+   "draft_conditions": [],
+   "flags": {
+    "no_library_draft": false,
+    "powered": false,
+    "duct": false
+   },
+   "deck_copies": 1,
+   "effects": [],
+   "items": {
+    "guaranteed": [],
+    "additional_max": 1,
+    "dig_spots": 0
+   },
+   "pool": "upgrade_variant",
+   "meta": {
+    "source": "tfmurphy_sheet_v1.3",
+    "confidence": "datamined",
+    "directory_number": "5",
+    "internal_index": 108,
+    "effect_text": "3\u00f0 Prize",
+    "unlock": "Upgrade Parlor",
+    "glyph_resolution": [
+     {
+      "icon": "gem",
+      "confidence": "datamined"
+     }
+    ]
+   },
+   "variant_of": "parlor"
+  },
+  {
+   "id": "parlor__ix109",
+   "name": "Parlor",
+   "category": "blueprint",
+   "rarity": "commonplace",
+   "gem_cost": 0,
+   "layout": "corner",
+   "alt_layouts": [],
+   "draft_conditions": [],
+   "flags": {
+    "no_library_draft": false,
+    "powered": false,
+    "duct": false
+   },
+   "deck_copies": 1,
+   "effects": [],
+   "items": {
+    "guaranteed": [],
+    "additional_max": 1,
+    "dig_spots": 0
+   },
+   "pool": "upgrade_variant",
+   "meta": {
+    "source": "tfmurphy_sheet_v1.3",
+    "confidence": "datamined",
+    "directory_number": "5",
+    "internal_index": 109,
+    "effect_text": "2 Wind-up Keys",
+    "unlock": "Upgrade Parlor",
+    "glyph_resolution": [
+     {
+      "icon": "gem",
+      "confidence": "datamined"
+     }
+    ]
+   },
+   "variant_of": "parlor"
+  },
+  {
+   "id": "funeral_parlor__ix110",
+   "name": "Funeral Parlor",
+   "category": "red",
+   "rarity": "commonplace",
+   "gem_cost": 0,
+   "layout": "corner",
+   "alt_layouts": [],
+   "draft_conditions": [],
+   "flags": {
+    "no_library_draft": false,
+    "powered": false,
+    "duct": false
+   },
+   "deck_copies": 1,
+   "effects": [],
+   "items": {
+    "guaranteed": [],
+    "additional_max": 0,
+    "dig_spots": 0
+   },
+   "pool": "upgrade_variant",
+   "meta": {
+    "source": "tfmurphy_sheet_v1.3",
+    "confidence": "datamined",
+    "directory_number": "5",
+    "internal_index": 110,
+    "effect_text": "\u00f0prize is equal to RED ROOMS in your house.  If you open an empty box in FUNERAL PARLOR, lose 30\u00f0\u00a3.",
+    "unlock": "Upgrade Parlor",
+    "glyph_resolution": [
+     {
+      "icon": "gem",
+      "confidence": "datamined"
+     }
+    ]
+   },
+   "variant_of": "parlor"
+  },
+  {
+   "id": "billiard_room",
+   "name": "Billiard Room",
+   "category": "blueprint",
+   "rarity": "commonplace",
+   "gem_cost": 0,
+   "layout": "corner",
+   "alt_layouts": [],
+   "draft_conditions": [],
+   "flags": {
+    "no_library_draft": false,
+    "powered": false,
+    "duct": false
+   },
+   "deck_copies": 1,
+   "effects": [],
+   "items": {
+    "guaranteed": [],
+    "additional_max": 1,
+    "dig_spots": 0
+   },
+   "pool": "base",
+   "meta": {
+    "source": "tfmurphy_sheet_v1.3",
+    "confidence": "datamined",
+    "directory_number": "6",
+    "internal_index": 9,
+    "effect_text": ""
+   }
+  },
+  {
+   "id": "speakeasy__ix10",
+   "name": "Speakeasy",
+   "category": "blueprint",
+   "rarity": "commonplace",
+   "gem_cost": 0,
+   "layout": "corner",
+   "alt_layouts": [],
+   "draft_conditions": [],
+   "flags": {
+    "no_library_draft": false,
+    "powered": false,
+    "duct": false
+   },
+   "deck_copies": 1,
+   "effects": [],
+   "items": {
+    "guaranteed": [],
+    "additional_max": 1,
+    "dig_spots": 0
+   },
+   "pool": "upgrade_variant",
+   "meta": {
+    "source": "tfmurphy_sheet_v1.3",
+    "confidence": "datamined",
+    "directory_number": "6",
+    "internal_index": 10,
+    "effect_text": "Basic Addition",
+    "unlock": "Upgrade Billiard Room"
+   },
+   "variant_of": "billiard_room"
+  },
+  {
+   "id": "break_room__ix11",
+   "name": "Break Room",
+   "category": "blueprint",
+   "rarity": "commonplace",
+   "gem_cost": 0,
+   "layout": "corner",
+   "alt_layouts": [],
+   "draft_conditions": [],
+   "flags": {
+    "no_library_draft": false,
+    "powered": false,
+    "duct": false
+   },
+   "deck_copies": 1,
+   "effects": [],
+   "items": {
+    "guaranteed": [],
+    "additional_max": 1,
+    "dig_spots": 0
+   },
+   "pool": "upgrade_variant",
+   "meta": {
+    "source": "tfmurphy_sheet_v1.3",
+    "confidence": "datamined",
+    "directory_number": "6",
+    "internal_index": 11,
+    "effect_text": "If you call it a day in BREAK ROOM, tomorrow you will begin the day with a staff keycard.",
+    "unlock": "Upgrade Billiard Room"
+   },
+   "variant_of": "billiard_room"
+  },
+  {
+   "id": "pool_hall__ix12",
+   "name": "Pool Hall",
+   "category": "hallway",
+   "rarity": "commonplace",
+   "gem_cost": 0,
+   "layout": "corner",
+   "alt_layouts": [],
+   "draft_conditions": [],
+   "flags": {
+    "no_library_draft": false,
+    "powered": false,
+    "duct": false
+   },
+   "deck_copies": 1,
+   "effects": [],
+   "items": {
+    "guaranteed": [],
+    "additional_max": 1,
+    "dig_spots": 0
+   },
+   "pool": "upgrade_variant",
+   "meta": {
+    "source": "tfmurphy_sheet_v1.3",
+    "confidence": "datamined",
+    "directory_number": "6",
+    "internal_index": 12,
+    "effect_text": "Adds GREAT HALL, FOYER and SECRET PASSAGE to today's Draft Pool.",
+    "unlock": "Upgrade Billiard Room"
+   },
+   "variant_of": "billiard_room"
+  },
+  {
+   "id": "gallery",
+   "name": "Gallery",
+   "category": "blueprint",
+   "rarity": "rare",
+   "gem_cost": 0,
+   "layout": "straight",
+   "alt_layouts": [],
+   "draft_conditions": [],
+   "flags": {
+    "no_library_draft": false,
+    "powered": false,
+    "duct": false
+   },
+   "deck_copies": 1,
+   "effects": [],
+   "items": {
+    "guaranteed": [],
+    "additional_max": 1,
+    "dig_spots": 0
+   },
+   "pool": "base",
+   "meta": {
+    "source": "tfmurphy_sheet_v1.3",
+    "confidence": "datamined",
+    "directory_number": "7",
+    "internal_index": 63,
+    "effect_text": ""
+   }
+  },
+  {
+   "id": "room_8",
+   "name": "Room 8",
+   "category": "blueprint",
+   "rarity": "rare",
+   "gem_cost": 0,
+   "layout": "corner",
+   "alt_layouts": [],
+   "draft_conditions": [
+    "room8_key"
+   ],
+   "flags": {
+    "no_library_draft": false,
+    "powered": false,
+    "duct": false
+   },
+   "deck_copies": 1,
+   "effects": [],
+   "items": {
+    "guaranteed": [],
+    "additional_max": 1,
+    "dig_spots": 0
+   },
+   "pool": "base",
+   "meta": {
+    "source": "tfmurphy_sheet_v1.3",
+    "confidence": "datamined",
+    "directory_number": "8",
+    "internal_index": 115,
+    "effect_text": ""
+   }
+  },
+  {
+   "id": "closet",
+   "name": "Closet",
+   "category": "blueprint",
+   "rarity": "commonplace",
+   "gem_cost": 0,
+   "layout": "dead_end",
+   "alt_layouts": [],
+   "draft_conditions": [],
+   "flags": {
+    "no_library_draft": true,
+    "powered": false,
+    "duct": false
+   },
+   "deck_copies": 1,
+   "effects": [],
+   "items": {
+    "guaranteed": [
+     {
+      "item": "random",
+      "count": 2
+     }
+    ],
+    "additional_max": 1,
+    "dig_spots": 0
+   },
+   "pool": "base",
+   "meta": {
+    "source": "tfmurphy_sheet_v1.3",
+    "confidence": "datamined",
+    "directory_number": "9",
+    "internal_index": 38,
+    "effect_text": "2 items"
+   }
+  },
+  {
+   "id": "hallway_closet__ix39",
+   "name": "Hallway Closet",
+   "category": "blueprint",
+   "rarity": "commonplace",
+   "gem_cost": 0,
+   "layout": "dead_end",
+   "alt_layouts": [],
+   "draft_conditions": [],
+   "flags": {
+    "no_library_draft": true,
+    "powered": false,
+    "duct": false
+   },
+   "deck_copies": 1,
+   "effects": [],
+   "items": {
+    "guaranteed": [],
+    "additional_max": 1,
+    "dig_spots": 0
+   },
+   "pool": "upgrade_variant",
+   "meta": {
+    "source": "tfmurphy_sheet_v1.3",
+    "confidence": "datamined",
+    "directory_number": "9",
+    "internal_index": 39,
+    "effect_text": "2 items  +1 extra item if drafted adjoined to a Hallway",
+    "unlock": "Upgrade Closet"
+   },
+   "variant_of": "closet"
+  },
+  {
+   "id": "bedroom_closet__ix40",
+   "name": "Bedroom Closet",
+   "category": "blueprint",
+   "rarity": "commonplace",
+   "gem_cost": 0,
+   "layout": "dead_end",
+   "alt_layouts": [],
+   "draft_conditions": [],
+   "flags": {
+    "no_library_draft": true,
+    "powered": false,
+    "duct": false
+   },
+   "deck_copies": 1,
+   "effects": [],
+   "items": {
+    "guaranteed": [],
+    "additional_max": 1,
+    "dig_spots": 0
+   },
+   "pool": "upgrade_variant",
+   "meta": {
+    "source": "tfmurphy_sheet_v1.3",
+    "confidence": "datamined",
+    "directory_number": "9",
+    "internal_index": 40,
+    "effect_text": "2 items  +2 extra items if drafted adjoined to a Bedroom",
+    "unlock": "Upgrade Closet"
+   },
+   "variant_of": "closet"
+  },
+  {
+   "id": "empty_closet__ix41",
+   "name": "Empty Closet",
+   "category": "red",
+   "rarity": "commonplace",
+   "gem_cost": 0,
+   "layout": "dead_end",
+   "alt_layouts": [],
+   "draft_conditions": [],
+   "flags": {
+    "no_library_draft": true,
+    "powered": false,
+    "duct": false
+   },
+   "deck_copies": 1,
+   "effects": [],
+   "items": {
+    "guaranteed": [],
+    "additional_max": 0,
+    "dig_spots": 0
+   },
+   "pool": "upgrade_variant",
+   "meta": {
+    "source": "tfmurphy_sheet_v1.3",
+    "confidence": "datamined",
+    "directory_number": "9",
+    "internal_index": 41,
+    "effect_text": "0 items  +4 extra items if drafted adjoined to a Red Room",
+    "unlock": "Upgrade Closet"
+   },
+   "variant_of": "closet"
+  },
+  {
+   "id": "walk_in_closet",
+   "name": "Walk-In Closet",
+   "category": "blueprint",
+   "rarity": "standard",
+   "gem_cost": 1,
+   "layout": "dead_end",
+   "alt_layouts": [],
+   "draft_conditions": [],
+   "flags": {
+    "no_library_draft": false,
+    "powered": false,
+    "duct": false
+   },
+   "deck_copies": 1,
+   "effects": [],
+   "items": {
+    "guaranteed": [
+     {
+      "item": "random",
+      "count": 4
+     }
+    ],
+    "additional_max": 1,
+    "dig_spots": 0
+   },
+   "pool": "base",
+   "meta": {
+    "source": "tfmurphy_sheet_v1.3",
+    "confidence": "datamined",
+    "directory_number": "10",
+    "internal_index": 164,
+    "effect_text": "4 items"
+   }
+  },
+  {
+   "id": "attic",
+   "name": "Attic",
+   "category": "blueprint",
+   "rarity": "rare",
+   "gem_cost": 3,
+   "layout": "dead_end",
+   "alt_layouts": [],
+   "draft_conditions": [],
+   "flags": {
+    "no_library_draft": false,
+    "powered": false,
+    "duct": false
+   },
+   "deck_copies": 1,
+   "effects": [],
+   "items": {
+    "guaranteed": [
+     {
+      "item": "random",
+      "count": 8
+     }
+    ],
+    "additional_max": 1,
+    "dig_spots": 0
+   },
+   "pool": "base",
+   "meta": {
+    "source": "tfmurphy_sheet_v1.3",
+    "confidence": "datamined",
+    "directory_number": "11",
+    "internal_index": 6,
+    "effect_text": "8 items"
+   }
+  },
+  {
+   "id": "storeroom",
+   "name": "Storeroom",
+   "category": "blueprint",
+   "rarity": "commonplace",
+   "gem_cost": 0,
+   "layout": "dead_end",
+   "alt_layouts": [],
+   "draft_conditions": [],
+   "flags": {
+    "no_library_draft": true,
+    "powered": false,
+    "duct": false
+   },
+   "deck_copies": 1,
+   "effects": [],
+   "items": {
+    "guaranteed": [
+     {
+      "item": "key",
+      "count": 1
+     },
+     {
+      "item": "gem",
+      "count": 1
+     },
+     {
+      "item": "coins",
+      "count": 1
+     }
+    ],
+    "additional_max": 1,
+    "dig_spots": 0
+   },
+   "pool": "base",
+   "meta": {
+    "source": "tfmurphy_sheet_v1.3",
+    "confidence": "datamined",
+    "directory_number": "12",
+    "internal_index": 143,
+    "effect_text": "+1\u00f0, 1\u00f0, 1\u00f0\u00b0",
+    "glyph_resolution": [
+     {
+      "icon": "key",
+      "confidence": "datamined"
+     },
+     {
+      "icon": "gem",
+      "confidence": "datamined"
+     }
+    ]
+   }
+  },
+  {
+   "id": "storeroom__ix144",
+   "name": "Storeroom",
+   "category": "blueprint",
+   "rarity": "commonplace",
+   "gem_cost": 0,
+   "layout": "dead_end",
+   "alt_layouts": [],
+   "draft_conditions": [],
+   "flags": {
+    "no_library_draft": true,
+    "powered": false,
+    "duct": false
+   },
+   "deck_copies": 1,
+   "effects": [],
+   "items": {
+    "guaranteed": [
+     {
+      "item": "key",
+      "count": 1
+     },
+     {
+      "item": "gem",
+      "count": 1
+     },
+     {
+      "item": "coins",
+      "count": 1
+     }
+    ],
+    "additional_max": 1,
+    "dig_spots": 0
+   },
+   "pool": "upgrade_variant",
+   "meta": {
+    "source": "tfmurphy_sheet_v1.3",
+    "confidence": "datamined",
+    "directory_number": "12",
+    "internal_index": 144,
+    "effect_text": "+2\u00f0, 1\u00f0, 1\u00f0\u00b0",
+    "unlock": "Upgrade Storeroom",
+    "glyph_resolution": [
+     {
+      "icon": "key",
+      "confidence": "datamined"
+     },
+     {
+      "icon": "gem",
+      "confidence": "datamined"
+     }
+    ]
+   },
+   "variant_of": "storeroom"
+  },
+  {
+   "id": "storeroom__ix145",
+   "name": "Storeroom",
+   "category": "blueprint",
+   "rarity": "commonplace",
+   "gem_cost": 0,
+   "layout": "dead_end",
+   "alt_layouts": [],
+   "draft_conditions": [],
+   "flags": {
+    "no_library_draft": true,
+    "powered": false,
+    "duct": false
+   },
+   "deck_copies": 1,
+   "effects": [],
+   "items": {
+    "guaranteed": [
+     {
+      "item": "key",
+      "count": 1
+     },
+     {
+      "item": "gem",
+      "count": 1
+     },
+     {
+      "item": "coins",
+      "count": 1
+     }
+    ],
+    "additional_max": 1,
+    "dig_spots": 0
+   },
+   "pool": "upgrade_variant",
+   "meta": {
+    "source": "tfmurphy_sheet_v1.3",
+    "confidence": "datamined",
+    "directory_number": "12",
+    "internal_index": 145,
+    "effect_text": "+1\u00f0, 2\u00f0, 1\u00f0\u00b0",
+    "unlock": "Upgrade Storeroom",
+    "glyph_resolution": [
+     {
+      "icon": "key",
+      "confidence": "datamined"
+     },
+     {
+      "icon": "gem",
+      "confidence": "datamined"
+     }
+    ]
+   },
+   "variant_of": "storeroom"
+  },
+  {
+   "id": "storeroom__ix146",
+   "name": "Storeroom",
+   "category": "blueprint",
+   "rarity": "commonplace",
+   "gem_cost": 0,
+   "layout": "dead_end",
+   "alt_layouts": [],
+   "draft_conditions": [],
+   "flags": {
+    "no_library_draft": true,
+    "powered": false,
+    "duct": false
+   },
+   "deck_copies": 1,
+   "effects": [],
+   "items": {
+    "guaranteed": [
+     {
+      "item": "key",
+      "count": 1
+     },
+     {
+      "item": "gem",
+      "count": 1
+     },
+     {
+      "item": "coins",
+      "count": 1
+     }
+    ],
+    "additional_max": 1,
+    "dig_spots": 0
+   },
+   "pool": "upgrade_variant",
+   "meta": {
+    "source": "tfmurphy_sheet_v1.3",
+    "confidence": "datamined",
+    "directory_number": "12",
+    "internal_index": 146,
+    "effect_text": "+1\u00f0, 1\u00f0, 10\u00f0\u00b0",
+    "unlock": "Upgrade Storeroom",
+    "glyph_resolution": [
+     {
+      "icon": "key",
+      "confidence": "datamined"
+     },
+     {
+      "icon": "gem",
+      "confidence": "datamined"
+     }
+    ]
+   },
+   "variant_of": "storeroom"
+  },
+  {
+   "id": "nook",
+   "name": "Nook",
+   "category": "blueprint",
+   "rarity": "commonplace",
+   "gem_cost": 0,
+   "layout": "corner",
+   "alt_layouts": [],
+   "draft_conditions": [],
+   "flags": {
+    "no_library_draft": false,
+    "powered": false,
+    "duct": false
+   },
+   "deck_copies": 1,
+   "effects": [],
+   "items": {
+    "guaranteed": [
+     {
+      "item": "key",
+      "count": 1
+     }
+    ],
+    "additional_max": 1,
+    "dig_spots": 0
+   },
+   "pool": "base",
+   "meta": {
+    "source": "tfmurphy_sheet_v1.3",
+    "confidence": "datamined",
+    "directory_number": "13",
+    "internal_index": 96,
+    "effect_text": "+1\u00f0",
+    "glyph_resolution": [
+     {
+      "icon": "key",
+      "confidence": "datamined"
+     }
+    ]
+   }
+  },
+  {
+   "id": "nook__ix97",
+   "name": "Nook",
+   "category": "blueprint",
+   "rarity": "commonplace",
+   "gem_cost": 0,
+   "layout": "corner",
+   "alt_layouts": [],
+   "draft_conditions": [],
+   "flags": {
+    "no_library_draft": false,
+    "powered": false,
+    "duct": false
+   },
+   "deck_copies": 1,
+   "effects": [],
+   "items": {
+    "guaranteed": [
+     {
+      "item": "key",
+      "count": 1
+     }
+    ],
+    "additional_max": 1,
+    "dig_spots": 0
+   },
+   "pool": "upgrade_variant",
+   "meta": {
+    "source": "tfmurphy_sheet_v1.3",
+    "confidence": "datamined",
+    "directory_number": "13",
+    "internal_index": 97,
+    "effect_text": "+2\u00f0",
+    "unlock": "Upgrade Nook",
+    "glyph_resolution": [
+     {
+      "icon": "key",
+      "confidence": "datamined"
+     }
+    ]
+   },
+   "variant_of": "nook"
+  },
+  {
+   "id": "breakfast_nook__ix98",
+   "name": "Breakfast Nook",
+   "category": "blueprint",
+   "rarity": "commonplace",
+   "gem_cost": 0,
+   "layout": "corner",
+   "alt_layouts": [],
+   "draft_conditions": [],
+   "flags": {
+    "no_library_draft": false,
+    "powered": false,
+    "duct": false
+   },
+   "deck_copies": 1,
+   "effects": [],
+   "items": {
+    "guaranteed": [],
+    "additional_max": 1,
+    "dig_spots": 0
+   },
+   "pool": "upgrade_variant",
+   "meta": {
+    "source": "tfmurphy_sheet_v1.3",
+    "confidence": "datamined",
+    "directory_number": "13",
+    "internal_index": 98,
+    "effect_text": "+1\u00f0 + Bacon & Eggs",
+    "unlock": "Upgrade Nook",
+    "glyph_resolution": [
+     {
+      "icon": "key",
+      "confidence": "datamined"
+     }
+    ]
+   },
+   "variant_of": "nook"
+  },
+  {
+   "id": "reading_nook__ix99",
+   "name": "Reading Nook",
+   "category": "blueprint",
+   "rarity": "commonplace",
+   "gem_cost": 0,
+   "layout": "corner",
+   "alt_layouts": [],
+   "draft_conditions": [],
+   "flags": {
+    "no_library_draft": false,
+    "powered": false,
+    "duct": false
+   },
+   "deck_copies": 1,
+   "effects": [],
+   "items": {
+    "guaranteed": [],
+    "additional_max": 1,
+    "dig_spots": 0
+   },
+   "pool": "upgrade_variant",
+   "meta": {
+    "source": "tfmurphy_sheet_v1.3",
+    "confidence": "datamined",
+    "directory_number": "13",
+    "internal_index": 99,
+    "effect_text": "+1\u00f0  You will always draw LIBRARY while drafting in this room.",
+    "unlock": "Upgrade Nook",
+    "glyph_resolution": [
+     {
+      "icon": "key",
+      "confidence": "datamined"
+     }
+    ]
+   },
+   "variant_of": "nook"
+  },
+  {
+   "id": "garage",
+   "name": "Garage",
+   "category": "blueprint",
+   "rarity": "commonplace",
+   "gem_cost": 1,
+   "layout": "dead_end",
+   "alt_layouts": [],
+   "draft_conditions": [
+    "west_wing"
+   ],
+   "flags": {
+    "no_library_draft": false,
+    "powered": true,
+    "duct": false
+   },
+   "deck_copies": 1,
+   "effects": [],
+   "items": {
+    "guaranteed": [
+     {
+      "item": "key",
+      "count": 3
+     }
+    ],
+    "additional_max": 1,
+    "dig_spots": 0
+   },
+   "pool": "base",
+   "meta": {
+    "source": "tfmurphy_sheet_v1.3",
+    "confidence": "datamined",
+    "directory_number": "14",
+    "internal_index": 64,
+    "effect_text": "+3\u00f0",
+    "glyph_resolution": [
+     {
+      "icon": "key",
+      "confidence": "datamined"
+     }
+    ]
+   }
+  },
+  {
+   "id": "music_room",
+   "name": "Music Room",
+   "category": "blueprint",
+   "rarity": "unusual",
+   "gem_cost": 2,
+   "layout": "corner",
+   "alt_layouts": [],
+   "draft_conditions": [],
+   "flags": {
+    "no_library_draft": false,
+    "powered": false,
+    "duct": false
+   },
+   "deck_copies": 1,
+   "effects": [],
+   "items": {
+    "guaranteed": [
+     {
+      "item": "key",
+      "count": 2
+     }
+    ],
+    "additional_max": 1,
+    "dig_spots": 0
+   },
+   "pool": "base",
+   "meta": {
+    "source": "tfmurphy_sheet_v1.3",
+    "confidence": "datamined",
+    "directory_number": "15",
+    "internal_index": 95,
+    "effect_text": "1 Major \u00f0, 1 Minor \u00f0",
+    "glyph_resolution": [
+     {
+      "icon": "key",
+      "confidence": "datamined"
+     },
+     {
+      "icon": "key",
+      "confidence": "datamined"
+     }
+    ]
+   }
+  },
+  {
+   "id": "locker_room",
+   "name": "Locker Room",
+   "category": "blueprint",
+   "rarity": "standard",
+   "gem_cost": 1,
+   "layout": "straight",
+   "alt_layouts": [],
+   "draft_conditions": [
+    "pool_drafted"
+   ],
+   "flags": {
+    "no_library_draft": false,
+    "powered": true,
+    "duct": true
+   },
+   "deck_copies": 1,
+   "effects": [],
+   "items": {
+    "guaranteed": [],
+    "additional_max": 1,
+    "dig_spots": 0
+   },
+   "pool": "pool_temp",
+   "meta": {
+    "source": "tfmurphy_sheet_v1.3",
+    "confidence": "datamined",
+    "directory_number": "16",
+    "internal_index": 84,
+    "effect_text": "Spread \u00f0 throughout the house.",
+    "glyph_resolution": [
+     {
+      "icon": "key",
+      "confidence": "datamined"
+     }
+    ]
+   }
+  },
+  {
+   "id": "den",
+   "name": "Den",
+   "category": "blueprint",
+   "rarity": "commonplace",
+   "gem_cost": 0,
+   "layout": "t",
+   "alt_layouts": [],
+   "draft_conditions": [],
+   "flags": {
+    "no_library_draft": false,
+    "powered": false,
+    "duct": false
+   },
+   "deck_copies": 1,
+   "effects": [],
+   "items": {
+    "guaranteed": [
+     {
+      "item": "gem",
+      "count": 1
+     }
+    ],
+    "additional_max": 1,
+    "dig_spots": 0
+   },
+   "pool": "base",
+   "meta": {
+    "source": "tfmurphy_sheet_v1.3",
+    "confidence": "datamined",
+    "directory_number": "17",
+    "internal_index": 52,
+    "effect_text": "+1\u00f0",
+    "glyph_resolution": [
+     {
+      "icon": "gem",
+      "confidence": "datamined"
+     }
+    ]
+   }
+  },
+  {
+   "id": "wine_cellar",
+   "name": "Wine Cellar",
+   "category": "blueprint",
+   "rarity": "unusual",
+   "gem_cost": 0,
+   "layout": "dead_end",
+   "alt_layouts": [],
+   "draft_conditions": [],
+   "flags": {
+    "no_library_draft": false,
+    "powered": false,
+    "duct": false
+   },
+   "deck_copies": 1,
+   "effects": [],
+   "items": {
+    "guaranteed": [
+     {
+      "item": "gem",
+      "count": 3
+     }
+    ],
+    "additional_max": 1,
+    "dig_spots": 0
+   },
+   "pool": "base",
+   "meta": {
+    "source": "tfmurphy_sheet_v1.3",
+    "confidence": "datamined",
+    "directory_number": "18",
+    "internal_index": 167,
+    "effect_text": "+3\u00f0",
+    "glyph_resolution": [
+     {
+      "icon": "gem",
+      "confidence": "datamined"
+     }
+    ]
+   }
+  },
+  {
+   "id": "trophy_room",
+   "name": "Trophy Room",
+   "category": "blueprint",
+   "rarity": "rare",
+   "gem_cost": 5,
+   "layout": "corner",
+   "alt_layouts": [],
+   "draft_conditions": [],
+   "flags": {
+    "no_library_draft": false,
+    "powered": false,
+    "duct": false
+   },
+   "deck_copies": 1,
+   "effects": [],
+   "items": {
+    "guaranteed": [
+     {
+      "item": "gem",
+      "count": 8
+     }
+    ],
+    "additional_max": 1,
+    "dig_spots": 0
+   },
+   "pool": "base",
+   "meta": {
+    "source": "tfmurphy_sheet_v1.3",
+    "confidence": "datamined",
+    "directory_number": "19",
+    "internal_index": 158,
+    "effect_text": "+8\u00f0",
+    "glyph_resolution": [
+     {
+      "icon": "gem",
+      "confidence": "datamined"
+     }
+    ]
+   }
+  },
+  {
+   "id": "ballroom",
+   "name": "Ballroom",
+   "category": "blueprint",
+   "rarity": "unusual",
+   "gem_cost": 2,
+   "layout": "straight",
+   "alt_layouts": [],
+   "draft_conditions": [],
+   "flags": {
+    "no_library_draft": false,
+    "powered": false,
+    "duct": false
+   },
+   "deck_copies": 1,
+   "effects": [
+    {
+     "tag": "set_resource_on_enter",
+     "resource": "gems",
+     "value": 2
+    }
+   ],
+   "items": {
+    "guaranteed": [],
+    "additional_max": 1,
+    "dig_spots": 0
+   },
+   "pool": "base",
+   "meta": {
+    "source": "tfmurphy_sheet_v1.3",
+    "confidence": "datamined",
+    "directory_number": "20",
+    "internal_index": 7,
+    "effect_text": "Whenever you enter BALLROOM, set your \u00f0 to 2\u00f0",
+    "glyph_resolution": [
+     {
+      "icon": "gem",
+      "confidence": "datamined"
+     },
+     {
+      "icon": "gem",
+      "confidence": "datamined"
+     }
+    ]
+   }
+  },
+  {
+   "id": "pantry",
+   "name": "Pantry",
+   "category": "blueprint",
+   "rarity": "commonplace",
+   "gem_cost": 0,
+   "layout": "corner",
+   "alt_layouts": [],
+   "draft_conditions": [],
+   "flags": {
+    "no_library_draft": false,
+    "powered": false,
+    "duct": false
+   },
+   "deck_copies": 1,
+   "effects": [],
+   "items": {
+    "guaranteed": [
+     {
+      "item": "coins",
+      "count": 1
+     }
+    ],
+    "additional_max": 1,
+    "dig_spots": 0
+   },
+   "pool": "base",
+   "meta": {
+    "source": "tfmurphy_sheet_v1.3",
+    "confidence": "datamined",
+    "directory_number": "21",
+    "internal_index": 106,
+    "effect_text": "+4\u00f0\u00b0"
+   }
+  },
+  {
+   "id": "rumpus_room",
+   "name": "Rumpus Room",
+   "category": "blueprint",
+   "rarity": "standard",
+   "gem_cost": 1,
+   "layout": "straight",
+   "alt_layouts": [],
+   "draft_conditions": [],
+   "flags": {
+    "no_library_draft": false,
+    "powered": false,
+    "duct": false
+   },
+   "deck_copies": 1,
+   "effects": [],
+   "items": {
+    "guaranteed": [
+     {
+      "item": "coins",
+      "count": 2
+     }
+    ],
+    "additional_max": 1,
+    "dig_spots": 0
+   },
+   "pool": "base",
+   "meta": {
+    "source": "tfmurphy_sheet_v1.3",
+    "confidence": "datamined",
+    "directory_number": "22",
+    "internal_index": 119,
+    "effect_text": "+8\u00f0\u00b0"
+   }
+  },
+  {
+   "id": "vault",
+   "name": "Vault",
+   "category": "blueprint",
+   "rarity": "unusual",
+   "gem_cost": 3,
+   "layout": "dead_end",
+   "alt_layouts": [],
+   "draft_conditions": [],
+   "flags": {
+    "no_library_draft": false,
+    "powered": false,
+    "duct": false
+   },
+   "deck_copies": 1,
+   "effects": [],
+   "items": {
+    "guaranteed": [
+     {
+      "item": "coins",
+      "count": 8
+     }
+    ],
+    "additional_max": 1,
+    "dig_spots": 0
+   },
+   "pool": "base",
+   "meta": {
+    "source": "tfmurphy_sheet_v1.3",
+    "confidence": "datamined",
+    "directory_number": "23",
+    "internal_index": 161,
+    "effect_text": "+40\u00f0\u00b0"
+   }
+  },
+  {
+   "id": "office",
+   "name": "Office",
+   "category": "blueprint",
+   "rarity": "standard",
+   "gem_cost": 2,
+   "layout": "corner",
+   "alt_layouts": [],
+   "draft_conditions": [],
+   "flags": {
+    "no_library_draft": false,
+    "powered": false,
+    "duct": false
+   },
+   "deck_copies": 1,
+   "effects": [],
+   "items": {
+    "guaranteed": [],
+    "additional_max": 1,
+    "dig_spots": 0
+   },
+   "pool": "base",
+   "meta": {
+    "source": "tfmurphy_sheet_v1.3",
+    "confidence": "datamined",
+    "directory_number": "24",
+    "internal_index": 105,
+    "effect_text": "Opportunity to earn and spread \u00f0\u00b0"
+   }
+  },
+  {
+   "id": "drawing_room",
+   "name": "Drawing Room",
+   "category": "blueprint",
+   "rarity": "commonplace",
+   "gem_cost": 1,
+   "layout": "t",
+   "alt_layouts": [],
+   "draft_conditions": [],
+   "flags": {
+    "no_library_draft": false,
+    "powered": false,
+    "duct": false
+   },
+   "deck_copies": 1,
+   "effects": [
+    {
+     "tag": "counts_as_drafting_room"
+    }
+   ],
+   "items": {
+    "guaranteed": [],
+    "additional_max": 1,
+    "dig_spots": 0
+   },
+   "pool": "base",
+   "meta": {
+    "source": "tfmurphy_sheet_v1.3",
+    "confidence": "datamined",
+    "directory_number": "25",
+    "internal_index": 57,
+    "effect_text": "You may draw new Floor Plans while drafting in this room."
+   }
+  },
+  {
+   "id": "study",
+   "name": "Study",
+   "category": "blueprint",
+   "rarity": "unusual",
+   "gem_cost": 0,
+   "layout": "dead_end",
+   "alt_layouts": [],
+   "draft_conditions": [],
+   "flags": {
+    "no_library_draft": false,
+    "powered": false,
+    "duct": false
+   },
+   "deck_copies": 1,
+   "effects": [
+    {
+     "tag": "study_redraws"
+    }
+   ],
+   "items": {
+    "guaranteed": [],
+    "additional_max": 1,
+    "dig_spots": 0
+   },
+   "pool": "base",
+   "meta": {
+    "source": "tfmurphy_sheet_v1.3",
+    "confidence": "datamined",
+    "directory_number": "26",
+    "internal_index": 147,
+    "effect_text": "While drafting, you may spend \u00f0gems to redraw floorplans up to 8 times.",
+    "glyph_resolution": [
+     {
+      "icon": "gem",
+      "confidence": "datamined"
+     }
+    ]
+   }
+  },
+  {
+   "id": "library",
+   "name": "Library",
+   "category": "blueprint",
+   "rarity": "standard",
+   "gem_cost": 0,
+   "layout": "corner",
+   "alt_layouts": [],
+   "draft_conditions": [],
+   "flags": {
+    "no_library_draft": false,
+    "powered": false,
+    "duct": false
+   },
+   "deck_copies": 1,
+   "effects": [
+    {
+     "tag": "counts_as_drafting_room"
+    }
+   ],
+   "items": {
+    "guaranteed": [],
+    "additional_max": 1,
+    "dig_spots": 0
+   },
+   "pool": "base",
+   "meta": {
+    "source": "tfmurphy_sheet_v1.3",
+    "confidence": "datamined",
+    "directory_number": "27",
+    "internal_index": 83,
+    "effect_text": "Discover less common Floor Plans while drafting in the LIBRARY."
+   }
+  },
+  {
+   "id": "chamber_of_mirrors",
+   "name": "Chamber of Mirrors",
+   "category": "blueprint",
+   "rarity": "rare",
+   "gem_cost": 0,
+   "layout": "dead_end",
+   "alt_layouts": [],
+   "draft_conditions": [],
+   "flags": {
+    "no_library_draft": false,
+    "powered": false,
+    "duct": false
+   },
+   "deck_copies": 1,
+   "effects": [
+    {
+     "tag": "allow_duplicates"
+    }
+   ],
+   "items": {
+    "guaranteed": [],
+    "additional_max": 1,
+    "dig_spots": 0
+   },
+   "pool": "base",
+   "meta": {
+    "source": "tfmurphy_sheet_v1.3",
+    "confidence": "datamined",
+    "directory_number": "28",
+    "internal_index": 24,
+    "effect_text": "You can now draft second copies of rooms you already have in your house."
+   }
+  },
+  {
+   "id": "the_pool",
+   "name": "The Pool",
+   "category": "blueprint",
+   "rarity": "standard",
+   "gem_cost": 1,
+   "layout": "t",
+   "alt_layouts": [],
+   "draft_conditions": [],
+   "flags": {
+    "no_library_draft": false,
+    "powered": false,
+    "duct": false
+   },
+   "deck_copies": 1,
+   "effects": [
+    {
+     "tag": "counts_as_drafting_room"
+    },
+    {
+     "tag": "inject_pool",
+     "rooms": [
+      "locker_room",
+      "sauna",
+      "pump_room"
+     ]
+    }
+   ],
+   "items": {
+    "guaranteed": [],
+    "additional_max": 1,
+    "dig_spots": 0
+   },
+   "pool": "base",
+   "meta": {
+    "source": "tfmurphy_sheet_v1.3",
+    "confidence": "datamined",
+    "directory_number": "29",
+    "internal_index": 152,
+    "effect_text": "Adds LOCKER ROOM, SAUNA and PUMP ROOM to today's Draft Pool."
+   }
+  },
+  {
+   "id": "drafting_studio",
+   "name": "Drafting Studio",
+   "category": "blueprint",
+   "rarity": "unusual",
+   "gem_cost": 2,
+   "layout": "straight",
+   "alt_layouts": [],
+   "draft_conditions": [],
+   "flags": {
+    "no_library_draft": false,
+    "powered": false,
+    "duct": false
+   },
+   "deck_copies": 1,
+   "effects": [
+    {
+     "tag": "counts_as_drafting_room"
+    }
+   ],
+   "items": {
+    "guaranteed": [],
+    "additional_max": 1,
+    "dig_spots": 0
+   },
+   "pool": "base",
+   "meta": {
+    "source": "tfmurphy_sheet_v1.3",
+    "confidence": "datamined",
+    "directory_number": "30",
+    "internal_index": 56,
+    "effect_text": "Select a new floorplan to permanently add to your estate's draft pool."
+   }
+  },
+  {
+   "id": "utility_closet",
+   "name": "Utility Closet",
+   "category": "blueprint",
+   "rarity": "standard",
+   "gem_cost": 0,
+   "layout": "dead_end",
+   "alt_layouts": [],
+   "draft_conditions": [],
+   "flags": {
+    "no_library_draft": false,
+    "powered": false,
+    "duct": false
+   },
+   "deck_copies": 1,
+   "effects": [],
+   "items": {
+    "guaranteed": [],
+    "additional_max": 1,
+    "dig_spots": 0
+   },
+   "pool": "base",
+   "meta": {
+    "source": "tfmurphy_sheet_v1.3",
+    "confidence": "datamined",
+    "directory_number": "31",
+    "internal_index": 160,
+    "effect_text": "Breaker Box"
+   }
+  },
+  {
+   "id": "boiler_room",
+   "name": "Boiler Room",
+   "category": "blueprint",
+   "rarity": "unusual",
+   "gem_cost": 1,
+   "layout": "t",
+   "alt_layouts": [],
+   "draft_conditions": [],
+   "flags": {
+    "no_library_draft": false,
+    "powered": true,
+    "duct": false
+   },
+   "deck_copies": 1,
+   "effects": [],
+   "items": {
+    "guaranteed": [],
+    "additional_max": 1,
+    "dig_spots": 0
+   },
+   "pool": "base",
+   "meta": {
+    "source": "tfmurphy_sheet_v1.3",
+    "confidence": "datamined",
+    "directory_number": "32",
+    "internal_index": 13,
+    "effect_text": "Power Source"
+   }
+  },
+  {
+   "id": "pump_room",
+   "name": "Pump Room",
+   "category": "blueprint",
+   "rarity": "standard",
+   "gem_cost": 0,
+   "layout": "corner",
+   "alt_layouts": [],
+   "draft_conditions": [
+    "pool_drafted"
+   ],
+   "flags": {
+    "no_library_draft": false,
+    "powered": true,
+    "duct": false
+   },
+   "deck_copies": 1,
+   "effects": [],
+   "items": {
+    "guaranteed": [],
+    "additional_max": 1,
+    "dig_spots": 0
+   },
+   "pool": "pool_temp",
+   "meta": {
+    "source": "tfmurphy_sheet_v1.3",
+    "confidence": "datamined",
+    "directory_number": "33",
+    "internal_index": 114,
+    "effect_text": "Control water flow throughout the Estate"
+   }
+  },
+  {
+   "id": "security",
+   "name": "Security",
+   "category": "blueprint",
+   "rarity": "commonplace",
+   "gem_cost": 1,
+   "layout": "t",
+   "alt_layouts": [],
+   "draft_conditions": [],
+   "flags": {
+    "no_library_draft": false,
+    "powered": true,
+    "duct": true
+   },
+   "deck_copies": 1,
+   "effects": [],
+   "items": {
+    "guaranteed": [],
+    "additional_max": 1,
+    "dig_spots": 0
+   },
+   "pool": "base",
+   "meta": {
+    "source": "tfmurphy_sheet_v1.3",
+    "confidence": "datamined",
+    "directory_number": "34",
+    "internal_index": 124,
+    "effect_text": "View inventory of all items currently in the house."
+   }
+  },
+  {
+   "id": "workshop",
+   "name": "Workshop",
+   "category": "blueprint",
+   "rarity": "unusual",
+   "gem_cost": 0,
+   "layout": "straight",
+   "alt_layouts": [],
+   "draft_conditions": [],
+   "flags": {
+    "no_library_draft": false,
+    "powered": false,
+    "duct": false
+   },
+   "deck_copies": 1,
+   "effects": [],
+   "items": {
+    "guaranteed": [],
+    "additional_max": 1,
+    "dig_spots": 0
+   },
+   "pool": "base",
+   "meta": {
+    "source": "tfmurphy_sheet_v1.3",
+    "confidence": "datamined",
+    "directory_number": "35",
+    "internal_index": 168,
+    "effect_text": "Combine inventory to create new items"
+   }
+  },
+  {
+   "id": "laboratory",
+   "name": "Laboratory",
+   "category": "blueprint",
+   "rarity": "standard",
+   "gem_cost": 1,
+   "layout": "corner",
+   "alt_layouts": [],
+   "draft_conditions": [],
+   "flags": {
+    "no_library_draft": false,
+    "powered": true,
+    "duct": false
+   },
+   "deck_copies": 1,
+   "effects": [],
+   "items": {
+    "guaranteed": [],
+    "additional_max": 1,
+    "dig_spots": 0
+   },
+   "pool": "base",
+   "meta": {
+    "source": "tfmurphy_sheet_v1.3",
+    "confidence": "datamined",
+    "directory_number": "36",
+    "internal_index": 80,
+    "effect_text": "Experimental House Features"
+   }
+  },
+  {
+   "id": "sauna",
+   "name": "Sauna",
+   "category": "blueprint",
+   "rarity": "standard",
+   "gem_cost": 0,
+   "layout": "dead_end",
+   "alt_layouts": [],
+   "draft_conditions": [
+    "pool_drafted"
+   ],
+   "flags": {
+    "no_library_draft": false,
+    "powered": false,
+    "duct": false
+   },
+   "deck_copies": 1,
+   "effects": [],
+   "items": {
+    "guaranteed": [],
+    "additional_max": 1,
+    "dig_spots": 0
+   },
+   "pool": "pool_temp",
+   "meta": {
+    "source": "tfmurphy_sheet_v1.3",
+    "confidence": "datamined",
+    "directory_number": "37",
+    "internal_index": 120,
+    "effect_text": "Tomorrow, you will start the day with 20 extra\u00f0\u00a3."
+   }
+  },
+  {
+   "id": "coat_check",
+   "name": "Coat Check",
+   "category": "blueprint",
+   "rarity": "standard",
+   "gem_cost": 0,
+   "layout": "dead_end",
+   "alt_layouts": [],
+   "draft_conditions": [],
+   "flags": {
+    "no_library_draft": false,
+    "powered": false,
+    "duct": false
+   },
+   "deck_copies": 1,
+   "effects": [],
+   "items": {
+    "guaranteed": [],
+    "additional_max": 1,
+    "dig_spots": 0
+   },
+   "pool": "base",
+   "meta": {
+    "source": "tfmurphy_sheet_v1.3",
+    "confidence": "datamined",
+    "directory_number": "38",
+    "internal_index": 42,
+    "effect_text": "Check one item and retrieve it on another day."
+   }
+  },
+  {
+   "id": "mail_room",
+   "name": "Mail Room",
+   "category": "blueprint",
+   "rarity": "unusual",
+   "gem_cost": 0,
+   "layout": "dead_end",
+   "alt_layouts": [],
+   "draft_conditions": [],
+   "flags": {
+    "no_library_draft": false,
+    "powered": false,
+    "duct": false
+   },
+   "deck_copies": 1,
+   "effects": [],
+   "items": {
+    "guaranteed": [],
+    "additional_max": 1,
+    "dig_spots": 0
+   },
+   "pool": "base",
+   "meta": {
+    "source": "tfmurphy_sheet_v1.3",
+    "confidence": "datamined",
+    "directory_number": "39",
+    "internal_index": 88,
+    "effect_text": "A package will be delivered here the day after drafting this room."
+   }
+  },
+  {
+   "id": "mail_room__ix89",
+   "name": "Mail Room",
+   "category": "blueprint",
+   "rarity": "unusual",
+   "gem_cost": 0,
+   "layout": "dead_end",
+   "alt_layouts": [],
+   "draft_conditions": [],
+   "flags": {
+    "no_library_draft": false,
+    "powered": false,
+    "duct": false
+   },
+   "deck_copies": 1,
+   "effects": [],
+   "items": {
+    "guaranteed": [],
+    "additional_max": 1,
+    "dig_spots": 0
+   },
+   "pool": "upgrade_variant",
+   "meta": {
+    "source": "tfmurphy_sheet_v1.3",
+    "confidence": "datamined",
+    "directory_number": "39",
+    "internal_index": 89,
+    "effect_text": "Same Day Delivery. The package will be delivered here after you reach rank 8.",
+    "unlock": "Upgrade Mail Room"
+   },
+   "variant_of": "mail_room"
+  },
+  {
+   "id": "mail_room__ix90",
+   "name": "Mail Room",
+   "category": "blueprint",
+   "rarity": "unusual",
+   "gem_cost": 0,
+   "layout": "dead_end",
+   "alt_layouts": [],
+   "draft_conditions": [],
+   "flags": {
+    "no_library_draft": false,
+    "powered": false,
+    "duct": false
+   },
+   "deck_copies": 1,
+   "effects": [],
+   "items": {
+    "guaranteed": [],
+    "additional_max": 1,
+    "dig_spots": 0
+   },
+   "pool": "upgrade_variant",
+   "meta": {
+    "source": "tfmurphy_sheet_v1.3",
+    "confidence": "datamined",
+    "directory_number": "39",
+    "internal_index": 90,
+    "effect_text": "No Contact Delivery. The package will be dropped off on the entrance steps the day after drafting this room.",
+    "unlock": "Upgrade Mail Room"
+   },
+   "variant_of": "mail_room"
+  },
+  {
+   "id": "mail_room__ix91",
+   "name": "Mail Room",
+   "category": "blueprint",
+   "rarity": "unusual",
+   "gem_cost": 0,
+   "layout": "dead_end",
+   "alt_layouts": [],
+   "draft_conditions": [],
+   "flags": {
+    "no_library_draft": false,
+    "powered": false,
+    "duct": false
+   },
+   "deck_copies": 1,
+   "effects": [],
+   "items": {
+    "guaranteed": [],
+    "additional_max": 1,
+    "dig_spots": 0
+   },
+   "pool": "upgrade_variant",
+   "meta": {
+    "source": "tfmurphy_sheet_v1.3",
+    "confidence": "datamined",
+    "directory_number": "39",
+    "internal_index": 91,
+    "effect_text": "Freight Shipping. A very large package will be delivered here 3 days after drafting this room.",
+    "unlock": "Upgrade Mail Room"
+   },
+   "variant_of": "mail_room"
+  },
+  {
+   "id": "freezer",
+   "name": "Freezer",
+   "category": "blueprint",
+   "rarity": "unusual",
+   "gem_cost": 0,
+   "layout": "dead_end",
+   "alt_layouts": [],
+   "draft_conditions": [],
+   "flags": {
+    "no_library_draft": false,
+    "powered": false,
+    "duct": false
+   },
+   "deck_copies": 1,
+   "effects": [],
+   "items": {
+    "guaranteed": [],
+    "additional_max": 1,
+    "dig_spots": 0
+   },
+   "pool": "base",
+   "meta": {
+    "source": "tfmurphy_sheet_v1.3",
+    "confidence": "datamined",
+    "directory_number": "40",
+    "internal_index": 62,
+    "effect_text": "Freezes your accounts.  (\u00f0\u00b0 and \u00f0 amounts will not reset at the end of the day and they cannot be adjusted or used until tomorrow.)",
+    "glyph_resolution": [
+     {
+      "icon": "gem",
+      "confidence": "datamined"
+     }
+    ]
+   }
+  },
+  {
+   "id": "dining_room",
+   "name": "Dining Room",
+   "category": "blueprint",
+   "rarity": "standard",
+   "gem_cost": 0,
+   "layout": "t",
+   "alt_layouts": [],
+   "draft_conditions": [],
+   "flags": {
+    "no_library_draft": false,
+    "powered": false,
+    "duct": false
+   },
+   "deck_copies": 1,
+   "effects": [],
+   "items": {
+    "guaranteed": [],
+    "additional_max": 1,
+    "dig_spots": 0
+   },
+   "pool": "base",
+   "meta": {
+    "source": "tfmurphy_sheet_v1.3",
+    "confidence": "datamined",
+    "directory_number": "41",
+    "internal_index": 53,
+    "effect_text": "Each day, a meal is served in the DINING ROOM after Rank 8 has been reached."
+   }
+  },
+  {
+   "id": "observatory",
+   "name": "Observatory",
+   "category": "blueprint",
+   "rarity": "standard",
+   "gem_cost": 1,
+   "layout": "corner",
+   "alt_layouts": [],
+   "draft_conditions": [],
+   "flags": {
+    "no_library_draft": false,
+    "powered": false,
+    "duct": false
+   },
+   "deck_copies": 1,
+   "effects": [],
+   "items": {
+    "guaranteed": [],
+    "additional_max": 1,
+    "dig_spots": 0
+   },
+   "pool": "base",
+   "meta": {
+    "source": "tfmurphy_sheet_v1.3",
+    "confidence": "datamined",
+    "directory_number": "42",
+    "internal_index": 104,
+    "effect_text": "+1\u2728 for each time you've drafted OBSERVATORY."
+   }
+  },
+  {
+   "id": "conference_room",
+   "name": "Conference Room",
+   "category": "blueprint",
+   "rarity": "unusual",
+   "gem_cost": 0,
+   "layout": "t",
+   "alt_layouts": [],
+   "draft_conditions": [],
+   "flags": {
+    "no_library_draft": false,
+    "powered": false,
+    "duct": false
+   },
+   "deck_copies": 1,
+   "effects": [],
+   "items": {
+    "guaranteed": [],
+    "additional_max": 1,
+    "dig_spots": 0
+   },
+   "pool": "base",
+   "meta": {
+    "source": "tfmurphy_sheet_v1.3",
+    "confidence": "datamined",
+    "directory_number": "43",
+    "internal_index": 44,
+    "effect_text": "Whenever items would be spread throughout the house, they are placed in this room instead."
+   }
+  },
+  {
+   "id": "aquarium",
+   "name": "Aquarium",
+   "category": "blueprint",
+   "rarity": "unusual",
+   "gem_cost": 1,
+   "layout": "t",
+   "alt_layouts": [],
+   "draft_conditions": [],
+   "flags": {
+    "no_library_draft": false,
+    "powered": false,
+    "duct": false
+   },
+   "deck_copies": 1,
+   "effects": [],
+   "items": {
+    "guaranteed": [],
+    "additional_max": 1,
+    "dig_spots": 0
+   },
+   "pool": "base",
+   "meta": {
+    "source": "tfmurphy_sheet_v1.3",
+    "confidence": "datamined",
+    "directory_number": "44",
+    "internal_index": 1,
+    "effect_text": "AQUARIUM is every color of room."
+   }
+  },
+  {
+   "id": "goldfish_aquarium__ix2",
+   "name": "Goldfish Aquarium",
+   "category": "blueprint",
+   "rarity": "unusual",
+   "gem_cost": 1,
+   "layout": "t",
+   "alt_layouts": [],
+   "draft_conditions": [],
+   "flags": {
+    "no_library_draft": false,
+    "powered": false,
+    "duct": false
+   },
+   "deck_copies": 1,
+   "effects": [],
+   "items": {
+    "guaranteed": [],
+    "additional_max": 1,
+    "dig_spots": 0
+   },
+   "pool": "upgrade_variant",
+   "meta": {
+    "source": "tfmurphy_sheet_v1.3",
+    "confidence": "datamined",
+    "directory_number": "44",
+    "internal_index": 2,
+    "effect_text": "AQUARIUM is every color of room.  +10\u00f0\u00b0",
+    "unlock": "Upgrade Aquarium"
+   },
+   "variant_of": "aquarium"
+  },
+  {
+   "id": "starfish_aquarium__ix3",
+   "name": "Starfish Aquarium",
+   "category": "blueprint",
+   "rarity": "unusual",
+   "gem_cost": 1,
+   "layout": "t",
+   "alt_layouts": [],
+   "draft_conditions": [],
+   "flags": {
+    "no_library_draft": false,
+    "powered": false,
+    "duct": false
+   },
+   "deck_copies": 1,
+   "effects": [],
+   "items": {
+    "guaranteed": [],
+    "additional_max": 1,
+    "dig_spots": 0
+   },
+   "pool": "upgrade_variant",
+   "meta": {
+    "source": "tfmurphy_sheet_v1.3",
+    "confidence": "datamined",
+    "directory_number": "44",
+    "internal_index": 3,
+    "effect_text": "AQUARIUM is every color of room.  +1\u2728",
+    "unlock": "Upgrade Aquarium"
+   },
+   "variant_of": "aquarium"
+  },
+  {
+   "id": "electric_eel_aquarium__ix4",
+   "name": "Electric Eel Aquarium",
+   "category": "blueprint",
+   "rarity": "unusual",
+   "gem_cost": 1,
+   "layout": "t",
+   "alt_layouts": [],
+   "draft_conditions": [],
+   "flags": {
+    "no_library_draft": false,
+    "powered": true,
+    "duct": false
+   },
+   "deck_copies": 1,
+   "effects": [],
+   "items": {
+    "guaranteed": [],
+    "additional_max": 1,
+    "dig_spots": 0
+   },
+   "pool": "upgrade_variant",
+   "meta": {
+    "source": "tfmurphy_sheet_v1.3",
+    "confidence": "datamined",
+    "directory_number": "44",
+    "internal_index": 4,
+    "effect_text": "AQUARIUM is every color of room.  Power Source",
+    "unlock": "Upgrade Aquarium"
+   },
+   "variant_of": "aquarium"
+  },
+  {
+   "id": "antechamber",
+   "name": "Antechamber",
+   "category": "objective",
+   "rarity": null,
+   "gem_cost": 0,
+   "layout": "dead_end",
+   "alt_layouts": [],
+   "draft_conditions": [],
+   "flags": {
+    "no_library_draft": false,
+    "powered": false,
+    "duct": false
+   },
+   "deck_copies": 1,
+   "effects": [],
+   "items": {
+    "guaranteed": [],
+    "additional_max": 0,
+    "dig_spots": 0
+   },
+   "pool": "none",
+   "meta": {
+    "source": "tfmurphy_sheet_v1.3",
+    "confidence": "datamined",
+    "directory_number": "45",
+    "internal_index": 0,
+    "effect_text": ""
+   }
+  },
+  {
+   "id": "room_46",
+   "name": "Room 46",
+   "category": "objective",
+   "rarity": null,
+   "gem_cost": 0,
+   "layout": "dead_end",
+   "alt_layouts": [],
+   "draft_conditions": [
+    "antechamber_north_door"
+   ],
+   "flags": {
+    "no_library_draft": false,
+    "powered": false,
+    "duct": false
+   },
+   "deck_copies": 1,
+   "effects": [],
+   "items": {
+    "guaranteed": [],
+    "additional_max": 0,
+    "dig_spots": 0
+   },
+   "pool": "none",
+   "meta": {
+    "source": "tfmurphy_sheet_v1.3",
+    "confidence": "datamined",
+    "directory_number": "46",
+    "internal_index": 116,
+    "effect_text": ""
+   }
+  },
+  {
+   "id": "bedroom",
+   "name": "Bedroom",
+   "category": "bedroom",
+   "rarity": "commonplace",
+   "gem_cost": 0,
+   "layout": "corner",
+   "alt_layouts": [],
+   "draft_conditions": [],
+   "flags": {
+    "no_library_draft": true,
+    "powered": false,
+    "duct": false
+   },
+   "deck_copies": 1,
+   "effects": [
+    {
+     "tag": "grant",
+     "resource": "steps",
+     "amount": 2
+    }
+   ],
+   "items": {
+    "guaranteed": [],
+    "additional_max": 1,
+    "dig_spots": 0
+   },
+   "pool": "base",
+   "meta": {
+    "source": "tfmurphy_sheet_v1.3",
+    "confidence": "datamined",
+    "directory_number": "47",
+    "internal_index": 8,
+    "effect_text": "Whenever you enter this room, gain 2\u00f0\u00a3"
+   }
+  },
+  {
+   "id": "boudoir",
+   "name": "Boudoir",
+   "category": "bedroom",
+   "rarity": "standard",
+   "gem_cost": 0,
+   "layout": "corner",
+   "alt_layouts": [],
+   "draft_conditions": [],
+   "flags": {
+    "no_library_draft": true,
+    "powered": false,
+    "duct": false
+   },
+   "deck_copies": 1,
+   "effects": [],
+   "items": {
+    "guaranteed": [],
+    "additional_max": 1,
+    "dig_spots": 0
+   },
+   "pool": "base",
+   "meta": {
+    "source": "tfmurphy_sheet_v1.3",
+    "confidence": "datamined",
+    "directory_number": "48",
+    "internal_index": 15,
+    "effect_text": "",
+    "glyph_resolution": [
+     {
+      "icon": "gem",
+      "confidence": "datamined"
+     }
+    ]
+   }
+  },
+  {
+   "id": "boudoir__ix16",
+   "name": "Boudoir",
+   "category": "bedroom",
+   "rarity": "standard",
+   "gem_cost": 0,
+   "layout": "corner",
+   "alt_layouts": [],
+   "draft_conditions": [],
+   "flags": {
+    "no_library_draft": true,
+    "powered": false,
+    "duct": false
+   },
+   "deck_copies": 1,
+   "effects": [],
+   "items": {
+    "guaranteed": [],
+    "additional_max": 1,
+    "dig_spots": 0
+   },
+   "pool": "upgrade_variant",
+   "meta": {
+    "source": "tfmurphy_sheet_v1.3",
+    "confidence": "datamined",
+    "directory_number": "48",
+    "internal_index": 16,
+    "effect_text": "+1\u00f0",
+    "unlock": "Upgrade Boudoir",
+    "glyph_resolution": [
+     {
+      "icon": "gem",
+      "confidence": "datamined"
+     }
+    ]
+   },
+   "variant_of": "boudoir"
+  },
+  {
+   "id": "boudoir__ix17",
+   "name": "Boudoir",
+   "category": "bedroom",
+   "rarity": "standard",
+   "gem_cost": 0,
+   "layout": "corner",
+   "alt_layouts": [],
+   "draft_conditions": [],
+   "flags": {
+    "no_library_draft": true,
+    "powered": false,
+    "duct": false
+   },
+   "deck_copies": 1,
+   "effects": [],
+   "items": {
+    "guaranteed": [],
+    "additional_max": 1,
+    "dig_spots": 0
+   },
+   "pool": "upgrade_variant",
+   "meta": {
+    "source": "tfmurphy_sheet_v1.3",
+    "confidence": "datamined",
+    "directory_number": "48",
+    "internal_index": 17,
+    "effect_text": "+2\u00f0\u00b2",
+    "unlock": "Upgrade Boudoir",
+    "glyph_resolution": [
+     {
+      "icon": "gem",
+      "confidence": "datamined"
+     }
+    ]
+   },
+   "variant_of": "boudoir"
+  },
+  {
+   "id": "boudoir__ix18",
+   "name": "Boudoir",
+   "category": "bedroom",
+   "rarity": "standard",
+   "gem_cost": 0,
+   "layout": "corner",
+   "alt_layouts": [],
+   "draft_conditions": [],
+   "flags": {
+    "no_library_draft": true,
+    "powered": false,
+    "duct": false
+   },
+   "deck_copies": 1,
+   "effects": [],
+   "items": {
+    "guaranteed": [],
+    "additional_max": 1,
+    "dig_spots": 0
+   },
+   "pool": "upgrade_variant",
+   "meta": {
+    "source": "tfmurphy_sheet_v1.3",
+    "confidence": "datamined",
+    "directory_number": "48",
+    "internal_index": 18,
+    "effect_text": "+3\u00f0",
+    "unlock": "Upgrade Boudoir",
+    "glyph_resolution": [
+     {
+      "icon": "gem",
+      "confidence": "datamined"
+     }
+    ]
+   },
+   "variant_of": "boudoir"
+  },
+  {
+   "id": "guest_bedroom",
+   "name": "Guest Bedroom",
+   "category": "bedroom",
+   "rarity": "commonplace",
+   "gem_cost": 0,
+   "layout": "dead_end",
+   "alt_layouts": [],
+   "draft_conditions": [],
+   "flags": {
+    "no_library_draft": true,
+    "powered": false,
+    "duct": false
+   },
+   "deck_copies": 1,
+   "effects": [
+    {
+     "tag": "grant",
+     "resource": "steps",
+     "amount": 10
+    }
+   ],
+   "items": {
+    "guaranteed": [],
+    "additional_max": 1,
+    "dig_spots": 0
+   },
+   "pool": "base",
+   "meta": {
+    "source": "tfmurphy_sheet_v1.3",
+    "confidence": "datamined",
+    "directory_number": "49",
+    "internal_index": 68,
+    "effect_text": "+10\u00f0\u00a3"
+   }
+  },
+  {
+   "id": "geist_bedroom__ix69",
+   "name": "Geist Bedroom",
+   "category": "bedroom",
+   "rarity": "commonplace",
+   "gem_cost": 0,
+   "layout": "dead_end",
+   "alt_layouts": [],
+   "draft_conditions": [],
+   "flags": {
+    "no_library_draft": true,
+    "powered": false,
+    "duct": false
+   },
+   "deck_copies": 1,
+   "effects": [],
+   "items": {
+    "guaranteed": [],
+    "additional_max": 1,
+    "dig_spots": 0
+   },
+   "pool": "upgrade_variant",
+   "meta": {
+    "source": "tfmurphy_sheet_v1.3",
+    "confidence": "datamined",
+    "directory_number": "49",
+    "internal_index": 69,
+    "effect_text": "+2\u00f0\u00b2  If you have TOMB on the estate today, gain an additional 4\u00f0\u00b2.",
+    "unlock": "Upgrade Guest Bedroom"
+   },
+   "variant_of": "guest_bedroom"
+  },
+  {
+   "id": "guess_bedroom__ix70",
+   "name": "Guess Bedroom",
+   "category": "bedroom",
+   "rarity": "commonplace",
+   "gem_cost": 0,
+   "layout": "dead_end",
+   "alt_layouts": [],
+   "draft_conditions": [],
+   "flags": {
+    "no_library_draft": true,
+    "powered": false,
+    "duct": false
+   },
+   "deck_copies": 1,
+   "effects": [],
+   "items": {
+    "guaranteed": [],
+    "additional_max": 1,
+    "dig_spots": 0
+   },
+   "pool": "upgrade_variant",
+   "meta": {
+    "source": "tfmurphy_sheet_v1.3",
+    "confidence": "datamined",
+    "directory_number": "49",
+    "internal_index": 70,
+    "effect_text": "Hidden effect of a random BEDROOM in your draft pool?",
+    "unlock": "Upgrade Guest Bedroom"
+   },
+   "variant_of": "guest_bedroom"
+  },
+  {
+   "id": "quest_bedroom__ix71",
+   "name": "Quest Bedroom",
+   "category": "objective",
+   "rarity": "commonplace",
+   "gem_cost": 0,
+   "layout": "dead_end",
+   "alt_layouts": [],
+   "draft_conditions": [],
+   "flags": {
+    "no_library_draft": true,
+    "powered": false,
+    "duct": false
+   },
+   "deck_copies": 1,
+   "effects": [],
+   "items": {
+    "guaranteed": [],
+    "additional_max": 0,
+    "dig_spots": 0
+   },
+   "pool": "upgrade_variant",
+   "meta": {
+    "source": "tfmurphy_sheet_v1.3",
+    "confidence": "datamined",
+    "directory_number": "49",
+    "internal_index": 71,
+    "effect_text": "+10\u00f0\u00a3  If you enter ANTECHAMBER today, add 2\u00f0\u00b0 to your allowance.",
+    "unlock": "Upgrade Guest Bedroom"
+   },
+   "variant_of": "guest_bedroom"
+  },
+  {
+   "id": "nursery",
+   "name": "Nursery",
+   "category": "bedroom",
+   "rarity": "commonplace",
+   "gem_cost": 1,
+   "layout": "dead_end",
+   "alt_layouts": [],
+   "draft_conditions": [],
+   "flags": {
+    "no_library_draft": true,
+    "powered": false,
+    "duct": false
+   },
+   "deck_copies": 1,
+   "effects": [
+    {
+     "tag": "grant_on_draft_category",
+     "resource": "steps",
+     "amount": 5,
+     "category": "bedroom"
+    }
+   ],
+   "items": {
+    "guaranteed": [],
+    "additional_max": 1,
+    "dig_spots": 0
+   },
+   "pool": "base",
+   "meta": {
+    "source": "tfmurphy_sheet_v1.3",
+    "confidence": "datamined",
+    "directory_number": "50",
+    "internal_index": 100,
+    "effect_text": "Whenever you draft a Bedroom, gain 5\u00f0\u00a3"
+   }
+  },
+  {
+   "id": "nursery__ix101",
+   "name": "Nursery",
+   "category": "bedroom",
+   "rarity": "commonplace",
+   "gem_cost": 1,
+   "layout": "dead_end",
+   "alt_layouts": [],
+   "draft_conditions": [],
+   "flags": {
+    "no_library_draft": true,
+    "powered": false,
+    "duct": false
+   },
+   "deck_copies": 1,
+   "effects": [
+    {
+     "tag": "grant_on_draft_category",
+     "resource": "steps",
+     "amount": 5,
+     "category": "bedroom"
+    }
+   ],
+   "items": {
+    "guaranteed": [],
+    "additional_max": 1,
+    "dig_spots": 0
+   },
+   "pool": "upgrade_variant",
+   "meta": {
+    "source": "tfmurphy_sheet_v1.3",
+    "confidence": "datamined",
+    "directory_number": "50",
+    "internal_index": 101,
+    "effect_text": "Whenever you draft a Bedroom, gain 8\u00f0\u00a3",
+    "unlock": "Upgrade Nursery"
+   },
+   "variant_of": "nursery"
+  },
+  {
+   "id": "nurses_station__ix102",
+   "name": "Nurse's Station",
+   "category": "bedroom",
+   "rarity": "commonplace",
+   "gem_cost": 1,
+   "layout": "dead_end",
+   "alt_layouts": [],
+   "draft_conditions": [],
+   "flags": {
+    "no_library_draft": true,
+    "powered": false,
+    "duct": false
+   },
+   "deck_copies": 1,
+   "effects": [],
+   "items": {
+    "guaranteed": [],
+    "additional_max": 1,
+    "dig_spots": 0
+   },
+   "pool": "upgrade_variant",
+   "meta": {
+    "source": "tfmurphy_sheet_v1.3",
+    "confidence": "datamined",
+    "directory_number": "50",
+    "internal_index": 102,
+    "effect_text": "If you have less than 10\u00f0\u00a3 when you enter this room, set your \u00f0\u00a3 to 20.",
+    "unlock": "Upgrade Nursery"
+   },
+   "variant_of": "nursery"
+  },
+  {
+   "id": "indoor_nursery__ix103",
+   "name": "Indoor Nursery",
+   "category": "green",
+   "rarity": "commonplace",
+   "gem_cost": 1,
+   "layout": "dead_end",
+   "alt_layouts": [],
+   "draft_conditions": [],
+   "flags": {
+    "no_library_draft": true,
+    "powered": false,
+    "duct": false
+   },
+   "deck_copies": 1,
+   "effects": [],
+   "items": {
+    "guaranteed": [],
+    "additional_max": 1,
+    "dig_spots": 0
+   },
+   "pool": "upgrade_variant",
+   "meta": {
+    "source": "tfmurphy_sheet_v1.3",
+    "confidence": "datamined",
+    "directory_number": "50",
+    "internal_index": 103,
+    "effect_text": "Whenever you draft another GREEN ROOM, 2\u00f0 will sprout in this room.",
+    "unlock": "Upgrade Nursery",
+    "glyph_resolution": [
+     {
+      "icon": "gem",
+      "confidence": "datamined"
+     }
+    ]
+   },
+   "variant_of": "nursery"
+  },
+  {
+   "id": "servants_quarters",
+   "name": "Servant's Quarters",
+   "category": "bedroom",
+   "rarity": "unusual",
+   "gem_cost": 1,
+   "layout": "dead_end",
+   "alt_layouts": [],
+   "draft_conditions": [],
+   "flags": {
+    "no_library_draft": false,
+    "powered": false,
+    "duct": false
+   },
+   "deck_copies": 1,
+   "effects": [
+    {
+     "tag": "grant_per_category",
+     "resource": "keys",
+     "amount": 1,
+     "category": "bedroom"
+    }
+   ],
+   "items": {
+    "guaranteed": [],
+    "additional_max": 1,
+    "dig_spots": 0
+   },
+   "pool": "base",
+   "meta": {
+    "source": "tfmurphy_sheet_v1.3",
+    "confidence": "datamined",
+    "directory_number": "51",
+    "internal_index": 125,
+    "effect_text": "+1\u00f0 for each Bedroom in your house.",
+    "glyph_resolution": [
+     {
+      "icon": "key",
+      "confidence": "datamined"
+     }
+    ]
+   }
+  },
+  {
+   "id": "bunk_room",
+   "name": "Bunk Room",
+   "category": "bedroom",
+   "rarity": "standard",
+   "gem_cost": 0,
+   "layout": "dead_end",
+   "alt_layouts": [],
+   "draft_conditions": [],
+   "flags": {
+    "no_library_draft": false,
+    "powered": false,
+    "duct": false
+   },
+   "deck_copies": 1,
+   "effects": [
+    {
+     "tag": "counts_as_bedrooms",
+     "amount": 2
+    }
+   ],
+   "items": {
+    "guaranteed": [],
+    "additional_max": 1,
+    "dig_spots": 0
+   },
+   "pool": "base",
+   "meta": {
+    "source": "tfmurphy_sheet_v1.3",
+    "confidence": "datamined",
+    "directory_number": "52",
+    "internal_index": 19,
+    "effect_text": "This room counts as 2 BEDROOMS.",
+    "glyph_resolution": [
+     {
+      "icon": "key",
+      "confidence": "datamined"
+     },
+     {
+      "icon": "gem",
+      "confidence": "datamined"
+     }
+    ]
+   }
+  },
+  {
+   "id": "bunk_room__ix20",
+   "name": "Bunk Room",
+   "category": "bedroom",
+   "rarity": "standard",
+   "gem_cost": 0,
+   "layout": "dead_end",
+   "alt_layouts": [],
+   "draft_conditions": [],
+   "flags": {
+    "no_library_draft": false,
+    "powered": false,
+    "duct": false
+   },
+   "deck_copies": 1,
+   "effects": [
+    {
+     "tag": "counts_as_bedrooms",
+     "amount": 2
+    }
+   ],
+   "items": {
+    "guaranteed": [],
+    "additional_max": 1,
+    "dig_spots": 0
+   },
+   "pool": "upgrade_variant",
+   "meta": {
+    "source": "tfmurphy_sheet_v1.3",
+    "confidence": "datamined",
+    "directory_number": "52",
+    "internal_index": 20,
+    "effect_text": "This room counts as 2 BEDROOMS.  If you have exactly 2 HALLWAYS when drafting this room, DOUBLE your \u00f0",
+    "unlock": "Upgrade Bunk Room",
+    "glyph_resolution": [
+     {
+      "icon": "key",
+      "confidence": "datamined"
+     },
+     {
+      "icon": "gem",
+      "confidence": "datamined"
+     }
+    ]
+   },
+   "variant_of": "bunk_room"
+  },
+  {
+   "id": "bunk_room__ix21",
+   "name": "Bunk Room",
+   "category": "bedroom",
+   "rarity": "standard",
+   "gem_cost": 0,
+   "layout": "dead_end",
+   "alt_layouts": [],
+   "draft_conditions": [],
+   "flags": {
+    "no_library_draft": false,
+    "powered": false,
+    "duct": false
+   },
+   "deck_copies": 1,
+   "effects": [
+    {
+     "tag": "counts_as_bedrooms",
+     "amount": 2
+    }
+   ],
+   "items": {
+    "guaranteed": [],
+    "additional_max": 1,
+    "dig_spots": 0
+   },
+   "pool": "upgrade_variant",
+   "meta": {
+    "source": "tfmurphy_sheet_v1.3",
+    "confidence": "datamined",
+    "directory_number": "52",
+    "internal_index": 21,
+    "effect_text": "This room counts as 2 BEDROOMS.  If you have exactly 2 GREEN ROOMS when drafting this room, DOUBLE your \u00f0",
+    "unlock": "Upgrade Bunk Room",
+    "glyph_resolution": [
+     {
+      "icon": "key",
+      "confidence": "datamined"
+     },
+     {
+      "icon": "gem",
+      "confidence": "datamined"
+     }
+    ]
+   },
+   "variant_of": "bunk_room"
+  },
+  {
+   "id": "bunk_room__ix22",
+   "name": "Bunk Room",
+   "category": "bedroom",
+   "rarity": "standard",
+   "gem_cost": 0,
+   "layout": "dead_end",
+   "alt_layouts": [],
+   "draft_conditions": [],
+   "flags": {
+    "no_library_draft": false,
+    "powered": false,
+    "duct": false
+   },
+   "deck_copies": 1,
+   "effects": [
+    {
+     "tag": "counts_as_bedrooms",
+     "amount": 2
+    }
+   ],
+   "items": {
+    "guaranteed": [],
+    "additional_max": 1,
+    "dig_spots": 0
+   },
+   "pool": "upgrade_variant",
+   "meta": {
+    "source": "tfmurphy_sheet_v1.3",
+    "confidence": "datamined",
+    "directory_number": "52",
+    "internal_index": 22,
+    "effect_text": "This room counts as 2 BEDROOMS.  If you have exactly 2 SHOPS when drafting this room, DOUBLE your \u00f0\u00b0",
+    "unlock": "Upgrade Bunk Room",
+    "glyph_resolution": [
+     {
+      "icon": "key",
+      "confidence": "datamined"
+     },
+     {
+      "icon": "gem",
+      "confidence": "datamined"
+     }
+    ]
+   },
+   "variant_of": "bunk_room"
+  },
+  {
+   "id": "her_ladyships_chamber",
+   "name": "Her Ladyship's Chamber",
+   "category": "bedroom",
+   "rarity": "commonplace",
+   "gem_cost": 0,
+   "layout": "dead_end",
+   "alt_layouts": [],
+   "draft_conditions": [
+    "west_wing_from_south_door"
+   ],
+   "flags": {
+    "no_library_draft": false,
+    "powered": false,
+    "duct": false
+   },
+   "deck_copies": 1,
+   "effects": [],
+   "items": {
+    "guaranteed": [],
+    "additional_max": 1,
+    "dig_spots": 0
+   },
+   "pool": "base",
+   "meta": {
+    "source": "tfmurphy_sheet_v1.3",
+    "confidence": "datamined",
+    "directory_number": "53",
+    "internal_index": 77,
+    "effect_text": "The next time you enter BOUDOIR, gain 10\u00f0\u00a3  The next time you enter WALK-IN CLOSET, gain 3\u00f0",
+    "glyph_resolution": [
+     {
+      "icon": "gem",
+      "confidence": "datamined"
+     }
+    ]
+   }
+  },
+  {
+   "id": "master_bedroom",
+   "name": "Master Bedroom",
+   "category": "bedroom",
+   "rarity": "unusual",
+   "gem_cost": 2,
+   "layout": "dead_end",
+   "alt_layouts": [],
+   "draft_conditions": [
+    "east_wing"
+   ],
+   "flags": {
+    "no_library_draft": false,
+    "powered": false,
+    "duct": false
+   },
+   "deck_copies": 1,
+   "effects": [
+    {
+     "tag": "grant_per_category",
+     "resource": "steps",
+     "amount": 1,
+     "category": "any"
+    }
+   ],
+   "items": {
+    "guaranteed": [],
+    "additional_max": 1,
+    "dig_spots": 0
+   },
+   "pool": "base",
+   "meta": {
+    "source": "tfmurphy_sheet_v1.3",
+    "confidence": "datamined",
+    "directory_number": "54",
+    "internal_index": 92,
+    "effect_text": "+1\u00f0\u00a3 for each room in your house."
+   }
+  },
+  {
+   "id": "hallway",
+   "name": "Hallway",
+   "category": "hallway",
+   "rarity": "commonplace",
+   "gem_cost": 0,
+   "layout": "t",
+   "alt_layouts": [],
+   "draft_conditions": [],
+   "flags": {
+    "no_library_draft": true,
+    "powered": false,
+    "duct": false
+   },
+   "deck_copies": 1,
+   "effects": [],
+   "items": {
+    "guaranteed": [],
+    "additional_max": 1,
+    "dig_spots": 0
+   },
+   "pool": "base",
+   "meta": {
+    "source": "tfmurphy_sheet_v1.3",
+    "confidence": "datamined",
+    "directory_number": "55",
+    "internal_index": 73,
+    "effect_text": "",
+    "glyph_resolution": [
+     {
+      "icon": "key",
+      "confidence": "datamined"
+     }
+    ]
+   }
+  },
+  {
+   "id": "hallway__ix74",
+   "name": "Hallway",
+   "category": "hallway",
+   "rarity": "commonplace",
+   "gem_cost": 0,
+   "layout": "t",
+   "alt_layouts": [],
+   "draft_conditions": [],
+   "flags": {
+    "no_library_draft": true,
+    "powered": false,
+    "duct": false
+   },
+   "deck_copies": 1,
+   "effects": [],
+   "items": {
+    "guaranteed": [],
+    "additional_max": 1,
+    "dig_spots": 0
+   },
+   "pool": "upgrade_variant",
+   "meta": {
+    "source": "tfmurphy_sheet_v1.3",
+    "confidence": "datamined",
+    "directory_number": "55",
+    "internal_index": 74,
+    "effect_text": "+1\u00f0",
+    "unlock": "Upgrade Hallway",
+    "glyph_resolution": [
+     {
+      "icon": "key",
+      "confidence": "datamined"
+     }
+    ]
+   },
+   "variant_of": "hallway"
+  },
+  {
+   "id": "hallway__ix75",
+   "name": "Hallway",
+   "category": "hallway",
+   "rarity": "commonplace",
+   "gem_cost": 0,
+   "layout": "t",
+   "alt_layouts": [],
+   "draft_conditions": [],
+   "flags": {
+    "no_library_draft": true,
+    "powered": false,
+    "duct": false
+   },
+   "deck_copies": 1,
+   "effects": [],
+   "items": {
+    "guaranteed": [],
+    "additional_max": 1,
+    "dig_spots": 0
+   },
+   "pool": "upgrade_variant",
+   "meta": {
+    "source": "tfmurphy_sheet_v1.3",
+    "confidence": "datamined",
+    "directory_number": "55",
+    "internal_index": 75,
+    "effect_text": "+1 locked trunk",
+    "unlock": "Upgrade Hallway",
+    "glyph_resolution": [
+     {
+      "icon": "key",
+      "confidence": "datamined"
+     }
+    ]
+   },
+   "variant_of": "hallway"
+  },
+  {
+   "id": "hallway__ix76",
+   "name": "Hallway",
+   "category": "hallway",
+   "rarity": "commonplace",
+   "gem_cost": 0,
+   "layout": "t",
+   "alt_layouts": [],
+   "draft_conditions": [],
+   "flags": {
+    "no_library_draft": true,
+    "powered": false,
+    "duct": false
+   },
+   "deck_copies": 1,
+   "effects": [],
+   "items": {
+    "guaranteed": [],
+    "additional_max": 1,
+    "dig_spots": 0
+   },
+   "pool": "upgrade_variant",
+   "meta": {
+    "source": "tfmurphy_sheet_v1.3",
+    "confidence": "datamined",
+    "directory_number": "55",
+    "internal_index": 76,
+    "effect_text": "Add an extra HALLWAY to tomorrow's draft pool.",
+    "unlock": "Upgrade Hallway",
+    "glyph_resolution": [
+     {
+      "icon": "key",
+      "confidence": "datamined"
+     }
+    ]
+   },
+   "variant_of": "hallway"
+  },
+  {
+   "id": "west_wing_hall",
+   "name": "West Wing Hall",
+   "category": "hallway",
+   "rarity": "commonplace",
+   "gem_cost": 0,
+   "layout": "t",
+   "alt_layouts": [],
+   "draft_conditions": [],
+   "flags": {
+    "no_library_draft": false,
+    "powered": false,
+    "duct": false
+   },
+   "deck_copies": 1,
+   "effects": [],
+   "items": {
+    "guaranteed": [],
+    "additional_max": 1,
+    "dig_spots": 0
+   },
+   "pool": "base",
+   "meta": {
+    "source": "tfmurphy_sheet_v1.3",
+    "confidence": "datamined",
+    "directory_number": "56",
+    "internal_index": 166,
+    "effect_text": ""
+   }
+  },
+  {
+   "id": "east_wing_hall",
+   "name": "East Wing Hall",
+   "category": "hallway",
+   "rarity": "standard",
+   "gem_cost": 0,
+   "layout": "t",
+   "alt_layouts": [],
+   "draft_conditions": [],
+   "flags": {
+    "no_library_draft": false,
+    "powered": false,
+    "duct": false
+   },
+   "deck_copies": 1,
+   "effects": [],
+   "items": {
+    "guaranteed": [],
+    "additional_max": 1,
+    "dig_spots": 0
+   },
+   "pool": "base",
+   "meta": {
+    "source": "tfmurphy_sheet_v1.3",
+    "confidence": "datamined",
+    "directory_number": "57",
+    "internal_index": 58,
+    "effect_text": ""
+   }
+  },
+  {
+   "id": "corridor",
+   "name": "Corridor",
+   "category": "hallway",
+   "rarity": "commonplace",
+   "gem_cost": 0,
+   "layout": "straight",
+   "alt_layouts": [],
+   "draft_conditions": [],
+   "flags": {
+    "no_library_draft": true,
+    "powered": false,
+    "duct": false
+   },
+   "deck_copies": 1,
+   "effects": [],
+   "items": {
+    "guaranteed": [],
+    "additional_max": 1,
+    "dig_spots": 0
+   },
+   "pool": "base",
+   "meta": {
+    "source": "tfmurphy_sheet_v1.3",
+    "confidence": "datamined",
+    "directory_number": "58",
+    "internal_index": 46,
+    "effect_text": "CORRIDOR is always left unlocked."
+   }
+  },
+  {
+   "id": "passageway",
+   "name": "Passageway",
+   "category": "hallway",
+   "rarity": "commonplace",
+   "gem_cost": 2,
+   "layout": "cross",
+   "alt_layouts": [],
+   "draft_conditions": [],
+   "flags": {
+    "no_library_draft": false,
+    "powered": true,
+    "duct": true
+   },
+   "deck_copies": 1,
+   "effects": [],
+   "items": {
+    "guaranteed": [],
+    "additional_max": 1,
+    "dig_spots": 0
+   },
+   "pool": "base",
+   "meta": {
+    "source": "tfmurphy_sheet_v1.3",
+    "confidence": "datamined",
+    "directory_number": "59",
+    "internal_index": 111,
+    "effect_text": ""
+   }
+  },
+  {
+   "id": "secret_passage",
+   "name": "Secret Passage",
+   "category": "hallway",
+   "rarity": "unusual",
+   "gem_cost": 1,
+   "layout": "dead_end",
+   "alt_layouts": [
+    "straight"
+   ],
+   "draft_conditions": [],
+   "flags": {
+    "no_library_draft": false,
+    "powered": false,
+    "duct": false
+   },
+   "deck_copies": 1,
+   "effects": [],
+   "items": {
+    "guaranteed": [],
+    "additional_max": 1,
+    "dig_spots": 0
+   },
+   "pool": "base",
+   "meta": {
+    "source": "tfmurphy_sheet_v1.3",
+    "confidence": "datamined",
+    "directory_number": "60",
+    "internal_index": 123,
+    "effect_text": "Leads to a room of a color of your choice."
+   }
+  },
+  {
+   "id": "foyer",
+   "name": "Foyer",
+   "category": "hallway",
+   "rarity": "unusual",
+   "gem_cost": 2,
+   "layout": "straight",
+   "alt_layouts": [],
+   "draft_conditions": [],
+   "flags": {
+    "no_library_draft": false,
+    "powered": false,
+    "duct": false
+   },
+   "deck_copies": 1,
+   "effects": [],
+   "items": {
+    "guaranteed": [],
+    "additional_max": 1,
+    "dig_spots": 0
+   },
+   "pool": "base",
+   "meta": {
+    "source": "tfmurphy_sheet_v1.3",
+    "confidence": "datamined",
+    "directory_number": "61",
+    "internal_index": 60,
+    "effect_text": "Hallway Doors are always unlocked."
+   }
+  },
+  {
+   "id": "great_hall",
+   "name": "Great Hall",
+   "category": "hallway",
+   "rarity": "unusual",
+   "gem_cost": 0,
+   "layout": "cross",
+   "alt_layouts": [],
+   "draft_conditions": [],
+   "flags": {
+    "no_library_draft": false,
+    "powered": false,
+    "duct": false
+   },
+   "deck_copies": 1,
+   "effects": [],
+   "items": {
+    "guaranteed": [],
+    "additional_max": 1,
+    "dig_spots": 0
+   },
+   "pool": "base",
+   "meta": {
+    "source": "tfmurphy_sheet_v1.3",
+    "confidence": "datamined",
+    "directory_number": "62",
+    "internal_index": 66,
+    "effect_text": "7 Locked Doors"
+   }
+  },
+  {
+   "id": "terrace",
+   "name": "Terrace",
+   "category": "green",
+   "rarity": "rare",
+   "gem_cost": 0,
+   "layout": "dead_end",
+   "alt_layouts": [],
+   "draft_conditions": [
+    "west_or_east_wing"
+   ],
+   "flags": {
+    "no_library_draft": false,
+    "powered": false,
+    "duct": false
+   },
+   "deck_copies": 1,
+   "effects": [
+    {
+     "tag": "free_green_drafts"
+    }
+   ],
+   "items": {
+    "guaranteed": [],
+    "additional_max": 1,
+    "dig_spots": 0
+   },
+   "pool": "base",
+   "meta": {
+    "source": "tfmurphy_sheet_v1.3",
+    "confidence": "datamined",
+    "directory_number": "63",
+    "internal_index": 148,
+    "effect_text": "Green Rooms do not cost \u00f0 to draft.",
+    "glyph_resolution": [
+     {
+      "icon": "gem",
+      "confidence": "datamined"
+     }
+    ]
+   }
+  },
+  {
+   "id": "patio",
+   "name": "Patio",
+   "category": "green",
+   "rarity": "commonplace",
+   "gem_cost": 1,
+   "layout": "corner",
+   "alt_layouts": [],
+   "draft_conditions": [
+    "west_or_east_wing"
+   ],
+   "flags": {
+    "no_library_draft": false,
+    "powered": false,
+    "duct": false
+   },
+   "deck_copies": 1,
+   "effects": [],
+   "items": {
+    "guaranteed": [],
+    "additional_max": 1,
+    "dig_spots": 0
+   },
+   "pool": "base",
+   "meta": {
+    "source": "tfmurphy_sheet_v1.3",
+    "confidence": "datamined",
+    "directory_number": "64",
+    "internal_index": 112,
+    "effect_text": "Spread \u00f0 in each Green Room.",
+    "glyph_resolution": [
+     {
+      "icon": "gem",
+      "confidence": "datamined"
+     }
+    ]
+   }
+  },
+  {
+   "id": "courtyard",
+   "name": "Courtyard",
+   "category": "green",
+   "rarity": "commonplace",
+   "gem_cost": 1,
+   "layout": "t",
+   "alt_layouts": [],
+   "draft_conditions": [],
+   "flags": {
+    "no_library_draft": true,
+    "powered": false,
+    "duct": false
+   },
+   "deck_copies": 1,
+   "effects": [],
+   "items": {
+    "guaranteed": [],
+    "additional_max": 1,
+    "dig_spots": 0
+   },
+   "pool": "base",
+   "meta": {
+    "source": "tfmurphy_sheet_v1.3",
+    "confidence": "datamined",
+    "directory_number": "65",
+    "internal_index": 47,
+    "effect_text": "",
+    "glyph_resolution": [
+     {
+      "icon": "gem",
+      "confidence": "datamined"
+     }
+    ]
+   }
+  },
+  {
+   "id": "courtyard__ix48",
+   "name": "Courtyard",
+   "category": "green",
+   "rarity": "commonplace",
+   "gem_cost": 1,
+   "layout": "t",
+   "alt_layouts": [],
+   "draft_conditions": [],
+   "flags": {
+    "no_library_draft": true,
+    "powered": false,
+    "duct": false
+   },
+   "deck_copies": 1,
+   "effects": [],
+   "items": {
+    "guaranteed": [],
+    "additional_max": 1,
+    "dig_spots": 0
+   },
+   "pool": "upgrade_variant",
+   "meta": {
+    "source": "tfmurphy_sheet_v1.3",
+    "confidence": "datamined",
+    "directory_number": "65",
+    "internal_index": 48,
+    "effect_text": "+2\u00f0",
+    "unlock": "Upgrade Courtyard",
+    "glyph_resolution": [
+     {
+      "icon": "gem",
+      "confidence": "datamined"
+     }
+    ]
+   },
+   "variant_of": "courtyard"
+  },
+  {
+   "id": "courtyard__ix49",
+   "name": "Courtyard",
+   "category": "green",
+   "rarity": "commonplace",
+   "gem_cost": 1,
+   "layout": "t",
+   "alt_layouts": [],
+   "draft_conditions": [],
+   "flags": {
+    "no_library_draft": true,
+    "powered": false,
+    "duct": false
+   },
+   "deck_copies": 1,
+   "effects": [],
+   "items": {
+    "guaranteed": [],
+    "additional_max": 1,
+    "dig_spots": 0
+   },
+   "pool": "upgrade_variant",
+   "meta": {
+    "source": "tfmurphy_sheet_v1.3",
+    "confidence": "datamined",
+    "directory_number": "65",
+    "internal_index": 49,
+    "effect_text": "5 dig spots",
+    "unlock": "Upgrade Courtyard",
+    "glyph_resolution": [
+     {
+      "icon": "gem",
+      "confidence": "datamined"
+     }
+    ]
+   },
+   "variant_of": "courtyard"
+  },
+  {
+   "id": "corriyard__ix50",
+   "name": "Corriyard",
+   "category": "green",
+   "rarity": "commonplace",
+   "gem_cost": 1,
+   "layout": "t",
+   "alt_layouts": [],
+   "draft_conditions": [],
+   "flags": {
+    "no_library_draft": true,
+    "powered": false,
+    "duct": false
+   },
+   "deck_copies": 1,
+   "effects": [],
+   "items": {
+    "guaranteed": [],
+    "additional_max": 1,
+    "dig_spots": 0
+   },
+   "pool": "upgrade_variant",
+   "meta": {
+    "source": "tfmurphy_sheet_v1.3",
+    "confidence": "datamined",
+    "directory_number": "65",
+    "internal_index": 50,
+    "effect_text": "CORRIYARD is always left unlocked.",
+    "unlock": "Upgrade Courtyard"
+   },
+   "variant_of": "courtyard"
+  },
+  {
+   "id": "cloister",
+   "name": "Cloister",
+   "category": "green",
+   "rarity": "unusual",
+   "gem_cost": 3,
+   "layout": "cross",
+   "alt_layouts": [],
+   "draft_conditions": [],
+   "flags": {
+    "no_library_draft": false,
+    "powered": false,
+    "duct": false
+   },
+   "deck_copies": 1,
+   "effects": [],
+   "items": {
+    "guaranteed": [],
+    "additional_max": 1,
+    "dig_spots": 0
+   },
+   "pool": "base",
+   "meta": {
+    "source": "tfmurphy_sheet_v1.3",
+    "confidence": "datamined",
+    "directory_number": "66",
+    "internal_index": 28,
+    "effect_text": ""
+   }
+  },
+  {
+   "id": "cloister_of_rynna__ix29",
+   "name": "Cloister of Rynna",
+   "category": "green",
+   "rarity": "standard",
+   "gem_cost": 3,
+   "layout": "cross",
+   "alt_layouts": [],
+   "draft_conditions": [],
+   "flags": {
+    "no_library_draft": false,
+    "powered": false,
+    "duct": false
+   },
+   "deck_copies": 1,
+   "effects": [],
+   "items": {
+    "guaranteed": [],
+    "additional_max": 1,
+    "dig_spots": 0
+   },
+   "pool": "upgrade_variant",
+   "meta": {
+    "source": "tfmurphy_sheet_v1.3",
+    "confidence": "datamined",
+    "directory_number": "66",
+    "internal_index": 29,
+    "effect_text": "Raise your \u00f0LUCK with each GREEN ROOM you draft from this CLOISTER.",
+    "unlock": "Upgrade Cloister",
+    "glyph_resolution": [
+     {
+      "icon": "luck",
+      "confidence": "datamined"
+     }
+    ]
+   },
+   "variant_of": "cloister"
+  },
+  {
+   "id": "cloister_of_joya__ix30",
+   "name": "Cloister of Joya",
+   "category": "green",
+   "rarity": "standard",
+   "gem_cost": 3,
+   "layout": "cross",
+   "alt_layouts": [],
+   "draft_conditions": [],
+   "flags": {
+    "no_library_draft": false,
+    "powered": false,
+    "duct": false
+   },
+   "deck_copies": 1,
+   "effects": [],
+   "items": {
+    "guaranteed": [],
+    "additional_max": 1,
+    "dig_spots": 0
+   },
+   "pool": "upgrade_variant",
+   "meta": {
+    "source": "tfmurphy_sheet_v1.3",
+    "confidence": "datamined",
+    "directory_number": "66",
+    "internal_index": 30,
+    "effect_text": "Permanently add an extra 5\u00f0\u00a3 to the MAIN COURSE for each KITCHEN, PANTRY, or FURNACE you draft from this CLOISTER.",
+    "unlock": "Upgrade Cloister"
+   },
+   "variant_of": "cloister"
+  },
+  {
+   "id": "cloister_of_dauja__ix31",
+   "name": "Cloister of Dauja",
+   "category": "green",
+   "rarity": "standard",
+   "gem_cost": 3,
+   "layout": "cross",
+   "alt_layouts": [],
+   "draft_conditions": [],
+   "flags": {
+    "no_library_draft": false,
+    "powered": false,
+    "duct": false
+   },
+   "deck_copies": 1,
+   "effects": [],
+   "items": {
+    "guaranteed": [],
+    "additional_max": 1,
+    "dig_spots": 0
+   },
+   "pool": "upgrade_variant",
+   "meta": {
+    "source": "tfmurphy_sheet_v1.3",
+    "confidence": "datamined",
+    "directory_number": "66",
+    "internal_index": 31,
+    "effect_text": "Gain 2\u2728 for each room with an animal you draft from this CLOISTER.",
+    "unlock": "Upgrade Cloister"
+   },
+   "variant_of": "cloister"
+  },
+  {
+   "id": "cloister_of_veia__ix32",
+   "name": "Cloister of Veia",
+   "category": "green",
+   "rarity": "standard",
+   "gem_cost": 3,
+   "layout": "cross",
+   "alt_layouts": [],
+   "draft_conditions": [],
+   "flags": {
+    "no_library_draft": false,
+    "powered": false,
+    "duct": false
+   },
+   "deck_copies": 1,
+   "effects": [],
+   "items": {
+    "guaranteed": [],
+    "additional_max": 1,
+    "dig_spots": 0
+   },
+   "pool": "upgrade_variant",
+   "meta": {
+    "source": "tfmurphy_sheet_v1.3",
+    "confidence": "datamined",
+    "directory_number": "66",
+    "internal_index": 32,
+    "effect_text": "Find 8 dirt piles in each room with a fireplace you draft from this CLOISTER.",
+    "unlock": "Upgrade Cloister"
+   },
+   "variant_of": "cloister"
+  },
+  {
+   "id": "cloister_of_mila__ix33",
+   "name": "Cloister of Mila",
+   "category": "green",
+   "rarity": "standard",
+   "gem_cost": 3,
+   "layout": "cross",
+   "alt_layouts": [],
+   "draft_conditions": [],
+   "flags": {
+    "no_library_draft": false,
+    "powered": false,
+    "duct": false
+   },
+   "deck_copies": 1,
+   "effects": [],
+   "items": {
+    "guaranteed": [],
+    "additional_max": 1,
+    "dig_spots": 0
+   },
+   "pool": "upgrade_variant",
+   "meta": {
+    "source": "tfmurphy_sheet_v1.3",
+    "confidence": "datamined",
+    "directory_number": "66",
+    "internal_index": 33,
+    "effect_text": "Find an extra item in each BEDROOM you draft from this CLOISTER.",
+    "unlock": "Upgrade Cloister"
+   },
+   "variant_of": "cloister"
+  },
+  {
+   "id": "cloister_of_lydia__ix34",
+   "name": "Cloister of Lydia",
+   "category": "green",
+   "rarity": "standard",
+   "gem_cost": 3,
+   "layout": "cross",
+   "alt_layouts": [],
+   "draft_conditions": [],
+   "flags": {
+    "no_library_draft": false,
+    "powered": false,
+    "duct": false
+   },
+   "deck_copies": 1,
+   "effects": [],
+   "items": {
+    "guaranteed": [],
+    "additional_max": 1,
+    "dig_spots": 0
+   },
+   "pool": "upgrade_variant",
+   "meta": {
+    "source": "tfmurphy_sheet_v1.3",
+    "confidence": "datamined",
+    "directory_number": "66",
+    "internal_index": 34,
+    "effect_text": "Add 2\u00f0\u00b0 to your allowance for each SHOP you draft from this CLOISTER.",
+    "unlock": "Upgrade Cloister"
+   },
+   "variant_of": "cloister"
+  },
+  {
+   "id": "cloister_of_orinda__ix35",
+   "name": "Cloister of Orinda",
+   "category": "blackprint",
+   "rarity": "standard",
+   "gem_cost": 3,
+   "layout": "cross",
+   "alt_layouts": [],
+   "draft_conditions": [],
+   "flags": {
+    "no_library_draft": false,
+    "powered": false,
+    "duct": false
+   },
+   "deck_copies": 1,
+   "effects": [],
+   "items": {
+    "guaranteed": [],
+    "additional_max": 0,
+    "dig_spots": 0
+   },
+   "pool": "upgrade_variant",
+   "meta": {
+    "source": "tfmurphy_sheet_v1.3",
+    "confidence": "datamined",
+    "directory_number": "66",
+    "internal_index": 35,
+    "effect_text": "Open a random door of the ANTECHAMBER for each BLACKPRINT you draft from this CLOISTER.",
+    "unlock": "Upgrade Cloister"
+   },
+   "variant_of": "cloister"
+  },
+  {
+   "id": "cloister_of_draxus__ix36",
+   "name": "Cloister of Draxus",
+   "category": "red",
+   "rarity": "standard",
+   "gem_cost": 0,
+   "layout": "cross",
+   "alt_layouts": [],
+   "draft_conditions": [],
+   "flags": {
+    "no_library_draft": false,
+    "powered": false,
+    "duct": false
+   },
+   "deck_copies": 1,
+   "effects": [],
+   "items": {
+    "guaranteed": [],
+    "additional_max": 0,
+    "dig_spots": 0
+   },
+   "pool": "upgrade_variant",
+   "meta": {
+    "source": "tfmurphy_sheet_v1.3",
+    "confidence": "datamined",
+    "directory_number": "66",
+    "internal_index": 36,
+    "effect_text": "Gain 4\u00f0\u00b2 for each DEAD-END room that you WILL draft from this CLOISTER.",
+    "unlock": "Upgrade Cloister"
+   },
+   "variant_of": "cloister"
+  },
+  {
+   "id": "veranda",
+   "name": "Veranda",
+   "category": "green",
+   "rarity": "standard",
+   "gem_cost": 2,
+   "layout": "straight",
+   "alt_layouts": [],
+   "draft_conditions": [
+    "west_or_east_wing"
+   ],
+   "flags": {
+    "no_library_draft": false,
+    "powered": false,
+    "duct": false
+   },
+   "deck_copies": 1,
+   "effects": [
+    {
+     "tag": "grant",
+     "resource": "luck",
+     "amount": 3
+    }
+   ],
+   "items": {
+    "guaranteed": [],
+    "additional_max": 1,
+    "dig_spots": 0
+   },
+   "pool": "base",
+   "meta": {
+    "source": "tfmurphy_sheet_v1.3",
+    "confidence": "datamined",
+    "directory_number": "67",
+    "internal_index": 162,
+    "effect_text": "Greater chance of finding items in Green Rooms."
+   }
+  },
+  {
+   "id": "greenhouse",
+   "name": "Greenhouse",
+   "category": "green",
+   "rarity": "commonplace",
+   "gem_cost": 1,
+   "layout": "dead_end",
+   "alt_layouts": [
+    "corner"
+   ],
+   "draft_conditions": [
+    "west_or_east_wing"
+   ],
+   "flags": {
+    "no_library_draft": false,
+    "powered": false,
+    "duct": false
+   },
+   "deck_copies": 1,
+   "effects": [
+    {
+     "tag": "greenhouse_bias"
+    },
+    {
+     "tag": "counts_as_drafting_room"
+    }
+   ],
+   "items": {
+    "guaranteed": [],
+    "additional_max": 1,
+    "dig_spots": 0
+   },
+   "pool": "base",
+   "meta": {
+    "source": "tfmurphy_sheet_v1.3",
+    "confidence": "datamined",
+    "directory_number": "68",
+    "internal_index": 67,
+    "effect_text": "You are more likely to draw GREEN ROOMS while drafting."
+   }
+  },
+  {
+   "id": "morning_room",
+   "name": "Morning Room",
+   "category": "green",
+   "rarity": "commonplace",
+   "gem_cost": 0,
+   "layout": "corner",
+   "alt_layouts": [],
+   "draft_conditions": [
+    "breakfast"
+   ],
+   "flags": {
+    "no_library_draft": false,
+    "powered": false,
+    "duct": false
+   },
+   "deck_copies": 1,
+   "effects": [],
+   "items": {
+    "guaranteed": [
+     {
+      "item": "gem",
+      "count": 2
+     }
+    ],
+    "additional_max": 1,
+    "dig_spots": 0
+   },
+   "pool": "base",
+   "meta": {
+    "source": "tfmurphy_sheet_v1.3",
+    "confidence": "datamined",
+    "directory_number": "69",
+    "internal_index": 94,
+    "effect_text": "+2\u00f0  Tomorrow, you will start with 2\u00f0",
+    "glyph_resolution": [
+     {
+      "icon": "gem",
+      "confidence": "datamined"
+     },
+     {
+      "icon": "gem",
+      "confidence": "datamined"
+     }
+    ]
+   }
+  },
+  {
+   "id": "secret_garden",
+   "name": "Secret Garden",
+   "category": "green",
+   "rarity": "rare",
+   "gem_cost": 0,
+   "layout": "t",
+   "alt_layouts": [],
+   "draft_conditions": [
+    "secret_garden_key",
+    "west_or_east_wing"
+   ],
+   "flags": {
+    "no_library_draft": false,
+    "powered": false,
+    "duct": false
+   },
+   "deck_copies": 1,
+   "effects": [],
+   "items": {
+    "guaranteed": [
+     {
+      "item": "gem",
+      "count": 2
+     }
+    ],
+    "additional_max": 1,
+    "dig_spots": 0
+   },
+   "pool": "base",
+   "meta": {
+    "source": "tfmurphy_sheet_v1.3",
+    "confidence": "datamined",
+    "directory_number": "70",
+    "internal_index": 122,
+    "effect_text": "Spread Fruit throughout the House."
+   }
+  },
+  {
+   "id": "commissary",
+   "name": "Commissary",
+   "category": "shop",
+   "rarity": "commonplace",
+   "gem_cost": 1,
+   "layout": "corner",
+   "alt_layouts": [],
+   "draft_conditions": [],
+   "flags": {
+    "no_library_draft": false,
+    "powered": false,
+    "duct": false
+   },
+   "deck_copies": 1,
+   "effects": [],
+   "items": {
+    "guaranteed": [],
+    "additional_max": 0,
+    "dig_spots": 0
+   },
+   "pool": "base",
+   "meta": {
+    "source": "tfmurphy_sheet_v1.3",
+    "confidence": "datamined",
+    "directory_number": "71",
+    "internal_index": 43,
+    "effect_text": "Items for Sale"
+   }
+  },
+  {
+   "id": "kitchen",
+   "name": "Kitchen",
+   "category": "shop",
+   "rarity": "commonplace",
+   "gem_cost": 1,
+   "layout": "corner",
+   "alt_layouts": [],
+   "draft_conditions": [],
+   "flags": {
+    "no_library_draft": false,
+    "powered": false,
+    "duct": false
+   },
+   "deck_copies": 1,
+   "effects": [],
+   "items": {
+    "guaranteed": [],
+    "additional_max": 0,
+    "dig_spots": 0
+   },
+   "pool": "base",
+   "meta": {
+    "source": "tfmurphy_sheet_v1.3",
+    "confidence": "datamined",
+    "directory_number": "72",
+    "internal_index": 79,
+    "effect_text": "Food for Sale"
+   }
+  },
+  {
+   "id": "locksmith",
+   "name": "Locksmith",
+   "category": "shop",
+   "rarity": "standard",
+   "gem_cost": 1,
+   "layout": "dead_end",
+   "alt_layouts": [],
+   "draft_conditions": [],
+   "flags": {
+    "no_library_draft": false,
+    "powered": false,
+    "duct": false
+   },
+   "deck_copies": 1,
+   "effects": [],
+   "items": {
+    "guaranteed": [],
+    "additional_max": 0,
+    "dig_spots": 0
+   },
+   "pool": "base",
+   "meta": {
+    "source": "tfmurphy_sheet_v1.3",
+    "confidence": "datamined",
+    "directory_number": "73",
+    "internal_index": 85,
+    "effect_text": "Keys for Sale"
+   }
+  },
+  {
+   "id": "showroom",
+   "name": "Showroom",
+   "category": "shop",
+   "rarity": "unusual",
+   "gem_cost": 2,
+   "layout": "straight",
+   "alt_layouts": [],
+   "draft_conditions": [],
+   "flags": {
+    "no_library_draft": false,
+    "powered": false,
+    "duct": false
+   },
+   "deck_copies": 1,
+   "effects": [],
+   "items": {
+    "guaranteed": [],
+    "additional_max": 0,
+    "dig_spots": 0
+   },
+   "pool": "base",
+   "meta": {
+    "source": "tfmurphy_sheet_v1.3",
+    "confidence": "datamined",
+    "directory_number": "74",
+    "internal_index": 127,
+    "effect_text": "Luxury Items for Sale"
+   }
+  },
+  {
+   "id": "laundry_room",
+   "name": "Laundry Room",
+   "category": "shop",
+   "rarity": "rare",
+   "gem_cost": 1,
+   "layout": "dead_end",
+   "alt_layouts": [],
+   "draft_conditions": [],
+   "flags": {
+    "no_library_draft": false,
+    "powered": true,
+    "duct": false
+   },
+   "deck_copies": 1,
+   "effects": [],
+   "items": {
+    "guaranteed": [],
+    "additional_max": 0,
+    "dig_spots": 0
+   },
+   "pool": "base",
+   "meta": {
+    "source": "tfmurphy_sheet_v1.3",
+    "confidence": "datamined",
+    "directory_number": "75",
+    "internal_index": 81,
+    "effect_text": "Launder Currency"
+   }
+  },
+  {
+   "id": "bookshop",
+   "name": "Bookshop",
+   "category": "shop",
+   "rarity": "rare",
+   "gem_cost": 1,
+   "layout": "corner",
+   "alt_layouts": [],
+   "draft_conditions": [
+    "library_only"
+   ],
+   "flags": {
+    "no_library_draft": false,
+    "powered": false,
+    "duct": false
+   },
+   "deck_copies": 1,
+   "effects": [],
+   "items": {
+    "guaranteed": [],
+    "additional_max": 0,
+    "dig_spots": 0
+   },
+   "pool": "base",
+   "meta": {
+    "source": "tfmurphy_sheet_v1.3",
+    "confidence": "datamined",
+    "directory_number": "76",
+    "internal_index": 14,
+    "effect_text": "Books for sale"
+   }
+  },
+  {
+   "id": "the_armory",
+   "name": "The Armory",
+   "category": "shop",
+   "rarity": "standard",
+   "gem_cost": 0,
+   "layout": "corner",
+   "alt_layouts": [],
+   "draft_conditions": [
+    "knight_chess_piece"
+   ],
+   "flags": {
+    "no_library_draft": false,
+    "powered": false,
+    "duct": false
+   },
+   "deck_copies": 1,
+   "effects": [],
+   "items": {
+    "guaranteed": [],
+    "additional_max": 0,
+    "dig_spots": 0
+   },
+   "pool": "base",
+   "meta": {
+    "source": "tfmurphy_sheet_v1.3",
+    "confidence": "datamined",
+    "directory_number": "77",
+    "internal_index": 149,
+    "effect_text": "Weapons & Armor for sale"
+   }
+  },
+  {
+   "id": "lavatory",
+   "name": "Lavatory",
+   "category": "red",
+   "rarity": "commonplace",
+   "gem_cost": 0,
+   "layout": "dead_end",
+   "draft_conditions": [],
+   "flags": {
+    "no_library_draft": false,
+    "powered": false,
+    "duct": false
+   },
+   "deck_copies": 1,
+   "effects": [],
+   "items": {
+    "guaranteed": [],
+    "additional_max": 0,
+    "dig_spots": 0
+   },
+   "pool": "base",
+   "meta": {
+    "source": "wiki",
+    "confidence": "wiki",
+    "effect_text": "Has no items (never spawns loot).",
+    "rarity_confidence": "inferred"
+   }
+  },
+  {
+   "id": "chapel",
+   "name": "Chapel",
+   "category": "red",
+   "rarity": "commonplace",
+   "gem_cost": 0,
+   "layout": "straight",
+   "draft_conditions": [],
+   "flags": {
+    "no_library_draft": false,
+    "powered": false,
+    "duct": false
+   },
+   "deck_copies": 1,
+   "effects": [
+    {
+     "tag": "grant",
+     "resource": "coins",
+     "amount": -1
+    }
+   ],
+   "items": {
+    "guaranteed": [],
+    "additional_max": 0,
+    "dig_spots": 0
+   },
+   "pool": "base",
+   "meta": {
+    "source": "wiki",
+    "confidence": "wiki",
+    "effect_text": "Lose 1 coin each time you enter.",
+    "rarity_confidence": "inferred"
+   }
+  },
+  {
+   "id": "maids_chamber",
+   "name": "Maid's Chamber",
+   "category": "red",
+   "rarity": "commonplace",
+   "gem_cost": 0,
+   "layout": "dead_end",
+   "draft_conditions": [],
+   "flags": {
+    "no_library_draft": false,
+    "powered": false,
+    "duct": false
+   },
+   "deck_copies": 1,
+   "effects": [],
+   "items": {
+    "guaranteed": [],
+    "additional_max": 0,
+    "dig_spots": 0
+   },
+   "pool": "base",
+   "meta": {
+    "source": "wiki",
+    "confidence": "wiki",
+    "effect_text": "Counts as red room AND bedroom; items less likely in rooms drafted after it (anti-luck; not yet modeled).",
+    "rarity_confidence": "inferred"
+   }
+  },
+  {
+   "id": "archives",
+   "name": "Archives",
+   "category": "red",
+   "rarity": "standard",
+   "gem_cost": 0,
+   "layout": "t",
+   "draft_conditions": [],
+   "flags": {
+    "no_library_draft": false,
+    "powered": true,
+    "duct": false
+   },
+   "deck_copies": 1,
+   "effects": [
+    {
+     "tag": "reduce_draft_options"
+    }
+   ],
+   "items": {
+    "guaranteed": [],
+    "additional_max": 0,
+    "dig_spots": 0
+   },
+   "pool": "base",
+   "meta": {
+    "source": "wiki",
+    "confidence": "wiki",
+    "effect_text": "While drafting from this room, one of the 3 floorplans is hidden (modeled: one fewer option). Conducts power.",
+    "rarity_confidence": "inferred"
+   }
+  },
+  {
+   "id": "gymnasium",
+   "name": "Gymnasium",
+   "category": "red",
+   "rarity": "commonplace",
+   "gem_cost": 0,
+   "layout": "corner",
+   "draft_conditions": [],
+   "flags": {
+    "no_library_draft": false,
+    "powered": false,
+    "duct": false
+   },
+   "deck_copies": 1,
+   "effects": [
+    {
+     "tag": "grant",
+     "resource": "steps",
+     "amount": -2
+    }
+   ],
+   "items": {
+    "guaranteed": [],
+    "additional_max": 0,
+    "dig_spots": 0
+   },
+   "pool": "base",
+   "meta": {
+    "source": "wiki",
+    "confidence": "wiki",
+    "effect_text": "Lose 2 steps each time you enter.",
+    "rarity_confidence": "inferred"
+   }
+  },
+  {
+   "id": "darkroom",
+   "name": "Darkroom",
+   "category": "red",
+   "rarity": "standard",
+   "gem_cost": 0,
+   "layout": "dead_end",
+   "draft_conditions": [],
+   "flags": {
+    "no_library_draft": false,
+    "powered": false,
+    "duct": false
+   },
+   "deck_copies": 1,
+   "effects": [],
+   "items": {
+    "guaranteed": [],
+    "additional_max": 0,
+    "dig_spots": 0
+   },
+   "pool": "base",
+   "meta": {
+    "source": "wiki",
+    "confidence": "wiki",
+    "effect_text": "Drafting from it: all 3 floorplans obscured (not yet modeled - options shown).",
+    "rarity_confidence": "inferred"
+   }
+  },
+  {
+   "id": "weight_room",
+   "name": "Weight Room",
+   "category": "red",
+   "rarity": "standard",
+   "gem_cost": 0,
+   "layout": "dead_end",
+   "draft_conditions": [],
+   "flags": {
+    "no_library_draft": false,
+    "powered": false,
+    "duct": false
+   },
+   "deck_copies": 1,
+   "effects": [
+    {
+     "tag": "halve_steps"
+    }
+   ],
+   "items": {
+    "guaranteed": [],
+    "additional_max": 0,
+    "dig_spots": 0
+   },
+   "pool": "base",
+   "meta": {
+    "source": "wiki",
+    "confidence": "wiki",
+    "effect_text": "On draft, lose half your steps (rounded down).",
+    "rarity_confidence": "inferred"
+   }
+  },
+  {
+   "id": "furnace",
+   "name": "Furnace",
+   "category": "red",
+   "rarity": "standard",
+   "gem_cost": 0,
+   "layout": "dead_end",
+   "draft_conditions": [],
+   "flags": {
+    "no_library_draft": false,
+    "powered": false,
+    "duct": false
+   },
+   "deck_copies": 1,
+   "effects": [],
+   "items": {
+    "guaranteed": [],
+    "additional_max": 0,
+    "dig_spots": 0
+   },
+   "pool": "base",
+   "meta": {
+    "source": "wiki + sheet constants ('Red Rooms (Furnace / King) 30%')",
+    "confidence": "wiki",
+    "effect_text": "Red rooms more common today (~30% category bias; bias hook not yet wired).",
+    "rarity_confidence": "inferred"
+   }
+  },
+  {
+   "id": "solarium",
+   "name": "Solarium",
+   "category": "studio_addition",
+   "rarity": "standard",
+   "gem_cost": 1,
+   "layout": "dead_end",
+   "draft_conditions": [],
+   "flags": {
+    "no_library_draft": false,
+    "powered": false,
+    "duct": false
+   },
+   "deck_copies": 1,
+   "effects": [
+    {
+     "tag": "solarium_weights"
+    }
+   ],
+   "items": {
+    "guaranteed": [],
+    "additional_max": 1,
+    "dig_spots": 0
+   },
+   "pool": "studio_addition",
+   "meta": {
+    "source": "weights: datamined solarium slot23 table; rarity/cost wiki; layout inferred",
+    "confidence": "wiki",
+    "effect_text": "While in the house, options 2 & 3 use much flatter rarity odds (datamined table)."
+   }
+  },
+  {
+   "id": "classroom",
+   "name": "Classroom",
+   "category": "studio_addition",
+   "rarity": "standard",
+   "gem_cost": 1,
+   "layout": "straight",
+   "draft_conditions": [],
+   "flags": {
+    "no_library_draft": false,
+    "powered": false,
+    "duct": false
+   },
+   "deck_copies": 1,
+   "effects": [
+    {
+     "tag": "counts_as_drafting_room"
+    }
+   ],
+   "items": {
+    "guaranteed": [],
+    "additional_max": 1,
+    "dig_spots": 0
+   },
+   "pool": "studio_addition",
+   "meta": {
+    "source": "wiki",
+    "confidence": "wiki",
+    "effect_text": "While drafting in the Classroom: free redraws equal to your drafting-room count. 3% priority draw."
+   }
+  },
+  {
+   "id": "clock_tower",
+   "name": "Clock Tower",
+   "category": "studio_addition",
+   "rarity": "standard",
+   "gem_cost": 1,
+   "layout": "dead_end",
+   "draft_conditions": [],
+   "flags": {
+    "no_library_draft": false,
+    "powered": false,
+    "duct": false
+   },
+   "deck_copies": 1,
+   "effects": [],
+   "items": {
+    "guaranteed": [],
+    "additional_max": 1,
+    "dig_spots": 0
+   },
+   "pool": "studio_addition",
+   "meta": {
+    "source": "wiki",
+    "confidence": "wiki",
+    "effect_text": "Tomorrow room: next day's starting keys +1 per Tomorrow room (cross-day; out of single-day scope)."
+   }
+  },
+  {
+   "id": "dormitory",
+   "name": "Dormitory",
+   "category": "studio_addition",
+   "rarity": "standard",
+   "gem_cost": 1,
+   "layout": "straight",
+   "draft_conditions": [],
+   "flags": {
+    "no_library_draft": false,
+    "powered": false,
+    "duct": false
+   },
+   "deck_copies": 1,
+   "effects": [
+    {
+     "tag": "grant",
+     "resource": "steps",
+     "amount": 10
+    }
+   ],
+   "items": {
+    "guaranteed": [],
+    "additional_max": 1,
+    "dig_spots": 0
+   },
+   "pool": "studio_addition",
+   "meta": {
+    "source": "wiki",
+    "confidence": "wiki",
+    "effect_text": "Entering it after drafting a Drafting Room grants 10 steps (modeled unconditionally; condition Tier 2)."
+   }
+  },
+  {
+   "id": "vestibule",
+   "name": "Vestibule",
+   "category": "studio_addition",
+   "rarity": "standard",
+   "gem_cost": 2,
+   "layout": "cross",
+   "draft_conditions": [],
+   "flags": {
+    "no_library_draft": false,
+    "powered": false,
+    "duct": false
+   },
+   "deck_copies": 1,
+   "effects": [],
+   "items": {
+    "guaranteed": [],
+    "additional_max": 0,
+    "dig_spots": 0
+   },
+   "pool": "studio_addition",
+   "meta": {
+    "source": "wiki",
+    "confidence": "wiki",
+    "effect_text": "On enter, 3 doors unlock and the 4th locks (lock system out of scope)."
+   }
+  },
+  {
+   "id": "casino",
+   "name": "Casino",
+   "category": "studio_addition",
+   "rarity": "standard",
+   "gem_cost": 2,
+   "layout": "dead_end",
+   "draft_conditions": [],
+   "flags": {
+    "no_library_draft": false,
+    "powered": false,
+    "duct": false
+   },
+   "deck_copies": 1,
+   "effects": [],
+   "items": {
+    "guaranteed": [
+     {
+      "item": "die",
+      "count": 1
+     }
+    ],
+    "additional_max": 1,
+    "dig_spots": 0
+   },
+   "pool": "studio_addition",
+   "meta": {
+    "source": "wiki",
+    "confidence": "wiki",
+    "effect_text": "Slot machine: spins cost gold (gamble not modeled; grants 1 die as approximation)."
+   }
+  },
+  {
+   "id": "dovecote",
+   "name": "Dovecote",
+   "category": "studio_addition",
+   "rarity": "standard",
+   "gem_cost": 1,
+   "layout": "dead_end",
+   "draft_conditions": [],
+   "flags": {
+    "no_library_draft": false,
+    "powered": false,
+    "duct": false
+   },
+   "deck_copies": 1,
+   "effects": [],
+   "items": {
+    "guaranteed": [],
+    "additional_max": 1,
+    "dig_spots": 0
+   },
+   "pool": "studio_addition",
+   "meta": {
+    "source": "wiki (effect); gem cost inferred",
+    "confidence": "wiki",
+    "effect_text": "While drawn as a drafting option, a rotate action becomes available that spins every drawn floorplan to its next legal orientation (engine: Game.rotation_available/rotate_options)."
+   }
+  },
+  {
+   "id": "the_kennel",
+   "name": "The Kennel",
+   "category": "studio_addition",
+   "rarity": "standard",
+   "gem_cost": 1,
+   "layout": "dead_end",
+   "draft_conditions": [],
+   "flags": {
+    "no_library_draft": false,
+    "powered": false,
+    "duct": false
+   },
+   "deck_copies": 1,
+   "effects": [],
+   "items": {
+    "guaranteed": [],
+    "additional_max": 1,
+    "dig_spots": 0
+   },
+   "pool": "studio_addition",
+   "meta": {
+    "source": "wiki (effect); gem cost inferred",
+    "confidence": "wiki",
+    "effect_text": "Digging in rooms with locked doors unlocks them (lock system out of scope)."
+   }
+  },
+  {
+   "id": "tomb",
+   "name": "Tomb",
+   "category": "outer",
+   "rarity": null,
+   "gem_cost": 0,
+   "layout": "dead_end",
+   "draft_conditions": [],
+   "flags": {
+    "no_library_draft": false,
+    "powered": false,
+    "duct": false
+   },
+   "deck_copies": 1,
+   "effects": [
+    {
+     "tag": "coins_per_deadend",
+     "amount": 5
+    }
+   ],
+   "items": {
+    "guaranteed": [],
+    "additional_max": 0,
+    "dig_spots": 2
+   },
+   "pool": "outer",
+   "meta": {
+    "source": "wiki",
+    "confidence": "wiki",
+    "effect_text": "Each Dead End drafted in the house spreads 5 gold into the Tomb (modeled: +5 coins per dead end, granted immediately)."
+   }
+  },
+  {
+   "id": "toolshed",
+   "name": "Toolshed",
+   "category": "outer",
+   "rarity": null,
+   "gem_cost": 0,
+   "layout": "dead_end",
+   "draft_conditions": [],
+   "flags": {
+    "no_library_draft": false,
+    "powered": false,
+    "duct": false
+   },
+   "deck_copies": 1,
+   "effects": [],
+   "items": {
+    "guaranteed": [
+     {
+      "item": "random",
+      "count": 2
+     }
+    ],
+    "additional_max": 0,
+    "dig_spots": 0
+   },
+   "pool": "outer",
+   "meta": {
+    "source": "wiki",
+    "confidence": "wiki",
+    "effect_text": "Always contains 2 special items (tool system out of scope; modeled as 2 random items)."
+   }
+  },
+  {
+   "id": "root_cellar",
+   "name": "Root Cellar",
+   "category": "outer",
+   "rarity": null,
+   "gem_cost": 0,
+   "layout": "dead_end",
+   "draft_conditions": [],
+   "flags": {
+    "no_library_draft": false,
+    "powered": false,
+    "duct": false
+   },
+   "deck_copies": 1,
+   "effects": [
+    {
+     "tag": "grant",
+     "resource": "luck",
+     "amount": 3
+    }
+   ],
+   "items": {
+    "guaranteed": [],
+    "additional_max": 0,
+    "dig_spots": 0
+   },
+   "pool": "outer",
+   "meta": {
+    "source": "wiki (effect approximated)",
+    "confidence": "inferred",
+    "effect_text": "Rooms more likely to contain dig spots today (dig spots out of scope; modeled as +3 luck)."
+   }
+  },
+  {
+   "id": "shelter",
+   "name": "Shelter",
+   "category": "outer",
+   "rarity": null,
+   "gem_cost": 0,
+   "layout": "dead_end",
+   "draft_conditions": [],
+   "flags": {
+    "no_library_draft": false,
+    "powered": false,
+    "duct": false
+   },
+   "deck_copies": 1,
+   "effects": [
+    {
+     "tag": "negate_red_rooms",
+     "amount": 3
+    }
+   ],
+   "items": {
+    "guaranteed": [],
+    "additional_max": 0,
+    "dig_spots": 0
+   },
+   "pool": "outer",
+   "meta": {
+    "source": "wiki",
+    "confidence": "wiki",
+    "effect_text": "Negates the effects of the next 3 Red Rooms."
+   }
+  },
+  {
+   "id": "hovel",
+   "name": "Hovel",
+   "category": "outer",
+   "rarity": null,
+   "gem_cost": 0,
+   "layout": "dead_end",
+   "draft_conditions": [],
+   "flags": {
+    "no_library_draft": false,
+    "powered": false,
+    "duct": false
+   },
+   "deck_copies": 1,
+   "effects": [
+    {
+     "tag": "pay_gems_with_steps",
+     "ratio": 3
+    }
+   ],
+   "items": {
+    "guaranteed": [],
+    "additional_max": 0,
+    "dig_spots": 0
+   },
+   "pool": "outer",
+   "meta": {
+    "source": "wiki (owner correction)",
+    "confidence": "wiki",
+    "effect_text": "Lets you pay rooms' gem costs with steps at a ratio of 3 steps to 1 gem."
+   }
+  },
+  {
+   "id": "schoolhouse",
+   "name": "Schoolhouse",
+   "category": "outer",
+   "rarity": null,
+   "gem_cost": 0,
+   "layout": "dead_end",
+   "draft_conditions": [],
+   "flags": {
+    "no_library_draft": false,
+    "powered": false,
+    "duct": false
+   },
+   "deck_copies": 1,
+   "effects": [
+    {
+     "tag": "inject_pool",
+     "rooms": [
+      "classroom",
+      "classroom",
+      "classroom",
+      "classroom",
+      "classroom",
+      "classroom",
+      "classroom",
+      "classroom"
+     ]
+    }
+   ],
+   "items": {
+    "guaranteed": [],
+    "additional_max": 0,
+    "dig_spots": 0
+   },
+   "pool": "outer",
+   "meta": {
+    "source": "wiki + sheet constants ('Classrooms (Schoolhouse) 35%')",
+    "confidence": "wiki",
+    "effect_text": "Adds 8 Classrooms to today's draft pool."
+   }
+  },
+  {
+   "id": "shrine",
+   "name": "Shrine",
+   "category": "outer",
+   "rarity": null,
+   "gem_cost": 0,
+   "layout": "dead_end",
+   "draft_conditions": [],
+   "flags": {
+    "no_library_draft": false,
+    "powered": false,
+    "duct": false
+   },
+   "deck_copies": 1,
+   "effects": [],
+   "items": {
+    "guaranteed": [],
+    "additional_max": 0,
+    "dig_spots": 0
+   },
+   "pool": "outer",
+   "meta": {
+    "source": "wiki",
+    "confidence": "wiki",
+    "effect_text": "Donate money for multi-day blessings (out of single-day scope)."
+   }
+  },
+  {
+   "id": "trading_post",
+   "name": "Trading Post",
+   "category": "outer",
+   "rarity": null,
+   "gem_cost": 0,
+   "layout": "dead_end",
+   "draft_conditions": [],
+   "flags": {
+    "no_library_draft": false,
+    "powered": false,
+    "duct": false
+   },
+   "deck_copies": 1,
+   "effects": [],
+   "items": {
+    "guaranteed": [],
+    "additional_max": 0,
+    "dig_spots": 0
+   },
+   "pool": "outer",
+   "meta": {
+    "source": "wiki",
+    "confidence": "wiki",
+    "effect_text": "Counts as a Shop; trade items for items (trading out of scope)."
+   }
+  },
+  {
+   "id": "command_center",
+   "name": "Command Center",
+   "category": "outer",
+   "rarity": null,
+   "gem_cost": 0,
+   "layout": "dead_end",
+   "draft_conditions": [],
+   "flags": {
+    "no_library_draft": false,
+    "powered": false,
+    "duct": false
+   },
+   "deck_copies": 1,
+   "effects": [],
+   "items": {
+    "guaranteed": [],
+    "additional_max": 0,
+    "dig_spots": 0
+   },
+   "pool": "outer",
+   "meta": {
+    "source": "community (single mention; name unverified)",
+    "confidence": "inferred",
+    "effect_text": "8th outer room; effect unknown."
+   }
+  },
+  {
+   "id": "gift_shop",
+   "name": "Gift Shop",
+   "category": "shop",
+   "rarity": "standard",
+   "gem_cost": 1,
+   "layout": "corner",
+   "draft_conditions": [],
+   "flags": {
+    "no_library_draft": false,
+    "powered": false,
+    "duct": false
+   },
+   "deck_copies": 1,
+   "effects": [],
+   "items": {
+    "guaranteed": [],
+    "additional_max": 0,
+    "dig_spots": 0
+   },
+   "pool": "base",
+   "meta": {
+    "source": "wiki (existence + menu); rarity/cost/layout inferred",
+    "confidence": "inferred",
+    "effect_text": "Sells permanent profile upgrades for coins (menu out of scope)."
+   }
+  },
+  {
+   "id": "conservatory",
+   "name": "Conservatory",
+   "category": "blueprint",
+   "rarity": null,
+   "gem_cost": 0,
+   "layout": "dead_end",
+   "draft_conditions": [
+    "corner_only"
+   ],
+   "flags": {
+    "no_library_draft": false,
+    "powered": false,
+    "duct": false
+   },
+   "deck_copies": 1,
+   "effects": [],
+   "items": {
+    "guaranteed": [],
+    "additional_max": 0,
+    "dig_spots": 0
+   },
+   "pool": "conditional",
+   "meta": {
+    "source": "wiki (corner-only; re-rolls the rarity of 3 pool rooms per draft - not yet modeled)",
+    "confidence": "inferred",
+    "effect_text": "Corner-only room; re-rolls the rarity of 3 rooms in your pool each time you draft it. Stub for forced-draw precedence."
+   }
+  }
+ ]
+}

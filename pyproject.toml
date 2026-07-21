@@ -1,0 +1,34 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "blueprince-sim"
+version = "0.1.0"
+description = "Blue Prince room-drafting simulator with datamined probabilities, Gymnasium RL environment, and Monte-Carlo strategy evaluation"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+dependencies = [
+    "gymnasium>=0.29",
+    "pyyaml>=6.0",
+]
+
+[project.optional-dependencies]
+rl = ["numpy>=1.24", "sb3-contrib>=2.0"]
+ingest = ["requests>=2.31"]
+dev = ["pytest>=8.0", "pytest-benchmark>=4.0", "scipy>=1.11", "ruff>=0.4"]
+
+[project.scripts]
+blueprince-sim = "blueprince_sim.cli.__main__:main"
+blueprince-train = "blueprince_sim.rl.train:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/blueprince_sim"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"

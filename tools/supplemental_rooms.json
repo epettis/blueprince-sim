@@ -1,0 +1,823 @@
+{
+  "comment": "Rooms absent from the decompiled sheet (Red Rooms page, Studio Additions, Outer Rooms). Effects wiki-sourced via WebSearch (confidence=wiki); rarity/gem_cost/layout for red rooms are NOT in any reachable source and are inferred estimates - correct via data/overrides/. Outer rooms use no rarity (fixed 8-pool, 1/day pick-1-of-3).",
+  "rooms": [
+    {
+      "id": "lavatory",
+      "name": "Lavatory",
+      "category": "red",
+      "rarity": "commonplace",
+      "gem_cost": 0,
+      "layout": "dead_end",
+      "draft_conditions": [],
+      "flags": {
+        "no_library_draft": false,
+        "powered": false,
+        "duct": false
+      },
+      "deck_copies": 1,
+      "effects": [],
+      "items": {
+        "guaranteed": [],
+        "additional_max": 0,
+        "dig_spots": 0
+      },
+      "pool": "base",
+      "meta": {
+        "source": "wiki",
+        "confidence": "wiki",
+        "effect_text": "Has no items (never spawns loot).",
+        "rarity_confidence": "inferred"
+      }
+    },
+    {
+      "id": "chapel",
+      "name": "Chapel",
+      "category": "red",
+      "rarity": "commonplace",
+      "gem_cost": 0,
+      "layout": "straight",
+      "draft_conditions": [],
+      "flags": {
+        "no_library_draft": false,
+        "powered": false,
+        "duct": false
+      },
+      "deck_copies": 1,
+      "effects": [
+        {
+          "tag": "grant",
+          "resource": "coins",
+          "amount": -1
+        }
+      ],
+      "items": {
+        "guaranteed": [],
+        "additional_max": 0,
+        "dig_spots": 0
+      },
+      "pool": "base",
+      "meta": {
+        "source": "wiki",
+        "confidence": "wiki",
+        "effect_text": "Lose 1 coin each time you enter.",
+        "rarity_confidence": "inferred"
+      }
+    },
+    {
+      "id": "maids_chamber",
+      "name": "Maid's Chamber",
+      "category": "red",
+      "rarity": "commonplace",
+      "gem_cost": 0,
+      "layout": "dead_end",
+      "draft_conditions": [],
+      "flags": {
+        "no_library_draft": false,
+        "powered": false,
+        "duct": false
+      },
+      "deck_copies": 1,
+      "effects": [],
+      "items": {
+        "guaranteed": [],
+        "additional_max": 0,
+        "dig_spots": 0
+      },
+      "pool": "base",
+      "meta": {
+        "source": "wiki",
+        "confidence": "wiki",
+        "effect_text": "Counts as red room AND bedroom; items less likely in rooms drafted after it (anti-luck; not yet modeled).",
+        "rarity_confidence": "inferred"
+      }
+    },
+    {
+      "id": "archives",
+      "name": "Archives",
+      "category": "red",
+      "rarity": "standard",
+      "gem_cost": 0,
+      "layout": "t",
+      "draft_conditions": [],
+      "flags": {
+        "no_library_draft": false,
+        "powered": true,
+        "duct": false
+      },
+      "deck_copies": 1,
+      "effects": [
+        {
+          "tag": "reduce_draft_options"
+        }
+      ],
+      "items": {
+        "guaranteed": [],
+        "additional_max": 0,
+        "dig_spots": 0
+      },
+      "pool": "base",
+      "meta": {
+        "source": "wiki",
+        "confidence": "wiki",
+        "effect_text": "While drafting from this room, one of the 3 floorplans is hidden (modeled: one fewer option). Conducts power.",
+        "rarity_confidence": "inferred"
+      }
+    },
+    {
+      "id": "gymnasium",
+      "name": "Gymnasium",
+      "category": "red",
+      "rarity": "commonplace",
+      "gem_cost": 0,
+      "layout": "corner",
+      "draft_conditions": [],
+      "flags": {
+        "no_library_draft": false,
+        "powered": false,
+        "duct": false
+      },
+      "deck_copies": 1,
+      "effects": [
+        {
+          "tag": "grant",
+          "resource": "steps",
+          "amount": -2
+        }
+      ],
+      "items": {
+        "guaranteed": [],
+        "additional_max": 0,
+        "dig_spots": 0
+      },
+      "pool": "base",
+      "meta": {
+        "source": "wiki",
+        "confidence": "wiki",
+        "effect_text": "Lose 2 steps each time you enter.",
+        "rarity_confidence": "inferred"
+      }
+    },
+    {
+      "id": "darkroom",
+      "name": "Darkroom",
+      "category": "red",
+      "rarity": "standard",
+      "gem_cost": 0,
+      "layout": "dead_end",
+      "draft_conditions": [],
+      "flags": {
+        "no_library_draft": false,
+        "powered": false,
+        "duct": false
+      },
+      "deck_copies": 1,
+      "effects": [],
+      "items": {
+        "guaranteed": [],
+        "additional_max": 0,
+        "dig_spots": 0
+      },
+      "pool": "base",
+      "meta": {
+        "source": "wiki",
+        "confidence": "wiki",
+        "effect_text": "Drafting from it: all 3 floorplans obscured (not yet modeled - options shown).",
+        "rarity_confidence": "inferred"
+      }
+    },
+    {
+      "id": "weight_room",
+      "name": "Weight Room",
+      "category": "red",
+      "rarity": "standard",
+      "gem_cost": 0,
+      "layout": "dead_end",
+      "draft_conditions": [],
+      "flags": {
+        "no_library_draft": false,
+        "powered": false,
+        "duct": false
+      },
+      "deck_copies": 1,
+      "effects": [
+        {
+          "tag": "halve_steps"
+        }
+      ],
+      "items": {
+        "guaranteed": [],
+        "additional_max": 0,
+        "dig_spots": 0
+      },
+      "pool": "base",
+      "meta": {
+        "source": "wiki",
+        "confidence": "wiki",
+        "effect_text": "On draft, lose half your steps (rounded down).",
+        "rarity_confidence": "inferred"
+      }
+    },
+    {
+      "id": "furnace",
+      "name": "Furnace",
+      "category": "red",
+      "rarity": "standard",
+      "gem_cost": 0,
+      "layout": "dead_end",
+      "draft_conditions": [],
+      "flags": {
+        "no_library_draft": false,
+        "powered": false,
+        "duct": false
+      },
+      "deck_copies": 1,
+      "effects": [],
+      "items": {
+        "guaranteed": [],
+        "additional_max": 0,
+        "dig_spots": 0
+      },
+      "pool": "base",
+      "meta": {
+        "source": "wiki + sheet constants ('Red Rooms (Furnace / King) 30%')",
+        "confidence": "wiki",
+        "effect_text": "Red rooms more common today (~30% category bias; bias hook not yet wired).",
+        "rarity_confidence": "inferred"
+      }
+    },
+    {
+      "id": "solarium",
+      "name": "Solarium",
+      "category": "studio_addition",
+      "rarity": "standard",
+      "gem_cost": 1,
+      "layout": "dead_end",
+      "draft_conditions": [],
+      "flags": {
+        "no_library_draft": false,
+        "powered": false,
+        "duct": false
+      },
+      "deck_copies": 1,
+      "effects": [
+        {
+          "tag": "solarium_weights"
+        }
+      ],
+      "items": {
+        "guaranteed": [],
+        "additional_max": 1,
+        "dig_spots": 0
+      },
+      "pool": "studio_addition",
+      "meta": {
+        "source": "weights: datamined solarium slot23 table; rarity/cost wiki; layout inferred",
+        "confidence": "wiki",
+        "effect_text": "While in the house, options 2 & 3 use much flatter rarity odds (datamined table)."
+      }
+    },
+    {
+      "id": "classroom",
+      "name": "Classroom",
+      "category": "studio_addition",
+      "rarity": "standard",
+      "gem_cost": 1,
+      "layout": "straight",
+      "draft_conditions": [],
+      "flags": {
+        "no_library_draft": false,
+        "powered": false,
+        "duct": false
+      },
+      "deck_copies": 1,
+      "effects": [
+        {
+          "tag": "counts_as_drafting_room"
+        }
+      ],
+      "items": {
+        "guaranteed": [],
+        "additional_max": 1,
+        "dig_spots": 0
+      },
+      "pool": "studio_addition",
+      "meta": {
+        "source": "wiki",
+        "confidence": "wiki",
+        "effect_text": "While drafting in the Classroom: free redraws equal to your drafting-room count. 3% priority draw."
+      }
+    },
+    {
+      "id": "clock_tower",
+      "name": "Clock Tower",
+      "category": "studio_addition",
+      "rarity": "standard",
+      "gem_cost": 1,
+      "layout": "dead_end",
+      "draft_conditions": [],
+      "flags": {
+        "no_library_draft": false,
+        "powered": false,
+        "duct": false
+      },
+      "deck_copies": 1,
+      "effects": [],
+      "items": {
+        "guaranteed": [],
+        "additional_max": 1,
+        "dig_spots": 0
+      },
+      "pool": "studio_addition",
+      "meta": {
+        "source": "wiki",
+        "confidence": "wiki",
+        "effect_text": "Tomorrow room: next day's starting keys +1 per Tomorrow room (cross-day; out of single-day scope)."
+      }
+    },
+    {
+      "id": "dormitory",
+      "name": "Dormitory",
+      "category": "studio_addition",
+      "rarity": "standard",
+      "gem_cost": 1,
+      "layout": "straight",
+      "draft_conditions": [],
+      "flags": {
+        "no_library_draft": false,
+        "powered": false,
+        "duct": false
+      },
+      "deck_copies": 1,
+      "effects": [
+        {
+          "tag": "grant",
+          "resource": "steps",
+          "amount": 10
+        }
+      ],
+      "items": {
+        "guaranteed": [],
+        "additional_max": 1,
+        "dig_spots": 0
+      },
+      "pool": "studio_addition",
+      "meta": {
+        "source": "wiki",
+        "confidence": "wiki",
+        "effect_text": "Entering it after drafting a Drafting Room grants 10 steps (modeled unconditionally; condition Tier 2)."
+      }
+    },
+    {
+      "id": "vestibule",
+      "name": "Vestibule",
+      "category": "studio_addition",
+      "rarity": "standard",
+      "gem_cost": 2,
+      "layout": "cross",
+      "draft_conditions": [],
+      "flags": {
+        "no_library_draft": false,
+        "powered": false,
+        "duct": false
+      },
+      "deck_copies": 1,
+      "effects": [],
+      "items": {
+        "guaranteed": [],
+        "additional_max": 0,
+        "dig_spots": 0
+      },
+      "pool": "studio_addition",
+      "meta": {
+        "source": "wiki",
+        "confidence": "wiki",
+        "effect_text": "On enter, 3 doors unlock and the 4th locks (lock system out of scope)."
+      }
+    },
+    {
+      "id": "casino",
+      "name": "Casino",
+      "category": "studio_addition",
+      "rarity": "standard",
+      "gem_cost": 2,
+      "layout": "dead_end",
+      "draft_conditions": [],
+      "flags": {
+        "no_library_draft": false,
+        "powered": false,
+        "duct": false
+      },
+      "deck_copies": 1,
+      "effects": [],
+      "items": {
+        "guaranteed": [
+          {
+            "item": "die",
+            "count": 1
+          }
+        ],
+        "additional_max": 1,
+        "dig_spots": 0
+      },
+      "pool": "studio_addition",
+      "meta": {
+        "source": "wiki",
+        "confidence": "wiki",
+        "effect_text": "Slot machine: spins cost gold (gamble not modeled; grants 1 die as approximation)."
+      }
+    },
+    {
+      "id": "dovecote",
+      "name": "Dovecote",
+      "category": "studio_addition",
+      "rarity": "standard",
+      "gem_cost": 1,
+      "layout": "dead_end",
+      "draft_conditions": [],
+      "flags": {
+        "no_library_draft": false,
+        "powered": false,
+        "duct": false
+      },
+      "deck_copies": 1,
+      "effects": [],
+      "items": {
+        "guaranteed": [],
+        "additional_max": 1,
+        "dig_spots": 0
+      },
+      "pool": "studio_addition",
+      "meta": {
+        "source": "wiki (effect); gem cost inferred",
+        "confidence": "wiki",
+        "effect_text": "While drawn as a drafting option, a rotate action becomes available that spins every drawn floorplan to its next legal orientation (engine: Game.rotation_available/rotate_options)."
+      }
+    },
+    {
+      "id": "the_kennel",
+      "name": "The Kennel",
+      "category": "studio_addition",
+      "rarity": "standard",
+      "gem_cost": 1,
+      "layout": "dead_end",
+      "draft_conditions": [],
+      "flags": {
+        "no_library_draft": false,
+        "powered": false,
+        "duct": false
+      },
+      "deck_copies": 1,
+      "effects": [],
+      "items": {
+        "guaranteed": [],
+        "additional_max": 1,
+        "dig_spots": 0
+      },
+      "pool": "studio_addition",
+      "meta": {
+        "source": "wiki (effect); gem cost inferred",
+        "confidence": "wiki",
+        "effect_text": "Digging in rooms with locked doors unlocks them (lock system out of scope)."
+      }
+    },
+    {
+      "id": "tomb",
+      "name": "Tomb",
+      "category": "outer",
+      "rarity": null,
+      "gem_cost": 0,
+      "layout": "dead_end",
+      "draft_conditions": [],
+      "flags": {
+        "no_library_draft": false,
+        "powered": false,
+        "duct": false
+      },
+      "deck_copies": 1,
+      "effects": [
+        {
+          "tag": "coins_per_deadend",
+          "amount": 5
+        }
+      ],
+      "items": {
+        "guaranteed": [],
+        "additional_max": 0,
+        "dig_spots": 2
+      },
+      "pool": "outer",
+      "meta": {
+        "source": "wiki",
+        "confidence": "wiki",
+        "effect_text": "Each Dead End drafted in the house spreads 5 gold into the Tomb (modeled: +5 coins per dead end, granted immediately)."
+      }
+    },
+    {
+      "id": "toolshed",
+      "name": "Toolshed",
+      "category": "outer",
+      "rarity": null,
+      "gem_cost": 0,
+      "layout": "dead_end",
+      "draft_conditions": [],
+      "flags": {
+        "no_library_draft": false,
+        "powered": false,
+        "duct": false
+      },
+      "deck_copies": 1,
+      "effects": [],
+      "items": {
+        "guaranteed": [
+          {
+            "item": "random",
+            "count": 2
+          }
+        ],
+        "additional_max": 0,
+        "dig_spots": 0
+      },
+      "pool": "outer",
+      "meta": {
+        "source": "wiki",
+        "confidence": "wiki",
+        "effect_text": "Always contains 2 special items (tool system out of scope; modeled as 2 random items)."
+      }
+    },
+    {
+      "id": "root_cellar",
+      "name": "Root Cellar",
+      "category": "outer",
+      "rarity": null,
+      "gem_cost": 0,
+      "layout": "dead_end",
+      "draft_conditions": [],
+      "flags": {
+        "no_library_draft": false,
+        "powered": false,
+        "duct": false
+      },
+      "deck_copies": 1,
+      "effects": [
+        {
+          "tag": "grant",
+          "resource": "luck",
+          "amount": 3
+        }
+      ],
+      "items": {
+        "guaranteed": [],
+        "additional_max": 0,
+        "dig_spots": 0
+      },
+      "pool": "outer",
+      "meta": {
+        "source": "wiki (effect approximated)",
+        "confidence": "inferred",
+        "effect_text": "Rooms more likely to contain dig spots today (dig spots out of scope; modeled as +3 luck)."
+      }
+    },
+    {
+      "id": "shelter",
+      "name": "Shelter",
+      "category": "outer",
+      "rarity": null,
+      "gem_cost": 0,
+      "layout": "dead_end",
+      "draft_conditions": [],
+      "flags": {
+        "no_library_draft": false,
+        "powered": false,
+        "duct": false
+      },
+      "deck_copies": 1,
+      "effects": [
+        {
+          "tag": "negate_red_rooms",
+          "amount": 3
+        }
+      ],
+      "items": {
+        "guaranteed": [],
+        "additional_max": 0,
+        "dig_spots": 0
+      },
+      "pool": "outer",
+      "meta": {
+        "source": "wiki",
+        "confidence": "wiki",
+        "effect_text": "Negates the effects of the next 3 Red Rooms."
+      }
+    },
+    {
+      "id": "hovel",
+      "name": "Hovel",
+      "category": "outer",
+      "rarity": null,
+      "gem_cost": 0,
+      "layout": "dead_end",
+      "draft_conditions": [],
+      "flags": {
+        "no_library_draft": false,
+        "powered": false,
+        "duct": false
+      },
+      "deck_copies": 1,
+      "effects": [
+        {
+          "tag": "pay_gems_with_steps",
+          "ratio": 3
+        }
+      ],
+      "items": {
+        "guaranteed": [],
+        "additional_max": 0,
+        "dig_spots": 0
+      },
+      "pool": "outer",
+      "meta": {
+        "source": "wiki (owner correction)",
+        "confidence": "wiki",
+        "effect_text": "Lets you pay rooms' gem costs with steps at a ratio of 3 steps to 1 gem."
+      }
+    },
+    {
+      "id": "schoolhouse",
+      "name": "Schoolhouse",
+      "category": "outer",
+      "rarity": null,
+      "gem_cost": 0,
+      "layout": "dead_end",
+      "draft_conditions": [],
+      "flags": {
+        "no_library_draft": false,
+        "powered": false,
+        "duct": false
+      },
+      "deck_copies": 1,
+      "effects": [
+        {
+          "tag": "inject_pool",
+          "rooms": [
+            "classroom",
+            "classroom",
+            "classroom",
+            "classroom",
+            "classroom",
+            "classroom",
+            "classroom",
+            "classroom"
+          ]
+        }
+      ],
+      "items": {
+        "guaranteed": [],
+        "additional_max": 0,
+        "dig_spots": 0
+      },
+      "pool": "outer",
+      "meta": {
+        "source": "wiki + sheet constants ('Classrooms (Schoolhouse) 35%')",
+        "confidence": "wiki",
+        "effect_text": "Adds 8 Classrooms to today's draft pool."
+      }
+    },
+    {
+      "id": "shrine",
+      "name": "Shrine",
+      "category": "outer",
+      "rarity": null,
+      "gem_cost": 0,
+      "layout": "dead_end",
+      "draft_conditions": [],
+      "flags": {
+        "no_library_draft": false,
+        "powered": false,
+        "duct": false
+      },
+      "deck_copies": 1,
+      "effects": [],
+      "items": {
+        "guaranteed": [],
+        "additional_max": 0,
+        "dig_spots": 0
+      },
+      "pool": "outer",
+      "meta": {
+        "source": "wiki",
+        "confidence": "wiki",
+        "effect_text": "Donate money for multi-day blessings (out of single-day scope)."
+      }
+    },
+    {
+      "id": "trading_post",
+      "name": "Trading Post",
+      "category": "outer",
+      "rarity": null,
+      "gem_cost": 0,
+      "layout": "dead_end",
+      "draft_conditions": [],
+      "flags": {
+        "no_library_draft": false,
+        "powered": false,
+        "duct": false
+      },
+      "deck_copies": 1,
+      "effects": [],
+      "items": {
+        "guaranteed": [],
+        "additional_max": 0,
+        "dig_spots": 0
+      },
+      "pool": "outer",
+      "meta": {
+        "source": "wiki",
+        "confidence": "wiki",
+        "effect_text": "Counts as a Shop; trade items for items (trading out of scope)."
+      }
+    },
+    {
+      "id": "command_center",
+      "name": "Command Center",
+      "category": "outer",
+      "rarity": null,
+      "gem_cost": 0,
+      "layout": "dead_end",
+      "draft_conditions": [],
+      "flags": {
+        "no_library_draft": false,
+        "powered": false,
+        "duct": false
+      },
+      "deck_copies": 1,
+      "effects": [],
+      "items": {
+        "guaranteed": [],
+        "additional_max": 0,
+        "dig_spots": 0
+      },
+      "pool": "outer",
+      "meta": {
+        "source": "community (single mention; name unverified)",
+        "confidence": "inferred",
+        "effect_text": "8th outer room; effect unknown."
+      }
+    },
+    {
+      "id": "gift_shop",
+      "name": "Gift Shop",
+      "category": "shop",
+      "rarity": "standard",
+      "gem_cost": 1,
+      "layout": "corner",
+      "draft_conditions": [],
+      "flags": {
+        "no_library_draft": false,
+        "powered": false,
+        "duct": false
+      },
+      "deck_copies": 1,
+      "effects": [],
+      "items": {
+        "guaranteed": [],
+        "additional_max": 0,
+        "dig_spots": 0
+      },
+      "pool": "base",
+      "meta": {
+        "source": "wiki (existence + menu); rarity/cost/layout inferred",
+        "confidence": "inferred",
+        "effect_text": "Sells permanent profile upgrades for coins (menu out of scope)."
+      }
+    },
+    {
+      "id": "conservatory",
+      "name": "Conservatory",
+      "category": "blueprint",
+      "rarity": null,
+      "gem_cost": 0,
+      "layout": "dead_end",
+      "draft_conditions": [
+        "corner_only"
+      ],
+      "flags": {
+        "no_library_draft": false,
+        "powered": false,
+        "duct": false
+      },
+      "deck_copies": 1,
+      "effects": [],
+      "items": {
+        "guaranteed": [],
+        "additional_max": 0,
+        "dig_spots": 0
+      },
+      "pool": "conditional",
+      "meta": {
+        "source": "wiki (corner-only; re-rolls the rarity of 3 pool rooms per draft - not yet modeled)",
+        "confidence": "inferred",
+        "effect_text": "Corner-only room; re-rolls the rarity of 3 rooms in your pool each time you draft it. Stub for forced-draw precedence."
+      }
+    }
+  ]
+}
