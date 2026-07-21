@@ -35,7 +35,7 @@
       "category": "red",
       "rarity": "commonplace",
       "gem_cost": 0,
-      "layout": "straight",
+      "layout": "t",
       "draft_conditions": [],
       "flags": {
         "no_library_draft": false,
@@ -69,7 +69,7 @@
       "category": "red",
       "rarity": "commonplace",
       "gem_cost": 0,
-      "layout": "dead_end",
+      "layout": "corner",
       "draft_conditions": [],
       "flags": {
         "no_library_draft": false,
@@ -97,7 +97,7 @@
       "category": "red",
       "rarity": "standard",
       "gem_cost": 0,
-      "layout": "t",
+      "layout": "cross",
       "draft_conditions": [],
       "flags": {
         "no_library_draft": false,
@@ -129,7 +129,7 @@
       "category": "red",
       "rarity": "commonplace",
       "gem_cost": 0,
-      "layout": "corner",
+      "layout": "t",
       "draft_conditions": [],
       "flags": {
         "no_library_draft": false,
@@ -163,7 +163,7 @@
       "category": "red",
       "rarity": "standard",
       "gem_cost": 0,
-      "layout": "dead_end",
+      "layout": "t",
       "draft_conditions": [],
       "flags": {
         "no_library_draft": false,
@@ -191,7 +191,7 @@
       "category": "red",
       "rarity": "standard",
       "gem_cost": 0,
-      "layout": "dead_end",
+      "layout": "cross",
       "draft_conditions": [],
       "flags": {
         "no_library_draft": false,
@@ -282,7 +282,7 @@
       "category": "studio_addition",
       "rarity": "standard",
       "gem_cost": 1,
-      "layout": "straight",
+      "layout": "corner",
       "draft_conditions": [],
       "flags": {
         "no_library_draft": false,
@@ -340,7 +340,7 @@
       "category": "studio_addition",
       "rarity": "standard",
       "gem_cost": 1,
-      "layout": "straight",
+      "layout": "dead_end",
       "draft_conditions": [],
       "flags": {
         "no_library_draft": false,
@@ -400,7 +400,7 @@
       "category": "studio_addition",
       "rarity": "standard",
       "gem_cost": 2,
-      "layout": "dead_end",
+      "layout": "corner",
       "draft_conditions": [],
       "flags": {
         "no_library_draft": false,
@@ -432,7 +432,7 @@
       "category": "studio_addition",
       "rarity": "standard",
       "gem_cost": 1,
-      "layout": "dead_end",
+      "layout": "corner",
       "draft_conditions": [],
       "flags": {
         "no_library_draft": false,
@@ -459,7 +459,7 @@
       "category": "studio_addition",
       "rarity": "standard",
       "gem_cost": 1,
-      "layout": "dead_end",
+      "layout": "straight",
       "draft_conditions": [],
       "flags": {
         "no_library_draft": false,
@@ -737,39 +737,12 @@
       }
     },
     {
-      "id": "command_center",
-      "name": "Command Center",
-      "category": "outer",
-      "rarity": null,
-      "gem_cost": 0,
-      "layout": "dead_end",
-      "draft_conditions": [],
-      "flags": {
-        "no_library_draft": false,
-        "powered": false,
-        "duct": false
-      },
-      "deck_copies": 1,
-      "effects": [],
-      "items": {
-        "guaranteed": [],
-        "additional_max": 0,
-        "dig_spots": 0
-      },
-      "pool": "outer",
-      "meta": {
-        "source": "community (single mention; name unverified)",
-        "confidence": "inferred",
-        "effect_text": "8th outer room; effect unknown."
-      }
-    },
-    {
       "id": "gift_shop",
       "name": "Gift Shop",
       "category": "shop",
       "rarity": "standard",
       "gem_cost": 1,
-      "layout": "corner",
+      "layout": "t",
       "draft_conditions": [],
       "flags": {
         "no_library_draft": false,
@@ -796,7 +769,7 @@
       "category": "blueprint",
       "rarity": null,
       "gem_cost": 0,
-      "layout": "dead_end",
+      "layout": "corner",
       "draft_conditions": [
         "corner_only"
       ],
