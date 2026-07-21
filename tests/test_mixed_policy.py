@@ -121,6 +121,15 @@ def test_mode_resampling_fraction(model_env):
     assert abs(np.mean(samples) - 0.7) < 0.02
 
 
+def test_per_decision_mode_fraction(model_env):
+    """Per-decision granularity re-rolls the mode for every action in a batch."""
+    model, _ = model_env
+    policy = model.policy
+    policy.set_mode_config(0.9, True, 1, 0)   # per-decision, 90% exploit
+    modes = np.concatenate([policy._modes_for_batch(1000) for _ in range(30)])
+    assert abs(modes.mean() - 0.9) < 0.02
+
+
 def test_log_prob_is_behavior_log_prob(model_env):
     """The returned log-prob must describe the adjusted (behavior) dist."""
     model, env = model_env

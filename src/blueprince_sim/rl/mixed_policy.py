@@ -1,7 +1,10 @@
 """Explicit exploit/explore mixing for MaskablePPO rollouts.
 
-Each env worker runs in one of two behavior modes, re-rolled per episode
-(or per decision):
+Each *decision* is taken in one of two behavior modes, re-rolled per decision
+by default (or coherently per episode). Per-decision keeps a long episode
+mostly on-policy: at ``exploit_prob=0.9`` only ~1 action in 10 explores,
+whereas a per-episode explore roll would make a whole 50-70 decision episode a
+random walk that never reaches the Antechamber.
 
 - EXPLOIT (probability ``exploit_prob``): sample the masked policy
   distribution at low temperature (``exploit_temp`` < 1 sharpens toward the

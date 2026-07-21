@@ -181,7 +181,6 @@ def _install_signal_handlers() -> None:
 def evaluate(ckpt_dir: Path, episodes: int, reward: str, seed: int,
              device: str) -> int:
     """Deterministic rollout of the checkpointed policy; prints win rate."""
-    import numpy as np
     from sb3_contrib import MaskablePPO
 
     from ..cli.batch import wilson_ci
@@ -240,10 +239,12 @@ def main(argv: list[str] | None = None) -> int:
                         help="don't train: evaluate latest.zip for N episodes "
                              "and report the win rate")
     # --- explore/exploit mixing ---
-    parser.add_argument("--exploit-prob", type=float, default=0.7,
-                        help="probability an episode runs in EXPLOIT mode "
+    parser.add_argument("--exploit-prob", type=float, default=0.9,
+                        help="probability EACH DECISION is taken in EXPLOIT mode "
                              "(best-known-policy, low temperature); the rest "
-                             "run in EXPLORE mode")
+                             "explore. High by default: an episode is 50-70 "
+                             "decisions, so a lower value makes whole episodes "
+                             "effectively random")
     parser.add_argument("--exploit-temp", type=float, default=0.5,
                         help="sampling temperature in exploit mode (<1 sharpens "
                              "toward the argmax; 1.0 = vanilla PPO sampling)")
@@ -253,9 +254,11 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--explore-eps", type=float, default=0.05,
                         help="uniform floor over legal actions in explore mode")
     parser.add_argument("--mode-granularity", choices=["episode", "decision"],
-                        default="episode",
-                        help="re-roll exploit/explore per episode (coherent "
-                             "deep exploration) or per decision (epsilon-greedy feel)")
+                        default="decision",
+                        help="re-roll exploit/explore per decision (default; "
+                             "epsilon-greedy feel, keeps long episodes mostly "
+                             "on-policy) or per episode (coherent deep "
+                             "exploration, but a whole episode can be random)")
     args = parser.parse_args(argv)
 
     if args.evaluate:
