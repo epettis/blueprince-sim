@@ -52,6 +52,25 @@ def test_archives_hides_a_draftable_mystery(registry, cfg):
     assert g.state.steps == steps_before           # placing costs no step
 
 
+def test_archives_mystery_still_shows_gem_cost(registry, cfg):
+    from blueprince_sim.engine.state import PendingDraft
+    from blueprince_sim.env import obs as O
+
+    g = Game(cfg, seed=1)
+    gem_room = next(r for r in registry.rooms if r.gem_cost > 0 and r.rarity)
+    g.state.pos = 2
+    g.phase = Phase.DRAFTING
+    pd = PendingDraft(from_cell=2, direction=N, target_cell=7)
+    pd.options = [DraftOption(room_idx=gem_room.idx, orientation=gem_room.door_mask,
+                              gem_cost=gem_room.gem_cost, slot=2, hidden=True)]
+    g.state.gems = 9
+    g.state.pending = pd
+    row = O.encode(g)["options"][2]                 # obs row for slot 2
+    assert row[0] == 0                              # identity (room id) concealed
+    assert row[2] == g._effective_cost(gem_room, pd.options[0])  # gem cost visible
+    assert row[2] > 0
+
+
 def test_choose_places_but_does_not_enter(registry, cfg):
     g = Game(cfg, seed=5)
     steps0 = g.state.steps

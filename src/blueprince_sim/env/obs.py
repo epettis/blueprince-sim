@@ -43,13 +43,14 @@ def encode(game: Game) -> dict:
     if game.phase is Phase.DRAFTING and pending is not None:
         for opt in pending.options:
             room = game.registry.rooms[opt.room_idx]
+            cost = game._effective_cost(room, opt)
             if opt.hidden:
                 # Archives mystery: identity concealed (room_idx 0 = unknown),
-                # but the option is present and still selectable.
-                options[opt.slot] = (0, 0, -1, -1, -1, 0,
+                # but the gem cost and affordability stay visible and it is
+                # still selectable.
+                options[opt.slot] = (0, 0, cost, -1, -1, 0,
                                      int(game.affordable(room, opt)), 0)
                 continue
-            cost = game._effective_cost(room, opt)
             options[opt.slot] = (
                 room.idx + 1,
                 room.rarity_idx + 1,
