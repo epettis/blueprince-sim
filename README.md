@@ -189,7 +189,9 @@ What it does:
 - **Algorithm**: MaskablePPO (sb3-contrib) over the masked `BluePrince-v0`
   env. The policy conditions on the full manor layout (room ids + door
   masks per cell), player position, resources (steps/gems/keys/coins/dice/
-  luck/redraws), current draft options, and phase.
+  luck/redraws), the current draft options - each with its four door
+  directions exposed as separate N/E/S/W bits so orientation can drive the
+  pick - and phase.
 - **Scenario**: `all_unlocks_config()` - orchard (+20 steps), mine
   (+2 gems), outer rooms, all 8 studio additions; `upgrade_disks` empty.
 - **Checkpointing**: every 10,000 completed episodes (`--checkpoint-every`),

@@ -5,6 +5,23 @@ from __future__ import annotations
 from ..engine.game import Game, Phase
 from ..engine.grid import E, N, S, W
 
+# Door-mask -> box-drawing glyph, so a drafted room's orientation is visible at
+# a glance (lines point in the directions the room has doors). Same characters
+# the rotation model is described with.
+DOOR_GLYPH = {
+    0: "·",
+    N: "╵", E: "╶", S: "╷", W: "╴",
+    N | S: "║", E | W: "═",
+    N | E: "╚", N | W: "╝", S | E: "╔", S | W: "╗",
+    N | E | S: "╠", N | S | W: "╣", N | E | W: "╩", E | S | W: "╦",
+    N | E | S | W: "╬",
+}
+
+
+def door_glyph(mask: int) -> str:
+    return DOOR_GLYPH.get(mask, "·")
+
+
 CAT_COLOR = {
     "blueprint": "\033[94m", "bedroom": "\033[95m", "hallway": "\033[33m",
     "green": "\033[92m", "shop": "\033[93m", "red": "\033[91m",
@@ -64,11 +81,13 @@ def render_options(game: Game) -> str:
         afford = "" if game.affordable(room, opt) else " (can't afford)"
         cost = game._effective_cost(room, opt)
         if opt.hidden:
-            lines.append(f"  [{opt.slot + 1}] {'??? (mystery room)':<22} "
+            # Identity and orientation are hidden for an Archives mystery.
+            lines.append(f"  [{opt.slot + 1}] ? {'??? (mystery room)':<22} "
                          f"{'hidden':<12} {'?':<9} cost {cost}{afford}")
             continue
+        glyph = door_glyph(opt.orientation)
         forced = " [forced]" if opt.forced else ""
         eff = room.effects[0].tag if room.effects else ""
-        lines.append(f"  [{opt.slot + 1}] {room.name:<22} {room.rarity or '-':<12} "
+        lines.append(f"  [{opt.slot + 1}] {glyph} {room.name:<22} {room.rarity or '-':<12} "
                      f"{room.layout:<9} cost {cost}{afford}{forced}  {eff}")
     return "\n".join(lines)

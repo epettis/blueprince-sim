@@ -4,7 +4,7 @@ import random
 
 from blueprince_sim.config import GameConfig
 from blueprince_sim.engine.game import ANTECHAMBER_CELL, Game, Phase
-from blueprince_sim.engine.grid import N, S
+from blueprince_sim.engine.grid import N, E, S, W
 from blueprince_sim.engine.state import DraftOption
 from blueprince_sim.cli.batch import run_episode
 from blueprince_sim.cli.policies import POLICIES, greedy_rank
@@ -69,6 +69,42 @@ def test_archives_mystery_still_shows_gem_cost(registry, cfg):
     assert row[0] == 0                              # identity (room id) concealed
     assert row[2] == g._effective_cost(gem_room, pd.options[0])  # gem cost visible
     assert row[2] > 0
+
+
+def test_option_obs_exposes_door_directions(registry, cfg):
+    from blueprince_sim.engine.state import PendingDraft
+    from blueprince_sim.env import obs as O
+
+    g = Game(cfg, seed=1)
+    room = next(r for r in registry.rooms if r.rarity)
+    g.state.pos = 2
+    g.phase = Phase.DRAFTING
+    pd = PendingDraft(from_cell=2, direction=N, target_cell=7)
+    pd.options = [DraftOption(room_idx=room.idx, orientation=N | S, gem_cost=0, slot=0)]
+    g.state.pending = pd
+
+    def door_bits():                                # obs features N,E,S,W = idx 5..8
+        return tuple(int(x) for x in O.encode(g)["options"][0][5:9])
+
+    assert door_bits() == (1, 0, 1, 0)             # N|S: north & south doors only
+    pd.options[0].orientation = E | W
+    assert door_bits() == (0, 1, 0, 1)             # rotating flips the exposed doors
+
+
+def test_cli_preview_glyph_tracks_orientation(registry, cfg):
+    from blueprince_sim.cli.render import render_options
+    from blueprince_sim.engine.state import PendingDraft
+
+    g = Game(cfg, seed=1)
+    room = next(r for r in registry.rooms if r.rarity)
+    g.state.pos = 2
+    g.phase = Phase.DRAFTING
+    pd = PendingDraft(from_cell=2, direction=N, target_cell=7)
+    pd.options = [DraftOption(room_idx=room.idx, orientation=N | S, gem_cost=0, slot=0)]
+    g.state.pending = pd
+    assert "║" in render_options(g)           # N|S renders as a vertical ║
+    pd.options[0].orientation = N | E | S | W
+    assert "╬" in render_options(g)           # a 4-way renders as a cross ╬
 
 
 def test_choose_places_but_does_not_enter(registry, cfg):

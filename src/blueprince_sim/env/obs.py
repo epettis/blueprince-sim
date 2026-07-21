@@ -6,12 +6,16 @@ import numpy as np
 from gymnasium import spaces
 
 from ..engine.game import Game, Phase
+from ..engine.grid import DIRS
 from ..engine.model import LAYOUTS
 
 CATEGORIES = ("blueprint", "bedroom", "hallway", "green", "shop", "red",
               "blackprint", "studio_addition", "outer", "objective")
 CAT_INDEX = {c: i for i, c in enumerate(CATEGORIES)}
-OPTION_FEATURES = 8  # room_idx+1, rarity+1, cost, layout, category, door_mask, affordable, forced
+# room_idx+1, rarity+1, cost, layout, category, door_N, door_E, door_S, door_W,
+# affordable, forced. The four door bits expose the drafted orientation as
+# separate directional features so the policy can prefer, e.g., north doors.
+OPTION_FEATURES = 11
 
 
 def observation_space(n_rooms: int) -> spaces.Dict:
@@ -44,11 +48,12 @@ def encode(game: Game) -> dict:
         for opt in pending.options:
             room = game.registry.rooms[opt.room_idx]
             cost = game._effective_cost(room, opt)
+            doors = tuple(int(bool(opt.orientation & d)) for d in DIRS)  # N,E,S,W
             if opt.hidden:
-                # Archives mystery: identity concealed (room_idx 0 = unknown),
-                # but the gem cost and affordability stay visible and it is
-                # still selectable.
-                options[opt.slot] = (0, 0, cost, -1, -1, 0,
+                # Archives mystery: identity and orientation concealed
+                # (room_idx 0 = unknown, door bits 0), but the gem cost and
+                # affordability stay visible and it is still selectable.
+                options[opt.slot] = (0, 0, cost, -1, -1, 0, 0, 0, 0,
                                      int(game.affordable(room, opt)), 0)
                 continue
             options[opt.slot] = (
@@ -57,7 +62,7 @@ def encode(game: Game) -> dict:
                 cost,
                 LAYOUTS.index(room.layout),
                 CAT_INDEX.get(room.category, 0),
-                opt.orientation,
+                *doors,
                 int(game.affordable(room, opt)),
                 int(opt.forced),
             )

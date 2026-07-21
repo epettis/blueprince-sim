@@ -59,7 +59,8 @@ def play(cfg: GameConfig, seed: int) -> None:
             except (ValueError, IndexError):
                 print("  ? enter a doorway number, a move letter (n/e/s/w), 'o', or 'q'")
         else:
-            print("Draft options (you must choose one - no backing out):")
+            print("Draft options (glyph shows door directions; "
+                  "you must choose one - no backing out):")
             print(render_options(game))
             p = game.state.pending
             extras = []

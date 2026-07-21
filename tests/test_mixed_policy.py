@@ -31,6 +31,9 @@ def _obs_and_mask(env):
 
 
 def _sample_many(policy, obs_t, mask_t, n=3000):
+    # Seed torch's global RNG so sampling is reproducible regardless of the
+    # order tests run in (the model fixture is shared across the module).
+    torch.manual_seed(0)
     actions = []
     with torch.no_grad():
         for _ in range(n):
