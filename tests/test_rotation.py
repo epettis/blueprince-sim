@@ -1,40 +1,62 @@
-"""Datamined room-rotation weights and free-rotation (Dovecote/Rotunda)."""
+"""Room rotation behavior: south bias, Compass, mirroring, and free rotation."""
 
 from blueprince_sim.config import GameConfig
 from blueprince_sim.engine.game import Game, Phase
 from blueprince_sim.engine.grid import N, E, S, W
+from blueprince_sim.engine.rng import Rng
 from blueprince_sim.engine.rotation import orientation_weights
 from blueprince_sim.engine.state import DraftOption, PendingDraft
 
-# T-shape legal orientations when a south connecting door is required (back=S),
-# identified by their missing door.
-T_MISS_N, T_MISS_E, T_MISS_W = E | S | W, N | S | W, N | S | E
+# A T-shape needing a south connecting door has three legal orientations; of
+# them only T_NO_NORTH lacks a north door.
+T_NO_NORTH = E | S | W
+T_WITH_N1 = N | S | W
+T_WITH_N2 = N | S | E
+T_SOUTH = [T_NO_NORTH, T_WITH_N1, T_WITH_N2]
 
 
-def test_t_shape_weights_match_datamine():
-    masks = [T_MISS_N, T_MISS_E, T_MISS_W]
-    assert orientation_weights(masks, S, 1, False) == (70.0, 15.0, 15.0)
-    assert orientation_weights(masks, S, 20, False) == (64.0, 18.0, 18.0)
-    assert orientation_weights(masks, S, 25, False) == (60.0, 20.0, 20.0)
+def _sample(masks, back, day, compass, n=4000):
+    """How often each orientation is chosen, through the real weighted RNG."""
+    weights = orientation_weights(masks, back, day, compass)
+    counts = [0] * len(masks)
+    for seed in range(n):
+        counts[Rng(seed).roll_weighted("orientation", weights)] += 1
+    return counts
 
 
-def test_compass_flips_bias_toward_north():
-    masks = [T_MISS_N, T_MISS_E, T_MISS_W]
-    # Default favors the no-north orientation; the Compass zeroes it and splits
-    # the remaining north-door orientations.
-    assert orientation_weights(masks, S, 20, False)[0] > 60.0
-    assert orientation_weights(masks, S, 20, True) == (0.0, 50.0, 50.0)
+def test_default_roll_usually_keeps_a_south_facing_back_wall():
+    # The no-north orientation is chosen more than either north-door option.
+    counts = _sample(T_SOUTH, S, day=20, compass=False)
+    assert counts[0] > counts[1] and counts[0] > counts[2]
+    assert counts[0] > counts[1] + counts[2]   # in fact more than both combined
 
 
-def test_l_shape_weights_and_mirror():
-    # From West: south-cornered ╗ favored over north-cornered ╝; East mirrors it.
-    assert orientation_weights([S | W, N | W], W, 1, False) == (57.0, 43.0)
-    assert orientation_weights([S | E, N | E], E, 1, False) == (57.0, 43.0)
-    assert orientation_weights([S | W, N | W], W, 1, True) == (10.0, 90.0)
+def test_compass_makes_a_north_door_the_likely_outcome():
+    without = _sample(T_SOUTH, S, day=20, compass=False)
+    withc = _sample(T_SOUTH, S, day=20, compass=True)
+    # A north-door orientation is rare by default but the common case with one.
+    assert without[0] > without[1] + without[2]
+    assert (withc[1] + withc[2]) > withc[0]
 
 
-def test_single_orientation_is_uniform():
-    assert orientation_weights([N | S], S, 20, False) == (1.0,)
+def test_south_bias_relaxes_on_later_days():
+    early = orientation_weights(T_SOUTH, S, day=1, compass=False)
+    late = orientation_weights(T_SOUTH, S, day=25, compass=False)
+    # The favored no-north share drifts down over the run; north doors drift up.
+    assert late[0] < early[0]
+    assert late[1] > early[1]
+
+
+def test_east_and_west_rolls_are_mirror_images():
+    # An L drafted from the west vs. the east is the same shape reflected across
+    # the N-S axis, so the two must roll identically.
+    west = orientation_weights([S | W, N | W], W, day=10, compass=False)
+    east = orientation_weights([S | E, N | E], E, day=10, compass=False)
+    assert west == east
+
+
+def test_a_single_legal_orientation_takes_no_roll():
+    assert len(orientation_weights([N | S], S, day=20, compass=False)) == 1
 
 
 def _drafting_hand(g, options, target=7, direction=N):

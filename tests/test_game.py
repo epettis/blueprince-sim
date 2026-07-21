@@ -83,18 +83,24 @@ def test_choose_places_but_does_not_enter(registry, cfg):
     assert g.phase is Phase.NAVIGATE
 
 
-def test_move_enters_and_charges_a_step(registry, cfg):
+def test_move_charges_a_step_and_applies_the_room_effect(registry, cfg):
     g = Game(cfg, seed=1)
-    # guest_bedroom grants +10 steps on entry; place it north of the Entrance
-    # with doors linking south (to the Entrance) and north.
-    g._place_room(registry.by_id["guest_bedroom"], 7, N | S)
+    # A room that grants steps on entry, placed north of the Entrance with doors
+    # linking south (to the Entrance) and north. Read its grant from the room's
+    # own effect so the test exercises the enter mechanism, not a literal value.
+    room = registry.by_id["guest_bedroom"]
+    grant = next(e.param("amount") for e in room.effects
+                 if e.tag == "grant" and e.param("resource") == "steps")
+    assert grant > 0
+    g._place_room(room, 7, N | S)
     assert not g.state.entered[7]
     assert N in g.adjacent_moves()          # connected, walkable
     steps0 = g.state.steps
     g.move(N)
     assert g.state.pos == 7
     assert g.state.entered[7]               # entered now
-    assert g.state.steps == steps0 - 1 + 10  # one step to walk in, +10 on enter
+    # one step spent walking in, then the room's on-enter grant applied
+    assert g.state.steps == steps0 - 1 + grant
 
 
 def test_determinism_same_seed_same_episode(cfg):

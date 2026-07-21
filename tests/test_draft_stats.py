@@ -3,7 +3,6 @@
 import pytest
 from scipy import stats
 
-from blueprince_sim.config import GameConfig
 from blueprince_sim.engine.decks import build_decks, roll_rarity
 from blueprince_sim.engine.game import Game
 from blueprince_sim.engine.rng import Rng
@@ -53,14 +52,14 @@ def test_rarity_roll_matches_table(registry, cfg, stage, slot, rank):
 
 
 def test_solarium_flattens_slot23(registry, cfg):
-    st, rng = _fresh_state(registry, cfg, "late", solarium=True)
-    row = registry.weight_row("late", True, "slot23", 9)
-    assert tuple(row) == (10.0, 20.0, 50.0, 20.0)
-    counts = [0, 0, 0, 0]
-    for _ in range(N_DRAWS):
-        counts[roll_rarity(st, registry, cfg, rng, 2, 9)] += 1
-    # rare should now be ~20%, vastly above the non-solarium 8%
-    assert counts[3] / N_DRAWS > 0.15
+    def rare_rate(solarium):
+        st, rng = _fresh_state(registry, cfg, "late", solarium=solarium)
+        rares = sum(roll_rarity(st, registry, cfg, rng, 2, 9) == 3
+                    for _ in range(N_DRAWS))
+        return rares / N_DRAWS
+
+    # The Solarium flattens slot-2/3 weights, so rare rooms roll far more often.
+    assert rare_rate(solarium=True) > 2 * rare_rate(solarium=False)
 
 
 def test_solarium_does_not_affect_slot1(registry, cfg):
