@@ -1,7 +1,5 @@
 """Placement legality: orientations, wings, corners, connectivity."""
 
-import pytest
-
 from blueprince_sim.config import GameConfig
 from blueprince_sim.engine.grid import (E, N, S, W, is_corner, is_east_wing,
                                         is_west_wing, neighbor, rank_of, rotate_mask)
@@ -40,14 +38,21 @@ def test_orientation_requires_back_door(registry, cfg):
     assert masks == [E | W]
 
 
-def test_forbid_offgrid_doors_flag(registry):
+def test_doors_cannot_face_outer_wall(registry, cfg):
     st = GameState()
-    cfg = GameConfig(forbid_offgrid_doors=True)
     straight = registry.by_id["corridor"]
-    # cell 4 = rank 1 east corner; entering eastward needs E|W, but E faces off-grid
+    # cell 4 = rank 1 SE corner, entered heading east (from cell 3): a straight
+    # needs E|W, but the E door faces off-grid, so no orientation is legal.
     assert legal_orientations(straight, 4, E, st, cfg) == []
-    # default allows it (door becomes blocked)
-    assert legal_orientations(straight, 4, E, st, GameConfig()) == [E | W]
+    # A 4-way room can never be drawn on an edge (a door always faces out).
+    cross = registry.by_id["rotunda"]  # 4-Door
+    assert legal_orientations(cross, 9, E, st, cfg) == []          # east edge
+    assert legal_orientations(cross, 22, N, st, cfg) == [N | E | S | W]  # interior OK
+    # A corner tile admits only L-shapes / Dead Ends. Cell 0 = SW corner,
+    # entered heading south (from cell 5): back door is N (interior).
+    dead_end = registry.by_id["closet"]
+    assert legal_orientations(dead_end, 0, S, st, cfg) == [N]
+    assert legal_orientations(straight, 0, S, st, cfg) == []       # straight can't fit
 
 
 def test_wing_conditions(registry, cfg):

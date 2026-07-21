@@ -6,7 +6,7 @@ import numpy as np
 from gymnasium import spaces
 
 from ..engine.game import Game, Phase
-from ..engine.model import LAYOUTS, RARITIES
+from ..engine.model import LAYOUTS
 
 CATEGORIES = ("blueprint", "bedroom", "hallway", "green", "shop", "red",
               "blackprint", "studio_addition", "outer", "objective")
@@ -43,6 +43,12 @@ def encode(game: Game) -> dict:
     if game.phase is Phase.DRAFTING and pending is not None:
         for opt in pending.options:
             room = game.registry.rooms[opt.room_idx]
+            if opt.hidden:
+                # Archives mystery: identity concealed (room_idx 0 = unknown),
+                # but the option is present and still selectable.
+                options[opt.slot] = (0, 0, -1, -1, -1, 0,
+                                     int(game.affordable(room, opt)), 0)
+                continue
             cost = game._effective_cost(room, opt)
             options[opt.slot] = (
                 room.idx + 1,
@@ -51,7 +57,7 @@ def encode(game: Game) -> dict:
                 LAYOUTS.index(room.layout),
                 CAT_INDEX.get(room.category, 0),
                 opt.orientation,
-                int(st.gems >= cost),
+                int(game.affordable(room, opt)),
                 int(opt.forced),
             )
     return {

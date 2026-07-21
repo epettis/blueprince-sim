@@ -10,9 +10,10 @@ from . import effects
 from .decks import build_decks, inject_rooms
 from .draft import deal_draft, redeal
 from .effects import Hook
-from .grid import DIRS, ENTRANCE_CELL, N_CELLS, OPPOSITE, neighbor, rank_of
+from .grid import DIRS, ENTRANCE_CELL, OPPOSITE, neighbor, rank_of, rotate_mask
 from .items import roll_room_items
 from .model import Registry, Room
+from .placement import legal_orientations
 from .rng import Rng
 from .state import DraftOption, GameState, PendingDraft, resolve_gem_cost
 
@@ -59,6 +60,7 @@ class Game:
         self.free_categories: set[str] = set()
         self.bedroom_bonus = 0
         self.red_negations = 0
+        self.hovel_placed = False
         self.doorway_drafts: dict[tuple[int, int], PendingDraft] = {}
         self.phase = Phase.NAVIGATE
         self.termination_reason = ""
@@ -100,33 +102,28 @@ class Game:
                     q.append(nb)
         return seen
 
-    def _path_cost(self, target: int) -> int | None:
-        """Rooms entered walking from pos to target, or None if unreachable."""
-        st = self.state
-        if target == st.pos:
-            return 0
-        dist = {st.pos: 0}
-        q = deque([st.pos])
-        while q:
-            cell = q.popleft()
-            for d in DIRS:
-                nb = neighbor(cell, d)
-                if nb == -1 or nb in dist or st.grid[nb] < 0:
-                    continue
-                if self._connected(cell, nb, d):
-                    dist[nb] = dist[cell] + 1
-                    if nb == target:
-                        return dist[nb]
-                    q.append(nb)
-        return None
-
     # ---------------------------------------------------------------- actions
 
     def open_doorways(self) -> list[tuple[int, int]]:
-        """(cell, direction) pairs where a new room can be drafted."""
+        """Closed doors of the CURRENT room that a draft can open.
+
+        Drafting happens at the doorway of the room you are standing in, so
+        this is scoped to ``st.pos``. Use :meth:`move` to travel to another
+        placed room before drafting from its doorways.
+        """
         st = self.state
         if self.phase is not Phase.NAVIGATE:
             return []
+        cell = st.pos
+        if st.grid[cell] < 0 or cell == ANTECHAMBER_CELL:
+            return []
+        return [(cell, d) for d in DIRS
+                if st.placed_doors[cell] & d
+                and (nb := neighbor(cell, d)) != -1 and st.grid[nb] < 0]
+
+    def _frontier_doorways(self) -> list[tuple[int, int]]:
+        """Every closed door across all reachable rooms (drives dead-end)."""
+        st = self.state
         out = []
         for cell in self.reachable_cells():
             if st.grid[cell] < 0 or cell == ANTECHAMBER_CELL:
@@ -140,17 +137,18 @@ class Game:
         return out
 
     def open_door(self, cell: int, direction: int) -> PendingDraft:
+        """Draft (but do not enter) through a doorway of the current room.
+
+        Drafting only deals a hand and, on :meth:`choose`, places a room; it
+        costs no step and grants no resources. The player pays the step and
+        receives the room's effects only when they :meth:`move` into it.
+        """
         assert self.phase is Phase.NAVIGATE, "not in NAVIGATE phase"
         st = self.state
+        assert cell == st.pos, "can only draft from the room you are standing in"
+        assert st.placed_doors[cell] & direction, "no door in that direction"
         target = neighbor(cell, direction)
         assert target != -1 and st.grid[target] < 0, "invalid doorway"
-        cost = self._path_cost(cell)
-        assert cost is not None, "doorway not reachable"
-        st.steps -= cost
-        st.pos = cell
-        if st.steps <= 0:
-            self._terminate("out_of_steps")
-            return None
         key = (cell, direction)
         pending = self.doorway_drafts.get(key)
         if pending is None:
@@ -221,19 +219,16 @@ class Game:
             self._choose_outer(opt)
             return
         room = self.registry.rooms[opt.room_idx]
-        cost = self._effective_cost(room, opt)
-        assert st.gems >= cost, "cannot afford"
-        st.gems -= cost
+        assert self.affordable(room, opt), "cannot afford"
+        self._pay(room, opt)
 
+        # Drafting only PLACES the room behind the doorway. The player does
+        # not enter it, pays no step, and gains none of its resources until
+        # they move in (see :meth:`move`).
         self._place_room(room, pending.target_cell, opt.orientation)
         del self.doorway_drafts[(pending.from_cell, pending.direction)]
         st.pending = None
         self.phase = Phase.NAVIGATE
-
-        # Walk into the new room.
-        st.steps -= 1
-        st.pos = pending.target_cell
-        self._enter(pending.target_cell)
         self._check_termination()
 
     def _effective_cost(self, room: Room, opt) -> int:
@@ -243,11 +238,31 @@ class Game:
             return 0
         return resolve_gem_cost(room, self.state, self.registry.rooms)
 
-    def decline(self) -> None:
-        """Back out of a draft; the dealt hand persists on that doorway."""
-        assert self.phase is Phase.DRAFTING
-        self.state.pending = None
-        self.phase = Phase.NAVIGATE
+    def affordable(self, room: Room, opt) -> bool:
+        """Can the current draft option be paid for?
+
+        With the Hovel placed, gem costs are paid entirely in steps at 3:1
+        (leaving at least one step so the drafted room can still be entered).
+        """
+        cost = self._effective_cost(room, opt)
+        if cost <= 0:
+            return True
+        if self.hovel_placed:
+            return self.state.steps > 3 * cost
+        return self.state.gems >= cost
+
+    def _pay(self, room: Room, opt) -> None:
+        cost = self._effective_cost(room, opt)
+        if cost <= 0:
+            return
+        if self.hovel_placed:
+            self.state.steps -= 3 * cost
+        else:
+            self.state.gems -= cost
+
+    # There is no decline: opening a door commits you to drafting one of the
+    # dealt rooms. Slot 1 is always the free forced-Closet fallback, so an
+    # affordable option always exists.
 
     def redraw(self, kind: RedrawKind) -> None:
         assert self.phase is Phase.DRAFTING and self.state.pending is not None
@@ -266,16 +281,106 @@ class Game:
             st.dice -= 1
         redeal(st, self.registry, self.cfg, self.rng, self.placed_ids, pending)
 
-    def move_to(self, cell: int) -> None:
-        """Walk to an already-placed, connected room (e.g. to enter the Antechamber)."""
+    def rotation_available(self) -> bool:
+        """Can the current hand's floorplans be freely rotated?
+
+        The Ornate Compass grants this on every draft while it is held; the
+        Rotunda grants it while placed on the grid; the Dovecote grants it only
+        while it is one of the drawn options. This overrides the random
+        orientation roll - the player rotates the options at will.
+        """
+        st = self.state
+        if self.phase is not Phase.DRAFTING or st.pending is None:
+            return False
+        if self.cfg.ornate_compass or "rotunda" in self.placed_ids:
+            return True
+        return any(self.registry.rooms[o.room_idx].id == "dovecote"
+                   for o in st.pending.options)
+
+    def rotate_options(self) -> None:
+        """Spin every drawn floorplan into its next legal orientation (clockwise)."""
+        assert self.rotation_available(), "no rotation source in play"
+        st = self.state
+        pending = st.pending
+        for opt in pending.options:
+            room = self.registry.rooms[opt.room_idx]
+            legal = legal_orientations(room, pending.target_cell, pending.direction,
+                                       st, self.cfg)
+            if len(legal) <= 1:
+                continue
+            mask = opt.orientation
+            for _ in range(4):
+                mask = rotate_mask(mask, 1)
+                if mask in legal:
+                    opt.orientation = mask
+                    break
+
+    def adjacent_moves(self) -> list[int]:
+        """Directions from the current room into a connected, placed room."""
+        st = self.state
+        if self.phase is not Phase.NAVIGATE:
+            return []
+        out = []
+        for d in DIRS:
+            nb = neighbor(st.pos, d)
+            if nb != -1 and st.grid[nb] >= 0 and self._connected(st.pos, nb, d):
+                out.append(d)
+        return out
+
+    def move(self, direction: int) -> None:
+        """Walk one room in ``direction``, entering the connected room there.
+
+        This is the only action that spends a step and (on first entry) grants
+        a room's resources. Walking into the Antechamber is how you win.
+        """
         assert self.phase is Phase.NAVIGATE
         st = self.state
-        cost = self._path_cost(cell)
-        assert cost is not None, "cell not reachable"
-        st.steps -= cost
-        st.pos = cell
-        self._enter(cell)
+        nb = neighbor(st.pos, direction)
+        assert nb != -1 and st.grid[nb] >= 0 and self._connected(st.pos, nb, direction), \
+            "no connected room that way"
+        assert st.steps >= 1, "out of steps"
+        st.steps -= 1
+        st.pos = nb
+        self._enter(nb)
         self._check_termination()
+
+    def move_to(self, cell: int) -> None:
+        """Walk the shortest connected path to ``cell``, one step per room."""
+        assert self.phase is Phase.NAVIGATE
+        path = self._path_dirs(cell)
+        assert path is not None, "cell not reachable"
+        for d in path:
+            if self.phase is not Phase.NAVIGATE:
+                break
+            self.move(d)
+
+    def _path_dirs(self, target: int) -> list[int] | None:
+        """Directions of the shortest connected path from pos to target."""
+        st = self.state
+        if target == st.pos:
+            return []
+        prev: dict[int, tuple[int, int]] = {st.pos: (-1, -1)}
+        q = deque([st.pos])
+        while q:
+            cell = q.popleft()
+            for d in DIRS:
+                nb = neighbor(cell, d)
+                if nb == -1 or nb in prev or st.grid[nb] < 0:
+                    continue
+                if not self._connected(cell, nb, d):
+                    continue
+                prev[nb] = (cell, d)
+                if nb == target:
+                    dirs = []
+                    cur = target
+                    while cur != st.pos:
+                        pcell, pdir = prev[cur]
+                        dirs.append(pdir)
+                        cur = pcell
+                    dirs.reverse()
+                    return dirs
+                q.append(nb)
+        return None
 
     # ---------------------------------------------------------------- internal
 
@@ -313,12 +418,15 @@ class Game:
 
     def _check_termination(self) -> None:
         st = self.state
-        # Connecting a door to the Antechamber wins: the player always walks in.
-        if st.pos == ANTECHAMBER_CELL or self._antechamber_reachable():
+        # You win only by walking INTO the Antechamber, not by connecting a
+        # door to it. Reaching it may cost the last step you have.
+        if st.pos == ANTECHAMBER_CELL:
             self._terminate("antechamber")
         elif st.steps <= 0:
             self._terminate("out_of_steps")
-        elif not self.open_doorways():
+        elif not self._frontier_doorways() and not self._antechamber_reachable():
+            # No undrafted doors anywhere reachable and no path to walk into
+            # the Antechamber: the day cannot progress.
             self._terminate("dead_end")
 
     def _antechamber_reachable(self) -> bool:

@@ -25,18 +25,25 @@ def run_episode(cfg: GameConfig, policy, seed: int, max_decisions: int = 800) ->
     game = Game(cfg, seed=seed)
     rnd = random.Random(seed)
     decisions = 0
+    def snapshot() -> tuple:
+        st = game.state
+        return (game.phase, st.steps, game.rooms_placed, st.pos,
+                len(st.pending.options) if st.pending else -1)
+
     while game.phase is not Phase.TERMINAL and decisions < max_decisions:
         decisions += 1
-        before = (game.phase, game.state.steps, game.rooms_placed,
-                  len(game.state.pending.options) if game.state.pending else -1)
+        before = snapshot()
         policy(game, rnd)
-        after = (game.phase, game.state.steps, game.rooms_placed,
-                 len(game.state.pending.options) if game.state.pending else -1)
-        if before == after and game.phase is Phase.DRAFTING:
-            game.decline()  # policy is stuck on an unaffordable hand
-            if not game.open_doorways():
+        if snapshot() == before:
+            # Policy made no progress this decision. Force a resolution: take
+            # the guaranteed free slot (no decline), or end a day that can no
+            # longer advance.
+            if game.phase is Phase.DRAFTING and game.state.pending is not None:
+                game.choose(min(o.slot for o in game.state.pending.options))
+            else:
                 game._check_termination()
-                break
+                if game.phase is not Phase.TERMINAL:
+                    break
     if game.phase is not Phase.TERMINAL:
         game.termination_reason = game.termination_reason or "decision_limit"
     st = game.state

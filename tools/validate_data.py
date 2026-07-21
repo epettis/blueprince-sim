@@ -28,7 +28,7 @@ KNOWN_EFFECT_TAGS = {"grant", "grant_per_category", "grant_on_draft_category",
                      "study_redraws", "counts_as_drafting_room", "counts_as_bedrooms",
                      "inject_pool", "allow_duplicates", "free_green_drafts",
                      "halve_steps", "coins_per_deadend", "negate_red_rooms",
-                     "reduce_draft_options"}
+                     "pay_gems_with_steps", "reduce_draft_options"}
 
 
 def main() -> int:

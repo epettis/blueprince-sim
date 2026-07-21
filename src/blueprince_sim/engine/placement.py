@@ -14,9 +14,12 @@ def legal_orientations(room: Room, cell: int, entry_dir: int, state: GameState,
 
     ``entry_dir`` is the direction the player moved to reach the cell, so the
     room needs a door on the OPPOSITE side, facing back to the room drafted
-    from. Off-grid-facing and blank-wall-facing doors are allowed by default
-    (they become permanently blocked doors, as in the real game) unless the
-    corresponding strict config flags are set.
+    from. A doorway can never point into the outer wall, so any rotation with
+    a door facing off-grid is illegal: this is what stops 4-way rooms being
+    drawn on edges, restricts corners to L-shapes and Dead Ends, and fixes a
+    T-shape's orientation against an edge. Blank-wall-facing doors are allowed
+    by default (they become permanently blocked doors) unless
+    ``cfg.strict_door_matching`` is set.
     """
     back = OPPOSITE[entry_dir]
     out = []
@@ -29,10 +32,9 @@ def legal_orientations(room: Room, cell: int, entry_dir: int, state: GameState,
                 continue
             nb = neighbor(cell, d)
             if nb == -1:
-                if cfg.forbid_offgrid_doors:
-                    ok = False
-                    break
-            elif state.grid[nb] >= 0 and not state.placed_doors[nb] & OPPOSITE[d]:
+                ok = False  # door would point into the outer wall
+                break
+            if state.grid[nb] >= 0 and not state.placed_doors[nb] & OPPOSITE[d]:
                 if cfg.strict_door_matching:
                     ok = False
                     break

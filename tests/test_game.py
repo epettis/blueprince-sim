@@ -4,6 +4,8 @@ import random
 
 from blueprince_sim.config import GameConfig
 from blueprince_sim.engine.game import ANTECHAMBER_CELL, Game, Phase
+from blueprince_sim.engine.grid import N, S
+from blueprince_sim.engine.state import DraftOption
 from blueprince_sim.cli.batch import run_episode
 from blueprince_sim.cli.policies import POLICIES, greedy_rank
 
@@ -23,25 +25,57 @@ def test_unlock_toggles(registry):
     assert g.state.gems == 2
 
 
-def test_draft_hand_persists_on_decline(cfg):
+def test_cannot_decline_a_draft(cfg):
     g = Game(cfg, seed=5)
-    p1 = g.open_door(2, 1)
-    names1 = [o.room_idx for o in p1.options]
-    g.decline()
-    p2 = g.open_door(2, 1)
-    assert [o.room_idx for o in p2.options] == names1
+    g.open_door(2, 1)
+    assert not hasattr(g, "decline")   # declining a draft no longer exists
+    # slot 1 is always the free forced fallback, so a choice is always possible
+    assert any(o.slot == 0 for o in g.state.pending.options)
 
 
-def test_choose_places_and_charges(registry, cfg):
+def test_archives_hides_a_draftable_mystery(registry, cfg):
+    g = Game(cfg, seed=3)
+    # Stand in the Archives and draft out of its north door.
+    g._place_room(registry.by_id["archives"], 7, N | S)
+    g.state.pos = 7
+    g.state.entered[7] = True
+    g.state.gems = 9  # afford whatever the mystery turns out to be
+    pending = g.open_door(7, N)
+    hidden = [o for o in pending.options if o.hidden]
+    assert len(hidden) == 1                       # exactly one mystery option
+    assert not pending.options[0].hidden          # a visible option remains
+    # the mystery is still a real, placeable room
+    steps_before = g.state.steps
+    g.choose(hidden[0].slot)
+    assert g.state.grid[12] >= 0                   # room placed at the north cell
+    assert g.phase is Phase.NAVIGATE
+    assert g.state.steps == steps_before           # placing costs no step
+
+
+def test_choose_places_but_does_not_enter(registry, cfg):
     g = Game(cfg, seed=5)
     steps0 = g.state.steps
-    p = g.open_door(2, 1)
-    g.choose(0)  # slot 1 free
-    assert g.state.grid[7] >= 0
-    assert g.state.pos == 7
-    # 1 step to walk in, +/- whatever the drafted room's effects did
-    assert g.state.steps < steps0
+    g.open_door(2, 1)  # draft through the Entrance's north door
+    g.choose(0)        # slot 1 (free): places the room, does not enter it
+    assert g.state.grid[7] >= 0        # room placed behind the doorway
+    assert g.state.pos == 2            # player has NOT moved in
+    assert not g.state.entered[7]      # ...so no resources granted yet
+    assert g.state.steps == steps0     # no step paid on a free draft
     assert g.phase is Phase.NAVIGATE
+
+
+def test_move_enters_and_charges_a_step(registry, cfg):
+    g = Game(cfg, seed=1)
+    # guest_bedroom grants +10 steps on entry; place it north of the Entrance
+    # with doors linking south (to the Entrance) and north.
+    g._place_room(registry.by_id["guest_bedroom"], 7, N | S)
+    assert not g.state.entered[7]
+    assert N in g.adjacent_moves()          # connected, walkable
+    steps0 = g.state.steps
+    g.move(N)
+    assert g.state.pos == 7
+    assert g.state.entered[7]               # entered now
+    assert g.state.steps == steps0 - 1 + 10  # one step to walk in, +10 on enter
 
 
 def test_determinism_same_seed_same_episode(cfg):
@@ -77,15 +111,31 @@ def test_weight_room_halves_steps(registry, cfg):
     assert g.state.steps == 20
 
 
-def test_hovel_negates_red_rooms(registry, cfg):
+def test_shelter_negates_red_rooms(registry, cfg):
     g = Game(cfg, seed=1)
-    g.red_negations = 1
+    g.red_negations = 1  # the Shelter grants these
     g.state.steps = 40
     g._place_room(registry.by_id["weight_room"], 7, 4)
     assert g.state.steps == 40  # negated
     g._place_room(registry.by_id["gymnasium"], 8, 4)
     g._enter(8)
     assert g.state.steps == 38  # negation exhausted
+
+
+def test_hovel_pays_gem_costs_with_steps(registry, cfg):
+    g = Game(cfg, seed=1)
+    g._place_room(registry.by_id["hovel"], 7, N | S)  # ON_PLACE sets the flag
+    assert g.hovel_placed
+    room = next(r for r in registry.rooms if r.gem_cost > 0 and r.rarity)
+    opt = DraftOption(room_idx=room.idx, orientation=room.door_mask,
+                      gem_cost=room.gem_cost, slot=1)
+    cost = g._effective_cost(room, opt)
+    assert cost > 0
+    g.state.steps, g.state.gems = 40, 5
+    assert g.affordable(room, opt)          # 40 > 3*cost
+    g._pay(room, opt)
+    assert g.state.steps == 40 - 3 * cost   # paid in steps
+    assert g.state.gems == 5                # gems untouched
 
 
 def test_nursery_grants_on_bedroom_draft(registry, cfg):

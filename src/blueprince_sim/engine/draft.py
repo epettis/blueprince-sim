@@ -13,17 +13,23 @@ from __future__ import annotations
 
 from ..config import GameConfig
 from .decks import roll_rarity
-from .grid import rank_of
+from .grid import OPPOSITE, rank_of
 from .model import Registry, Room
 from .placement import legal_orientations, satisfies_draft_conditions
 from .rng import Rng
+from .rotation import orientation_weights
 from .state import DraftOption, GameState, PendingDraft, resolve_gem_cost
 
 CLOSET_ID = "closet"
 
 
-def _from_room_option_penalty(from_room: Room | None) -> int:
-    """Archives: drafting FROM it hides one of the three floorplans."""
+def _hidden_count(from_room: Room | None) -> int:
+    """Archives: drafting FROM it hides one of the three floorplans.
+
+    The room is still dealt and still draftable — it is shown face-down as a
+    "mystery" option the player can select blind — so this counts how many of
+    the dealt options to mark hidden, not how many to drop.
+    """
     if from_room is None:
         return 0
     return sum(1 for e in from_room.effects if e.tag == "reduce_draft_options")
@@ -143,11 +149,36 @@ def _make_option(ctx: DraftContext, room: Room, slot: int, cell: int, entry_dir:
     orientations = legal_orientations(room, cell, entry_dir, ctx.state, ctx.cfg)
     if not orientations:  # forced Closet fallback path
         orientations = [room.door_mask]
-    orientation = orientations[0] if len(orientations) == 1 else \
-        ctx.rng.choice("orientation", orientations)
+    if len(orientations) == 1:
+        orientation = orientations[0]
+    else:
+        # A drawn floorplan is rolled into a legal orientation with datamined,
+        # south-biased weights (the Ornate Compass flips the bias northward).
+        weights = orientation_weights(orientations, OPPOSITE[entry_dir],
+                                      ctx.state.day, ctx.cfg.compass)
+        orientation = orientations[ctx.rng.roll_weighted("orientation", weights)]
     cost = 0 if slot == 0 else resolve_gem_cost(room, ctx.state, ctx.registry.rooms)
     return DraftOption(room_idx=room.idx, orientation=orientation, gem_cost=cost,
                        slot=slot, forced=forced_draw)
+
+
+def _fill_options(ctx: DraftContext, pending: PendingDraft, from_room: Room | None) -> None:
+    """Deal the three option slots, then mark the Archives mystery option(s).
+
+    Every slot is dealt as normal; the hidden ones are only shown face-down
+    (identity concealed) but remain fully draftable. The first option is never
+    hidden, so a visible affordable choice always exists.
+    """
+    exclude: set[int] = set()
+    for slot in range(3):
+        opt = draw_slot(ctx, slot, pending.target_cell, pending.direction, exclude)
+        if opt is not None:
+            pending.options.append(opt)
+            exclude.add(opt.room_idx)
+    hidden = _hidden_count(from_room)
+    if hidden and len(pending.options) > 1:
+        for opt in pending.options[max(1, len(pending.options) - hidden):]:
+            opt.hidden = True
 
 
 def deal_draft(state: GameState, registry: Registry, cfg: GameConfig, rng: Rng,
@@ -156,15 +187,8 @@ def deal_draft(state: GameState, registry: Registry, cfg: GameConfig, rng: Rng,
     from_room = registry.rooms[state.grid[from_cell]] if state.grid[from_cell] >= 0 else None
     from_library = from_room is not None and from_room.id == "library"
     ctx = DraftContext(state, registry, cfg, rng, placed_ids, from_library)
-
     pending = PendingDraft(from_cell=from_cell, direction=direction, target_cell=target_cell)
-    exclude: set[int] = set()
-    n_slots = max(1, 3 - _from_room_option_penalty(from_room))
-    for slot in range(n_slots):
-        opt = draw_slot(ctx, slot, target_cell, direction, exclude)
-        if opt is not None:
-            pending.options.append(opt)
-            exclude.add(opt.room_idx)
+    _fill_options(ctx, pending, from_room)
     return pending
 
 
@@ -176,10 +200,4 @@ def redeal(state: GameState, registry: Registry, cfg: GameConfig, rng: Rng,
     from_library = from_room is not None and from_room.id == "library"
     ctx = DraftContext(state, registry, cfg, rng, placed_ids, from_library)
     pending.options.clear()
-    exclude: set[int] = set()
-    n_slots = max(1, 3 - _from_room_option_penalty(from_room))
-    for slot in range(n_slots):
-        opt = draw_slot(ctx, slot, pending.target_cell, pending.direction, exclude)
-        if opt is not None:
-            pending.options.append(opt)
-            exclude.add(opt.room_idx)
+    _fill_options(ctx, pending, from_room)

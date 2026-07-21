@@ -61,8 +61,12 @@ def render_options(game: Game) -> str:
     pending = game.state.pending
     for opt in pending.options:
         room = game.registry.rooms[opt.room_idx]
+        afford = "" if game.affordable(room, opt) else " (can't afford)"
+        if opt.hidden:
+            lines.append(f"  [{opt.slot + 1}] {'??? (mystery room)':<22} "
+                         f"{'hidden':<12} {'?':<9} cost ?{afford}")
+            continue
         cost = game._effective_cost(room, opt)
-        afford = "" if game.state.gems >= cost else " (can't afford)"
         forced = " [forced]" if opt.forced else ""
         eff = room.effects[0].tag if room.effects else ""
         lines.append(f"  [{opt.slot + 1}] {room.name:<22} {room.rarity or '-':<12} "

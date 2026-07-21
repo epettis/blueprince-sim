@@ -5254,7 +5254,7 @@
    "meta": {
     "source": "wiki (effect); gem cost inferred",
     "confidence": "wiki",
-    "effect_text": "When drawn while drafting, you may rotate floorplans (enable cfg.orientation_choice to approximate)."
+    "effect_text": "While drawn as a drafting option, a rotate action becomes available that spins every drawn floorplan to its next legal orientation (engine: Game.rotation_available/rotate_options)."
    }
   },
   {
@@ -5382,8 +5382,8 @@
    }
   },
   {
-   "id": "hovel",
-   "name": "Hovel",
+   "id": "shelter",
+   "name": "Shelter",
    "category": "outer",
    "rarity": null,
    "gem_cost": 0,
@@ -5411,6 +5411,38 @@
     "source": "wiki",
     "confidence": "wiki",
     "effect_text": "Negates the effects of the next 3 Red Rooms."
+   }
+  },
+  {
+   "id": "hovel",
+   "name": "Hovel",
+   "category": "outer",
+   "rarity": null,
+   "gem_cost": 0,
+   "layout": "dead_end",
+   "draft_conditions": [],
+   "flags": {
+    "no_library_draft": false,
+    "powered": false,
+    "duct": false
+   },
+   "deck_copies": 1,
+   "effects": [
+    {
+     "tag": "pay_gems_with_steps",
+     "ratio": 3
+    }
+   ],
+   "items": {
+    "guaranteed": [],
+    "additional_max": 0,
+    "dig_spots": 0
+   },
+   "pool": "outer",
+   "meta": {
+    "source": "wiki (owner correction)",
+    "confidence": "wiki",
+    "effect_text": "Lets you pay rooms' gem costs with steps at a ratio of 3 steps to 1 gem."
    }
   },
   {

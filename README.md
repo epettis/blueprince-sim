@@ -45,9 +45,12 @@ Config can also come from YAML (`--config myrun.yaml`); keys = fields of
 ## What is simulated
 
 Each episode is one in-game day on the 5x9 grid: Entrance Hall (rank 1
-center) to the Antechamber (rank 9 center). Connecting a door to the
-Antechamber ends the day as a win; running out of steps or dead-ending ends
-it as a loss.
+center) to the Antechamber (rank 9 center). **Drafting and moving are
+separate actions**: at a doorway of the room you are standing in you draft
+1-of-3 rooms, which *places* a room behind that door but does not enter it —
+you pay no step and gain none of its resources until you **move** in. Walking
+into the Antechamber ends the day as a win; running out of steps or
+dead-ending ends it as a loss.
 
 The draft implements the decompiled v1.3 algorithm:
 
@@ -60,16 +63,26 @@ The draft implements the decompiled v1.3 algorithm:
 - **Deck-size gates** (free >= 3; gem 5/5/4/4 once veteran/day-16/Room-46).
 - **Priority draws** into slot 3 (Patio group 5% -> 50% with Greenhouse;
   Commissary/Observatory 13%; Classroom 3%).
-- Placement filters: door-back rule, wing/corner draft conditions,
+- Placement filters: door-back rule, **doors can never face the outer wall**
+  (so 4-way rooms never sit on an edge, corners take only L-shapes/Dead Ends,
+  and a T against an edge is fixed), wing/corner draft conditions,
   cannot-draft-from-Library, gated rooms (Pool/Secret Garden/Room 8/...).
+- **Orientation roll**: a floorplan with several legal orientations is rolled
+  with datamined, south-door-biased weights that drift by day (e.g. a T needing
+  a south door: 70/15/15 early -> 60/20/20 late). The **Compass** (`cfg.compass`)
+  flips the bias toward north doors. Free rotation to any legal orientation is
+  granted by the **Ornate Compass** (`cfg.ornate_compass`, every draft), the
+  **Rotunda** (while placed), and the **Dovecote** (while drawn). See
+  `engine/rotation.py`.
 - **Redraws**: Study (1 gem, max 8/draft), Classroom (free = drafting-room
   count), Ivory Dice.
 - **Resources**: steps, gems, keys, coins, dice; the luck system (start 10,
   max effect 29, self-balancing) drives extra item spawns.
 - **Room effects** (Tier 1): resource grants, Solarium weight flip, Greenhouse
   bias, The Pool's injected rooms, Bunk Room double-bedroom, Nursery,
-  red-room penalties (Weight Room, Gymnasium, Chapel, Archives), Hovel
-  negation, Tomb dead-end gold, Schoolhouse classroom flood, etc.
+  red-room penalties (Weight Room, Gymnasium, Chapel, Archives), Shelter
+  red-room negation, Hovel steps-for-gems (3:1), Tomb dead-end gold,
+  Schoolhouse classroom flood, etc.
 
 ### Unlock toggles (GameConfig)
 
@@ -82,6 +95,8 @@ The draft implements the decompiled v1.3 algorithm:
 | `upgrade_disks` | upgrade-variant room ids that replace their base room |
 | `veteran_mode`, `day`, `room46_reached` | stage selection + gem deck-size gates |
 | `satisfied_conditions` | item-gated rooms: `breakfast`, `secret_garden_key`, `knight_chess_piece`, `room8_key` |
+| `compass` | bias the orientation roll toward north-facing doors |
+| `ornate_compass` | rotate-at-will (any legal orientation) on every draft |
 
 ## Data provenance
 
@@ -113,13 +128,21 @@ data JSON (or regenerate: `python tools/ingest_sheet.py`, which rebuilds
 ## Known simplifications & open questions
 
 - **Antechamber entry**: modeled as pre-placed at rank 9 center with all
-  doors usable; connecting any door wins. The real game's Antechamber door
-  locks (keys/security) are not modeled.
-- **Steps**: 1 step per room moved through/into; starting steps 50
-  (community consensus, not datamined). No locked doors/keys-to-open-doors
-  yet (keys are tracked but door locks are Tier 2).
+  doors usable; you win by **walking into** it (which costs the entry step),
+  not merely by connecting a door — so you can fall one tile short. The real
+  game's Antechamber door locks (keys/security) are not modeled.
+- **Steps**: drafting a room is free; moving into a room costs 1 step (and is
+  when that room's resources are granted). Starting steps 50 (community
+  consensus, not datamined). No locked doors/keys-to-open-doors yet (keys are
+  tracked but door locks are Tier 2).
 - **Week boundaries**: day 1-7 / 8-14 / 15+ mapping to the sheet's
   Week 1 / Week 2 / late tables is inferred.
+- **Orientation weights** (`engine/rotation.py`) are datamined for the South,
+  West and East connecting-door cases (with their day columns); the North case
+  is the published near-uniform 40/30/30 and the Compass column for North (and
+  for the 50/50 North/South 2-way case) is unpublished, so it falls back to the
+  base roll. The Compass (north bias) and Ornate Compass (rotate-at-will) are
+  modeled as per-run flags rather than held items.
 - **Redraws** redraw the whole 3-option hand (per-slot semantics unverified).
 - **Luck curve** between 10 and 29 is linear (shape not documented); the
   extra-item type distribution (coins/key/gem/die) is an estimate.
@@ -224,7 +247,7 @@ cpu; the nets are tiny MLPs).
 Rollout collection probabilistically mixes two behavior modes
 (`rl/mixed_policy.py`):
 
-- **Exploit** (`--exploit-prob`, default 0.7): sample the masked policy
+- **Exploit** (`--exploit-prob`, default 0.9): sample the masked policy
   distribution at low temperature (`--exploit-temp` 0.5) - sharpened toward
   the best known action, softly enough to avoid brittleness.
 - **Explore** (the rest): high temperature (`--explore-temp` 1.5) flattens
@@ -233,16 +256,17 @@ Rollout collection probabilistically mixes two behavior modes
   uniform floor over *legal* actions so even near-zero-probability moves
   occasionally get tried. Illegal actions stay at zero in both modes.
 
-The mode is re-rolled **per episode per worker** by default - a day in Blue
-Prince is a long-horizon plan, so coherent whole-episode exploration probes
-escape routes from local optima that isolated random moves can't reach.
-`--mode-granularity decision` re-rolls every step instead (epsilon-greedy
-feel).
+The mode is re-rolled **per decision** by default. A Blue Prince day is
+50-70 decisions, so rolling explore/exploit *per episode* would make ~1 in 10
+whole episodes a random walk that never reaches the Antechamber - drowning the
+learning signal. Per-decision at 0.9 keeps each episode ~90% on-policy with a
+light scatter of exploratory moves. `--mode-granularity episode` restores
+coherent whole-episode exploration (best paired with a higher `--exploit-prob`).
 
-Logs and `latest.json` report `win_rate_exploit_1k` / `win_rate_explore_1k`
-separately - the exploit number is a continuous read on "current best
-policy" performance without a separate eval run. `--evaluate` remains
-deterministic argmax, unaffected by these settings.
+With per-decision modes an episode can't be attributed to a single mode, so the
+`win_rate_exploit_1k` / `win_rate_explore_1k` split is reported only under
+`--mode-granularity episode`; `win_rate_1k` is always logged. `--evaluate`
+remains deterministic argmax, unaffected by these settings.
 
 Notes: with `--exploit-prob 1.0 --exploit-temp 1.0` the mechanism reduces
 exactly to vanilla MaskablePPO. The stored log-probs are those of the

@@ -31,7 +31,7 @@ def _grant(game, resource: str, amount: int) -> None:
 
 
 def _red_negated(game, room) -> bool:
-    """Hovel: negate the effects of the next N red rooms."""
+    """Shelter: negate the effects of the next N red rooms."""
     if room.category == "red" and game.red_negations > 0:
         game.red_negations -= 1
         return True
@@ -145,8 +145,14 @@ def coins_per_deadend(game, room, eff, ctx_room) -> None:
 
 @effect("negate_red_rooms", Hook.ON_PLACE)
 def negate_red_rooms(game, room, eff, ctx_room) -> None:
-    """Hovel: negate the effects of the next N red rooms."""
+    """Shelter: negate the effects of the next N red rooms."""
     game.red_negations += eff.param("amount", 3)
+
+
+@effect("pay_gems_with_steps", Hook.ON_PLACE)
+def pay_gems_with_steps(game, room, eff, ctx_room) -> None:
+    """Hovel: pay rooms' gem costs with steps at 3 steps : 1 gem."""
+    game.hovel_placed = True
 
 
 # reduce_draft_options (Archives) is consumed directly by draft.deal_draft

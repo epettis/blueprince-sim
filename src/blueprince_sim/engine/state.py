@@ -54,6 +54,7 @@ class DraftOption:
     gem_cost: int          # resolved cost (dynamic costs evaluated at deal time)
     slot: int              # 0..2
     forced: bool = False   # placed by a priority/forced draw
+    hidden: bool = False   # Archives: face-down "mystery" room, still draftable
 
 
 @dataclass(slots=True)

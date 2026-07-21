@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field, fields
+from dataclasses import dataclass, fields
 from pathlib import Path
 
 STAGES = ("week1", "week2", "late", "auto")
@@ -29,8 +29,14 @@ class GameConfig:
     satisfied_conditions: frozenset[str] = frozenset()
     # --- rule flags for documented-but-ambiguous behavior ---
     strict_door_matching: bool = False  # True: forbid doors facing occupied blank walls
-    forbid_offgrid_doors: bool = False  # True: forbid orientations with doors off-grid
     orientation_choice: bool = False    # True: player picks orientation; False: dealt orientation
+    # Compass held this run: shifts the random rotation roll toward north-facing
+    # doors (datamined "Compass" column). See engine/rotation.py.
+    compass: bool = False
+    # Ornate Compass held this run: a rotate-at-will option is available on every
+    # draft (choose any legal orientation), the way the Dovecote is only while
+    # it is one of the drawn options.
+    ornate_compass: bool = False
     # --- reward selection for the env ---
     reward: str = "sparse"              # sparse|shaped
     data_dir: Path | None = None
