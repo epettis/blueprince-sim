@@ -19,8 +19,11 @@ VALID_CATEGORIES = {"blueprint", "bedroom", "hallway", "green", "shop", "red",
 VALID_POOLS = {"base", "studio_addition", "outer", "pool_temp", "upgrade_variant",
                "conditional", "none"}
 VALID_CONFIDENCE = {"datamined", "wiki", "inferred", "placeholder"}
-KNOWN_CONDITIONS = {"west_wing", "east_wing", "west_or_east_wing",
-                    "west_wing_from_south_door", "corner_only", "pool_drafted",
+KNOWN_CONDITIONS = {"west_wing", "east_wing", "west_or_east_wing", "not_on_wing",
+                    "no_corner", "corner_only", "interior_only",
+                    "west_wing_from_south_door", "garage", "boiler_room",
+                    "morning_room", "room8_placement", "gift_shop",
+                    "no_north_on_wing", "no_horizontal_end_rank", "pool_drafted",
                     "library_only", "antechamber_north_door", "room8_key",
                     "knight_chess_piece", "secret_garden_key", "breakfast"}
 KNOWN_EFFECT_TAGS = {"grant", "grant_per_category", "grant_on_draft_category",
@@ -69,7 +72,8 @@ def main() -> int:
         if not isinstance(gem, int) or gem < 0 or gem > 9:
             errors.append(f"{where}: bad gem_cost {gem}")
         for cond in r.get("draft_conditions", []):
-            if cond not in KNOWN_CONDITIONS and not cond.startswith("rank_gte_"):
+            if (cond not in KNOWN_CONDITIONS and not cond.startswith("rank_gte_")
+                    and not cond.startswith("rank_lte_")):
                 warnings.append(f"{where}: unknown draft condition {cond!r} (permissive)")
         for eff in r.get("effects", []):
             if eff["tag"] not in KNOWN_EFFECT_TAGS:
