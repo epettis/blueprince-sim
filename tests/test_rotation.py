@@ -104,3 +104,18 @@ def test_ornate_compass_rotates_every_draft():
     before = pd.options[0].orientation
     g.rotate_options()
     assert pd.options[0].orientation != before and pd.options[0].orientation & S
+
+
+def test_outer_draft_is_never_rotatable():
+    # Outer rooms sit off-grid with a fixed orientation and no entry doorway
+    # (target_cell == -1, direction == 0). Even with a rotation source in play,
+    # rotation must not apply - previously this crashed in legal_orientations
+    # with KeyError: 0 on OPPOSITE[direction].
+    g = Game(GameConfig(ornate_compass=True), seed=1)
+    troom = next(r for r in g.registry.rooms if r.layout == "t" and r.rarity)
+    g.phase = Phase.DRAFTING
+    pd = PendingDraft(from_cell=-1, direction=0, target_cell=-1)
+    pd.options = [DraftOption(room_idx=troom.idx, orientation=E | S | W,
+                              gem_cost=0, slot=0)]
+    g.state.pending = pd
+    assert not g.rotation_available()

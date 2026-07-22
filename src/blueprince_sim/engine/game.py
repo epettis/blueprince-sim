@@ -288,9 +288,14 @@ class Game:
         Rotunda grants it while placed on the grid; the Dovecote grants it only
         while it is one of the drawn options. This overrides the random
         orientation roll - the player rotates the options at will.
+
+        Outer-room drafts sit off the grid with a fixed orientation and no
+        entry doorway (``target_cell == -1``), so rotation never applies there.
         """
         st = self.state
         if self.phase is not Phase.DRAFTING or st.pending is None:
+            return False
+        if st.pending.target_cell == -1:  # outer-room draft: no doorway to rotate against
             return False
         if self.cfg.ornate_compass or "rotunda" in self.placed_ids:
             return True
