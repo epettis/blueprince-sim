@@ -147,10 +147,11 @@ def build(out_path: Path) -> None:
         f"<td>{fmt_pct(m.get('win_rate_explore'))}</td></tr>"
         for m in samples[-12:][::-1])
 
-    stat = lambda label, value, sub="": (
-        f'<div class="tile"><div class="tlabel">{label}</div>'
-        f'<div class="tval">{value}</div>'
-        + (f'<div class="tsub">{sub}</div>' if sub else "") + "</div>")
+    def stat(label, value, sub=""):
+        return (
+            f'<div class="tile"><div class="tlabel">{label}</div>'
+            f'<div class="tval">{value}</div>'
+            + (f'<div class="tsub">{sub}</div>' if sub else "") + "</div>")
 
     tiles = "".join([
         stat("Episodes", f"{episodes:,}"),

@@ -6,10 +6,10 @@ import pytest
 torch = pytest.importorskip("torch")
 pytest.importorskip("sb3_contrib")
 
-from sb3_contrib import MaskablePPO
+from sb3_contrib import MaskablePPO  # noqa: E402  (import gated by importorskip above)
 
-from blueprince_sim.rl.mixed_policy import MixedExplorationPolicy
-from blueprince_sim.rl.train import make_single_env
+from blueprince_sim.rl.mixed_policy import MixedExplorationPolicy  # noqa: E402
+from blueprince_sim.rl.train import make_single_env  # noqa: E402
 
 
 @pytest.fixture(scope="module")
