@@ -53,6 +53,13 @@ source .venv/bin/activate          # do this before pytest / ruff / blueprince-*
 - `tools/ingest_sheet.py` regenerates `rooms.json` from `tools/raw/` + `tools/supplemental_rooms.json`; hand-edits to `rooms.json` that aren't reflected in those sources will be lost on re-ingest. The ingest condition map does not encode the finer wing/rank/direction rules, so those refinements live directly in the committed `rooms.json`.
 - Keep `rooms.json` diffs minimal: it is written with 1-space indent and `ensure_ascii=True` (currency glyphs stay as `\uXXXX` escapes).
 
+## Known gaps and deferred work
+
+- **Seven wiki rooms are absent from the sim entirely** (not in the datamined sheet or `supplemental_rooms.json`) — each needs special behavior modeled, not just a shape/stat record, so they were deferred rather than stubbed. Add with full records (rarity, gem cost, effects, flags, pool) plus their behavior: Mechanarium (cross), Planetarium (dead_end), Lost & Found (corner), Treasure Trove (corner), Tunnel (straight), Closed Exhibit (t), Throne Room (t).
+- **Chamber of Mirrors** is stored as a cross, but its four arms only connect after each door is entered from outside; that gated traversal is not modeled (see its `meta.layout_note`).
+- Room layouts were audited against `blueprince.wiki.gg` Category:Room shapes; two datamined rooms that disagreed with the wiki are corrected via `LAYOUT_OVERRIDE` in `tools/ingest_sheet.py`. Ambiguous currency glyphs in the raw sheet are resolved by UTF-8 byte value (`0x94`=key, `0x92`=gem) in the ingest `GLYPH_MAP`.
+- Broader modeling simplifications (Antechamber entry model, step costs, week boundaries, luck curve, redraw semantics, out-of-scope room effects) are catalogued in the README "Known simplifications & open questions" section.
+
 ## Workflow
 
 Per the repo convention, don't commit to `main` directly — branch, then open a PR. Before committing: `python tools/validate_data.py`, `pytest`, and `ruff check .` should all be green.
