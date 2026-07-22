@@ -845,7 +845,8 @@
    "layout": "corner",
    "alt_layouts": [],
    "draft_conditions": [
-    "room8_key"
+    "room8_key",
+    "room8_placement"
    ],
    "flags": {
     "no_library_draft": false,
@@ -1456,7 +1457,7 @@
    "layout": "dead_end",
    "alt_layouts": [],
    "draft_conditions": [
-    "west_wing"
+    "garage"
    ],
    "flags": {
     "no_library_draft": false,
@@ -2134,7 +2135,9 @@
    "gem_cost": 1,
    "layout": "t",
    "alt_layouts": [],
-   "draft_conditions": [],
+   "draft_conditions": [
+    "boiler_room"
+   ],
    "flags": {
     "no_library_draft": false,
     "powered": true,
@@ -3558,7 +3561,9 @@
    "gem_cost": 0,
    "layout": "t",
    "alt_layouts": [],
-   "draft_conditions": [],
+   "draft_conditions": [
+    "not_on_wing"
+   ],
    "flags": {
     "no_library_draft": true,
     "powered": false,
@@ -3594,7 +3599,9 @@
    "gem_cost": 0,
    "layout": "t",
    "alt_layouts": [],
-   "draft_conditions": [],
+   "draft_conditions": [
+    "not_on_wing"
+   ],
    "flags": {
     "no_library_draft": true,
     "powered": false,
@@ -3632,7 +3639,9 @@
    "gem_cost": 0,
    "layout": "t",
    "alt_layouts": [],
-   "draft_conditions": [],
+   "draft_conditions": [
+    "not_on_wing"
+   ],
    "flags": {
     "no_library_draft": true,
     "powered": false,
@@ -3670,7 +3679,9 @@
    "gem_cost": 0,
    "layout": "t",
    "alt_layouts": [],
-   "draft_conditions": [],
+   "draft_conditions": [
+    "not_on_wing"
+   ],
    "flags": {
     "no_library_draft": true,
     "powered": false,
@@ -3708,7 +3719,10 @@
    "gem_cost": 0,
    "layout": "t",
    "alt_layouts": [],
-   "draft_conditions": [],
+   "draft_conditions": [
+    "west_wing",
+    "no_corner"
+   ],
    "flags": {
     "no_library_draft": false,
     "powered": false,
@@ -3738,7 +3752,10 @@
    "gem_cost": 0,
    "layout": "t",
    "alt_layouts": [],
-   "draft_conditions": [],
+   "draft_conditions": [
+    "east_wing",
+    "no_corner"
+   ],
    "flags": {
     "no_library_draft": false,
     "powered": false,
@@ -3999,7 +4016,9 @@
    "gem_cost": 1,
    "layout": "t",
    "alt_layouts": [],
-   "draft_conditions": [],
+   "draft_conditions": [
+    "interior_only"
+   ],
    "flags": {
     "no_library_draft": true,
     "powered": false,
@@ -4035,7 +4054,9 @@
    "gem_cost": 1,
    "layout": "t",
    "alt_layouts": [],
-   "draft_conditions": [],
+   "draft_conditions": [
+    "interior_only"
+   ],
    "flags": {
     "no_library_draft": true,
     "powered": false,
@@ -4073,7 +4094,9 @@
    "gem_cost": 1,
    "layout": "t",
    "alt_layouts": [],
-   "draft_conditions": [],
+   "draft_conditions": [
+    "interior_only"
+   ],
    "flags": {
     "no_library_draft": true,
     "powered": false,
@@ -4111,7 +4134,9 @@
    "gem_cost": 1,
    "layout": "t",
    "alt_layouts": [],
-   "draft_conditions": [],
+   "draft_conditions": [
+    "interior_only"
+   ],
    "flags": {
     "no_library_draft": true,
     "powered": false,
@@ -4476,7 +4501,8 @@
     "corner"
    ],
    "draft_conditions": [
-    "west_or_east_wing"
+    "west_or_east_wing",
+    "no_corner"
    ],
    "flags": {
     "no_library_draft": false,
@@ -4515,7 +4541,8 @@
    "layout": "corner",
    "alt_layouts": [],
    "draft_conditions": [
-    "breakfast"
+    "breakfast",
+    "morning_room"
    ],
    "flags": {
     "no_library_draft": false,
@@ -4563,7 +4590,9 @@
    "alt_layouts": [],
    "draft_conditions": [
     "secret_garden_key",
-    "west_or_east_wing"
+    "west_or_east_wing",
+    "rank_gte_3",
+    "rank_lte_8"
    ],
    "flags": {
     "no_library_draft": false,
@@ -5056,7 +5085,10 @@
    "rarity": "standard",
    "gem_cost": 1,
    "layout": "dead_end",
-   "draft_conditions": [],
+   "draft_conditions": [
+    "no_north_on_wing",
+    "no_horizontal_end_rank"
+   ],
    "flags": {
     "no_library_draft": false,
     "powered": false,
@@ -5118,7 +5150,9 @@
    "rarity": "standard",
    "gem_cost": 1,
    "layout": "dead_end",
-   "draft_conditions": [],
+   "draft_conditions": [
+    "no_north_on_wing"
+   ],
    "flags": {
     "no_library_draft": false,
     "powered": false,
@@ -5547,7 +5581,9 @@
    "rarity": "standard",
    "gem_cost": 1,
    "layout": "t",
-   "draft_conditions": [],
+   "draft_conditions": [
+    "gift_shop"
+   ],
    "flags": {
     "no_library_draft": false,
     "powered": false,

@@ -46,16 +46,37 @@ def neighbor(cell: int, direction: int) -> int:
 
 
 def is_west_wing(cell: int) -> bool:
-    return cell % WIDTH <= 1
+    """The West Wing is the single westmost column (the left outer wall).
+
+    Per the game: "the nine rooms that border the left edge of the house form
+    the West Wing." So a wing is one edge column, not the two nearest columns.
+    """
+    return cell % WIDTH == 0
 
 
 def is_east_wing(cell: int) -> bool:
-    return cell % WIDTH >= 3
+    """The East Wing is the single eastmost column (the right outer wall)."""
+    return cell % WIDTH == WIDTH - 1
+
+
+def is_center_column(cell: int) -> bool:
+    """Cell is in one of the three interior columns, i.e. on neither wing."""
+    return 0 < cell % WIDTH < WIDTH - 1
 
 
 def is_corner(cell: int) -> bool:
     r, c = cell // WIDTH, cell % WIDTH
     return r in (0, RANKS - 1) and c in (0, WIDTH - 1)
+
+
+def is_interior(cell: int) -> bool:
+    """Cell touches no outer wall (not on the perimeter).
+
+    A T-shaped room can otherwise be rotated so its missing door sits against
+    an outer wall, so "inside the mansion" rooms need this explicit check.
+    """
+    r, c = cell // WIDTH, cell % WIDTH
+    return 0 < r < RANKS - 1 and 0 < c < WIDTH - 1
 
 
 def rotate_mask(mask: int, quarter_turns: int) -> int:
