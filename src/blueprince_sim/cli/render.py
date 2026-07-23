@@ -67,8 +67,15 @@ def render_grid(game: Game, color: bool = True) -> str:
 
 def render_status(game: Game) -> str:
     st = game.state
-    return (f"Steps {st.steps:3d} | Gems {st.gems} | Keys {st.keys} | Coins {st.coins} | "
+    line = (f"Steps {st.steps:3d} | Gems {st.gems} | Keys {st.keys} | Coins {st.coins} | "
             f"Dice {st.dice} | Luck {st.luck} | Rank {game.deepest_rank} | Day {st.day} ({st.stage})")
+    if game.cfg.door_locks:
+        card = "yes" if st.has_keycard else "no"
+        power = "on" if st.keycard_power_on else "off"
+        doors = "openable" if game.security_openable() else "sealed"
+        line += (f"\nSecurity: level {st.security_level} | power {power} | "
+                 f"keycard {card} | security doors {doors}")
+    return line
 
 
 def render_options(game: Game) -> str:

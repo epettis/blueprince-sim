@@ -6,7 +6,8 @@ import numpy as np
 from gymnasium import spaces
 
 from ..engine.game import ANTECHAMBER_CELL, Game, Phase
-from ..engine.grid import DIRS
+from ..engine.grid import DIRS, OPPOSITE, neighbor
+from ..engine.locks import DOOR_LOCKED, DOOR_SECURITY, SECURITY_LEVELS
 from ..engine.model import LAYOUTS
 
 CATEGORIES = ("blueprint", "bedroom", "hallway", "green", "shop", "red",
@@ -20,8 +21,10 @@ STAGE_INDEX = {s: i for i, s in enumerate(STAGES)}
 # north doors. Cost is split by currency: with the Hovel placed, gem costs are
 # paid entirely in steps at 3:1, which a single scalar cannot express.
 OPTION_FEATURES = 12
-HOUSE_FLAGS = 8  # solarium, greenhouse, study, library, hovel, bedroom_bonus,
-                 # red_negations, free_categories count
+HOUSE_FLAGS = 13  # solarium, greenhouse, study, library, hovel, bedroom_bonus,
+                  # red_negations, free_categories count, has_keycard,
+                  # keycard_power_on, offline_unlocked, security_level,
+                  # security_openable
 
 
 def observation_space(n_rooms: int) -> spaces.Dict:
@@ -35,6 +38,10 @@ def observation_space(n_rooms: int) -> spaces.Dict:
         "grid_ante_dist": spaces.Box(-1, 99, shape=(9, 5), dtype=np.int16),
         # 4-bit mask of frontier doorways (draftable doors) per cell.
         "grid_frontier": spaces.Box(0, 15, shape=(9, 5), dtype=np.uint8),
+        # 4-bit masks of locked / security doorway segments per cell (both
+        # sides of a segment carry the bit; opened doors drop out).
+        "grid_locked": spaces.Box(0, 15, shape=(9, 5), dtype=np.uint8),
+        "grid_security": spaces.Box(0, 15, shape=(9, 5), dtype=np.uint8),
         "grid_entered": spaces.Box(0, 1, shape=(9, 5), dtype=np.uint8),
         "player_pos": spaces.Discrete(45),
         "resources": spaces.Box(-1, 999, shape=(7,), dtype=np.int16),
@@ -71,6 +78,19 @@ def encode(game: Game) -> dict:
     if game.phase is not Phase.TERMINAL:
         for cell, d in game.frontier_doorways():
             grid_frontier[cell // 5, cell % 5] |= d
+
+    grid_locked = np.zeros((9, 5), dtype=np.uint8)
+    grid_security = np.zeros((9, 5), dtype=np.uint8)
+    for (cell, d), seg in st.door_state.items():
+        if seg == DOOR_LOCKED:
+            plane = grid_locked
+        elif seg == DOOR_SECURITY:
+            plane = grid_security
+        else:
+            continue
+        plane[cell // 5, cell % 5] |= d
+        nb = neighbor(cell, d)
+        plane[nb // 5, nb % 5] |= OPPOSITE[d]
 
     pending = st.pending
     redraws = pending.redraws_left if pending else 0
@@ -111,6 +131,11 @@ def encode(game: Game) -> dict:
         game.bedroom_bonus,
         game.red_negations,
         len(game.free_categories),
+        int(st.has_keycard),
+        int(st.keycard_power_on),
+        int(st.offline_unlocked),
+        SECURITY_LEVELS.index(st.security_level),
+        int(game.security_openable()),
     ], dtype=np.int16)
 
     ante_flat = grid_ante_dist.reshape(-1)
@@ -127,6 +152,8 @@ def encode(game: Game) -> dict:
         "grid_dist": grid_dist,
         "grid_ante_dist": grid_ante_dist,
         "grid_frontier": grid_frontier,
+        "grid_locked": grid_locked,
+        "grid_security": grid_security,
         "grid_entered": grid_entered,
         "player_pos": st.pos,
         "resources": resources,

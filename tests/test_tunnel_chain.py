@@ -15,8 +15,9 @@ from __future__ import annotations
 import random
 
 from blueprince_sim.config import GameConfig
+from blueprince_sim.engine import locks
 from blueprince_sim.engine.game import Game, Phase
-from blueprince_sim.engine.grid import N, S
+from blueprince_sim.engine.grid import DIRS, N, S, neighbor
 from blueprince_sim.engine.model import Registry
 
 
@@ -28,9 +29,17 @@ def _make_game(registry: Registry, cfg: GameConfig, seed: int = 1) -> Game:
 
 
 def _place_tunnel_at(g: Game, registry: Registry, cell: int, orientation: int) -> None:
-    """Place a Tunnel at *cell* with *orientation*, marking it entered."""
+    """Place a Tunnel at *cell* with *orientation*, marking it entered.
+
+    Its doorways are forced open: these tests target the chain-draft effect,
+    not the door-lock rolls (high ranks would otherwise need keys).
+    """
     tunnel = registry.by_id["tunnel"]
     g._place_room(tunnel, cell, orientation)
+    for d in DIRS:
+        if orientation & d and neighbor(cell, d) != -1:
+            g.state.door_state[locks.segment_key(cell, d)] = locks.DOOR_OPEN
+    g.state.door_version += 1
     g.state.pos = cell
     g.state.entered[cell] = True
 

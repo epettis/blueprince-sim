@@ -1,0 +1,75 @@
+{
+ "meta": {
+  "source": "TFMurphy datamine (reddit 1lfxyex, Jun 2025) via blueprince.wiki.gg/wiki/Doors",
+  "confidence": "datamined",
+  "notes": [
+   "Lock chances are percent per doorway SEGMENT (the shared edge between two cells),",
+   "keyed by rank and orientation. Values over 100 mean guaranteed-locked at bias 1.",
+   "The sim rolls a segment when the first door on it is placed (the real game rolls",
+   "lazily on first click); see README 'Known simplifications'."
+  ]
+ },
+ "lock_chance": {
+  "comment": "ew_by_rank: E-W doors within a rank. ns_boundary: N-S doors, keyed by the LOWER rank of the boundary; 'edge' = cols 0/4, 'center' = cols 1-3. Ranks 1-3 are never locked by chance.",
+  "ew_by_rank": {
+   "1": 0, "2": 0, "3": 0, "4": 25, "5": 45, "6": 60, "7": 70, "8": 110, "9": 130
+  },
+  "ns_boundary": {
+   "1": {"edge": 0, "center": 0},
+   "2": {"edge": 0, "center": 0},
+   "3": {"edge": 0, "center": 0},
+   "4": {"edge": 45, "center": 45},
+   "5": {"edge": 60, "center": 60},
+   "6": {"edge": 70, "center": 60},
+   "7": {"edge": 90, "center": 80},
+   "8": {"edge": 130, "center": 130}
+  }
+ },
+ "bias": {
+  "comment": "Daily lock-bias multiplier: effective chance = base * bias, bias starts at 1. Locked door: bias = min(bias + locked_delta, 1) unless chance was over high_second_roll_above and a second base-chance roll passes. Unlocked door: bias = max(bias + unlocked_delta, 1) unless chance was under low_second_roll_below and a second base-chance roll fails.",
+  "locked_delta": -0.385,
+  "unlocked_delta": 0.35,
+  "low_second_roll_below": 31,
+  "high_second_roll_above": 100
+ },
+ "always_unlocked_rooms": {
+  "comment": "Doors of these rooms are guaranteed unlocked and bypass the bias system.",
+  "confidence": "wiki",
+  "rooms": ["corridor"]
+ },
+ "security": {
+  "comment": "A freshly placed whitelisted room's doors may spawn as security doors: requires spawned-today < spawn_limit[level], door distance to the Antechamber center <= distance_cutoff (cell centers 10 units apart), a uniform(0, distance_roll_max) roll strictly above that distance, then the per-room chance (forced to 100 on high security). room_door_chance collapses the datamined per-door Left/Forward/Right table to each room's strongest door (confidence: datamined, simplified).",
+  "cell_size": 10.0,
+  "distance_cutoff": 60.0,
+  "distance_roll_max": 75.0,
+  "spawn_limit": {"low": 3, "normal": 4, "high": 6},
+  "room_door_chance": {
+   "the_foundation": 70,
+   "locker_room": 40,
+   "the_pool": 60,
+   "pump_room": 70,
+   "security": 70,
+   "workshop": 50,
+   "laboratory": 40,
+   "conference_room": 60,
+   "passageway": 30,
+   "commissary": 40,
+   "cloister": 50,
+   "archives": 60,
+   "gymnasium": 60,
+   "darkroom": 60,
+   "weight_room": 70,
+   "patio": 40,
+   "courtyard": 70,
+   "closed_exhibit": 100
+  }
+ },
+ "keycard": {
+  "comment": "Chance (percent) of finding the Keycard on first entry to a source room; the card is permanent for the day and never consumed. Source list from the wiki's spawn locations restricted to rooms modeled in the sim; the per-room chance is not datamined (confidence: inferred).",
+  "chance": 25,
+  "source_rooms": [
+   "archives", "office", "laboratory", "vault", "security",
+   "darkroom", "dormitory", "billiard_room"
+  ]
+ }
+}

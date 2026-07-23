@@ -29,6 +29,10 @@ class GameConfig:
     # conditions: "breakfast", "secret_garden_key", "knight_chess_piece",
     # "room8_key"). Rooms carrying an unsatisfied gate never deal.
     satisfied_conditions: frozenset[str] = frozenset()
+    # Locked doors and security doors (data/locks.json): doorway segments can
+    # roll locked (opening costs a key) or spawn as security doors (opened by
+    # the keycard system: Security terminal + Utility Closet breaker).
+    door_locks: bool = True
     # --- rule flags for documented-but-ambiguous behavior ---
     strict_door_matching: bool = False  # True: forbid doors facing occupied blank walls
     orientation_choice: bool = False    # True: player picks orientation; False: dealt orientation

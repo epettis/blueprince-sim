@@ -205,11 +205,16 @@ def test_masked_rollout_never_revisits_pointlessly():
             legal = np.flatnonzero(mask)
             if len(legal) == 0:
                 break
-            # Every legal move_to target must be unentered (or the win cell).
+            # Every legal move_to target must be unentered (or the win cell),
+            # except the control rooms (Utility Closet / Security), which stay
+            # revisitable so their switches can be worked mid-day.
+            control = {c for c in (env.game.room_cells.get("utility_closet", -1),
+                                   env.game.room_cells.get("security", -1))
+                       if c >= 0}
             for a in legal:
                 if A.MOVE_TO_BASE <= a < A.MOVE_TO_BASE + N_CELLS:
                     cell = a - A.MOVE_TO_BASE
-                    assert not env.game.state.entered[cell]
+                    assert not env.game.state.entered[cell] or cell in control
             _, _, term, trunc, _ = env.step(int(rng.choice(legal)))
             if term or trunc:
                 break
@@ -248,7 +253,7 @@ def test_obs_new_planes_consistent():
     assert obs["grid_entered"].reshape(-1)[game.state.pos] == 1
     assert obs["progress"][0] == game.deepest_rank
     assert obs["stage"] in (0, 1, 2)
-    assert obs["house_flags"].shape == (8,)
+    assert obs["house_flags"].shape == (13,)
     # Frontier plane matches the engine's doorway list.
     frontier = np.zeros(45, dtype=np.uint8)
     for cell, d in game.frontier_doorways():

@@ -78,6 +78,27 @@ The draft implements the decompiled v1.3 algorithm:
   count), Ivory Dice.
 - **Resources**: steps, gems, keys, coins, dice; the luck system (start 10,
   max effect 29, self-balancing) drives extra item spawns.
+- **Locked doors** (`data/locks.json`, datamined): every doorway segment rolls
+  its lock state from a table keyed by rank and orientation - never below rank
+  4 by chance, 25% inside rank 4, climbing to 110%/130% at ranks 8-9 (values
+  over 100% are guaranteed at neutral bias, so the Antechamber's doors start
+  locked and walking in costs a key). A daily **bias multiplier** softens
+  streaks: hitting a locked door subtracts 0.385 (capped at 1), an unlocked
+  one adds 0.35 (floored at 1), with datamined second-roll exemptions above
+  100% and below 31%. Opening a locked door consumes one key (drafting through
+  it or walking through it); Corridor doors are guaranteed unlocked.
+- **Security doors**: doors of whitelisted mechanical rooms (Security,
+  Workshop, Pump Room, Archives, ...) can spawn as keycard doors when close
+  enough to the Antechamber (`rand(0,75) > distance`, cutoff 60 units), capped
+  per day by the **security level** - low 3 / normal 4 / high 6, with high
+  forcing every whitelist door's chance to 100%. Keys never open them. The
+  **Keycard** (found by chance in Archives/Office/Laboratory/Vault/...) opens
+  them while the system is powered. The **Utility Closet** breaker toggles
+  that power, and the **Security terminal** sets the level and its offline
+  mode: unpowered doors open for free once Security has been visited (the sim
+  assumes the player flips offline mode to Unlocked), and are sealed to
+  everyone - keycard included - otherwise. `cfg.door_locks=false` disables
+  the whole system.
 - **Room effects** (Tier 1): resource grants, Solarium weight flip, Greenhouse
   bias, The Pool's injected rooms, Bunk Room double-bedroom, Nursery,
   red-room penalties (Weight Room, Gymnasium, Chapel, Archives), Shelter
@@ -97,6 +118,7 @@ The draft implements the decompiled v1.3 algorithm:
 | `satisfied_conditions` | item-gated rooms: `breakfast`, `secret_garden_key`, `knight_chess_piece`, `room8_key` |
 | `compass` | bias the orientation roll toward north-facing doors |
 | `ornate_compass` | rotate-at-will (any legal orientation) on every draft |
+| `door_locks` | locked doors + security doors/keycard system (default on) |
 
 ## Data provenance
 
@@ -107,6 +129,7 @@ The draft implements the decompiled v1.3 algorithm:
 | `data/rooms.json` (red rooms, studio additions, outer rooms, gift shop) | `tools/supplemental_rooms.json`, wiki/community-sourced; rarity/cost/layout for red rooms are estimates | wiki / inferred |
 | `data/priority_draws.json` | sheet constants block + wiki.gg Drafting/Advanced | datamined / wiki |
 | `data/items.json` | wiki.gg Luck page; extra-item distribution is an estimate | wiki / inferred |
+| `data/locks.json` | TFMurphy's lock/security datamine (reddit `1lfxyex`) via wiki.gg Doors; keycard find chance is an estimate | datamined / inferred |
 
 Every record carries `meta.source` and `meta.confidence`
 (`datamined > wiki > inferred > placeholder`). To correct a value, edit the
@@ -129,12 +152,23 @@ data JSON (or regenerate: `python tools/ingest_sheet.py`, which rebuilds
 
 - **Antechamber entry**: modeled as pre-placed at rank 9 center with all
   doors usable; you win by **walking into** it (which costs the entry step),
-  not merely by connecting a door — so you can fall one tile short. The real
-  game's Antechamber door locks (keys/security) are not modeled.
+  not merely by connecting a door — so you can fall one tile short. Its
+  doorways roll on the ordinary rank 8↔9 lock table (130% ⇒ locked at neutral
+  bias, so entry normally costs a key) rather than the real game's bespoke
+  Antechamber locks.
 - **Steps**: drafting a room is free; moving into a room costs 1 step (and is
   when that room's resources are granted). Starting steps 50 (community
-  consensus, not datamined). No locked doors/keys-to-open-doors yet (keys are
-  tracked but door locks are Tier 2).
+  consensus, not datamined).
+- **Door locks** roll when the first door on a segment is placed, not lazily
+  on first click as in the real game, so the bias sequence follows placement
+  order; the per-door Left/Forward/Right security table is collapsed to one
+  chance per room (its strongest door); the "Set"-door double-trigger, Great
+  Hall/Vestibule guaranteed states, Lock Pick Kit, special keys, Master Key,
+  Foyer/Kennel/Shelter unlock effects, and the Passageway high-security
+  distance waiver are not modeled. The Keycard is found by flat chance (25%,
+  inferred) on first entry to a wiki-listed source room. Visiting Security
+  always sets offline mode to Unlocked (the strategically dominant choice);
+  toggles are free actions while standing in the room.
 - **Week boundaries**: day 1-7 / 8-14 / 15+ mapping to the sheet's
   Week 1 / Week 2 / late tables is inferred.
 - **Orientation weights** (`engine/rotation.py`) are datamined for the South,

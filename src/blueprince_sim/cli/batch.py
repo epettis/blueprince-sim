@@ -28,7 +28,8 @@ def run_episode(cfg: GameConfig, policy, seed: int, max_decisions: int = 800) ->
     def snapshot() -> tuple:
         st = game.state
         return (game.phase, st.steps, game.rooms_placed, st.pos,
-                len(st.pending.options) if st.pending else -1)
+                len(st.pending.options) if st.pending else -1,
+                st.keycard_power_on, st.security_level, st.door_version)
 
     while game.phase is not Phase.TERMINAL and decisions < max_decisions:
         decisions += 1

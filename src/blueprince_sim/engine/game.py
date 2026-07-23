@@ -13,6 +13,9 @@ from .effects import Hook
 from .grid import (ADJACENT, DIRS, ENTRANCE_CELL, N_CELLS, OPPOSITE, neighbor,
                    rank_of, rotate_mask)
 from .items import roll_room_items
+from .locks import (DOOR_LOCKED, DOOR_OPEN, DOOR_SECURITY, SECURITY_LEVELS,
+                    roll_segment, segment_key)
+from .locks import security_openable as _security_openable
 from .model import Registry, Room
 from .placement import legal_orientations
 from .rng import Rng
@@ -88,6 +91,10 @@ class Game:
         st.placed_doors[ANTECHAMBER_CELL] = 0xF
         self.placed_ids.add(ante.id)
         self.room_cells[ante.id] = ANTECHAMBER_CELL
+        # The Antechamber's doorways roll like any other (rank 8<->9 sits at
+        # 130% base chance, so at bias 1 they start locked): walking in
+        # normally costs a key, mirroring the real game's locked Antechamber.
+        self._roll_new_segments(ante, ANTECHAMBER_CELL, 0xF)
         self._map_cache: tuple[tuple, dict] = ((), {})
 
     # ------------------------------------------------------------ connectivity
@@ -106,67 +113,103 @@ class Game:
         Cached values are shared between callers and must not be mutated.
         """
         st = self.state
-        fp = (st.pos, st.outer_loc, tuple(st.grid), tuple(st.placed_doors))
+        fp = (st.pos, st.outer_loc, tuple(st.grid), tuple(st.placed_doors),
+              st.door_version, st.keys, self.security_openable())
         cached_fp, maps = self._map_cache
         if fp != cached_fp:
             maps = {}
             self._map_cache = (fp, maps)
         return maps
 
+    def _nav_bfs(self) -> tuple[list[int], list[int], dict]:
+        """Shortest walks from the player, spending at most ``st.keys`` keys.
+
+        BFS over (cell, keys_spent) states: locked segments cost one key to
+        cross, security segments pass only while :meth:`security_openable`,
+        opened/unlocked segments are free. Returns (dist, key_cost, prev):
+        per-cell walking distance (-1 unreachable within the key budget), keys
+        spent along the recorded shortest path, and the predecessor map used
+        by :meth:`_path_dirs` - so a path promised here is always affordable
+        in keys when walked.
+
+        Results are cached; treat them as read-only.
+        """
+        maps = self._maps()
+        cached = maps.get("nav")
+        if cached is not None:
+            return cached
+        st = self.state
+        grid, doors, door_state = st.grid, st.placed_doors, st.door_state
+        keys_cap = min(st.keys,
+                       sum(1 for v in door_state.values() if v == DOOR_LOCKED))
+        sec_ok = self.security_openable()
+        dist = [-1] * N_CELLS
+        key_cost = [0] * N_CELLS
+        best_spent = [keys_cap + 1] * N_CELLS  # cheapest key spend seen per cell
+        dist[st.pos] = 0
+        best_spent[st.pos] = 0
+        prev: dict[tuple[int, int], tuple[int, int, int]] = {}
+        q = deque([(st.pos, 0)])
+        while q:
+            cell, spent = q.popleft()
+            cell_doors = doors[cell]
+            for d, od, nb in ADJACENT[cell]:
+                if grid[nb] < 0 or not (cell_doors & d and doors[nb] & od):
+                    continue
+                seg = door_state.get(segment_key(cell, d), DOOR_OPEN)
+                nspent = spent
+                if seg == DOOR_LOCKED:
+                    nspent = spent + 1
+                    if nspent > keys_cap:
+                        continue
+                elif seg == DOOR_SECURITY and not sec_ok:
+                    continue
+                # Keep only Pareto-optimal states: a later arrival is worth
+                # exploring iff it spends strictly fewer keys (a longer but
+                # cheaper path may unlock cells beyond a further locked door).
+                if nspent >= best_spent[nb]:
+                    continue
+                best_spent[nb] = nspent
+                if dist[nb] == -1:
+                    dist[nb] = dist[cell] + 1
+                    key_cost[nb] = nspent
+                prev[(nb, nspent)] = (cell, spent, d)
+                q.append((nb, nspent))
+        maps["nav"] = (dist, key_cost, prev)
+        return maps["nav"]
+
     def reachable_cells(self) -> set[int]:
-        """Cells reachable from the player through connected door pairs.
+        """Cells reachable from the player through passable door pairs.
 
         Returns a cached set; treat it as read-only.
         """
         maps = self._maps()
         cached = maps.get("reachable")
-        if cached is not None:
-            return cached
-        st = self.state
-        grid, doors = st.grid, st.placed_doors
-        seen = {st.pos}
-        q = deque([st.pos])
-        while q:
-            cell = q.popleft()
-            cell_doors = doors[cell]
-            for d, od, nb in ADJACENT[cell]:
-                if nb in seen or grid[nb] < 0:
-                    continue
-                if cell_doors & d and doors[nb] & od:
-                    seen.add(nb)
-                    q.append(nb)
-        maps["reachable"] = seen
-        return seen
+        if cached is None:
+            dist = self._nav_bfs()[0]
+            cached = {c for c, v in enumerate(dist) if v >= 0}
+            maps["reachable"] = cached
+        return cached
 
     def distance_map(self) -> list[int]:
         """Walking distance from the player to every placed cell.
 
-        BFS through connected door pairs, one step per room (the cost
-        :meth:`move_to` would pay). -1 marks empty or unreachable cells;
-        the player's own cell is 0.
+        BFS through passable door pairs, one step per room (the cost
+        :meth:`move_to` would pay); locked doors are crossable while the
+        player holds enough keys for the whole path. -1 marks empty or
+        unreachable cells; the player's own cell is 0.
 
         Returns a cached list; treat it as read-only.
         """
-        maps = self._maps()
-        cached = maps.get("dist")
-        if cached is not None:
-            return cached
-        st = self.state
-        grid, doors = st.grid, st.placed_doors
-        dist = [-1] * N_CELLS
-        dist[st.pos] = 0
-        q = deque([st.pos])
-        while q:
-            cell = q.popleft()
-            cell_doors = doors[cell]
-            for d, od, nb in ADJACENT[cell]:
-                if grid[nb] < 0 or dist[nb] != -1:
-                    continue
-                if cell_doors & d and doors[nb] & od:
-                    dist[nb] = dist[cell] + 1
-                    q.append(nb)
-        maps["dist"] = dist
-        return dist
+        return self._nav_bfs()[0]
+
+    def key_cost_map(self) -> list[int]:
+        """Keys spent along the shortest path :meth:`move_to` would walk.
+
+        Meaningful only where :meth:`distance_map` is >= 0.
+        Returns a cached list; treat it as read-only.
+        """
+        return self._nav_bfs()[1]
 
     def optimistic_distances(self) -> list[int]:
         """Per-cell optimistic distance to the Antechamber.
@@ -249,12 +292,91 @@ class Game:
         maps["frontier"] = out
         return out
 
+    # ------------------------------------------------------- locks & security
+
+    def door_state_of(self, cell: int, direction: int) -> int:
+        """Lock state of the doorway segment (DOOR_OPEN/LOCKED/SECURITY)."""
+        return self.state.door_state.get(segment_key(cell, direction), DOOR_OPEN)
+
+    def security_openable(self) -> bool:
+        """Can security doors be opened right now (keycard/power/offline mode)?"""
+        return _security_openable(self.state)
+
+    def doorway_passable(self, cell: int, direction: int) -> bool:
+        """Can the doorway be opened from where it stands: a locked door with
+        a key in hand, a security door while the system allows it, or any
+        open/unlocked door. Path key costs are the caller's concern (see
+        :meth:`key_cost_map`)."""
+        state = self.door_state_of(cell, direction)
+        if state == DOOR_LOCKED:
+            return self.state.keys >= 1
+        if state == DOOR_SECURITY:
+            return self.security_openable()
+        return True
+
+    def _open_segment(self, cell: int, direction: int) -> None:
+        self.state.door_state[segment_key(cell, direction)] = DOOR_OPEN
+        self.state.door_version += 1
+
+    def _unlock_for_passage(self, cell: int, direction: int) -> None:
+        """Open the segment the player is about to pass, spending a key if locked."""
+        st = self.state
+        state = self.door_state_of(cell, direction)
+        if state == DOOR_LOCKED:
+            assert st.keys >= 1, "door is locked and you have no key"
+            st.keys -= 1
+            self._open_segment(cell, direction)
+        elif state == DOOR_SECURITY:
+            assert self.security_openable(), "security door cannot be opened"
+            self._open_segment(cell, direction)
+
+    def _security_toggle_helps(self) -> bool:
+        """Would flipping the Utility Closet keycard power open security doors?
+
+        Powered without the card: powering DOWN helps once the Security
+        terminal's offline mode is Unlocked. Unpowered with the card in hand:
+        powering UP makes the readers accept it again.
+        """
+        st = self.state
+        if self._utility_closet_cell() < 0:
+            return False
+        return st.offline_unlocked if st.keycard_power_on else st.has_keycard
+
+    def can_toggle_keycard_power(self) -> bool:
+        """Standing at the Utility Closet breaker box, on the grid, mid-day."""
+        return (self.phase is Phase.NAVIGATE and self.cfg.door_locks
+                and self.state.outer_loc == 0
+                and self.state.pos == self._utility_closet_cell() >= 0)
+
+    def set_keycard_power(self, on: bool) -> None:
+        """Flip the breaker's "Keycard Entry" switch (free, like the real game)."""
+        assert self.can_toggle_keycard_power(), "must stand in the Utility Closet"
+        self.state.keycard_power_on = on
+
+    def can_set_security_level(self) -> bool:
+        """Standing at the Security terminal, on the grid, mid-day."""
+        return (self.phase is Phase.NAVIGATE and self.cfg.door_locks
+                and self.state.outer_loc == 0
+                and self.state.pos == self.room_cells.get("security", -1) >= 0)
+
+    def set_security_level(self, level: str) -> None:
+        """Set the security-door frequency (low/normal/high) at the terminal.
+
+        Applies to doors rolled from now on; already-spawned doors keep their
+        state. The daily spawn cap is checked at roll time, so raising the
+        level mid-day re-opens headroom."""
+        assert level in SECURITY_LEVELS, f"bad security level {level!r}"
+        assert self.can_set_security_level(), "must stand in Security"
+        self.state.security_level = level
+
     def open_door(self, cell: int, direction: int) -> PendingDraft:
         """Draft (but do not enter) through a doorway of the current room.
 
         Drafting only deals a hand and, on :meth:`choose`, places a room; it
         costs no step and grants no resources. The player pays the step and
         receives the room's effects only when they :meth:`move` into it.
+        Opening a locked doorway consumes a key first; a security doorway
+        needs the keycard system to allow it (:meth:`security_openable`).
         """
         assert self.phase is Phase.NAVIGATE, "not in NAVIGATE phase"
         st = self.state
@@ -262,6 +384,7 @@ class Game:
         assert st.placed_doors[cell] & direction, "no door in that direction"
         target = neighbor(cell, direction)
         assert target != -1 and st.grid[target] < 0, "invalid doorway"
+        self._unlock_for_passage(cell, direction)
         key = (cell, direction)
         pending = self.doorway_drafts.get(key)
         if pending is None:
@@ -604,7 +727,8 @@ class Game:
         out = []
         for d in DIRS:
             nb = neighbor(st.pos, d)
-            if nb != -1 and st.grid[nb] >= 0 and self._connected(st.pos, nb, d):
+            if (nb != -1 and st.grid[nb] >= 0 and self._connected(st.pos, nb, d)
+                    and self.doorway_passable(st.pos, d)):
                 out.append(d)
         return out
 
@@ -620,6 +744,7 @@ class Game:
         assert nb != -1 and st.grid[nb] >= 0 and self._connected(st.pos, nb, direction), \
             "no connected room that way"
         assert st.steps >= 1, "out of steps"
+        self._unlock_for_passage(st.pos, direction)
         st.steps -= 1
         st.pos = nb
         self._enter(nb)
@@ -636,35 +761,47 @@ class Game:
             self.move(d)
 
     def _path_dirs(self, target: int) -> list[int] | None:
-        """Directions of the shortest connected path from pos to target."""
+        """Directions of the shortest passable path from pos to target.
+
+        Follows the exact path :meth:`_nav_bfs` recorded, so any locked doors
+        along it fit in the current key budget.
+        """
         st = self.state
         if target == st.pos:
             return []
-        grid, doors = st.grid, st.placed_doors
-        prev: dict[int, tuple[int, int]] = {st.pos: (-1, -1)}
-        q = deque([st.pos])
-        while q:
-            cell = q.popleft()
-            cell_doors = doors[cell]
-            for d, od, nb in ADJACENT[cell]:
-                if nb in prev or grid[nb] < 0:
-                    continue
-                if not (cell_doors & d and doors[nb] & od):
-                    continue
-                prev[nb] = (cell, d)
-                if nb == target:
-                    dirs = []
-                    cur = target
-                    while cur != st.pos:
-                        pcell, pdir = prev[cur]
-                        dirs.append(pdir)
-                        cur = pcell
-                    dirs.reverse()
-                    return dirs
-                q.append(nb)
-        return None
+        dist, key_cost, prev = self._nav_bfs()
+        if dist[target] < 0:
+            return None
+        dirs = []
+        cur, spent = target, key_cost[target]
+        while cur != st.pos or spent != 0:
+            pcell, pspent, pdir = prev[(cur, spent)]
+            dirs.append(pdir)
+            cur, spent = pcell, pspent
+        dirs.reverse()
+        return dirs
 
     # ---------------------------------------------------------------- internal
+
+    def _roll_new_segments(self, room: Room, cell: int, orientation: int) -> None:
+        """Roll lock/security state for the room's doors on fresh segments.
+
+        The segment a room was drafted through is already DOOR_OPEN, and a
+        segment rolled by an earlier neighbor keeps its state; only doors
+        creating a segment for the first time roll.
+        """
+        if not self.cfg.door_locks:
+            return
+        st = self.state
+        for d in DIRS:
+            if not orientation & d or neighbor(cell, d) == -1:
+                continue
+            seg = segment_key(cell, d)
+            if seg in st.door_state:
+                continue
+            st.door_state[seg] = roll_segment(
+                st, self.registry.lock_rules, room, cell, d, self.rng)
+            st.door_version += 1
 
     def _place_room(self, room: Room, cell: int, orientation: int,
                     entered: bool = False) -> None:
@@ -672,6 +809,7 @@ class Game:
         st.grid[cell] = room.idx
         st.placed_doors[cell] = orientation
         st.entered[cell] = entered
+        self._roll_new_segments(room, cell, orientation)
         self.placed_ids.add(room.id)
         prev = self.room_cells.get(room.id)
         if prev is None or cell < prev:
@@ -693,6 +831,17 @@ class Game:
         room = self.registry.rooms[st.grid[cell]]
         effects.fire(self, room, Hook.ON_ENTER)
         roll_room_items(st, self.registry, room, self.rng)
+        if self.cfg.door_locks:
+            if room.id == "security":
+                # Assume the player always flips the terminal's offline mode
+                # to Unlocked when visiting Security: from now on, cutting the
+                # power at the Utility Closet swings every security door open.
+                st.offline_unlocked = True
+            kc = self.registry.lock_rules["keycard"]
+            if (not st.has_keycard and room.id in kc["source_rooms"]
+                    and self.rng.chance("keycard", kc["chance"] / 100.0)):
+                st.has_keycard = True
+                st.items_found_log.append(("keycard", 1))
 
     def inject_rooms(self, room_ids: list[str]) -> None:
         inject_rooms(self.state, self.registry, room_ids, self.rng)
@@ -743,15 +892,28 @@ class Game:
     def _action_in_budget(self) -> bool:
         """True if any purposeful action still fits in the step budget.
 
-        Purposeful: draft a frontier doorway (arriving with a step to spare
-        so the drafted room can be entered), enter an unentered room (its
-        pickups may include steps), or walk into the Antechamber.
+        Purposeful: draft an openable frontier doorway (arriving with a step
+        to spare so the drafted room can be entered), enter an unentered room
+        (its pickups may include steps), walk into the Antechamber, or detour
+        to the Utility Closet when flipping the keycard power would open a
+        security doorway that is otherwise in reach.
         """
         st = self.state
         dist = self.distance_map()
-        for cell, _d in self.frontier_doorways():
-            if 0 <= dist[cell] <= st.steps - 1:
-                return True
+        key_cost = self.key_cost_map()
+        uc = self._utility_closet_cell()
+        toggle_ok = (self._security_toggle_helps()
+                     and 0 <= dist[uc] <= st.steps - 2 if uc >= 0 else False)
+        for cell, d in self.frontier_doorways():
+            if not 0 <= dist[cell] <= st.steps - 1:
+                continue
+            seg = self.door_state_of(cell, d)
+            if seg == DOOR_LOCKED and st.keys < key_cost[cell] + 1:
+                continue
+            if seg == DOOR_SECURITY and not self.security_openable():
+                if not toggle_ok:
+                    continue
+            return True
         for cell in range(N_CELLS):
             if 0 < dist[cell] <= st.steps and not st.entered[cell]:
                 return True

@@ -134,6 +134,7 @@ class Registry:
     weights: dict  # parsed weights.json
     priority: dict  # parsed priority_draws.json
     item_rules: dict  # parsed items.json
+    lock_rules: dict  # parsed locks.json
     data_dir: Path = field(default=DEFAULT_DATA_DIR)
 
     @classmethod
@@ -147,6 +148,7 @@ class Registry:
             weights=json.loads((d / "weights.json").read_text()),
             priority=json.loads((d / "priority_draws.json").read_text()),
             item_rules=json.loads((d / "items.json").read_text()),
+            lock_rules=json.loads((d / "locks.json").read_text()),
             data_dir=d,
         )
 
