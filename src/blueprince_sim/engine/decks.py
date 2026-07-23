@@ -101,4 +101,41 @@ def roll_rarity(state: GameState, registry: Registry, cfg: GameConfig, rng: Rng,
     return rng.roll_weighted("rarity", tuple(weights))
 
 
+def reroll_random_rarities(state: GameState, rng: Rng, count: int = 3,
+                           label: str = "conservatory_reroll") -> None:
+    """Conservatory: one-time re-roll of the rarity of ``count`` undealt cards.
+
+    Fired once when the Conservatory is drafted. Picks ``count`` distinct
+    undealt cards across the eight decks, rolls each a fresh rarity uniformly
+    over the four rarities (the real re-roll distribution is unpublished;
+    uniform is inferred), and moves changed cards into the new rarity's deck of
+    the same free/gem class at a random undealt position. A card whose re-roll
+    matches its current rarity stays put. All randomness comes from the
+    dedicated ``label`` substream, consumed only when this fires.
+    """
+    undealt = [(r, g, i)
+               for r in range(4) for g in (False, True)
+               for i in range(state.deck(r, g).pos, state.deck(r, g).size())]
+    if not undealt:
+        return
+    order = list(range(len(undealt)))
+    rng.shuffle(label, order)
+
+    moves = []
+    for j in order[:count]:
+        r, g, i = undealt[j]
+        new_r = rng.randint(label, 0, len(RARITIES) - 1)
+        if new_r != r:
+            moves.append((r, g, i, new_r))
+
+    # Remove every moved card first (descending index within each deck keeps
+    # the remaining removal indices valid), then insert, so an insertion can
+    # never shift a pending removal.
+    moves.sort(key=lambda m: (m[0], m[1], -m[2]))
+    removed = [(state.deck(r, g).order.pop(i), g, new_r) for r, g, i, new_r in moves]
+    for card, g, new_r in removed:
+        dst = state.deck(new_r, g)
+        dst.order.insert(rng.randint(label, dst.pos, dst.size()), card)
+
+
 RARITY_NAMES = RARITIES

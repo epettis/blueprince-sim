@@ -793,7 +793,9 @@
         "duct": false
       },
       "deck_copies": 1,
-      "effects": [],
+      "effects": [
+        {"tag": "conservatory_rerolls"}
+      ],
       "items": {
         "guaranteed": [],
         "additional_max": 0,
@@ -801,9 +803,9 @@
       },
       "pool": "conditional",
       "meta": {
-        "source": "wiki (corner-only; re-rolls the rarity of 3 pool rooms per draft - not yet modeled)",
+        "source": "wiki (corner-only; re-rolls the rarity of 3 pool rooms per draft)",
         "confidence": "inferred",
-        "effect_text": "Corner-only room; re-rolls the rarity of 3 rooms in your pool each time you draft it. Stub for forced-draw precedence."
+        "effect_text": "Corner-only room; re-rolls the rarity of 3 rooms in your pool each time you draft it. Implemented as a one-time effect when the Conservatory itself is drafted: 3 random undealt deck cards each roll a fresh rarity (uniform over the 4 rarities; the real re-roll distribution is unpublished - inferred) via the dedicated conservatory_reroll RNG substream, and changed cards move to the new rarity's deck of the same free/gem class at a random undealt position (reinsertion point also inferred)."
       }
     }
   ]

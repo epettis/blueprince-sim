@@ -28,7 +28,8 @@ KNOWN_CONDITIONS = {"west_wing", "east_wing", "west_or_east_wing", "not_on_wing"
                     "knight_chess_piece", "secret_garden_key", "breakfast"}
 KNOWN_EFFECT_TAGS = {"grant", "grant_per_category", "grant_on_draft_category",
                      "set_resource_on_enter", "solarium_weights", "greenhouse_bias",
-                     "furnace_bias", "study_redraws", "counts_as_drafting_room",
+                     "furnace_bias", "conservatory_rerolls", "study_redraws",
+                     "counts_as_drafting_room",
                      "counts_as_bedrooms", "inject_pool", "allow_duplicates",
                      "free_green_drafts", "halve_steps", "coins_per_deadend",
                      "negate_red_rooms", "pay_gems_with_steps", "reduce_draft_options",

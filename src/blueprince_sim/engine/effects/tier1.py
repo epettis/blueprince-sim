@@ -8,6 +8,7 @@ for the Nursery's ON_DRAFT_ROOM effect).
 
 from __future__ import annotations
 
+from ..decks import reroll_random_rarities
 from . import Hook, effect
 
 RESOURCES = ("steps", "gems", "keys", "coins", "dice", "stars")
@@ -97,6 +98,12 @@ def greenhouse_bias(game, room, eff, ctx_room) -> None:
 @effect("furnace_bias", Hook.ON_PLACE)
 def furnace_bias(game, room, eff, ctx_room) -> None:
     game.state.furnace_placed = True
+
+
+@effect("conservatory_rerolls", Hook.ON_PLACE)
+def conservatory_rerolls(game, room, eff, ctx_room) -> None:
+    """One-time on draft: re-roll the rarity of 3 random undealt deck cards."""
+    reroll_random_rarities(game.state, game.rng, count=eff.param("count", 3))
 
 
 @effect("study_redraws", Hook.ON_PLACE)
