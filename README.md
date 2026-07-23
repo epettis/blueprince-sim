@@ -182,6 +182,9 @@ blueprince-train --checkpoint-dir runs/all-unlocks
 
 # Measure the current policy (deterministic, fresh seeds):
 blueprince-train --checkpoint-dir runs/all-unlocks --evaluate 2000
+
+# ...or evaluate a specific model.zip (e.g. one fetched from a Release):
+blueprince-train --evaluate 2000 --model models/baseline-ep8275991/model.zip
 ```
 
 What it does:
@@ -243,6 +246,23 @@ Tuning flags: `--n-envs` (parallel workers), `--n-steps` (rollout length -
 also the progress-at-risk on stop), `--reward shaped|sparse` (shaped adds
 rank-progress and resource terms; sparse is win-only), `--device` (default
 cpu; the nets are tiny MLPs).
+
+### Released models
+
+Trained policies are published as **GitHub Release assets** (the `model.zip`
+bytes stay out of git history); their provenance is committed under
+[`models/`](models/) — one `MANIFEST.json` per release with episodes, win
+rates, config, the trained-with git SHA, lib versions, and the asset's
+`sha256`. Fetch and evaluate one with:
+
+```bash
+gh release download <release-name> -p model.zip -D models/<release-name>
+blueprince-train --evaluate 2000 --model models/<release-name>/model.zip
+```
+
+Cut a new release with `tools/make_release.py` (writes the manifest, then on
+`--publish` creates the tag + Release and verifies the upload round-trips to
+the recorded `sha256`). See [`models/README.md`](models/README.md).
 
 ### Explore/exploit mixing
 

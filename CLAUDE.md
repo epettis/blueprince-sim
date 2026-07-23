@@ -20,6 +20,8 @@ source .venv/bin/activate          # do this before pytest / ruff / blueprince-*
 - Regenerate `data/rooms.json` from the raw dump + `tools/supplemental_rooms.json`: `python tools/ingest_sheet.py` (rebuilds the file, overwriting manual JSON edits — see caveat below).
 - Play / evaluate: `blueprince-sim play --seed 42`; `blueprince-sim batch --episodes 5000 --policy greedy_rank`. Any `GameConfig` field can be overridden with `--set key=value` or a `--config file.yaml`.
 - Train: `blueprince-train --checkpoint-dir runs/<name>` (continuous MaskablePPO, auto-resumes from `latest.zip`, SIGTERM-graceful).
+- Evaluate a released model: `blueprince-train --evaluate 2000 --model models/<name>/model.zip` (`--model` overrides the default `<checkpoint-dir>/latest.zip`).
+- Cut a release: `python tools/make_release.py --checkpoint-dir runs/<name> --name <n> --tag <n> --trained-with-sha $(git rev-parse HEAD) [--publish]`. Model bytes ship as a GitHub Release asset; only provenance (`models/<name>/MANIFEST.json` + `metrics.jsonl`) is committed. `runs/` is gitignored; `models/` is tracked. See `models/README.md`.
 
 ## Architecture
 
