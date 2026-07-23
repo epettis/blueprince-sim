@@ -871,6 +871,35 @@
         "effect_text": "Ending the day in the Planetarium grants 2 Stars (Tomorrow-room cross-day currency). Stars are tracked nowhere in the current sim; the grant fires but no-ops, matching other out-of-scope currencies. Telescope and cross-day interactions are out of scope.",
         "rarity_confidence": "wiki"
       }
+    },
+    {
+      "id": "lost_and_found",
+      "name": "Lost & Found",
+      "category": "red",
+      "rarity": "unusual",
+      "gem_cost": 0,
+      "layout": "corner",
+      "alt_layouts": [],
+      "draft_conditions": ["no_horizontal_end_rank"],
+      "flags": {
+        "no_library_draft": false,
+        "powered": false,
+        "duct": false
+      },
+      "deck_copies": 1,
+      "effects": [],
+      "items": {
+        "guaranteed": [],
+        "additional_max": 2,
+        "dig_spots": 0
+      },
+      "pool": "studio_addition",
+      "meta": {
+        "source": "wiki",
+        "confidence": "wiki",
+        "effect_text": "Whenever you enter this room, lose one random special inventory item. Contains 2 rare items. APPROXIMATION: item loss has no effect tag in the sim (no special-item inventory); no effect modeled. PLACEMENT NOTE: wiki restricts horizontal drafting at rank 1 only; no_horizontal_end_rank also blocks rank 9 horizontal outside corners (slight over-restriction).",
+        "rarity_confidence": "wiki"
+      }
     }
   ]
 }
