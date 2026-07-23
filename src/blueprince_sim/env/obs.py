@@ -6,7 +6,7 @@ import numpy as np
 from gymnasium import spaces
 
 from ..engine.game import ANTECHAMBER_CELL, Game, Phase
-from ..engine.grid import DIRS, N_CELLS
+from ..engine.grid import DIRS
 from ..engine.model import LAYOUTS
 
 CATEGORIES = ("blueprint", "bedroom", "hallway", "green", "shop", "red",
@@ -60,14 +60,10 @@ def _cost_split(game: Game, room, opt) -> tuple[int, int]:
 
 def encode(game: Game) -> dict:
     st = game.state
-    grid_room = np.zeros((9, 5), dtype=np.int16)
-    grid_doors = np.zeros((9, 5), dtype=np.uint8)
-    grid_entered = np.zeros((9, 5), dtype=np.uint8)
-    for cell in range(N_CELLS):
-        r, c = divmod(cell, 5)
-        grid_room[r, c] = st.grid[cell] + 1
-        grid_doors[r, c] = st.placed_doors[cell]
-        grid_entered[r, c] = int(st.entered[cell])
+    grid_room = np.array(st.grid, dtype=np.int16).reshape(9, 5)
+    grid_room += 1
+    grid_doors = np.array(st.placed_doors, dtype=np.uint8).reshape(9, 5)
+    grid_entered = np.array(st.entered, dtype=np.uint8).reshape(9, 5)
 
     grid_dist = np.array(game.distance_map(), dtype=np.int16).reshape(9, 5)
     grid_ante_dist = np.array(game.optimistic_distances(), dtype=np.int16).reshape(9, 5)
