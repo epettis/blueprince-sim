@@ -45,6 +45,7 @@ class MixedExplorationPolicy(MaskableMultiInputActorCriticPolicy):
         self.per_decision = False
         self._mode_rng = np.random.default_rng(0)
         self.env_modes: np.ndarray = np.ones(1, dtype=bool)  # True = exploit
+        self.last_modes: np.ndarray = np.ones(1, dtype=bool)  # modes of the last forward()
 
     # ------------------------------------------------------------ mode state
 
@@ -81,12 +82,14 @@ class MixedExplorationPolicy(MaskableMultiInputActorCriticPolicy):
             distribution.apply_masking(action_masks)
 
         if deterministic:
+            self.last_modes = np.ones(len(next(iter(obs.values()))), dtype=bool)
             actions = distribution.get_actions(deterministic=True)
             return actions, values, distribution.log_prob(actions)
 
         logits = distribution.distribution.logits  # masked entries ~ -inf
         batch = logits.shape[0]
         modes = self._modes_for_batch(batch)
+        self.last_modes = np.asarray(modes, dtype=bool)
         exploit_t = torch.as_tensor(modes, device=logits.device)
 
         temps = torch.where(

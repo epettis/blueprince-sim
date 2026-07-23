@@ -21,7 +21,7 @@ Layout (Discrete(196)):
 from __future__ import annotations
 
 from ..engine.game import Game, Phase, RedrawKind
-from ..engine.grid import DIRS
+from ..engine.grid import DIR_NAMES, DIRS, neighbor
 
 N_ACTIONS = 196
 OPEN_BASE, CHOOSE_BASE, ALT_BASE = 0, 180, 183
@@ -91,3 +91,36 @@ def apply_action(game: Game, action: int) -> None:
         game.rotate_options()
     else:
         raise ValueError(f"unimplemented action {action}")
+
+
+def _cell_name(cell: int) -> str:
+    return f"r{cell // 5 + 1}c{cell % 5}"
+
+
+def describe_action(game: Game, action: int) -> str:
+    """Concise human-readable form of ``action`` in the CURRENT (pre-step) state."""
+    if action < CHOOSE_BASE:
+        cell, dir_idx = divmod(action, 4)
+        return f"open door {DIR_NAMES[DIRS[dir_idx]]} @ {_cell_name(cell)}"
+    if action < REDRAW_ACTION:
+        slot = action - (CHOOSE_BASE if action < ALT_BASE else ALT_BASE)
+        alt = " alt" if action >= ALT_BASE else ""
+        pending = game.state.pending
+        if pending is not None and slot < len(pending.options):
+            opt = pending.options[slot]
+            name = "???" if opt.hidden else game.registry.rooms[opt.room_idx].name
+            return f"choose #{slot + 1}{alt} {name}"
+        return f"choose #{slot + 1}{alt}"
+    if action == REDRAW_ACTION:
+        return "redraw"
+    if action == OUTER_DRAFT_ACTION:
+        return "outer draft"
+    if MOVE_BASE <= action < MOVE_BASE + 4:
+        d = DIRS[action - MOVE_BASE]
+        target = neighbor(game.state.pos, d)
+        idx = game.state.grid[target] if target >= 0 else -1
+        into = f" -> {game.registry.rooms[idx].name}" if idx >= 0 else ""
+        return f"move {DIR_NAMES[d]}{into}"
+    if action == ROTATE_ACTION:
+        return "rotate options"
+    return f"action {action}"
