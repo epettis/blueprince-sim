@@ -20,6 +20,34 @@ def play(cfg: GameConfig, seed: int) -> None:
         print(render_status(game))
         if game.phase is Phase.NAVIGATE:
             st = game.state
+            # Off-grid: outer-area actions only
+            if st.outer_loc > 0:
+                loc_name = "inside the outer room" if st.outer_loc == 2 else "at the doorstep"
+                print(f"You are {loc_name}.")
+                garage_cell = game._garage_cell()
+                inside_penalty = 1 if st.outer_loc == 2 else 0
+                if (st.outer_loc == 1 and st.outer_room_drafted and not st.outer_room_entered
+                        and st.steps >= game.cfg.outer_enter_cost):
+                    print("  [e] enter the outer room")
+                print(f"  [h] return to Entrance Hall "
+                      f"({game.cfg.outer_path_entrance_cost + inside_penalty} steps)")
+                if garage_cell >= 0 and game._breaker_on():
+                    print(f"  [g] return via garage "
+                          f"({game.cfg.outer_path_garage_cost + inside_penalty} steps)")
+                cmd = input("outer> ").strip().lower()
+                if cmd == "q":
+                    return
+                if (cmd == "e" and st.outer_loc == 1 and st.outer_room_drafted
+                        and not st.outer_room_entered
+                        and st.steps >= game.cfg.outer_enter_cost):
+                    game.enter_outer_room()
+                elif cmd == "h":
+                    game.return_from_outer("entrance_hall")
+                elif cmd == "g" and garage_cell >= 0 and game._breaker_on():
+                    game.return_from_outer("garage")
+                else:
+                    print("  ? invalid command")
+                continue
             doors = game.open_doorways()
             moves = game.adjacent_moves()
             if not doors and not moves:
@@ -50,7 +78,9 @@ def play(cfg: GameConfig, seed: int) -> None:
             if cmd == "q":
                 return
             if cmd == "o" and game.outer_draft_available():
-                game.open_outer_draft()
+                result = game.open_outer_draft()
+                if result is None:
+                    continue  # walk ended the day
                 continue
             if cmd in _DIR_KEYS:
                 d = _DIR_KEYS[cmd]

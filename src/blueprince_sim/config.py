@@ -17,7 +17,9 @@ class GameConfig:
     # --- permanent unlocks (the "enable various unlocks" toggles) ---
     studio_additions: frozenset[str] = frozenset()   # subset of the 8 studio-addition room ids
     outer_rooms_unlocked: bool = False               # West Gate open: outer-room draft available
-    outer_draft_step_cost: int = 6                   # steps to walk the West Path (inferred)
+    outer_path_entrance_cost: int = 2               # user-verified: Entrance Hall <-> doorstep
+    outer_path_garage_cost: int = 1                 # user-verified: garage door <-> doorstep (breaker-gated)
+    outer_enter_cost: int = 1                       # user-verified: doorstep <-> inside Outer Room
     orchard_unlocked: bool = False                   # Apple Orchard: +20 starting steps (wiki)
     mine_unlocked: bool = False                      # Gemstone Cavern: +2 gems at day start (wiki)
     upgrade_disks: frozenset[str] = frozenset()      # applied upgrade ids (e.g. "pool_hall")

@@ -98,6 +98,8 @@ class GameState:
 
     pending: PendingDraft | None = None
     outer_room_drafted: bool = False
+    outer_loc: int = 0           # 0=on grid, 1=at doorstep, 2=inside outer room
+    outer_room_entered: bool = False  # True once ON_ENTER has fired for today's outer room
     items_found_log: list[tuple[str, int]] = field(default_factory=list)
 
     def deck(self, rarity_idx: int, is_gem: bool) -> DeckState:

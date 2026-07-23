@@ -219,6 +219,175 @@ def test_outer_draft_once_per_day(registry):
     assert not g.outer_draft_available()
 
 
+def test_outer_draft_cost_from_entrance_hall():
+    """Draft from EH = exactly 2 steps (0 walk + 2 EH path cost)."""
+    cfg = GameConfig(outer_rooms_unlocked=True)
+    g = Game(cfg, seed=9)
+    g.state.steps = 10
+    steps_before = g.state.steps
+    g.open_outer_draft()
+    # cost = dist[EH] + outer_path_entrance_cost = 0 + 2 = 2
+    assert g.state.steps == steps_before - 2
+    assert g.state.outer_loc == 1
+
+
+def test_outer_draft_cost_includes_walk():
+    """If player walked from EH, total cost = walk_dist + 2."""
+    cfg = GameConfig(outer_rooms_unlocked=True)
+    g = Game(cfg, seed=9)
+    # Place a room north of entrance and move there (1 step walk)
+    from blueprince_sim.engine.grid import N, S
+    room = g.registry.rooms[0]  # any room
+    g._place_room(room, 7, N | S)  # cell 7 = rank 2 center, north of EH
+    g.state.entered[7] = True
+    g.state.pos = 7
+    g.state.steps = 10
+    steps_before = g.state.steps
+    # dist[EH=2] = 1, so total = 1 + 2 = 3
+    g.open_outer_draft()
+    assert g.state.steps == steps_before - 3
+    assert g.state.pos == 2  # walked back to EH
+    assert g.state.outer_loc == 1
+
+
+def test_garage_route_unavailable_without_breaker(registry):
+    """Garage route requires utility_closet placed AND entered."""
+    cfg = GameConfig(outer_rooms_unlocked=True)
+    g = Game(cfg, seed=9)
+    uc = registry.by_id.get("utility_closet")
+    garage = next((r for r in registry.rooms if r.id.startswith("garage")), None)
+    if uc is None or garage is None:
+        return  # not in registry, skip
+    from blueprince_sim.engine.grid import N, S
+    # Place utility_closet but don't enter it (breaker off)
+    g._place_room(uc, 7, N | S)
+    g._place_room(garage, 3, N | S)  # garage placed, also not entered
+    assert not g._breaker_on()
+    # Route cost should only include EH path (dist=0 + 2)
+    cost = g._outer_route_cost()
+    assert cost == g.cfg.outer_path_entrance_cost  # 2
+
+
+def test_garage_route_available_with_breaker(registry):
+    """Garage route is available when utility_closet is placed AND entered."""
+    cfg = GameConfig(outer_rooms_unlocked=True)
+    g = Game(cfg, seed=9)
+    uc = registry.by_id.get("utility_closet")
+    garage = next((r for r in registry.rooms if r.id.startswith("garage")), None)
+    if uc is None or garage is None:
+        return
+    from blueprince_sim.engine.grid import N, S, E, W
+    # Place garage adjacent to entrance (west, cell 1) and utility_closet elsewhere
+    g._place_room(garage, 1, E | W)  # cell 1, east door connects to EH cell 2
+    g._place_room(uc, 7, N | S)
+    g.state.entered[g._utility_closet_cell()] = True  # breaker on
+    assert g._breaker_on()
+    # Now both routes exist; garage route costs dist[garage_cell] + 1
+    cost = g._outer_route_cost()
+    assert cost is not None
+
+
+def test_choose_outer_does_not_enter():
+    """Choosing an outer room places it but does NOT fire ON_ENTER."""
+    cfg = GameConfig(outer_rooms_unlocked=True)
+    g = Game(cfg, seed=9)
+    g.open_outer_draft()
+    g.choose(0)
+    assert g.state.outer_loc == 1  # still at doorstep
+    assert not g.state.outer_room_entered
+    assert g.phase is Phase.NAVIGATE
+
+
+def test_enter_outer_room_fires_once():
+    """enter_outer_room deducts 1 step, moves to inside, and can't be called again."""
+    cfg = GameConfig(outer_rooms_unlocked=True)
+    g = Game(cfg, seed=9)
+    g.open_outer_draft()
+    g.choose(0)
+    assert g.state.outer_loc == 1
+    steps_before = g.state.steps
+    g.enter_outer_room()
+    assert g.state.outer_loc == 2
+    assert g.state.outer_room_entered
+    assert g.state.steps == steps_before - cfg.outer_enter_cost
+    # Entering again raises AssertionError
+    import pytest
+    with pytest.raises(AssertionError):
+        g.enter_outer_room()
+
+
+def test_return_costs_doorstep_to_eh():
+    """Return from doorstep to EH costs outer_path_entrance_cost (2)."""
+    cfg = GameConfig(outer_rooms_unlocked=True)
+    g = Game(cfg, seed=9)
+    g.open_outer_draft()
+    g.choose(0)
+    steps_before = g.state.steps
+    g.return_from_outer("entrance_hall")
+    assert g.state.outer_loc == 0
+    assert g.state.pos == 2  # ENTRANCE_CELL
+    assert g.state.steps == steps_before - cfg.outer_path_entrance_cost
+
+
+def test_return_costs_inside_to_eh():
+    """Return from inside the outer room to EH costs 3 (1 inside->doorstep + 2 EH path)."""
+    cfg = GameConfig(outer_rooms_unlocked=True)
+    g = Game(cfg, seed=9)
+    g.open_outer_draft()
+    g.choose(0)
+    g.enter_outer_room()
+    steps_before = g.state.steps
+    g.return_from_outer("entrance_hall")
+    assert g.state.outer_loc == 0
+    assert g.state.steps == steps_before - (cfg.outer_path_entrance_cost + 1)
+
+
+def test_action_mask_off_grid():
+    """When outer_loc > 0, only outer-area actions (187/194) are legal; grid actions masked."""
+    from blueprince_sim.env import actions as A
+    cfg = GameConfig(outer_rooms_unlocked=True)
+    g = Game(cfg, seed=9)
+    g.open_outer_draft()
+    g.choose(0)
+    assert g.state.outer_loc == 1
+    mask = A.action_mask(g)
+    # No grid draft or move actions should be legal
+    assert not any(mask[A.OPEN_BASE:A.CHOOSE_BASE])
+    assert not any(mask[A.MOVE_TO_BASE:A.MOVE_TO_BASE + 45])
+    assert not mask[A.OUTER_DRAFT_ACTION]
+    # Enter and return-to-EH should be legal (outer room drafted, steps > 0)
+    assert mask[A.ENTER_OUTER_ACTION]
+    assert mask[A.RETURN_EH_ACTION]
+
+
+def test_return_from_outer_into_unentered_garage_fires_entry(registry):
+    """Returning to garage that was never entered fires its ON_ENTER effects."""
+    cfg = GameConfig(outer_rooms_unlocked=True)
+    g = Game(cfg, seed=9)
+    garage = next((r for r in registry.rooms if r.id.startswith("garage")), None)
+    uc = registry.by_id.get("utility_closet")
+    if garage is None or uc is None:
+        return
+    from blueprince_sim.engine.grid import N, S, E, W
+    # Place garage west of entrance (cell 1) with an east door connecting to EH
+    g._place_room(garage, 1, E | W)
+    g._place_room(uc, 7, N | S)
+    uc_cell = g._utility_closet_cell()
+    g.state.entered[uc_cell] = True  # breaker on
+    assert g._breaker_on()
+    garage_cell = g._garage_cell()
+    assert not g.state.entered[garage_cell]
+    # Go to outer area and come back via garage
+    g.open_outer_draft()
+    g.choose(0)
+    assert g.state.outer_loc == 1
+    g.return_from_outer("garage")
+    assert g.state.outer_loc == 0
+    assert g.state.pos == garage_cell
+    # Garage should now be marked entered
+    assert g.state.entered[garage_cell]
+
+
 def test_the_pool_injects_rooms(registry, cfg):
     g = Game(cfg, seed=2)
     pool_room = registry.by_id["the_pool"]

@@ -43,8 +43,8 @@ def observation_space(n_rooms: int) -> spaces.Dict:
         "stage": spaces.Discrete(3),
         "house_flags": spaces.Box(0, 999, shape=(HOUSE_FLAGS,), dtype=np.int16),
         # deepest_rank, optimistic player->Antechamber distance (-1 if walled
-        # off), Antechamber connected+walkable right now (0/1).
-        "progress": spaces.Box(-1, 999, shape=(3,), dtype=np.int16),
+        # off), Antechamber connected+walkable right now (0/1), outer_loc (0/1/2).
+        "progress": spaces.Box(-1, 999, shape=(4,), dtype=np.int16),
     })
 
 
@@ -122,6 +122,7 @@ def encode(game: Game) -> dict:
         game.deepest_rank,
         int(ante_flat[st.pos]),
         int(grid_dist[ANTECHAMBER_CELL // 5, ANTECHAMBER_CELL % 5] > 0),
+        st.outer_loc,
     ], dtype=np.int16)
 
     return {
