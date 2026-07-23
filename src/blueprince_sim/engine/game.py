@@ -10,7 +10,7 @@ from . import effects
 from .decks import build_decks, inject_rooms
 from .draft import deal_draft, redeal
 from .effects import Hook
-from .grid import DIRS, ENTRANCE_CELL, OPPOSITE, neighbor, rank_of, rotate_mask
+from .grid import DIRS, ENTRANCE_CELL, N_CELLS, OPPOSITE, neighbor, rank_of, rotate_mask
 from .items import roll_room_items
 from .model import Registry, Room
 from .placement import legal_orientations
@@ -102,6 +102,54 @@ class Game:
                     q.append(nb)
         return seen
 
+    def distance_map(self) -> list[int]:
+        """Walking distance from the player to every placed cell.
+
+        BFS through connected door pairs, one step per room (the cost
+        :meth:`move_to` would pay). -1 marks empty or unreachable cells;
+        the player's own cell is 0.
+        """
+        st = self.state
+        dist = [-1] * N_CELLS
+        dist[st.pos] = 0
+        q = deque([st.pos])
+        while q:
+            cell = q.popleft()
+            for d in DIRS:
+                nb = neighbor(cell, d)
+                if nb == -1 or st.grid[nb] < 0 or dist[nb] != -1:
+                    continue
+                if self._connected(cell, nb, d):
+                    dist[nb] = dist[cell] + 1
+                    q.append(nb)
+        return dist
+
+    def _door_or_empty(self, cell: int, d: int) -> bool:
+        st = self.state
+        return st.grid[cell] < 0 or bool(st.placed_doors[cell] & d)
+
+    def optimistic_distances(self) -> list[int]:
+        """Per-cell optimistic distance to the Antechamber.
+
+        Empty cells are treated as freely passable in every direction, while
+        placed rooms still only pass through their existing doors (a solid
+        wall stays a wall no matter what gets drafted later). -1 marks cells
+        walled off from the Antechamber even under this assumption.
+        """
+        dist = [-1] * N_CELLS
+        dist[ANTECHAMBER_CELL] = 0
+        q = deque([ANTECHAMBER_CELL])
+        while q:
+            cell = q.popleft()
+            for d in DIRS:
+                nb = neighbor(cell, d)
+                if nb == -1 or dist[nb] != -1:
+                    continue
+                if self._door_or_empty(cell, d) and self._door_or_empty(nb, OPPOSITE[d]):
+                    dist[nb] = dist[cell] + 1
+                    q.append(nb)
+        return dist
+
     # ---------------------------------------------------------------- actions
 
     def open_doorways(self) -> list[tuple[int, int]]:
@@ -121,8 +169,12 @@ class Game:
                 if st.placed_doors[cell] & d
                 and (nb := neighbor(cell, d)) != -1 and st.grid[nb] < 0]
 
-    def _frontier_doorways(self) -> list[tuple[int, int]]:
-        """Every closed door across all reachable rooms (drives dead-end)."""
+    def frontier_doorways(self) -> list[tuple[int, int]]:
+        """Every closed door across all reachable rooms.
+
+        These are the draft targets of :meth:`draft_from`; the list also
+        drives dead-end detection.
+        """
         st = self.state
         out = []
         for cell in self.reachable_cells():
@@ -159,6 +211,21 @@ class Game:
         st.pending = pending
         self.phase = Phase.DRAFTING
         return pending
+
+    def draft_from(self, cell: int, direction: int) -> PendingDraft | None:
+        """Walk to ``cell`` (if needed) and draft through its ``direction`` door.
+
+        A macro over :meth:`move_to` + :meth:`open_door`: the walk pays the
+        normal one-step-per-room cost and collects first-entry pickups along
+        the way, so the RNG stream is identical to issuing the moves by hand.
+        Returns None if the walk ends the day before the draft can happen.
+        """
+        assert self.phase is Phase.NAVIGATE
+        if cell != self.state.pos:
+            self.move_to(cell)
+        if self.phase is not Phase.NAVIGATE:
+            return None
+        return self.open_door(cell, direction)
 
     def _in_classroom_context(self) -> bool:
         room_idx = self.state.grid[self.state.pos]
@@ -429,10 +496,31 @@ class Game:
             self._terminate("antechamber")
         elif st.steps <= 0:
             self._terminate("out_of_steps")
-        elif not self._frontier_doorways() and not self._antechamber_reachable():
+        elif not self.frontier_doorways() and not self._antechamber_reachable():
             # No undrafted doors anywhere reachable and no path to walk into
             # the Antechamber: the day cannot progress.
             self._terminate("dead_end")
+        elif not self._action_in_budget():
+            # Steps remain, but nothing useful is within the step budget:
+            # re-entering rooms grants nothing, so the day cannot progress.
+            self._terminate("out_of_steps")
+
+    def _action_in_budget(self) -> bool:
+        """True if any purposeful action still fits in the step budget.
+
+        Purposeful: draft a frontier doorway (arriving with a step to spare
+        so the drafted room can be entered), enter an unentered room (its
+        pickups may include steps), or walk into the Antechamber.
+        """
+        st = self.state
+        dist = self.distance_map()
+        for cell, _d in self.frontier_doorways():
+            if 0 <= dist[cell] <= st.steps - 1:
+                return True
+        for cell in range(N_CELLS):
+            if 0 < dist[cell] <= st.steps and not st.entered[cell]:
+                return True
+        return self.outer_draft_available()
 
     def _antechamber_reachable(self) -> bool:
         return ANTECHAMBER_CELL in self.reachable_cells()

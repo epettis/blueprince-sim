@@ -88,9 +88,16 @@ def build_frames(record: dict) -> list[dict]:
         action = int(action)
         text = A.describe_action(env.game, action)
         explore = i < len(modes) and modes[i] == "0"
+        # Facing after a walk macro = direction of the path's last hop
+        # (computed pre-step; the walk may be cut short by termination).
+        walk_facing = None
+        if A.MOVE_TO_BASE <= action < A.MOVE_TO_BASE + 45:
+            path = env.game._path_dirs(action - A.MOVE_TO_BASE)
+            if path:
+                walk_facing = DIR_NAMES[path[-1]]
         _, _, term, trunc, _ = env.step(action)
-        if A.MOVE_BASE <= action < A.MOVE_BASE + 4:
-            facing = DIR_NAMES[A.DIRS[action - A.MOVE_BASE]]
+        if walk_facing is not None:
+            facing = walk_facing
         pending = env.game.state.pending
         if pending is not None:
             facing = DIR_NAMES.get(pending.direction, facing)

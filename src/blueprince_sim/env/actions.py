@@ -1,33 +1,42 @@
 """Flat action space with masking.
 
-Layout (Discrete(196)):
-  0..179   open door (draft only): cell (45) x direction (4: N,E,S,W) ->
-           cell*4 + dir_index. Legal only for the current room's doorways;
-           drafting costs no step, so it needs no step budget.
+Navigation is macro-based: the agent picks a destination (a frontier doorway
+to draft, or a room to enter) and the engine walks the shortest connected
+path, paying the normal one-step-per-room cost. Re-entering rooms grants
+nothing, so free-form single-tile moves were retired.
+
+Layout (Discrete(241)):
+  0..179   draft at doorway: cell (45) x direction (4: N,E,S,W) ->
+           cell*4 + dir_index. Walks to the room first if needed. Legal for
+           every frontier doorway reachable with at least one step to spare
+           on arrival (the drafted room must still be enterable).
   180..182 choose option slot 0/1/2 (as-dealt orientation)
   183..185 choose option slot 0/1/2 (alternate orientation; only legal when
            GameConfig.orientation_choice is enabled and an alternate exists)
   186      redraw (engine picks the cheapest available source: free > die > study)
   187      reserved (formerly decline; opening a door now commits you to a draft)
   188      outer-room draft (walk the West Path; once per day, if unlocked)
-  189..192 move one room N/E/S/W into the connected placed room (spends a
-           step, enters it, grants its resources; entering the Antechamber wins)
+  189..192 retired (were single-tile moves N/E/S/W; see 196..240)
   193      rotate the drawn floorplans to their next legal orientation
            (Ornate Compass held / Rotunda placed / Dovecote in hand;
            overrides the random roll)
   194..195 reserved (Tier-2 shop menu)
+  196..240 walk to cell (45): shortest connected path into an unentered
+           reachable room (spends steps, first entry grants its resources)
+           or into the Antechamber (wins)
 """
 
 from __future__ import annotations
 
 from ..engine.game import Game, Phase, RedrawKind
-from ..engine.grid import DIR_NAMES, DIRS, neighbor
+from ..engine.grid import DIR_NAMES, DIRS, N_CELLS
 
-N_ACTIONS = 196
+N_ACTIONS = 241
 OPEN_BASE, CHOOSE_BASE, ALT_BASE = 0, 180, 183
 REDRAW_ACTION, OUTER_DRAFT_ACTION = 186, 188  # 187 reserved (was decline)
-MOVE_BASE = 189  # 189..192: move N/E/S/W
+MOVE_BASE = 189  # 189..192: retired single-tile moves (never legal)
 ROTATE_ACTION = 193
+MOVE_TO_BASE = 196  # 196..240: walk to cell
 DIR_INDEX = {d: i for i, d in enumerate(DIRS)}
 
 
@@ -35,13 +44,17 @@ def action_mask(game: Game) -> list[bool]:
     mask = [False] * N_ACTIONS
     if game.phase is Phase.NAVIGATE:
         st = game.state
-        # Drafting is free (no step cost), so any current-room doorway is legal.
-        for cell, d in game.open_doorways():
-            mask[OPEN_BASE + cell * 4 + DIR_INDEX[d]] = True
-        # Moving into a connected room costs one step.
-        if st.steps >= 1:
-            for d in game.adjacent_moves():
-                mask[MOVE_BASE + DIR_INDEX[d]] = True
+        dist = game.distance_map()
+        # Draft any reachable frontier doorway; arriving must leave >= 1 step
+        # so the drafted room can still be entered.
+        for cell, d in game.frontier_doorways():
+            if 0 <= dist[cell] <= st.steps - 1:
+                mask[OPEN_BASE + cell * 4 + DIR_INDEX[d]] = True
+        # Walk to an unentered room (first entry grants its resources) or the
+        # Antechamber (never marked entered while the game is live).
+        for cell in range(N_CELLS):
+            if 0 < dist[cell] <= st.steps and not st.entered[cell]:
+                mask[MOVE_TO_BASE + cell] = True
         if game.outer_draft_available():
             mask[OUTER_DRAFT_ACTION] = True
     elif game.phase is Phase.DRAFTING:
@@ -74,7 +87,7 @@ def _redraw_kind(game: Game) -> RedrawKind | None:
 def apply_action(game: Game, action: int) -> None:
     if action < CHOOSE_BASE:
         cell, dir_idx = divmod(action, 4)
-        game.open_door(cell, DIRS[dir_idx])
+        game.draft_from(cell, DIRS[dir_idx])
     elif action < ALT_BASE:
         game.choose(action - CHOOSE_BASE)
     elif action < REDRAW_ACTION:
@@ -85,10 +98,10 @@ def apply_action(game: Game, action: int) -> None:
         game.redraw(kind)
     elif action == OUTER_DRAFT_ACTION:
         game.open_outer_draft()
-    elif MOVE_BASE <= action < MOVE_BASE + 4:
-        game.move(DIRS[action - MOVE_BASE])
     elif action == ROTATE_ACTION:
         game.rotate_options()
+    elif MOVE_TO_BASE <= action < MOVE_TO_BASE + N_CELLS:
+        game.move_to(action - MOVE_TO_BASE)
     else:
         raise ValueError(f"unimplemented action {action}")
 
@@ -101,7 +114,7 @@ def describe_action(game: Game, action: int) -> str:
     """Concise human-readable form of ``action`` in the CURRENT (pre-step) state."""
     if action < CHOOSE_BASE:
         cell, dir_idx = divmod(action, 4)
-        return f"open door {DIR_NAMES[DIRS[dir_idx]]} @ {_cell_name(cell)}"
+        return f"draft {DIR_NAMES[DIRS[dir_idx]]} door @ {_cell_name(cell)}"
     if action < REDRAW_ACTION:
         slot = action - (CHOOSE_BASE if action < ALT_BASE else ALT_BASE)
         alt = " alt" if action >= ALT_BASE else ""
@@ -115,12 +128,11 @@ def describe_action(game: Game, action: int) -> str:
         return "redraw"
     if action == OUTER_DRAFT_ACTION:
         return "outer draft"
-    if MOVE_BASE <= action < MOVE_BASE + 4:
-        d = DIRS[action - MOVE_BASE]
-        target = neighbor(game.state.pos, d)
-        idx = game.state.grid[target] if target >= 0 else -1
-        into = f" -> {game.registry.rooms[idx].name}" if idx >= 0 else ""
-        return f"move {DIR_NAMES[d]}{into}"
     if action == ROTATE_ACTION:
         return "rotate options"
+    if MOVE_TO_BASE <= action < MOVE_TO_BASE + N_CELLS:
+        cell = action - MOVE_TO_BASE
+        idx = game.state.grid[cell]
+        into = f" -> {game.registry.rooms[idx].name}" if idx >= 0 else ""
+        return f"go to {_cell_name(cell)}{into}"
     return f"action {action}"

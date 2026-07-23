@@ -82,11 +82,22 @@ def test_explore_has_higher_entropy(model_env):
         p = counts / counts.sum()
         return -(p * np.log(p)).sum()
 
-    policy.set_mode_config(1.0, False, 1, 0)   # all exploit
-    h_exploit = empirical_entropy(_sample_many(policy, obs_t, mask_t))
-    policy.set_mode_config(0.0, False, 1, 0)   # all explore
-    h_explore = empirical_entropy(_sample_many(policy, obs_t, mask_t))
-    assert h_explore > h_exploit
+    # An untrained net can be near-uniform over the few legal actions, and
+    # temperature-scaling a uniform distribution is a no-op; skew the logits
+    # so the exploit/explore temperatures have something to sharpen/flatten.
+    bias = policy.action_net.bias
+    old_bias = bias.detach().clone()
+    try:
+        with torch.no_grad():
+            bias += torch.linspace(-1.0, 1.0, bias.numel())
+        policy.set_mode_config(1.0, False, 1, 0)   # all exploit
+        h_exploit = empirical_entropy(_sample_many(policy, obs_t, mask_t))
+        policy.set_mode_config(0.0, False, 1, 0)   # all explore
+        h_explore = empirical_entropy(_sample_many(policy, obs_t, mask_t))
+        assert h_explore > h_exploit
+    finally:
+        with torch.no_grad():
+            bias.copy_(old_bias)
 
 
 def test_vanilla_reduction_matches_policy_distribution(model_env):
