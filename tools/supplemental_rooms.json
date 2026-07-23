@@ -900,6 +900,41 @@
         "effect_text": "Whenever you enter this room, lose one random special inventory item. Contains 2 rare items. APPROXIMATION: item loss has no effect tag in the sim (no special-item inventory); no effect modeled. PLACEMENT NOTE: wiki restricts horizontal drafting at rank 1 only; no_horizontal_end_rank also blocks rank 9 horizontal outside corners (slight over-restriction).",
         "rarity_confidence": "wiki"
       }
+    },
+    {
+      "id": "treasure_trove",
+      "name": "Treasure Trove",
+      "category": "blackprint",
+      "rarity": "unusual",
+      "gem_cost": 1,
+      "layout": "corner",
+      "alt_layouts": [],
+      "draft_conditions": [],
+      "flags": {
+        "no_library_draft": false,
+        "powered": false,
+        "duct": false
+      },
+      "deck_copies": 1,
+      "effects": [
+        {
+          "tag": "grant",
+          "resource": "coins",
+          "amount": 5
+        }
+      ],
+      "items": {
+        "guaranteed": [],
+        "additional_max": 0,
+        "dig_spots": 0
+      },
+      "pool": "studio_addition",
+      "meta": {
+        "source": "wiki",
+        "confidence": "wiki",
+        "effect_text": "Grants +5 Gold Coins per Treasure Trove instance drafted. APPROXIMATION: modeled as grant +5 coins on entry (correct for the 1-copy case; multi-copy stacking unsupported). Coin-pile loot, memo chests, and black chest are out of scope.",
+        "rarity_confidence": "wiki"
+      }
     }
   ]
 }
