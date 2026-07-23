@@ -121,17 +121,23 @@ def publish(args, model_path: Path, digest: str) -> None:
     repo = ["--repo", args.repo] if args.repo else []
     notes = (f"Baseline drafting policy. {manifest_stats(args)}\n\n"
              f"model.zip sha256: `{digest}`")
-    subprocess.run(
-        ["gh", "release", "create", tag, str(model_path),
-         "--title", args.name, "--notes", notes, *repo],
-        cwd=ROOT, check=True)
-    # Round-trip verify: the published asset must hash to the same bytes.
     with tempfile.TemporaryDirectory() as td:
+        # gh names the asset after the file's basename, so stage a copy called
+        # model.zip (the source is <ckpt-dir>/latest.zip) to match the manifest.
+        staged = Path(td) / "model.zip"
+        shutil.copy2(model_path, staged)
+        subprocess.run(
+            ["gh", "release", "create", tag, str(staged),
+             "--title", args.name, "--notes", notes, *repo],
+            cwd=ROOT, check=True)
+        # Round-trip verify: the published asset must hash to the same bytes.
+        dl = Path(td) / "dl"
+        dl.mkdir()
         subprocess.run(
             ["gh", "release", "download", tag, "-p", "model.zip",
-             "--dir", td, "--clobber", *repo],
+             "--dir", str(dl), *repo],
             cwd=ROOT, check=True)
-        got = sha256(Path(td) / "model.zip")
+        got = sha256(dl / "model.zip")
     if got != digest:
         print(f"FATAL: published asset sha {got} != manifest sha {digest}",
               file=sys.stderr)
