@@ -964,6 +964,35 @@
         "effect_text": "All doorways in this room are security locked regardless of security level. APPROXIMATION: the lock system is out of scope; no effect modeled. Mora Jai box / Lock Pick Kit contents reduced to standard item slots. PLACEMENT NOTE: wiki restricts E/W drafting at rank 1 only; no_horizontal_end_rank also blocks rank 9 horizontal outside corners (slight over-restriction).",
         "rarity_confidence": "wiki"
       }
+    },
+    {
+      "id": "throne_room",
+      "name": "Throne Room",
+      "category": "blackprint",
+      "rarity": "rare",
+      "gem_cost": 5,
+      "layout": "t",
+      "alt_layouts": [],
+      "draft_conditions": ["rank_gte_2", "rank_lte_8"],
+      "flags": {
+        "no_library_draft": false,
+        "powered": false,
+        "duct": false
+      },
+      "deck_copies": 1,
+      "effects": [],
+      "items": {
+        "guaranteed": [],
+        "additional_max": 3,
+        "dig_spots": 0
+      },
+      "pool": "studio_addition",
+      "meta": {
+        "source": "wiki",
+        "confidence": "wiki",
+        "effect_text": "'Reclaim the crown' — cross-day meta-progression objective (Throne of the Blue Prince transformation); entirely out of scope, no effect modeled. Contains the Sanctum Key and random valuables (reduced to standard item slots). PLACEMENT NOTE: 'cannot be rotated / must face the throne head-on' needs a fixed-orientation mechanic the sim lacks; left permissive on orientation. rank_gte_2 + rank_lte_8 cover the rank 1/9 restriction.",
+        "rarity_confidence": "wiki"
+      }
     }
   ]
 }
