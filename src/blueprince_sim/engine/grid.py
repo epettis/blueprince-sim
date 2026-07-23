@@ -29,8 +29,7 @@ def col_of(cell: int) -> int:
     return cell % WIDTH
 
 
-def neighbor(cell: int, direction: int) -> int:
-    """Neighboring cell in ``direction``, or -1 if off-grid."""
+def _neighbor(cell: int, direction: int) -> int:
     r, c = cell // WIDTH, cell % WIDTH
     if direction == N:
         r += 1
@@ -43,6 +42,22 @@ def neighbor(cell: int, direction: int) -> int:
     if 0 <= r < RANKS and 0 <= c < WIDTH:
         return r * WIDTH + c
     return -1
+
+
+# NEIGHBORS[cell][direction] -> neighboring cell or -1 if off-grid.
+NEIGHBORS: tuple[dict[int, int], ...] = tuple(
+    {d: _neighbor(cell, d) for d in DIRS} for cell in range(N_CELLS))
+
+# ADJACENT[cell] -> (direction, opposite_direction, neighbor) for each ON-GRID
+# neighbor; off-grid directions are omitted so BFS loops skip the -1 checks.
+ADJACENT: tuple[tuple[tuple[int, int, int], ...], ...] = tuple(
+    tuple((d, OPPOSITE[d], nb) for d, nb in NEIGHBORS[cell].items() if nb != -1)
+    for cell in range(N_CELLS))
+
+
+def neighbor(cell: int, direction: int) -> int:
+    """Neighboring cell in ``direction``, or -1 if off-grid."""
+    return NEIGHBORS[cell][direction]
 
 
 def is_west_wing(cell: int) -> bool:

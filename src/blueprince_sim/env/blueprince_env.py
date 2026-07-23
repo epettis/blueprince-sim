@@ -58,11 +58,15 @@ class BluePrinceEnv(gymnasium.Env):
             reward = self.reward_fn(self.game, prev, terminated)
         self._env_steps += 1
         truncated = self._env_steps >= self.max_env_steps
-        # A NAVIGATE state with no legal action is terminal (dead end).
-        if not terminated and not any(A.action_mask(self.game)):
+        # Post-step mask, computed once and shared with _info. A NAVIGATE
+        # state with no legal action is terminal (dead end); the all-False
+        # mask stays valid after _terminate (TERMINAL masks everything off).
+        post_mask = A.action_mask(self.game)
+        if not terminated and not any(post_mask):
             self.game._terminate("dead_end")
             terminated = True
-        return O.encode(self.game), reward, terminated, truncated, self._info()
+        return (O.encode(self.game), reward, terminated, truncated,
+                self._info(post_mask))
 
     def action_masks(self) -> np.ndarray:
         return np.array(A.action_mask(self.game), dtype=bool)
@@ -72,13 +76,15 @@ class BluePrinceEnv(gymnasium.Env):
 
         return render_grid(self.game, color=False)
 
-    def _info(self) -> dict:
+    def _info(self, mask: list[bool] | None = None) -> dict:
+        if mask is None:
+            mask = A.action_mask(self.game)
         return {
             "deepest_rank": self.game.deepest_rank,
             "rooms_placed": self.game.rooms_placed,
             "termination_reason": self.game.termination_reason,
             "episode_seed": self._episode_seed,
-            "action_mask": np.array(A.action_mask(self.game), dtype=bool),
+            "action_mask": np.array(mask, dtype=bool),
         }
 
 

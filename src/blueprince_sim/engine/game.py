@@ -10,7 +10,8 @@ from . import effects
 from .decks import build_decks, inject_rooms
 from .draft import deal_draft, redeal
 from .effects import Hook
-from .grid import DIRS, ENTRANCE_CELL, N_CELLS, OPPOSITE, neighbor, rank_of, rotate_mask
+from .grid import (ADJACENT, DIRS, ENTRANCE_CELL, N_CELLS, OPPOSITE, neighbor,
+                   rank_of, rotate_mask)
 from .items import roll_room_items
 from .model import Registry, Room
 from .placement import legal_orientations
@@ -37,6 +38,11 @@ class Game:
                  registry: Registry | None = None) -> None:
         self.cfg = cfg or GameConfig()
         self.registry = registry or Registry.load(self.cfg.data_dir)
+        # Registry-derived lookups (the registry is immutable, so build once).
+        self.outer_rooms: tuple[Room, ...] = tuple(
+            r for r in self.registry.rooms if r.pool == "outer")
+        self._garage_ids: tuple[str, ...] = tuple(
+            r.id for r in self.registry.rooms if r.id.startswith("garage"))
         self.seed = seed
         self.reset(seed)
 
@@ -57,6 +63,9 @@ class Game:
         self.state = st
 
         self.placed_ids: set[str] = set()
+        # Lowest grid cell per placed room id (mirrors a low-to-high grid scan;
+        # duplicates are only possible via the Chamber of Mirrors).
+        self.room_cells: dict[str, int] = {}
         self.free_categories: set[str] = set()
         self.bedroom_bonus = 0
         self.red_negations = 0
@@ -78,6 +87,8 @@ class Game:
         st.grid[ANTECHAMBER_CELL] = ante.idx
         st.placed_doors[ANTECHAMBER_CELL] = 0xF
         self.placed_ids.add(ante.id)
+        self.room_cells[ante.id] = ANTECHAMBER_CELL
+        self._map_cache: tuple[tuple, dict] = ((), {})
 
     # ------------------------------------------------------------ connectivity
 
@@ -86,20 +97,45 @@ class Game:
         st = self.state
         return bool(st.placed_doors[a] & d) and bool(st.placed_doors[b] & OPPOSITE[d])
 
-    def reachable_cells(self) -> set[int]:
-        """Cells reachable from the player through connected door pairs."""
+    def _maps(self) -> dict:
+        """Memo dict for the BFS map functions, valid for the current layout.
+
+        Keyed on a fingerprint of everything those functions read (player
+        position, outer-area location, grid, door masks), so any state change
+        - including tests poking ``state`` directly - starts a fresh dict.
+        Cached values are shared between callers and must not be mutated.
+        """
         st = self.state
+        fp = (st.pos, st.outer_loc, tuple(st.grid), tuple(st.placed_doors))
+        cached_fp, maps = self._map_cache
+        if fp != cached_fp:
+            maps = {}
+            self._map_cache = (fp, maps)
+        return maps
+
+    def reachable_cells(self) -> set[int]:
+        """Cells reachable from the player through connected door pairs.
+
+        Returns a cached set; treat it as read-only.
+        """
+        maps = self._maps()
+        cached = maps.get("reachable")
+        if cached is not None:
+            return cached
+        st = self.state
+        grid, doors = st.grid, st.placed_doors
         seen = {st.pos}
         q = deque([st.pos])
         while q:
             cell = q.popleft()
-            for d in DIRS:
-                nb = neighbor(cell, d)
-                if nb == -1 or nb in seen or st.grid[nb] < 0:
+            cell_doors = doors[cell]
+            for d, od, nb in ADJACENT[cell]:
+                if nb in seen or grid[nb] < 0:
                     continue
-                if self._connected(cell, nb, d):
+                if cell_doors & d and doors[nb] & od:
                     seen.add(nb)
                     q.append(nb)
+        maps["reachable"] = seen
         return seen
 
     def distance_map(self) -> list[int]:
@@ -108,25 +144,29 @@ class Game:
         BFS through connected door pairs, one step per room (the cost
         :meth:`move_to` would pay). -1 marks empty or unreachable cells;
         the player's own cell is 0.
+
+        Returns a cached list; treat it as read-only.
         """
+        maps = self._maps()
+        cached = maps.get("dist")
+        if cached is not None:
+            return cached
         st = self.state
+        grid, doors = st.grid, st.placed_doors
         dist = [-1] * N_CELLS
         dist[st.pos] = 0
         q = deque([st.pos])
         while q:
             cell = q.popleft()
-            for d in DIRS:
-                nb = neighbor(cell, d)
-                if nb == -1 or st.grid[nb] < 0 or dist[nb] != -1:
+            cell_doors = doors[cell]
+            for d, od, nb in ADJACENT[cell]:
+                if grid[nb] < 0 or dist[nb] != -1:
                     continue
-                if self._connected(cell, nb, d):
+                if cell_doors & d and doors[nb] & od:
                     dist[nb] = dist[cell] + 1
                     q.append(nb)
+        maps["dist"] = dist
         return dist
-
-    def _door_or_empty(self, cell: int, d: int) -> bool:
-        st = self.state
-        return st.grid[cell] < 0 or bool(st.placed_doors[cell] & d)
 
     def optimistic_distances(self) -> list[int]:
         """Per-cell optimistic distance to the Antechamber.
@@ -135,19 +175,30 @@ class Game:
         placed rooms still only pass through their existing doors (a solid
         wall stays a wall no matter what gets drafted later). -1 marks cells
         walled off from the Antechamber even under this assumption.
+
+        Returns a cached list; treat it as read-only.
         """
+        maps = self._maps()
+        cached = maps.get("ante_dist")
+        if cached is not None:
+            return cached
+        st = self.state
+        grid, doors = st.grid, st.placed_doors
         dist = [-1] * N_CELLS
         dist[ANTECHAMBER_CELL] = 0
         q = deque([ANTECHAMBER_CELL])
         while q:
             cell = q.popleft()
-            for d in DIRS:
-                nb = neighbor(cell, d)
-                if nb == -1 or dist[nb] != -1:
+            cell_doors = doors[cell]
+            cell_empty = grid[cell] < 0
+            for d, od, nb in ADJACENT[cell]:
+                if dist[nb] != -1:
                     continue
-                if self._door_or_empty(cell, d) and self._door_or_empty(nb, OPPOSITE[d]):
+                if ((cell_empty or cell_doors & d)
+                        and (grid[nb] < 0 or doors[nb] & od)):
                     dist[nb] = dist[cell] + 1
                     q.append(nb)
+        maps["ante_dist"] = dist
         return dist
 
     # ---------------------------------------------------------------- actions
@@ -176,20 +227,26 @@ class Game:
 
         These are the draft targets of :meth:`draft_from`; the list also
         drives dead-end detection.
+
+        Returns a cached list; treat it as read-only.
         """
         st = self.state
         if st.outer_loc > 0:
             return []
+        maps = self._maps()
+        cached = maps.get("frontier")
+        if cached is not None:
+            return cached
         out = []
+        grid, doors = st.grid, st.placed_doors
         for cell in self.reachable_cells():
-            if st.grid[cell] < 0 or cell == ANTECHAMBER_CELL:
+            if grid[cell] < 0 or cell == ANTECHAMBER_CELL:
                 continue
-            for d in DIRS:
-                if not st.placed_doors[cell] & d:
-                    continue
-                nb = neighbor(cell, d)
-                if nb != -1 and st.grid[nb] < 0:
+            cell_doors = doors[cell]
+            for d, _od, nb in ADJACENT[cell]:
+                if cell_doors & d and grid[nb] < 0:
                     out.append((cell, d))
+        maps["frontier"] = out
         return out
 
     def open_door(self, cell: int, direction: int) -> PendingDraft:
@@ -238,18 +295,14 @@ class Game:
     # --------------------------------------------------------- outer rooms
 
     def _garage_cell(self) -> int:
-        """Cell where the garage room is placed, or -1."""
-        for cell, idx in enumerate(self.state.grid):
-            if idx >= 0 and self.registry.rooms[idx].id.startswith("garage"):
-                return cell
-        return -1
+        """Cell where the garage room (or a garage variant) is placed, or -1."""
+        cells = [self.room_cells[rid] for rid in self._garage_ids
+                 if rid in self.room_cells]
+        return min(cells) if cells else -1
 
     def _utility_closet_cell(self) -> int:
         """Cell where utility_closet is placed, or -1."""
-        for cell, idx in enumerate(self.state.grid):
-            if idx >= 0 and self.registry.rooms[idx].id == "utility_closet":
-                return cell
-        return -1
+        return self.room_cells.get("utility_closet", -1)
 
     def _breaker_on(self) -> bool:
         """True if utility_closet is placed AND its cell has been entered."""
@@ -329,7 +382,7 @@ class Game:
         key = (-1, 0)
         pending = self.doorway_drafts.get(key)
         if pending is None:
-            outer = [r for r in self.registry.rooms if r.pool == "outer"]
+            outer = self.outer_rooms
             order = list(range(len(outer)))
             self.rng.shuffle("outer_draft", order)
             pending = PendingDraft(from_cell=-1, direction=0, target_cell=-1)
@@ -365,8 +418,7 @@ class Game:
         st.steps -= self.cfg.outer_enter_cost
         st.outer_loc = 2
         st.outer_room_entered = True
-        outer_rooms = [r for r in self.registry.rooms if r.pool == "outer"]
-        outer_room = next((r for r in outer_rooms if r.id in self.placed_ids), None)
+        outer_room = next((r for r in self.outer_rooms if r.id in self.placed_ids), None)
         if outer_room is not None:
             effects.fire(self, outer_room, Hook.ON_ENTER)
             roll_room_items(st, self.registry, outer_room, self.rng)
@@ -560,15 +612,16 @@ class Game:
         st = self.state
         if target == st.pos:
             return []
+        grid, doors = st.grid, st.placed_doors
         prev: dict[int, tuple[int, int]] = {st.pos: (-1, -1)}
         q = deque([st.pos])
         while q:
             cell = q.popleft()
-            for d in DIRS:
-                nb = neighbor(cell, d)
-                if nb == -1 or nb in prev or st.grid[nb] < 0:
+            cell_doors = doors[cell]
+            for d, od, nb in ADJACENT[cell]:
+                if nb in prev or grid[nb] < 0:
                     continue
-                if not self._connected(cell, nb, d):
+                if not (cell_doors & d and doors[nb] & od):
                     continue
                 prev[nb] = (cell, d)
                 if nb == target:
@@ -592,6 +645,9 @@ class Game:
         st.placed_doors[cell] = orientation
         st.entered[cell] = entered
         self.placed_ids.add(room.id)
+        prev = self.room_cells.get(room.id)
+        if prev is None or cell < prev:
+            self.room_cells[room.id] = cell
         self.rooms_placed += 1
         self.deepest_rank = max(self.deepest_rank, rank_of(cell))
         effects.fire(self, room, Hook.ON_PLACE)
