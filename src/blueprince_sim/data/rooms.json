@@ -5677,6 +5677,41 @@
     "effect_text": "Contains one doorway per Mechanical room in the estate (including itself); extra doors beyond 4 are diagonal compartments with key/item caches. APPROXIMATION: dynamic door-count and diagonal-compartment mechanics are out of scope; no effect modeled; cross layout is a placeholder. interior_only covers the 'center 21 tiles' constraint.",
     "rarity_confidence": "wiki"
    }
+  },
+  {
+   "id": "planetarium",
+   "name": "Planetarium",
+   "category": "blueprint",
+   "rarity": "standard",
+   "gem_cost": 0,
+   "layout": "dead_end",
+   "alt_layouts": [],
+   "draft_conditions": [],
+   "flags": {
+    "no_library_draft": false,
+    "powered": false,
+    "duct": false
+   },
+   "deck_copies": 1,
+   "effects": [
+    {
+     "tag": "grant",
+     "resource": "stars",
+     "amount": 2
+    }
+   ],
+   "items": {
+    "guaranteed": [],
+    "additional_max": 0,
+    "dig_spots": 0
+   },
+   "pool": "studio_addition",
+   "meta": {
+    "source": "wiki",
+    "confidence": "wiki",
+    "effect_text": "Ending the day in the Planetarium grants 2 Stars (Tomorrow-room cross-day currency). Stars are tracked nowhere in the current sim; the grant fires but no-ops, matching other out-of-scope currencies. Telescope and cross-day interactions are out of scope.",
+    "rarity_confidence": "wiki"
+   }
   }
  ]
 }
