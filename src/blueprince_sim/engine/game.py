@@ -38,6 +38,11 @@ class Game:
                  registry: Registry | None = None) -> None:
         self.cfg = cfg or GameConfig()
         self.registry = registry or Registry.load(self.cfg.data_dir)
+        # Registry-derived lookups (the registry is immutable, so build once).
+        self.outer_rooms: tuple[Room, ...] = tuple(
+            r for r in self.registry.rooms if r.pool == "outer")
+        self._garage_ids: tuple[str, ...] = tuple(
+            r.id for r in self.registry.rooms if r.id.startswith("garage"))
         self.seed = seed
         self.reset(seed)
 
@@ -58,6 +63,9 @@ class Game:
         self.state = st
 
         self.placed_ids: set[str] = set()
+        # Lowest grid cell per placed room id (mirrors a low-to-high grid scan;
+        # duplicates are only possible via the Chamber of Mirrors).
+        self.room_cells: dict[str, int] = {}
         self.free_categories: set[str] = set()
         self.bedroom_bonus = 0
         self.red_negations = 0
@@ -79,6 +87,7 @@ class Game:
         st.grid[ANTECHAMBER_CELL] = ante.idx
         st.placed_doors[ANTECHAMBER_CELL] = 0xF
         self.placed_ids.add(ante.id)
+        self.room_cells[ante.id] = ANTECHAMBER_CELL
         self._map_cache: tuple[tuple, dict] = ((), {})
 
     # ------------------------------------------------------------ connectivity
@@ -286,18 +295,14 @@ class Game:
     # --------------------------------------------------------- outer rooms
 
     def _garage_cell(self) -> int:
-        """Cell where the garage room is placed, or -1."""
-        for cell, idx in enumerate(self.state.grid):
-            if idx >= 0 and self.registry.rooms[idx].id.startswith("garage"):
-                return cell
-        return -1
+        """Cell where the garage room (or a garage variant) is placed, or -1."""
+        cells = [self.room_cells[rid] for rid in self._garage_ids
+                 if rid in self.room_cells]
+        return min(cells) if cells else -1
 
     def _utility_closet_cell(self) -> int:
         """Cell where utility_closet is placed, or -1."""
-        for cell, idx in enumerate(self.state.grid):
-            if idx >= 0 and self.registry.rooms[idx].id == "utility_closet":
-                return cell
-        return -1
+        return self.room_cells.get("utility_closet", -1)
 
     def _breaker_on(self) -> bool:
         """True if utility_closet is placed AND its cell has been entered."""
@@ -377,7 +382,7 @@ class Game:
         key = (-1, 0)
         pending = self.doorway_drafts.get(key)
         if pending is None:
-            outer = [r for r in self.registry.rooms if r.pool == "outer"]
+            outer = self.outer_rooms
             order = list(range(len(outer)))
             self.rng.shuffle("outer_draft", order)
             pending = PendingDraft(from_cell=-1, direction=0, target_cell=-1)
@@ -413,8 +418,7 @@ class Game:
         st.steps -= self.cfg.outer_enter_cost
         st.outer_loc = 2
         st.outer_room_entered = True
-        outer_rooms = [r for r in self.registry.rooms if r.pool == "outer"]
-        outer_room = next((r for r in outer_rooms if r.id in self.placed_ids), None)
+        outer_room = next((r for r in self.outer_rooms if r.id in self.placed_ids), None)
         if outer_room is not None:
             effects.fire(self, outer_room, Hook.ON_ENTER)
             roll_room_items(st, self.registry, outer_room, self.rng)
@@ -641,6 +645,9 @@ class Game:
         st.placed_doors[cell] = orientation
         st.entered[cell] = entered
         self.placed_ids.add(room.id)
+        prev = self.room_cells.get(room.id)
+        if prev is None or cell < prev:
+            self.room_cells[room.id] = cell
         self.rooms_placed += 1
         self.deepest_rank = max(self.deepest_rank, rank_of(cell))
         effects.fire(self, room, Hook.ON_PLACE)
