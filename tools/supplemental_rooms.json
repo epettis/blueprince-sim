@@ -171,7 +171,12 @@
         "duct": false
       },
       "deck_copies": 1,
-      "effects": [],
+      "effects": [
+        {
+          "tag": "reduce_draft_options",
+          "amount": 3
+        }
+      ],
       "items": {
         "guaranteed": [],
         "additional_max": 0,
@@ -181,7 +186,7 @@
       "meta": {
         "source": "wiki",
         "confidence": "wiki",
-        "effect_text": "Drafting from it: all 3 floorplans obscured (not yet modeled - options shown).",
+        "effect_text": "Drafting from it: all 3 floorplans obscured (all options hidden).",
         "rarity_confidence": "inferred"
       }
     },

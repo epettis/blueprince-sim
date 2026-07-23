@@ -24,15 +24,19 @@ CLOSET_ID = "closet"
 
 
 def _hidden_count(from_room: Room | None) -> int:
-    """Archives: drafting FROM it hides one of the three floorplans.
+    """Archives/Darkroom: drafting FROM it hides some (or all) floorplans.
 
     The room is still dealt and still draftable — it is shown face-down as a
     "mystery" option the player can select blind — so this counts how many of
     the dealt options to mark hidden, not how many to drop.
+
+    The effect tag carries an optional ``amount`` param (default 1).  Archives
+    omits it (→ 1 hidden); Darkroom sets amount=3 to hide all three options.
     """
     if from_room is None:
         return 0
-    return sum(1 for e in from_room.effects if e.tag == "reduce_draft_options")
+    return sum(int(e.param("amount", 1)) for e in from_room.effects
+               if e.tag == "reduce_draft_options")
 
 
 class DraftContext:
@@ -163,11 +167,12 @@ def _make_option(ctx: DraftContext, room: Room, slot: int, cell: int, entry_dir:
 
 
 def _fill_options(ctx: DraftContext, pending: PendingDraft, from_room: Room | None) -> None:
-    """Deal the three option slots, then mark the Archives mystery option(s).
+    """Deal the three option slots, then mark mystery option(s) as hidden.
 
-    Every slot is dealt as normal; the hidden ones are only shown face-down
-    (identity concealed) but remain fully draftable. The first option is never
-    hidden, so a visible affordable choice always exists.
+    Archives hides one option (always keeps option 0 visible).  Darkroom hides
+    all three — every option is shown face-down.  A hidden option is still
+    fully draftable; only its identity and orientation are concealed from the
+    player (and from the RL observation).
     """
     exclude: set[int] = set()
     for slot in range(3):
@@ -176,8 +181,13 @@ def _fill_options(ctx: DraftContext, pending: PendingDraft, from_room: Room | No
             pending.options.append(opt)
             exclude.add(opt.room_idx)
     hidden = _hidden_count(from_room)
-    if hidden and len(pending.options) > 1:
-        for opt in pending.options[max(1, len(pending.options) - hidden):]:
+    if hidden:
+        n = len(pending.options)
+        # hide_all: Darkroom hides every option (hidden >= n).
+        # Otherwise keep at least option[0] visible so there's always an
+        # identifiable, affordable choice (Archives semantics).
+        start = 0 if hidden >= n else max(1, n - hidden)
+        for opt in pending.options[start:]:
             opt.hidden = True
 
 
