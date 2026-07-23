@@ -111,6 +111,88 @@ def _priority_draw(ctx: DraftContext, cell: int, entry_dir: int,
     return None
 
 
+def _active_conditions(state) -> set[str]:
+    """Return the category-bias condition tags that are currently satisfied."""
+    conds: set[str] = set()
+    if state.furnace_placed:
+        conds.add("furnace_or_king")
+    if state.greenhouse_placed:
+        conds.add("greenhouse_or_king")
+    return conds
+
+
+def _deal_biased(ctx: DraftContext, slot: int, cell: int,
+                 entry_dir: int, exclude: set[int],
+                 pred) -> Room | None:
+    """Deal the first card passing ``pred``, respecting slot 0 free-only rule."""
+    rooms = ctx.registry.rooms
+    if slot == 0:
+        # Slot 0 is free-only: search only the free decks across all rarities.
+        for rarity_idx in range(4):
+            card = ctx.state.deck(rarity_idx, False).deal_next(pred)
+            if card is not None:
+                return rooms[card]
+    else:
+        # Slots 1/2 draw from the union of free+gem decks.
+        for rarity_idx in range(4):
+            for is_gem in (False, True):
+                card = ctx.state.deck(rarity_idx, is_gem).deal_next(pred)
+                if card is not None:
+                    return rooms[card]
+    return None
+
+
+def _apply_category_bias(ctx: DraftContext, room: Room, slot: int, cell: int,
+                         entry_dir: int, exclude: set[int]) -> Room:
+    """After a normal draw, apply any active category biases.
+
+    For each bias whose condition holds, roll its chance (via a dedicated named
+    RNG substream that is only consumed when the bias is active).  On a hit,
+    attempt to deal a room matching the target category/layout/flag from the
+    remaining undealt cards.  If a matching room is found it replaces the
+    original draw (the original stays consumed from its deck).  If no match is
+    available the original draw is kept unchanged.
+    """
+    active = _active_conditions(ctx.state)
+    if not active:
+        return room
+
+    rooms = ctx.registry.rooms
+
+    for entry in ctx.registry.priority.get("category_biases", []):
+        if entry.get("condition") not in active:
+            continue
+        if not ctx.rng.chance(f"cat_bias_{entry['label']}", entry["chance"]):
+            continue
+
+        target_cat = entry.get("category")
+        target_layout = entry.get("layout")
+        target_flag = entry.get("flag")
+        target_room_ids = set(entry.get("rooms", []))
+
+        def _pred(card: int,
+                  _tc=target_cat, _tl=target_layout, _tf=target_flag,
+                  _tr=target_room_ids) -> bool:
+            r = rooms[card]
+            if _tr and r.id not in _tr:
+                return False
+            if _tc and r.category != _tc:
+                return False
+            if _tl and r.layout != _tl:
+                return False
+            if _tf == "powered" and not r.powered:
+                return False
+            if _tf == "duct" and not r.duct:
+                return False
+            return room_draftable(ctx, r, cell, entry_dir, exclude)
+
+        biased = _deal_biased(ctx, slot, cell, entry_dir, exclude, _pred)
+        if biased is not None:
+            room = biased
+
+    return room
+
+
 def draw_slot(ctx: DraftContext, slot: int, cell: int, entry_dir: int,
               exclude: set[int]) -> DraftOption | None:
     """Fill one option slot via the four-attempt procedure."""
@@ -129,6 +211,7 @@ def draw_slot(ctx: DraftContext, slot: int, cell: int, entry_dir: int,
         if rarity is not None:
             room = _deal_from_rarity(ctx, rarity, slot, cell, entry_dir, exclude)
             if room is not None:
+                room = _apply_category_bias(ctx, room, slot, cell, entry_dir, exclude)
                 return _make_option(ctx, room, slot, cell, entry_dir)
 
     # Attempt 3: reshuffle every deck and retry once.
@@ -138,6 +221,7 @@ def draw_slot(ctx: DraftContext, slot: int, cell: int, entry_dir: int,
     if rarity is not None:
         room = _deal_from_rarity(ctx, rarity, slot, cell, entry_dir, exclude)
         if room is not None:
+            room = _apply_category_bias(ctx, room, slot, cell, entry_dir, exclude)
             return _make_option(ctx, room, slot, cell, entry_dir)
 
     # Attempt 4: forced Closet - cannot fail (Closet is a free commonplace

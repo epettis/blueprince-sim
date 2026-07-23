@@ -94,6 +94,11 @@ def greenhouse_bias(game, room, eff, ctx_room) -> None:
     game.state.greenhouse_placed = True
 
 
+@effect("furnace_bias", Hook.ON_PLACE)
+def furnace_bias(game, room, eff, ctx_room) -> None:
+    game.state.furnace_placed = True
+
+
 @effect("study_redraws", Hook.ON_PLACE)
 def study_redraws(game, room, eff, ctx_room) -> None:
     game.state.study_placed = True

@@ -92,6 +92,7 @@ class GameState:
     # cached house-effect flags (recomputed on placement)
     solarium_placed: bool = False
     greenhouse_placed: bool = False
+    furnace_placed: bool = False
     drafting_room_count: int = 0
     study_placed: bool = False
     library_placed: bool = False

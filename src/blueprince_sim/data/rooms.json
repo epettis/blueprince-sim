@@ -5074,7 +5074,11 @@
     "duct": false
    },
    "deck_copies": 1,
-   "effects": [],
+   "effects": [
+    {
+     "tag": "furnace_bias"
+    }
+   ],
    "items": {
     "guaranteed": [],
     "additional_max": 0,
@@ -5084,7 +5088,7 @@
    "meta": {
     "source": "wiki + sheet constants ('Red Rooms (Furnace / King) 30%')",
     "confidence": "wiki",
-    "effect_text": "Red rooms more common today (~30% category bias; bias hook not yet wired).",
+    "effect_text": "Red rooms more common today (~30% category bias).",
     "rarity_confidence": "inferred"
    }
   },
