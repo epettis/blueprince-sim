@@ -4910,7 +4910,12 @@
     "duct": false
    },
    "deck_copies": 1,
-   "effects": [],
+   "effects": [
+    {
+     "tag": "anti_luck",
+     "amount": 3
+    }
+   ],
    "items": {
     "guaranteed": [],
     "additional_max": 0,
@@ -4920,7 +4925,7 @@
    "meta": {
     "source": "wiki",
     "confidence": "wiki",
-    "effect_text": "Counts as red room AND bedroom; items less likely in rooms drafted after it (anti-luck; not yet modeled).",
+    "effect_text": "Counts as red room AND bedroom; items less likely in rooms drafted after it (modeled: -3 luck on placement, approximating Root Cellar's +3 precedent; negated by Shelter).",
     "rarity_confidence": "inferred"
    }
   },
@@ -5004,7 +5009,12 @@
     "duct": false
    },
    "deck_copies": 1,
-   "effects": [],
+   "effects": [
+    {
+     "tag": "reduce_draft_options",
+     "amount": 3
+    }
+   ],
    "items": {
     "guaranteed": [],
     "additional_max": 0,
@@ -5014,7 +5024,7 @@
    "meta": {
     "source": "wiki",
     "confidence": "wiki",
-    "effect_text": "Drafting from it: all 3 floorplans obscured (not yet modeled - options shown).",
+    "effect_text": "Drafting from it: all 3 floorplans obscured (all options hidden).",
     "rarity_confidence": "inferred"
    }
   },
@@ -5064,7 +5074,11 @@
     "duct": false
    },
    "deck_copies": 1,
-   "effects": [],
+   "effects": [
+    {
+     "tag": "furnace_bias"
+    }
+   ],
    "items": {
     "guaranteed": [],
     "additional_max": 0,
@@ -5074,7 +5088,7 @@
    "meta": {
     "source": "wiki + sheet constants ('Red Rooms (Furnace / King) 30%')",
     "confidence": "wiki",
-    "effect_text": "Red rooms more common today (~30% category bias; bias hook not yet wired).",
+    "effect_text": "Red rooms more common today (~30% category bias).",
     "rarity_confidence": "inferred"
    }
   },
@@ -5610,9 +5624,40 @@
    "rarity": null,
    "gem_cost": 0,
    "layout": "corner",
+   "alt_layouts": [],
    "draft_conditions": [
     "corner_only"
    ],
+   "flags": {
+    "no_library_draft": false,
+    "powered": false,
+    "duct": false
+   },
+   "deck_copies": 1,
+   "effects": [
+    {"tag": "conservatory_rerolls"}
+   ],
+   "items": {
+    "guaranteed": [],
+    "additional_max": 0,
+    "dig_spots": 0
+   },
+   "pool": "conditional",
+   "meta": {
+    "source": "wiki (corner-only; re-rolls the rarity of 3 pool rooms per draft)",
+    "confidence": "inferred",
+    "effect_text": "Corner-only room; re-rolls the rarity of 3 rooms in your pool each time you draft it. Implemented as a one-time effect when the Conservatory itself is drafted: 3 random undealt deck cards each roll a fresh rarity (uniform over the 4 rarities; the real re-roll distribution is unpublished - inferred) via the dedicated conservatory_reroll RNG substream, and changed cards move to the new rarity's deck of the same free/gem class at a random undealt position (reinsertion point also inferred)."
+   }
+  },
+  {
+   "id": "mechanarium",
+   "name": "Mechanarium",
+   "category": "blueprint",
+   "rarity": "unusual",
+   "gem_cost": 0,
+   "layout": "cross",
+   "alt_layouts": [],
+   "draft_conditions": ["interior_only"],
    "flags": {
     "no_library_draft": false,
     "powered": false,
@@ -5625,11 +5670,204 @@
     "additional_max": 0,
     "dig_spots": 0
    },
-   "pool": "conditional",
+   "pool": "studio_addition",
    "meta": {
-    "source": "wiki (corner-only; re-rolls the rarity of 3 pool rooms per draft - not yet modeled)",
-    "confidence": "inferred",
-    "effect_text": "Corner-only room; re-rolls the rarity of 3 rooms in your pool each time you draft it. Stub for forced-draw precedence."
+    "source": "wiki",
+    "confidence": "wiki",
+    "effect_text": "Contains one doorway per Mechanical room in the estate (including itself); extra doors beyond 4 are diagonal compartments with key/item caches. APPROXIMATION: dynamic door-count and diagonal-compartment mechanics are out of scope; no effect modeled; cross layout is a placeholder. interior_only covers the 'center 21 tiles' constraint.",
+    "rarity_confidence": "wiki"
+   }
+  },
+  {
+   "id": "planetarium",
+   "name": "Planetarium",
+   "category": "blueprint",
+   "rarity": "standard",
+   "gem_cost": 0,
+   "layout": "dead_end",
+   "alt_layouts": [],
+   "draft_conditions": [],
+   "flags": {
+    "no_library_draft": false,
+    "powered": false,
+    "duct": false
+   },
+   "deck_copies": 1,
+   "effects": [
+    {
+     "tag": "grant",
+     "resource": "stars",
+     "amount": 2
+    }
+   ],
+   "items": {
+    "guaranteed": [],
+    "additional_max": 0,
+    "dig_spots": 0
+   },
+   "pool": "studio_addition",
+   "meta": {
+    "source": "wiki",
+    "confidence": "wiki",
+    "effect_text": "Ending the day in the Planetarium grants 2 Stars (Tomorrow-room cross-day currency). Stars are tracked nowhere in the current sim; the grant fires but no-ops, matching other out-of-scope currencies. Telescope and cross-day interactions are out of scope.",
+    "rarity_confidence": "wiki"
+   }
+  },
+  {
+   "id": "lost_and_found",
+   "name": "Lost & Found",
+   "category": "red",
+   "rarity": "unusual",
+   "gem_cost": 0,
+   "layout": "corner",
+   "alt_layouts": [],
+   "draft_conditions": ["no_horizontal_end_rank"],
+   "flags": {
+    "no_library_draft": false,
+    "powered": false,
+    "duct": false
+   },
+   "deck_copies": 1,
+   "effects": [],
+   "items": {
+    "guaranteed": [],
+    "additional_max": 2,
+    "dig_spots": 0
+   },
+   "pool": "studio_addition",
+   "meta": {
+    "source": "wiki",
+    "confidence": "wiki",
+    "effect_text": "Whenever you enter this room, lose one random special inventory item. Contains 2 rare items. APPROXIMATION: item loss has no effect tag in the sim (no special-item inventory); no effect modeled. PLACEMENT NOTE: wiki restricts horizontal drafting at rank 1 only; no_horizontal_end_rank also blocks rank 9 horizontal outside corners (slight over-restriction).",
+    "rarity_confidence": "wiki"
+   }
+  },
+  {
+   "id": "treasure_trove",
+   "name": "Treasure Trove",
+   "category": "blackprint",
+   "rarity": "unusual",
+   "gem_cost": 1,
+   "layout": "corner",
+   "alt_layouts": [],
+   "draft_conditions": [],
+   "flags": {
+    "no_library_draft": false,
+    "powered": false,
+    "duct": false
+   },
+   "deck_copies": 1,
+   "effects": [
+    {
+     "tag": "grant",
+     "resource": "coins",
+     "amount": 5
+    }
+   ],
+   "items": {
+    "guaranteed": [],
+    "additional_max": 0,
+    "dig_spots": 0
+   },
+   "pool": "studio_addition",
+   "meta": {
+    "source": "wiki",
+    "confidence": "wiki",
+    "effect_text": "Grants +5 Gold Coins per Treasure Trove instance drafted. APPROXIMATION: modeled as grant +5 coins on entry (correct for the 1-copy case; multi-copy stacking unsupported). Coin-pile loot, memo chests, and black chest are out of scope.",
+    "rarity_confidence": "wiki"
+   }
+  },
+  {
+   "id": "closed_exhibit",
+   "name": "Closed Exhibit",
+   "category": "red",
+   "rarity": "rare",
+   "gem_cost": 0,
+   "layout": "t",
+   "alt_layouts": [],
+   "draft_conditions": ["no_horizontal_end_rank"],
+   "flags": {
+    "no_library_draft": false,
+    "powered": false,
+    "duct": false
+   },
+   "deck_copies": 1,
+   "effects": [],
+   "items": {
+    "guaranteed": [],
+    "additional_max": 1,
+    "dig_spots": 0
+   },
+   "pool": "studio_addition",
+   "meta": {
+    "source": "wiki",
+    "confidence": "wiki",
+    "effect_text": "All doorways in this room are security locked regardless of security level. APPROXIMATION: the lock system is out of scope; no effect modeled. Mora Jai box / Lock Pick Kit contents reduced to standard item slots. PLACEMENT NOTE: wiki restricts E/W drafting at rank 1 only; no_horizontal_end_rank also blocks rank 9 horizontal outside corners (slight over-restriction).",
+    "rarity_confidence": "wiki"
+   }
+  },
+  {
+   "id": "throne_room",
+   "name": "Throne Room",
+   "category": "blackprint",
+   "rarity": "rare",
+   "gem_cost": 5,
+   "layout": "t",
+   "alt_layouts": [],
+   "draft_conditions": ["rank_gte_2", "rank_lte_8"],
+   "flags": {
+    "no_library_draft": false,
+    "powered": false,
+    "duct": false
+   },
+   "deck_copies": 1,
+   "effects": [],
+   "items": {
+    "guaranteed": [],
+    "additional_max": 3,
+    "dig_spots": 0
+   },
+   "pool": "studio_addition",
+   "meta": {
+    "source": "wiki",
+    "confidence": "wiki",
+    "effect_text": "'Reclaim the crown' — cross-day meta-progression objective (Throne of the Blue Prince transformation); entirely out of scope, no effect modeled. Contains the Sanctum Key and random valuables (reduced to standard item slots). PLACEMENT NOTE: 'cannot be rotated / must face the throne head-on' needs a fixed-orientation mechanic the sim lacks; left permissive on orientation. rank_gte_2 + rank_lte_8 cover the rank 1/9 restriction.",
+    "rarity_confidence": "wiki"
+   }
+  },
+  {
+   "id": "tunnel",
+   "name": "Tunnel",
+   "category": "hallway",
+   "rarity": "standard",
+   "gem_cost": 0,
+   "layout": "straight",
+   "alt_layouts": [],
+   "draft_conditions": [
+    "north_south_only",
+    "rank_gte_2",
+    "rank_lte_8"
+   ],
+   "flags": {
+    "no_library_draft": false,
+    "powered": false,
+    "duct": false
+   },
+   "deck_copies": 1,
+   "effects": [],
+   "items": {
+    "guaranteed": [
+     {"item": "random", "count": 1}
+    ],
+    "additional_max": 0,
+    "dig_spots": 3
+   },
+   "pool": "studio_addition",
+   "meta": {
+    "source": "wiki",
+    "confidence": "wiki",
+    "effect_text": "While drafting from a Tunnel, always draw another Tunnel (chain drafting). MODELED: opening the north door of a placed Tunnel force-deals a single forced Tunnel option (no RNG, slot 0 cost 0, orientation N|S); chain ends when Tunnel is illegal at the target (rank 9 blocked by rank_lte_8). NOT MODELED: southward Tunnel chains (direction not confirmed); rank-1/9 exceptional drafts with gem rewards; library gem-gate (no draw when holding >=2 gems); dig_spots luck scaling (fixed at 3).",
+    "rarity_confidence": "wiki"
    }
   }
  ]

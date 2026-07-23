@@ -154,8 +154,8 @@ def test_mask_layout_and_retired_actions():
     env.reset(seed=0)
     mask = env.action_masks()
     assert len(mask) == A.N_ACTIONS == 241
-    # Retired/reserved actions are never legal.
-    for action in (187, 189, 190, 191, 192, 194, 195):
+    # Retired single-tile moves are never legal.
+    for action in (189, 190, 191, 192):
         assert not mask[action]
     # From a fresh entrance: its own doorways are draftable, nothing walkable.
     assert any(mask[A.OPEN_BASE:A.CHOOSE_BASE])

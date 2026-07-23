@@ -202,6 +202,20 @@ def test_pool_and_library_conditions(registry, cfg):
     assert satisfies_draft_conditions(closet, 22, N, st, cfg, set(), False)
 
 
+def test_tunnel_north_south_only(registry, cfg):
+    st = GameState()
+    tunnel = registry.by_id["tunnel"]  # straight, north_south_only + rank_gte_2 + rank_lte_8
+    # Interior cell, rank 5, col 2: N or S entry is legal.
+    assert satisfies_draft_conditions(tunnel, 22, N, st, cfg, set(), False)
+    assert satisfies_draft_conditions(tunnel, 22, S, st, cfg, set(), False)
+    # E or W entry is rejected by north_south_only.
+    assert not satisfies_draft_conditions(tunnel, 22, E, st, cfg, set(), False)
+    assert not satisfies_draft_conditions(tunnel, 22, W, st, cfg, set(), False)
+    # Rank gates: rank 1 and rank 9 are excluded.
+    assert not satisfies_draft_conditions(tunnel, 2, N, st, cfg, set(), False)   # rank 1
+    assert not satisfies_draft_conditions(tunnel, 42, S, st, cfg, set(), False)  # rank 9
+
+
 def test_gated_conditions_via_config(registry):
     st = GameState()
     garden = registry.by_id["secret_garden"]

@@ -8,6 +8,7 @@ for the Nursery's ON_DRAFT_ROOM effect).
 
 from __future__ import annotations
 
+from ..decks import reroll_random_rarities
 from . import Hook, effect
 
 RESOURCES = ("steps", "gems", "keys", "coins", "dice", "stars")
@@ -94,6 +95,17 @@ def greenhouse_bias(game, room, eff, ctx_room) -> None:
     game.state.greenhouse_placed = True
 
 
+@effect("furnace_bias", Hook.ON_PLACE)
+def furnace_bias(game, room, eff, ctx_room) -> None:
+    game.state.furnace_placed = True
+
+
+@effect("conservatory_rerolls", Hook.ON_PLACE)
+def conservatory_rerolls(game, room, eff, ctx_room) -> None:
+    """One-time on draft: re-roll the rarity of 3 random undealt deck cards."""
+    reroll_random_rarities(game.state, game.rng, count=eff.param("count", 3))
+
+
 @effect("study_redraws", Hook.ON_PLACE)
 def study_redraws(game, room, eff, ctx_room) -> None:
     game.state.study_placed = True
@@ -160,3 +172,17 @@ def pay_gems_with_steps(game, room, eff, ctx_room) -> None:
 @effect("reduce_draft_options", Hook.ON_PLACE)
 def reduce_draft_options(game, room, eff, ctx_room) -> None:
     pass
+
+
+@effect("anti_luck", Hook.ON_PLACE)
+def anti_luck(game, room, eff, ctx_room) -> None:
+    """Maid's Chamber: items less likely in rooms drafted after it.
+
+    Approximated as -N luck on placement (default N=3, mirroring Root Cellar's +3).
+    Clamped at floor (0) so negative luck never misbehaves with luck_probability.
+    As a red-room penalty, it is negated by Shelter.
+    """
+    if _red_negated(game, room):
+        return
+    amount = eff.param("amount", 3)
+    game.state.luck = max(0, game.state.luck - amount)
