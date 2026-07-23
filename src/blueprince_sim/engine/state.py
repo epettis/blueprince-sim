@@ -65,6 +65,7 @@ class PendingDraft:
     options: list[DraftOption] = field(default_factory=list)
     study_redraws_used: int = 0
     redraws_left: int = 0  # free redraws (Classroom etc.)
+    rotations_used: int = 0  # free rotations spent on this hand (see Game.rotation_available)
 
 
 @dataclass(slots=True)

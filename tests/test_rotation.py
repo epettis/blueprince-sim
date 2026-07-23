@@ -1,6 +1,7 @@
 """Room rotation behavior: south bias, Compass, mirroring, and free rotation."""
 
 from blueprince_sim.config import GameConfig
+from blueprince_sim.engine.draft import redeal
 from blueprince_sim.engine.game import Game, Phase
 from blueprince_sim.engine.grid import N, E, S, W
 from blueprince_sim.engine.rng import Rng
@@ -91,6 +92,35 @@ def test_no_rotation_without_a_source():
         DraftOption(room_idx=troom.idx, orientation=E | S | W, gem_cost=0, slot=0),
     ])
     assert not g.rotation_available()
+
+
+def test_rotation_budget_covers_every_orientation_then_closes():
+    # Free rotation is capped at max(legal orientations) - 1 spins per hand:
+    # enough for every option to have shown each of its orientations, after
+    # which further rotation could only revisit hand states already seen
+    # (rotation is cyclic, so an uncapped deterministic policy can spin
+    # forever). Here the T-room cycles with period 3 and the Dovecote with
+    # period 2, so the budget is 2.
+    g = Game(GameConfig(), seed=1)
+    dov = g.registry.by_id["dovecote"]
+    troom = next(r for r in g.registry.rooms if r.layout == "t" and r.rarity)
+    pd = _drafting_hand(g, [
+        DraftOption(room_idx=troom.idx, orientation=E | S | W, gem_cost=0, slot=0),
+        DraftOption(room_idx=dov.idx, orientation=S | W, gem_cost=0, slot=1),
+    ])
+    seen = [{o.orientation} for o in pd.options]
+    spins = 0
+    while g.rotation_available():
+        g.rotate_options()
+        spins += 1
+        for i, o in enumerate(pd.options):
+            seen[i].add(o.orientation)
+    assert spins == 2
+    assert seen[0] == {E | S | W, N | S | W, N | E | S}   # all 3 south-door T's
+    assert seen[1] == {S | W, E | S}                      # both south-door corners
+    # A redraw deals a fresh hand and restores the budget.
+    redeal(g.state, g.registry, g.cfg, g.rng, g.placed_ids, pd)
+    assert pd.rotations_used == 0
 
 
 def test_rotation_not_offered_when_every_option_is_pinned():

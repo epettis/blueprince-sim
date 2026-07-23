@@ -343,4 +343,5 @@ def redeal(state: GameState, registry: Registry, cfg: GameConfig, rng: Rng,
     from_library = from_room is not None and from_room.id == "library"
     ctx = DraftContext(state, registry, cfg, rng, placed_ids, from_library)
     pending.options.clear()
+    pending.rotations_used = 0  # fresh hand, fresh rotation budget
     _fill_options(ctx, pending, from_room)
