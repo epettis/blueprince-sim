@@ -41,6 +41,11 @@ def play(cfg: GameConfig, seed: int) -> None:
                           f"the {room.name}{tag}")
             if game.outer_draft_available():
                 print("  [o] outer-room draft (West Path)")
+            frontier = game.frontier_doorways()
+            afar = [fd for fd in frontier if fd[0] != st.pos]
+            if afar:
+                print(f"Elsewhere: {len(afar)} draftable doorway(s) - "
+                      f"[d <cell> <n|e|s|w>] walk there and draft, [g <cell>] walk to a room")
             cmd = input("move/draft> ").strip().lower()
             if cmd == "q":
                 return
@@ -54,10 +59,33 @@ def play(cfg: GameConfig, seed: int) -> None:
                 else:
                     print("  ? no connected room that way")
                 continue
+            parts = cmd.split()
+            if parts and parts[0] in ("g", "d"):
+                dist = game.distance_map()
+                try:
+                    cell = int(parts[1])
+                except (IndexError, ValueError):
+                    cell = -1
+                if not 0 <= cell < len(dist):
+                    print("  ? usage: g <cell 0-44> | d <cell 0-44> <n|e|s|w>")
+                elif parts[0] == "g":
+                    if 0 < dist[cell] <= st.steps:
+                        game.move_to(cell)
+                    else:
+                        print("  ? not walkable within your steps")
+                else:
+                    d = _DIR_KEYS.get(parts[2]) if len(parts) > 2 else None
+                    if (d is not None and (cell, d) in frontier
+                            and 0 <= dist[cell] <= st.steps - 1):
+                        game.draft_from(cell, d)
+                    else:
+                        print("  ? no draftable doorway there within your steps")
+                continue
             try:
                 game.open_door(*doors[int(cmd) - 1])
             except (ValueError, IndexError):
-                print("  ? enter a doorway number, a move letter (n/e/s/w), 'o', or 'q'")
+                print("  ? enter a doorway number, a move letter (n/e/s/w), "
+                      "'g/d <cell>', 'o', or 'q'")
         else:
             print("Draft options (glyph shows door directions; "
                   "you must choose one - no backing out):")

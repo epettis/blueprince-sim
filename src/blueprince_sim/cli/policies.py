@@ -113,6 +113,51 @@ def _choose_best(game: Game, weights: dict) -> None:
 _GREEDY_WEIGHTS = {"connectivity": 1.5, "north": 2.5, "cost": 0.5, "red_penalty": 2.0}
 _ECONOMY_WEIGHTS = {"connectivity": 1.2, "north": 2.0, "items": 0.8, "cost": 0.4,
                     "red_penalty": 2.5, "redraw_below": 2.0}
+_FRONTIER_LAMBDA = 1.5  # weight on optimistic Antechamber distance vs walk cost
+
+
+def _navigate_frontier(game: Game) -> None:
+    """One NAVIGATE decision: best-first frontier expansion toward the Antechamber.
+
+    Priority: (1) walk into the Antechamber when it is connected and within
+    the step budget, (2) draft the frontier doorway (anywhere reachable, via
+    :meth:`Game.draft_from`) minimizing steps_to_reach + lambda * optimistic
+    distance from the doorway's target to the Antechamber, (3) enter the
+    nearest unentered room for its pickups.
+    """
+    st = game.state
+    dist = game.distance_map()
+    if 0 < dist[ANTECHAMBER_CELL] <= st.steps:
+        game.move_to(ANTECHAMBER_CELL)
+        return
+    opt_dist = game.optimistic_distances()
+    best, best_key = None, None
+    for cell, d in game.frontier_doorways():
+        if not 0 <= dist[cell] <= st.steps - 1:  # must arrive with a step to spare
+            continue
+        target = neighbor(cell, d)
+        h = opt_dist[target] if opt_dist[target] >= 0 else 99  # walled off: last resort
+        key = (dist[cell] + _FRONTIER_LAMBDA * h, h, cell, d)
+        if best_key is None or key < best_key:
+            best, best_key = (cell, d), key
+    if best is not None:
+        game.draft_from(*best)
+        return
+    unentered = [c for c in range(len(dist))
+                 if 0 < dist[c] <= st.steps and not st.entered[c]]
+    if unentered:
+        unentered.sort(key=lambda c: (dist[c], c))
+        game.move_to(unentered[0])
+        return
+    game._check_termination()
+
+
+def frontier_greedy(game: Game, rnd: random.Random) -> None:
+    """Draft anywhere reachable, best-first toward the Antechamber."""
+    if game.phase is Phase.NAVIGATE:
+        _navigate_frontier(game)
+    else:
+        _choose_best(game, _GREEDY_WEIGHTS)
 
 
 def greedy_rank(game: Game, rnd: random.Random) -> None:
@@ -131,4 +176,5 @@ def economy(game: Game, rnd: random.Random) -> None:
         _choose_best(game, _ECONOMY_WEIGHTS)
 
 
-POLICIES = {"random": random_policy, "greedy_rank": greedy_rank, "economy": economy}
+POLICIES = {"random": random_policy, "greedy_rank": greedy_rank, "economy": economy,
+            "frontier_greedy": frontier_greedy}

@@ -76,7 +76,7 @@ def test_describe_action_navigate_and_draft():
     open_actions = [i for i, ok in enumerate(env.action_masks()) if ok and i < A.CHOOSE_BASE]
     assert open_actions
     desc = A.describe_action(game, open_actions[0])
-    assert desc.startswith("open door ") and "@ r" in desc
+    assert desc.startswith("draft ") and "@ r" in desc
     env.step(open_actions[0])  # now drafting
     desc = A.describe_action(game, A.CHOOSE_BASE)
     assert desc.startswith("choose #1 ")

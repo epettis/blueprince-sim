@@ -83,8 +83,8 @@ def test_option_obs_exposes_door_directions(registry, cfg):
     pd.options = [DraftOption(room_idx=room.idx, orientation=N | S, gem_cost=0, slot=0)]
     g.state.pending = pd
 
-    def door_bits():                                # obs features N,E,S,W = idx 5..8
-        return tuple(int(x) for x in O.encode(g)["options"][0][5:9])
+    def door_bits():                                # obs features N,E,S,W = idx 6..9
+        return tuple(int(x) for x in O.encode(g)["options"][0][6:10])
 
     assert door_bits() == (1, 0, 1, 0)             # N|S: north & south doors only
     pd.options[0].orientation = E | W
