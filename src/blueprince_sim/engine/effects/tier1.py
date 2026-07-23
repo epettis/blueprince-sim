@@ -160,3 +160,17 @@ def pay_gems_with_steps(game, room, eff, ctx_room) -> None:
 @effect("reduce_draft_options", Hook.ON_PLACE)
 def reduce_draft_options(game, room, eff, ctx_room) -> None:
     pass
+
+
+@effect("anti_luck", Hook.ON_PLACE)
+def anti_luck(game, room, eff, ctx_room) -> None:
+    """Maid's Chamber: items less likely in rooms drafted after it.
+
+    Approximated as -N luck on placement (default N=3, mirroring Root Cellar's +3).
+    Clamped at floor (0) so negative luck never misbehaves with luck_probability.
+    As a red-room penalty, it is negated by Shelter.
+    """
+    if _red_negated(game, room):
+        return
+    amount = eff.param("amount", 3)
+    game.state.luck = max(0, game.state.luck - amount)

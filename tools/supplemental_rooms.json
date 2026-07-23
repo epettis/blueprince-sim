@@ -77,7 +77,12 @@
         "duct": false
       },
       "deck_copies": 1,
-      "effects": [],
+      "effects": [
+        {
+          "tag": "anti_luck",
+          "amount": 3
+        }
+      ],
       "items": {
         "guaranteed": [],
         "additional_max": 0,
@@ -87,7 +92,7 @@
       "meta": {
         "source": "wiki",
         "confidence": "wiki",
-        "effect_text": "Counts as red room AND bedroom; items less likely in rooms drafted after it (anti-luck; not yet modeled).",
+        "effect_text": "Counts as red room AND bedroom; items less likely in rooms drafted after it (modeled: -3 luck on placement, approximating Root Cellar's +3 precedent; negated by Shelter).",
         "rarity_confidence": "inferred"
       }
     },

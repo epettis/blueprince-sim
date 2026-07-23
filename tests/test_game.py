@@ -449,3 +449,29 @@ def test_solarium_flag_set_on_place(registry):
     assert not g.state.solarium_placed
     g._place_room(registry.by_id["solarium"], 7, 4)
     assert g.state.solarium_placed
+
+
+def test_maids_chamber_reduces_luck_on_place(registry, cfg):
+    """Placing Maid's Chamber applies -3 luck immediately (ON_PLACE)."""
+    g = Game(cfg, seed=1)
+    luck_before = g.state.luck
+    g._place_room(registry.by_id["maids_chamber"], 7, S | E)
+    assert g.state.luck == luck_before - 3
+
+
+def test_maids_chamber_luck_clamps_at_zero(registry, cfg):
+    """anti_luck never drives luck below 0."""
+    g = Game(cfg, seed=1)
+    g.state.luck = 1
+    g._place_room(registry.by_id["maids_chamber"], 7, S | E)
+    assert g.state.luck == 0
+
+
+def test_maids_chamber_luck_negated_by_shelter(registry, cfg):
+    """Shelter negates the Maid's Chamber red-room penalty."""
+    g = Game(cfg, seed=1)
+    g.red_negations = 1
+    luck_before = g.state.luck
+    g._place_room(registry.by_id["maids_chamber"], 7, S | E)
+    assert g.state.luck == luck_before  # penalty negated
+    assert g.red_negations == 0  # one negation consumed
