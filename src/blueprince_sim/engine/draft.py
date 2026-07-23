@@ -13,7 +13,7 @@ from __future__ import annotations
 
 from ..config import GameConfig
 from .decks import roll_rarity
-from .grid import OPPOSITE, rank_of
+from .grid import N, OPPOSITE, rank_of
 from .model import Registry, Room
 from .placement import legal_orientations, satisfies_draft_conditions
 from .rng import Rng
@@ -21,6 +21,7 @@ from .rotation import orientation_weights
 from .state import DraftOption, GameState, PendingDraft, resolve_gem_cost
 
 CLOSET_ID = "closet"
+TUNNEL_ID = "tunnel"
 
 
 def _hidden_count(from_room: Room | None) -> int:
@@ -55,11 +56,16 @@ class DraftContext:
 
 
 def room_draftable(ctx: DraftContext, room: Room, cell: int, entry_dir: int,
-                   exclude: set[int]) -> bool:
+                   exclude: set[int],
+                   tunnel_chain: bool = False) -> bool:
     if room.idx in exclude:
         return False
     if room.id in ctx.placed_ids and "chamber_of_mirrors" not in ctx.placed_ids:
-        return False  # one copy of a room on the grid at a time
+        # Allow a second (or third) Tunnel when it is force-dealt from a Tunnel's
+        # north exit (tunnel_chain=True).  The duplicate-id check would otherwise
+        # block the chain once the first Tunnel is on the grid.
+        if not (tunnel_chain and room.id == TUNNEL_ID):
+            return False  # one copy of a room on the grid at a time
     if not satisfies_draft_conditions(room, cell, entry_dir, ctx.state, ctx.cfg,
                                       ctx.placed_ids, ctx.from_library):
         return False
@@ -250,6 +256,35 @@ def _make_option(ctx: DraftContext, room: Room, slot: int, cell: int, entry_dir:
                        slot=slot, forced=forced_draw)
 
 
+def _tunnel_chain_option(ctx: DraftContext, cell: int, entry_dir: int) -> DraftOption | None:
+    """Return a forced Tunnel option when drafting north from a Tunnel cell.
+
+    The Tunnel's chain-draft effect: opening the north door of a placed Tunnel
+    always deals exactly ONE forced Tunnel option, provided the Tunnel is still
+    legal at the target cell (rank_gte_2 / rank_lte_8 conditions + valid
+    orientation).  No RNG is consumed: the orientation is always N|S (the
+    Tunnel's only valid mask — a straight room drafted through a N doorway must
+    be oriented N-S).
+
+    Returns None if the Tunnel is illegal at the target (chain ends naturally).
+    """
+    tunnel = ctx.registry.by_id.get(TUNNEL_ID)
+    if tunnel is None:
+        return None
+    # Check legality with tunnel_chain=True to allow duplicate placement.
+    if not room_draftable(ctx, tunnel, cell, entry_dir, set(), tunnel_chain=True):
+        return None
+    # Tunnel is a straight room; the only valid N-S orientation is N|S (=5).
+    # legal_orientations will confirm this — we trust it to stay N|S.
+    orientations = legal_orientations(tunnel, cell, entry_dir, ctx.state, ctx.cfg)
+    if not orientations:
+        return None
+    # There is only one legal orientation for a straight drafted northward (N|S).
+    orientation = orientations[0]
+    return DraftOption(room_idx=tunnel.idx, orientation=orientation, gem_cost=0,
+                       slot=0, forced=True)
+
+
 def _fill_options(ctx: DraftContext, pending: PendingDraft, from_room: Room | None) -> None:
     """Deal the three option slots, then mark mystery option(s) as hidden.
 
@@ -257,7 +292,21 @@ def _fill_options(ctx: DraftContext, pending: PendingDraft, from_room: Room | No
     all three — every option is shown face-down.  A hidden option is still
     fully draftable; only its identity and orientation are concealed from the
     player (and from the RL observation).
+
+    Tunnel chain: drafting north from a Tunnel always deals a single forced
+    Tunnel option (if the Tunnel is legal at the target).  The normal three-slot
+    deal is skipped entirely for the chain.  The chain ends naturally when the
+    forced Tunnel is illegal at the target (rank 9 blocked by rank_lte_8, or the
+    target is already occupied) — then the deal falls back to the normal pipeline.
     """
+    # Tunnel chain-draft: north exit of a Tunnel forces another Tunnel.
+    if (from_room is not None and from_room.id == TUNNEL_ID
+            and pending.direction == N):
+        opt = _tunnel_chain_option(ctx, pending.target_cell, pending.direction)
+        if opt is not None:
+            pending.options.append(opt)
+            return  # chain active: skip the normal three-slot deal
+
     exclude: set[int] = set()
     for slot in range(3):
         opt = draw_slot(ctx, slot, pending.target_cell, pending.direction, exclude)

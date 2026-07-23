@@ -5866,7 +5866,7 @@
    "meta": {
     "source": "wiki",
     "confidence": "wiki",
-    "effect_text": "While drafting from a Tunnel, always draw another Tunnel (chain drafting). APPROXIMATION: the chain-draft effect is out of scope; no effect modeled. dig_spots fixed at 3 (luck scaling not modeled). Library gem-gate (no draw while holding >=2 gems) not modeled. north_south_only + rank_gte_2 + rank_lte_8 cover the N/S-orientation and rank restrictions.",
+    "effect_text": "While drafting from a Tunnel, always draw another Tunnel (chain drafting). MODELED: opening the north door of a placed Tunnel force-deals a single forced Tunnel option (no RNG, slot 0 cost 0, orientation N|S); chain ends when Tunnel is illegal at the target (rank 9 blocked by rank_lte_8). NOT MODELED: southward Tunnel chains (direction not confirmed); rank-1/9 exceptional drafts with gem rewards; library gem-gate (no draw when holding >=2 gems); dig_spots luck scaling (fixed at 3).",
     "rarity_confidence": "wiki"
    }
   }
