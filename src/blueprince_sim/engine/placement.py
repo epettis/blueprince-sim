@@ -124,6 +124,11 @@ def satisfies_draft_conditions(room: Room, cell: int, entry_dir: int, state: Gam
             if ((is_west_wing(cell) or is_east_wing(cell)) and not is_corner(cell)
                     and entry_dir == N):
                 return False
+        elif cond == "north_south_only":
+            # Tunnel: may only be drafted through a north- or south-facing
+            # doorway; for a straight room this forces the N-S orientation.
+            if entry_dir not in (N, S):
+                return False
         elif cond == "no_horizontal_end_rank":
             # Solarium: on Rank 1 or Rank 9 it cannot be drafted horizontally
             # (heading east or west), except into the corners.

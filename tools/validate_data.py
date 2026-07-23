@@ -23,8 +23,8 @@ KNOWN_CONDITIONS = {"west_wing", "east_wing", "west_or_east_wing", "not_on_wing"
                     "no_corner", "corner_only", "interior_only",
                     "west_wing_from_south_door", "garage", "boiler_room",
                     "morning_room", "room8_placement", "gift_shop",
-                    "no_north_on_wing", "no_horizontal_end_rank", "pool_drafted",
-                    "library_only", "antechamber_north_door", "room8_key",
+                    "no_north_on_wing", "no_horizontal_end_rank", "north_south_only",
+                    "pool_drafted", "library_only", "antechamber_north_door", "room8_key",
                     "knight_chess_piece", "secret_garden_key", "breakfast"}
 KNOWN_EFFECT_TAGS = {"grant", "grant_per_category", "grant_on_draft_category",
                      "set_resource_on_enter", "solarium_weights", "greenhouse_bias",
