@@ -178,18 +178,29 @@ def _install_signal_handlers() -> None:
     signal.signal(signal.SIGTERM, handler)
 
 
+def resolve_eval_checkpoint(ckpt_dir: Path, model_path: Path | None) -> Path:
+    """Pick the model file to evaluate: an explicit ``--model`` path wins,
+    otherwise ``<ckpt_dir>/latest.zip``. Pure (no torch import) so it is
+    cheaply unit-testable."""
+    return model_path if model_path is not None else ckpt_dir / "latest.zip"
+
+
 def evaluate(ckpt_dir: Path, episodes: int, reward: str, seed: int,
-             device: str) -> int:
-    """Deterministic rollout of the checkpointed policy; prints win rate."""
+             device: str, model_path: Path | None = None) -> int:
+    """Deterministic rollout of a checkpointed policy; prints win rate.
+
+    Evaluates ``model_path`` when given (e.g. a model.zip fetched from a
+    GitHub Release), else ``<ckpt_dir>/latest.zip``.
+    """
     from sb3_contrib import MaskablePPO
 
     from ..cli.batch import wilson_ci
 
-    latest = ckpt_dir / "latest.zip"
-    if not latest.exists():
-        print(f"no checkpoint at {latest}", file=sys.stderr)
+    ckpt = resolve_eval_checkpoint(ckpt_dir, model_path)
+    if not ckpt.exists():
+        print(f"no checkpoint at {ckpt}", file=sys.stderr)
         return 1
-    model = MaskablePPO.load(latest, device=device)
+    model = MaskablePPO.load(ckpt, device=device)
     env = make_single_env(reward, seed)()
     wins, ranks = 0, []
     for ep in range(episodes):
@@ -203,7 +214,7 @@ def evaluate(ckpt_dir: Path, episodes: int, reward: str, seed: int,
         wins += info.get("termination_reason") == "antechamber"
         ranks.append(info.get("deepest_rank", 0))
     lo, hi = wilson_ci(wins, episodes)
-    print(f"evaluated {latest}: P(Antechamber) = {wins / episodes:.3%} "
+    print(f"evaluated {ckpt}: P(Antechamber) = {wins / episodes:.3%} "
           f"(95% CI {lo:.3%} - {hi:.3%}), mean deepest rank "
           f"{sum(ranks) / len(ranks):.2f} over {episodes} episodes")
     return 0
@@ -236,8 +247,12 @@ def main(argv: list[str] | None = None) -> int:
                         help="torch device (default cpu: the policy nets are tiny "
                              "MLPs and CPU avoids CUDA probing on GPU-less hosts)")
     parser.add_argument("--evaluate", type=int, default=0, metavar="EPISODES",
-                        help="don't train: evaluate latest.zip for N episodes "
+                        help="don't train: evaluate a checkpoint for N episodes "
                              "and report the win rate")
+    parser.add_argument("--model", default=None, metavar="PATH",
+                        help="model.zip to evaluate (e.g. one fetched from a "
+                             "GitHub Release); defaults to <checkpoint-dir>/"
+                             "latest.zip")
     # --- explore/exploit mixing ---
     parser.add_argument("--exploit-prob", type=float, default=0.9,
                         help="probability EACH DECISION is taken in EXPLOIT mode "
@@ -263,7 +278,8 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.evaluate:
         return evaluate(Path(args.checkpoint_dir), args.evaluate, args.reward,
-                        args.seed, args.device)
+                        args.seed, args.device,
+                        model_path=Path(args.model) if args.model else None)
 
     import torch
 
