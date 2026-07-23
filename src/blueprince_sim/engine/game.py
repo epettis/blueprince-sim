@@ -527,17 +527,8 @@ class Game:
             st.dice -= 1
         redeal(st, self.registry, self.cfg, self.rng, self.placed_ids, pending)
 
-    def rotation_available(self) -> bool:
-        """Can the current hand's floorplans be freely rotated?
-
-        The Ornate Compass grants this on every draft while it is held; the
-        Rotunda grants it while placed on the grid; the Dovecote grants it only
-        while it is one of the drawn options. This overrides the random
-        orientation roll - the player rotates the options at will.
-
-        Outer-room drafts sit off the grid with a fixed orientation and no
-        entry doorway (``target_cell == -1``), so rotation never applies there.
-        """
+    def _rotation_source(self) -> bool:
+        """Is a free-rotation source in play for the current hand?"""
         st = self.state
         if self.phase is not Phase.DRAFTING or st.pending is None:
             return False
@@ -548,11 +539,48 @@ class Game:
         return any(self.registry.rooms[o.room_idx].id == "dovecote"
                    for o in st.pending.options)
 
-    def rotate_options(self) -> None:
-        """Spin every drawn floorplan into its next legal orientation (clockwise)."""
-        assert self.rotation_available(), "no rotation source in play"
+    def rotation_available(self) -> bool:
+        """Can the current hand's floorplans be freely rotated?
+
+        The Ornate Compass grants this on every draft while it is held; the
+        Rotunda grants it while placed on the grid; the Dovecote grants it only
+        while it is one of the drawn options. This overrides the random
+        orientation roll - the player rotates the options at will.
+
+        Outer-room drafts sit off the grid with a fixed orientation and no
+        entry doorway (``target_cell == -1``), so rotation never applies there.
+
+        Even with a source in play, each hand gets a finite rotation budget of
+        ``max(legal orientations per option) - 1``. Rotation advances every
+        option one position around its own legal cycle, so that many rotations
+        already reach every orientation of every option - one more only revisits
+        hand states already seen. Without the cap, rotation is a free cyclic
+        action (period lcm <= 12; 1 when the doorway pins every option), and a
+        deterministic policy whose argmax is "rotate" around the cycle loops on
+        it forever.
+        """
+        if not self._rotation_source():
+            return False
         st = self.state
         pending = st.pending
+        budget = max(
+            len(legal_orientations(self.registry.rooms[o.room_idx],
+                                   pending.target_cell, pending.direction,
+                                   st, self.cfg))
+            for o in pending.options) - 1
+        return pending.rotations_used < budget
+
+    def rotate_options(self) -> None:
+        """Spin every drawn floorplan into its next legal orientation (clockwise).
+
+        Callable whenever a rotation source is in play, even if every option is
+        pinned (a no-op), so episodes recorded before no-op rotates were masked
+        out still replay.
+        """
+        assert self._rotation_source(), "no rotation source in play"
+        st = self.state
+        pending = st.pending
+        pending.rotations_used += 1
         for opt in pending.options:
             room = self.registry.rooms[opt.room_idx]
             legal = legal_orientations(room, pending.target_cell, pending.direction,

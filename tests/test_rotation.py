@@ -1,6 +1,7 @@
 """Room rotation behavior: south bias, Compass, mirroring, and free rotation."""
 
 from blueprince_sim.config import GameConfig
+from blueprince_sim.engine.draft import redeal
 from blueprince_sim.engine.game import Game, Phase
 from blueprince_sim.engine.grid import N, E, S, W
 from blueprince_sim.engine.rng import Rng
@@ -91,6 +92,54 @@ def test_no_rotation_without_a_source():
         DraftOption(room_idx=troom.idx, orientation=E | S | W, gem_cost=0, slot=0),
     ])
     assert not g.rotation_available()
+
+
+def test_rotation_budget_covers_every_orientation_then_closes():
+    # Free rotation is capped at max(legal orientations) - 1 spins per hand:
+    # enough for every option to have shown each of its orientations, after
+    # which further rotation could only revisit hand states already seen
+    # (rotation is cyclic, so an uncapped deterministic policy can spin
+    # forever). Here the T-room cycles with period 3 and the Dovecote with
+    # period 2, so the budget is 2.
+    g = Game(GameConfig(), seed=1)
+    dov = g.registry.by_id["dovecote"]
+    troom = next(r for r in g.registry.rooms if r.layout == "t" and r.rarity)
+    pd = _drafting_hand(g, [
+        DraftOption(room_idx=troom.idx, orientation=E | S | W, gem_cost=0, slot=0),
+        DraftOption(room_idx=dov.idx, orientation=S | W, gem_cost=0, slot=1),
+    ])
+    seen = [{o.orientation} for o in pd.options]
+    spins = 0
+    while g.rotation_available():
+        g.rotate_options()
+        spins += 1
+        for i, o in enumerate(pd.options):
+            seen[i].add(o.orientation)
+    assert spins == 2
+    assert seen[0] == {E | S | W, N | S | W, N | E | S}   # all 3 south-door T's
+    assert seen[1] == {S | W, E | S}                      # both south-door corners
+    # A redraw deals a fresh hand and restores the budget.
+    redeal(g.state, g.registry, g.cfg, g.rng, g.placed_ids, pd)
+    assert pd.rotations_used == 0
+
+
+def test_rotation_not_offered_when_every_option_is_pinned():
+    # Seed-1001214244 pathology: a Dovecote hand drafted on the top rank from
+    # the west pins every floorplan to one legal orientation (no north doors on
+    # rank 9, a west door is required), so rotating changes nothing. The action
+    # must not be offered - a deterministic policy loops on the no-op forever -
+    # but rotate_options() itself stays callable so old recordings replay.
+    g = Game(GameConfig(), seed=1)
+    dov = g.registry.by_id["dovecote"]
+    dead = next(r for r in g.registry.rooms if r.layout == "dead_end" and r.rarity)
+    pd = _drafting_hand(g, [
+        DraftOption(room_idx=dead.idx, orientation=W, gem_cost=0, slot=0),
+        DraftOption(room_idx=dov.idx, orientation=S | W, gem_cost=0, slot=1),
+    ], target=41, direction=E)
+    assert not g.rotation_available()
+    before = [o.orientation for o in pd.options]
+    g.rotate_options()                     # tolerated no-op for replay compat
+    assert [o.orientation for o in pd.options] == before
 
 
 def test_ornate_compass_rotates_every_draft():
