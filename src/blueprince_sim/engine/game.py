@@ -79,6 +79,7 @@ class Game:
         st.grid[ANTECHAMBER_CELL] = ante.idx
         st.placed_doors[ANTECHAMBER_CELL] = 0xF
         self.placed_ids.add(ante.id)
+        self._map_cache: tuple[tuple, dict] = ((), {})
 
     # ------------------------------------------------------------ connectivity
 
@@ -87,8 +88,31 @@ class Game:
         st = self.state
         return bool(st.placed_doors[a] & d) and bool(st.placed_doors[b] & OPPOSITE[d])
 
+    def _maps(self) -> dict:
+        """Memo dict for the BFS map functions, valid for the current layout.
+
+        Keyed on a fingerprint of everything those functions read (player
+        position, outer-area location, grid, door masks), so any state change
+        - including tests poking ``state`` directly - starts a fresh dict.
+        Cached values are shared between callers and must not be mutated.
+        """
+        st = self.state
+        fp = (st.pos, st.outer_loc, tuple(st.grid), tuple(st.placed_doors))
+        cached_fp, maps = self._map_cache
+        if fp != cached_fp:
+            maps = {}
+            self._map_cache = (fp, maps)
+        return maps
+
     def reachable_cells(self) -> set[int]:
-        """Cells reachable from the player through connected door pairs."""
+        """Cells reachable from the player through connected door pairs.
+
+        Returns a cached set; treat it as read-only.
+        """
+        maps = self._maps()
+        cached = maps.get("reachable")
+        if cached is not None:
+            return cached
         st = self.state
         grid, doors = st.grid, st.placed_doors
         seen = {st.pos}
@@ -102,6 +126,7 @@ class Game:
                 if cell_doors & d and doors[nb] & od:
                     seen.add(nb)
                     q.append(nb)
+        maps["reachable"] = seen
         return seen
 
     def distance_map(self) -> list[int]:
@@ -110,7 +135,13 @@ class Game:
         BFS through connected door pairs, one step per room (the cost
         :meth:`move_to` would pay). -1 marks empty or unreachable cells;
         the player's own cell is 0.
+
+        Returns a cached list; treat it as read-only.
         """
+        maps = self._maps()
+        cached = maps.get("dist")
+        if cached is not None:
+            return cached
         st = self.state
         grid, doors = st.grid, st.placed_doors
         dist = [-1] * N_CELLS
@@ -125,6 +156,7 @@ class Game:
                 if cell_doors & d and doors[nb] & od:
                     dist[nb] = dist[cell] + 1
                     q.append(nb)
+        maps["dist"] = dist
         return dist
 
     def optimistic_distances(self) -> list[int]:
@@ -134,7 +166,13 @@ class Game:
         placed rooms still only pass through their existing doors (a solid
         wall stays a wall no matter what gets drafted later). -1 marks cells
         walled off from the Antechamber even under this assumption.
+
+        Returns a cached list; treat it as read-only.
         """
+        maps = self._maps()
+        cached = maps.get("ante_dist")
+        if cached is not None:
+            return cached
         st = self.state
         grid, doors = st.grid, st.placed_doors
         dist = [-1] * N_CELLS
@@ -151,6 +189,7 @@ class Game:
                         and (grid[nb] < 0 or doors[nb] & od)):
                     dist[nb] = dist[cell] + 1
                     q.append(nb)
+        maps["ante_dist"] = dist
         return dist
 
     # ---------------------------------------------------------------- actions
@@ -179,10 +218,16 @@ class Game:
 
         These are the draft targets of :meth:`draft_from`; the list also
         drives dead-end detection.
+
+        Returns a cached list; treat it as read-only.
         """
         st = self.state
         if st.outer_loc > 0:
             return []
+        maps = self._maps()
+        cached = maps.get("frontier")
+        if cached is not None:
+            return cached
         out = []
         grid, doors = st.grid, st.placed_doors
         for cell in self.reachable_cells():
@@ -192,6 +237,7 @@ class Game:
             for d, _od, nb in ADJACENT[cell]:
                 if cell_doors & d and grid[nb] < 0:
                     out.append((cell, d))
+        maps["frontier"] = out
         return out
 
     def open_door(self, cell: int, direction: int) -> PendingDraft:
