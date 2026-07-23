@@ -33,12 +33,14 @@ class BluePrinceEnv(gymnasium.Env):
         self.observation_space = O.observation_space(len(self.game.registry.rooms))
         self._env_steps = 0
         self.max_env_steps = 1000
+        self._episode_seed = 0
 
     def reset(self, *, seed: int | None = None, options: dict | None = None):
         super().reset(seed=seed)
         game_seed = seed if seed is not None else int(self.np_random.integers(0, 2**31))
         self.game.reset(game_seed)
         self._env_steps = 0
+        self._episode_seed = game_seed
         return O.encode(self.game), self._info()
 
     def step(self, action: int):
@@ -75,6 +77,7 @@ class BluePrinceEnv(gymnasium.Env):
             "deepest_rank": self.game.deepest_rank,
             "rooms_placed": self.game.rooms_placed,
             "termination_reason": self.game.termination_reason,
+            "episode_seed": self._episode_seed,
             "action_mask": np.array(A.action_mask(self.game), dtype=bool),
         }
 

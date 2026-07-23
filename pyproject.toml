@@ -22,6 +22,7 @@ dev = ["pytest>=8.0", "pytest-benchmark>=4.0", "scipy>=1.11", "ruff>=0.4"]
 [project.scripts]
 blueprince-sim = "blueprince_sim.cli.__main__:main"
 blueprince-train = "blueprince_sim.rl.train:main"
+blueprince-dash = "blueprince_sim.web.server:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/blueprince_sim"]

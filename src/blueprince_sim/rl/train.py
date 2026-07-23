@@ -22,6 +22,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import random
 import signal
 import sys
 import threading
@@ -68,6 +69,76 @@ def make_single_env(reward: str, seed: int):
     return _thunk
 
 
+class EpisodeRecorder:
+    """Samples finished episodes to ``<ckpt_dir>/replays.jsonl`` for the web replay UI.
+
+    An episode is stored as its seed plus the action sequence (determinism
+    given a seed is a tested engine invariant, so this reconstructs the run
+    exactly). Retention: a random ``sample_rate`` slice, plus the best episode
+    of every ``top_every``-episode window, scored (win, deepest_rank,
+    rooms_placed). ``modes`` is a 0/1 string per action ('0' = explore).
+    """
+
+    def __init__(self, path: Path, n_envs: int, reward: str, sample_rate: float,
+                 top_every: int, episodes_done: int, seed: int = 0) -> None:
+        self.path = path
+        self.reward = reward
+        self.sample_rate = sample_rate
+        self.top_every = top_every
+        self.buffers: list[list[tuple[int, bool]]] = [[] for _ in range(n_envs)]
+        self._rng = random.Random(seed ^ 0x5EED)
+        self._window = episodes_done // top_every if top_every else 0
+        self._best: tuple[tuple, dict] | None = None
+
+    def on_step(self, actions, modes) -> None:
+        if actions is None:
+            return
+        for i, a in enumerate(actions):
+            m = True if modes is None or i >= len(modes) else bool(modes[i])
+            self.buffers[i].append((int(a), m))
+
+    def on_episode_end(self, env_idx: int, episode: int, info: dict) -> None:
+        buf, self.buffers[env_idx] = self.buffers[env_idx], []
+        seed = info.get("episode_seed")
+        if not buf or seed is None:
+            return
+        win = info.get("termination_reason") == "antechamber"
+        record = {
+            "episode": episode,
+            "seed": int(seed),
+            "reward": self.reward,
+            "actions": [a for a, _ in buf],
+            "modes": "".join("1" if m else "0" for _, m in buf),
+            "win": win,
+            "deepest_rank": int(info.get("deepest_rank", 0)),
+            "rooms_placed": int(info.get("rooms_placed", 0)),
+            "reason": info.get("termination_reason"),
+            "saved_at": time.strftime("%Y-%m-%dT%H:%M:%S"),
+        }
+        if self.top_every:
+            window = episode // self.top_every
+            if window != self._window:
+                self.flush_top()
+                self._window = window
+            score = (win, record["deepest_rank"], record["rooms_placed"])
+            if self._best is None or score > self._best[0]:
+                self._best = (score, record)
+        if self.sample_rate and self._rng.random() < self.sample_rate:
+            self._write(record, "random")
+
+    def flush_top(self) -> None:
+        if self._best is not None:
+            self._write(self._best[1], "top_window")
+            self._best = None
+
+    def _write(self, record: dict, why: str) -> None:
+        rec = dict(record)
+        rec["why"] = why
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        with self.path.open("a") as f:
+            f.write(json.dumps(rec) + "\n")
+
+
 class CheckpointAndStopCallback:
     """Counts finished episodes, checkpoints every N, stops on signal.
 
@@ -80,13 +151,15 @@ class CheckpointAndStopCallback:
 
         class _Impl(BaseCallback):
             def __init__(self, ckpt_dir: Path, every_episodes: int,
-                         episodes_done: int, snapshot_every: int) -> None:
+                         episodes_done: int, snapshot_every: int,
+                         recorder: EpisodeRecorder | None = None) -> None:
                 super().__init__()
                 self.ckpt_dir = ckpt_dir
                 self.every = every_episodes
                 self.episodes = episodes_done
                 self.next_ckpt = episodes_done + every_episodes
                 self.snapshot_every = snapshot_every
+                self.recorder = recorder
                 self.recent = deque(maxlen=1000)
                 self.recent_exploit = deque(maxlen=1000)
                 self.recent_explore = deque(maxlen=1000)
@@ -96,6 +169,9 @@ class CheckpointAndStopCallback:
                 infos = self.locals.get("infos", ())
                 policy = getattr(self.model, "policy", None)
                 mixed = hasattr(policy, "resample_modes")
+                if self.recorder is not None:
+                    self.recorder.on_step(self.locals.get("actions"),
+                                          getattr(policy, "last_modes", None))
                 done_indices = []
                 for i, (done, info) in enumerate(
                         zip(self.locals.get("dones", ()), infos)):
@@ -104,6 +180,8 @@ class CheckpointAndStopCallback:
                     self.episodes += 1
                     win = 1.0 if info.get("termination_reason") == "antechamber" else 0.0
                     self.recent.append(win)
+                    if self.recorder is not None:
+                        self.recorder.on_episode_end(i, self.episodes, info)
                     if mixed and not policy.per_decision:
                         # Attribute the win to the mode the episode ran under
                         # (read BEFORE resampling).
@@ -186,11 +264,14 @@ def resolve_eval_checkpoint(ckpt_dir: Path, model_path: Path | None) -> Path:
 
 
 def evaluate(ckpt_dir: Path, episodes: int, reward: str, seed: int,
-             device: str, model_path: Path | None = None) -> int:
+             device: str, model_path: Path | None = None,
+             eval_json: Path | None = None) -> int:
     """Deterministic rollout of a checkpointed policy; prints win rate.
 
     Evaluates ``model_path`` when given (e.g. a model.zip fetched from a
-    GitHub Release), else ``<ckpt_dir>/latest.zip``.
+    GitHub Release), else ``<ckpt_dir>/latest.zip``. With ``eval_json``, also
+    appends the stats as one JSON line (consumed by the web dashboard as the
+    exploration-disabled baseline series).
     """
     from sb3_contrib import MaskablePPO
 
@@ -217,6 +298,26 @@ def evaluate(ckpt_dir: Path, episodes: int, reward: str, seed: int,
     print(f"evaluated {ckpt}: P(Antechamber) = {wins / episodes:.3%} "
           f"(95% CI {lo:.3%} - {hi:.3%}), mean deepest rank "
           f"{sum(ranks) / len(ranks):.2f} over {episodes} episodes")
+    if eval_json is not None:
+        meta_path = ckpt.with_suffix(".json")
+        trained_episodes = None
+        if meta_path.exists():
+            try:
+                trained_episodes = json.loads(meta_path.read_text()).get("episodes")
+            except (json.JSONDecodeError, OSError):
+                pass
+        rec = {
+            "episodes": trained_episodes,
+            "p_antechamber": wins / episodes,
+            "ci95": [lo, hi],
+            "mean_deepest_rank": sum(ranks) / len(ranks),
+            "eval_episodes": episodes,
+            "model": str(ckpt),
+            "sampled_at": time.time(),
+        }
+        eval_json.parent.mkdir(parents=True, exist_ok=True)
+        with eval_json.open("a") as f:
+            f.write(json.dumps(rec) + "\n")
     return 0
 
 
@@ -253,6 +354,19 @@ def main(argv: list[str] | None = None) -> int:
                         help="model.zip to evaluate (e.g. one fetched from a "
                              "GitHub Release); defaults to <checkpoint-dir>/"
                              "latest.zip")
+    parser.add_argument("--eval-json", default=None, metavar="PATH",
+                        help="with --evaluate: also append the stats as one "
+                             "JSON line to this file (dashboard baseline)")
+    # --- episode recording (web replay UI) ---
+    parser.add_argument("--record-sample-rate", type=float, default=0.005,
+                        help="fraction of episodes recorded at random to "
+                             "<checkpoint-dir>/replays.jsonl for replay")
+    parser.add_argument("--record-top-every", type=int, default=1000,
+                        metavar="EPISODES",
+                        help="also record the best episode (win, deepest rank, "
+                             "rooms placed) of every such window (0 = off)")
+    parser.add_argument("--no-record", action="store_true",
+                        help="disable episode recording entirely")
     # --- explore/exploit mixing ---
     parser.add_argument("--exploit-prob", type=float, default=0.9,
                         help="probability EACH DECISION is taken in EXPLOIT mode "
@@ -279,7 +393,8 @@ def main(argv: list[str] | None = None) -> int:
     if args.evaluate:
         return evaluate(Path(args.checkpoint_dir), args.evaluate, args.reward,
                         args.seed, args.device,
-                        model_path=Path(args.model) if args.model else None)
+                        model_path=Path(args.model) if args.model else None,
+                        eval_json=Path(args.eval_json) if args.eval_json else None)
 
     import torch
 
@@ -340,8 +455,19 @@ def main(argv: list[str] | None = None) -> int:
           f"(temp {args.explore_temp}, eps {args.explore_eps}), "
           f"per-{args.mode_granularity}", flush=True)
 
+    recorder = None
+    if not args.no_record and (args.record_sample_rate > 0 or args.record_top_every > 0):
+        recorder = EpisodeRecorder(
+            ckpt_dir / "replays.jsonl", args.n_envs, args.reward,
+            args.record_sample_rate, args.record_top_every, episodes_done,
+            seed=args.seed)
+        print(f"[train] recording episodes to {recorder.path} "
+              f"(sample rate {args.record_sample_rate:.2%}, "
+              f"top-of-{args.record_top_every} windows)", flush=True)
+
     callback = CheckpointAndStopCallback(
-        ckpt_dir, args.checkpoint_every, episodes_done, args.snapshot_every)
+        ckpt_dir, args.checkpoint_every, episodes_done, args.snapshot_every,
+        recorder=recorder)
     _install_signal_handlers()
     print(f"[train] pid {os.getpid()} - stop with: kill {os.getpid()} (or Ctrl-C)",
           flush=True)
@@ -352,6 +478,8 @@ def main(argv: list[str] | None = None) -> int:
                     reset_num_timesteps=reset_counters, progress_bar=False)
     finally:
         callback.save("latest")
+        if recorder is not None:
+            recorder.flush_top()
         vec_env.close()
         print(f"[train] done: {callback.episodes} episodes total; "
               f"checkpoint at {latest}", flush=True)

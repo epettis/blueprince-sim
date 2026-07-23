@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Blue Prince · Training Observatory</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<header>
+  <h1>Blue Prince <span class="dim">· Training Observatory</span></h1>
+  <nav>
+    <button id="tab-dashboard" class="tab active">Dashboard</button>
+    <button id="tab-runs" class="tab">Runs</button>
+  </nav>
+  <div id="conn" class="dim"></div>
+</header>
+
+<main id="view-dashboard">
+  <div id="tiles" class="tiles"></div>
+  <section class="card">
+    <div class="card-head">
+      <h2>Win rate</h2>
+      <div id="legend" class="legend"></div>
+    </div>
+    <div id="chart" class="chart"></div>
+    <p class="dim note">
+      <b>training</b> = rolling 1k-episode win rate with the explore mix (what PPO actually plays)
+      &nbsp;·&nbsp; <b>eval</b> = fresh deterministic (argmax) rollouts of the latest checkpoint —
+      exploration off, with 95% CI.
+    </p>
+  </section>
+  <section class="card">
+    <h2>Latest checkpoints</h2>
+    <div id="ckpt-table"></div>
+  </section>
+</main>
+
+<main id="view-runs" class="hidden">
+  <aside id="runs-panel">
+    <div class="runs-head">
+      <label class="dim">sort</label>
+      <select id="runs-sort">
+        <option value="episode">Episode (newest)</option>
+        <option value="progress">Progress</option>
+      </select>
+    </div>
+    <div id="runs-list"></div>
+  </aside>
+
+  <section id="house-panel">
+    <div id="house"></div>
+  </section>
+
+  <aside id="detail-panel">
+    <div id="run-title" class="dim">select a run</div>
+    <div id="move-line"></div>
+    <div id="resources" class="resources"></div>
+    <div id="mode-line"></div>
+    <div id="options-head" class="panel-head hidden">Draft options</div>
+    <div id="options"></div>
+    <div class="panel-head">Action log</div>
+    <div id="action-log"></div>
+  </aside>
+
+  <footer id="controls" class="hidden">
+    <button id="pb-start" title="revert to move 0">⏮</button>
+    <button id="pb-back" title="step back">◀</button>
+    <button id="pb-play" title="play / pause">▶</button>
+    <button id="pb-speed" title="playback speed">1×</button>
+    <button id="pb-end" title="jump to end">⏭</button>
+    <input id="pb-slider" type="range" min="0" max="0" value="0">
+    <span id="pb-pos" class="dim"></span>
+  </footer>
+</main>
+
+<script src="/static/app.js"></script>
+</body>
+</html>
