@@ -93,6 +93,25 @@ def test_no_rotation_without_a_source():
     assert not g.rotation_available()
 
 
+def test_rotation_not_offered_when_every_option_is_pinned():
+    # Seed-1001214244 pathology: a Dovecote hand drafted on the top rank from
+    # the west pins every floorplan to one legal orientation (no north doors on
+    # rank 9, a west door is required), so rotating changes nothing. The action
+    # must not be offered - a deterministic policy loops on the no-op forever -
+    # but rotate_options() itself stays callable so old recordings replay.
+    g = Game(GameConfig(), seed=1)
+    dov = g.registry.by_id["dovecote"]
+    dead = next(r for r in g.registry.rooms if r.layout == "dead_end" and r.rarity)
+    pd = _drafting_hand(g, [
+        DraftOption(room_idx=dead.idx, orientation=W, gem_cost=0, slot=0),
+        DraftOption(room_idx=dov.idx, orientation=S | W, gem_cost=0, slot=1),
+    ], target=41, direction=E)
+    assert not g.rotation_available()
+    before = [o.orientation for o in pd.options]
+    g.rotate_options()                     # tolerated no-op for replay compat
+    assert [o.orientation for o in pd.options] == before
+
+
 def test_ornate_compass_rotates_every_draft():
     # Unlike the Dovecote, the Ornate Compass grants rotation on any hand.
     g = Game(GameConfig(ornate_compass=True), seed=1)
