@@ -807,6 +807,35 @@
         "confidence": "inferred",
         "effect_text": "Corner-only room; re-rolls the rarity of 3 rooms in your pool each time you draft it. Implemented as a one-time effect when the Conservatory itself is drafted: 3 random undealt deck cards each roll a fresh rarity (uniform over the 4 rarities; the real re-roll distribution is unpublished - inferred) via the dedicated conservatory_reroll RNG substream, and changed cards move to the new rarity's deck of the same free/gem class at a random undealt position (reinsertion point also inferred)."
       }
+    },
+    {
+      "id": "mechanarium",
+      "name": "Mechanarium",
+      "category": "blueprint",
+      "rarity": "unusual",
+      "gem_cost": 0,
+      "layout": "cross",
+      "alt_layouts": [],
+      "draft_conditions": ["interior_only"],
+      "flags": {
+        "no_library_draft": false,
+        "powered": false,
+        "duct": false
+      },
+      "deck_copies": 1,
+      "effects": [],
+      "items": {
+        "guaranteed": [],
+        "additional_max": 0,
+        "dig_spots": 0
+      },
+      "pool": "studio_addition",
+      "meta": {
+        "source": "wiki",
+        "confidence": "wiki",
+        "effect_text": "Contains one doorway per Mechanical room in the estate (including itself); extra doors beyond 4 are diagonal compartments with key/item caches. APPROXIMATION: dynamic door-count and diagonal-compartment mechanics are out of scope; no effect modeled; cross layout is a placeholder. interior_only covers the 'center 21 tiles' constraint.",
+        "rarity_confidence": "wiki"
+      }
     }
   ]
 }
