@@ -10,7 +10,8 @@ from . import effects
 from .decks import build_decks, inject_rooms
 from .draft import deal_draft, redeal
 from .effects import Hook
-from .grid import DIRS, ENTRANCE_CELL, N_CELLS, OPPOSITE, neighbor, rank_of, rotate_mask
+from .grid import (ADJACENT, DIRS, ENTRANCE_CELL, N_CELLS, OPPOSITE, neighbor,
+                   rank_of, rotate_mask)
 from .items import roll_room_items
 from .model import Registry, Room
 from .placement import legal_orientations
@@ -89,15 +90,16 @@ class Game:
     def reachable_cells(self) -> set[int]:
         """Cells reachable from the player through connected door pairs."""
         st = self.state
+        grid, doors = st.grid, st.placed_doors
         seen = {st.pos}
         q = deque([st.pos])
         while q:
             cell = q.popleft()
-            for d in DIRS:
-                nb = neighbor(cell, d)
-                if nb == -1 or nb in seen or st.grid[nb] < 0:
+            cell_doors = doors[cell]
+            for d, od, nb in ADJACENT[cell]:
+                if nb in seen or grid[nb] < 0:
                     continue
-                if self._connected(cell, nb, d):
+                if cell_doors & d and doors[nb] & od:
                     seen.add(nb)
                     q.append(nb)
         return seen
@@ -110,23 +112,20 @@ class Game:
         the player's own cell is 0.
         """
         st = self.state
+        grid, doors = st.grid, st.placed_doors
         dist = [-1] * N_CELLS
         dist[st.pos] = 0
         q = deque([st.pos])
         while q:
             cell = q.popleft()
-            for d in DIRS:
-                nb = neighbor(cell, d)
-                if nb == -1 or st.grid[nb] < 0 or dist[nb] != -1:
+            cell_doors = doors[cell]
+            for d, od, nb in ADJACENT[cell]:
+                if grid[nb] < 0 or dist[nb] != -1:
                     continue
-                if self._connected(cell, nb, d):
+                if cell_doors & d and doors[nb] & od:
                     dist[nb] = dist[cell] + 1
                     q.append(nb)
         return dist
-
-    def _door_or_empty(self, cell: int, d: int) -> bool:
-        st = self.state
-        return st.grid[cell] < 0 or bool(st.placed_doors[cell] & d)
 
     def optimistic_distances(self) -> list[int]:
         """Per-cell optimistic distance to the Antechamber.
@@ -136,16 +135,20 @@ class Game:
         wall stays a wall no matter what gets drafted later). -1 marks cells
         walled off from the Antechamber even under this assumption.
         """
+        st = self.state
+        grid, doors = st.grid, st.placed_doors
         dist = [-1] * N_CELLS
         dist[ANTECHAMBER_CELL] = 0
         q = deque([ANTECHAMBER_CELL])
         while q:
             cell = q.popleft()
-            for d in DIRS:
-                nb = neighbor(cell, d)
-                if nb == -1 or dist[nb] != -1:
+            cell_doors = doors[cell]
+            cell_empty = grid[cell] < 0
+            for d, od, nb in ADJACENT[cell]:
+                if dist[nb] != -1:
                     continue
-                if self._door_or_empty(cell, d) and self._door_or_empty(nb, OPPOSITE[d]):
+                if ((cell_empty or cell_doors & d)
+                        and (grid[nb] < 0 or doors[nb] & od)):
                     dist[nb] = dist[cell] + 1
                     q.append(nb)
         return dist
@@ -181,14 +184,13 @@ class Game:
         if st.outer_loc > 0:
             return []
         out = []
+        grid, doors = st.grid, st.placed_doors
         for cell in self.reachable_cells():
-            if st.grid[cell] < 0 or cell == ANTECHAMBER_CELL:
+            if grid[cell] < 0 or cell == ANTECHAMBER_CELL:
                 continue
-            for d in DIRS:
-                if not st.placed_doors[cell] & d:
-                    continue
-                nb = neighbor(cell, d)
-                if nb != -1 and st.grid[nb] < 0:
+            cell_doors = doors[cell]
+            for d, _od, nb in ADJACENT[cell]:
+                if cell_doors & d and grid[nb] < 0:
                     out.append((cell, d))
         return out
 
@@ -560,15 +562,16 @@ class Game:
         st = self.state
         if target == st.pos:
             return []
+        grid, doors = st.grid, st.placed_doors
         prev: dict[int, tuple[int, int]] = {st.pos: (-1, -1)}
         q = deque([st.pos])
         while q:
             cell = q.popleft()
-            for d in DIRS:
-                nb = neighbor(cell, d)
-                if nb == -1 or nb in prev or st.grid[nb] < 0:
+            cell_doors = doors[cell]
+            for d, od, nb in ADJACENT[cell]:
+                if nb in prev or grid[nb] < 0:
                     continue
-                if not self._connected(cell, nb, d):
+                if not (cell_doors & d and doors[nb] & od):
                     continue
                 prev[nb] = (cell, d)
                 if nb == target:
