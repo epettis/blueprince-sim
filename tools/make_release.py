@@ -61,6 +61,10 @@ def lib_versions() -> dict:
 
 
 def build_manifest(args, model_path: Path, digest: str) -> dict:
+    """Assemble the MANIFEST.json dict: asset sha256/fetch command, training
+    stats read from ``<checkpoint-dir>/latest.json``, config summary, and
+    provenance; a deterministic_eval block is included only when
+    ``--eval-episodes`` was given."""
     meta = json.loads((Path(args.checkpoint_dir) / "latest.json").read_text())
     manifest = {
         "release_name": args.name,
@@ -105,6 +109,8 @@ def build_manifest(args, model_path: Path, digest: str) -> dict:
 
 
 def write_intree(args, manifest: dict) -> Path:
+    """Write the committed provenance: models/<name>/MANIFEST.json plus a copy
+    of the training curve (``--metrics`` -> metrics.jsonl); returns the dir."""
     out_dir = ROOT / "models" / args.name
     out_dir.mkdir(parents=True, exist_ok=True)
     (out_dir / "MANIFEST.json").write_text(json.dumps(manifest, indent=2) + "\n")
@@ -114,6 +120,12 @@ def write_intree(args, manifest: dict) -> Path:
 
 
 def publish(args, model_path: Path, digest: str) -> None:
+    """Tag HEAD, create the GitHub Release, and upload the model as model.zip.
+
+    Force-moves and force-pushes the tag, so rerunning repoints an existing
+    release tag. Afterwards the asset is downloaded back and re-hashed; on a
+    sha256 mismatch with the manifest the process exits with code 2.
+    """
     tag = args.tag
     # Tag the current HEAD (run this on the merged default branch).
     subprocess.run(["git", "tag", "-f", tag], cwd=ROOT, check=True)
@@ -146,6 +158,7 @@ def publish(args, model_path: Path, digest: str) -> None:
 
 
 def manifest_stats(args) -> str:
+    """One-line eval summary for the release notes; "" when no eval was supplied."""
     if args.eval_episodes:
         return (f"Deterministic P(Antechamber) = {args.eval_p:.1%} over "
                 f"{args.eval_episodes} episodes.")
@@ -153,6 +166,12 @@ def manifest_stats(args) -> str:
 
 
 def main(argv: list[str] | None = None) -> int:
+    """Write the in-tree manifest, then publish if requested.
+
+    Returns 1 if the model file is missing, else 0 (publish itself exits 2 on
+    a failed round-trip verification). Without ``--publish`` this is a dry run
+    that only rewrites models/<name>/.
+    """
     p = argparse.ArgumentParser(description=__doc__,
                                 formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--checkpoint-dir", required=True,

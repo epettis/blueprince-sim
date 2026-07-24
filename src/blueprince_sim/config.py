@@ -50,6 +50,7 @@ class GameConfig:
     data_dir: Path | None = None        # alternate data/*.json directory (None = packaged data)
 
     def resolved_stage(self) -> str:
+        """Rarity-table stage; "auto" derives it from ``day`` (<=7 week1, <=14 week2)."""
         if self.stage != "auto":
             return self.stage
         if self.day <= 7:
@@ -59,10 +60,13 @@ class GameConfig:
         return "late"
 
     def gem_gate_active(self) -> bool:
+        """Whether the stricter gem deck-size gates apply to the rarity roll
+        (veteran mode, Room 46 reached before, or day 16+)."""
         return self.veteran_mode or self.room46_reached or self.day >= 16
 
     @classmethod
     def from_yaml(cls, path: str | Path) -> "GameConfig":
+        """Load a config from a YAML mapping file (see from_dict for coercions)."""
         import yaml
 
         raw = yaml.safe_load(Path(path).read_text()) or {}
@@ -70,6 +74,11 @@ class GameConfig:
 
     @classmethod
     def from_dict(cls, raw: dict) -> "GameConfig":
+        """Build a config from plain values (YAML / --set overrides).
+
+        Unknown keys raise KeyError; list-valued unlock fields are coerced to
+        frozensets and data_dir to a Path.
+        """
         kwargs = {}
         valid = {f.name for f in fields(cls)}
         for k, v in raw.items():

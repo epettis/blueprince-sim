@@ -53,6 +53,12 @@ class Game:
     # ------------------------------------------------------------------ setup
 
     def reset(self, seed: int | None = None) -> None:
+        """Start a fresh day: new seeded RNG, blank state, rebuilt solitaire decks.
+
+        Places the Entrance Hall (rank 1 center, already entered) and the
+        sealed Antechamber (rank 9 center), rolling the Antechamber's door
+        locks. Passing ``seed`` reseeds; omitting it replays the same seed.
+        """
         if seed is not None:
             self.seed = seed
         self.rng = Rng(self.seed)
@@ -325,6 +331,7 @@ class Game:
         return True
 
     def _open_segment(self, cell: int, direction: int) -> None:
+        """Set the segment to DOOR_OPEN, bumping door_version to invalidate nav caches."""
         self.state.door_state[segment_key(cell, direction)] = DOOR_OPEN
         self.state.door_version += 1
 
@@ -422,6 +429,7 @@ class Game:
         return self.open_door(cell, direction)
 
     def _in_classroom_context(self) -> bool:
+        """Is the player drafting from inside the Classroom (grants free redraws)?"""
         room_idx = self.state.grid[self.state.pos]
         return room_idx >= 0 and self.registry.rooms[room_idx].id == "classroom"
 
@@ -467,6 +475,12 @@ class Game:
         return best if st.steps > best else None
 
     def outer_draft_available(self) -> bool:
+        """Can the once-per-day outer-room draft be started right now?
+
+        Requires the unlock, no outer room drafted yet today, NAVIGATE phase
+        on the grid, and an affordable route to the doorstep
+        (see :meth:`_outer_route_cost`).
+        """
         if not self.cfg.outer_rooms_unlocked:
             return False
         if self.state.outer_room_drafted:
@@ -529,6 +543,11 @@ class Game:
         return pending
 
     def _choose_outer(self, opt) -> None:
+        """Resolve choosing an outer-room option: place it off-grid, fire ON_PLACE.
+
+        The player stays at the doorstep; the room's ON_ENTER effects and item
+        rolls wait for :meth:`enter_outer_room`.
+        """
         st = self.state
         room = self.registry.rooms[opt.room_idx]
         st.outer_room_drafted = True
@@ -589,6 +608,13 @@ class Game:
         self._check_termination()
 
     def choose(self, slot: int) -> None:
+        """Take the pending hand's option in ``slot``, pay its cost, place the room.
+
+        DRAFTING-phase action; returns the game to NAVIGATE. Placing does not
+        enter the room - no step is spent and none of its resources are gained
+        until the player :meth:`move`s in. Outer-room drafts (target_cell -1)
+        route to their off-grid placement instead.
+        """
         assert self.phase is Phase.DRAFTING and self.state.pending is not None
         st = self.state
         pending = st.pending
@@ -612,6 +638,7 @@ class Game:
         self._check_termination()
 
     def _effective_cost(self, room: Room, opt) -> int:
+        """Gem cost of an option: slot 0 and free-category rooms cost nothing."""
         if opt.slot == 0:
             return 0
         if room.category in self.free_categories:
@@ -632,6 +659,7 @@ class Game:
         return self.state.gems >= cost
 
     def _pay(self, room: Room, opt) -> None:
+        """Deduct the option's gem cost - in steps at 3:1 when the Hovel is placed."""
         cost = self._effective_cost(room, opt)
         if cost <= 0:
             return
@@ -645,6 +673,12 @@ class Game:
     # affordable option always exists.
 
     def redraw(self, kind: RedrawKind) -> None:
+        """Replace the whole pending hand via a Study, Classroom, or die redraw.
+
+        STUDY costs 1 gem (needs the Study placed, max 8 per draft), FREE
+        spends one of the hand's Classroom redraws, DIE spends an ivory die.
+        Outer-room drafts cannot be redrawn.
+        """
         assert self.phase is Phase.DRAFTING and self.state.pending is not None
         st = self.state
         pending = st.pending
@@ -822,6 +856,14 @@ class Game:
 
     def _place_room(self, room: Room, cell: int, orientation: int,
                     entered: bool = False) -> None:
+        """Put ``room`` on the grid at ``cell`` with the given door orientation.
+
+        Rolls lock state for its fresh door segments, updates the placed-id /
+        room-cell indexes and progress counters, then fires the room's
+        ON_PLACE hook plus ON_DRAFT_ROOM on every other placed room
+        (relational effects like the Nursery). ``entered=True`` is only used
+        for the Entrance Hall at day start.
+        """
         st = self.state
         st.grid[cell] = room.idx
         st.placed_doors[cell] = orientation
@@ -841,6 +883,12 @@ class Game:
                              context_room=room)
 
     def _enter(self, cell: int) -> None:
+        """First-entry bookkeeping for ``cell``; no-op if already entered.
+
+        Fires the room's ON_ENTER effects and item rolls exactly once. With
+        door locks on, visiting Security unlocks the terminal's offline mode,
+        and keycard source rooms roll their chance to hand over the Keycard.
+        """
         st = self.state
         if st.entered[cell]:
             return
@@ -868,6 +916,14 @@ class Game:
         self.termination_reason = reason
 
     def _check_termination(self) -> None:
+        """End the day when won, out of steps, or no purposeful action remains.
+
+        Called after every state-changing action. Winning requires standing
+        IN the Antechamber (which may cost the last step); "dead_end" means no
+        frontier doorway exists and the Antechamber is unreachable;
+        "out_of_steps" also covers having steps left but nothing useful
+        within the budget (see :meth:`_action_in_budget`).
+        """
         st = self.state
         # You win only by walking INTO the Antechamber, not by connecting a
         # door to it. Reaching it may cost the last step you have.
@@ -942,7 +998,9 @@ class Game:
     # ------------------------------------------------------------------ info
 
     def is_done(self) -> tuple[bool, str]:
+        """Return (day over?, reason); the reason is "" while the day is running."""
         return self.phase is Phase.TERMINAL, self.termination_reason
 
     def success(self) -> bool:
+        """Did the day end by walking into the Antechamber?"""
         return self.termination_reason == "antechamber"

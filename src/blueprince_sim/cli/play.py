@@ -12,6 +12,13 @@ _DIR_KEYS = {"n": N, "e": E, "s": S, "w": W}
 
 
 def play(cfg: GameConfig, seed: int) -> None:
+    """Run the interactive REPL for one day, printing the grid and prompting each decision.
+
+    NAVIGATE offers moves, doorway drafts (numbered), far drafts (``d <cell> <dir>``),
+    walks (``g <cell>``), outer-area actions, and the security switches; DRAFTING
+    offers the option slots plus redraw/rotate. ``q`` at any prompt abandons the
+    day. Returns after printing the end-of-day summary (win or termination reason).
+    """
     game = Game(cfg, seed=seed)
     print(f"Blue Prince drafting simulator - seed {seed}. "
           f"Reach the Antechamber (rank 9 center) before you run out of steps.")

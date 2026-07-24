@@ -22,6 +22,11 @@ def rooms_meta(registry) -> list[dict]:
 
 
 def _pending_dict(game: Game) -> dict | None:
+    """JSON view of the pending draft hand; None when no draft is open.
+
+    Hidden (Archives mystery) options keep cost and affordability visible but
+    report room_idx -1, name "???", and no identity/orientation fields.
+    """
     p = game.state.pending
     if p is None:
         return None
@@ -54,6 +59,11 @@ def _pending_dict(game: Game) -> dict | None:
 
 
 def _frame(game: Game, action: dict | None, facing: str | None) -> dict:
+    """Snapshot the visible state as one replay frame.
+
+    ``action`` describes the step that PRODUCED this state (None for the
+    initial frame); ``facing`` is the client-side sprite direction.
+    """
     st = game.state
     return {
         "phase": game.phase.name,

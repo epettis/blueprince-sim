@@ -24,6 +24,8 @@ PLOT_W, PLOT_H, PAD_L, PAD_R, PAD_T, PAD_B = 860, 300, 52, 120, 16, 34
 
 
 def load_samples() -> list[dict]:
+    """Read runs/metrics.jsonl in order, dropping unparseable lines and samples
+    that repeat an (episodes, timesteps) pair; [] if the file is absent."""
     path = RUNS / "metrics.jsonl"
     if not path.exists():
         return []
@@ -43,6 +45,11 @@ def load_samples() -> list[dict]:
 
 
 def nice_ticks(vmax: float, n: int = 4) -> list[float]:
+    """Round y-axis tick values from 0 up to ~vmax, aiming for about n of them.
+
+    The step is snapped to a 1/2/2.5/5/10 multiple of the right power of ten,
+    so the ticks stay human-readable at any win-rate scale.
+    """
     if vmax <= 0:
         return [0.0, 1.0]
     raw = vmax / n
@@ -59,6 +66,13 @@ def nice_ticks(vmax: float, n: int = 4) -> list[float]:
 
 
 def build(out_path: Path) -> None:
+    """Render the full dashboard (stat tiles, SVG win-rate chart, checkpoint
+    table) and overwrite ``out_path``.
+
+    Reads runs/training_start_epoch for the x-axis origin and
+    runs/all-unlocks/latest.json for the headline stats; both are optional, so
+    the page renders (empty) before training has produced anything.
+    """
     t0 = int((RUNS / "training_start_epoch").read_text().strip()) \
         if (RUNS / "training_start_epoch").exists() else int(time.time())
     samples = load_samples()

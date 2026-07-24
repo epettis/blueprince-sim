@@ -12,6 +12,7 @@ from .policies import POLICIES
 
 
 def wilson_ci(successes: int, n: int, z: float = 1.96) -> tuple[float, float]:
+    """Wilson score interval (lo, hi) for a binomial proportion; default z gives 95%."""
     if n == 0:
         return (0.0, 0.0)
     p = successes / n
@@ -22,6 +23,13 @@ def wilson_ci(successes: int, n: int, z: float = 1.96) -> tuple[float, float]:
 
 
 def run_episode(cfg: GameConfig, policy, seed: int, max_decisions: int = 800) -> dict:
+    """Play one seeded day with ``policy`` and return its outcome summary dict.
+
+    The same seed drives both the engine and the policy's RNG, so an episode
+    replays exactly. A decision that changes no observable state is treated as
+    a stall and force-resolved (take the guaranteed free slot, or end the day);
+    hitting ``max_decisions`` records the reason ``decision_limit``.
+    """
     game = Game(cfg, seed=seed)
     rnd = random.Random(seed)
     decisions = 0
@@ -60,6 +68,11 @@ def run_episode(cfg: GameConfig, policy, seed: int, max_decisions: int = 800) ->
 
 def run_batch(cfg: GameConfig, policy_name: str, episodes: int, seed0: int = 0,
               quiet: bool = False) -> dict:
+    """Run ``episodes`` days with seeds seed0..seed0+episodes-1 and summarize.
+
+    Returns (and prints, unless ``quiet``) the win rate with its Wilson 95% CI,
+    mean deepest rank / rooms placed, and termination-reason and rank histograms.
+    """
     policy = POLICIES[policy_name]
     results = [run_episode(cfg, policy, seed0 + i) for i in range(episodes)]
     wins = sum(r["success"] for r in results)

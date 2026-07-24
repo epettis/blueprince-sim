@@ -180,6 +180,7 @@ GLYPH_BARE = "ð"          # key or gem (ambiguous)
 
 
 def slugify(name: str) -> str:
+    """Room name -> snake_case id; apostrophes vanish ("Servant's" -> "servants")."""
     return re.sub(r"[^a-z0-9]+", "_", name.lower().replace("'", "")).strip("_")
 
 
@@ -188,6 +189,12 @@ def clean(cell: str) -> str:
 
 
 def parse_rows() -> list[dict]:
+    """Parse the raw markdown table into one dict per room row, keyed by column name.
+
+    Only ``|``-prefixed lines with all 17 columns count; the header/separator
+    rows are skipped. Cell text keeps the export's mojibake for the glyph maps
+    to resolve later.
+    """
     rows = []
     for line in RAW.read_text().splitlines():
         if not line.startswith("|"):
@@ -203,6 +210,14 @@ def parse_rows() -> list[dict]:
 
 
 def build_room(row: dict) -> dict | None:
+    """Convert one parsed sheet row into a rooms.json record.
+
+    Applies LAYOUT_OVERRIDE, CONDITION_MAP, EFFECT_MAP and GLYPH_MAP, and
+    assigns the pool: "Upgrade X" unlocks become ``upgrade_variant`` records
+    with an ``__ix<internal_index>`` id suffix, Pool-injected rooms go to
+    ``pool_temp``, and fixed/objective rooms to ``none``. Raises on an
+    unrecognized rarity so bad raw data fails loudly.
+    """
     name = row["name"]
     rid = slugify(name)
     rarity = row["rarity"].lower() if row["rarity"] not in ("-", "") else None
@@ -285,6 +300,12 @@ def build_room(row: dict) -> dict | None:
 
 
 def main() -> None:
+    """Rebuild data/rooms.json: sheet rows + supplemental rooms, dropping duplicate ids.
+
+    Also rewrites second-level ``variant_of`` references to the suffixed ids of
+    the actual variant records. Overwrites the output file (any hand-edits to
+    rooms.json not reflected in the sources are lost).
+    """
     rows = parse_rows()
     rooms, seen = [], set()
     for row in rows:

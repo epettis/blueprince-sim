@@ -27,6 +27,7 @@ from blueprince_sim.env.blueprince_env import BluePrinceEnv
 
 
 def run(episodes: int, seed: int) -> tuple[int, float]:
+    """Replay ``episodes`` seeded random-masked episodes; return (env steps, seconds)."""
     env = BluePrinceEnv(cfg=all_unlocks_config("shaped"))
     rng = random.Random(seed)
     steps = 0
@@ -46,6 +47,8 @@ def run(episodes: int, seed: int) -> tuple[int, float]:
 
 
 def main() -> None:
+    """Time the env over ``--repeats`` runs (reporting best steps/s), or with
+    ``--profile`` cProfile a single run and print the top functions."""
     ap = argparse.ArgumentParser()
     ap.add_argument("--episodes", type=int, default=200)
     ap.add_argument("--seed", type=int, default=0)

@@ -37,6 +37,12 @@ KNOWN_EFFECT_TAGS = {"grant", "grant_per_category", "grant_on_draft_category",
 
 
 def main() -> int:
+    """Check every data/*.json file and print a report; return 1 if any error, else 0.
+
+    Errors are schema/range/referential violations that must block a commit;
+    warnings (unknown draft-condition tags, unhandled effect tags) are printed
+    but do not affect the exit code.
+    """
     errors: list[str] = []
     warnings: list[str] = []
 

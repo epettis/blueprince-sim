@@ -50,6 +50,15 @@ DIR_INDEX = {d: i for i, d in enumerate(DIRS)}
 
 
 def action_mask(game: Game) -> list[bool]:
+    """Legality mask over the flat action space for the current phase.
+
+    NAVIGATE off-grid (``outer_loc > 0``) permits only outer-area actions.
+    On-grid NAVIGATE permits frontier drafts that arrive with a step (and,
+    behind locked doors, a key) to spare, walks to unentered rooms and the
+    control rooms, and the outer-draft/switch actions. DRAFTING permits
+    affordable slots plus redraw/rotate when available. TERMINAL masks
+    everything off.
+    """
     mask = [False] * N_ACTIONS
     if game.phase is Phase.NAVIGATE:
         st = game.state
@@ -117,6 +126,11 @@ def action_mask(game: Game) -> list[bool]:
 
 
 def _redraw_kind(game: Game) -> RedrawKind | None:
+    """Cheapest redraw source available right now (free > die > study), or None.
+
+    Outer-room drafts (``pending.target_cell == -1``) can never be redrawn;
+    the Study source costs a gem and is capped at 8 uses per hand.
+    """
     st = game.state
     pending = st.pending
     if pending is None or pending.target_cell == -1:
@@ -131,6 +145,11 @@ def _redraw_kind(game: Game) -> RedrawKind | None:
 
 
 def apply_action(game: Game, action: int) -> None:
+    """Execute one flat action id against the Game API.
+
+    Assumes the action is legal per :func:`action_mask`; the env checks the
+    mask first and turns illegal actions into penalized no-ops instead.
+    """
     if action < CHOOSE_BASE:
         cell, dir_idx = divmod(action, 4)
         game.draft_from(cell, DIRS[dir_idx])

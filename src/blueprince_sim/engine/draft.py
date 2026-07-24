@@ -58,6 +58,13 @@ class DraftContext:
 def room_draftable(ctx: DraftContext, room: Room, cell: int, entry_dir: int,
                    exclude: set[int],
                    tunnel_chain: bool = False) -> bool:
+    """Full eligibility check for dealing ``room`` at the target doorway.
+
+    Combines the one-copy-on-the-grid rule (waived entirely while the Chamber
+    of Mirrors is placed, and for Tunnels dealt via the chain), the room's
+    draft conditions, and door-geometry legality. ``exclude`` holds room
+    indices already dealt into earlier slots of this hand.
+    """
     if room.idx in exclude:
         return False
     if room.id in ctx.placed_ids and "chamber_of_mirrors" not in ctx.placed_ids:
@@ -240,6 +247,13 @@ def draw_slot(ctx: DraftContext, slot: int, cell: int, entry_dir: int,
 
 def _make_option(ctx: DraftContext, room: Room, slot: int, cell: int, entry_dir: int,
                  forced_draw: bool = False) -> DraftOption:
+    """Build the DraftOption for a dealt room, rolling its floorplan orientation.
+
+    A single legal orientation is taken as-is; otherwise the datamined
+    south-biased roll picks one. Slot 0 is always free; other slots carry the
+    room's resolved gem cost. ``forced_draw`` marks priority-draw, forced-
+    Closet, and Tunnel-chain deals.
+    """
     orientations = legal_orientations(room, cell, entry_dir, ctx.state, ctx.cfg)
     if not orientations:  # forced Closet fallback path
         orientations = [room.door_mask]
@@ -327,6 +341,13 @@ def _fill_options(ctx: DraftContext, pending: PendingDraft, from_room: Room | No
 def deal_draft(state: GameState, registry: Registry, cfg: GameConfig, rng: Rng,
                placed_ids: set[str], from_cell: int, direction: int,
                target_cell: int) -> PendingDraft:
+    """Deal a fresh three-option hand for the doorway ``from_cell`` -> ``target_cell``.
+
+    Entry point used by ``Game.open_door`` the first time a doorway is opened
+    (the result is cached per doorway, so reopening shows the same hand).
+    Library no-draft filtering, Archives/Darkroom hiding, and the Tunnel
+    chain all key off the room being drafted FROM.
+    """
     from_room = registry.rooms[state.grid[from_cell]] if state.grid[from_cell] >= 0 else None
     from_library = from_room is not None and from_room.id == "library"
     ctx = DraftContext(state, registry, cfg, rng, placed_ids, from_library)

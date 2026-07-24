@@ -20,12 +20,18 @@ class DeckState:
     pos: int = 0  # deal cursor: cards before pos are already dealt this cycle
 
     def remaining(self) -> int:
+        """Number of undealt cards left in this cycle."""
         return len(self.order) - self.pos
 
     def size(self) -> int:
         return len(self.order)
 
     def deal_next(self, predicate) -> int | None:
+        """Deal the first undealt card for which ``predicate(card)`` is true.
+
+        Returns the room idx and marks it dealt (swap-to-cursor), or None when
+        no undealt card qualifies - the caller decides whether to reshuffle.
+        """
         for i in range(self.pos, len(self.order)):
             card = self.order[i]
             if predicate(card):
@@ -36,12 +42,18 @@ class DeckState:
         return None
 
     def reshuffle(self, shuffler, drop: set[int] | None = None) -> None:
+        """Reshuffle the whole deck and reset the cursor; ``drop`` removes cards for good."""
         if drop:
             self.order = [c for c in self.order if c not in drop]
         shuffler(self.order)
         self.pos = 0
 
     def add_copies(self, room_idx: int, n: int, shuffler) -> None:
+        """Shuffle ``n`` copies of a room into the deck (mid-day injection).
+
+        The whole deck reshuffles and the cursor resets, so cards already
+        dealt this cycle become dealable again.
+        """
         self.order.extend([room_idx] * n)
         shuffler(self.order)
         self.pos = 0
@@ -124,6 +136,11 @@ class GameState:
         return self.decks[rarity_idx * 2 + (1 if is_gem else 0)]
 
     def resource_value(self, values: dict) -> float:
+        """Weighted worth of the resources on hand, for reward shaping/reporting.
+
+        ``values`` maps resource name to per-unit worth; missing entries fall
+        back to the defaults below (key/gem 3, coin 1, die 4, step 0.5).
+        """
         return (
             self.keys * values.get("key", 3.0)
             + self.gems * values.get("gem", 3.0)

@@ -32,6 +32,7 @@ class Effect:
     params: tuple[tuple[str, object], ...] = ()
 
     def param(self, key: str, default=None):
+        """Look up a handler argument by key, or ``default`` if the record omits it."""
         for k, v in self.params:
             if k == key:
                 return v
@@ -74,10 +75,12 @@ class Room:
 
     @property
     def rarity_idx(self) -> int:
+        """Index into RARITIES, or -1 for rooms with no rarity (never in decks)."""
         return RARITY_INDEX[self.rarity] if self.rarity else -1
 
 
 def _parse_effects(raw: list[dict]) -> tuple[Effect, ...]:
+    """Parse a room's effect records; every key besides "tag" becomes a handler param."""
     out = []
     for e in raw:
         params = tuple(sorted((k, v) for k, v in e.items() if k != "tag"))
@@ -86,6 +89,12 @@ def _parse_effects(raw: list[dict]) -> tuple[Effect, ...]:
 
 
 def _parse_room(idx: int, raw: dict) -> Room:
+    """Build one frozen Room from its rooms.json record.
+
+    Rotations are enumerated here: all quarter-turns of the layout (plus any
+    alt_layouts) deduplicated into distinct door masks, unless the record sets
+    ``rotatable: false`` (then only the canonical mask is legal).
+    """
     layout = raw["layout"]
     mask = LAYOUT_MASKS[layout]
     all_layouts = [layout, *raw.get("alt_layouts", [])]
@@ -140,6 +149,11 @@ class Registry:
 
     @classmethod
     def load(cls, data_dir: Path | None = None) -> "Registry":
+        """Parse every data/*.json file into an immutable registry.
+
+        ``data_dir`` overrides the packaged data directory (GameConfig.data_dir
+        plumbs through here). Room.idx is the position in rooms.json order.
+        """
         d = Path(data_dir) if data_dir else DEFAULT_DATA_DIR
         rooms_raw = json.loads((d / "rooms.json").read_text())["rooms"]
         rooms = tuple(_parse_room(i, r) for i, r in enumerate(rooms_raw))
@@ -164,6 +178,11 @@ class Registry:
         return tuple(self.weights["tables"][stage][slot_class][str(rank)])
 
     def stage_for_day(self, day: int) -> str:
+        """Rarity-table stage (week1|week2|late) for an in-game day.
+
+        Uses the datamined stage_day_boundaries from weights.json (unlike
+        GameConfig.resolved_stage, which hardcodes the 7/14 split).
+        """
         b = self.weights["stage_day_boundaries"]
         if day <= b["week1_days"][1]:
             return "week1"
