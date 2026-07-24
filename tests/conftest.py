@@ -11,9 +11,11 @@ from blueprince_sim.engine.model import Registry
 
 @pytest.fixture(scope="session")
 def registry() -> Registry:
+    """Room/weights/locks Registry parsed once from data/*.json (immutable, shareable)."""
     return Registry.load()
 
 
 @pytest.fixture()
 def cfg() -> GameConfig:
+    """A default GameConfig: no unlocks, upgrades, or item-gated conditions."""
     return GameConfig()

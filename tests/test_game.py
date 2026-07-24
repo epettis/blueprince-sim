@@ -11,6 +11,8 @@ from blueprince_sim.cli.policies import POLICIES, greedy_rank
 
 
 def test_reset_state(registry, cfg):
+    """A fresh day starts with 50 steps, 10 luck, the Entrance Hall and
+    Antechamber pre-placed, and only the entrance's three doorways open."""
     g = Game(cfg, seed=1)
     assert g.state.steps == 50
     assert g.state.grid[2] == registry.by_id["entrance_hall"].idx
@@ -20,12 +22,16 @@ def test_reset_state(registry, cfg):
 
 
 def test_unlock_toggles(registry):
+    """Orchard/mine unlocks raise the day's starting resources (70 steps,
+    2 gems)."""
     g = Game(GameConfig(orchard_unlocked=True, mine_unlocked=True), seed=1)
     assert g.state.steps == 70
     assert g.state.gems == 2
 
 
 def test_cannot_decline_a_draft(cfg):
+    """A draft cannot be declined: no decline API exists, and the free slot-1
+    fallback guarantees there is always a choosable option."""
     g = Game(cfg, seed=5)
     g.open_door(2, 1)
     assert not hasattr(g, "decline")   # declining a draft no longer exists
@@ -34,6 +40,8 @@ def test_cannot_decline_a_draft(cfg):
 
 
 def test_archives_hides_a_draftable_mystery(registry, cfg):
+    """Drafting out of the Archives conceals exactly one option's identity;
+    the mystery is still a real room that places normally at no step cost."""
     g = Game(cfg, seed=3)
     # Stand in the Archives and draft out of its north door.
     g._place_room(registry.by_id["archives"], 7, N | S)
@@ -53,6 +61,8 @@ def test_archives_hides_a_draftable_mystery(registry, cfg):
 
 
 def test_archives_mystery_still_shows_gem_cost(registry, cfg):
+    """A hidden (mystery) option's room identity is concealed in the obs, but
+    its gem cost stays visible so the agent can budget for it."""
     from blueprince_sim.engine.state import PendingDraft
     from blueprince_sim.env import obs as O
 
@@ -72,6 +82,8 @@ def test_archives_mystery_still_shows_gem_cost(registry, cfg):
 
 
 def test_darkroom_hides_all_three_options(registry, cfg):
+    """Drafting out of the Darkroom hides every option's identity; the hidden
+    options remain real, placeable rooms."""
     g = Game(cfg, seed=3)
     # Stand in the Darkroom and draft out of its north door.
     # Darkroom layout is "t"; place it so a north doorway is available.
@@ -102,6 +114,8 @@ def test_without_darkroom_no_extra_hidden(registry, cfg):
 
 
 def test_darkroom_obs_hides_identity_for_all_slots(registry, cfg):
+    """When drafting from the Darkroom, the obs zeroes the room id of every
+    option slot (nothing leaks to the agent)."""
     from blueprince_sim.env import obs as O
 
     g = Game(cfg, seed=3)
@@ -118,6 +132,8 @@ def test_darkroom_obs_hides_identity_for_all_slots(registry, cfg):
 
 
 def test_option_obs_exposes_door_directions(registry, cfg):
+    """The obs exposes each option's N/E/S/W door bits and tracks them when
+    the option's orientation changes."""
     from blueprince_sim.engine.state import PendingDraft
     from blueprince_sim.env import obs as O
 
@@ -138,6 +154,8 @@ def test_option_obs_exposes_door_directions(registry, cfg):
 
 
 def test_cli_preview_glyph_tracks_orientation(registry, cfg):
+    """The CLI option preview draws the floorplan's current orientation
+    (N|S renders as a vertical bar, a 4-way as a cross)."""
     from blueprince_sim.cli.render import render_options
     from blueprince_sim.engine.state import PendingDraft
 
@@ -154,6 +172,8 @@ def test_cli_preview_glyph_tracks_orientation(registry, cfg):
 
 
 def test_choose_places_but_does_not_enter(registry, cfg):
+    """The draft/move split: choosing an option places the room behind the
+    doorway but the player stays put - no step paid, no resources granted."""
     g = Game(cfg, seed=5)
     steps0 = g.state.steps
     g.open_door(2, 1)  # draft through the Entrance's north door
@@ -166,6 +186,8 @@ def test_choose_places_but_does_not_enter(registry, cfg):
 
 
 def test_move_charges_a_step_and_applies_the_room_effect(registry, cfg):
+    """Moving into a placed room costs one step and fires its on-enter grant
+    (the grant amount is read from the room's own effect data)."""
     g = Game(cfg, seed=1)
     # A room that grants steps on entry, placed north of the Entrance with doors
     # linking south (to the Entrance) and north. Read its grant from the room's
@@ -186,6 +208,8 @@ def test_move_charges_a_step_and_applies_the_room_effect(registry, cfg):
 
 
 def test_determinism_same_seed_same_episode(cfg):
+    """Whole episodes are deterministic given a seed (a tested invariant of
+    the named RNG substreams) and diverge across different seeds."""
     def transcript(seed):
         g = Game(cfg, seed=seed)
         rnd = random.Random(0)
@@ -204,6 +228,8 @@ def test_determinism_same_seed_same_episode(cfg):
 
 
 def test_all_policies_terminate(cfg):
+    """Every built-in CLI policy plays each day to one of the recognized
+    termination reasons - no policy can hang the engine."""
     for name in POLICIES:
         for seed in range(10):
             result = run_episode(cfg, POLICIES[name], seed)
@@ -211,6 +237,7 @@ def test_all_policies_terminate(cfg):
 
 
 def test_weight_room_halves_steps(registry, cfg):
+    """Placing the Weight Room (a red room) halves the remaining steps."""
     g = Game(cfg, seed=1)
     g.state.steps = 40
     room = registry.by_id["weight_room"]
@@ -219,6 +246,8 @@ def test_weight_room_halves_steps(registry, cfg):
 
 
 def test_shelter_negates_red_rooms(registry, cfg):
+    """A Shelter negation cancels one red room's penalty and is then
+    consumed - the next red room hits normally."""
     g = Game(cfg, seed=1)
     g.red_negations = 1  # the Shelter grants these
     g.state.steps = 40
@@ -230,6 +259,8 @@ def test_shelter_negates_red_rooms(registry, cfg):
 
 
 def test_hovel_pays_gem_costs_with_steps(registry, cfg):
+    """With the Hovel placed, gem costs are paid in steps at 3 steps per gem
+    and the gem balance is left untouched."""
     g = Game(cfg, seed=1)
     g._place_room(registry.by_id["hovel"], 7, N | S)  # ON_PLACE sets the flag
     assert g.hovel_placed
@@ -246,6 +277,7 @@ def test_hovel_pays_gem_costs_with_steps(registry, cfg):
 
 
 def test_nursery_grants_on_bedroom_draft(registry, cfg):
+    """A placed Nursery grants 5 steps whenever a bedroom is drafted."""
     g = Game(cfg, seed=1)
     g._place_room(registry.by_id["nursery"], 7, 4)
     steps0 = g.state.steps
@@ -254,6 +286,8 @@ def test_nursery_grants_on_bedroom_draft(registry, cfg):
 
 
 def test_outer_draft_once_per_day(registry):
+    """The outer draft deals 3 options, all from the outer pool, and is
+    available at most once per day."""
     cfg = GameConfig(outer_rooms_unlocked=True)
     g = Game(cfg, seed=9)
     assert g.outer_draft_available()
@@ -435,6 +469,8 @@ def test_return_from_outer_into_unentered_garage_fires_entry(registry):
 
 
 def test_the_pool_injects_rooms(registry, cfg):
+    """Placing The Pool injects its 3 temp rooms (Locker Room, Sauna, Pump
+    Room) into the draft decks."""
     g = Game(cfg, seed=2)
     pool_room = registry.by_id["the_pool"]
     sizes0 = [d.size() for d in g.state.decks]
@@ -444,6 +480,8 @@ def test_the_pool_injects_rooms(registry, cfg):
 
 
 def test_solarium_flag_set_on_place(registry):
+    """Placing the Solarium sets the flag that keys the slot-2/3 rarity
+    flattening for the rest of the day."""
     cfg = GameConfig(studio_additions=frozenset({"solarium"}))
     g = Game(cfg, seed=2)
     assert not g.state.solarium_placed

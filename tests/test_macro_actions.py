@@ -32,6 +32,8 @@ def _draft_and_place(game: Game, cell: int, direction: int) -> int:
 
 
 def test_distance_map_from_entrance():
+    """On a fresh day only the entrance is reachable (distance 0); every other
+    cell - including the sealed Antechamber - is unreachable (-1)."""
     g = _fresh_game()
     dist = g.distance_map()
     assert dist[g.state.pos] == 0
@@ -40,6 +42,8 @@ def test_distance_map_from_entrance():
 
 
 def test_distance_map_counts_hops():
+    """The distance map counts room-to-room hops through connected doors: a
+    freshly placed adjacent room is at distance 1."""
     g = _fresh_game(seed=3)
     cell, d = _first_frontier(g)
     target = _draft_and_place(g, cell, d)
@@ -48,6 +52,8 @@ def test_distance_map_counts_hops():
 
 
 def test_optimistic_distances_open_house():
+    """Optimistic distances treat empty cells as traversable: from the
+    entrance the Antechamber is the straight 8-rank walk north."""
     g = _fresh_game()
     opt = g.optimistic_distances()
     assert opt[ANTECHAMBER_CELL] == 0
@@ -57,6 +63,8 @@ def test_optimistic_distances_open_house():
 
 
 def test_optimistic_distances_respect_placed_walls():
+    """Optimistic distances still respect placed geometry: a doorless room is
+    itself unreachable and forces the path to detour around it."""
     g = _fresh_game()
     st = g.state
     # A doorless (hypothetically sealed) room north of the entrance would
@@ -73,6 +81,8 @@ def test_optimistic_distances_respect_placed_walls():
 
 
 def test_draft_from_current_room_matches_open_door():
+    """draft_from on the current room's doorway deals the exact same hand as
+    a plain open_door (the macro adds nothing when no walk is needed)."""
     a, b = _fresh_game(seed=11), _fresh_game(seed=11)
     cell, d = _first_frontier(a)
     pa = a.draft_from(cell, d)
@@ -113,6 +123,8 @@ def test_draft_from_walks_and_matches_manual_sequence():
 
 
 def test_draft_from_aborts_when_walk_ends_the_day():
+    """If the walk to a remote doorway consumes the last step, draft_from
+    returns no hand and the day ends out_of_steps."""
     g = _fresh_game(seed=5)
     cell, d = _first_frontier(g)
     target = _draft_and_place(g, cell, d)
@@ -130,6 +142,8 @@ def test_draft_from_aborts_when_walk_ends_the_day():
 
 
 def test_stranded_when_frontier_out_of_budget():
+    """The day ends out_of_steps once no frontier doorway fits the remaining
+    step budget (walk there plus one step to spare)."""
     g = _fresh_game(seed=5)
     cell, d = _first_frontier(g)
     _draft_and_place(g, cell, d)
@@ -150,6 +164,8 @@ def test_stranded_when_frontier_out_of_budget():
 
 
 def test_mask_layout_and_retired_actions():
+    """The mask spans all 241 actions, never legalizes the retired single-tile
+    moves, and a fresh entrance offers drafts but nothing to walk to."""
     env = make_env()
     env.reset(seed=0)
     mask = env.action_masks()
@@ -163,6 +179,8 @@ def test_mask_layout_and_retired_actions():
 
 
 def test_mask_draft_requires_step_to_spare():
+    """A frontier draft is legal only when the walk to the doorway leaves at
+    least one step to spare for entering the new room."""
     env = make_env()
     env.reset(seed=0)
     game = env.game
@@ -175,6 +193,8 @@ def test_mask_draft_requires_step_to_spare():
 
 
 def test_mask_move_to_targets_unentered_only():
+    """move_to is legal exactly for reachable, in-budget, unentered rooms, and
+    stepping the env with one walks there and enters the room."""
     env = make_env()
     env.reset(seed=1)
     game = env.game
@@ -245,6 +265,8 @@ def test_draft_from_any_frontier_via_env():
 
 
 def test_obs_new_planes_consistent():
+    """The macro-nav obs planes (distances, entered, frontier, progress,
+    stage, house_flags) all agree with the live engine state."""
     env = make_env()
     obs, _ = env.reset(seed=4)
     game = env.game
@@ -262,6 +284,8 @@ def test_obs_new_planes_consistent():
 
 
 def test_obs_option_cost_split_with_hovel():
+    """The obs splits option cost into gem and step channels: gems normally,
+    zero gems and 3x steps once the Hovel is placed."""
     env = make_env()
     env.reset(seed=2)
     game = env.game
@@ -288,6 +312,8 @@ def test_obs_option_cost_split_with_hovel():
 
 
 def test_frontier_greedy_runs_and_terminates():
+    """Smoke test: frontier_greedy plays whole episodes to termination
+    without hanging or crashing."""
     import random
 
     from blueprince_sim.cli.policies import POLICIES

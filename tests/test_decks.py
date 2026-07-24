@@ -7,6 +7,8 @@ from blueprince_sim.engine.state import DeckState
 
 
 def test_deal_no_repeat_until_depletion():
+    """Solitaire semantics: each card is dealt at most once until the deck is
+    depleted (then None), and a reshuffle makes the cards dealable again."""
     deck = DeckState(order=[1, 2, 3, 4, 5])
     dealt = [deck.deal_next(lambda c: True) for _ in range(5)]
     assert sorted(dealt) == [1, 2, 3, 4, 5]
@@ -16,6 +18,8 @@ def test_deal_no_repeat_until_depletion():
 
 
 def test_deal_respects_predicate_and_preserves_skipped():
+    """Dealing with a predicate returns the first eligible card; skipped cards
+    are not lost and remain dealable later."""
     deck = DeckState(order=[1, 2, 3])
     assert deck.deal_next(lambda c: c == 3) == 3
     # 3 was swapped behind the cursor; 1 and 2 still dealable
@@ -24,6 +28,8 @@ def test_deal_respects_predicate_and_preserves_skipped():
 
 
 def test_reshuffle_drops_filtered():
+    """Reshuffling with a drop set removes those cards for good and rewinds
+    the deal cursor to the top."""
     deck = DeckState(order=[1, 2, 3, 4])
     deck.reshuffle(lambda lst: None, drop={2, 4})
     assert sorted(deck.order) == [1, 3]
@@ -31,6 +37,9 @@ def test_reshuffle_drops_filtered():
 
 
 def test_pool_respects_unlock_config(registry):
+    """The draftable pool tracks the config: outer rooms, Pool-only temps, the
+    fixed start/end rooms, and locked Studio additions stay out of the decks,
+    while library-gated rooms stay in (they are gated at deal time)."""
     base = {r.id for r in eligible_pool(registry, GameConfig())}
     assert "solarium" not in base
     assert "locker_room" not in base       # pool_temp: only via The Pool
@@ -46,6 +55,8 @@ def test_pool_respects_unlock_config(registry):
 
 
 def test_upgrade_variant_replaces_base(registry):
+    """An unlocked upgrade disk swaps the variant into the pool and removes
+    the base room - the two never coexist."""
     # Boudoir dice variant (internal index 17) replaces the base Boudoir.
     variant_id = "boudoir__ix17"
     assert variant_id in registry.by_id
@@ -56,6 +67,9 @@ def test_upgrade_variant_replaces_base(registry):
 
 
 def test_deck_copies_and_build(registry):
+    """build_decks produces the 8 solitaire decks (4 rarities x free/gem) that
+    exactly partition the eligible pool, with every card in the deck matching
+    its free/gem class."""
     cfg = GameConfig()
     decks = build_decks(registry, cfg, Rng(0))
     assert len(decks) == 8
