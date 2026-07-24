@@ -16,27 +16,32 @@ Layout (Discrete(241)):
   186      redraw (engine picks the cheapest available source: free > die > study)
   187      enter outer room (from doorstep; fires ON_ENTER once per day)
   188      outer-room draft (walk the West Path; once per day, if unlocked)
-  189..192 retired (were single-tile moves N/E/S/W; see 196..240)
+  189      toggle the keycard power (standing at the Utility Closet breaker)
+  190..192 set security level low/normal/high (standing at the Security
+           terminal; the current level is masked out as a no-op)
   193      rotate the drawn floorplans to their next legal orientation
            (Ornate Compass held / Rotunda placed / Dovecote in hand;
            overrides the random roll)
   194      return to Entrance Hall (from outer area doorstep or inside)
   195      return via garage (from outer area; requires Utility Closet breaker)
   196..240 walk to cell (45): shortest connected path into an unentered
-           reachable room (spends steps, first entry grants its resources)
-           or into the Antechamber (wins)
+           reachable room (spends steps, first entry grants its resources),
+           into the Antechamber (wins), or back into the Utility Closet /
+           Security to work their switches
 """
 
 from __future__ import annotations
 
 from ..engine.game import Game, Phase, RedrawKind
 from ..engine.grid import DIR_NAMES, DIRS, N_CELLS
+from ..engine.locks import DOOR_LOCKED, DOOR_SECURITY, SECURITY_LEVELS
 
 N_ACTIONS = 241
 OPEN_BASE, CHOOSE_BASE, ALT_BASE = 0, 180, 183
 REDRAW_ACTION, OUTER_DRAFT_ACTION = 186, 188
 ENTER_OUTER_ACTION = 187   # enter outer room from doorstep
-MOVE_BASE = 189  # 189..192: retired single-tile moves (never legal)
+TOGGLE_POWER_ACTION = 189  # flip the Utility Closet "Keycard Entry" breaker
+SET_LEVEL_BASE = 190       # 190..192: set security level low/normal/high
 ROTATE_ACTION = 193
 RETURN_EH_ACTION = 194     # return to Entrance Hall from outer area
 RETURN_GARAGE_ACTION = 195 # return via garage from outer area (breaker-gated)
@@ -65,18 +70,39 @@ def action_mask(game: Game) -> list[bool]:
                 mask[RETURN_GARAGE_ACTION] = True
         else:
             dist = game.distance_map()
-            # Draft any reachable frontier doorway; arriving must leave >= 1 step
-            # so the drafted room can still be entered.
+            key_cost = game.key_cost_map()
+            # Draft any reachable, openable frontier doorway; arriving must
+            # leave >= 1 step (so the drafted room can still be entered) and,
+            # for locked doorways, a key beyond those the walk itself spends.
             for cell, d in game.frontier_doorways():
-                if 0 <= dist[cell] <= st.steps - 1:
-                    mask[OPEN_BASE + cell * 4 + DIR_INDEX[d]] = True
-            # Walk to an unentered room (first entry grants its resources) or the
-            # Antechamber (never marked entered while the game is live).
+                if not 0 <= dist[cell] <= st.steps - 1:
+                    continue
+                seg = game.door_state_of(cell, d)
+                if seg == DOOR_LOCKED and st.keys < key_cost[cell] + 1:
+                    continue
+                if seg == DOOR_SECURITY and not game.security_openable():
+                    continue
+                mask[OPEN_BASE + cell * 4 + DIR_INDEX[d]] = True
+            # Walk to an unentered room (first entry grants its resources), the
+            # Antechamber (never marked entered while the game is live), or a
+            # control room (Utility Closet / Security) to work its switches.
+            control_cells = set()
+            if game.cfg.door_locks:
+                control_cells = {c for c in (game.room_cells.get("utility_closet", -1),
+                                             game.room_cells.get("security", -1))
+                                 if c >= 0}
             for cell in range(N_CELLS):
-                if 0 < dist[cell] <= st.steps and not st.entered[cell]:
+                if 0 < dist[cell] <= st.steps and (not st.entered[cell]
+                                                   or cell in control_cells):
                     mask[MOVE_TO_BASE + cell] = True
             if game.outer_draft_available():
                 mask[OUTER_DRAFT_ACTION] = True
+            if game.can_toggle_keycard_power():
+                mask[TOGGLE_POWER_ACTION] = True
+            if game.can_set_security_level():
+                for i, level in enumerate(SECURITY_LEVELS):
+                    if level != st.security_level:
+                        mask[SET_LEVEL_BASE + i] = True
     elif game.phase is Phase.DRAFTING:
         pending = game.state.pending
         for opt in pending.options:
@@ -120,6 +146,10 @@ def apply_action(game: Game, action: int) -> None:
         game.enter_outer_room()
     elif action == OUTER_DRAFT_ACTION:
         game.open_outer_draft()
+    elif action == TOGGLE_POWER_ACTION:
+        game.set_keycard_power(not game.state.keycard_power_on)
+    elif SET_LEVEL_BASE <= action < SET_LEVEL_BASE + len(SECURITY_LEVELS):
+        game.set_security_level(SECURITY_LEVELS[action - SET_LEVEL_BASE])
     elif action == ROTATE_ACTION:
         game.rotate_options()
     elif action == RETURN_EH_ACTION:
@@ -156,6 +186,11 @@ def describe_action(game: Game, action: int) -> str:
         return "enter outer room"
     if action == OUTER_DRAFT_ACTION:
         return "outer draft"
+    if action == TOGGLE_POWER_ACTION:
+        state = "off" if game.state.keycard_power_on else "on"
+        return f"turn keycard power {state}"
+    if SET_LEVEL_BASE <= action < SET_LEVEL_BASE + len(SECURITY_LEVELS):
+        return f"set security level {SECURITY_LEVELS[action - SET_LEVEL_BASE]}"
     if action == ROTATE_ACTION:
         return "rotate options"
     if action == RETURN_EH_ACTION:

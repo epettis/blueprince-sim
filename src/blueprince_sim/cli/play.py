@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from ..config import GameConfig
+from ..engine import locks
 from ..engine.game import Game, Phase, RedrawKind
 from ..engine.grid import DIR_NAMES, E, N, S, W, neighbor, rank_of
 from .render import render_grid, render_options, render_status
@@ -57,8 +58,15 @@ def play(cfg: GameConfig, seed: int) -> None:
             print(f"You are in the {here} (rank {rank_of(st.pos)}).")
             if doors:
                 print("Draft a doorway:")
-                for i, (_cell, d) in enumerate(doors):
-                    print(f"  [{i + 1}] draft through the {DIR_NAMES[d]} door")
+                for i, (cell, d) in enumerate(doors):
+                    state = game.door_state_of(cell, d)
+                    note = ""
+                    if state == locks.DOOR_LOCKED:
+                        note = " (locked: 1 key)" if st.keys else " (locked: no key!)"
+                    elif state == locks.DOOR_SECURITY:
+                        note = (" (security door)" if game.security_openable()
+                                else " (security door: sealed)")
+                    print(f"  [{i + 1}] draft through the {DIR_NAMES[d]} door{note}")
             if moves:
                 print("Move:")
                 for d in moves:
@@ -69,6 +77,12 @@ def play(cfg: GameConfig, seed: int) -> None:
                           f"the {room.name}{tag}")
             if game.outer_draft_available():
                 print("  [o] outer-room draft (West Path)")
+            if game.can_toggle_keycard_power():
+                flip = "off" if st.keycard_power_on else "on"
+                print(f"  [p] breaker box: turn keycard power {flip}")
+            if game.can_set_security_level():
+                print(f"  [v <low|normal|high>] security terminal "
+                      f"(level now {st.security_level})")
             frontier = game.frontier_doorways()
             afar = [fd for fd in frontier if fd[0] != st.pos]
             if afar:
@@ -81,6 +95,16 @@ def play(cfg: GameConfig, seed: int) -> None:
                 result = game.open_outer_draft()
                 if result is None:
                     continue  # walk ended the day
+                continue
+            if cmd == "p" and game.can_toggle_keycard_power():
+                game.set_keycard_power(not st.keycard_power_on)
+                continue
+            if cmd.startswith("v ") and game.can_set_security_level():
+                level = cmd.split(None, 1)[1]
+                if level in ("low", "normal", "high"):
+                    game.set_security_level(level)
+                else:
+                    print("  ? usage: v <low|normal|high>")
                 continue
             if cmd in _DIR_KEYS:
                 d = _DIR_KEYS[cmd]
@@ -107,15 +131,28 @@ def play(cfg: GameConfig, seed: int) -> None:
                     d = _DIR_KEYS.get(parts[2]) if len(parts) > 2 else None
                     if (d is not None and (cell, d) in frontier
                             and 0 <= dist[cell] <= st.steps - 1):
-                        game.draft_from(cell, d)
+                        if game.door_state_of(cell, d) == locks.DOOR_LOCKED \
+                                and st.keys < game.key_cost_map()[cell] + 1:
+                            print("  ? that door is locked and you lack the keys")
+                        elif not game.doorway_passable(cell, d):
+                            print("  ? that security door is sealed")
+                        else:
+                            game.draft_from(cell, d)
                     else:
                         print("  ? no draftable doorway there within your steps")
                 continue
             try:
-                game.open_door(*doors[int(cmd) - 1])
+                cell, d = doors[int(cmd) - 1]
             except (ValueError, IndexError):
                 print("  ? enter a doorway number, a move letter (n/e/s/w), "
-                      "'g/d <cell>', 'o', or 'q'")
+                      "'g/d <cell>', 'o', 'p', 'v', or 'q'")
+                continue
+            if game.doorway_passable(cell, d):
+                game.open_door(cell, d)
+            elif game.door_state_of(cell, d) == locks.DOOR_LOCKED:
+                print("  ? that door is locked and you have no key")
+            else:
+                print("  ? that security door is sealed")
         else:
             print("Draft options (glyph shows door directions; "
                   "you must choose one - no backing out):")

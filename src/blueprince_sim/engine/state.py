@@ -98,6 +98,19 @@ class GameState:
     study_placed: bool = False
     library_placed: bool = False
 
+    # --- door locks & security doors (see engine.locks) ---
+    # segment (locks.segment_key) -> DOOR_LOCKED/DOOR_SECURITY; DOOR_OPEN
+    # entries mark rolled-or-opened segments, missing means never rolled
+    # (freely passable). Mutate via Game helpers so door_version is bumped.
+    door_state: dict[tuple[int, int], int] = field(default_factory=dict)
+    door_version: int = 0  # cache stamp for the navigation maps
+    lock_bias: float = 1.0  # daily lock-chance multiplier (locks.json "bias")
+    security_doors_spawned: int = 0
+    security_level: str = "normal"    # low|normal|high (Security terminal)
+    keycard_power_on: bool = True     # Utility Closet breaker, "Keycard Entry"
+    offline_unlocked: bool = False    # Security terminal offline mode (set on visit)
+    has_keycard: bool = False
+
     pending: PendingDraft | None = None
     outer_room_drafted: bool = False
     outer_loc: int = 0           # 0=on grid, 1=at doorstep, 2=inside outer room

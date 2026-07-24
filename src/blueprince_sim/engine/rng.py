@@ -48,5 +48,8 @@ class Rng:
     def randint(self, label: str, lo: int, hi: int) -> int:
         return self.stream(label).randint(lo, hi)
 
+    def uniform(self, label: str, lo: float, hi: float) -> float:
+        return self.stream(label).uniform(lo, hi)
+
     def choice(self, label: str, items: list):
         return items[self.stream(label).randrange(len(items))]

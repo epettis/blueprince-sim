@@ -44,6 +44,7 @@ def main() -> int:
     weights = json.loads((DATA / "weights.json").read_text())
     priority = json.loads((DATA / "priority_draws.json").read_text())
     json.loads((DATA / "items.json").read_text())
+    lock_rules = json.loads((DATA / "locks.json").read_text())
 
     rooms = rooms_doc["rooms"]
     ids = [r["id"] for r in rooms]
@@ -109,6 +110,39 @@ def main() -> int:
     for rid in priority["forced_draw_precedence"]["order"]:
         if rid not in by_id:
             warnings.append(f"forced-draw precedence references unknown room {rid}")
+
+    # locks.json: table shape, referential integrity, sane probabilities
+    ew = lock_rules["lock_chance"]["ew_by_rank"]
+    if set(ew) != {str(i) for i in range(1, 10)}:
+        errors.append("locks ew_by_rank: missing ranks")
+    ns = lock_rules["lock_chance"]["ns_boundary"]
+    if set(ns) != {str(i) for i in range(1, 9)}:
+        errors.append("locks ns_boundary: expected boundary ranks 1-8")
+    for rank, band in ns.items():
+        if set(band) != {"edge", "center"}:
+            errors.append(f"locks ns_boundary/{rank}: need edge+center")
+    for chance in [*ew.values(),
+                   *(v for band in ns.values() for v in band.values())]:
+        if not 0 <= chance <= 200:
+            errors.append(f"locks lock_chance out of range: {chance}")
+    for key in ("locked_delta", "unlocked_delta",
+                "low_second_roll_below", "high_second_roll_above"):
+        if key not in lock_rules["bias"]:
+            errors.append(f"locks bias: missing {key}")
+    sec = lock_rules["security"]
+    if set(sec["spawn_limit"]) != {"low", "normal", "high"}:
+        errors.append("locks spawn_limit: need low/normal/high")
+    for rid, chance in sec["room_door_chance"].items():
+        if rid not in by_id:
+            errors.append(f"locks room_door_chance references unknown room {rid}")
+        if not 0 <= chance <= 100:
+            errors.append(f"locks room_door_chance/{rid} out of range: {chance}")
+    if not 0 <= lock_rules["keycard"]["chance"] <= 100:
+        errors.append("locks keycard chance out of range")
+    for rid in [*lock_rules["keycard"]["source_rooms"],
+                *lock_rules["always_unlocked_rooms"]["rooms"]]:
+        if rid not in by_id:
+            errors.append(f"locks references unknown room {rid}")
 
     # required special rooms exist
     for required in ("entrance_hall", "antechamber", "closet"):
