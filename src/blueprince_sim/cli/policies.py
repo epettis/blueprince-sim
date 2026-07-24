@@ -191,33 +191,20 @@ def _navigate_frontier(game: Game) -> None:
         game.move_to(ANTECHAMBER_CELL)
         return
     opt_dist = game.optimistic_distances()
-    key_cost = game.key_cost_map()
     best, best_key = None, None
-    spender, spender_key = None, None
     security_blocked = False
     for cell, d in game.frontier_doorways():
         if not 0 <= dist[cell] <= st.steps - 1:  # must arrive with a step to spare
             continue
-        seg = game.door_state_of(cell, d)
-        keys_needed = key_cost[cell] + (seg == locks.DOOR_LOCKED)
-        if keys_needed > st.keys:
-            continue
-        if seg == locks.DOOR_SECURITY and not game.security_openable():
-            security_blocked = True
+        if not game.doorway_passable(cell, d):
+            if game.door_state_of(cell, d) == locks.DOOR_SECURITY:
+                security_blocked = True
             continue
         target = neighbor(cell, d)
         h = opt_dist[target] if opt_dist[target] >= 0 else 99  # walled off: last resort
         key = (dist[cell] + _FRONTIER_LAMBDA * h, h, cell, d)
-        if keys_needed and st.keys - keys_needed < 1:
-            # Would drain the key reserve: the Antechamber's own doors start
-            # locked, so hold the last key unless nothing else is draftable.
-            if spender_key is None or key < spender_key:
-                spender, spender_key = (cell, d), key
-            continue
         if best_key is None or key < best_key:
             best, best_key = (cell, d), key
-    if best is None:
-        best = spender
     if best is not None:
         game.draft_from(*best)
         return

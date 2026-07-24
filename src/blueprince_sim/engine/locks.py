@@ -70,14 +70,15 @@ def roll_segment(st: GameState, rules: dict, room, cell: int, direction: int,
                  rng: Rng) -> int:
     """Roll a freshly created doorway segment of ``room``'s door at ``cell``.
 
-    Security replaces the normal lock roll; guaranteed-state doors (security
-    doors, always-unlocked rooms) bypass the bias system entirely.
+    Always-unlocked rooms (Corridor, Corriyard) bypass everything - no lock,
+    no security door, no bias update. Otherwise security replaces the normal
+    lock roll, and guaranteed-state security doors skip the bias system too.
     """
+    if room.id in rules["always_unlocked_rooms"]["rooms"]:
+        return DOOR_OPEN
     if _roll_security(st, rules, room, cell, direction, rng):
         st.security_doors_spawned += 1
         return DOOR_SECURITY
-    if room.id in rules["always_unlocked_rooms"]["rooms"]:
-        return DOOR_OPEN
     return _roll_lock(st, rules, cell, direction, rng)
 
 

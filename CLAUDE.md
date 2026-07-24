@@ -52,6 +52,7 @@ source .venv/bin/activate          # do this before pytest / ruff / blueprince-*
 ## Testing & data notes
 
 - `tests/test_draft_stats.py` is a chi-square suite asserting the engine reproduces the datamined rarity distributions — treat failures there as evidence the draft math regressed, not as flaky tests.
+- **Test observable behaviors, not data contents.** Don't write change-detector tests that read `data/*.json` values back through a lookup function (e.g. asserting a table entry equals the JSON number) — schema/range/referential checks belong in `tools/validate_data.py`. Assert what a player or agent can observe instead: "rank 1–3 doors are never locked", "a Corridor's doors are always open", not "the table says 25".
 - `tools/ingest_sheet.py` regenerates `rooms.json` from `tools/raw/` + `tools/supplemental_rooms.json`; hand-edits to `rooms.json` that aren't reflected in those sources will be lost on re-ingest. The ingest condition map does not encode the finer wing/rank/direction rules, so those refinements live directly in the committed `rooms.json`.
 - Keep `rooms.json` diffs minimal: it is written with 1-space indent and `ensure_ascii=True` (currency glyphs stay as `\uXXXX` escapes).
 

@@ -81,12 +81,15 @@ The draft implements the decompiled v1.3 algorithm:
 - **Locked doors** (`data/locks.json`, datamined): every doorway segment rolls
   its lock state from a table keyed by rank and orientation - never below rank
   4 by chance, 25% inside rank 4, climbing to 110%/130% at ranks 8-9 (values
-  over 100% are guaranteed at neutral bias, so the Antechamber's doors start
-  locked and walking in costs a key). A daily **bias multiplier** softens
-  streaks: hitting a locked door subtracts 0.385 (capped at 1), an unlocked
-  one adds 0.35 (floored at 1), with datamined second-roll exemptions above
-  100% and below 31%. Opening a locked door consumes one key (drafting through
-  it or walking through it); Corridor doors are guaranteed unlocked.
+  over 100% are guaranteed at neutral bias). A daily **bias multiplier**
+  softens streaks: hitting a locked door subtracts 0.385 (capped at 1), an
+  unlocked one adds 0.35 (floored at 1), with datamined second-roll exemptions
+  above 100% and below 31%. Opening a locked doorway to draft through it
+  consumes one key - but **in-drafting opens doors free**: a drafted room
+  whose floorplan has a door facing an existing locked or security door swings
+  it open, so a locked door never separates two connected placed rooms and
+  keys only ever gate frontier drafting. Corridor and Corriyard doors are
+  guaranteed unlocked.
 - **Security doors**: doors of whitelisted mechanical rooms (Security,
   Workshop, Pump Room, Archives, ...) can spawn as keycard doors when close
   enough to the Antechamber (`rand(0,75) > distance`, cutoff 60 units), capped
@@ -154,8 +157,9 @@ data JSON (or regenerate: `python tools/ingest_sheet.py`, which rebuilds
   doors usable; you win by **walking into** it (which costs the entry step),
   not merely by connecting a door — so you can fall one tile short. Its
   doorways roll on the ordinary rank 8↔9 lock table (130% ⇒ locked at neutral
-  bias, so entry normally costs a key) rather than the real game's bespoke
-  Antechamber locks.
+  bias), but drafting a connecting room opens them via in-drafting, so entry
+  stays free once connected; the real game's bespoke Antechamber locks are
+  not modeled.
 - **Steps**: drafting a room is free; moving into a room costs 1 step (and is
   when that room's resources are granted). Starting steps 50 (community
   consensus, not datamined).

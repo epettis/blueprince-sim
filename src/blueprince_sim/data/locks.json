@@ -33,9 +33,9 @@
   "high_second_roll_above": 100
  },
  "always_unlocked_rooms": {
-  "comment": "Doors of these rooms are guaranteed unlocked and bypass the bias system.",
+  "comment": "Doors of these rooms are guaranteed unlocked and bypass the bias system (Corridor; Corriyard, the Courtyard upgrade whose doors are always unlocked and never security).",
   "confidence": "wiki",
-  "rooms": ["corridor"]
+  "rooms": ["corridor", "corriyard__ix50"]
  },
  "security": {
   "comment": "A freshly placed whitelisted room's doors may spawn as security doors: requires spawned-today < spawn_limit[level], door distance to the Antechamber center <= distance_cutoff (cell centers 10 units apart), a uniform(0, distance_roll_max) roll strictly above that distance, then the per-room chance (forced to 100 on high security). room_door_chance collapses the datamined per-door Left/Forward/Right table to each room's strongest door (confidence: datamined, simplified).",

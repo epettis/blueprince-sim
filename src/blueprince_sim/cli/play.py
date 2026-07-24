@@ -131,13 +131,12 @@ def play(cfg: GameConfig, seed: int) -> None:
                     d = _DIR_KEYS.get(parts[2]) if len(parts) > 2 else None
                     if (d is not None and (cell, d) in frontier
                             and 0 <= dist[cell] <= st.steps - 1):
-                        if game.door_state_of(cell, d) == locks.DOOR_LOCKED \
-                                and st.keys < game.key_cost_map()[cell] + 1:
-                            print("  ? that door is locked and you lack the keys")
-                        elif not game.doorway_passable(cell, d):
-                            print("  ? that security door is sealed")
-                        else:
+                        if game.doorway_passable(cell, d):
                             game.draft_from(cell, d)
+                        elif game.door_state_of(cell, d) == locks.DOOR_LOCKED:
+                            print("  ? that door is locked and you have no key")
+                        else:
+                            print("  ? that security door is sealed")
                     else:
                         print("  ? no draftable doorway there within your steps")
                 continue
