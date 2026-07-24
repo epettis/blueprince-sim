@@ -36,6 +36,7 @@ FRAMES_CACHE_SIZE = 8
 
 
 def _read_jsonl(path: Path) -> list[dict]:
+    """Parse a .jsonl file, skipping malformed lines; [] when the file is missing."""
     if not path.exists():
         return []
     out = []
@@ -48,6 +49,7 @@ def _read_jsonl(path: Path) -> list[dict]:
 
 
 def _downsample(rows: list, limit: int = MAX_CHART_POINTS) -> list:
+    """Thin rows to at most ``limit`` by even striding, always keeping the last row."""
     if len(rows) <= limit:
         return rows
     stride = len(rows) / limit
@@ -77,6 +79,11 @@ class Observatory:
     # ------------------------------------------------------------- replays
 
     def _refresh_replays(self) -> None:
+        """Incrementally ingest new complete lines appended to replays.jsonl.
+
+        Caller must hold ``self._lock``. A later line for the same episode
+        replaces the earlier one, but the ``top`` flag is sticky once set.
+        """
         try:
             size = self.replays_path.stat().st_size
         except FileNotFoundError:
@@ -105,6 +112,11 @@ class Observatory:
             self._records[ep] = rec
 
     def runs_index(self, sort: str) -> list[dict]:
+        """Lightweight metadata for every recorded episode, for the run list.
+
+        ``sort="progress"`` orders by (win, deepest rank, episode) descending;
+        anything else orders newest-episode first.
+        """
         with self._lock:
             self._refresh_replays()
             metas = [
@@ -124,6 +136,12 @@ class Observatory:
         return metas
 
     def run_frames(self, episode: int) -> dict | None:
+        """Full frame-by-frame replay of one episode, or None if unknown.
+
+        Frames are rebuilt by re-simulating the recorded actions, which is
+        slow, so results live in a small LRU cache; the rebuild itself runs
+        outside the lock.
+        """
         with self._lock:
             self._refresh_replays()
             rec = self._records.get(episode)
@@ -149,6 +167,12 @@ class Observatory:
     # ------------------------------------------------------------- metrics
 
     def metrics(self) -> dict:
+        """Chart series for the dashboard: ``{"train": [...], "eval": [...]}``.
+
+        Merges the per-run metrics.jsonl with any legacy shared sampler file,
+        de-duplicates by (episodes, timesteps), sorts by sample time, and
+        downsamples both series.
+        """
         rows = _read_jsonl(self.metrics_path)
         # Merge history from the legacy shared sampler file (runs/metrics.jsonl)
         # so an existing run's curve is not lost when switching to the server.
@@ -173,6 +197,7 @@ class Observatory:
         return {"train": _downsample(train), "eval": _downsample(evals)}
 
     def summary(self) -> dict:
+        """Header stats: latest checkpoint meta + mtime, replay count, last eval."""
         latest = {}
         if self.latest_json.exists():
             try:
@@ -194,6 +219,7 @@ class Observatory:
         }
 
     def rooms(self) -> list[dict]:
+        """Static room metadata for the client, loading the engine Registry lazily."""
         if self._registry is None:
             from ..engine.model import Registry
             self._registry = Registry.load()
@@ -203,6 +229,11 @@ class Observatory:
 # ----------------------------------------------------------- background work
 
 def metrics_sampler(obs: Observatory, poll_s: float, stop: threading.Event) -> None:
+    """Background worker: poll latest.json, append new samples to metrics.jsonl.
+
+    A row is written only when the (episodes, timesteps) pair changes, with a
+    ``sampled_at`` wall-clock timestamp added for the charts.
+    """
     last_key = None
     while not stop.wait(poll_s):
         try:
@@ -220,6 +251,13 @@ def metrics_sampler(obs: Observatory, poll_s: float, stop: threading.Event) -> N
 
 def eval_worker(obs: Observatory, episodes: int, poll_s: float,
                 stop: threading.Event) -> None:
+    """Background worker: run a deterministic eval whenever latest.zip changes.
+
+    Spawns ``blueprince-train --evaluate`` as a subprocess so torch never
+    loads into the server; results land in eval.jsonl. Checkpoints whose
+    trained-episode count was already evaluated are skipped, so a server
+    restart does not re-evaluate old checkpoints.
+    """
     last_mtime = None
     # Skip checkpoints already evaluated (survives server restarts).
     evals = _read_jsonl(obs.eval_path)
@@ -262,43 +300,46 @@ class Handler(BaseHTTPRequestHandler):
     obs: Observatory  # set on the server class
 
     def do_GET(self) -> None:  # noqa: N802 (BaseHTTPRequestHandler API)
+        """Route the SPA, the flat /static files, and the read-only JSON API."""
         parsed = urlparse(self.path)
         path = parsed.path
         try:
-            if path in ("/", "/index.html"):
-                self._send_file(STATIC_DIR / "index.html", "text/html")
-            elif path.startswith("/static/"):
-                name = Path(path).name  # flat static dir; no traversal
-                ctype = {"js": "application/javascript", "css": "text/css",
-                         "html": "text/html"}.get(name.rsplit(".", 1)[-1],
-                                                  "application/octet-stream")
-                self._send_file(STATIC_DIR / name, ctype)
-            elif path == "/api/summary":
-                self._send_json(self.obs.summary())
-            elif path == "/api/metrics":
-                self._send_json(self.obs.metrics())
-            elif path == "/api/rooms":
-                self._send_json(self.obs.rooms())
-            elif path == "/api/runs":
-                sort = parse_qs(parsed.query).get("sort", ["episode"])[0]
-                self._send_json(self.obs.runs_index(sort))
-            elif path.startswith("/api/run/"):
-                try:
-                    episode = int(path.rsplit("/", 1)[-1])
-                except ValueError:
-                    self.send_error(400, "bad episode")
-                    return
-                data = self.obs.run_frames(episode)
-                if data is None:
-                    self.send_error(404, "unknown episode")
-                else:
-                    self._send_json(data)
-            else:
-                self.send_error(404)
+            match path:
+                case "/" | "/index.html":
+                    self._send_file(STATIC_DIR / "index.html", "text/html")
+                case _ if path.startswith("/static/"):
+                    name = Path(path).name  # flat static dir; no traversal
+                    ctype = {"js": "application/javascript", "css": "text/css",
+                             "html": "text/html"}.get(name.rsplit(".", 1)[-1],
+                                                      "application/octet-stream")
+                    self._send_file(STATIC_DIR / name, ctype)
+                case "/api/summary":
+                    self._send_json(self.obs.summary())
+                case "/api/metrics":
+                    self._send_json(self.obs.metrics())
+                case "/api/rooms":
+                    self._send_json(self.obs.rooms())
+                case "/api/runs":
+                    sort = parse_qs(parsed.query).get("sort", ["episode"])[0]
+                    self._send_json(self.obs.runs_index(sort))
+                case _ if path.startswith("/api/run/"):
+                    try:
+                        episode = int(path.rsplit("/", 1)[-1])
+                    except ValueError:
+                        self.send_error(400, "bad episode")
+                        return
+                    data = self.obs.run_frames(episode)
+                    if data is None:
+                        self.send_error(404, "unknown episode")
+                    else:
+                        self._send_json(data)
+                case _:
+                    self.send_error(404)
         except BrokenPipeError:
             pass
 
     def _send_json(self, data) -> None:
+        """Write ``data`` as a 200 JSON response, marked no-store so polls stay fresh."""
         body = json.dumps(data).encode()
         self.send_response(200)
         self.send_header("Content-Type", "application/json")
@@ -308,6 +349,7 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(body)
 
     def _send_file(self, path: Path, ctype: str) -> None:
+        """Write a static file as a 200 response, or 404 if it does not exist."""
         if not path.is_file():
             self.send_error(404)
             return
@@ -323,6 +365,7 @@ class Handler(BaseHTTPRequestHandler):
 
 
 def main(argv: list[str] | None = None) -> int:
+    """blueprince-dash entry point: start the daemon workers, serve until Ctrl-C."""
     parser = argparse.ArgumentParser(
         prog="blueprince-dash",
         description="Local web dashboard + run replay for blueprince-train.")

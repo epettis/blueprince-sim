@@ -24,6 +24,10 @@ EXTRA_ITEM_TABLE = (
 
 
 def luck_probability(state: GameState, registry: Registry) -> float:
+    """Spawn chance of each additional (luck-rolled) item at the current luck.
+
+    Linear ramp from 0.0 at the items.json luck floor to 1.0 at max_effect_at.
+    """
     luck = registry.item_rules["luck"]
     lo, hi = luck["floor"], luck["max_effect_at"]
     if state.luck >= hi:
@@ -34,18 +38,25 @@ def luck_probability(state: GameState, registry: Registry) -> float:
 
 
 def grant_item(state: GameState, item: str, count: int, rng: Rng, registry: Registry) -> None:
-    if item == "coins":
-        pile = registry.item_rules["coins"]
-        for _ in range(count):
-            state.coins += rng.randint("coin_pile", pile["pile_min"], pile["pile_max"])
-    elif item == "key":
-        state.keys += count
-    elif item == "gem":
-        state.gems += count
-    elif item == "die":
-        state.dice += count
-    elif item == "steps":
-        state.steps += count
+    """Add ``count`` of one item kind to the player's resources and log the pickup.
+
+    "coins" means coin PILES: each of the ``count`` piles rolls its own size
+    from the items.json pile_min..pile_max range. Unknown item ids grant
+    nothing but are still logged.
+    """
+    match item:
+        case "coins":
+            pile = registry.item_rules["coins"]
+            for _ in range(count):
+                state.coins += rng.randint("coin_pile", pile["pile_min"], pile["pile_max"])
+        case "key":
+            state.keys += count
+        case "gem":
+            state.gems += count
+        case "die":
+            state.dice += count
+        case "steps":
+            state.steps += count
     state.items_found_log.append((item, count))
 
 

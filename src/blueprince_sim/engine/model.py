@@ -27,10 +27,12 @@ DEFAULT_DATA_DIR = Path(__file__).resolve().parent.parent / "data"
 
 @dataclass(frozen=True, slots=True)
 class Effect:
-    tag: str
+    tag: str  # effect id; dispatched to the handler registered under this tag in effects/
+    # handler arguments as sorted (key, value) pairs from the JSON record; read via param()
     params: tuple[tuple[str, object], ...] = ()
 
     def param(self, key: str, default=None):
+        """Look up a handler argument by key, or ``default`` if the record omits it."""
         for k, v in self.params:
             if k == key:
                 return v
@@ -39,33 +41,33 @@ class Effect:
 
 @dataclass(frozen=True, slots=True)
 class ItemSpec:
-    guaranteed: tuple[tuple[str, int], ...] = ()  # (item, count)
-    additional_max: int = 0
-    dig_spots: int = 0
+    guaranteed: tuple[tuple[str, int], ...] = ()  # (item, count) always granted on first entry
+    additional_max: int = 0  # max luck-rolled bonus items on first entry (0 = luck has no effect)
+    dig_spots: int = 0  # shovel dig spots (data only; digging is not modeled yet)
 
 
 @dataclass(frozen=True, slots=True)
 class Room:
     idx: int  # dense index into Registry.rooms
-    id: str
-    name: str
+    id: str  # stable snake_case identifier, unique across rooms.json (e.g. "entrance_hall")
+    name: str  # human-readable display name
     category: str  # blueprint|bedroom|hallway|green|shop|red|blackprint|studio_addition|outer|objective|tomorrow|mechanical
     rarity: str | None  # None = never appears in decks (Entrance Hall, forced-only rooms)
-    gem_cost: int
-    gem_cost_dynamic: str | None
-    layout: str
+    gem_cost: int  # base gem price to draft (0 = free-deck card)
+    gem_cost_dynamic: str | None  # cost modifier tag (e.g. "plus_one_per_bedroom"), None = static
+    layout: str  # shape key into LAYOUT_MASKS (dead_end|straight|corner|t|cross)
     door_mask: int  # canonical orientation
     rotations: tuple[int, ...]  # distinct legal door masks
-    draft_conditions: tuple[str, ...]
-    no_library_draft: bool
-    powered: bool
-    duct: bool
-    deck_copies: int
-    effects: tuple[Effect, ...]
-    items: ItemSpec
+    draft_conditions: tuple[str, ...]  # placement gate tags, ALL must hold (placement.py)
+    no_library_draft: bool  # never dealt when drafting through the Library's doorway
+    powered: bool  # powered-room flag; the duct-adjacency category bias targets these
+    duct: bool  # duct-room flag; the powered-adjacency category bias targets these
+    deck_copies: int  # copies shuffled into this room's deck at day start
+    effects: tuple[Effect, ...]  # Tier-1 room effects (dispatched via the effects/ hook registry)
+    items: ItemSpec  # items granted/rolled when the room is first entered
     pool: str  # base|studio_addition|outer|pool_temp|upgrade_variant|conditional|none
     variant_of: str | None = None  # base room id this upgrade variant replaces
-    confidence: str = "wiki"
+    confidence: str = "wiki"  # data provenance: datamined > wiki > inferred > placeholder
 
     @property
     def is_free(self) -> bool:
@@ -73,10 +75,12 @@ class Room:
 
     @property
     def rarity_idx(self) -> int:
+        """Index into RARITIES, or -1 for rooms with no rarity (never in decks)."""
         return RARITY_INDEX[self.rarity] if self.rarity else -1
 
 
 def _parse_effects(raw: list[dict]) -> tuple[Effect, ...]:
+    """Parse a room's effect records; every key besides "tag" becomes a handler param."""
     out = []
     for e in raw:
         params = tuple(sorted((k, v) for k, v in e.items() if k != "tag"))
@@ -85,6 +89,12 @@ def _parse_effects(raw: list[dict]) -> tuple[Effect, ...]:
 
 
 def _parse_room(idx: int, raw: dict) -> Room:
+    """Build one frozen Room from its rooms.json record.
+
+    Rotations are enumerated here: all quarter-turns of the layout (plus any
+    alt_layouts) deduplicated into distinct door masks, unless the record sets
+    ``rotatable: false`` (then only the canonical mask is legal).
+    """
     layout = raw["layout"]
     mask = LAYOUT_MASKS[layout]
     all_layouts = [layout, *raw.get("alt_layouts", [])]
@@ -129,16 +139,21 @@ def _parse_room(idx: int, raw: dict) -> Room:
 
 @dataclass(frozen=True)
 class Registry:
-    rooms: tuple[Room, ...]
-    by_id: dict[str, Room]
+    rooms: tuple[Room, ...]  # every room; tuple position == Room.idx
+    by_id: dict[str, Room]  # room id -> Room lookup
     weights: dict  # parsed weights.json
     priority: dict  # parsed priority_draws.json
     item_rules: dict  # parsed items.json
     lock_rules: dict  # parsed locks.json
-    data_dir: Path = field(default=DEFAULT_DATA_DIR)
+    data_dir: Path = field(default=DEFAULT_DATA_DIR)  # directory the JSON files were loaded from
 
     @classmethod
     def load(cls, data_dir: Path | None = None) -> "Registry":
+        """Parse every data/*.json file into an immutable registry.
+
+        ``data_dir`` overrides the packaged data directory (GameConfig.data_dir
+        plumbs through here). Room.idx is the position in rooms.json order.
+        """
         d = Path(data_dir) if data_dir else DEFAULT_DATA_DIR
         rooms_raw = json.loads((d / "rooms.json").read_text())["rooms"]
         rooms = tuple(_parse_room(i, r) for i, r in enumerate(rooms_raw))
@@ -163,6 +178,11 @@ class Registry:
         return tuple(self.weights["tables"][stage][slot_class][str(rank)])
 
     def stage_for_day(self, day: int) -> str:
+        """Rarity-table stage (week1|week2|late) for an in-game day.
+
+        Uses the datamined stage_day_boundaries from weights.json (unlike
+        GameConfig.resolved_stage, which hardcodes the 7/14 split).
+        """
         b = self.weights["stage_day_boundaries"]
         if day <= b["week1_days"][1]:
             return "week1"

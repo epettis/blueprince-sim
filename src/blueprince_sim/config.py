@@ -13,18 +13,20 @@ class GameConfig:
     # --- episode framing ---
     day: int = 20                      # in-game day; drives stage when stage="auto"
     stage: str = "auto"                # week1|week2|late|auto (auto = derive from day)
-    starting_steps: int = 50           # OPEN QUESTION: community consensus 50, confidence=wiki
+    # step budget at day start; OPEN QUESTION: community consensus 50, confidence=wiki
+    starting_steps: int = 50
     # --- permanent unlocks (the "enable various unlocks" toggles) ---
     studio_additions: frozenset[str] = frozenset()   # subset of the 8 studio-addition room ids
     outer_rooms_unlocked: bool = False               # West Gate open: outer-room draft available
-    outer_path_entrance_cost: int = 2               # user-verified: Entrance Hall <-> doorstep
-    outer_path_garage_cost: int = 1                 # user-verified: garage door <-> doorstep (breaker-gated)
-    outer_enter_cost: int = 1                       # user-verified: doorstep <-> inside Outer Room
+    outer_path_entrance_cost: int = 2             # steps, user-verified: Entrance Hall <-> doorstep
+    # steps, user-verified: garage door <-> doorstep (breaker-gated)
+    outer_path_garage_cost: int = 1
+    outer_enter_cost: int = 1                 # steps, user-verified: doorstep <-> inside Outer Room
     orchard_unlocked: bool = False                   # Apple Orchard: +20 starting steps (wiki)
     mine_unlocked: bool = False                      # Gemstone Cavern: +2 gems at day start (wiki)
     upgrade_disks: frozenset[str] = frozenset()      # applied upgrade ids (e.g. "pool_hall")
     veteran_mode: bool = False                       # triggers gem deck-size gates (with day>=16/room46)
-    room46_reached: bool = False
+    room46_reached: bool = False                     # Room 46 reached before: gem deck-size gate
     # Draft-condition gates satisfied for this run (item/unlock-dependent
     # conditions: "breakfast", "secret_garden_key", "knight_chess_piece",
     # "room8_key"). Rooms carrying an unsatisfied gate never deal.
@@ -45,9 +47,10 @@ class GameConfig:
     ornate_compass: bool = False
     # --- reward selection for the env ---
     reward: str = "sparse"              # sparse|shaped
-    data_dir: Path | None = None
+    data_dir: Path | None = None        # alternate data/*.json directory (None = packaged data)
 
     def resolved_stage(self) -> str:
+        """Rarity-table stage; "auto" derives it from ``day`` (<=7 week1, <=14 week2)."""
         if self.stage != "auto":
             return self.stage
         if self.day <= 7:
@@ -57,10 +60,13 @@ class GameConfig:
         return "late"
 
     def gem_gate_active(self) -> bool:
+        """Whether the stricter gem deck-size gates apply to the rarity roll
+        (veteran mode, Room 46 reached before, or day 16+)."""
         return self.veteran_mode or self.room46_reached or self.day >= 16
 
     @classmethod
     def from_yaml(cls, path: str | Path) -> "GameConfig":
+        """Load a config from a YAML mapping file (see from_dict for coercions)."""
         import yaml
 
         raw = yaml.safe_load(Path(path).read_text()) or {}
@@ -68,6 +74,11 @@ class GameConfig:
 
     @classmethod
     def from_dict(cls, raw: dict) -> "GameConfig":
+        """Build a config from plain values (YAML / --set overrides).
+
+        Unknown keys raise KeyError; list-valued unlock fields are coerced to
+        frozensets and data_dir to a Path.
+        """
         kwargs = {}
         valid = {f.name for f in fields(cls)}
         for k, v in raw.items():

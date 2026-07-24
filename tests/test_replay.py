@@ -39,6 +39,8 @@ def _play_random_episode(seed: int) -> tuple[dict, dict]:
 
 
 def test_episode_seed_in_info():
+    """reset() reports the episode seed in info - both explicit seeds and
+    auto-generated ones - so recorded episodes can be replayed."""
     env = BluePrinceEnv()
     _, info = env.reset(seed=1234)
     assert info["episode_seed"] == 1234
@@ -47,6 +49,9 @@ def test_episode_seed_in_info():
 
 
 def test_replay_roundtrip_matches_live_episode():
+    """Rebuilding frames from a recorded episode reproduces the live run: one
+    frame per action plus the reset state, with matching outcome and explore
+    flags decoded from the modes string."""
     record, info = _play_random_episode(seed=99)
     frames = replay.build_frames(record)
     assert len(frames) == len(record["actions"]) + 1
@@ -63,6 +68,8 @@ def test_replay_roundtrip_matches_live_episode():
 
 
 def test_replay_is_deterministic():
+    """build_frames is a pure function of the record: rebuilding twice gives
+    identical frames."""
     record, _ = _play_random_episode(seed=7)
     a = replay.build_frames(record)
     b = replay.build_frames(record)
@@ -70,6 +77,8 @@ def test_replay_is_deterministic():
 
 
 def test_describe_action_navigate_and_draft():
+    """describe_action renders human-readable labels for draft, choose,
+    redraw, and rotate actions in their respective phases."""
     env = BluePrinceEnv(cfg=all_unlocks_config("shaped"))
     env.reset(seed=42)
     game = env.game
@@ -85,6 +94,8 @@ def test_describe_action_navigate_and_draft():
 
 
 def test_recorder_sampling_and_top_window(tmp_path: Path):
+    """The recorder keeps the best episode per window - a win beats any deeper
+    losing run - and at sample_rate=1 it records every episode verbatim."""
     path = tmp_path / "replays.jsonl"
     rec = EpisodeRecorder(path, n_envs=1, reward="shaped", sample_rate=0.0,
                           top_every=10, episodes_done=0)
@@ -119,6 +130,9 @@ def test_recorder_sampling_and_top_window(tmp_path: Path):
 
 
 def test_observatory_runs_index_and_frames(tmp_path: Path):
+    """The Observatory indexes replays by episode or by progress (wins and
+    deeper runs first), flags top-window runs, and serves frames only for
+    episodes it knows."""
     record, _ = _play_random_episode(seed=17)
     losing = dict(record, episode=5, win=False, deepest_rank=1, why="random")
     winning = dict(record, episode=3, why="top_window")
@@ -139,6 +153,8 @@ def test_observatory_runs_index_and_frames(tmp_path: Path):
 
 
 def test_metrics_merge_and_downsample(tmp_path: Path):
+    """Observatory metrics drop duplicate checkpoint samples and serve the
+    eval series alongside the training series."""
     metrics = tmp_path / "metrics.jsonl"
     with metrics.open("w") as f:
         for i in range(5):

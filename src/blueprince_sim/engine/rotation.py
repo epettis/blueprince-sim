@@ -62,6 +62,7 @@ _L: dict[int, dict[int, tuple[float, float, float, float]]] = {
 
 
 def _col(day: int, compass: bool) -> int:
+    """Column index into a weight entry: 0 = Compass, else the day band (1-2, 3-20, 21+)."""
     if compass:
         return 0
     if day <= 2:
@@ -72,6 +73,7 @@ def _col(day: int, compass: bool) -> int:
 
 
 def _missing(mask: int) -> int:
+    """The doorless direction of a T-shape mask (its identity in the tables); 0 for a cross."""
     for d in DIRS:
         if not mask & d:
             return d
@@ -79,6 +81,7 @@ def _missing(mask: int) -> int:
 
 
 def _other(mask: int, back: int) -> int:
+    """The non-``back`` door of an L-shape mask (its identity in the tables); 0 if none."""
     for d in DIRS:
         if mask & d and d != back:
             return d

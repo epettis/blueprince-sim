@@ -32,11 +32,18 @@ RESET = "\033[0m"
 
 
 def _code(name: str) -> str:
+    """Two-letter cell code for a room name: initials of the first two words, else first two letters."""
     words = name.replace("'", "").split()
     return (words[0][0] + (words[1][0] if len(words) > 1 else words[0][1])).upper()
 
 
 def render_grid(game: Game, color: bool = True) -> str:
+    """Render the 5x9 manor as ASCII, rank 9 (Antechamber) on top.
+
+    Each placed room is a two-letter code (ANSI-colored by category unless
+    ``color`` is False) with ``|``/``-`` stubs on its door sides; ``@`` marks
+    the player and ``.`` an empty cell.
+    """
     st = game.state
     reg = game.registry
     lines = []
@@ -66,6 +73,7 @@ def render_grid(game: Game, color: bool = True) -> str:
 
 
 def render_status(game: Game) -> str:
+    """One-line resource/progress summary; adds a security line when door locks are enabled."""
     st = game.state
     line = (f"Steps {st.steps:3d} | Gems {st.gems} | Keys {st.keys} | Coins {st.coins} | "
             f"Dice {st.dice} | Luck {st.luck} | Rank {game.deepest_rank} | Day {st.day} ({st.stage})")
@@ -79,6 +87,12 @@ def render_status(game: Game) -> str:
 
 
 def render_options(game: Game) -> str:
+    """List the pending draft options, one line per slot; "" outside the DRAFTING phase.
+
+    Each line shows the orientation glyph, name, rarity, layout, and effective
+    cost, flagging unaffordable and forced options; an Archives mystery slot
+    hides identity and orientation.
+    """
     if game.phase is not Phase.DRAFTING or game.state.pending is None:
         return ""
     lines = []

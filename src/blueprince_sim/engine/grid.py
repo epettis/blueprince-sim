@@ -22,14 +22,17 @@ ENTRANCE_CELL = 2  # rank 1, center column
 
 
 def rank_of(cell: int) -> int:
+    """1-based rank of a cell (1 = entrance row, 9 = Antechamber row)."""
     return cell // WIDTH + 1
 
 
 def col_of(cell: int) -> int:
+    """0-based column of a cell (0 = west edge, 4 = east edge)."""
     return cell % WIDTH
 
 
 def _neighbor(cell: int, direction: int) -> int:
+    """Compute a cell's neighbor (-1 off-grid); builds the NEIGHBORS table below."""
     r, c = cell // WIDTH, cell % WIDTH
     if direction == N:
         r += 1
@@ -80,6 +83,7 @@ def is_center_column(cell: int) -> bool:
 
 
 def is_corner(cell: int) -> bool:
+    """Cell is one of the four corner tiles of the manor grid."""
     r, c = cell // WIDTH, cell % WIDTH
     return r in (0, RANKS - 1) and c in (0, WIDTH - 1)
 

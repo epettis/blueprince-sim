@@ -18,6 +18,7 @@ from ..engine.grid import N, neighbor, rank_of
 
 
 def _affordable(game: Game):
+    """Pending draft options the player can currently pay for."""
     p = game.state.pending
     return [o for o in p.options
             if game.affordable(game.registry.rooms[o.room_idx], o)]
@@ -121,6 +122,7 @@ def _forced_slot(game: Game) -> int:
 
 
 def random_policy(game: Game, rnd: random.Random) -> None:
+    """Uniform random baseline: pick any affordable option / any legal move or draft."""
     if game.phase is Phase.DRAFTING:
         opts = _affordable(game)
         # No decline: opening a door commits you to taking a room.

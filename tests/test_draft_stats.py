@@ -25,6 +25,10 @@ def _fresh_state(registry, cfg, stage, solarium, seed=0):
 @pytest.mark.parametrize("slot", [0, 1])
 @pytest.mark.parametrize("rank", [1, 5, 9])
 def test_rarity_roll_matches_table(registry, cfg, stage, slot, rank):
+    """The rarity roll reproduces the datamined stage/slot/rank weight table
+    (chi-square over 30k draws), after zeroing rarities whose decks fail the
+    size gates exactly as the engine does. A failure here means the draft math
+    regressed, not that the test is flaky."""
     st, rng = _fresh_state(registry, cfg, stage, solarium=False)
     slot_class = "slot1" if slot == 0 else "slot23"
     expected = list(registry.weight_row(stage, False, slot_class, rank))
@@ -52,6 +56,8 @@ def test_rarity_roll_matches_table(registry, cfg, stage, slot, rank):
 
 
 def test_solarium_flattens_slot23(registry, cfg):
+    """A placed Solarium flattens the slot-2/3 rarity weights, so rare rooms
+    are dealt far more often (>2x) than without it."""
     def rare_rate(solarium):
         st, rng = _fresh_state(registry, cfg, "late", solarium=solarium)
         rares = sum(roll_rarity(st, registry, cfg, rng, 2, 9) == 3
@@ -63,11 +69,15 @@ def test_solarium_flattens_slot23(registry, cfg):
 
 
 def test_solarium_does_not_affect_slot1(registry, cfg):
+    """The Solarium's flattening applies only to slots 2/3; slot-1 rarity
+    weights are identical with or without it."""
     assert registry.weight_row("late", True, "slot1", 5) == \
         registry.weight_row("late", False, "slot1", 5)
 
 
 def test_slot1_always_free(registry, cfg):
+    """Slot 1 is always dealt and always holds a free room (gem cost 0), so a
+    draft can never leave the player unable to afford any option."""
     game = Game(cfg, seed=3)
     for seed in range(60):
         game.reset(seed)
@@ -81,6 +91,8 @@ def test_slot1_always_free(registry, cfg):
 
 
 def test_weights_rows_sum_to_100(registry):
+    """Every rarity-weight row (including the Solarium slot-2/3 table) sums to
+    100%, so the roll's percentage interpretation is well-formed."""
     tables = registry.weights["tables"]
     for stage, slots in tables.items():
         for slot_class, rows in slots.items():

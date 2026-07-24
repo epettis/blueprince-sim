@@ -14,6 +14,8 @@ from blueprince_sim.rl.train import make_single_env  # noqa: E402
 
 @pytest.fixture(scope="module")
 def model_env():
+    """An untrained MaskablePPO built on the mixed policy, plus its env
+    (module-scoped: constructing the torch nets is slow)."""
     env = make_single_env("shaped", 0)()
     model = MaskablePPO(
         MixedExplorationPolicy, env, n_steps=64, batch_size=64, seed=0,
@@ -43,6 +45,8 @@ def _sample_many(policy, obs_t, mask_t, n=3000):
 
 
 def test_never_samples_masked_actions(model_env):
+    """Neither explore nor exploit mode ever samples a masked-out action -
+    the temperature/epsilon adjustments must respect the action mask."""
     model, env = model_env
     policy = model.policy
     obs_t, mask_t = _obs_and_mask(env)
@@ -54,6 +58,8 @@ def test_never_samples_masked_actions(model_env):
 
 
 def test_exploit_low_temp_matches_argmax(model_env):
+    """Exploit sampling at a temperature far below the logit tie scale
+    collapses to the deterministic argmax action."""
     model, env = model_env
     policy = model.policy
     obs_t, mask_t = _obs_and_mask(env)
@@ -73,6 +79,8 @@ def test_exploit_low_temp_matches_argmax(model_env):
 
 
 def test_explore_has_higher_entropy(model_env):
+    """Explore mode (hot temperature + epsilon) samples with strictly higher
+    empirical entropy than exploit mode on the same skewed logits."""
     model, env = model_env
     policy = model.policy
     obs_t, mask_t = _obs_and_mask(env)
@@ -101,6 +109,8 @@ def test_explore_has_higher_entropy(model_env):
 
 
 def test_vanilla_reduction_matches_policy_distribution(model_env):
+    """With exploit temperature 1.0 the behavior distribution reduces to the
+    vanilla policy distribution (chi-square agreement over 6k samples)."""
     model, env = model_env
     policy = model.policy
     obs_t, mask_t = _obs_and_mask(env)
@@ -125,6 +135,8 @@ def test_vanilla_reduction_matches_policy_distribution(model_env):
 
 
 def test_mode_resampling_fraction(model_env):
+    """Per-episode mode resampling assigns exploit to the configured fraction
+    of envs (70%) on average."""
     model, _ = model_env
     policy = model.policy
     policy.set_mode_config(0.7, False, 8, 0)
