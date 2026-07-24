@@ -13,18 +13,20 @@ class GameConfig:
     # --- episode framing ---
     day: int = 20                      # in-game day; drives stage when stage="auto"
     stage: str = "auto"                # week1|week2|late|auto (auto = derive from day)
-    starting_steps: int = 50           # OPEN QUESTION: community consensus 50, confidence=wiki
+    # step budget at day start; OPEN QUESTION: community consensus 50, confidence=wiki
+    starting_steps: int = 50
     # --- permanent unlocks (the "enable various unlocks" toggles) ---
     studio_additions: frozenset[str] = frozenset()   # subset of the 8 studio-addition room ids
     outer_rooms_unlocked: bool = False               # West Gate open: outer-room draft available
-    outer_path_entrance_cost: int = 2               # user-verified: Entrance Hall <-> doorstep
-    outer_path_garage_cost: int = 1                 # user-verified: garage door <-> doorstep (breaker-gated)
-    outer_enter_cost: int = 1                       # user-verified: doorstep <-> inside Outer Room
+    outer_path_entrance_cost: int = 2             # steps, user-verified: Entrance Hall <-> doorstep
+    # steps, user-verified: garage door <-> doorstep (breaker-gated)
+    outer_path_garage_cost: int = 1
+    outer_enter_cost: int = 1                 # steps, user-verified: doorstep <-> inside Outer Room
     orchard_unlocked: bool = False                   # Apple Orchard: +20 starting steps (wiki)
     mine_unlocked: bool = False                      # Gemstone Cavern: +2 gems at day start (wiki)
     upgrade_disks: frozenset[str] = frozenset()      # applied upgrade ids (e.g. "pool_hall")
     veteran_mode: bool = False                       # triggers gem deck-size gates (with day>=16/room46)
-    room46_reached: bool = False
+    room46_reached: bool = False                     # Room 46 reached before: gem deck-size gate
     # Draft-condition gates satisfied for this run (item/unlock-dependent
     # conditions: "breakfast", "secret_garden_key", "knight_chess_piece",
     # "room8_key"). Rooms carrying an unsatisfied gate never deal.
@@ -45,7 +47,7 @@ class GameConfig:
     ornate_compass: bool = False
     # --- reward selection for the env ---
     reward: str = "sparse"              # sparse|shaped
-    data_dir: Path | None = None
+    data_dir: Path | None = None        # alternate data/*.json directory (None = packaged data)
 
     def resolved_stage(self) -> str:
         if self.stage != "auto":
