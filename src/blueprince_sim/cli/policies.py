@@ -191,14 +191,17 @@ def _navigate_frontier(game: Game) -> None:
         game.move_to(ANTECHAMBER_CELL)
         return
     opt_dist = game.optimistic_distances()
+    key_cost = game.key_cost_map()
     best, best_key = None, None
     security_blocked = False
     for cell, d in game.frontier_doorways():
         if not 0 <= dist[cell] <= st.steps - 1:  # must arrive with a step to spare
             continue
-        if not game.doorway_passable(cell, d):
-            if game.door_state_of(cell, d) == locks.DOOR_SECURITY:
-                security_blocked = True
+        seg = game.door_state_of(cell, d)
+        if seg == locks.DOOR_LOCKED and st.keys < key_cost[cell] + 1:
+            continue
+        if seg == locks.DOOR_SECURITY and not game.security_openable():
+            security_blocked = True
             continue
         target = neighbor(cell, d)
         h = opt_dist[target] if opt_dist[target] >= 0 else 99  # walled off: last resort

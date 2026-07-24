@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections import deque
 from enum import Enum
+from heapq import heappop, heappush
 
 from ..config import GameConfig
 from . import effects
@@ -114,21 +115,29 @@ class Game:
         """
         st = self.state
         fp = (st.pos, st.outer_loc, tuple(st.grid), tuple(st.placed_doors),
-              st.door_version)
+              st.door_version, st.keys, self.security_openable())
         cached_fp, maps = self._map_cache
         if fp != cached_fp:
             maps = {}
             self._map_cache = (fp, maps)
         return maps
 
-    def _nav_bfs(self) -> tuple[list[int], dict]:
-        """Shortest walks from the player through open door pairs.
+    def _nav_bfs(self) -> tuple[list[int], list[int], dict]:
+        """Shortest walks from the player, spending at most ``st.keys`` keys.
 
-        A segment is walkable only while DOOR_OPEN. In-drafting opens every
-        door pair between placed rooms as it forms, so this never excludes a
-        naturally reachable cell; hand-built locked segments simply do not
-        route. Returns (dist, prev) - per-cell walking distance (-1 empty or
-        unreachable) and the predecessor map used by :meth:`_path_dirs`.
+        BFS over (cell, keys_spent) states: a locked segment costs one key to
+        cross, a security segment passes only while :meth:`security_openable`,
+        open segments are free. A locked door en route is therefore keyed
+        through or walked around, whichever fits the step budget - and with
+        no keys the detour distance is what counts against the budget.
+        In-drafting keeps every naturally formed placed-room door pair open
+        today, but honest distances here are groundwork for rooms that
+        re-lock their own doors (Vestibule, not yet modeled).
+
+        Returns (dist, key_cost, prev): per-cell walking distance (-1 empty
+        or unreachable within the key budget), keys spent along the recorded
+        shortest path, and the predecessor map used by :meth:`_path_dirs` -
+        so a path promised here is always affordable in keys when walked.
 
         Results are cached; treat them as read-only.
         """
@@ -138,29 +147,49 @@ class Game:
             return cached
         st = self.state
         grid, doors, door_state = st.grid, st.placed_doors, st.door_state
+        keys_cap = min(st.keys,
+                       sum(1 for v in door_state.values() if v == DOOR_LOCKED))
+        sec_ok = self.security_openable()
         dist = [-1] * N_CELLS
+        key_cost = [0] * N_CELLS
+        best_spent = [keys_cap + 1] * N_CELLS  # cheapest key spend seen per cell
         dist[st.pos] = 0
-        prev: dict[int, tuple[int, int]] = {}
-        q = deque([st.pos])
-        while q:
-            cell = q.popleft()
+        best_spent[st.pos] = 0
+        prev: dict[tuple[int, int], tuple[int, int, int]] = {}
+        # Frontier ordered by (steps, keys): a cell's first discovery is its
+        # shortest walk, and among equally short walks the one spending the
+        # fewest keys - so move_to never wastes a key a free path avoids.
+        heap = [(0, 0, st.pos)]
+        while heap:
+            sdist, spent, cell = heappop(heap)
             cell_doors = doors[cell]
             for d, od, nb in ADJACENT[cell]:
-                if grid[nb] < 0 or dist[nb] != -1:
+                if grid[nb] < 0 or not (cell_doors & d and doors[nb] & od):
                     continue
-                if not (cell_doors & d and doors[nb] & od):
+                seg = door_state.get(segment_key(cell, d), DOOR_OPEN)
+                nspent = spent
+                if seg == DOOR_LOCKED:
+                    nspent = spent + 1
+                    if nspent > keys_cap:
+                        continue
+                elif seg == DOOR_SECURITY and not sec_ok:
                     continue
-                if door_state and door_state.get(segment_key(cell, d), DOOR_OPEN) \
-                        != DOOR_OPEN:
+                # Keep only Pareto-optimal states: a later arrival is worth
+                # exploring iff it spends strictly fewer keys (a longer but
+                # cheaper path may unlock cells beyond a further locked door).
+                if nspent >= best_spent[nb]:
                     continue
-                dist[nb] = dist[cell] + 1
-                prev[nb] = (cell, d)
-                q.append(nb)
-        maps["nav"] = (dist, prev)
+                best_spent[nb] = nspent
+                if dist[nb] == -1:
+                    dist[nb] = sdist + 1
+                    key_cost[nb] = nspent
+                prev[(nb, nspent)] = (cell, spent, d)
+                heappush(heap, (sdist + 1, nspent, nb))
+        maps["nav"] = (dist, key_cost, prev)
         return maps["nav"]
 
     def reachable_cells(self) -> set[int]:
-        """Cells reachable from the player through open door pairs.
+        """Cells reachable from the player through passable door pairs.
 
         Returns a cached set; treat it as read-only.
         """
@@ -175,13 +204,22 @@ class Game:
     def distance_map(self) -> list[int]:
         """Walking distance from the player to every placed cell.
 
-        BFS through open door pairs, one step per room (the cost
-        :meth:`move_to` would pay). -1 marks empty or unreachable cells;
-        the player's own cell is 0.
+        BFS through passable door pairs, one step per room (the cost
+        :meth:`move_to` would pay); a locked door is keyed through when the
+        key budget allows, otherwise the distance reflects walking around.
+        -1 marks empty or unreachable cells; the player's own cell is 0.
 
         Returns a cached list; treat it as read-only.
         """
         return self._nav_bfs()[0]
+
+    def key_cost_map(self) -> list[int]:
+        """Keys spent along the shortest path :meth:`move_to` would walk.
+
+        Meaningful only where :meth:`distance_map` is >= 0.
+        Returns a cached list; treat it as read-only.
+        """
+        return self._nav_bfs()[1]
 
     def optimistic_distances(self) -> list[int]:
         """Per-cell optimistic distance to the Antechamber.
@@ -733,18 +771,23 @@ class Game:
             self.move(d)
 
     def _path_dirs(self, target: int) -> list[int] | None:
-        """Directions of the shortest open path from pos to target."""
+        """Directions of the shortest passable path from pos to target.
+
+        Follows the exact path :meth:`_nav_bfs` recorded, so any locked doors
+        along it fit in the current key budget.
+        """
         st = self.state
         if target == st.pos:
             return []
-        dist, prev = self._nav_bfs()
+        dist, key_cost, prev = self._nav_bfs()
         if dist[target] < 0:
             return None
         dirs = []
-        cur = target
-        while cur != st.pos:
-            cur, pdir = prev[cur]
+        cur, spent = target, key_cost[target]
+        while cur != st.pos or spent != 0:
+            pcell, pspent, pdir = prev[(cur, spent)]
             dirs.append(pdir)
+            cur, spent = pcell, pspent
         dirs.reverse()
         return dirs
 
@@ -873,15 +916,18 @@ class Game:
         """
         st = self.state
         dist = self.distance_map()
+        key_cost = self.key_cost_map()
         uc = self._utility_closet_cell()
         toggle_ok = (self._security_toggle_helps()
                      and 0 <= dist[uc] <= st.steps - 2 if uc >= 0 else False)
         for cell, d in self.frontier_doorways():
             if not 0 <= dist[cell] <= st.steps - 1:
                 continue
-            if not self.doorway_passable(cell, d):
-                if not (toggle_ok
-                        and self.door_state_of(cell, d) == DOOR_SECURITY):
+            seg = self.door_state_of(cell, d)
+            if seg == DOOR_LOCKED and st.keys < key_cost[cell] + 1:
+                continue
+            if seg == DOOR_SECURITY and not self.security_openable():
+                if not toggle_ok:
                     continue
             return True
         for cell in range(N_CELLS):

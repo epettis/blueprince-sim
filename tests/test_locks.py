@@ -161,24 +161,44 @@ def test_locked_doorway_needs_and_spends_a_key(registry):
     assert g.door_state_of(cell, d) == DOOR_OPEN  # unlocked for good
 
 
-def test_hand_locked_interior_door_blocks_macro_nav_but_not_a_keyed_move(registry):
-    # Cannot arise naturally (in-drafting opens facing pairs), but the engine
-    # stays coherent if a locked segment is forced between placed rooms:
-    # macro navigation refuses to route through it, a single move keys it open.
+def test_locked_interior_door_costs_a_key_or_a_detour(registry):
+    # A locked door between placed rooms (hand-built today; the Vestibule
+    # will re-lock doors like this later) changes traversal distances: with
+    # no key the pathfinder walks around it, with a key it goes through -
+    # and both are reflected in the distance the step budget is checked
+    # against.
+    g = _game(registry)
+    cross = next(r for r in registry.rooms
+                 if r.layout == "cross" and r.rarity is not None)
+    for cell in (3, 8, 7):  # ring: entrance(2) -> E(3) -> N(8) -> W(7)
+        g._place_room(cross, cell, 0xF)
+    _force_state(g, 2, N, DOOR_LOCKED)
+    g.state.keys = 0
+    assert g.distance_map()[7] == 3   # around: 2 -> 3 -> 8 -> 7
+    g.state.keys = 1
+    assert g.distance_map()[7] == 1   # straight through the lock
+    assert g.key_cost_map()[7] == 1
+    # Equidistant by either route, cell 8 must be costed via the free path.
+    assert g.distance_map()[8] == 2 and g.key_cost_map()[8] == 0
+    g.move_to(7)
+    assert g.state.pos == 7 and g.state.keys == 0  # the walk spent the key
+    assert g.door_state_of(2, N) == DOOR_OPEN
+
+
+def test_locked_interior_door_can_wall_off_the_house_without_keys(registry):
+    # No way around and no key: the cell beyond is unreachable, so e.g. the
+    # Antechamber can sit out of reach even while steps remain.
     g = _game(registry)
     straight = next(r for r in registry.rooms
                     if r.layout == "straight" and r.rarity is not None)
     g._place_room(straight, 7, N | S)
     _force_state(g, 2, N, DOOR_LOCKED)
     g.state.keys = 0
-    assert N not in g.adjacent_moves()
     assert g.distance_map()[7] == -1
+    assert N not in g.adjacent_moves()
     g.state.keys = 1
-    assert g.distance_map()[7] == -1  # still never routed by move_to
+    assert g.distance_map()[7] == 1
     assert N in g.adjacent_moves()
-    g.move(N)
-    assert g.state.pos == 7 and g.state.keys == 0
-    assert g.door_state_of(2, N) == DOOR_OPEN
 
 
 def test_security_door_blocks_until_openable(registry):
@@ -334,6 +354,22 @@ def test_mask_locked_doorway_requires_a_key(registry):
     g.state.keys = 0
     assert not A.action_mask(g)[idx]
     g.state.keys = 1
+    assert A.action_mask(g)[idx]
+
+
+def test_mask_locked_doorway_accounts_for_keys_the_walk_spends(registry):
+    # A locked frontier doorway beyond a locked interior door needs two keys:
+    # one for the walk, one for the doorway itself.
+    g = _game(registry)
+    straight = next(r for r in registry.rooms
+                    if r.layout == "straight" and r.rarity is not None)
+    g._place_room(straight, 7, N | S)
+    _force_state(g, 2, N, DOOR_LOCKED)
+    _force_state(g, 7, N, DOOR_LOCKED)
+    idx = A.OPEN_BASE + 7 * 4 + A.DIR_INDEX[N]
+    g.state.keys = 1
+    assert not A.action_mask(g)[idx]
+    g.state.keys = 2
     assert A.action_mask(g)[idx]
 
 

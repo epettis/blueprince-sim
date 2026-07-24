@@ -34,7 +34,7 @@ from __future__ import annotations
 
 from ..engine.game import Game, Phase, RedrawKind
 from ..engine.grid import DIR_NAMES, DIRS, N_CELLS
-from ..engine.locks import SECURITY_LEVELS
+from ..engine.locks import DOOR_LOCKED, DOOR_SECURITY, SECURITY_LEVELS
 
 N_ACTIONS = 241
 OPEN_BASE, CHOOSE_BASE, ALT_BASE = 0, 180, 183
@@ -70,15 +70,17 @@ def action_mask(game: Game) -> list[bool]:
                 mask[RETURN_GARAGE_ACTION] = True
         else:
             dist = game.distance_map()
+            key_cost = game.key_cost_map()
             # Draft any reachable, openable frontier doorway; arriving must
-            # leave >= 1 step so the drafted room can still be entered. Locked
-            # doorways need a key in hand, security doorways an open system;
-            # the walk itself never spends keys (in-drafting keeps every
-            # placed-room door pair open).
+            # leave >= 1 step (so the drafted room can still be entered) and,
+            # for locked doorways, a key beyond those the walk itself spends.
             for cell, d in game.frontier_doorways():
                 if not 0 <= dist[cell] <= st.steps - 1:
                     continue
-                if not game.doorway_passable(cell, d):
+                seg = game.door_state_of(cell, d)
+                if seg == DOOR_LOCKED and st.keys < key_cost[cell] + 1:
+                    continue
+                if seg == DOOR_SECURITY and not game.security_openable():
                     continue
                 mask[OPEN_BASE + cell * 4 + DIR_INDEX[d]] = True
             # Walk to an unentered room (first entry grants its resources), the

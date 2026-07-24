@@ -84,12 +84,15 @@ The draft implements the decompiled v1.3 algorithm:
   over 100% are guaranteed at neutral bias). A daily **bias multiplier**
   softens streaks: hitting a locked door subtracts 0.385 (capped at 1), an
   unlocked one adds 0.35 (floored at 1), with datamined second-roll exemptions
-  above 100% and below 31%. Opening a locked doorway to draft through it
-  consumes one key - but **in-drafting opens doors free**: a drafted room
-  whose floorplan has a door facing an existing locked or security door swings
-  it open, so a locked door never separates two connected placed rooms and
-  keys only ever gate frontier drafting. Corridor and Corriyard doors are
-  guaranteed unlocked.
+  above 100% and below 31%. Opening a locked door consumes one key - at a
+  frontier doorway when drafting through it, or mid-walk when a path routes
+  through a locked door between placed rooms. The pathfinder is key-aware:
+  a locked door en route is keyed through or walked around, whichever the
+  key and step budgets allow (with no key, the detour distance is what
+  counts - a lock can put the Antechamber out of reach of your remaining
+  steps). **In-drafting opens doors free**: a drafted room whose floorplan
+  has a door facing an existing locked or security door swings it open.
+  Corridor and Corriyard doors are guaranteed unlocked.
 - **Security doors**: doors of whitelisted mechanical rooms (Security,
   Workshop, Pump Room, Archives, ...) can spawn as keycard doors when close
   enough to the Antechamber (`rand(0,75) > distance`, cutoff 60 units), capped
@@ -167,9 +170,11 @@ data JSON (or regenerate: `python tools/ingest_sheet.py`, which rebuilds
   on first click as in the real game, so the bias sequence follows placement
   order; the per-door Left/Forward/Right security table is collapsed to one
   chance per room (its strongest door); the "Set"-door double-trigger, Great
-  Hall/Vestibule guaranteed states, Lock Pick Kit, special keys, Master Key,
-  Foyer/Kennel/Shelter unlock effects, and the Passageway high-security
-  distance waiver are not modeled. The Keycard is found by flat chance (25%,
+  Hall/Vestibule guaranteed states (including the Vestibule re-locking a
+  random door on each entry - deferred, though the key-aware pathfinder is
+  ready for it), Lock Pick Kit, special keys, Master Key, Foyer/Kennel/
+  Shelter unlock effects, and the Passageway high-security distance waiver
+  are not modeled. The Keycard is found by flat chance (25%,
   inferred) on first entry to a wiki-listed source room. Visiting Security
   always sets offline mode to Unlocked (the strategically dominant choice);
   toggles are free actions while standing in the room.
