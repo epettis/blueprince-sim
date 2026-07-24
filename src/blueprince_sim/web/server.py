@@ -265,36 +265,37 @@ class Handler(BaseHTTPRequestHandler):
         parsed = urlparse(self.path)
         path = parsed.path
         try:
-            if path in ("/", "/index.html"):
-                self._send_file(STATIC_DIR / "index.html", "text/html")
-            elif path.startswith("/static/"):
-                name = Path(path).name  # flat static dir; no traversal
-                ctype = {"js": "application/javascript", "css": "text/css",
-                         "html": "text/html"}.get(name.rsplit(".", 1)[-1],
-                                                  "application/octet-stream")
-                self._send_file(STATIC_DIR / name, ctype)
-            elif path == "/api/summary":
-                self._send_json(self.obs.summary())
-            elif path == "/api/metrics":
-                self._send_json(self.obs.metrics())
-            elif path == "/api/rooms":
-                self._send_json(self.obs.rooms())
-            elif path == "/api/runs":
-                sort = parse_qs(parsed.query).get("sort", ["episode"])[0]
-                self._send_json(self.obs.runs_index(sort))
-            elif path.startswith("/api/run/"):
-                try:
-                    episode = int(path.rsplit("/", 1)[-1])
-                except ValueError:
-                    self.send_error(400, "bad episode")
-                    return
-                data = self.obs.run_frames(episode)
-                if data is None:
-                    self.send_error(404, "unknown episode")
-                else:
-                    self._send_json(data)
-            else:
-                self.send_error(404)
+            match path:
+                case "/" | "/index.html":
+                    self._send_file(STATIC_DIR / "index.html", "text/html")
+                case _ if path.startswith("/static/"):
+                    name = Path(path).name  # flat static dir; no traversal
+                    ctype = {"js": "application/javascript", "css": "text/css",
+                             "html": "text/html"}.get(name.rsplit(".", 1)[-1],
+                                                      "application/octet-stream")
+                    self._send_file(STATIC_DIR / name, ctype)
+                case "/api/summary":
+                    self._send_json(self.obs.summary())
+                case "/api/metrics":
+                    self._send_json(self.obs.metrics())
+                case "/api/rooms":
+                    self._send_json(self.obs.rooms())
+                case "/api/runs":
+                    sort = parse_qs(parsed.query).get("sort", ["episode"])[0]
+                    self._send_json(self.obs.runs_index(sort))
+                case _ if path.startswith("/api/run/"):
+                    try:
+                        episode = int(path.rsplit("/", 1)[-1])
+                    except ValueError:
+                        self.send_error(400, "bad episode")
+                        return
+                    data = self.obs.run_frames(episode)
+                    if data is None:
+                        self.send_error(404, "unknown episode")
+                    else:
+                        self._send_json(data)
+                case _:
+                    self.send_error(404)
         except BrokenPipeError:
             pass
 

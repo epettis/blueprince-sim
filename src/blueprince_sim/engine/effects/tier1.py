@@ -16,19 +16,20 @@ RESOURCES = ("steps", "gems", "keys", "coins", "dice", "stars")
 
 def _grant(game, resource: str, amount: int) -> None:
     st = game.state
-    if resource == "steps":
-        st.steps += amount
-    elif resource == "gems":
-        st.gems = max(0, st.gems + amount)
-    elif resource == "keys":
-        st.keys = max(0, st.keys + amount)
-    elif resource == "coins":
-        st.coins = max(0, st.coins + amount)
-    elif resource == "dice":
-        st.dice = max(0, st.dice + amount)
-    elif resource == "luck":
-        st.luck += amount
-    # "stars" and other out-of-scope currencies are tracked nowhere; no-op.
+    match resource:
+        case "steps":
+            st.steps += amount
+        case "gems":
+            st.gems = max(0, st.gems + amount)
+        case "keys":
+            st.keys = max(0, st.keys + amount)
+        case "coins":
+            st.coins = max(0, st.coins + amount)
+        case "dice":
+            st.dice = max(0, st.dice + amount)
+        case "luck":
+            st.luck += amount
+        # "stars" and other out-of-scope currencies are tracked nowhere; no-op.
 
 
 def _red_negated(game, room) -> bool:

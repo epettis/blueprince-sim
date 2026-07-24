@@ -36,18 +36,19 @@ def play(cfg: GameConfig, seed: int) -> None:
                     print(f"  [g] return via garage "
                           f"({game.cfg.outer_path_garage_cost + inside_penalty} steps)")
                 cmd = input("outer> ").strip().lower()
-                if cmd == "q":
-                    return
-                if (cmd == "e" and st.outer_loc == 1 and st.outer_room_drafted
-                        and not st.outer_room_entered
-                        and st.steps >= game.cfg.outer_enter_cost):
-                    game.enter_outer_room()
-                elif cmd == "h":
-                    game.return_from_outer("entrance_hall")
-                elif cmd == "g" and garage_cell >= 0 and game._breaker_on():
-                    game.return_from_outer("garage")
-                else:
-                    print("  ? invalid command")
+                match cmd:
+                    case "q":
+                        return
+                    case "e" if (st.outer_loc == 1 and st.outer_room_drafted
+                                 and not st.outer_room_entered
+                                 and st.steps >= game.cfg.outer_enter_cost):
+                        game.enter_outer_room()
+                    case "h":
+                        game.return_from_outer("entrance_hall")
+                    case "g" if garage_cell >= 0 and game._breaker_on():
+                        game.return_from_outer("garage")
+                    case _:
+                        print("  ? invalid command")
                 continue
             doors = game.open_doorways()
             moves = game.adjacent_moves()

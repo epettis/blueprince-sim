@@ -567,16 +567,17 @@ class Game:
         assert st.outer_loc > 0, "not in outer area"
         inside_penalty = 1 if st.outer_loc == 2 else 0
 
-        if dest == "entrance_hall":
-            cost = self.cfg.outer_path_entrance_cost + inside_penalty
-            dest_cell = ENTRANCE_CELL
-        elif dest == "garage":
-            assert self._breaker_on(), "garage route requires breaker"
-            cost = self.cfg.outer_path_garage_cost + inside_penalty
-            dest_cell = self._garage_cell()
-            assert dest_cell >= 0, "garage not placed"
-        else:
-            raise ValueError(f"unknown dest: {dest}")
+        match dest:
+            case "entrance_hall":
+                cost = self.cfg.outer_path_entrance_cost + inside_penalty
+                dest_cell = ENTRANCE_CELL
+            case "garage":
+                assert self._breaker_on(), "garage route requires breaker"
+                cost = self.cfg.outer_path_garage_cost + inside_penalty
+                dest_cell = self._garage_cell()
+                assert dest_cell >= 0, "garage not placed"
+            case _:
+                raise ValueError(f"unknown dest: {dest}")
 
         assert st.steps >= cost, "not enough steps"
         st.steps -= cost

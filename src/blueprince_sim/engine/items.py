@@ -34,18 +34,19 @@ def luck_probability(state: GameState, registry: Registry) -> float:
 
 
 def grant_item(state: GameState, item: str, count: int, rng: Rng, registry: Registry) -> None:
-    if item == "coins":
-        pile = registry.item_rules["coins"]
-        for _ in range(count):
-            state.coins += rng.randint("coin_pile", pile["pile_min"], pile["pile_max"])
-    elif item == "key":
-        state.keys += count
-    elif item == "gem":
-        state.gems += count
-    elif item == "die":
-        state.dice += count
-    elif item == "steps":
-        state.steps += count
+    match item:
+        case "coins":
+            pile = registry.item_rules["coins"]
+            for _ in range(count):
+                state.coins += rng.randint("coin_pile", pile["pile_min"], pile["pile_max"])
+        case "key":
+            state.keys += count
+        case "gem":
+            state.gems += count
+        case "die":
+            state.dice += count
+        case "steps":
+            state.steps += count
     state.items_found_log.append((item, count))
 
 
