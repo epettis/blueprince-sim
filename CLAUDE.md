@@ -58,6 +58,7 @@ source .venv/bin/activate          # do this before pytest / ruff / blueprince-*
 - Keep `rooms.json` diffs minimal: it is written with 1-space indent and `ensure_ascii=True` (currency glyphs stay as `\uXXXX` escapes).
 - **Comment every dataclass member.** One short inline comment per field stating what it means and its units/encoding/sentinels (see `Room`, `GameState`, `SpecialItemsState`). A field whose comment is hard to write is usually a field that doesn't know what it stores.
 - **Describe data structures in docs as bulleted lists or commented code blocks, never comma-run prose.** A reader should be able to scan one field per line (see the `SpecialItemsState` block in `docs/special-items-design.md`), not parse a paragraph of `field: type` pairs separated by commas.
+- **Prefer `match`/`case` over long `if`/`elif` chains** when dispatching on one value (an id, a kind tag, a resource name) — see `shops.py::buy` and `items.py::grant_item`. Chains of two or three unrelated conditions can stay `if`s; a value dispatch with four-plus arms should be a `match`.
 
 ## Known gaps and deferred work
 

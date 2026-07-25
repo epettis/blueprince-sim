@@ -323,6 +323,35 @@ def main() -> int:
                 else:
                     seen_stock_ids.append(eid)
 
+        # kitchen special_roll block
+        special_roll = shop.get("special_roll")
+        if special_roll is not None:
+            sr_total = sum(s.get("chance", 0) for s in special_roll)
+            if sr_total != 100:
+                errors.append(
+                    f"{where} special_roll: chances sum to {sr_total}, expected 100"
+                )
+            for sr in special_roll:
+                sr_id = sr.get("id")
+                sr_kind = sr.get("kind")
+                sr_price = sr.get("price")
+                if sr_id is None:
+                    errors.append(f"{where} special_roll entry missing 'id'")
+                if sr_kind not in VALID_STOCK_KINDS:
+                    errors.append(
+                        f"{where} special_roll/{sr_id}: kind must be resource/item/container, got {sr_kind!r}"
+                    )
+                if sr_price is None or not isinstance(sr_price, int) or sr_price < 0:
+                    errors.append(
+                        f"{where} special_roll/{sr_id}: price must be a non-negative int, got {sr_price!r}"
+                    )
+                if sr_kind == "resource":
+                    grant = sr.get("grant")
+                    if not isinstance(grant, dict) or not grant:
+                        errors.append(
+                            f"{where} special_roll/{sr_id}: kind=resource must have a non-empty 'grant' dict"
+                        )
+
         # locksmith special_key block
         special_key = shop.get("special_key")
         if special_key is not None:

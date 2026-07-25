@@ -56,6 +56,15 @@ class ShopsState:
     special_key_sold: bool = False  # the once-per-day Locksmith special key was bought
     locksmith_robbed: bool = False  # Electromagnet robbery fired (key purchases disabled)
     trades_done: int = 0  # Trading Post trades used today
+    # Fixed trade mapping for the day: item_id -> successor id (item or sentinel
+    # "dice"/"allowance_token"/"upgrade_disk").  Rolled lazily on first use inside
+    # the Trading Post.  Within each tier items form a shuffled cycle; a 1-item
+    # cycle points to itself (self-trade = untradeable).  dice_chance% of
+    # successors are replaced with "dice"; tier-5 may also yield allowance_token
+    # or upgrade_disk.
+    trade_graph: dict[str, str] = field(default_factory=dict)
+    # True once _roll_trade_graph has been called for this episode.
+    trade_graph_rolled: bool = False
     scepter_color: str | None = None  # activated color (category); None = not yet activated
     vase_smashed: bool = False  # Entrance Hall vase smashed today (discovery)
     chip_dug: bool = False  # West Path chip dug today (discovery)
@@ -76,28 +85,31 @@ def on_enter_shop(game, room) -> None:
 
     table = shop_rules.shops.get(room.id, {})
 
-    if room.id == "commissary":
-        _roll_commissary(game, table)
-    elif room.id == "locksmith":
-        _roll_locksmith(game, table)
-    elif room.id == "showroom":
-        _roll_showroom(game, table)
-    elif room.id == "gift_shop":
-        _roll_gift_shop(game, table)
-    elif room.id == "workshop":
-        _roll_workshop(game)
-    else:
-        # Simple shops (armory, kitchen, bookshop, laundry_room, etc.):
-        # availability rules for item entries; resource entries are always available.
-        entries = []
-        for raw in table.get("stock", []):
-            entry = dict(raw)
-            entry.setdefault("sold", 0)
-            if entry.get("kind") == "item":
-                if not si._is_available(state, entry["id"], game.registry):
-                    continue
-            entries.append(entry)
-        state.shops.stock[room.id] = entries
+    match room.id:
+        case "commissary":
+            _roll_commissary(game, table)
+        case "locksmith":
+            _roll_locksmith(game, table)
+        case "showroom":
+            _roll_showroom(game, table)
+        case "gift_shop":
+            _roll_gift_shop(game, table)
+        case "workshop":
+            _roll_workshop(game)
+        case "kitchen":
+            _roll_kitchen(game, table)
+        case _:
+            # Simple shops (armory, bookshop, laundry_room, etc.):
+            # availability rules for item entries; resources are always available.
+            entries = []
+            for raw in table.get("stock", []):
+                entry = dict(raw)
+                entry.setdefault("sold", 0)
+                if entry.get("kind") == "item":
+                    if not si._is_available(state, entry["id"], game.registry):
+                        continue
+                entries.append(entry)
+            state.shops.stock[room.id] = entries
 
     # Electromagnet Locksmith robbery
     if room.id == "locksmith":
@@ -285,6 +297,42 @@ def _roll_workshop(game) -> None:
     state.shops.stock["workshop"] = []
 
 
+def _roll_kitchen(game, table: dict) -> None:
+    """Build the Kitchen's daily stock: static entries + one rolled special dish.
+
+    Static stock (banana × limit 5, club_sandwich × limit 1) is always present.
+    Exactly ONE special is selected from the ``special_roll`` list using a
+    cumulative-chance roll (substream ``shop_stock``, same pattern as the
+    Locksmith's priority roll). Each special carries ``kind``, ``grant``,
+    ``price``, and ``limit`` in the data record.
+    """
+    state = game.state
+    entries = []
+
+    # Static entries (always offered)
+    for raw in table.get("stock", []):
+        entry = dict(raw)
+        entry.setdefault("sold", 0)
+        entries.append(entry)
+
+    # Roll the daily special (40% Bacon & Eggs / 30% Chef Salad / 30% Tomato Soup)
+    specials = table.get("special_roll", [])
+    if specials:
+        roll_val = game.rng.uniform("shop_stock", 0.0, 100.0)
+        total = 0.0
+        chosen_special = specials[-1]  # fallback: last entry
+        for s in specials:
+            total += s["chance"]
+            if roll_val < total:
+                chosen_special = s
+                break
+        entry = {k: v for k, v in chosen_special.items() if k != "chance"}
+        entry.setdefault("sold", 0)
+        entries.append(entry)
+
+    state.shops.stock["kitchen"] = entries
+
+
 def current_shop_id(game) -> str | None:
     """The shop room the player can currently buy from, or None.
 
@@ -432,54 +480,74 @@ def buy(game, index: int) -> None:
         return
 
     entry = stored[index]
-    kind = entry.get("kind")
 
-    from . import items as items_mod
+    match entry.get("kind"):
+        case "resource":
+            for resource, amount in entry.get("grant", {}).items():
+                match resource:
+                    case "food":
+                        # The entry id names the dish (banana, club_sandwich...)
+                        # so per-food step values and dynamic rules apply.
+                        si.eat_food(state, game.registry, entry["id"], amount)
+                        # inject_rooms dishes (Bacon & Eggs): add rooms to
+                        # today's draft decks after eating.
+                        dish = (game.registry.item_rules
+                                .get("food", {})
+                                .get("dishes", {})
+                                .get(entry["id"], {}))
+                        inject_ids = dish.get("inject_rooms", [])
+                        if inject_ids:
+                            game.inject_rooms(inject_ids)
+                            # Also satisfy the gate-type draft conditions on those
+                            # rooms so they can actually be placed (e.g. "breakfast"
+                            # on morning_room — inject_rooms adds deck copies but
+                            # the condition gate still blocks placement otherwise).
+                            _GATE_CONDITIONS = frozenset({
+                                "breakfast", "secret_garden_key",
+                                "knight_chess_piece", "room8_key",
+                            })
+                            for rid in inject_ids:
+                                room_obj = game.registry.by_id.get(rid)
+                                if room_obj is not None:
+                                    for cond in room_obj.draft_conditions:
+                                        if cond in _GATE_CONDITIONS:
+                                            state.special.extra_conditions.add(cond)
+                    case "coins":
+                        bonus = si.on_coins_granted(state, game.registry, amount)
+                        state.coins += amount + bonus
+                        state.items_found_log.append(("coins", amount))
+                    case "keys":
+                        state.keys += amount
+                        state.items_found_log.append(("key", amount))
+                    case "gems":
+                        state.gems += amount
+                        state.items_found_log.append(("gem", amount))
+                    case "dice":
+                        state.dice += amount
+                        state.items_found_log.append(("die", amount))
+            entry["sold"] = entry.get("sold", 0) + 1
 
-    if kind == "resource":
-        grant = entry.get("grant", {})
-        for resource, amount in grant.items():
-            if resource == "food":
-                items_mod.grant_item(state, "food", amount, game.rng, game.registry)
-            elif resource == "coins":
-                bonus = si.on_coins_granted(state, game.registry, amount)
-                state.coins += amount + bonus
-                state.items_found_log.append(("coins", amount))
-            elif resource == "keys":
-                state.keys += amount
-                state.items_found_log.append(("key", amount))
-            elif resource == "gems":
-                state.gems += amount
-                state.items_found_log.append(("gem", amount))
-            elif resource == "dice":
-                state.dice += amount
-                state.items_found_log.append(("die", amount))
-        # Increment sold counter; check limit
-        entry["sold"] = entry.get("sold", 0) + 1
-
-    elif kind == "item":
-        if entry.get("special_key"):
-            # Synthetic special key entry
+        case "item" if entry.get("special_key"):
             si.grant(state, game.registry, entry["id"], source="shop")
             state.shops.special_key_sold = True
-        else:
+
+        case "item":
             si.grant(state, game.registry, entry["id"], source="shop")
             entry["sold"] = entry.get("sold", 0) + 1
-            # Special carry-over for lunch_box
-            if entry["id"] == "lunch_box":
+            if entry["id"] == "lunch_box":  # one-time Gift Shop unlock
                 state.shops.gift_unlocks.append("lunch_box_unlocked")
 
-    elif kind == "container":
-        # cursed_coffers: requires sledge_hammer, grants cursed_effigy
-        requires = entry.get("requires_item")
-        assert requires is None or si.has(state, requires), (
-            f"container requires {requires} but it is not held"
-        )
-        grants = entry.get("grants_item")
-        if grants:
-            si.grant(state, game.registry, grants, source="shop")
-        entry["sold"] = entry.get("sold", 0) + 1
-        state.shops.gift_unlocks.append("cursed_effigy_unlocked")
+        case "container":
+            # cursed_coffers: requires sledge_hammer, grants cursed_effigy
+            requires = entry.get("requires_item")
+            assert requires is None or si.has(state, requires), (
+                f"container requires {requires} but it is not held"
+            )
+            grants = entry.get("grants_item")
+            if grants:
+                si.grant(state, game.registry, grants, source="shop")
+            entry["sold"] = entry.get("sold", 0) + 1
+            state.shops.gift_unlocks.append("cursed_effigy_unlocked")
 
 
 # ------------------------------------------------------------------- trading
@@ -496,13 +564,138 @@ def _inside_trading_post(game) -> bool:
     return outer_room is not None and outer_room.id == "trading_post"
 
 
-def trade_offers(game) -> list:
-    """Currently offered trades at the Trading Post (inside it, trades left):
-    one entry per held tradeable item. Computed on demand, never stored.
+def _roll_trade_graph(game) -> None:
+    """Build the day's fixed trade mapping and store it on state.shops.trade_graph.
 
-    Returns [] when not inside the Trading Post or daily trade limit is reached.
-    One offer per distinct held item whose SpecialItem.tier is not None and
-    whose id is not "keycard". Sorted by id for determinism.
+    Called lazily on first use inside the Trading Post (substream "trade_graph").
+    For each tier 1–5 the tradeable items (SpecialItem.tier == tier, id != "keycard")
+    are shuffled into one cycle: ids[i] → ids[(i+1) % n].  A 1-item tier cycle
+    produces a self-edge — that item cannot be traded (real game's self-trade rule).
+
+    Then, per item independently:
+      - dice_chance% → replace successor with "dice".
+      - tier-5 only: t5_special_chance% (checked before dice) → replace with
+        "allowance_token" or "upgrade_disk" (50/50).
+
+    The graph is FIXED for the day; it is never re-rolled.  trades_per_day bounds
+    any A→B→A milking loop at the trade() call site.
+    """
+    state = game.state
+    registry = game.registry
+    trading = registry.shop_rules.trading
+    dice_chance = trading.get("dice_chance", 10) / 100.0
+    t5_special_chance = trading.get("t5_special_chance", 50) / 100.0
+
+    graph: dict[str, str] = {}
+
+    for tier in range(1, 6):
+        ids = sorted(
+            it.id for it in registry.special.items
+            if it.tier == tier and it.id != "keycard"
+        )
+        if not ids:
+            continue
+        game.rng.shuffle("trade_graph", ids)
+        n = len(ids)
+        for i, item_id in enumerate(ids):
+            successor = ids[(i + 1) % n]
+            match tier:
+                case 5:
+                    if game.rng.chance("trade_graph", t5_special_chance):
+                        # Tier-5 special: allowance_token or upgrade_disk (50/50)
+                        if game.rng.chance("trade_graph", 0.5):
+                            successor = "allowance_token"
+                        else:
+                            successor = "upgrade_disk"
+                    elif game.rng.chance("trade_graph", dice_chance):
+                        successor = "dice"
+                case _:
+                    if game.rng.chance("trade_graph", dice_chance):
+                        successor = "dice"
+            graph[item_id] = successor
+
+    state.shops.trade_graph = graph
+    state.shops.trade_graph_rolled = True
+
+
+_SENTINELS = frozenset({"dice", "allowance_token", "upgrade_disk"})
+
+
+def _trade_target_ok(state, registry, item_id: str) -> bool:
+    """Can ``item_id`` be handed over as a trade return right now?
+
+    Deliberately looser than the spawn pipeline's availability: an item that
+    already spawned today (``spawned_today``) is still a valid trade return,
+    so an A→B→A cycle really can hand A back — the real-game milking loop —
+    bounded only by trades_per_day. Blocked: held uniques, consumed-for-good
+    ids, the keycard, and a second Stopwatch after one already ran today.
+    """
+    if item_id in si.PIPELINE_EXCLUDED or item_id in state.special.removed:
+        return False
+    item = registry.special.by_id.get(item_id)
+    if item is None:
+        return False
+    if item.unique and state.inventory.get(item_id, 0) > 0:
+        return False
+    if item.effect("stopwatch") is not None and state.special.stopwatch_used:
+        return False
+    return True
+
+
+def _resolve_trade(state, registry, give_id: str) -> str | None:
+    """Walk the trade graph from trade_graph[give_id] to a grantable terminal.
+
+    Returns the terminal string (item id or sentinel) if a trade can be made,
+    or None if the item is untradeable (1-item cycle or full loop of held/
+    unavailable nodes).
+
+    Skips nodes that are currently held or not valid trade returns
+    (:func:`_trade_target_ok`), following each skipped node's own successor.
+    Sentinels always terminate. A visited set guards against infinite loops.
+    """
+    graph = state.shops.trade_graph
+    start = graph.get(give_id)
+    if start is None:
+        return None
+    if start == give_id:
+        # Self-edge: untradeable
+        return None
+
+    visited: set[str] = {give_id}
+    current = start
+    while True:
+        if current in _SENTINELS:
+            return current
+        if current in visited:
+            # Full cycle with nothing grantable
+            return None
+        visited.add(current)
+        # Skip if held (player already has it) or not a valid trade return
+        if (state.inventory.get(current, 0) > 0
+                or not _trade_target_ok(state, registry, current)):
+            # Follow to next in chain
+            nxt = graph.get(current)
+            if nxt is None or nxt == current:
+                return None
+            current = nxt
+        else:
+            return current
+
+
+def trade_offers(game) -> list:
+    """Currently offered trades at the Trading Post (inside it, trades left).
+
+    Returns [] when not inside the Trading Post or the daily trade limit is reached.
+    One offer per distinct held tradeable item (SpecialItem.tier not None,
+    id not "keycard") whose trade graph resolves to a grantable terminal.
+    The ``receive`` field is exposed — the player can see what they will get
+    before committing (matching real-game UI).
+
+    The trade graph is rolled lazily on first call inside the post and is FIXED
+    for the day.  trades_per_day bounds milking loops (e.g. an A→B→A 2-cycle can
+    be exploited at most trades_per_day times total).
+
+    Sorted by "give" for a stable action-space index.
     """
     if not _inside_trading_post(game):
         return []
@@ -511,6 +704,9 @@ def trade_offers(game) -> list:
     trades_per_day = trading.get("trades_per_day", 3)
     if state.shops.trades_done >= trades_per_day:
         return []
+
+    if not state.shops.trade_graph_rolled:
+        _roll_trade_graph(game)
 
     offers = []
     for item_id, cnt in state.inventory.items():
@@ -523,18 +719,23 @@ def trade_offers(game) -> list:
             continue
         if item.tier is None:
             continue
-        offers.append({"give": item_id, "tier": item.tier})
+        receive = _resolve_trade(state, game.registry, item_id)
+        if receive is None:
+            continue  # untradeable (self-cycle or full loop)
+        offers.append({"give": item_id, "tier": item.tier, "receive": receive})
 
     offers.sort(key=lambda o: o["give"])
     return offers
 
 
 def trade(game, give_id: str) -> None:
-    """Trade one held ``give_id`` for a same-tier item / die / tier-5 special.
+    """Trade one held ``give_id`` for what its graph node resolves to.
 
     The given item returns to the spawn pool (consumed=False so it is NOT added
-    to state.special.removed). All rolls use the "trade" substream. Updates
-    state.shops.trades_done.
+    to state.special.removed).  Resolution is re-run at trade time (the
+    just-removed give_id no longer counts as held, which may change skip-held
+    resolution for other items, but give_id's own edge is fixed in the graph).
+    Updates state.shops.trades_done.
     """
     offers = trade_offers(game)
     offer = next((o for o in offers if o["give"] == give_id), None)
@@ -542,38 +743,26 @@ def trade(game, give_id: str) -> None:
 
     state = game.state
     registry = game.registry
-    trading = registry.shop_rules.trading
-    dice_chance = trading.get("dice_chance", 10) / 100.0
-    t5_special_chance = trading.get("t5_special_chance", 50) / 100.0
-    tier = offer["tier"]
 
     from . import items as items_mod
 
     # Return the given item to the spawn pool (pool return: consumed=False)
     si.remove(state, give_id, consumed=False)
 
-    # Roll the return outcome on the "trade" substream
-    if game.rng.chance("trade", dice_chance):
-        # Dice outcome
+    # Re-resolve at trade time: give_id no longer held, may affect skip-held walks
+    receive = _resolve_trade(state, registry, give_id)
+    if receive is None:
+        # Became untradeable between offer and trade (edge case); grant a die as fallback
         items_mod.grant_item(state, "die", 1, game.rng, registry)
-    elif tier == 5 and game.rng.chance("trade", t5_special_chance):
-        # Tier-5 special outcome: 50/50 allowance_token or upgrade_disk
-        chosen_special = "allowance_token" if game.rng.chance("trade", 0.5) else "upgrade_disk"
-        si.grant(state, registry, chosen_special, source="trade")
     else:
-        # Same-tier return: pick uniformly from available items at this tier
-        candidates = [
-            it.id for it in registry.special.items
-            if it.tier == tier
-            and it.id != give_id
-            and si._is_available(state, it.id, registry)
-        ]
-        if candidates:
-            idx = game.rng.randint("trade", 0, len(candidates) - 1)
-            si.grant(state, registry, candidates[idx], source="trade")
-        else:
-            # Fallback: no same-tier candidates available — grant a die
-            items_mod.grant_item(state, "die", 1, game.rng, registry)
+        match receive:
+            case "dice":
+                items_mod.grant_item(state, "die", 1, game.rng, registry)
+            case "allowance_token" | "upgrade_disk":
+                si.grant(state, registry, receive, source="trade")
+            case _:
+                # Item id
+                si.grant(state, registry, receive, source="trade")
 
     state.shops.trades_done += 1
 
@@ -604,14 +793,16 @@ def _component_ids(registry) -> frozenset[str]:
 
 
 def fabricate_options(game) -> list[str]:
-    """Contraption ids fabricable right now: standing in the Workshop, all
-    recipe inputs held, and output still available.
+    """Contraption ids buildable from the CURRENT inventory: all recipe
+    inputs held and the output still available. Sorted for determinism.
 
-    Returns an empty list when not in the Workshop. Sorted for determinism.
+    A pure query, valid anywhere — so a policy can see that walking to the
+    Workshop would, say, turn a Lock Pick Kit + Metal Detector into a Pick
+    Sound Amplifier. Actually building (:func:`fabricate`) requires standing
+    in the Workshop. Recomputed live from the inventory, so building one
+    contraption immediately drops any other recipe that shared a consumed
+    component (Power Hammer eats the Battery Pack a Jack Hammer needed).
     """
-    if not _inside_workshop(game):
-        return []
-
     state = game.state
     registry = game.registry
 
@@ -632,6 +823,7 @@ def fabricate(game, output_id: str) -> None:
     and never respawn). Asserts the player is in the Workshop and the output is
     in fabricate_options.
     """
+    assert _inside_workshop(game), "must stand in the Workshop to fabricate"
     options = fabricate_options(game)
     assert output_id in options, f"{output_id!r} is not a current fabrication option"
 

@@ -1,34 +1,96 @@
 {
-  "schema_version": 1,
-  "luck": {
-    "day_start": 10,
-    "max_effect_at": 29,
-    "floor": 0,
-    "curve": "linear",
-    "penalty_two_plus_items": -1,
-    "rabbits_foot_bonus": 3,
-    "meta": {
-      "confidence": "wiki",
-      "source": "blueprince.wiki.gg/wiki/Luck: start at 10; at 29 every room grants its max additional items; 2+ items found in one room decreases luck",
-      "notes": "Curve shape between floor and 29 is not documented; linear is an inferred placeholder, editable here."
+ "schema_version": 1,
+ "luck": {
+  "day_start": 10,
+  "max_effect_at": 29,
+  "floor": 0,
+  "curve": "linear",
+  "penalty_two_plus_items": -1,
+  "rabbits_foot_bonus": 3,
+  "meta": {
+   "confidence": "wiki",
+   "source": "blueprince.wiki.gg/wiki/Luck: start at 10; at 29 every room grants its max additional items; 2+ items found in one room decreases luck",
+   "notes": "Curve shape between floor and 29 is not documented; linear is an inferred placeholder, editable here."
+  }
+ },
+ "coins": {
+  "pile_min": 1,
+  "pile_max": 5
+ },
+ "food": {
+  "default_steps": 3,
+  "dishes": {
+   "banana": {
+    "steps": 3
+   },
+   "club_sandwich": {
+    "steps": 15
+   },
+   "bacon_and_eggs": {
+    "steps": 10,
+    "inject_rooms": [
+     "morning_room"
+    ]
+   },
+   "chef_salad": {
+    "steps_per_category": {
+     "green": 5
     }
-  },
-  "coins": { "pile_min": 1, "pile_max": 5 },
-  "food": {
-    "steps": 3,
-    "meta": {
-      "confidence": "wiki",
-      "source": "https://blueprince.wiki.gg/wiki/Items",
-      "notes": "Banana and other food items restore 3 steps base."
+   },
+   "tomato_soup": {
+    "steps_per_category": {
+     "red": 5
     }
+   },
+   "lemon_glazed_salmon": {
+    "steps": 20,
+    "boost_room": "aquarium",
+    "boosted_steps": 30
+   },
+   "porterhouse_steak": {
+    "steps": 20,
+    "boost_room": "showroom",
+    "boosted_steps": 30
+   },
+   "country_stew_pie": {
+    "steps": 20,
+    "boost_room": "boiler_room",
+    "boosted_steps": 30
+   },
+   "stuffed_wild_quail": {
+    "steps": 20,
+    "boost_room": "trophy_room",
+    "boosted_steps": 30
+   },
+   "wood_fired_pizza": {
+    "steps": 20,
+    "boost_room": "furnace",
+    "boosted_steps": 30
+   }
   },
-  "item_values": {
-    "comment": "Relative resource values used by shaped rewards and greedy policies; not game data.",
-    "key": 3.0,
-    "gem": 3.0,
-    "coin": 1.0,
-    "die": 4.0,
-    "step": 0.5
-  },
-  "meta": { "confidence": "wiki", "source": "wiki.gg Luck + Item Spawns prose (extracted 2026-07-20)" }
+  "main_course_cycle": [
+   "wood_fired_pizza",
+   "lemon_glazed_salmon",
+   "porterhouse_steak",
+   "country_stew_pie",
+   "stuffed_wild_quail"
+  ],
+  "meta": {
+   "confidence": "wiki",
+   "source": "https://blueprince.wiki.gg/wiki/Kitchen https://blueprince.wiki.gg/wiki/Dining_Room",
+   "notes": "main_course_cycle indexed by day % 5: index 0 = pizza (day%5==0), index 1 = salmon (day%5==1), etc."
+  }
+ },
+ "item_values": {
+  "comment": "Relative resource values used by shaped rewards and greedy policies; not game data.",
+  "key": 3.0,
+  "gem": 3.0,
+  "coin": 1.0,
+  "die": 4.0,
+  "step": 0.5
+ },
+ "meta": {
+  "confidence": "wiki",
+  "source": "wiki.gg Luck + Item Spawns prose (extracted 2026-07-20)"
+ }
 }

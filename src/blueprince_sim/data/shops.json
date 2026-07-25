@@ -264,7 +264,7 @@
    }
   },
   "kitchen": {
-   "_note": "Minimal food stock. Full kitchen inventory unpublished; banana inferred from food category.",
+   "_note": "Real menu: 5 bananas (2g), 1 club sandwich (8g), plus one daily special rolled 40/30/30 (bacon_and_eggs/chef_salad/tomato_soup). The special is rolled by _roll_kitchen on first entry using the shop_stock substream.",
    "stock": [
     {
      "id": "banana",
@@ -272,14 +272,54 @@
      "grant": {
       "food": 1
      },
-     "price": 3,
-     "limit": 3,
-     "_note": "Price and limit inferred; confidence inferred."
+     "price": 2,
+     "limit": 5
+    },
+    {
+     "id": "club_sandwich",
+     "kind": "resource",
+     "grant": {
+      "food": 1
+     },
+     "price": 8,
+     "limit": 1
+    }
+   ],
+   "special_roll": [
+    {
+     "id": "bacon_and_eggs",
+     "chance": 40,
+     "kind": "resource",
+     "grant": {
+      "food": 1
+     },
+     "price": 8,
+     "limit": 1
+    },
+    {
+     "id": "chef_salad",
+     "chance": 30,
+     "kind": "resource",
+     "grant": {
+      "food": 1
+     },
+     "price": 5,
+     "limit": 1
+    },
+    {
+     "id": "tomato_soup",
+     "chance": 30,
+     "kind": "resource",
+     "grant": {
+      "food": 1
+     },
+     "price": 5,
+     "limit": 1
     }
    ],
    "meta": {
     "source": "https://blueprince.wiki.gg/wiki/Kitchen",
-    "confidence": "inferred"
+    "confidence": "wiki"
    }
   },
   "bookshop": {

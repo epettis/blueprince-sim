@@ -153,6 +153,10 @@ class SpecialItemsState:
     configured: bool = False  # True once configure() has been called this episode
     # room.idx of the room where a special item already spawned today; -1 = none
     spawn_room_done: int = -1
+    dining_room_served: bool = False  # main course served today (first Dining Room entry)
+    # Draft conditions satisfied by in-run events (e.g. "breakfast" from Bacon & Eggs).
+    # Checked by satisfied_condition_items alongside item-gated conditions.
+    extra_conditions: set[str] = field(default_factory=set)
 
 
 # --------------------------------------------------------------- inventory ops
@@ -355,8 +359,8 @@ def roll_special_spawn(state, registry, room, rng) -> str | None:
 
 def on_enter(game, room, cell: int) -> None:
     """First-entry hooks: guaranteed spawns, Lost & Found, Sleeping Mask,
-    Watering Can. Called from Game._enter after roll_room_items.
-    Tasks B (spawns, Lost & Found) and C (mask, can).
+    Watering Can, Dining Room main course. Called from Game._enter after
+    roll_room_items. Tasks B (spawns, Lost & Found) and C (mask, can).
     """
     state = game.state
     registry = game.registry
@@ -366,6 +370,18 @@ def on_enter(game, room, cell: int) -> None:
     for item_id in registry.special.guaranteed_by_room.get(room.id, ()):
         if _is_available(state, item_id, registry):
             grant(state, registry, item_id, source="guaranteed")
+
+    # Dining Room main course: served once per day on first entry (free).
+    # The day's course is cycle[day % 5]; boost room check is inside eat_food.
+    if state.special.enabled:
+        if room.id == "dining_room" or room.variant_of == "dining_room":
+            if not state.special.dining_room_served:
+                state.special.dining_room_served = True
+                food_rules = registry.item_rules.get("food", {})
+                cycle = food_rules.get("main_course_cycle", [])
+                if cycle:
+                    course_id = cycle[state.day % len(cycle)]
+                    eat_food(state, registry, course_id)
 
     # Lunch Box: guaranteed in the Dining Room (and upgrade variants) when unlocked
     if game.cfg.lunch_box_unlocked:
@@ -701,6 +717,64 @@ def on_coins_granted(state, registry, amount: int) -> int:
     return 0
 
 
+def _resolve_food_base(state, registry, food_id: str) -> int:
+    """Resolve the base step count for one serving of ``food_id``.
+
+    Looks up the dish record in items.json food.dishes:
+    - ``steps``: flat step value (banana, club_sandwich, main courses).
+    - ``steps_per_category``: steps × count of grid rooms of that category
+      (chef_salad/tomato_soup; count taken at eat time, as the wiki states).
+    - ``boost_room`` + ``boosted_steps``: boosted_steps when that room is
+      anywhere on the estate (any cell in state.grid), else base steps
+      (main courses: salmon, steak, stew_pie, quail, pizza).
+    Falls back to ``food.default_steps`` (3) for unknown dish ids.
+    """
+    food_rules = registry.item_rules.get("food", {})
+    default_steps = food_rules.get("default_steps", 3)
+    dish = food_rules.get("dishes", {}).get(food_id)
+    if dish is None:
+        return default_steps
+
+    if "steps_per_category" in dish:
+        # Chef Salad / Tomato Soup: count grid rooms of each named category
+        total = 0
+        for cat, per_room in dish["steps_per_category"].items():
+            n = sum(
+                1 for idx in state.grid if idx >= 0
+                and registry.rooms[idx].category == cat
+            )
+            total += n * per_room
+        return total
+
+    if "boost_room" in dish:
+        # Main courses: check if the boost room is anywhere on the estate
+        boost_id = dish["boost_room"]
+        on_estate = any(
+            idx >= 0 and registry.rooms[idx].id == boost_id
+            for idx in state.grid
+        )
+        return dish["boosted_steps"] if on_estate else dish["steps"]
+
+    return dish.get("steps", default_steps)
+
+
+def eat_food(state, registry, food_id: str = "banana", count: int = 1) -> None:
+    """Eat ``count`` food items of kind ``food_id``, granting steps.
+
+    Per-dish resolution via ``_resolve_food_base``: flat steps (banana,
+    club_sandwich), category-count steps (chef_salad/tomato_soup), or
+    boost-room-conditional steps (main courses). Unknown dishes fall back
+    to food.default_steps (3). Salt Shaker / Silver Spoon apply per item
+    via :func:`food_steps`. ``inject_rooms`` dishes are NOT handled here —
+    callers that have access to ``game`` must check the dish record and call
+    ``game.inject_rooms`` after eat_food for those dishes.
+    """
+    base = _resolve_food_base(state, registry, food_id)
+    for _ in range(count):
+        state.steps += food_steps(state, registry, base)
+        state.items_found_log.append(("food", 1))
+
+
 def food_steps(state, registry, base: int) -> int:
     """Steps granted by one food item: base, +1 with the Salt Shaker, then
     doubled by the Silver Spoon (in that order, per the wiki).
@@ -755,16 +829,19 @@ def compass_active_from_state(state, registry, cfg) -> bool:
 
 
 def satisfied_condition_items(state) -> set[str]:
-    """Draft-condition gates granted by held items.
+    """Draft-condition gates granted by held items or in-run events.
 
     key_8 -> room8_key (Key 8 is not consumed on use).
     secret_garden_key -> secret_garden_key (consumed on placement by on_place).
+    state.special.extra_conditions: conditions added mid-run (e.g. "breakfast"
+    when Bacon & Eggs is eaten from the Kitchen).
     """
     conds: set[str] = set()
     if state.inventory.get("key_8", 0) > 0:
         conds.add("room8_key")
     if state.inventory.get("secret_garden_key", 0) > 0:
         conds.add("secret_garden_key")
+    conds.update(state.special.extra_conditions)
     return conds
 
 

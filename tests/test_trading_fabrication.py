@@ -265,29 +265,197 @@ def test_trade_t5_sometimes_yields_allowance_or_upgrade():
     )
 
 
-def test_trade_dice_fallback_when_no_same_tier_candidates():
-    """When no same-tier candidates exist after giving the only tier-N item, a die is granted.
+def test_trade_dice_sentinel_in_graph_yields_die():
+    """An item whose trade_graph successor is "dice" yields a die when traded.
 
-    The fallback prevents the trade from silently granting nothing.
+    The graph model replaces the old per-roll outcome with a fixed mapping.
+    Directly crafting a trade_graph with a "dice" sentinel confirms the die path.
     """
-    # tier-1 items: battery_pack, magnifying_glass, salt_shaker, sleeping_mask
-    # Give all tier-1 items so none remain available as return candidates
-    all_tier1 = ["battery_pack", "magnifying_glass", "salt_shaker", "sleeping_mask"]
     game = _game(seed=0)
     state = game.state
-    # Hold all tier-1 items — after trading away one, none are available
-    for iid in all_tier1:
-        state.inventory[iid] = 1
+    state.inventory["shovel"] = 1  # tier 2
     _set_trading_post_inner(game)
-    # Remove from spawned_today to allow availability of other seeds, but
-    # they are all held (unique), so _is_available returns False for them all.
-    # Trading battery_pack: give_id excluded, rest are held -> no candidates.
+    # Directly set the graph so shovel → "dice"
+    state.shops.trade_graph = {"shovel": "dice"}
+    state.shops.trade_graph_rolled = True
     log_before = len(state.items_found_log)
-    shops.trade(game, "battery_pack")
+    shops.trade(game, "shovel")
     new_entries = state.items_found_log[log_before:]
     assert any(kind == "die" for kind, _ in new_entries), (
-        "expected a die as fallback when no same-tier candidates remain"
+        "expected a die when the trade graph maps shovel to 'dice'"
     )
+
+
+def test_trade_graph_rolled_lazily_on_first_offer():
+    """The trade graph is rolled lazily on the first trade_offers call inside the post.
+
+    Before any call, trade_graph_rolled is False.  After, it is True.
+    """
+    game = _game(seed=0)
+    state = game.state
+    state.inventory["shovel"] = 1
+    _set_trading_post_inner(game)
+    assert not state.shops.trade_graph_rolled, "graph must not be rolled before first query"
+    shops.trade_offers(game)
+    assert state.shops.trade_graph_rolled, "graph must be rolled after first query inside post"
+
+
+def test_trade_graph_deterministic_per_seed():
+    """Two games with the same seed produce identical trade graphs.
+
+    Graph determinism is the prerequisite for offer determinism.
+    """
+    for seed in range(5):
+        g1 = _game(seed=seed)
+        g2 = _game(seed=seed)
+        for g in (g1, g2):
+            g.state.inventory["shovel"] = 1
+            _set_trading_post_inner(g)
+            shops.trade_offers(g)  # trigger lazy roll
+        assert g1.state.shops.trade_graph == g2.state.shops.trade_graph, (
+            f"seed={seed}: trade graphs differ"
+        )
+
+
+def test_trade_graph_fixed_for_day():
+    """Calling trade_offers a second time does not re-roll the graph.
+
+    The graph rolled on first entry is reused for every subsequent offer
+    query within the same day.
+    """
+    game = _game(seed=0)
+    state = game.state
+    state.inventory["shovel"] = 1
+    _set_trading_post_inner(game)
+    shops.trade_offers(game)
+    graph_first = dict(state.shops.trade_graph)
+    shops.trade_offers(game)
+    assert state.shops.trade_graph == graph_first, "trade graph must not change after first roll"
+
+
+def test_trade_graph_covers_all_tradeable_items():
+    """Every tradeable item (tier not None, id not keycard) appears as a key in the graph."""
+    game = _game(seed=0)
+    state = game.state
+    state.inventory["shovel"] = 1
+    _set_trading_post_inner(game)
+    shops.trade_offers(game)  # trigger roll
+    reg = game.registry
+    tradeable_ids = {
+        it.id for it in reg.special.items
+        if it.tier is not None and it.id != "keycard"
+    }
+    assert tradeable_ids == set(state.shops.trade_graph.keys()), (
+        "trade graph must contain exactly the tradeable item ids"
+    )
+
+
+def test_trade_graph_successors_same_tier_or_sentinel():
+    """Every item in the graph points to a same-tier item or an allowed sentinel.
+
+    Items must only cycle within their own tier.  Dice/allowance_token/upgrade_disk
+    are permitted cross-tier sentinels.
+    """
+    game = _game(seed=0)
+    state = game.state
+    state.inventory["shovel"] = 1
+    _set_trading_post_inner(game)
+    shops.trade_offers(game)
+    reg = game.registry
+    sentinels = {"dice", "allowance_token", "upgrade_disk"}
+    for give_id, successor in state.shops.trade_graph.items():
+        if successor in sentinels:
+            continue
+        give_item = reg.special.by_id[give_id]
+        succ_item = reg.special.by_id.get(successor)
+        assert succ_item is not None, f"{give_id!r} points to unknown id {successor!r}"
+        assert give_item.tier == succ_item.tier, (
+            f"{give_id!r} (tier {give_item.tier}) points to {successor!r} (tier {succ_item.tier})"
+        )
+
+
+def test_trade_offer_receive_never_already_held():
+    """An offer's receive is never an item the player already holds.
+
+    The skip-held walk must step past held items when resolving the terminal.
+    """
+    game = _game(seed=0)
+    state = game.state
+    # Give two tier-2 items: whichever one points to the other as successor,
+    # the offer for the first must not show the second as receive while it is held.
+    state.inventory["shovel"] = 1
+    state.inventory["compass"] = 1
+    _set_trading_post_inner(game)
+    offers = shops.trade_offers(game)
+    held = {iid for iid, cnt in state.inventory.items() if cnt > 0}
+    for offer in offers:
+        receive = offer.get("receive")
+        if receive is not None and receive not in {"dice", "allowance_token", "upgrade_disk"}:
+            assert receive not in held, (
+                f"offer for {offer['give']!r} shows receive={receive!r} which is already held"
+            )
+
+
+def test_trade_self_cycle_item_untradeable():
+    """An item in a 1-item tier cycle (pointing to itself) has no trade offer.
+
+    In the graph model a self-edge means the item cannot be traded.
+    Directly overriding the graph confirms the untradeable path.
+    """
+    game = _game(seed=0)
+    state = game.state
+    state.inventory["shovel"] = 1  # tier 2
+    _set_trading_post_inner(game)
+    # Overwrite graph so shovel is a self-cycle
+    state.shops.trade_graph = {"shovel": "shovel"}
+    state.shops.trade_graph_rolled = True
+    offers = shops.trade_offers(game)
+    assert all(o["give"] != "shovel" for o in offers), (
+        "shovel self-cycle must not produce a trade offer"
+    )
+
+
+def test_trade_milking_loop_runs_until_trades_per_day():
+    """An A→B→A two-cycle can be milked, and ONLY trades_per_day stops it.
+
+    The real game lets a 2-cycle hand items back and forth indefinitely, so
+    the daily trade cap is the loop bound — the spawn pipeline's
+    once-per-day uniqueness must not block a trade return.
+    """
+    game = _game(seed=0)
+    state = game.state
+    state.inventory["shovel"] = 1  # hold only one side of the 2-cycle (tier 2)
+    _set_trading_post_inner(game)
+    # Force a 2-cycle: shovel → compass → shovel
+    state.shops.trade_graph = {"shovel": "compass", "compass": "shovel"}
+    state.shops.trade_graph_rolled = True
+    trading = game.registry.shop_rules.trading
+    trades_per_day = trading.get("trades_per_day", 3)
+    trades_done = 0
+    while True:
+        offers = shops.trade_offers(game)
+        if not offers:
+            break
+        shops.trade(game, offers[0]["give"])
+        trades_done += 1
+        assert trades_done <= trades_per_day, "milking loop exceeded trades_per_day"
+    assert trades_done == trades_per_day, "the cap, not availability, must stop the loop"
+    assert state.shops.trades_done == trades_per_day
+
+
+def test_trade_offer_receive_exposed_before_trading():
+    """Each offer includes a 'receive' key showing the terminal before the player commits.
+
+    The real game exposes what you'll get before the trade is accepted.
+    """
+    game = _game(seed=0)
+    state = game.state
+    state.inventory["shovel"] = 1
+    _set_trading_post_inner(game)
+    offers = shops.trade_offers(game)
+    for offer in offers:
+        assert "receive" in offer, f"offer for {offer['give']!r} is missing 'receive' key"
+        assert offer["receive"] is not None, "receive must not be None for a live offer"
 
 
 def test_trade_deterministic_per_seed():
@@ -411,14 +579,22 @@ def test_workshop_stock_set_to_empty_list_after_entry():
 
 # ---------------------------------------------------------- fabricate_options
 
-def test_fabricate_options_empty_outside_workshop():
-    """fabricate_options returns [] when the player is not standing in the Workshop.
+def test_fabricate_options_visible_outside_workshop_but_action_gated():
+    """fabricate_options is a pure inventory query usable anywhere, while
+    fabricate() itself still requires standing in the Workshop.
 
-    Fabrication requires physical presence in the room.
+    A policy can see from afar that its items could become a contraption
+    (e.g. a lockpick upgrade when short on keys) and plan the walk there.
     """
     game = _game(GameConfig(starting_items=frozenset({"metal_detector", "shovel"})), seed=0)
-    # Player is in Entrance Hall (not Workshop)
-    assert shops.fabricate_options(game) == []
+    # Player is in the Entrance Hall (not the Workshop): the option shows...
+    assert shops.fabricate_options(game) == ["detector_shovel"]
+    # ...but building it here is refused.
+    try:
+        shops.fabricate(game, "detector_shovel")
+        raise AssertionError("fabricate outside the Workshop should be refused")
+    except AssertionError as e:
+        assert "Workshop" in str(e)
 
 
 def test_fabricate_options_empty_without_full_inputs():

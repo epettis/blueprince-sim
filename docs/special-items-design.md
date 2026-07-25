@@ -286,7 +286,15 @@ duck-typed `game`). game.py gains thin action methods; env untouched until PR3.
     "showroom": {"tier_a": ["...20-30g ids..."], "tier_b": ["...50-80g ids..."],
                   "trophy": {"id": "trophy_of_wealth", "price": 100}},
     "gift_shop": {},                    // lunch_box 15g one-time; cursed_coffers (inferred price)
-    "the_armory": {}, "kitchen": {}, "bookshop": {}, "laundry_room": {}
+    "the_armory": {}, "bookshop": {}, "laundry_room": {}
+    "kitchen": {
+      "stock": [banana 2g/limit5, club_sandwich 8g/limit1],  // always offered
+      "special_roll": [  // one chosen per day; weights sum to 100
+        {"id": "bacon_and_eggs", "chance": 40, ...},          // +10 steps + Morning Room
+        {"id": "chef_salad", "chance": 30, ...},              // +5 steps per green room at eat time
+        {"id": "tomato_soup", "chance": 30, ...}              // +5 steps per red room at eat time
+      ]
+    }
   }
 }
 ```
@@ -310,11 +318,26 @@ duck-typed `game`). game.py gains thin action methods; env untouched until PR3.
   `lunch_box_unlocked`) or `cursed_coffers` (needs a Sledge Hammer; grants the
   `cursed_effigy` immediately, its steps-to-13 pickup effect applies) records the
   discovery for carry-over.
-- **Trading Post trades**: `trade(give_id)`: give one held tradeable item of tier T,
-  receive a uniformly random available same-tier item (dice_chance% a die instead;
-  tier-5: t5_special_chance% an allowance_token — inert — or upgrade_disk). Traded
-  items return to the spawn pool (`removed` NOT set); max trades_per_day. Offers
-  computed on demand (`trade_offers()`), never stored.
+- **Trading Post trades**: `trade(give_id)`: give one held tradeable item of tier T.
+  On entering the Trading Post, the game generates a fixed trade graph for the day
+  (confidence: `inferred` — the wiki does not document the generator; mechanic described
+  by the user from observation). For each tier 1–5 the tradeable items are shuffled into
+  one cycle: `ids[i] → ids[(i+1) % n]`; then per-item `dice_chance%` replaces the
+  successor with "dice" and (tier 5 only, checked first) `t5_special_chance%` replaces
+  it with "allowance_token" or "upgrade_disk" (50/50). A 1-item tier cycle is a
+  self-edge — that item cannot be traded. The graph is FIXED for the day (rolled once on
+  first `trade_offers` call, substream "trade_graph").
+  `trade_offers()` resolves each held item by walking the graph: starting from
+  `trade_graph[X]`, the walk skips nodes that are held or unavailable
+  (`_is_available` false), following each skipped node's own successor; sentinels
+  ("dice"/"allowance_token"/"upgrade_disk") always terminate; a full loop back to the
+  start yields no offer (untradeable). The player sees the resolved receive before
+  committing (matching the real-game UI). `trade(give_id)` re-resolves at execution
+  time (the just-removed give_id is no longer held). Traded items return to the spawn
+  pool (`removed` NOT set); max `trades_per_day`. The `trades_per_day` knob is the hard
+  outer bound on any milking loop (e.g. an A→B→A 2-cycle); in practice, the
+  `spawned_today` uniqueness guard also limits repeated cycles, so a 2-cycle terminates
+  after at most 2 trades (each item appears in `spawned_today` once granted).
 - **Workshop**: `fabricate(output_id)` consumes the recipe inputs
   (special_items.json fabrication list) and grants the contraption, any time the
   player stands in the Workshop. First Workshop entry spawns one free component
@@ -341,6 +364,22 @@ duck-typed `game`). game.py gains thin action methods; env untouched until PR3.
   Coat Check, Moon Pendant) stays deferred.
 - **Repellent stays deferred**: its only effect is next-day pool removal —
   meaningless inside a single-day episode; inert until the multi-day wrapper.
+- **Kitchen menu** (wiki-sourced): `_roll_kitchen` runs on first entry using substream
+  `shop_stock`. Static stock: 5 bananas at 2g each and 1 Club Sandwich at 8g. Exactly
+  one daily special is drawn by a 40/30/30 cumulative roll: Bacon & Eggs (8g, +10 steps,
+  injects the Morning Room into today's draft decks immediately on purchase), Chef Salad
+  (5g, +5 steps per green room on the grid *at eat time*), Tomato Soup (5g, +5 steps per
+  red room on the grid at eat time). Sources: https://blueprince.wiki.gg/wiki/Kitchen.
+- **Dining Room main course** (wiki-sourced): on first entry to the Dining Room (or any
+  variant), the day's Main Course is served automatically and free. The dish is a
+  deterministic five-day cycle indexed by `day % 5`: 0 → Wood-fired Pizza (Furnace
+  boost), 1 → Lemon Glazed Salmon (Aquarium), 2 → Porterhouse Steak (Showroom), 3 →
+  Country Stew Pie (Boiler Room), 4 → Stuffed Wild Quail (Trophy Room). Each is 20
+  base steps, or 30 when its boost room is anywhere on the estate (checked via
+  `state.grid`; duplicates of the same room cannot appear, so no stacking). Salt
+  Shaker / Silver Spoon modify the final step count normally. The course is served
+  exactly once per day (`state.special.dining_room_served` flag). Source:
+  https://blueprince.wiki.gg/wiki/Dining_Room.
 - **PR1 gap fixed in PR2**: `enter_outer_room` now calls `special_items.on_enter`,
   so outer rooms spawn items (Toolshed's guaranteed Gear Wrench, Trading Post pool).
 
