@@ -14,7 +14,10 @@ item-use actions like Repellent), PR3 wires observation/action space.
   grid plane or cell index feature) plus `treasure_dug`;
 - per-day counters an agent must plan around: `stopwatch_left`, `water`,
   `lockpick_attempts`/`lockpick_fails`, `shield_used`;
-- (PR2 data, observed in PR3) shop stock/prices per placed shop and the scepter color.
+- (PR2 data, observed in PR3) shop stock/prices per placed shop and the scepter color;
+- `fabricate_options()` (valid anywhere — lets a policy see that its items could
+  become, say, a lockpick upgrade before walking to the Workshop) and, inside the
+  Trading Post, the trade offers with their resolved `receive`.
 
 ## Principles
 
