@@ -208,6 +208,16 @@ What it does:
   force-exits.
 - **Resume**: `latest.zip` restores weights + optimizer; `latest.json`
   restores the episode counter, so checkpoint cadence stays aligned.
+- **Live dashboard**: on a TTY the metrics render as a fixed-size frame that
+  redraws in place instead of sb3's scrolling table, with fixed decimals, a
+  reserved sign column (so values don't shift when they cross zero), and an
+  equalizer bar per metric - filled from 0 for near-zero-target metrics like
+  `approx_kl`, from the axis low otherwise, with `│` marks at the min and max
+  over the last 1,000 samples and a goal hint saying what healthy looks like.
+  Piped or `nohup`'d output falls back to the plain scrolling table
+  automatically; `--no-dashboard` forces it. Trainer messages (checkpoints,
+  shutdown) appear in the frame's event tail rather than tearing the display.
+  Preview it without training: `python -m blueprince_sim.rl.dashboard`.
 
 Run it in the background on a desktop with any of:
 

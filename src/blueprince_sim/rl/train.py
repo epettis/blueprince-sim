@@ -31,6 +31,8 @@ from collections import Counter, deque
 from pathlib import Path
 
 from ..config import GameConfig
+from . import dashboard
+from .dashboard import emit
 
 ALL_STUDIO_ADDITIONS = frozenset({
     "solarium", "classroom", "dovecote", "the_kennel",
@@ -267,8 +269,8 @@ class CheckpointAndStopCallback:
                             self.every * self.snapshot_every) < self.every:
                         self.save(f"ep{self.episodes}")
                 if STOP.is_set():
-                    print(f"[train] stop signal received at {self.episodes} episodes; "
-                          "saving and shutting down...", flush=True)
+                    emit(f"[train] stop signal received at {self.episodes} episodes; "
+                         "saving and shutting down...")
                     return False  # ends model.learn() after this step
                 return True
 
@@ -312,9 +314,9 @@ class CheckpointAndStopCallback:
                 tmp_meta.write_text(json.dumps(meta, indent=2))
                 os.replace(tmp_meta, self.ckpt_dir / f"{name}.json")
                 wr = meta["win_rate_recent"]
-                print(f"[train] checkpoint {final.name}: {self.episodes} episodes, "
-                      f"{meta['timesteps']} steps, win_rate(1k)="
-                      f"{wr:.3f}" if wr is not None else "n/a", flush=True)
+                emit(f"[train] checkpoint {final.name}: {self.episodes} episodes, "
+                     f"{meta['timesteps']} steps, win_rate(1k)="
+                     + (f"{wr:.3f}" if wr is not None else "n/a"))
 
         return _Impl(*args, **kwargs)
 
@@ -323,7 +325,7 @@ def _install_signal_handlers() -> None:
     """SIGINT/SIGTERM set STOP for a graceful stop; a second signal exits hard."""
     def handler(signum, frame):
         if STOP.is_set():  # second signal: exit hard
-            print("[train] second signal - exiting immediately", flush=True)
+            emit("[train] second signal - exiting immediately")
             sys.exit(1)
         STOP.set()
 
@@ -433,6 +435,11 @@ def main(argv: list[str] | None = None) -> int:
                         help="optional cap; default runs until signaled")
     parser.add_argument("--tensorboard", action="store_true",
                         help="also log to <checkpoint-dir>/tb")
+    parser.add_argument("--no-dashboard", action="store_true",
+                        help="print sb3's scrolling metric table instead of "
+                             "the in-place dashboard (the dashboard is also "
+                             "skipped automatically when stdout is not a TTY, "
+                             "e.g. under nohup or when piped to a log)")
     parser.add_argument("--device", default="cpu",
                         help="torch device (default cpu: the policy nets are tiny "
                              "MLPs and CPU avoids CUDA probing on GPU-less hosts)")
@@ -496,6 +503,14 @@ def main(argv: list[str] | None = None) -> int:
     latest = ckpt_dir / "latest.zip"
     meta_path = ckpt_dir / "latest.json"
 
+    # Activated before anything is logged so the startup banner lands in the
+    # dashboard's event tail rather than tearing the frame.
+    dash = None
+    if not args.no_dashboard and dashboard.supported():
+        dash = dashboard.activate(
+            "blueprince-train",
+            f"{ckpt_dir} · reward={args.reward} · pid {os.getpid()}")
+
     fns = [make_single_env(args.reward, args.seed + i) for i in range(args.n_envs)]
     vec_env = SubprocVecEnv(fns) if args.n_envs > 1 else DummyVecEnv(fns)
 
@@ -519,8 +534,8 @@ def main(argv: list[str] | None = None) -> int:
                             "policy_kwargs": policy_kwargs})
         if meta_path.exists():
             episodes_done = json.loads(meta_path.read_text()).get("episodes", 0)
-        print(f"[train] resumed from {latest} at {episodes_done} episodes, "
-              f"{model.num_timesteps} timesteps", flush=True)
+        emit(f"[train] resumed from {latest} at {episodes_done} episodes, "
+             f"{model.num_timesteps} timesteps")
         reset_counters = False
     else:
         model = MaskablePPO(
@@ -530,19 +545,25 @@ def main(argv: list[str] | None = None) -> int:
             tensorboard_log=str(ckpt_dir / "tb") if args.tensorboard else None,
             device=args.device, policy_kwargs=policy_kwargs,
         )
-        print(f"[train] fresh run: {args.n_envs} envs, reward={args.reward}, "
-              f"checkpoint every {args.checkpoint_every} episodes -> {ckpt_dir}",
-              flush=True)
+        emit(f"[train] fresh run: {args.n_envs} envs, reward={args.reward}, "
+             f"checkpoint every {args.checkpoint_every} episodes -> {ckpt_dir}")
         reset_counters = True
+
+    if dash is not None:
+        # set_logger flips sb3's _custom_logger flag, so learn() keeps ours
+        # instead of installing the scrolling HumanOutputFormat table.
+        model.set_logger(dashboard.make_sb3_logger(
+            dash, str(ckpt_dir / "tb") if args.tensorboard else None))
+        model.verbose = 0
 
     model.policy.set_mode_config(
         exploit_prob=args.exploit_prob,
         per_decision=(args.mode_granularity == "decision"),
         n_envs=args.n_envs, seed=args.seed)
-    print(f"[train] explore/exploit: {args.exploit_prob:.0%} exploit "
-          f"(temp {args.exploit_temp}) / {1 - args.exploit_prob:.0%} explore "
-          f"(temp {args.explore_temp}, eps {args.explore_eps}), "
-          f"per-{args.mode_granularity}", flush=True)
+    emit(f"[train] explore/exploit: {args.exploit_prob:.0%} exploit "
+         f"(temp {args.exploit_temp}) / {1 - args.exploit_prob:.0%} explore "
+         f"(temp {args.explore_temp}, eps {args.explore_eps}), "
+         f"per-{args.mode_granularity}")
 
     recorder = None
     if not args.no_record and (args.record_sample_rate > 0 or args.record_top_every > 0):
@@ -550,17 +571,16 @@ def main(argv: list[str] | None = None) -> int:
             ckpt_dir / "replays.jsonl", args.n_envs, args.reward,
             args.record_sample_rate, args.record_top_every, episodes_done,
             seed=args.seed)
-        print(f"[train] recording episodes to {recorder.path} "
-              f"(sample rate {args.record_sample_rate:.2%}, "
-              f"top-of-{args.record_top_every} windows)", flush=True)
+        emit(f"[train] recording episodes to {recorder.path} "
+             f"(sample rate {args.record_sample_rate:.2%}, "
+             f"top-of-{args.record_top_every} windows)")
 
     draft_stats = DraftStatsWriter(ckpt_dir / "draft_stats.jsonl", episodes_done)
     callback = CheckpointAndStopCallback(
         ckpt_dir, args.checkpoint_every, episodes_done, args.snapshot_every,
         recorder=recorder, draft_stats=draft_stats)
     _install_signal_handlers()
-    print(f"[train] pid {os.getpid()} - stop with: kill {os.getpid()} (or Ctrl-C)",
-          flush=True)
+    emit(f"[train] pid {os.getpid()} - stop with: kill {os.getpid()} (or Ctrl-C)")
 
     total = args.total_timesteps if args.total_timesteps else int(1e12)
     try:
@@ -572,8 +592,9 @@ def main(argv: list[str] | None = None) -> int:
             recorder.flush_top()
         draft_stats.flush()
         vec_env.close()
-        print(f"[train] done: {callback.episodes} episodes total; "
-              f"checkpoint at {latest}", flush=True)
+        emit(f"[train] done: {callback.episodes} episodes total; "
+             f"checkpoint at {latest}")
+        dashboard.deactivate()   # final frame, then restore the cursor
     return 0
 
 
