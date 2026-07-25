@@ -80,20 +80,28 @@ def test_decimals_are_capped_not_full_precision():
 
 @pytest.mark.parametrize("value", [0.0, -1.0, 1e-9, 12345.6789, -0.00004])
 def test_value_width_is_constant(value):
+    """Every value occupies the same column count whatever its magnitude or
+    sign - the frame's fixed geometry depends on it."""
     assert len(format_value(FLOAT, value, 12)) == 12
     assert len(format_value(INT, value, 12)) == 12
 
 
 def test_missing_metric_renders_a_placeholder_not_a_crash():
+    """A metric sb3 has not logged yet renders a placeholder; the opening
+    frames of a run carry no train/* keys at all."""
     assert format_value(FLOAT, None, 12).strip() == "-"
 
 
 def test_large_counters_stay_inside_their_column():
+    """A nine-digit episode counter stays inside its column instead of
+    widening the row it sits in."""
     assert len(format_value(INT, 45_241_664, 12)) == 12
     assert "45,241,664" in format_value(INT, 45_241_664, 12)
 
 
 def test_duration_is_hms():
+    """time_elapsed reads as H:MM:SS, with hours accumulating rather than
+    rolling over into days."""
     assert format_duration(11_746) == "3:15:46"
     assert format_duration(0) == "0:00:00"
 
@@ -114,6 +122,8 @@ def test_axis_hugs_the_window_instead_of_snapping_wide():
 
 
 def test_axis_pads_so_markers_sit_inside_the_track():
+    """The axis extends past the window, so the min/max markers land inside
+    the track instead of pinned to its ends where they'd say nothing."""
     axis = compute_axis(0.010, 0.020, zero_anchored=False)
     assert axis.lo < 0.010 and axis.hi > 0.020
 
@@ -125,6 +135,8 @@ def test_one_signed_data_never_grows_an_opposite_sign_axis():
 
 
 def test_zero_anchored_axis_always_contains_zero():
+    """A zero-anchored metric's axis includes 0 even when no sample is near
+    it - that is where its bar is anchored."""
     axis = compute_axis(0.5, 0.9, zero_anchored=True)
     assert axis.lo <= 0.0 <= axis.hi
 
@@ -135,6 +147,8 @@ def test_constant_metric_is_degenerate():
 
 
 def test_nice_step_is_a_round_number():
+    """Axis steps snap to 1/2/2.5/5 x 10^k, so endpoints read as round
+    numbers and hold still between frames."""
     for span in (0.007, 1.0, 7.0, 12_000.0):
         step = nice_step(span)
         mantissa = step / 10 ** __import__("math").floor(__import__("math").log10(step))
@@ -144,6 +158,8 @@ def test_nice_step_is_a_round_number():
 # -- bars ------------------------------------------------------------------
 
 def test_bar_width_is_exact():
+    """The track is exactly the requested width for any value, endpoints
+    included; anything else reflows the frame."""
     for value in (-1.0, 0.0, 0.35, 1.0):
         bar = render_bar(20, -1.0, 1.0, value, 0.0, -1.0, 1.0)
         assert len(bar) == 20
@@ -160,23 +176,30 @@ def test_zero_anchored_bar_diverges_from_the_middle():
 
 
 def test_left_anchored_bar_fills_from_the_left_edge():
+    """A one-sided metric fills from the axis low, so bar length reads
+    directly as magnitude."""
     bar = render_bar(20, 0.0, 1.0, 0.5, 0.0, 0.1, 0.9)
     assert bar[0] in (FILL, MARKER_ON_FILL)
     assert bar[-1] not in (FILL, MARKER_ON_FILL)
 
 
 def test_bigger_value_never_shrinks_a_left_anchored_bar():
+    """Fill grows monotonically with the value - a bar that shrank as its
+    number rose would read backwards."""
     small = render_bar(20, 0.0, 1.0, 0.2, 0.0, 0.0, 1.0)
     large = render_bar(20, 0.0, 1.0, 0.8, 0.0, 0.0, 1.0)
     assert large.count(FILL) > small.count(FILL)
 
 
 def test_value_at_zero_shows_an_anchor_tick_not_an_empty_track():
+    """A value resting exactly on its anchor still marks that anchor, so the
+    row is never mistaken for missing data."""
     bar = render_bar(20, -1.0, 1.0, 0.0, 0.0, -0.5, 0.5)
     assert ANCHOR in bar
 
 
 def test_markers_show_the_window_extremes():
+    """Exactly two markers appear, positioned at the window's min and max."""
     bar = render_bar(20, 0.0, 1.0, 0.5, 0.0, 0.25, 0.75)
     marks = [i for i, c in enumerate(bar) if c in (MARKER, MARKER_ON_FILL)]
     assert len(marks) == 2
@@ -192,17 +215,22 @@ def test_marker_over_fill_stays_distinguishable():
 
 
 def test_out_of_axis_value_clamps_instead_of_overflowing():
+    """A value beyond the axis - a spike before the axis catches up - clamps
+    to the track rather than overflowing the row."""
     bar = render_bar(20, 0.0, 1.0, 5.0, 0.0, 0.0, 1.0)
     assert len(bar) == 20
 
 
 def test_degenerate_axis_renders_a_constant_track():
+    """A zero-width axis renders a label rather than a bar, which would
+    otherwise imply movement that isn't there."""
     assert "constant" in render_bar(20, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2)
 
 
 # -- frame -----------------------------------------------------------------
 
 def test_frame_fits_the_terminal_budget():
+    """The assembled frame fits the 240x40 terminal budget."""
     dash = Dashboard(width=MAX_WIDTH)
     dash.update(sample())
     lines = dash.render()
@@ -263,6 +291,8 @@ def test_monotonic_counters_have_no_bar():
 
 
 def test_rate_and_quality_metrics_do_have_bars():
+    """Metrics that genuinely vary - rates and optimiser health - do get a
+    bar, so the suppression rule isn't over-broad."""
     dash = varying(Dashboard(width=140))
     for label in ("fps", "win_rate_1k", "approx_kl", "value_loss"):
         row = cell(dash, label)
@@ -289,6 +319,8 @@ def test_first_rollout_shows_warming_up_not_a_fake_bar():
 
 
 def test_constant_metric_reads_as_constant():
+    """Several identical samples read 'constant', distinct from the
+    single-sample 'warming up' case."""
     dash = Dashboard(width=140)
     for _ in range(5):
         dash.update(sample())
@@ -296,6 +328,8 @@ def test_constant_metric_reads_as_constant():
 
 
 def test_history_window_is_bounded():
+    """The rolling window keeps at most HISTORY samples, so a run of millions
+    of episodes cannot grow memory without bound."""
     dash = Dashboard(width=140)
     for i in range(1500):
         dash.update(sample(**{"train/approx_kl": i * 1e-6}))
@@ -322,6 +356,8 @@ def test_long_subtitle_cannot_overflow_the_frame():
 
 
 def test_unknown_and_non_numeric_keys_are_ignored():
+    """Keys with no spec, and sb3's non-numeric records, are skipped instead
+    of crashing the frame."""
     dash = Dashboard(width=140)
     dash.update({"train/std": "n/a", "some/unknown": 1.0, "train/loss": 0.1})
     assert "some/unknown" not in dash.series
@@ -330,6 +366,8 @@ def test_unknown_and_non_numeric_keys_are_ignored():
 
 
 def test_events_appear_in_frame_and_are_capped():
+    """Trainer messages surface in the event tail and the oldest drop once it
+    is full, holding the frame height fixed."""
     dash = Dashboard(width=140, event_lines=3)
     for i in range(5):
         dash.note(f"[train] checkpoint {i}")
@@ -347,6 +385,8 @@ def test_renders_before_any_metrics_arrive():
 # -- live redraw -----------------------------------------------------------
 
 def test_live_redraw_moves_the_cursor_up_instead_of_scrolling():
+    """A refresh rewinds exactly one frame height and writes exactly one
+    frame - this is what redraws in place rather than scrolling."""
     buf = io.StringIO()
     dash = LiveDashboard(width=140, stream=buf)
     dash.update(sample())
@@ -360,6 +400,8 @@ def test_live_redraw_moves_the_cursor_up_instead_of_scrolling():
 
 
 def test_live_close_restores_the_cursor():
+    """The cursor is hidden while the dashboard owns the screen and restored
+    on close, so a stopped run leaves no invisible cursor behind."""
     buf = io.StringIO()
     dash = LiveDashboard(width=140, stream=buf)
     dash.update(sample())
