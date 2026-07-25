@@ -1,0 +1,342 @@
+{
+ "sale": {
+  "days": [
+   20,
+   21
+  ]
+ },
+ "trading": {
+  "trades_per_day": 20,
+  "dice_chance": 10,
+  "t5_special_chance": 50
+ },
+ "shops": {
+  "commissary": {
+   "slots": 4,
+   "_note": "Selection model: wiki names 7 fixed combinations A-G (unpublished contents); sim infers uniform random draw of `slots` distinct available entries. upgrade_disk marked reserve=true; the engine may treat reserve entries as fallback stock.",
+   "stock": [
+    {
+     "id": "gem",
+     "kind": "resource",
+     "grant": {
+      "gems": 1
+     },
+     "price": 3,
+     "limit": 5
+    },
+    {
+     "id": "key",
+     "kind": "resource",
+     "grant": {
+      "keys": 1
+     },
+     "price": 10,
+     "limit": 3
+    },
+    {
+     "id": "banana",
+     "kind": "resource",
+     "grant": {
+      "food": 1
+     },
+     "price": 3,
+     "limit": 4,
+     "_note": "food restores steps via the engine food item pipeline"
+    },
+    {
+     "id": "set_of_gems",
+     "kind": "resource",
+     "grant": {
+      "gems": 3
+     },
+     "price": 10,
+     "limit": 1,
+     "_note": "Listed as 'Set of Gems' on the wiki. Grants 3 gems (count unpublished; using 3, confidence inferred)."
+    },
+    {
+     "id": "magnifying_glass",
+     "kind": "item",
+     "price": 4
+    },
+    {
+     "id": "salt_shaker",
+     "kind": "item",
+     "price": 5
+    },
+    {
+     "id": "compass",
+     "kind": "item",
+     "price": 6
+    },
+    {
+     "id": "shovel",
+     "kind": "item",
+     "price": 6
+    },
+    {
+     "id": "sleeping_mask",
+     "kind": "item",
+     "price": 8
+    },
+    {
+     "id": "running_shoes",
+     "kind": "item",
+     "price": 8
+    },
+    {
+     "id": "sledge_hammer",
+     "kind": "item",
+     "price": 8
+    },
+    {
+     "id": "metal_detector",
+     "kind": "item",
+     "price": 10
+    },
+    {
+     "id": "upgrade_disk",
+     "kind": "item",
+     "price": 15,
+     "reserve": true
+    }
+   ],
+   "meta": {
+    "source": "https://blueprince.wiki.gg/wiki/Commissary",
+    "confidence": "wiki"
+   }
+  },
+  "locksmith": {
+   "_note": "Key and set_of_3_keys are unlimited (no limit field). lock_pick_kit carries not_if_owned=true: not offered when already held. special_key is a separate roll block (one per day at 8g).",
+   "stock": [
+    {
+     "id": "key",
+     "kind": "resource",
+     "grant": {
+      "keys": 1
+     },
+     "price": 5
+    },
+    {
+     "id": "set_of_3_keys",
+     "kind": "resource",
+     "grant": {
+      "keys": 3
+     },
+     "price": 12,
+     "_note": "Grants 3 keys; unlimited stock."
+    },
+    {
+     "id": "lock_pick_kit",
+     "kind": "item",
+     "price": 10,
+     "not_if_owned": true
+    }
+   ],
+   "special_key": {
+    "_note": "One special key offered per day at 8g. Priority lists rolled 30/40/30. Fallback list tried in order: car_keys first, then a duplicate silver_key. Source: wiki/Locksmith.",
+    "price": 8,
+    "rolls": [
+     {
+      "chance": 30,
+      "order": [
+       "silver_key",
+       "secret_garden_key",
+       "prism_key"
+      ]
+     },
+     {
+      "chance": 40,
+      "order": [
+       "secret_garden_key",
+       "prism_key",
+       "silver_key"
+      ]
+     },
+     {
+      "chance": 30,
+      "order": [
+       "prism_key",
+       "secret_garden_key",
+       "silver_key"
+      ]
+     }
+    ],
+    "fallback": [
+     "car_keys",
+     "silver_key"
+    ]
+   },
+   "meta": {
+    "source": "https://blueprince.wiki.gg/wiki/Locksmith",
+    "confidence": "wiki"
+   }
+  },
+  "showroom": {
+   "_note": "Stock model: pick 2 from tier_a + 2 from tier_b avoiding already-owned; trophy only offered once all four displayed items are bought. Tier prices are wiki-documented.",
+   "tier_a": [
+    {
+     "id": "moon_pendant",
+     "price": 20
+    },
+    {
+     "id": "chronograph",
+     "price": 30
+    },
+    {
+     "id": "silver_spoon",
+     "price": 30
+    }
+   ],
+   "tier_b": [
+    {
+     "id": "ornate_compass",
+     "price": 50
+    },
+    {
+     "id": "emerald_bracelet",
+     "price": 60
+    },
+    {
+     "id": "master_key",
+     "price": 80
+    }
+   ],
+   "trophy": {
+    "id": "trophy_of_wealth",
+    "price": 100
+   },
+   "meta": {
+    "source": "https://blueprince.wiki.gg/wiki/Showroom",
+    "confidence": "wiki"
+   }
+  },
+  "gift_shop": {
+   "_note": "Full Gift Shop inventory not published on the wiki. lunch_box: one_time=true \u2014 only offered when lunch_box unlock flag is absent (engine-enforced). cursed_coffers: not a special_items.json id; modeled as a container that grants cursed_effigy when the player holds a sledge_hammer. Price 10g is inferred (unpublished).",
+   "stock": [
+    {
+     "id": "lunch_box",
+     "kind": "item",
+     "price": 15,
+     "one_time": true,
+     "_note": "One-time post-game unlock. Only offered when not lunch_box_unlocked. After purchase, spawns daily in every Dining Room."
+    },
+    {
+     "id": "cursed_coffers",
+     "kind": "container",
+     "grants_item": "cursed_effigy",
+     "requires_item": "sledge_hammer",
+     "price": 10,
+     "_note": "Price 10g is inferred (wiki does not publish it). Buying it grants the cursed_effigy immediately; steps-to-13 pickup effect applies. Records cursed_effigy_unlocked for carry-over."
+    }
+   ],
+   "meta": {
+    "source": "https://blueprince.wiki.gg/wiki/Gift_Shop",
+    "confidence": "inferred"
+   }
+  },
+  "the_armory": {
+   "_note": "Four stock entries. The wiki shows four slots: Knight's Shield, Morning Star, Torch, and The Axe. The real third-slot rotation (between Torch and other items) is unmodeled; all four are listed as static stock.",
+   "stock": [
+    {
+     "id": "knights_shield",
+     "kind": "item",
+     "price": 8
+    },
+    {
+     "id": "morning_star",
+     "kind": "item",
+     "price": 8
+    },
+    {
+     "id": "torch",
+     "kind": "item",
+     "price": 8
+    },
+    {
+     "id": "the_axe",
+     "kind": "item",
+     "price": 32
+    }
+   ],
+   "meta": {
+    "source": "https://blueprince.wiki.gg/wiki/Armory",
+    "confidence": "wiki"
+   }
+  },
+  "kitchen": {
+   "_note": "Real menu: 5 bananas (2g), 1 club sandwich (8g), plus one daily special rolled 40/30/30 (bacon_and_eggs/chef_salad/tomato_soup). The special is rolled by _roll_kitchen on first entry using the shop_stock substream.",
+   "stock": [
+    {
+     "id": "banana",
+     "kind": "resource",
+     "grant": {
+      "food": 1
+     },
+     "price": 2,
+     "limit": 5
+    },
+    {
+     "id": "club_sandwich",
+     "kind": "resource",
+     "grant": {
+      "food": 1
+     },
+     "price": 8,
+     "limit": 1
+    }
+   ],
+   "special_roll": [
+    {
+     "id": "bacon_and_eggs",
+     "chance": 40,
+     "kind": "resource",
+     "grant": {
+      "food": 1
+     },
+     "price": 8,
+     "limit": 1
+    },
+    {
+     "id": "chef_salad",
+     "chance": 30,
+     "kind": "resource",
+     "grant": {
+      "food": 1
+     },
+     "price": 5,
+     "limit": 1
+    },
+    {
+     "id": "tomato_soup",
+     "chance": 30,
+     "kind": "resource",
+     "grant": {
+      "food": 1
+     },
+     "price": 5,
+     "limit": 1
+    }
+   ],
+   "meta": {
+    "source": "https://blueprince.wiki.gg/wiki/Kitchen",
+    "confidence": "wiki"
+   }
+  },
+  "bookshop": {
+   "_note": "Modeled as a shop with no purchasable stock. Lore books sold in the Bookshop are not modeled in the sim (lore out of scope). Stock array is empty until book purchases are implemented.",
+   "stock": [],
+   "meta": {
+    "source": "https://blueprince.wiki.gg/wiki/Bookshop",
+    "confidence": "inferred"
+   }
+  },
+  "laundry_room": {
+   "_note": "Modeled as a shop with no purchasable stock. The Laundry Room's coin/step swap mechanic is not modeled in the sim. Stock array is empty until laundry swaps are implemented.",
+   "stock": [],
+   "meta": {
+    "source": "https://blueprince.wiki.gg/wiki/Laundry_Room",
+    "confidence": "inferred"
+   }
+  }
+ }
+}

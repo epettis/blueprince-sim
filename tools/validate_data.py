@@ -247,9 +247,165 @@ def main() -> int:
                         f"special_items dig/{table_name}: item outcome references unknown id {rid!r}"
                     )
 
+    # ── shops.json ─────────────────────────────────────────────────────────────
+    VALID_STOCK_KINDS = {"resource", "item", "container"}
+    VALID_GRANT_KEYS = {"coins", "keys", "gems", "food", "dice"}
+
+    shops_doc = json.loads((DATA / "shops.json").read_text())
+
+    # trading block sanity
+    trading = shops_doc.get("trading", {})
+    tpd = trading.get("trades_per_day")
+    if tpd is None or not isinstance(tpd, int) or tpd < 0:
+        errors.append(f"shops trading.trades_per_day must be a non-negative int, got {tpd!r}")
+    for knob in ("dice_chance", "t5_special_chance"):
+        val = trading.get(knob)
+        if val is None or not isinstance(val, int) or not 0 <= val <= 100:
+            errors.append(f"shops trading.{knob} must be 0-100 int, got {val!r}")
+
+    shops = shops_doc.get("shops", {})
+    for shop_id, shop in shops.items():
+        where = f"shops/{shop_id}"
+        if shop_id not in by_id:
+            errors.append(f"{where}: shop key is not a known room id")
+
+        stock = shop.get("stock", [])
+        seen_stock_ids: list[str] = []
+        for entry in stock:
+            eid = entry.get("id")
+            ekind = entry.get("kind")
+            eprice = entry.get("price")
+
+            if eid is None:
+                errors.append(f"{where} stock: entry missing 'id'")
+            if ekind not in VALID_STOCK_KINDS:
+                errors.append(f"{where} stock/{eid}: kind must be resource/item/container, got {ekind!r}")
+            if eprice is None or not isinstance(eprice, int) or eprice < 0:
+                errors.append(f"{where} stock/{eid}: price must be a non-negative int, got {eprice!r}")
+
+            if ekind == "item":
+                if eid not in si_by_id:
+                    errors.append(f"{where} stock/{eid}: kind=item id not in special_items.json")
+            elif ekind == "resource":
+                grant = entry.get("grant")
+                if not isinstance(grant, dict) or not grant:
+                    errors.append(f"{where} stock/{eid}: kind=resource must have a non-empty 'grant' dict")
+                else:
+                    for gkey, gval in grant.items():
+                        if gkey not in VALID_GRANT_KEYS:
+                            errors.append(
+                                f"{where} stock/{eid}: grant key {gkey!r} not in "
+                                f"{sorted(VALID_GRANT_KEYS)}"
+                            )
+                        if not isinstance(gval, int) or gval <= 0:
+                            errors.append(
+                                f"{where} stock/{eid}: grant[{gkey!r}] must be a positive int, got {gval!r}"
+                            )
+            elif ekind == "container":
+                gi = entry.get("grants_item")
+                if gi is None or gi not in si_by_id:
+                    errors.append(
+                        f"{where} stock/{eid}: kind=container grants_item {gi!r} not in special_items.json"
+                    )
+                ri = entry.get("requires_item")
+                if ri is not None and ri not in si_by_id:
+                    errors.append(
+                        f"{where} stock/{eid}: kind=container requires_item {ri!r} not in special_items.json"
+                    )
+
+            limit = entry.get("limit")
+            if limit is not None and (not isinstance(limit, int) or limit <= 0):
+                errors.append(f"{where} stock/{eid}: limit must be a positive int, got {limit!r}")
+
+            if eid is not None:
+                if eid in seen_stock_ids:
+                    errors.append(f"{where}: duplicate stock id {eid!r}")
+                else:
+                    seen_stock_ids.append(eid)
+
+        # kitchen special_roll block
+        special_roll = shop.get("special_roll")
+        if special_roll is not None:
+            sr_total = sum(s.get("chance", 0) for s in special_roll)
+            if sr_total != 100:
+                errors.append(
+                    f"{where} special_roll: chances sum to {sr_total}, expected 100"
+                )
+            for sr in special_roll:
+                sr_id = sr.get("id")
+                sr_kind = sr.get("kind")
+                sr_price = sr.get("price")
+                if sr_id is None:
+                    errors.append(f"{where} special_roll entry missing 'id'")
+                if sr_kind not in VALID_STOCK_KINDS:
+                    errors.append(
+                        f"{where} special_roll/{sr_id}: kind must be resource/item/container, got {sr_kind!r}"
+                    )
+                if sr_price is None or not isinstance(sr_price, int) or sr_price < 0:
+                    errors.append(
+                        f"{where} special_roll/{sr_id}: price must be a non-negative int, got {sr_price!r}"
+                    )
+                if sr_kind == "resource":
+                    grant = sr.get("grant")
+                    if not isinstance(grant, dict) or not grant:
+                        errors.append(
+                            f"{where} special_roll/{sr_id}: kind=resource must have a non-empty 'grant' dict"
+                        )
+
+        # locksmith special_key block
+        special_key = shop.get("special_key")
+        if special_key is not None:
+            sk_price = special_key.get("price")
+            if sk_price is None or not isinstance(sk_price, int) or sk_price < 0:
+                errors.append(f"{where} special_key: price must be a non-negative int, got {sk_price!r}")
+            rolls = special_key.get("rolls", [])
+            total_chance = sum(r.get("chance", 0) for r in rolls)
+            if total_chance != 100:
+                errors.append(f"{where} special_key rolls: chances sum to {total_chance}, expected 100")
+            for roll in rolls:
+                for kid in roll.get("order", []):
+                    if kid not in si_by_id:
+                        errors.append(
+                            f"{where} special_key roll order: {kid!r} not in special_items.json"
+                        )
+            fallback = special_key.get("fallback", [])
+            if not isinstance(fallback, list):
+                errors.append(f"{where} special_key fallback: expected a list")
+            else:
+                for fid in fallback:
+                    if fid not in si_by_id:
+                        errors.append(
+                            f"{where} special_key fallback: {fid!r} not in special_items.json"
+                        )
+
+        # showroom tier arrays
+        for tier_field in ("tier_a", "tier_b"):
+            tier_entries = shop.get(tier_field, [])
+            for te in tier_entries:
+                tid = te.get("id")
+                if tid not in si_by_id:
+                    errors.append(f"{where} {tier_field}: id {tid!r} not in special_items.json")
+                tprice = te.get("price")
+                if tprice is None or not isinstance(tprice, int) or tprice < 0:
+                    errors.append(
+                        f"{where} {tier_field}/{tid}: price must be a non-negative int, got {tprice!r}"
+                    )
+        trophy = shop.get("trophy")
+        if trophy is not None:
+            troph_id = trophy.get("id")
+            if troph_id not in si_by_id:
+                errors.append(f"{where} trophy: id {troph_id!r} not in special_items.json")
+            troph_price = trophy.get("price")
+            if troph_price is None or not isinstance(troph_price, int) or troph_price < 0:
+                errors.append(
+                    f"{where} trophy/{troph_id}: price must be a non-negative int, got {troph_price!r}"
+                )
+
     base = [r for r in rooms if r.get("pool") == "base"]
+    n_shops = len(shops)
     print(f"{len(rooms)} rooms ({len(base)} base pool); "
           f"{len(si_items)} special items; "
+          f"{n_shops} shops; "
           f"{len(errors)} errors, {len(warnings)} warnings")
     for w in warnings:
         print(f"  warning: {w}")

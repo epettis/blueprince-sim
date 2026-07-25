@@ -113,10 +113,10 @@ def grant_item(state: GameState, item: str, count: int, rng: Rng, registry: Regi
         case "steps":
             state.steps += count
         case "food":
-            # Food restores steps; Salt Shaker / Silver Spoon modify each item.
-            base = registry.item_rules.get("food", {}).get("steps", 3)
-            for _ in range(count):
-                state.steps += special_items.food_steps(state, registry, base)
+            # Food restores steps; per-dish values and Salt Shaker / Silver
+            # Spoon modifiers are eat_food's concern (it logs each item).
+            special_items.eat_food(state, registry, "banana", count)
+            return
     state.items_found_log.append((item, count))
 
 

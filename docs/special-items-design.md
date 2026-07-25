@@ -14,7 +14,10 @@ item-use actions like Repellent), PR3 wires observation/action space.
   grid plane or cell index feature) plus `treasure_dug`;
 - per-day counters an agent must plan around: `stopwatch_left`, `water`,
   `lockpick_attempts`/`lockpick_fails`, `shield_used`;
-- (PR2 data, observed in PR3) shop stock/prices per placed shop and the scepter color.
+- (PR2 data, observed in PR3) shop stock/prices per placed shop and the scepter color;
+- `fabricate_options()` (valid anywhere — lets a policy see that its items could
+  become, say, a lockpick upgrade before walking to the Workshop) and, inside the
+  Trading Post, the trade offers with their resolved `receive`.
 
 ## Principles
 
@@ -245,6 +248,161 @@ draws from the data pool (excluding already-held uniques; `die` grants a die).
 11. Dig-spot counts: the wiki's Dig Spot list names rooms but not counts, so
     every listed room carries dig_spots=1 (inferred) except the datamined
     Tomb (2) and Tunnel (3).
+
+## PR2 — commerce and carry-over
+
+New module `engine/shops.py` (mirrors special_items.py: frozen rules from
+`data/shops.json`, a mutable `ShopsState` on GameState, hook/action functions taking
+duck-typed `game`). game.py gains thin action methods; env untouched until PR3.
+
+### Data schema — `data/shops.json`
+
+```jsonc
+{
+  "sale": {"days": [20, 21]},          // prices halved (round up) on these days
+  "trading": {
+    "trades_per_day": 20,              // wiki-undocumented; generous: the graph is learned by trading
+    "dice_chance": 10,                 // % an offer resolves to a die
+    "t5_special_chance": 50            // % a tier-5 trade offers allowance_token/upgrade_disk
+  },
+  "shops": {                           // keyed by room id
+    "commissary": {
+      "slots": 4,                      // distinct stock entries offered per day
+      "stock": [
+        // kind: resource (grants coins/keys/gems/food) | item (special item id)
+        {"id": "gem", "kind": "resource", "grant": {"gems": 1}, "price": 3, "limit": 5},
+        {"id": "magnifying_glass", "kind": "item", "price": 4}   // limit 1 implied for items
+      ]
+    },
+    "locksmith": {
+      "stock": ["...unlimited key entries..."],
+      "special_key": {                 // one per day, 8g: priority lists rolled 30/40/30
+        "price": 8,
+        "rolls": [
+          {"chance": 30, "order": ["silver_key", "secret_garden_key", "prism_key"]},
+          {"chance": 40, "order": ["secret_garden_key", "prism_key", "silver_key"]},
+          {"chance": 30, "order": ["prism_key", "secret_garden_key", "silver_key"]}
+        ],
+        "fallback": "car_keys"         // then a duplicate silver_key
+      }
+    },
+    "showroom": {"tier_a": ["...20-30g ids..."], "tier_b": ["...50-80g ids..."],
+                  "trophy": {"id": "trophy_of_wealth", "price": 100}},
+    "gift_shop": {},                    // lunch_box 15g one-time; cursed_coffers (inferred price)
+    "the_armory": {}, "bookshop": {}, "laundry_room": {}
+    "kitchen": {
+      "stock": [banana 2g/limit5, club_sandwich 8g/limit1],  // always offered
+      "special_roll": [  // one chosen per day; weights sum to 100
+        {"id": "bacon_and_eggs", "chance": 40, ...},          // +10 steps + Morning Room
+        {"id": "chef_salad", "chance": 30, ...},              // +5 steps per green room at eat time
+        {"id": "tomato_soup", "chance": 30, ...}              // +5 steps per red room at eat time
+      ]
+    }
+  }
+}
+```
+
+### Model decisions (confidence noted)
+
+- **Stock rolls** happen on FIRST entry to each placed shop (seeded substream
+  `shop_stock`); the Commissary offers `slots` distinct available entries uniformly
+  (the real game's 7 fixed combinations A–G are unpublished — inferred). Owned or
+  consumed special items never stock; the Showroom picks 2 from tier_a + 2 from
+  tier_b avoiding owned, and shows the Trophy once all four displayed items are
+  bought.
+- **buy(index)**: player must stand in the shop room (or be inside the Trading Post,
+  `outer_loc == 2`). Coins spent; Coupon Book applies −1 per purchase (reduction,
+  not refund — an item priced 1 above your gold is buyable); sale days halve prices
+  rounded up.
+- **Electromagnet Locksmith robbery** (`locksmith_rob`): on first entry to the
+  Locksmith while holding it: +24 keys, key/set-of-keys stock disabled for the day,
+  the special key NOT taken (wiki-verified).
+- **Gift Shop**: buying `lunch_box` (one-time; only offered when not
+  `lunch_box_unlocked`) or `cursed_coffers` (needs a Sledge Hammer; grants the
+  `cursed_effigy` immediately, its steps-to-13 pickup effect applies) records the
+  discovery for carry-over.
+- **Trading Post trades**: `trade(give_id)`: give one held tradeable item of tier T.
+  On entering the Trading Post, the game generates a fixed trade graph for the day
+  (confidence: `inferred` — the wiki does not document the generator; mechanic described
+  by the user from observation). For each tier 1–5 the tradeable items are shuffled into
+  one cycle: `ids[i] → ids[(i+1) % n]`; then per-item `dice_chance%` replaces the
+  successor with "dice" and (tier 5 only, checked first) `t5_special_chance%` replaces
+  it with "allowance_token" or "upgrade_disk" (50/50). A 1-item tier cycle is a
+  self-edge — that item cannot be traded. The graph is FIXED for the day (rolled once on
+  first `trade_offers` call, substream "trade_graph").
+  `trade_offers()` resolves each held item by walking the graph: starting from
+  `trade_graph[X]`, the walk skips nodes that are held or unavailable
+  (`_is_available` false), following each skipped node's own successor; sentinels
+  ("dice"/"allowance_token"/"upgrade_disk") always terminate; a full loop back to the
+  start yields no offer (untradeable). The player sees the resolved receive before
+  committing (matching the real-game UI). `trade(give_id)` re-resolves at execution
+  time (the just-removed give_id is no longer held). Traded items return to the spawn
+  pool (`removed` NOT set); max `trades_per_day`. The `trades_per_day` knob (20) is
+  THE hard bound on any milking loop (e.g. an A→B→A 2-cycle): trade returns
+  deliberately bypass the spawn pipeline's `spawned_today` uniqueness so the loop
+  works as in the real game. The cap is generous because the graph is only
+  discoverable by experimenting — players burn trades learning the chains.
+- **Workshop**: `fabricate(output_id)` consumes the recipe inputs
+  (special_items.json fabrication list) and grants the contraption, any time the
+  player stands in the Workshop. First Workshop entry spawns one free component
+  (uniform over available components; fallback 5 coins) — wiki-documented.
+- **Royal Scepter**: with `royal_scepter_found`, granted at day start (the Entrance
+  Hall daily spawn; the hall is pre-entered, so reset-time grant).
+  `activate_scepter(color)` — color ∈ {blueprint, green, red, bedroom, hallway,
+  shop} — once per day, irrevocable for the day; sets a `scepter_<color>` condition
+  consumed by the existing data-driven `category_biases` machinery
+  (priority_draws.json entries; chance 40, magnitude unpublished — inferred).
+- **Microchips**: `smash_vase()` (standing in the Entrance Hall with a Sledge
+  Hammer, once) grants a `microchip` and records the vase discovery; with
+  `entrance_vase_broken` the chip is instead granted at day start. West Path chip:
+  with `outer_chip_dug`, granted on reaching the doorstep (`outer_loc` 1 — same
+  walking cost as the Outer Room door, per the game); the first-time dig happens
+  automatically at the doorstep while holding a digging tool, recording the
+  discovery. Chip holders/placement are not modeled (outer areas out of scope) —
+  chips stay inert, tier-2 tradeable.
+- **Carry-over report**: `Game.carryover() -> dict[str, bool]` — today's discoveries
+  for a multi-day wrapper to feed into tomorrow's GameConfig: keys
+  `lunch_box_unlocked`, `cursed_effigy_unlocked`, `entrance_vase_broken`,
+  `outer_chip_dug`, `royal_scepter_found` (True when newly discovered today OR
+  already configured). Persistent-item inventory carry-over (Key 8, Sanctum Keys,
+  Coat Check, Moon Pendant) stays deferred.
+- **Repellent stays deferred**: its only effect is next-day pool removal —
+  meaningless inside a single-day episode; inert until the multi-day wrapper.
+- **Kitchen menu** (wiki-sourced): `_roll_kitchen` runs on first entry using substream
+  `shop_stock`. Static stock: 5 bananas at 2g each and 1 Club Sandwich at 8g. Exactly
+  one daily special is drawn by a 40/30/30 cumulative roll: Bacon & Eggs (8g, +10 steps,
+  injects the Morning Room into today's draft decks immediately on purchase), Chef Salad
+  (5g, +5 steps per green room on the grid *at eat time*), Tomato Soup (5g, +5 steps per
+  red room on the grid at eat time). Sources: https://blueprince.wiki.gg/wiki/Kitchen.
+- **Dining Room main course** (wiki-sourced; rank-8 gated per the real game): the
+  day's Main Course is served automatically and free while standing in the Dining
+  Room (or any variant), but only once the player has REACHED Rank 8 (some entered
+  cell at rank >= 8). An early visit serves nothing — returning after reaching Rank
+  8 serves it (checked on every arrival); a Dining Room drafted at rank 8/9 serves
+  immediately on first entry. The dish is a
+  deterministic five-day cycle indexed by `day % 5`: 0 → Wood-fired Pizza (Furnace
+  boost), 1 → Lemon Glazed Salmon (Aquarium), 2 → Porterhouse Steak (Showroom), 3 →
+  Country Stew Pie (Boiler Room), 4 → Stuffed Wild Quail (Trophy Room). Each is 20
+  base steps, or 30 when its boost room is anywhere on the estate (checked via
+  `state.grid`; duplicates of the same room cannot appear, so no stacking). Salt
+  Shaker / Silver Spoon modify the final step count normally. The course is served
+  exactly once per day (`state.special.dining_room_served` flag). Source:
+  https://blueprince.wiki.gg/wiki/Dining_Room.
+- **PR1 gap fixed in PR2**: `enter_outer_room` now calls `special_items.on_enter`,
+  so outer rooms spawn items (Toolshed's guaranteed Gear Wrench, Trading Post pool).
+
+### ShopsState (mutable, per-episode)
+
+```python
+stock: dict[str, list]         # shop room id -> rolled stock entries (mutable sold/limit state)
+special_key_offer: str | None  # today's Locksmith special-key id (rolled with stock)
+locksmith_robbed: bool         # Electromagnet robbery fired (key purchases disabled)
+trades_done: int               # Trading Post trades used today
+scepter_color: str | None      # activated color (category); None = not yet activated
+vase_smashed: bool             # Entrance Hall vase smashed today (discovery)
+chip_dug: bool                 # West Path chip dug today (discovery)
+gift_unlocks: list[str]        # one-time Gift Shop purchases made today (carry-over feed)
+```
 
 ## Test plan (per CLAUDE.md conventions: observable behavior, docstrings)
 
