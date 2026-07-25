@@ -46,7 +46,7 @@ class GameConfig:
     # it is one of the drawn options.
     ornate_compass: bool = False
     # --- reward selection for the env ---
-    reward: str = "sparse"              # sparse|shaped
+    reward: str = "sparse"              # sparse|shaped|phased
     data_dir: Path | None = None        # alternate data/*.json directory (None = packaged data)
 
     def resolved_stage(self) -> str:
