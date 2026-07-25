@@ -23,6 +23,54 @@ EXTRA_ITEM_TABLE = (
 )
 
 
+def expected_yields(room: Room, registry: Registry) -> dict[str, float]:
+    """Static expected steps/keys/gems/coins/luck from drafting and entering
+    ``room`` once.
+
+    Computed from data alone (no simulation): guaranteed items, "random"
+    guaranteed items via the EXTRA_ITEM_TABLE weights, luck-rolled additional
+    items at the day-start luck probability, plus flat ``grant`` and
+    ``anti_luck`` effects. A "coins" item is a PILE; it contributes the
+    pile-size midpoint. Conditional effects (per-category grants,
+    set-to-value, shop pricing) are excluded - they depend on game state.
+    """
+    total_w = sum(w for _, w in EXTRA_ITEM_TABLE)
+    p_item = {item: w / total_w for item, w in EXTRA_ITEM_TABLE}
+    luck = registry.item_rules["luck"]
+    p_extra = min(1.0, max(0.0, (luck["day_start"] - luck["floor"])
+                           / (luck["max_effect_at"] - luck["floor"])))
+    pile = registry.item_rules["coins"]
+    pile_avg = (pile["pile_min"] + pile["pile_max"]) / 2
+    y = {"steps": 0.0, "keys": 0.0, "gems": 0.0, "coins": 0.0, "luck": 0.0}
+
+    def add(item: str, count: float) -> None:
+        match item:
+            case "key":
+                y["keys"] += count
+            case "gem":
+                y["gems"] += count
+            case "steps":
+                y["steps"] += count
+            case "coins":  # coin piles, each rolling pile_min..pile_max
+                y["coins"] += count * pile_avg
+            case "random":  # table-rolled items; count may be a fractional expectation
+                y["keys"] += count * p_item["key"]
+                y["gems"] += count * p_item["gem"]
+                y["coins"] += count * p_item["coins"] * pile_avg
+
+    for item, count in room.items.guaranteed:
+        add(item, count)
+    add("random", room.items.additional_max * p_extra)
+    for eff in room.effects:
+        if eff.tag == "grant":
+            res = eff.param("resource")
+            if res in y:
+                y[res] += eff.param("amount", 0)
+        elif eff.tag == "anti_luck":
+            y["luck"] -= eff.param("amount", 3)
+    return y
+
+
 def luck_probability(state: GameState, registry: Registry) -> float:
     """Spawn chance of each additional (luck-rolled) item at the current luck.
 

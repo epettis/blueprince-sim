@@ -68,6 +68,7 @@ class Observatory:
         self.replays_path = ckpt_dir / "replays.jsonl"
         self.metrics_path = ckpt_dir / "metrics.jsonl"
         self.eval_path = ckpt_dir / "eval.jsonl"
+        self.draft_stats_path = ckpt_dir / "draft_stats.jsonl"
         self.latest_json = ckpt_dir / "latest.json"
         self.latest_zip = ckpt_dir / "latest.zip"
         self._lock = threading.Lock()
@@ -218,6 +219,34 @@ class Observatory:
             "last_eval": evals[-1] if evals else None,
         }
 
+    def draft_stats(self) -> dict:
+        """Draft-frequency series for the dashboard.
+
+        ``train``: 10k-episode buckets from draft_stats.jsonl, rows merged by
+        ``bucket_start`` (partial buckets from stops/resumes sum back
+        together). ``eval``: per-checkpoint counts from the eval rows that
+        carry them (older rows without drafts are skipped).
+        """
+        merged: dict[int, dict] = {}
+        for row in _read_jsonl(self.draft_stats_path):
+            start = row.get("bucket_start")
+            if start is None:
+                continue
+            b = merged.setdefault(start, {
+                "bucket_start": start, "bucket_end": row.get("bucket_end"),
+                "seeds": 0, "drafts": {}, "seeds_with": {}})
+            b["seeds"] += row.get("seeds", 0)
+            for key in ("drafts", "seeds_with"):
+                for name, n in (row.get(key) or {}).items():
+                    b[key][name] = b[key].get(name, 0) + n
+        evals = [
+            {"episodes": r.get("episodes"), "eval_episodes": r.get("eval_episodes"),
+             "drafts": r["drafts"], "seeds_with": r.get("seeds_with", {}),
+             "sampled_at": r.get("sampled_at")}
+            for r in _read_jsonl(self.eval_path) if r.get("drafts")
+        ]
+        return {"train": [merged[k] for k in sorted(merged)], "eval": evals}
+
     def rooms(self) -> list[dict]:
         """Static room metadata for the client, loading the engine Registry lazily."""
         if self._registry is None:
@@ -319,6 +348,8 @@ class Handler(BaseHTTPRequestHandler):
                     self._send_json(self.obs.metrics())
                 case "/api/rooms":
                     self._send_json(self.obs.rooms())
+                case "/api/draft_stats":
+                    self._send_json(self.obs.draft_stats())
                 case "/api/runs":
                     sort = parse_qs(parsed.query).get("sort", ["episode"])[0]
                     self._send_json(self.obs.runs_index(sort))
@@ -374,7 +405,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--host", default="0.0.0.0",
                         help="bind address (default 0.0.0.0: reachable on LAN)")
     parser.add_argument("--port", type=int, default=8787)
-    parser.add_argument("--reward", choices=["shaped", "sparse"], default="shaped",
+    parser.add_argument("--reward", choices=["shaped", "sparse", "phased"], default="shaped",
                         help="reward config used for eval + replay reconstruction")
     parser.add_argument("--eval-episodes", type=int, default=500,
                         help="deterministic eval episodes per new checkpoint "

@@ -27,7 +27,7 @@ import signal
 import sys
 import threading
 import time
-from collections import deque
+from collections import Counter, deque
 from pathlib import Path
 
 from ..config import GameConfig
@@ -147,6 +147,56 @@ class EpisodeRecorder:
             f.write(json.dumps(rec) + "\n")
 
 
+class DraftStatsWriter:
+    """Aggregates each episode's drafted-room names into fixed episode buckets.
+
+    Appends one JSON line per bucket to ``draft_stats.jsonl``: total drafts
+    per room name (``drafts``) and the number of episodes - seeds - that
+    drafted the room at least once (``seeds_with``). A partial bucket
+    (graceful stop, or the remainder after a resume) is written with its true
+    ``seeds`` count; readers merge rows by ``bucket_start``.
+    """
+
+    def __init__(self, path: Path, episodes_done: int, bucket: int = 10_000) -> None:
+        self.path = path
+        self.bucket = bucket
+        self._idx = episodes_done // bucket
+        self._seeds = 0
+        self._drafts: Counter[str] = Counter()
+        self._seeds_with: Counter[str] = Counter()
+
+    def on_episode_end(self, episode: int, info: dict) -> None:
+        """Fold one finished episode's ``drafted_rooms`` into the current bucket."""
+        names = info.get("drafted_rooms")
+        if names is None:
+            return
+        idx = (episode - 1) // self.bucket
+        if idx != self._idx:
+            self.flush()
+            self._idx = idx
+        self._seeds += 1
+        self._drafts.update(names)
+        self._seeds_with.update(set(names))
+
+    def flush(self) -> None:
+        """Write the current bucket's counts, if any (also called at shutdown)."""
+        if self._seeds:
+            rec = {
+                "bucket_start": self._idx * self.bucket,
+                "bucket_end": (self._idx + 1) * self.bucket,
+                "seeds": self._seeds,
+                "drafts": dict(self._drafts),
+                "seeds_with": dict(self._seeds_with),
+                "saved_at": time.strftime("%Y-%m-%dT%H:%M:%S"),
+            }
+            self.path.parent.mkdir(parents=True, exist_ok=True)
+            with self.path.open("a") as f:
+                f.write(json.dumps(rec) + "\n")
+        self._seeds = 0
+        self._drafts.clear()
+        self._seeds_with.clear()
+
+
 class CheckpointAndStopCallback:
     """Counts finished episodes, checkpoints every N, stops on signal.
 
@@ -160,7 +210,8 @@ class CheckpointAndStopCallback:
         class _Impl(BaseCallback):
             def __init__(self, ckpt_dir: Path, every_episodes: int,
                          episodes_done: int, snapshot_every: int,
-                         recorder: EpisodeRecorder | None = None) -> None:
+                         recorder: EpisodeRecorder | None = None,
+                         draft_stats: DraftStatsWriter | None = None) -> None:
                 super().__init__()
                 self.ckpt_dir = ckpt_dir
                 self.every = every_episodes
@@ -168,6 +219,7 @@ class CheckpointAndStopCallback:
                 self.next_ckpt = episodes_done + every_episodes
                 self.snapshot_every = snapshot_every
                 self.recorder = recorder
+                self.draft_stats = draft_stats
                 self.recent = deque(maxlen=1000)
                 self.recent_exploit = deque(maxlen=1000)
                 self.recent_explore = deque(maxlen=1000)
@@ -196,6 +248,8 @@ class CheckpointAndStopCallback:
                     self.recent.append(win)
                     if self.recorder is not None:
                         self.recorder.on_episode_end(i, self.episodes, info)
+                    if self.draft_stats is not None:
+                        self.draft_stats.on_episode_end(self.episodes, info)
                     if mixed and not policy.per_decision:
                         # Attribute the win to the mode the episode ran under
                         # (read BEFORE resampling).
@@ -305,6 +359,8 @@ def evaluate(ckpt_dir: Path, episodes: int, reward: str, seed: int,
     model = MaskablePPO.load(ckpt, device=device)
     env = make_single_env(reward, seed)()
     wins, ranks = 0, []
+    drafts: Counter[str] = Counter()
+    seeds_with: Counter[str] = Counter()
     for ep in range(episodes):
         obs, info = env.reset(seed=seed + 1_000_000 + ep)
         done = False
@@ -315,6 +371,9 @@ def evaluate(ckpt_dir: Path, episodes: int, reward: str, seed: int,
             done = term or trunc
         wins += info.get("termination_reason") == "antechamber"
         ranks.append(info.get("deepest_rank", 0))
+        names = info.get("drafted_rooms") or []
+        drafts.update(names)
+        seeds_with.update(set(names))
     lo, hi = wilson_ci(wins, episodes)
     print(f"evaluated {ckpt}: P(Antechamber) = {wins / episodes:.3%} "
           f"(95% CI {lo:.3%} - {hi:.3%}), mean deepest rank "
@@ -333,6 +392,8 @@ def evaluate(ckpt_dir: Path, episodes: int, reward: str, seed: int,
             "ci95": [lo, hi],
             "mean_deepest_rank": sum(ranks) / len(ranks),
             "eval_episodes": episodes,
+            "drafts": dict(drafts),
+            "seeds_with": dict(seeds_with),
             "model": str(ckpt),
             "sampled_at": time.time(),
         }
@@ -364,7 +425,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--n-envs", type=int, default=max(2, (os.cpu_count() or 4) - 2))
     parser.add_argument("--n-steps", type=int, default=512,
                         help="PPO rollout length per env (progress at risk on stop)")
-    parser.add_argument("--reward", choices=["shaped", "sparse"], default="shaped")
+    parser.add_argument("--reward", choices=["shaped", "sparse", "phased"], default="shaped")
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--resume", choices=["auto", "never"], default="auto",
                         help="auto: continue from latest.zip if present")
@@ -493,9 +554,10 @@ def main(argv: list[str] | None = None) -> int:
               f"(sample rate {args.record_sample_rate:.2%}, "
               f"top-of-{args.record_top_every} windows)", flush=True)
 
+    draft_stats = DraftStatsWriter(ckpt_dir / "draft_stats.jsonl", episodes_done)
     callback = CheckpointAndStopCallback(
         ckpt_dir, args.checkpoint_every, episodes_done, args.snapshot_every,
-        recorder=recorder)
+        recorder=recorder, draft_stats=draft_stats)
     _install_signal_handlers()
     print(f"[train] pid {os.getpid()} - stop with: kill {os.getpid()} (or Ctrl-C)",
           flush=True)
@@ -508,6 +570,7 @@ def main(argv: list[str] | None = None) -> int:
         callback.save("latest")
         if recorder is not None:
             recorder.flush_top()
+        draft_stats.flush()
         vec_env.close()
         print(f"[train] done: {callback.episodes} episodes total; "
               f"checkpoint at {latest}", flush=True)

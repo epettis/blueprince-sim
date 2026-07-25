@@ -14,6 +14,8 @@ const catColor = (c) => CAT_COLOR[c] || "#7a7f88";
 
 const state = {
   rooms: [],
+  draftStats: null,
+  draftCatsOff: new Set(),  // categories hidden in the draft-frequency bars
   tab: "dashboard",
   runsSort: "episode",
   runsList: [],
@@ -73,10 +75,16 @@ $("#tab-runs").onclick = () => setTab("runs");
 
 async function refreshDashboard() {
   try {
-    const [summary, metrics] = await Promise.all([
-      getJSON("/api/summary"), getJSON("/api/metrics")]);
+    const [summary, metrics, draftStats] = await Promise.all([
+      getJSON("/api/summary"), getJSON("/api/metrics"),
+      // Tolerate a server predating this endpoint (static files reload on
+      // refresh, but routes need a server restart).
+      getJSON("/api/draft_stats").catch(() => ({ train: [], eval: [] }))]);
+    state.draftStats = draftStats;
     renderTiles(summary, metrics);
     renderChart(metrics);
+    renderDraftBars(draftStats);
+    renderDraftTs(draftStats);
     renderCkptTable(metrics);
     $("#conn").textContent = `run: ${summary.run}`;
   } catch (err) {
@@ -183,6 +191,174 @@ function renderChart(metrics) {
     ['<span class="dot" style="background:#e8c34a"></span>deterministic eval ±95% CI', true],
   ];
   $("#legend").innerHTML = legend.filter(([, on]) => on).map(([html]) => `<span>${html}</span>`).join("");
+}
+
+/* ------------------------------------------------------ draft frequency */
+
+const DRAFT_PALETTE = ["#5b9dd9", "#e8c34a", "#57c46a", "#e0453a", "#b45cc0",
+  "#3ab5b0", "#d98a3a", "#8fd94a", "#d94a8f", "#7a86e0", "#c0b45c", "#4ad9c0"];
+const OTHER_COLOR = "#4a4f58";
+const YIELD_GLYPHS = [["steps", "👣"], ["keys", "🔑"], ["gems", "💎"],
+  ["coins", "🪙"], ["luck", "🍀"]];
+
+function yieldBadges(yields) {
+  // Expected per-draft resources from room data; zeros are omitted to keep
+  // the common (empty) rooms quiet.
+  if (!yields) return "";
+  return YIELD_GLYPHS.map(([k, glyph]) => {
+    const v = Math.round((yields[k] || 0) * 10) / 10;
+    if (!v) return "";
+    return `<span class="y${v < 0 ? " neg" : ""}">${v % 1 ? v.toFixed(1) : v}${glyph}</span>`;
+  }).filter(Boolean).join(" ");
+}
+
+function renderDraftBars(ds) {
+  const el = $("#draft-bars");
+  const source = $("#draft-source").value, mode = $("#draft-mode").value;
+  let seedsTotal = 0;
+  const seedsWith = {};
+  if (source === "eval") {
+    const evals = ds.eval || [];
+    const last = evals[evals.length - 1];
+    if (!last) {
+      el.innerHTML = '<p class="dim">no eval draft counts yet — they appear with the ' +
+        "first eval of a checkpoint trained on the new code</p>";
+      $("#draft-legend").innerHTML = "";
+      return;
+    }
+    seedsTotal = last.eval_episodes || 0;
+    Object.assign(seedsWith, last.seeds_with);
+  } else {
+    const w = $("#draft-window").value;
+    const buckets = ds.train || [];
+    const rows = w === "all" ? buckets : buckets.slice(-Number(w));
+    if (!rows.length) {
+      el.innerHTML = '<p class="dim">no draft stats yet — the first 10k-seed bucket ' +
+        "lands after the trainer restarts on the new code</p>";
+      $("#draft-legend").innerHTML = "";
+      return;
+    }
+    for (const b of rows) {
+      seedsTotal += b.seeds;
+      for (const [n, v] of Object.entries(b.seeds_with))
+        seedsWith[n] = (seedsWith[n] || 0) + v;
+    }
+  }
+  const entries = Object.entries(seedsWith).sort((a, b) => b[1] - a[1]);
+  if (!entries.length || !seedsTotal) {
+    el.innerHTML = '<p class="dim">no drafts recorded in this window</p>';
+    $("#draft-legend").innerHTML = "";
+    return;
+  }
+  // Upgrade variants share a display name and category, so any id's match works.
+  const metaByName = new Map();
+  for (const r of state.rooms) if (r && !metaByName.has(r.name)) metaByName.set(r.name, r);
+  const catOf = (name) => (metaByName.get(name) || {}).category;
+
+  // Legend chips double as the category filter: click to toggle.
+  const cats = [...new Set(entries.map(([n]) => catOf(n)).filter(Boolean))];
+  $("#draft-legend").innerHTML = cats.map((c) =>
+    `<span class="cat-chip${state.draftCatsOff.has(c) ? " off" : ""}" data-cat="${esc(c)}">
+      <span class="sw" style="background:${catColor(c)}"></span>${esc(c).replace(/_/g, " ")}</span>`
+  ).join("");
+  for (const chip of document.querySelectorAll("#draft-legend .cat-chip")) {
+    chip.onclick = () => {
+      const c = chip.dataset.cat;
+      if (state.draftCatsOff.has(c)) state.draftCatsOff.delete(c);
+      else state.draftCatsOff.add(c);
+      renderDraftBars(state.draftStats);
+    };
+  }
+
+  const shown = entries.filter(([n]) => !state.draftCatsOff.has(catOf(n)));
+  if (!shown.length) {
+    el.innerHTML = '<p class="dim">every category is filtered out — click a chip above to re-enable</p>';
+    return;
+  }
+  const maxV = shown[0][1];
+  el.innerHTML = shown.map(([name, v]) => {
+    const val = mode === "pct" ? fmtPct(v / seedsTotal) : fmtInt(v);
+    const meta = metaByName.get(name) || {};
+    const cat = meta.category;
+    return `<div class="dbar">
+      <span class="name" title="${esc(name)}${cat ? " · " + esc(cat) : ""}">${esc(name)}</span>
+      <div class="track"><div class="fill" style="width:${(100 * v / maxV).toFixed(2)}%;
+        background:${cat ? catColor(cat) : "var(--accent)"}"></div></div>
+      <span class="val">${val}</span>
+      <span class="yields" title="expected steps / keys / gems / coins / luck per draft (from room data)">${yieldBadges(meta.yields)}</span></div>`;
+  }).join("") +
+    `<div class="dbar total dim"><span class="name">seeds in window</span>` +
+    `<div class="track"></div><span class="val">${fmtInt(seedsTotal)}</span><span class="yields"></span></div>`;
+}
+
+function renderDraftTs(ds) {
+  const el = $("#draft-ts"), leg = $("#draft-ts-legend");
+  const buckets = ds.train || [];
+  if (!buckets.length) {
+    el.innerHTML = '<p class="dim">no draft stats yet</p>';
+    leg.innerHTML = "";
+    return;
+  }
+  // Merge adjacent 10k buckets so the chart never exceeds ~60 columns.
+  const group = Math.ceil(buckets.length / 60);
+  const cols = [];
+  for (let i = 0; i < buckets.length; i += group) {
+    const chunk = buckets.slice(i, i + group);
+    const drafts = {};
+    for (const b of chunk)
+      for (const [n, v] of Object.entries(b.drafts)) drafts[n] = (drafts[n] || 0) + v;
+    cols.push({ start: chunk[0].bucket_start, end: chunk[chunk.length - 1].bucket_end, drafts });
+  }
+  const totals = {};
+  for (const c of cols)
+    for (const [n, v] of Object.entries(c.drafts)) totals[n] = (totals[n] || 0) + v;
+  const top = Object.entries(totals).sort((a, b) => b[1] - a[1]).slice(0, 12).map(([n]) => n);
+  const color = new Map(top.map((n, i) => [n, DRAFT_PALETTE[i]]));
+  const colTotal = (c) => Object.values(c.drafts).reduce((a, b) => a + b, 0);
+  const ymax = Math.max(...cols.map(colTotal)) * 1.05 || 1;
+
+  const SW = 900, SH = 300, L = 56, R = 10, T = 12, B = 30;
+  const bw = (SW - L - R) / cols.length;
+  const Y = (v) => T + (1 - v / ymax) * (SH - T - B);
+  let g = "";
+  const ystep = niceStep(ymax / 4);
+  for (let v = 0; v <= ymax; v += ystep) {
+    g += `<line x1="${L}" y1="${Y(v)}" x2="${SW - R}" y2="${Y(v)}" class="grid"/>` +
+         `<text x="${L - 7}" y="${Y(v) + 4}" class="tick" text-anchor="end">${fmtBig(v)}</text>`;
+  }
+  let s = "";
+  cols.forEach((c, i) => {
+    const x = L + i * bw;
+    let acc = 0;
+    const seg = (name, v, fill) => {
+      if (!v) return;
+      const y0 = Y(acc), y1 = Y(acc + v);
+      s += `<rect x="${(x + bw * 0.08).toFixed(1)}" y="${y1.toFixed(1)}" width="${(bw * 0.84).toFixed(1)}"
+        height="${Math.max(y0 - y1, 0.5).toFixed(1)}" fill="${fill}">
+        <title>${esc(name)}: ${fmtInt(v)} drafts (seeds ${fmtBig(c.start)}–${fmtBig(c.end)})</title></rect>`;
+      acc += v;
+    };
+    for (const n of top) seg(n, c.drafts[n] || 0, color.get(n));
+    let other = 0;
+    for (const [n, v] of Object.entries(c.drafts)) if (!color.has(n)) other += v;
+    seg("other", other, OTHER_COLOR);
+    if (cols.length <= 12 || i % Math.ceil(cols.length / 8) === 0) {
+      g += `<text x="${x + bw / 2}" y="${SH - B + 16}" class="tick" text-anchor="middle">${fmtBig(c.start)}</text>`;
+    }
+  });
+  el.innerHTML =
+    `<svg viewBox="0 0 ${SW} ${SH}" xmlns="http://www.w3.org/2000/svg">
+      <style>
+        .grid { stroke: #2a2e35; stroke-width: 1; }
+        .tick { fill: #8a919c; font-size: 11px; }
+      </style>${g}${s}</svg>`;
+  leg.innerHTML = top.map((n) =>
+    `<span><span class="sw" style="background:${color.get(n)}"></span>${esc(n)}</span>`).join("") +
+    `<span><span class="sw" style="background:${OTHER_COLOR}"></span>other</span>`;
+}
+
+for (const id of ["draft-source", "draft-mode", "draft-window"]) {
+  $("#" + id).onchange = () => { if (state.draftStats) renderDraftBars(state.draftStats); };
 }
 
 function renderCkptTable(metrics) {

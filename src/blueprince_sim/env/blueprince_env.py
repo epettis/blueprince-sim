@@ -99,6 +99,7 @@ class BluePrinceEnv(gymnasium.Env):
             "rooms_placed": self.game.rooms_placed,
             "termination_reason": self.game.termination_reason,
             "episode_seed": self._episode_seed,
+            "drafted_rooms": list(self.game.drafted_rooms),
             "action_mask": np.array(mask, dtype=bool),
         }
 

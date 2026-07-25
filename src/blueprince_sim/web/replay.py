@@ -9,14 +9,20 @@ from __future__ import annotations
 
 from ..engine.game import Game, Phase
 from ..engine.grid import DIR_NAMES
+from ..engine.items import expected_yields
 from ..env import actions as A
 
 
 def rooms_meta(registry) -> list[dict]:
-    """Static per-room metadata the client needs to draw the house."""
+    """Static per-room metadata the client needs to draw the house.
+
+    ``yields`` is the data-derived expectation of steps/keys/gems/luck from
+    one draft+entry of the room (see :func:`engine.items.expected_yields`).
+    """
     return [
         {"idx": r.idx, "id": r.id, "name": r.name, "category": r.category,
-         "layout": r.layout, "rarity": r.rarity}
+         "layout": r.layout, "rarity": r.rarity,
+         "yields": expected_yields(r, registry)}
         for r in registry.rooms
     ]
 
