@@ -261,7 +261,7 @@ duck-typed `game`). game.py gains thin action methods; env untouched until PR3.
 {
   "sale": {"days": [20, 21]},          // prices halved (round up) on these days
   "trading": {
-    "trades_per_day": 3,               // wiki-undocumented; inferred knob
+    "trades_per_day": 20,              // wiki-undocumented; generous: the graph is learned by trading
     "dice_chance": 10,                 // % an offer resolves to a die
     "t5_special_chance": 50            // % a tier-5 trade offers allowance_token/upgrade_disk
   },
@@ -337,10 +337,11 @@ duck-typed `game`). game.py gains thin action methods; env untouched until PR3.
   start yields no offer (untradeable). The player sees the resolved receive before
   committing (matching the real-game UI). `trade(give_id)` re-resolves at execution
   time (the just-removed give_id is no longer held). Traded items return to the spawn
-  pool (`removed` NOT set); max `trades_per_day`. The `trades_per_day` knob is the hard
-  outer bound on any milking loop (e.g. an A→B→A 2-cycle); in practice, the
-  `spawned_today` uniqueness guard also limits repeated cycles, so a 2-cycle terminates
-  after at most 2 trades (each item appears in `spawned_today` once granted).
+  pool (`removed` NOT set); max `trades_per_day`. The `trades_per_day` knob (20) is
+  THE hard bound on any milking loop (e.g. an A→B→A 2-cycle): trade returns
+  deliberately bypass the spawn pipeline's `spawned_today` uniqueness so the loop
+  works as in the real game. The cap is generous because the graph is only
+  discoverable by experimenting — players burn trades learning the chains.
 - **Workshop**: `fabricate(output_id)` consumes the recipe inputs
   (special_items.json fabrication list) and grants the contraption, any time the
   player stands in the Workshop. First Workshop entry spawns one free component
@@ -373,8 +374,12 @@ duck-typed `game`). game.py gains thin action methods; env untouched until PR3.
   injects the Morning Room into today's draft decks immediately on purchase), Chef Salad
   (5g, +5 steps per green room on the grid *at eat time*), Tomato Soup (5g, +5 steps per
   red room on the grid at eat time). Sources: https://blueprince.wiki.gg/wiki/Kitchen.
-- **Dining Room main course** (wiki-sourced): on first entry to the Dining Room (or any
-  variant), the day's Main Course is served automatically and free. The dish is a
+- **Dining Room main course** (wiki-sourced; rank-8 gated per the real game): the
+  day's Main Course is served automatically and free while standing in the Dining
+  Room (or any variant), but only once the player has REACHED Rank 8 (some entered
+  cell at rank >= 8). An early visit serves nothing — returning after reaching Rank
+  8 serves it (checked on every arrival); a Dining Room drafted at rank 8/9 serves
+  immediately on first entry. The dish is a
   deterministic five-day cycle indexed by `day % 5`: 0 → Wood-fired Pizza (Furnace
   boost), 1 → Lemon Glazed Salmon (Aquarium), 2 → Porterhouse Steak (Showroom), 3 →
   Country Stew Pie (Boiler Room), 4 → Stuffed Wild Quail (Trophy Room). Each is 20

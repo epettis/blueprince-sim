@@ -70,19 +70,21 @@ def test_trade_offers_empty_outside_trading_post():
 
 
 def test_trade_offers_empty_after_trades_per_day_used():
-    """trade_offers returns [] once all three daily trade slots are consumed.
+    """trade_offers returns [] once the daily trade cap is exhausted.
 
-    The Trading Post enforces a hard cap of trades_per_day (3 per shops.json).
+    trades_per_day (20 per shops.json — generous, because the trade graph is
+    only discoverable by experimenting) is the hard stop on trading.
     """
     game = _game(GameConfig(starting_items=frozenset({"shovel", "compass", "sleeping_mask",
                                                        "salt_shaker"})), seed=0)
     _set_trading_post_inner(game)
-    # Use all 3 slots
-    for _ in range(3):
+    cap = game.registry.shop_rules.trading["trades_per_day"]
+    for _ in range(cap):
         offers = shops.trade_offers(game)
         if not offers:
             break
         shops.trade(game, offers[0]["give"])
+    game.state.shops.trades_done = cap  # exhaust any slots the graph left unusable
     assert shops.trade_offers(game) == []
 
 

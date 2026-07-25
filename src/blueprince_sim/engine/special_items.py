@@ -153,7 +153,7 @@ class SpecialItemsState:
     configured: bool = False  # True once configure() has been called this episode
     # room.idx of the room where a special item already spawned today; -1 = none
     spawn_room_done: int = -1
-    dining_room_served: bool = False  # main course served today (first Dining Room entry)
+    dining_room_served: bool = False  # main course eaten today (rank-8 gated Dining Room visit)
     # Draft conditions satisfied by in-run events (e.g. "breakfast" from Bacon & Eggs).
     # Checked by satisfied_condition_items alongside item-gated conditions.
     extra_conditions: set[str] = field(default_factory=set)
@@ -371,17 +371,9 @@ def on_enter(game, room, cell: int) -> None:
         if _is_available(state, item_id, registry):
             grant(state, registry, item_id, source="guaranteed")
 
-    # Dining Room main course: served once per day on first entry (free).
-    # The day's course is cycle[day % 5]; boost room check is inside eat_food.
-    if state.special.enabled:
-        if room.id == "dining_room" or room.variant_of == "dining_room":
-            if not state.special.dining_room_served:
-                state.special.dining_room_served = True
-                food_rules = registry.item_rules.get("food", {})
-                cycle = food_rules.get("main_course_cycle", [])
-                if cycle:
-                    course_id = cycle[state.day % len(cycle)]
-                    eat_food(state, registry, course_id)
+    # Dining Room main course (rank-8 gated; also checked on every arrival so
+    # a return visit after reaching Rank 8 serves it).
+    _maybe_serve_main_course(state, registry)
 
     # Lunch Box: guaranteed in the Dining Room (and upgrade variants) when unlocked
     if game.cfg.lunch_box_unlocked:
@@ -423,11 +415,41 @@ def on_enter(game, room, cell: int) -> None:
             break
 
 
+def _maybe_serve_main_course(state, registry) -> None:
+    """Serve the day's Dining Room Main Course if it is due.
+
+    The course is only served once the player has REACHED Rank 8 (some
+    entered cell at rank >= 8): entering the Dining Room earlier means
+    returning to eat it later, while a Dining Room drafted at rank 8/9 serves
+    immediately on entry. Once per day; the day's dish is cycle[day % 5];
+    the boost-room check happens inside eat_food.
+    """
+    from .grid import rank_of
+    if not state.special.enabled or state.special.dining_room_served:
+        return
+    if state.outer_loc != 0:
+        return
+    room_idx = state.grid[state.pos]
+    if room_idx < 0:
+        return
+    room = registry.rooms[room_idx]
+    if room.id != "dining_room" and room.variant_of != "dining_room":
+        return
+    if not any(entered and rank_of(c) >= 8 for c, entered in enumerate(state.entered)):
+        return
+    state.special.dining_room_served = True
+    cycle = registry.item_rules.get("food", {}).get("main_course_cycle", [])
+    if cycle:
+        eat_food(state, registry, cycle[state.day % len(cycle)])
+
+
 def on_arrive(game, cell: int) -> None:
     """Every-arrival hooks (including re-entry): auto-dig, Treasure Map,
-    Lunch Box rank check. Called from Game.move after entering. Task C.
+    Lunch Box rank check, Dining Room main course (rank-8 gated return
+    visits). Called from Game.move after entering. Task C.
     """
     check_lunch_box(game.state, game.registry)
+    _maybe_serve_main_course(game.state, game.registry)
 
     # Treasure Map: resolve the marked cell lazily on first arrival after pickup
     state = game.state

@@ -24,15 +24,52 @@ def _enter_kitchen(game: Game, cell: int = 7) -> object:
     return room
 
 
-def _enter_dining(game: Game, cell: int = 7) -> object:
-    """Place the Dining Room at ``cell`` and fire on_enter, returning the Room."""
+def _enter_dining(game: Game, cell: int = 7, reached_rank_8: bool = True) -> object:
+    """Place the Dining Room at ``cell``, stand in it, and fire on_enter.
+
+    The main course is rank-8 gated, so by default a rank-8 cell is marked as
+    reached; pass reached_rank_8=False to test the early-entry case.
+    """
     reg = game.registry
     room = reg.by_id["dining_room"]
     state = game.state
     state.grid[cell] = room.idx
     state.placed_doors[cell] = room.door_mask
+    state.pos = cell
+    state.entered[cell] = True
+    if reached_rank_8:
+        state.entered[36] = True  # rank 8: the course gate is open
     si.on_enter(game, room, cell)
     return room
+
+
+def test_main_course_not_served_before_rank_8():
+    """Entering the Dining Room before reaching Rank 8 serves nothing.
+
+    The real game only serves the Main Course late-run; an early Dining Room
+    visit must leave the player to come back for it.
+    """
+    g = _game(GameConfig(day=1), seed=0)
+    steps_before = g.state.steps
+    _enter_dining(g, reached_rank_8=False)
+    assert g.state.steps == steps_before
+    assert not g.state.special.dining_room_served
+
+
+def test_main_course_served_on_return_after_rank_8():
+    """Returning to an already-entered Dining Room after reaching Rank 8
+    serves the course via the arrival hook.
+
+    Early visitors are not locked out — the course waits for the return trip.
+    """
+    g = _game(GameConfig(day=1), seed=0)
+    _enter_dining(g, reached_rank_8=False)  # too early: nothing served
+    g.state.entered[36] = True  # the player has now reached rank 8
+    g.state.pos = 7  # back in the Dining Room
+    steps_before = g.state.steps
+    si.on_arrive(g, 7)
+    assert g.state.steps == steps_before + 20  # day 1: salmon, no aquarium
+    assert g.state.special.dining_room_served
 
 
 def _place_room(game: Game, room_id: str, cell: int) -> object:
