@@ -554,19 +554,36 @@ def make_sb3_logger(dashboard: Dashboard, tensorboard_dir: str | None = None):
 # demo
 # --------------------------------------------------------------------------
 
-def _demo(frames: int = 60, live: bool = True) -> None:
-    """Render synthetic frames so the layout can be eyeballed without torch."""
+def _demo(frames: int = 0, live: bool = True, delay: float = 0.15) -> None:
+    """Render synthetic frames so the layout can be eyeballed without torch.
+
+    ``frames=0`` runs until Ctrl-C, which is the useful mode for actually
+    looking at the thing: bars only become interesting once the rolling
+    window has some spread in it.
+    """
+    import itertools
     import random
+
+    subtitle = "runs/new-reward · reward=phased · DEMO (synthetic data)"
+    dash: Dashboard = (LiveDashboard(title="blueprince-train", subtitle=subtitle)
+                       if live and supported() else
+                       Dashboard(title="blueprince-train", subtitle=subtitle))
+    rng = random.Random(0)
+    counter = itertools.count() if frames <= 0 else iter(range(frames))
+    try:
+        _demo_loop(dash, rng, counter, delay)
+    finally:
+        if isinstance(dash, LiveDashboard):
+            dash.close()          # restore the cursor even on Ctrl-C
+        else:
+            print("\n".join(dash.render()))
+
+
+def _demo_loop(dash, rng, counter, delay: float) -> None:
     import time
 
-    dash: Dashboard = (LiveDashboard(title="blueprince-train",
-                                     subtitle="runs/new-reward · reward=phased")
-                       if live and supported() else
-                       Dashboard(title="blueprince-train",
-                                 subtitle="runs/new-reward · reward=phased"))
-    rng = random.Random(0)
-    for i in range(frames):
-        t = i / max(1, frames)
+    for i in counter:
+        t = (i % 400) / 400
         dash.update({
             "blueprince/episodes": 1_200_000 + i * 4096,
             "time/iterations": 2100 + i,
@@ -593,13 +610,30 @@ def _demo(frames: int = 60, live: bool = True) -> None:
         if i % 20 == 0:
             dash.note(f"[train] checkpoint latest.zip: {1_200_000 + i * 4096} "
                       f"episodes, win_rate(1k)=0.021")
-        if live and isinstance(dash, LiveDashboard):
-            time.sleep(0.05)
-    if isinstance(dash, LiveDashboard):
-        dash.close()
-    else:
-        print("\n".join(dash.render()))
+        if isinstance(dash, LiveDashboard):
+            time.sleep(delay)
+
+
+def _demo_main(argv: list[str]) -> int:   # pragma: no cover - inspection aid
+    import argparse
+
+    parser = argparse.ArgumentParser(
+        prog="python -m blueprince_sim.rl.dashboard",
+        description="Preview the training dashboard with synthetic metrics.")
+    parser.add_argument("--static", action="store_true",
+                        help="print one frame and exit instead of animating")
+    parser.add_argument("--frames", type=int, default=0,
+                        help="stop after N frames (default: run until Ctrl-C)")
+    parser.add_argument("--delay", type=float, default=0.15,
+                        help="seconds between frames (default: 0.15)")
+    args = parser.parse_args(argv)
+    try:
+        _demo(frames=args.frames if not args.static else 60,
+              live=not args.static, delay=args.delay)
+    except KeyboardInterrupt:
+        pass          # _demo's finally already restored the cursor
+    return 0
 
 
 if __name__ == "__main__":       # pragma: no cover - manual inspection aid
-    _demo(live="--static" not in sys.argv)
+    sys.exit(_demo_main(sys.argv[1:]))
