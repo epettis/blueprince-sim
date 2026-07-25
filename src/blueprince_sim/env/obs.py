@@ -28,6 +28,11 @@ HOUSE_FLAGS = 13  # solarium, greenhouse, study, library, hovel, bedroom_bonus,
 
 
 def observation_space(n_rooms: int) -> spaces.Dict:
+    """Dict observation space over the 9x5 (rank-major) grid; see :func:`encode`.
+
+    Room ids are shifted by +1 so 0 means "empty cell"; -1 is the sentinel for
+    unreachable/walled-off in the distance planes and for absent option slots.
+    """
     return spaces.Dict({
         "grid_room": spaces.Box(0, n_rooms, shape=(9, 5), dtype=np.int16),
         "grid_doors": spaces.Box(0, 15, shape=(9, 5), dtype=np.uint8),
@@ -66,6 +71,13 @@ def _cost_split(game: Game, room, opt) -> tuple[int, int]:
 
 
 def encode(game: Game) -> dict:
+    """Encode the live game into the Dict observation for the current phase.
+
+    Grid planes are 9x5 rank-major. Locked/security bits are painted on BOTH
+    cells of a doorway segment (and drop out once the door is opened). Option
+    rows are -1 outside DRAFTING or for absent slots; a hidden (Archives
+    mystery) option exposes only cost and affordability, not identity.
+    """
     st = game.state
     grid_room = np.array(st.grid, dtype=np.int16).reshape(9, 5)
     grid_room += 1

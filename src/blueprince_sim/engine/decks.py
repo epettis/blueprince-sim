@@ -46,6 +46,11 @@ def eligible_pool(registry: Registry, cfg: GameConfig) -> list[Room]:
 
 
 def build_decks(registry: Registry, cfg: GameConfig, rng: Rng) -> list[DeckState]:
+    """Build and shuffle the eight day-start decks (index = rarity_idx * 2 + free/gem).
+
+    Each eligible room contributes ``deck_copies`` cards to the deck matching
+    its rarity and free/gem class; each deck shuffles on its own rng substream.
+    """
     decks = [DeckState() for _ in range(8)]
     for room in eligible_pool(registry, cfg):
         d = decks[room.rarity_idx * 2 + (0 if room.is_free else 1)]

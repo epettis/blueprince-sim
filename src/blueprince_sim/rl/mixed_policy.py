@@ -51,12 +51,22 @@ class MixedExplorationPolicy(MaskableMultiInputActorCriticPolicy):
 
     def set_mode_config(self, exploit_prob: float, per_decision: bool,
                         n_envs: int, seed: int) -> None:
+        """Configure rollout-time mode mixing; call after construction or load.
+
+        Mode state is deliberately not serialized into checkpoints, so the
+        current run's flags always win over whatever a resumed checkpoint
+        stored. Also rolls the initial per-env modes.
+        """
         self.exploit_prob = float(exploit_prob)
         self.per_decision = per_decision
         self._mode_rng = np.random.default_rng(seed)
         self.env_modes = self._mode_rng.random(n_envs) < self.exploit_prob
 
     def resample_modes(self, done_indices) -> None:
+        """Re-roll the sticky per-episode mode for envs whose episode just ended.
+
+        Called by the training callback in per-episode granularity only.
+        """
         for i in done_indices:
             self.env_modes[i] = self._mode_rng.random() < self.exploit_prob
 
@@ -119,6 +129,11 @@ class MixedExplorationPolicy(MaskableMultiInputActorCriticPolicy):
         return actions, values, behavior.log_prob(actions)
 
     def _modes_for_batch(self, batch: int) -> np.ndarray:
+        """Exploit-mode flags (True = exploit) for this forward batch.
+
+        Per-decision granularity rolls fresh flags every call; per-episode
+        reuses the sticky ``env_modes``.
+        """
         if self.per_decision:
             return self._mode_rng.random(batch) < self.exploit_prob
         if len(self.env_modes) != batch:

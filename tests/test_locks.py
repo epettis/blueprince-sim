@@ -27,6 +27,8 @@ def _game(registry, **cfg) -> Game:
 
 
 def _force_state(g: Game, cell: int, d: int, state: int) -> None:
+    """Overwrite a doorway segment's state, bumping door_version so caches
+    (distance maps, action masks) notice the change."""
     g.state.door_state[segment_key(cell, d)] = state
     g.state.door_version += 1
 
@@ -35,6 +37,8 @@ def _force_state(g: Game, cell: int, d: int, state: int) -> None:
 
 
 def test_low_ranks_never_locked_by_chance(registry):
+    """Rank 1-3 doors are never locked: E-W segments within ranks 1-3 and N-S
+    boundaries below the 3<->4 line always roll open."""
     for seed in range(20):
         g = Game(GameConfig(), seed=seed, registry=registry)
         for (cell, d), state in g.state.door_state.items():
@@ -46,6 +50,8 @@ def test_low_ranks_never_locked_by_chance(registry):
 
 
 def test_antechamber_doorways_start_locked(registry):
+    """Every Antechamber doorway starts locked (rank 8<->9 has 100% base
+    chance), and a guaranteed lock leaves the daily bias untouched."""
     # Rank 8<->9 sits over 100% base chance: at day-start bias 1 every
     # Antechamber doorway rolls locked (until a connecting room in-drafts).
     g = Game(GameConfig(), seed=3, registry=registry)
@@ -56,6 +62,8 @@ def test_antechamber_doorways_start_locked(registry):
 
 
 def test_corridor_and_corriyard_doors_are_never_locked(registry):
+    """Corridor and Corriyard doors are guaranteed unlocked even at ranks
+    where locks are near-certain, and never spawn as security doors."""
     # Guaranteed-unlocked rooms: even at ranks where locks are near-certain,
     # their doors roll open and never spawn as security doors.
     for room_id in ("corridor", "corriyard__ix50"):
@@ -69,6 +77,8 @@ def test_corridor_and_corriyard_doors_are_never_locked(registry):
 
 
 def test_door_locks_flag_disables_everything(registry):
+    """door_locks=False turns the whole system off: no door state is rolled,
+    the Antechamber is passable, and the keycard machinery is inert."""
     g = Game(GameConfig(door_locks=False), seed=3, registry=registry)
     assert g.state.door_state == {}
     assert g.doorway_passable(ANTECHAMBER_CELL, S)
@@ -79,6 +89,8 @@ def test_door_locks_flag_disables_everything(registry):
 
 
 def test_drafting_a_room_on_the_far_side_unlocks_a_locked_door(registry):
+    """In-drafting: placing a room whose door faces back through a locked
+    doorway opens that door for free - no key needed to walk through."""
     g = _game(registry)
     straight = next(r for r in registry.rooms
                     if r.layout == "straight" and r.rarity is not None)
@@ -91,6 +103,8 @@ def test_drafting_a_room_on_the_far_side_unlocks_a_locked_door(registry):
 
 
 def test_drafting_a_room_on_the_far_side_opens_a_security_door(registry):
+    """In-drafting opens even a security door the keycard system would keep
+    sealed - the placement bypasses the reader entirely."""
     g = _game(registry)
     straight = next(r for r in registry.rooms
                     if r.layout == "straight" and r.rarity is not None)
@@ -101,6 +115,8 @@ def test_drafting_a_room_on_the_far_side_opens_a_security_door(registry):
 
 
 def test_connecting_room_opens_the_antechamber_doorway(registry):
+    """Drafting a room whose door faces the Antechamber opens its locked
+    doorway, so reaching the Antechamber never requires a key."""
     g = _game(registry)
     straight = next(r for r in registry.rooms
                     if r.layout == "straight" and r.rarity is not None)
@@ -121,6 +137,8 @@ def _bias_state() -> GameState:
 
 
 def test_bias_drops_after_locked_and_recovers_after_unlocked(registry):
+    """The daily lock-bias multiplier drops after a locked roll and climbs
+    after an unlocked one - even past 1.0, per the datamined rule."""
     rules = registry.lock_rules
     st = _bias_state()
     # Find a seed whose first roll locks a mid-band (4<->5 boundary) door.
@@ -146,6 +164,8 @@ def test_bias_drops_after_locked_and_recovers_after_unlocked(registry):
 
 
 def test_locked_doorway_needs_and_spends_a_key(registry):
+    """Opening a locked frontier doorway requires a key, spends exactly one,
+    and leaves the door permanently open."""
     g = _game(registry)
     doors = g.open_doorways()
     assert doors
@@ -162,6 +182,9 @@ def test_locked_doorway_needs_and_spends_a_key(registry):
 
 
 def test_locked_interior_door_costs_a_key_or_a_detour(registry):
+    """A locked interior door reroutes the keyless pathfinder around it; with
+    a key the direct path is used and the walk spends the key. Equidistant
+    routes must be costed via the key-free path."""
     # A locked door between placed rooms (hand-built today; the Vestibule
     # will re-lock doors like this later) changes traversal distances: with
     # no key the pathfinder walks around it, with a key it goes through -
@@ -186,6 +209,8 @@ def test_locked_interior_door_costs_a_key_or_a_detour(registry):
 
 
 def test_locked_interior_door_can_wall_off_the_house_without_keys(registry):
+    """With no detour and no key, the cell beyond a locked interior door is
+    simply unreachable; gaining a key restores the route."""
     # No way around and no key: the cell beyond is unreachable, so e.g. the
     # Antechamber can sit out of reach even while steps remain.
     g = _game(registry)
@@ -202,6 +227,8 @@ def test_locked_interior_door_can_wall_off_the_house_without_keys(registry):
 
 
 def test_security_door_blocks_until_openable(registry):
+    """A security doorway is impassable until the system opens (keycard on a
+    powered reader); passing through then costs no key."""
     g = _game(registry)
     doors = g.open_doorways()
     cell, d = doors[0]
@@ -220,6 +247,8 @@ def test_security_door_blocks_until_openable(registry):
 
 
 def test_security_openable_truth_table():
+    """The security-door truth table: powered readers need the keycard, and
+    unpowered doors follow the offline mode (Unlocked passes, Locked seals)."""
     st = GameState()
     for power, card, offline, expect in [
         (True, True, False, True),    # powered + card
@@ -236,6 +265,8 @@ def test_security_openable_truth_table():
 
 
 def test_entering_security_assumes_offline_unlocked(registry):
+    """Entering the Security room flips the offline mode to Unlocked, so a
+    later power cut opens the security doors instead of sealing them."""
     g = _game(registry)
     sec = registry.by_id["security"]
     g._place_room(sec, 7, sec.door_mask)
@@ -246,6 +277,8 @@ def test_entering_security_assumes_offline_unlocked(registry):
 
 
 def test_switch_actions_require_standing_in_the_room(registry):
+    """The breaker toggle works only inside the Utility Closet and the
+    security-level dial only inside Security - never from elsewhere."""
     g = _game(registry)
     uc = registry.by_id["utility_closet"]
     sec = registry.by_id["security"]
@@ -272,6 +305,8 @@ def test_switch_actions_require_standing_in_the_room(registry):
 
 
 def test_security_spawn_needs_whitelist_and_distance(registry):
+    """Security doors spawn only on whitelisted rooms and only within the
+    Antechamber distance cutoff (rank-1 doors are too far)."""
     rules = registry.lock_rules
     st = GameState()
     plain = registry.by_id["closet"]  # not on the whitelist
@@ -289,6 +324,8 @@ def test_security_spawn_needs_whitelist_and_distance(registry):
 
 
 def test_security_spawn_respects_daily_cap_and_level(registry):
+    """Security-door spawns stop at the per-level daily cap; raising the
+    security level mid-day restores headroom (the cap is checked per roll)."""
     rules = registry.lock_rules
     sec_room = registry.by_id["security"]
     st = GameState()
@@ -303,6 +340,8 @@ def test_security_spawn_respects_daily_cap_and_level(registry):
 
 
 def test_high_security_forces_the_door_probability(registry):
+    """High security forces a whitelisted room's door chance to 100%, so its
+    spawn rate jumps sharply versus normal."""
     # Passageway's low chance is forced to 100% on high: the only remaining
     # gate is the distance roll, so spawn rates jump sharply.
     rules = registry.lock_rules
@@ -321,6 +360,8 @@ def test_high_security_forces_the_door_probability(registry):
 
 
 def test_keycard_can_be_found_in_source_rooms(registry):
+    """Entering a keycard-source room (the Office) yields the keycard by
+    chance: some days it is found, most days not."""
     found = 0
     for seed in range(40):
         g = Game(GameConfig(), seed=seed, registry=registry)
@@ -336,6 +377,8 @@ def test_keycard_can_be_found_in_source_rooms(registry):
 
 
 def test_mask_seals_and_reopens_security_doorways(registry):
+    """The action mask hides drafting through a sealed security doorway and
+    re-legalizes it once the keycard is in hand."""
     g = _game(registry)
     cell, d = g.open_doorways()[0]
     _force_state(g, cell, d, DOOR_SECURITY)
@@ -347,6 +390,8 @@ def test_mask_seals_and_reopens_security_doorways(registry):
 
 
 def test_mask_locked_doorway_requires_a_key(registry):
+    """Drafting a locked doorway is only legal in the action mask when the
+    player holds a key to spend on it."""
     g = _game(registry)
     cell, d = g.open_doorways()[0]
     _force_state(g, cell, d, DOOR_LOCKED)
@@ -358,6 +403,8 @@ def test_mask_locked_doorway_requires_a_key(registry):
 
 
 def test_mask_locked_doorway_accounts_for_keys_the_walk_spends(registry):
+    """The mask budgets keys for the whole plan, not just the doorway: a
+    locked doorway beyond a locked interior door needs two keys."""
     # A locked frontier doorway beyond a locked interior door needs two keys:
     # one for the walk, one for the doorway itself.
     g = _game(registry)
@@ -374,6 +421,9 @@ def test_mask_locked_doorway_accounts_for_keys_the_walk_spends(registry):
 
 
 def test_mask_allows_revisiting_control_rooms(registry):
+    """Control rooms (Utility Closet / Security) stay revisitable after entry
+    so their switches can be worked mid-day, and the switch actions are
+    exposed only while standing inside the right room."""
     g = _game(registry)
     uc = registry.by_id["utility_closet"]
     g._place_room(uc, 7, S)
@@ -392,6 +442,8 @@ def test_mask_allows_revisiting_control_rooms(registry):
 
 
 def test_obs_planes_mark_both_sides_of_a_segment(registry):
+    """The locked-door obs plane marks both cells of a locked segment (each
+    side sees the shared door), and house_flags reports keycard power on."""
     from blueprince_sim.env import obs as O
 
     g = _game(registry)
@@ -404,6 +456,8 @@ def test_obs_planes_mark_both_sides_of_a_segment(registry):
 
 
 def test_determinism_with_locks(registry):
+    """Day-start lock rolls (door states, bias, security spawn count) are
+    deterministic given a seed."""
     def transcript(seed: int) -> tuple:
         g = Game(GameConfig(), seed=seed, registry=registry)
         return (tuple(sorted(g.state.door_state.items())), g.state.lock_bias,

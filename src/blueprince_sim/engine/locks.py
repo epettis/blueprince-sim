@@ -83,6 +83,14 @@ def roll_segment(st: GameState, rules: dict, room, cell: int, direction: int,
 
 
 def _roll_lock(st: GameState, rules: dict, cell: int, direction: int, rng: Rng) -> int:
+    """Roll DOOR_LOCKED vs DOOR_OPEN for a segment and update the daily lock bias.
+
+    The effective chance is ``base * st.lock_bias``. The bias self-balances:
+    a lock lowers it (capped at 1.0), an unlock raises it (floored at 1.0),
+    except when a second roll against the un-biased base chance deems the
+    outcome expected (the guarded branches below). Segments whose base chance
+    is 0 (ranks 1-3 etc.) never lock and never touch the bias.
+    """
     base = base_lock_chance(rules, cell, direction)
     if base <= 0:
         return DOOR_OPEN
@@ -113,6 +121,14 @@ def _door_distance(cell: int, direction: int, cell_size: float) -> float:
 
 def _roll_security(st: GameState, rules: dict, room, cell: int, direction: int,
                    rng: Rng) -> bool:
+    """Should this new doorway of ``room`` spawn as a security door?
+
+    Only rooms listed in locks.json room_door_chance can spawn one, capped by
+    the per-security-level spawn limit for today. Proximity to the Antechamber
+    gates it twice: a hard distance cutoff, then a roll that favors closer
+    doorways. At "high" security the per-room chance is overridden to 100%.
+    The caller (roll_segment) increments security_doors_spawned on success.
+    """
     sec = rules["security"]
     chance = sec["room_door_chance"].get(room.id)
     if chance is None:

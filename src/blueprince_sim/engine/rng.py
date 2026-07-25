@@ -20,6 +20,7 @@ class Rng:
         self._streams: dict[str, random.Random] = {}
 
     def stream(self, label: str) -> random.Random:
+        """The substream for ``label``, seeded deterministically on first use."""
         rng = self._streams.get(label)
         if rng is None:
             rng = random.Random((self.seed << 32) ^ zlib.crc32(label.encode()))

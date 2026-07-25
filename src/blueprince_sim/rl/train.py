@@ -91,6 +91,7 @@ class EpisodeRecorder:
         self._best: tuple[tuple, dict] | None = None
 
     def on_step(self, actions, modes) -> None:
+        """Buffer this vec-step's (action, exploit-mode) pair for every env."""
         if actions is None:
             return
         for i, a in enumerate(actions):
@@ -98,6 +99,11 @@ class EpisodeRecorder:
             self.buffers[i].append((int(a), m))
 
     def on_episode_end(self, env_idx: int, episode: int, info: dict) -> None:
+        """Close env ``env_idx``'s action buffer and apply the retention policy.
+
+        Tracks the best-scored record of the current window (written when the
+        window rolls over) and, independently, writes a random sample.
+        """
         buf, self.buffers[env_idx] = self.buffers[env_idx], []
         seed = info.get("episode_seed")
         if not buf or seed is None:
@@ -127,11 +133,13 @@ class EpisodeRecorder:
             self._write(record, "random")
 
     def flush_top(self) -> None:
+        """Write the current window's best episode, if any (also called at shutdown)."""
         if self._best is not None:
             self._write(self._best[1], "top_window")
             self._best = None
 
     def _write(self, record: dict, why: str) -> None:
+        """Append the record to replays.jsonl, tagged with ``why`` it was kept."""
         rec = dict(record)
         rec["why"] = why
         self.path.parent.mkdir(parents=True, exist_ok=True)
@@ -166,6 +174,12 @@ class CheckpointAndStopCallback:
                 self.t0 = time.time()
 
             def _on_step(self) -> bool:
+                """Count episode ends, checkpoint on schedule, honor STOP.
+
+                Wins are attributed to the mode each episode ran under BEFORE
+                per-episode modes are resampled. Returning False (after a
+                stop signal) ends ``model.learn()`` at this rollout step.
+                """
                 infos = self.locals.get("infos", ())
                 policy = getattr(self.model, "policy", None)
                 mixed = hasattr(policy, "resample_modes")
@@ -205,6 +219,7 @@ class CheckpointAndStopCallback:
                 return True
 
             def _on_rollout_end(self) -> None:
+                """Emit rolling 1k-episode win-rate metrics to the sb3 logger."""
                 if self.recent:
                     self.logger.record("blueprince/episodes", self.episodes)
                     self.logger.record("blueprince/win_rate_1k",
@@ -217,6 +232,11 @@ class CheckpointAndStopCallback:
                                        sum(self.recent_explore) / len(self.recent_explore))
 
             def save(self, name: str) -> None:
+                """Atomically write ``<name>.zip`` plus its ``<name>.json`` sidecar.
+
+                The sidecar carries the episode/timestep counters and rolling
+                win rates that ``--resume`` and the web dashboard read.
+                """
                 self.ckpt_dir.mkdir(parents=True, exist_ok=True)
                 tmp = self.ckpt_dir / f".tmp_{name}.zip"
                 final = self.ckpt_dir / f"{name}.zip"
@@ -246,6 +266,7 @@ class CheckpointAndStopCallback:
 
 
 def _install_signal_handlers() -> None:
+    """SIGINT/SIGTERM set STOP for a graceful stop; a second signal exits hard."""
     def handler(signum, frame):
         if STOP.is_set():  # second signal: exit hard
             print("[train] second signal - exiting immediately", flush=True)
@@ -322,6 +343,13 @@ def evaluate(ckpt_dir: Path, episodes: int, reward: str, seed: int,
 
 
 def main(argv: list[str] | None = None) -> int:
+    """blueprince-train entry point: parse flags, then evaluate or train.
+
+    Training builds the vec env, creates a MaskablePPO with the mixed
+    exploration policy (or resumes it from ``latest.zip``), and runs
+    ``model.learn`` until a stop signal or the optional timestep cap; a
+    final checkpoint is always saved on the way out.
+    """
     parser = argparse.ArgumentParser(
         prog="blueprince-train",
         description="Continuously train a MaskablePPO drafting policy "

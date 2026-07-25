@@ -15,20 +15,26 @@ RESOURCES = ("steps", "gems", "keys", "coins", "dice", "stars")
 
 
 def _grant(game, resource: str, amount: int) -> None:
+    """Apply a (possibly negative) resource delta to game state.
+
+    Gems/keys/coins/dice clamp at zero; steps and luck may go negative
+    (running out of steps is how the day ends). Unmodeled currencies no-op.
+    """
     st = game.state
-    if resource == "steps":
-        st.steps += amount
-    elif resource == "gems":
-        st.gems = max(0, st.gems + amount)
-    elif resource == "keys":
-        st.keys = max(0, st.keys + amount)
-    elif resource == "coins":
-        st.coins = max(0, st.coins + amount)
-    elif resource == "dice":
-        st.dice = max(0, st.dice + amount)
-    elif resource == "luck":
-        st.luck += amount
-    # "stars" and other out-of-scope currencies are tracked nowhere; no-op.
+    match resource:
+        case "steps":
+            st.steps += amount
+        case "gems":
+            st.gems = max(0, st.gems + amount)
+        case "keys":
+            st.keys = max(0, st.keys + amount)
+        case "coins":
+            st.coins = max(0, st.coins + amount)
+        case "dice":
+            st.dice = max(0, st.dice + amount)
+        case "luck":
+            st.luck += amount
+        # "stars" and other out-of-scope currencies are tracked nowhere; no-op.
 
 
 def _red_negated(game, room) -> bool:
@@ -43,6 +49,8 @@ def _red_negated(game, room) -> bool:
 
 @effect("grant", Hook.ON_ENTER)
 def grant(game, room, eff, ctx_room) -> None:
+    """Flat resource grant on first entry; negative amounts are red-room
+    penalties, which Shelter's negation can cancel."""
     amount = eff.param("amount", 0)
     if amount < 0 and _red_negated(game, room):
         return

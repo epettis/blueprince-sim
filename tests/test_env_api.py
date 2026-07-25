@@ -8,6 +8,8 @@ from blueprince_sim.env import actions as A
 
 
 def test_check_env():
+    """The env passes Gymnasium's official check_env compliance suite
+    (spaces, reset/step contracts, seeding)."""
     from gymnasium.utils.env_checker import check_env
 
     env = make_env()
@@ -15,6 +17,8 @@ def test_check_env():
 
 
 def test_masked_actions_never_raise():
+    """Any action the mask marks legal can be stepped without raising, and
+    every observation stays within the declared observation space."""
     env = make_env()
     rng = np.random.default_rng(0)
     for episode in range(5):
@@ -32,6 +36,8 @@ def test_masked_actions_never_raise():
 
 
 def test_invalid_action_penalized_not_crashing():
+    """A masked-out action is a harmless no-op: small -0.01 penalty, no crash,
+    no episode termination."""
     env = make_env()
     env.reset(seed=0)
     mask = env.action_masks()
@@ -42,6 +48,8 @@ def test_invalid_action_penalized_not_crashing():
 
 
 def test_outer_action_masked_by_unlock():
+    """The outer-draft action is only legal when outer rooms are unlocked in
+    the GameConfig."""
     env = make_env(GameConfig(outer_rooms_unlocked=False))
     env.reset(seed=0)
     assert not env.action_masks()[A.OUTER_DRAFT_ACTION]
@@ -51,6 +59,8 @@ def test_outer_action_masked_by_unlock():
 
 
 def test_gym_registration():
+    """The env is registered as "BluePrince-v0" and reset() exposes the action
+    mask in the info dict for MaskablePPO-style consumers."""
     import gymnasium
 
     env = gymnasium.make("BluePrince-v0")
@@ -59,6 +69,8 @@ def test_gym_registration():
 
 
 def test_reward_modes():
+    """The shaped reward mode is selectable via config and yields plain float
+    rewards from step()."""
     env = make_env(GameConfig(reward="shaped"))
     obs, info = env.reset(seed=3)
     mask = env.action_masks()

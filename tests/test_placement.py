@@ -9,6 +9,8 @@ from blueprince_sim.engine.state import GameState
 
 
 def test_rotate_mask():
+    """rotate_mask spins door bits 90 degrees clockwise per step; a 4-way is
+    rotation-invariant."""
     assert rotate_mask(N, 1) == E
     assert rotate_mask(N, 2) == S
     assert rotate_mask(N | S, 1) == E | W
@@ -16,6 +18,8 @@ def test_rotate_mask():
 
 
 def test_grid_helpers():
+    """Grid geometry invariants: rank/neighbor lookups, off-grid edges
+    returning -1, wing = single outer column, center columns, and corners."""
     assert rank_of(0) == 1 and rank_of(44) == 9
     assert neighbor(2, N) == 7 and neighbor(2, S) == -1
     assert neighbor(0, W) == -1 and neighbor(4, E) == -1
@@ -29,6 +33,8 @@ def test_grid_helpers():
 
 
 def test_orientation_requires_back_door(registry, cfg):
+    """A drafted room must have a door facing back through the doorway it was
+    drafted from, which pins each layout's legal orientations."""
     st = GameState()
     dead_end = registry.by_id["closet"]  # dead end
     # entering northward (entry_dir=N): needs a south-facing door
@@ -43,6 +49,8 @@ def test_orientation_requires_back_door(registry, cfg):
 
 
 def test_doors_cannot_face_outer_wall(registry, cfg):
+    """No door may point into the outer wall: 4-way rooms are barred from
+    edges and corner tiles admit only L-shapes / Dead Ends."""
     st = GameState()
     straight = registry.by_id["corridor"]
     # cell 4 = rank 1 SE corner, entered heading east (from cell 3): a straight
@@ -60,6 +68,9 @@ def test_doors_cannot_face_outer_wall(registry, cfg):
 
 
 def test_wing_conditions(registry, cfg):
+    """Wing-gated rooms: the Master Bedroom drafts only onto the East Wing,
+    and Her Ladyship's Chamber only onto the West Wing heading south, never
+    rank 1."""
     st = GameState()
     # A wing is a single edge column: col 0 (west) / col 4 (east).
     master = registry.by_id["master_bedroom"]  # East Wing only, any direction
@@ -75,6 +86,8 @@ def test_wing_conditions(registry, cfg):
 
 
 def test_garage_placement(registry, cfg):
+    """The Garage drafts only onto the West Wing at ranks 4-8, and only when
+    heading north or west."""
     st = GameState()
     garage = registry.by_id["garage"]  # West Wing, Ranks 4-8, heading N or W only
     assert satisfies_draft_conditions(garage, 15, N, st, cfg, set(), False)      # col 0, rank 4
@@ -87,6 +100,8 @@ def test_garage_placement(registry, cfg):
 
 
 def test_room8_placement(registry):
+    """Room 8 requires Key 8 and drafts only onto rank 8, via east-wing
+    northward or west-wing southward entries."""
     st = GameState()
     room8 = registry.by_id["room_8"]  # Key 8, onto Rank 8 via E-wing north / W-wing south
     keyed = GameConfig(satisfied_conditions=frozenset({"room8_key"}))
@@ -98,6 +113,8 @@ def test_room8_placement(registry):
 
 
 def test_wing_hall_and_hallway(registry, cfg):
+    """West/East Wing Halls stick to their own wing and avoid the corners;
+    the Hallway is confined to the center columns."""
     st = GameState()
     wwh = registry.by_id["west_wing_hall"]  # West Wing, no corners
     assert satisfies_draft_conditions(wwh, 20, N, st, cfg, set(), False)      # col 0, rank 5
@@ -114,6 +131,8 @@ def test_wing_hall_and_hallway(registry, cfg):
 
 
 def test_boiler_and_gift_shop(registry, cfg):
+    """Boiler Room: never rank 1/9, west wing only southward, east wing only
+    northward. Gift Shop: never rank 9 and never southward onto rank 1."""
     st = GameState()
     boiler = registry.by_id["boiler_room"]  # no rank 1/9; W-wing south, E-wing north
     assert satisfies_draft_conditions(boiler, 22, N, st, cfg, set(), False)      # center, any dir
@@ -130,6 +149,8 @@ def test_boiler_and_gift_shop(registry, cfg):
 
 
 def test_morning_room_direction(registry):
+    """The Morning Room is breakfast-gated, and its fixed door sides bar
+    northward drafts on the west wing and southward drafts on the east."""
     st = GameState()
     morning = registry.by_id["morning_room"]  # breakfast-gated + fixed door sides
     cfg = GameConfig(satisfied_conditions=frozenset({"breakfast"}))
@@ -141,6 +162,9 @@ def test_morning_room_direction(registry):
 
 
 def test_no_north_on_wing_studio_rooms(registry, cfg):
+    """no_north_on_wing rooms: the Clock Tower bars northward wing drafts
+    (corners exempt); the Solarium additionally bars horizontal drafts on
+    ranks 1 and 9."""
     st = GameState()
     clock = registry.by_id["clock_tower"]  # no northward draft on a wing (corners OK)
     assert not satisfies_draft_conditions(clock, 20, N, st, cfg, set(), False)  # col 0, northward
@@ -159,6 +183,8 @@ def test_no_north_on_wing_studio_rooms(registry, cfg):
 
 
 def test_outer_wall_green_rooms(registry, cfg):
+    """Terrace, Patio, Veranda and Greenhouse must sit against the west/east
+    outer wall; the Greenhouse additionally avoids the corners."""
     st = GameState()
     # Terrace, Patio, Veranda and Greenhouse must sit against the west or east
     # outer wall (a wing is one edge column: col 0 or col 4).
@@ -177,6 +203,9 @@ def test_outer_wall_green_rooms(registry, cfg):
 
 
 def test_courtyard_interior_only(registry, cfg):
+    """The Courtyard is interior-only: the whole perimeter (both wings and
+    ranks 1/9) is rejected, since its T-shape could otherwise rotate a door
+    into any outer wall."""
     st = GameState()
     court = registry.by_id["courtyard"]  # T-shape, must be drafted inside the mansion
     assert satisfies_draft_conditions(court, 22, N, st, cfg, set(), False)  # rank 5, col 2: interior
@@ -190,6 +219,9 @@ def test_courtyard_interior_only(registry, cfg):
 
 
 def test_pool_and_library_conditions(registry, cfg):
+    """Draft prerequisites: the Pump Room needs The Pool placed, the Bookshop
+    deals only when drafting from the Library, and the Closet can never be
+    drafted from the Library."""
     st = GameState()
     pump = registry.by_id["pump_room"]  # Pool Drafted
     assert not satisfies_draft_conditions(pump, 22, N, st, cfg, set(), False)
@@ -203,6 +235,8 @@ def test_pool_and_library_conditions(registry, cfg):
 
 
 def test_tunnel_north_south_only(registry, cfg):
+    """The Tunnel drafts only through north/south doorways and only onto
+    ranks 2-8."""
     st = GameState()
     tunnel = registry.by_id["tunnel"]  # straight, north_south_only + rank_gte_2 + rank_lte_8
     # Interior cell, rank 5, col 2: N or S entry is legal.
@@ -217,6 +251,8 @@ def test_tunnel_north_south_only(registry, cfg):
 
 
 def test_gated_conditions_via_config(registry):
+    """Item-gated conditions come from the config: the Secret Garden needs its
+    key in satisfied_conditions and is confined to a wing within ranks 3-8."""
     st = GameState()
     garden = registry.by_id["secret_garden"]
     # Cell 20 = rank 5, col 0: a west-wing tile within the rank 3-8 band.

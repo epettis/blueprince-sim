@@ -18,6 +18,12 @@ from .policies import POLICIES
 
 
 def _parse_set(pairs: list[str]) -> dict:
+    """Turn ``--set KEY=VALUE`` pairs into typed GameConfig field overrides.
+
+    Values are coerced by shape: true/false -> bool, digits -> int, and
+    comma-separated values (or the known set-valued fields) -> list; anything
+    else stays a string. An empty value for a set-valued field yields [].
+    """
     out = {}
     for pair in pairs:
         key, _, value = pair.partition("=")
@@ -33,6 +39,11 @@ def _parse_set(pairs: list[str]) -> dict:
 
 
 def build_config(args) -> GameConfig:
+    """Build the GameConfig from ``--config`` YAML (or defaults) plus ``--set`` overrides.
+
+    ``--set`` wins over the YAML file; the frozen config is rebuilt via
+    ``GameConfig.from_dict`` so overrides are validated the same way as file input.
+    """
     if args.config:
         cfg = GameConfig.from_yaml(args.config)
     else:
@@ -48,6 +59,7 @@ def build_config(args) -> GameConfig:
 
 
 def main(argv: list[str] | None = None) -> int:
+    """Parse arguments and dispatch to the play REPL or batch evaluation; return exit code 0."""
     parser = argparse.ArgumentParser(prog="blueprince-sim")
     sub = parser.add_subparsers(dest="command", required=True)
 

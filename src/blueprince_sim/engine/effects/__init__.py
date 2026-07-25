@@ -30,6 +30,11 @@ DEFAULT_HOOK: dict[str, Hook] = {}
 
 
 def effect(tag: str, hook: Hook):
+    """Decorator registering a handler for ``(tag, hook)``.
+
+    The first registration of a tag also becomes its default hook, so data
+    records only need a "when" param to fire the tag at a different hook.
+    """
     def deco(fn: EffectHandler) -> EffectHandler:
         _REGISTRY[(tag, hook)] = fn
         DEFAULT_HOOK.setdefault(tag, hook)

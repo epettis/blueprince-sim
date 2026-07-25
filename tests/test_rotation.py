@@ -26,6 +26,8 @@ def _sample(masks, back, day, compass, n=4000):
 
 
 def test_default_roll_usually_keeps_a_south_facing_back_wall():
+    """Drafting northward, the orientation roll strongly favors the T without
+    a north door (the south bias)."""
     # The no-north orientation is chosen more than either north-door option.
     counts = _sample(T_SOUTH, S, day=20, compass=False)
     assert counts[0] > counts[1] and counts[0] > counts[2]
@@ -33,6 +35,8 @@ def test_default_roll_usually_keeps_a_south_facing_back_wall():
 
 
 def test_compass_makes_a_north_door_the_likely_outcome():
+    """The Compass inverts the south bias: with it, a north-door orientation
+    becomes the common outcome instead of the rare one."""
     without = _sample(T_SOUTH, S, day=20, compass=False)
     withc = _sample(T_SOUTH, S, day=20, compass=True)
     # A north-door orientation is rare by default but the common case with one.
@@ -41,6 +45,8 @@ def test_compass_makes_a_north_door_the_likely_outcome():
 
 
 def test_south_bias_relaxes_on_later_days():
+    """The south bias weakens as days pass: the no-north weight drifts down
+    while north-door weights drift up."""
     early = orientation_weights(T_SOUTH, S, day=1, compass=False)
     late = orientation_weights(T_SOUTH, S, day=25, compass=False)
     # The favored no-north share drifts down over the run; north doors drift up.
@@ -49,6 +55,8 @@ def test_south_bias_relaxes_on_later_days():
 
 
 def test_east_and_west_rolls_are_mirror_images():
+    """Orientation weights are symmetric across the N-S axis: an L drafted
+    from the west rolls identically to its east-drafted mirror image."""
     # An L drafted from the west vs. the east is the same shape reflected across
     # the N-S axis, so the two must roll identically.
     west = orientation_weights([S | W, N | W], W, day=10, compass=False)
@@ -57,10 +65,12 @@ def test_east_and_west_rolls_are_mirror_images():
 
 
 def test_a_single_legal_orientation_takes_no_roll():
+    """A room with one legal orientation is placed as-is - no weighted roll."""
     assert len(orientation_weights([N | S], S, day=20, compass=False)) == 1
 
 
 def _drafting_hand(g, options, target=7, direction=N):
+    """Put the game into DRAFTING with a hand-built pending draft."""
     g.state.pos = 2
     g.phase = Phase.DRAFTING
     pd = PendingDraft(from_cell=2, direction=direction, target_cell=target)
@@ -70,6 +80,8 @@ def _drafting_hand(g, options, target=7, direction=N):
 
 
 def test_dovecote_enables_free_rotation():
+    """A Dovecote in the hand grants free rotation: spinning advances an
+    option to its next legal orientation while keeping the connecting door."""
     g = Game(GameConfig(), seed=1)
     dov = g.registry.by_id["dovecote"]
     troom = next(r for r in g.registry.rooms if r.layout == "t" and r.rarity)
@@ -86,6 +98,8 @@ def test_dovecote_enables_free_rotation():
 
 
 def test_no_rotation_without_a_source():
+    """Without a rotation source (Dovecote in hand or Ornate Compass),
+    rotation is not available."""
     g = Game(GameConfig(), seed=1)
     troom = next(r for r in g.registry.rooms if r.layout == "t" and r.rarity)
     _drafting_hand(g, [
@@ -95,6 +109,9 @@ def test_no_rotation_without_a_source():
 
 
 def test_rotation_budget_covers_every_orientation_then_closes():
+    """The per-hand rotation budget lets every option show all its legal
+    orientations, then closes (rotation is cyclic, so an uncapped policy
+    could spin forever); a redraw restores the budget."""
     # Free rotation is capped at max(legal orientations) - 1 spins per hand:
     # enough for every option to have shown each of its orientations, after
     # which further rotation could only revisit hand states already seen
@@ -124,6 +141,9 @@ def test_rotation_budget_covers_every_orientation_then_closes():
 
 
 def test_rotation_not_offered_when_every_option_is_pinned():
+    """When every option has a single legal orientation, rotation is not
+    offered (a deterministic policy would loop on the no-op), but
+    rotate_options() stays a callable no-op so old recordings replay."""
     # Seed-1001214244 pathology: a Dovecote hand drafted on the top rank from
     # the west pins every floorplan to one legal orientation (no north doors on
     # rank 9, a west door is required), so rotating changes nothing. The action
@@ -143,6 +163,8 @@ def test_rotation_not_offered_when_every_option_is_pinned():
 
 
 def test_ornate_compass_rotates_every_draft():
+    """The Ornate Compass grants rotation on every hand, with no Dovecote
+    required among the options."""
     # Unlike the Dovecote, the Ornate Compass grants rotation on any hand.
     g = Game(GameConfig(ornate_compass=True), seed=1)
     troom = next(r for r in g.registry.rooms if r.layout == "t" and r.rarity)
@@ -156,6 +178,8 @@ def test_ornate_compass_rotates_every_draft():
 
 
 def test_outer_draft_is_never_rotatable():
+    """Off-grid outer drafts (fixed orientation, no entry doorway) are never
+    rotatable - regression guard for a KeyError crash in legal_orientations."""
     # Outer rooms sit off-grid with a fixed orientation and no entry doorway
     # (target_cell == -1, direction == 0). Even with a rotation source in play,
     # rotation must not apply - previously this crashed in legal_orientations

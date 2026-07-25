@@ -52,64 +52,34 @@ you pay no step and gain none of its resources until you **move** in. Walking
 into the Antechamber ends the day as a win; running out of steps or
 dead-ending ends it as a loss.
 
-The draft implements the decompiled v1.3 algorithm:
+The draft implements the decompiled v1.3 algorithm. The more involved
+mechanics each have a dedicated writeup under [`docs/`](docs/):
 
-- **8 decks** (4 rarities x free/gem) built from the enabled pools; solitaire
-  dealing — no room repeats until its deck depletes and reshuffles.
-- Per option slot: **rarity roll** from the datamined weight tables (keyed by
-  rank 1-9, slot 1 vs 2&3, game stage week1/week2/late, Solarium presence),
-  then a uniform deal from that rarity's deck(s). **Slot 1 is always free.**
-- **Four draw attempts** per slot, ending in a forced Closet.
-- **Deck-size gates** (free >= 3; gem 5/5/4/4 once veteran/day-16/Room-46).
-- **Priority draws** into slot 3 (Patio group 5% -> 50% with Greenhouse;
-  Commissary/Observatory 13%; Classroom 3%).
-- Placement filters: door-back rule, **doors can never face the outer wall**
-  (so 4-way rooms never sit on an edge, corners take only L-shapes/Dead Ends,
-  and a T against an edge is fixed), wing/corner draft conditions,
-  cannot-draft-from-Library, gated rooms (Pool/Secret Garden/Room 8/...).
-- **Orientation roll**: a floorplan with several legal orientations is rolled
-  with datamined, south-door-biased weights that drift by day (e.g. a T needing
-  a south door: 70/15/15 early -> 60/20/20 late). The **Compass** (`cfg.compass`)
-  flips the bias toward north doors. Free rotation to any legal orientation is
-  granted by the **Ornate Compass** (`cfg.ornate_compass`, every draft), the
-  **Rotunda** (while placed), and the **Dovecote** (while drawn). See
-  `engine/rotation.py`.
-- **Redraws**: Study (1 gem, max 8/draft), Classroom (free = drafting-room
-  count), Ivory Dice.
-- **Resources**: steps, gems, keys, coins, dice; the luck system (start 10,
-  max effect 29, self-balancing) drives extra item spawns.
-- **Locked doors** (`data/locks.json`, datamined): every doorway segment rolls
-  its lock state from a table keyed by rank and orientation - never below rank
-  4 by chance, 25% inside rank 4, climbing to 110%/130% at ranks 8-9 (values
-  over 100% are guaranteed at neutral bias). A daily **bias multiplier**
-  softens streaks: hitting a locked door subtracts 0.385 (capped at 1), an
-  unlocked one adds 0.35 (floored at 1), with datamined second-roll exemptions
-  above 100% and below 31%. Opening a locked door consumes one key - at a
-  frontier doorway when drafting through it, or mid-walk when a path routes
-  through a locked door between placed rooms. The pathfinder is key-aware:
-  a locked door en route is keyed through or walked around, whichever the
-  key and step budgets allow (with no key, the detour distance is what
-  counts - a lock can put the Antechamber out of reach of your remaining
-  steps). **In-drafting opens doors free**: a drafted room whose floorplan
-  has a door facing an existing locked or security door swings it open.
-  Corridor and Corriyard doors are guaranteed unlocked.
-- **Security doors**: doors of whitelisted mechanical rooms (Security,
-  Workshop, Pump Room, Archives, ...) can spawn as keycard doors when close
-  enough to the Antechamber (`rand(0,75) > distance`, cutoff 60 units), capped
-  per day by the **security level** - low 3 / normal 4 / high 6, with high
-  forcing every whitelist door's chance to 100%. Keys never open them. The
-  **Keycard** (found by chance in Archives/Office/Laboratory/Vault/...) opens
-  them while the system is powered. The **Utility Closet** breaker toggles
-  that power, and the **Security terminal** sets the level and its offline
-  mode: unpowered doors open for free once Security has been visited (the sim
-  assumes the player flips offline mode to Unlocked), and are sealed to
-  everyone - keycard included - otherwise. `cfg.door_locks=false` disables
-  the whole system.
+- **Draw behavior** — [docs/drafting.md](docs/drafting.md): 8 solitaire
+  decks (4 rarities x free/gem), the per-slot rarity roll from the datamined
+  weight tables (slot 1 is always free), four draw attempts ending in a
+  forced Closet, deck-size gates, priority draws, placement filters (doors
+  can never face the outer wall), the day-drifting orientation roll and the
+  Compass items, and redraws (Study / Classroom / Ivory Dice).
+- **Luck & items** — [docs/luck.md](docs/luck.md): resources are steps,
+  gems, keys, coins, dice; the self-balancing luck stat (start 10, max
+  effect 29) drives each room's extra item spawns.
+- **Locked doors & security doors** — [docs/locking.md](docs/locking.md):
+  doorway segments roll locks from datamined rank tables softened by a
+  daily bias multiplier (opening one costs a key; the pathfinder is
+  key-aware), and whitelisted mechanical rooms can spawn keycard security
+  doors governed by the Keycard, the Utility Closet breaker and the
+  Security terminal. `cfg.door_locks=false` disables the whole system.
 - **Room effects** (Tier 1): resource grants, Solarium weight flip, Greenhouse
   bias, The Pool's injected rooms, Bunk Room double-bedroom, Nursery,
   red-room penalties (Weight Room, Gymnasium, Chapel, Archives), Shelter
   red-room negation, Hovel steps-for-gems (3:1), Tomb dead-end gold,
   Schoolhouse classroom flood, etc.
+
+The scripted baseline policies (`greedy_rank`, `economy`,
+`frontier_greedy`) and their security doctrine are described in
+[docs/greedy-strategy.md](docs/greedy-strategy.md); the RL reward
+functions in [docs/rewards.md](docs/rewards.md).
 
 ### Unlock toggles (GameConfig)
 
@@ -159,36 +129,23 @@ data JSON (or regenerate: `python tools/ingest_sheet.py`, which rebuilds
 - **Antechamber entry**: modeled as pre-placed at rank 9 center with all
   doors usable; you win by **walking into** it (which costs the entry step),
   not merely by connecting a door — so you can fall one tile short. Its
-  doorways roll on the ordinary rank 8↔9 lock table (130% ⇒ locked at neutral
-  bias), but drafting a connecting room opens them via in-drafting, so entry
-  stays free once connected; the real game's bespoke Antechamber locks are
-  not modeled.
+  doorway locks are covered in [docs/locking.md](docs/locking.md).
 - **Steps**: drafting a room is free; moving into a room costs 1 step (and is
   when that room's resources are granted). Starting steps 50 (community
   consensus, not datamined).
-- **Door locks** roll when the first door on a segment is placed, not lazily
-  on first click as in the real game, so the bias sequence follows placement
-  order; the per-door Left/Forward/Right security table is collapsed to one
-  chance per room (its strongest door); the "Set"-door double-trigger, Great
-  Hall/Vestibule guaranteed states (including the Vestibule re-locking a
-  random door on each entry - deferred, though the key-aware pathfinder is
-  ready for it), Lock Pick Kit, special keys, Master Key, Foyer/Kennel/
-  Shelter unlock effects, and the Passageway high-security distance waiver
-  are not modeled. The Keycard is found by flat chance (25%,
-  inferred) on first entry to a wiki-listed source room. Visiting Security
-  always sets offline mode to Unlocked (the strategically dominant choice);
-  toggles are free actions while standing in the room.
+- **Door locks / security doors**: the roll-on-placement timing, collapsed
+  per-door security table, flat-chance Keycard find, and the unmodeled lock
+  items and special doors are catalogued in
+  [docs/locking.md](docs/locking.md).
 - **Week boundaries**: day 1-7 / 8-14 / 15+ mapping to the sheet's
   Week 1 / Week 2 / late tables is inferred.
-- **Orientation weights** (`engine/rotation.py`) are datamined for the South,
-  West and East connecting-door cases (with their day columns); the North case
-  is the published near-uniform 40/30/30 and the Compass column for North (and
-  for the 50/50 North/South 2-way case) is unpublished, so it falls back to the
-  base roll. The Compass (north bias) and Ornate Compass (rotate-at-will) are
+- **Orientation weights and redraws**: the unpublished North/Compass weight
+  columns and the whole-hand redraw approximation are noted in
+  [docs/drafting.md](docs/drafting.md). The Compass and Ornate Compass are
   modeled as per-run flags rather than held items.
-- **Redraws** redraw the whole 3-option hand (per-slot semantics unverified).
 - **Luck curve** between 10 and 29 is linear (shape not documented); the
-  extra-item type distribution (coins/key/gem/die) is an estimate.
+  extra-item type distribution is an estimate — see
+  [docs/luck.md](docs/luck.md).
 - Rooms whose systems are out of scope (shop menus, dig spots/tools, Vault
   contents, cross-day "Tomorrow" effects, dartboard/parlor puzzles) have
   their draft presence and costs modeled but their effects reduced or
@@ -205,6 +162,7 @@ src/blueprince_sim/
   engine/            pure-Python core: decks, draft, placement, effects, game
   env/               Gymnasium wrapper: obs encoding, masked actions, rewards
   cli/               play REPL, batch Monte-Carlo, policies, ASCII render
+docs/                mechanics writeups: drafting, locking, luck, rewards, greedy
 tools/               ingest + validation scripts, raw source dumps
 tests/               chi-square stats, placement, decks, game, env API
 ```
@@ -283,12 +241,13 @@ and a day of training is roughly 3-5M episodes. Expect the policy to need
 millions of episodes to beat the scripted heuristics; track
 `blueprince/win_rate_1k` in the logs (add `--tensorboard` for curves) and
 compare periodically against `blueprince-sim batch --policy greedy_rank`
-under the same config.
+under the same config ([docs/greedy-strategy.md](docs/greedy-strategy.md)
+describes the scripted baselines).
 
 Tuning flags: `--n-envs` (parallel workers), `--n-steps` (rollout length -
-also the progress-at-risk on stop), `--reward shaped|sparse` (shaped adds
-rank-progress and resource terms; sparse is win-only), `--device` (default
-cpu; the nets are tiny MLPs).
+also the progress-at-risk on stop), `--reward shaped|sparse` (see
+[docs/rewards.md](docs/rewards.md)), `--device` (default cpu; the nets are
+tiny MLPs).
 
 ### Released models
 

@@ -2,7 +2,7 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-blueprince-sim is a Python simulator of the room-drafting system in the game **Blue Prince**, reproducing the datamined v1.3 draft algorithm and probability tables for strategy testing and reinforcement learning. See `README.md` for the full mechanics writeup and `HANDOFF.md` for build history and data provenance.
+blueprince-sim is a Python simulator of the room-drafting system in the game **Blue Prince**, reproducing the datamined v1.3 draft algorithm and probability tables for strategy testing and reinforcement learning. See `README.md` for the overview, `docs/` for the deeper mechanics writeups (drafting, locking, luck, rewards, greedy strategy), and `HANDOFF.md` for build history and data provenance.
 
 ## Commands
 
