@@ -14,6 +14,14 @@
     }
   },
   "coins": { "pile_min": 1, "pile_max": 5 },
+  "food": {
+    "steps": 3,
+    "meta": {
+      "confidence": "wiki",
+      "source": "https://blueprince.wiki.gg/wiki/Items",
+      "notes": "Banana and other food items restore 3 steps base."
+    }
+  },
   "item_values": {
     "comment": "Relative resource values used by shaped rewards and greedy policies; not game data.",
     "key": 3.0,

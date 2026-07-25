@@ -6,6 +6,7 @@ from ..config import GameConfig
 from .grid import (DIRS, RANKS, E, N, OPPOSITE, S, W, is_center_column, is_corner,
                    is_east_wing, is_interior, is_west_wing, neighbor, rank_of)
 from .model import Room
+from .special_items import satisfied_condition_items
 from .state import GameState
 
 
@@ -150,7 +151,8 @@ def satisfies_draft_conditions(room: Room, cell: int, entry_dir: int, state: Gam
                 if not from_library:
                     return False
             case "secret_garden_key" | "knight_chess_piece" | "breakfast" | "room8_key":
-                if cond not in cfg.satisfied_conditions:
+                if (cond not in cfg.satisfied_conditions
+                        and cond not in satisfied_condition_items(state)):
                     return False
             case "antechamber_north_door":
                 return False  # Room 46; beyond the day-run objective

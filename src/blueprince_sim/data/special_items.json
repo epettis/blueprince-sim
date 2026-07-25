@@ -1,0 +1,2026 @@
+{
+ "_notes": [
+  "Shovel dig table: '0.384% each Vault Key 304/149 + Secret Garden Key, 0.24% SG Key variant' interpreted as VK304=0.384, VK149=0.384, SGK=0.24 (two game entries merged), VK233=0.144, VK370=0.048; sums to exactly 100.0.",
+  "Detector shovel: vault key total = 100 - 93.8 = 6.2%; distributed in shovel's 8:8:3:1 ratio \u2192 VK304=2.48, VK149=2.48, VK233=0.93, VK370=0.31.",
+  "Jack hammer: partial wiki data; table is confidence=inferred. No junk entries. Gems (2) = 39/176 = 22.159%; Wind-up Key = 3/176 = 1.705%; remaining coins fill to 100%.",
+  "Treasure map cells: A5\u219220, B6\u219226, B8\u219236, C8\u219237, D6\u219228, D9\u219243, E5\u219224, E8\u219239 (flat = (rank-1)*5 + col, letter A-E = col 0-4).",
+  "Car keys spawn rooms: digest only names Garage (wiki lists 15 rooms; full list absent from digest).",
+  "Sanctum key: Reservoir and Safehouse absent from rooms.json \u2192 in absent_spawn_rooms.",
+  "master_key: classified kind=special_key; also guaranteed_in=[showroom].",
+  "lock_pick_kit: darkroom/furnace/closed_exhibit/toolshed all exist in rooms.json \u2192 in spawn_rooms."
+ ],
+ "items": [
+  {
+   "id": "battery_pack",
+   "name": "Battery Pack",
+   "kind": "standard",
+   "tier": 1,
+   "unique": true,
+   "persistence": "day",
+   "spawn_rooms": [
+    "attic",
+    "archives",
+    "laboratory",
+    "mail_room",
+    "patio",
+    "storeroom",
+    "wine_cellar",
+    "workshop"
+   ],
+   "spawn_rooms_high_luck": [
+    "spare_room",
+    "garage",
+    "utility_closet",
+    "kitchen"
+   ],
+   "guaranteed_in": [],
+   "effects": [],
+   "implemented": false,
+   "meta": {
+    "source": "https://blueprince.wiki.gg/wiki/Battery_Pack",
+    "confidence": "wiki",
+    "absent_spawn_rooms": [],
+    "blocked_on": "component_only"
+   }
+  },
+  {
+   "id": "broken_lever",
+   "name": "Broken Lever",
+   "kind": "standard",
+   "tier": null,
+   "unique": true,
+   "persistence": "day",
+   "spawn_rooms": [
+    "aquarium",
+    "attic",
+    "drafting_studio",
+    "laboratory",
+    "locker_room",
+    "observatory",
+    "patio",
+    "sauna",
+    "security",
+    "storeroom",
+    "weight_room",
+    "wine_cellar",
+    "workshop",
+    "servants_quarters"
+   ],
+   "spawn_rooms_high_luck": [],
+   "guaranteed_in": [],
+   "effects": [],
+   "implemented": false,
+   "meta": {
+    "source": "https://blueprince.wiki.gg/wiki/Broken_Lever",
+    "confidence": "wiki",
+    "absent_spawn_rooms": [],
+    "blocked_on": "component_only"
+   }
+  },
+  {
+   "id": "coin_purse",
+   "name": "Coin Purse",
+   "kind": "standard",
+   "tier": 2,
+   "unique": true,
+   "persistence": "day",
+   "spawn_rooms": [
+    "closet",
+    "walk_in_closet",
+    "parlor",
+    "attic",
+    "workshop",
+    "dining_room",
+    "bedroom"
+   ],
+   "spawn_rooms_high_luck": [
+    "gallery",
+    "ballroom",
+    "drawing_room",
+    "foyer"
+   ],
+   "guaranteed_in": [],
+   "effects": [
+    {
+     "tag": "coin_interest",
+     "per": 3,
+     "bonus": 1
+    }
+   ],
+   "implemented": true,
+   "meta": {
+    "source": "https://blueprince.wiki.gg/wiki/Coin_Purse",
+    "confidence": "wiki",
+    "absent_spawn_rooms": [],
+    "blocked_on": null
+   }
+  },
+  {
+   "id": "compass",
+   "name": "Compass",
+   "kind": "standard",
+   "tier": 2,
+   "unique": true,
+   "persistence": "day",
+   "spawn_rooms": [
+    "aquarium",
+    "attic",
+    "closet",
+    "drafting_studio",
+    "guest_bedroom",
+    "observatory",
+    "terrace",
+    "walk_in_closet",
+    "workshop",
+    "mail_room"
+   ],
+   "spawn_rooms_high_luck": [],
+   "guaranteed_in": [],
+   "effects": [
+    {
+     "tag": "compass"
+    }
+   ],
+   "implemented": true,
+   "meta": {
+    "source": "https://blueprince.wiki.gg/wiki/Compass",
+    "confidence": "wiki",
+    "absent_spawn_rooms": [],
+    "blocked_on": null
+   }
+  },
+  {
+   "id": "coupon_book",
+   "name": "Coupon Book",
+   "kind": "standard",
+   "tier": 2,
+   "unique": true,
+   "persistence": "day",
+   "spawn_rooms": [
+    "attic",
+    "conference_room",
+    "dining_room",
+    "library",
+    "mail_room",
+    "nook",
+    "office",
+    "vault",
+    "walk_in_closet",
+    "morning_room"
+   ],
+   "spawn_rooms_high_luck": [
+    "den",
+    "pantry",
+    "secret_passage"
+   ],
+   "guaranteed_in": [],
+   "effects": [
+    {
+     "tag": "shop_discount",
+     "amount": 1
+    }
+   ],
+   "implemented": false,
+   "meta": {
+    "source": "https://blueprince.wiki.gg/wiki/Coupon_Book",
+    "confidence": "wiki",
+    "absent_spawn_rooms": [],
+    "blocked_on": "shop_purchases_not_modeled"
+   }
+  },
+  {
+   "id": "gear_wrench",
+   "name": "Gear Wrench",
+   "kind": "standard",
+   "tier": 4,
+   "unique": true,
+   "persistence": "day",
+   "spawn_rooms": [
+    "toolshed"
+   ],
+   "spawn_rooms_high_luck": [],
+   "guaranteed_in": [],
+   "effects": [
+    {
+     "tag": "gear_wrench"
+    }
+   ],
+   "implemented": false,
+   "meta": {
+    "source": "https://blueprince.wiki.gg/wiki/Gear_Wrench",
+    "confidence": "wiki",
+    "absent_spawn_rooms": [],
+    "blocked_on": "mechanical_room_rarity_not_modeled"
+   }
+  },
+  {
+   "id": "hall_pass",
+   "name": "Hall Pass",
+   "kind": "standard",
+   "tier": 4,
+   "unique": true,
+   "persistence": "day",
+   "spawn_rooms": [
+    "classroom",
+    "dormitory"
+   ],
+   "spawn_rooms_high_luck": [],
+   "guaranteed_in": [],
+   "effects": [
+    {
+     "tag": "free_hallway_moves"
+    }
+   ],
+   "implemented": true,
+   "meta": {
+    "source": "https://blueprince.wiki.gg/wiki/Hall_Pass",
+    "confidence": "wiki",
+    "absent_spawn_rooms": [],
+    "blocked_on": null
+   }
+  },
+  {
+   "id": "lock_pick_kit",
+   "name": "Lock Pick Kit",
+   "kind": "standard",
+   "tier": 3,
+   "unique": true,
+   "persistence": "day",
+   "spawn_rooms": [
+    "archives",
+    "attic",
+    "rumpus_room",
+    "security",
+    "vault",
+    "walk_in_closet",
+    "wine_cellar",
+    "workshop",
+    "darkroom",
+    "furnace",
+    "closed_exhibit",
+    "toolshed"
+   ],
+   "spawn_rooms_high_luck": [],
+   "guaranteed_in": [],
+   "effects": [
+    {
+     "tag": "lockpick",
+     "rates": [
+      54,
+      35,
+      30,
+      19
+     ],
+     "denominator": 101,
+     "pity": 3
+    }
+   ],
+   "implemented": true,
+   "meta": {
+    "source": "https://blueprince.wiki.gg/wiki/Lock_Pick_Kit",
+    "confidence": "datamined",
+    "absent_spawn_rooms": [],
+    "blocked_on": null
+   }
+  },
+  {
+   "id": "lucky_rabbits_foot",
+   "name": "Lucky Rabbit's Foot",
+   "kind": "standard",
+   "tier": null,
+   "unique": true,
+   "persistence": "day",
+   "spawn_rooms": [
+    "closet",
+    "walk_in_closet",
+    "rumpus_room",
+    "nursery",
+    "maids_chamber",
+    "morning_room",
+    "classroom"
+   ],
+   "spawn_rooms_high_luck": [
+    "ballroom",
+    "den",
+    "foyer",
+    "gallery",
+    "casino"
+   ],
+   "guaranteed_in": [],
+   "effects": [
+    {
+     "tag": "luck_bonus",
+     "amount": 3
+    }
+   ],
+   "implemented": true,
+   "meta": {
+    "source": "https://blueprince.wiki.gg/wiki/Lucky_Rabbit%27s_Foot",
+    "confidence": "wiki",
+    "absent_spawn_rooms": [],
+    "blocked_on": null
+   }
+  },
+  {
+   "id": "magnifying_glass",
+   "name": "Magnifying Glass",
+   "kind": "standard",
+   "tier": 1,
+   "unique": true,
+   "persistence": "day",
+   "spawn_rooms": [
+    "archives",
+    "attic",
+    "boudoir",
+    "chapel",
+    "drafting_studio",
+    "guest_bedroom",
+    "her_ladyships_chamber",
+    "laboratory",
+    "library",
+    "mail_room",
+    "nook",
+    "observatory",
+    "office",
+    "parlor",
+    "study",
+    "workshop"
+   ],
+   "spawn_rooms_high_luck": [],
+   "guaranteed_in": [],
+   "effects": [],
+   "implemented": false,
+   "meta": {
+    "source": "https://blueprince.wiki.gg/wiki/Magnifying_Glass",
+    "confidence": "wiki",
+    "absent_spawn_rooms": [],
+    "blocked_on": "lore_documents_not_modeled"
+   }
+  },
+  {
+   "id": "metal_detector",
+   "name": "Metal Detector",
+   "kind": "standard",
+   "tier": null,
+   "unique": true,
+   "persistence": "day",
+   "spawn_rooms": [
+    "archives",
+    "attic",
+    "closet",
+    "courtyard",
+    "greenhouse",
+    "mail_room",
+    "patio",
+    "servants_quarters",
+    "veranda",
+    "workshop"
+   ],
+   "spawn_rooms_high_luck": [
+    "garage",
+    "boiler_room"
+   ],
+   "guaranteed_in": [],
+   "effects": [
+    {
+     "tag": "metal_detector_spawns",
+     "coins_chance": 60,
+     "key_chance": 25
+    }
+   ],
+   "implemented": true,
+   "meta": {
+    "source": "https://blueprince.wiki.gg/wiki/Metal_Detector",
+    "confidence": "inferred",
+    "absent_spawn_rooms": [],
+    "blocked_on": null
+   }
+  },
+  {
+   "id": "repellent",
+   "name": "Repellent",
+   "kind": "standard",
+   "tier": null,
+   "unique": false,
+   "persistence": "until_used",
+   "spawn_rooms": [
+    "spare_bedroom__ix131"
+   ],
+   "spawn_rooms_high_luck": [],
+   "guaranteed_in": [],
+   "effects": [
+    {
+     "tag": "repellent"
+    }
+   ],
+   "implemented": false,
+   "meta": {
+    "source": "https://blueprince.wiki.gg/wiki/Repellent",
+    "confidence": "wiki",
+    "absent_spawn_rooms": [],
+    "blocked_on": "repellent_not_modeled"
+   }
+  },
+  {
+   "id": "running_shoes",
+   "name": "Running Shoes",
+   "kind": "standard",
+   "tier": null,
+   "unique": true,
+   "persistence": "day",
+   "spawn_rooms": [
+    "closet",
+    "gymnasium",
+    "locker_room",
+    "rumpus_room",
+    "sauna",
+    "the_pool",
+    "walk_in_closet",
+    "weight_room"
+   ],
+   "spawn_rooms_high_luck": [
+    "foyer",
+    "garage"
+   ],
+   "guaranteed_in": [],
+   "effects": [
+    {
+     "tag": "free_move_interval",
+     "n": 3
+    }
+   ],
+   "implemented": true,
+   "meta": {
+    "source": "https://blueprince.wiki.gg/wiki/Running_Shoes",
+    "confidence": "inferred",
+    "absent_spawn_rooms": [],
+    "blocked_on": null
+   }
+  },
+  {
+   "id": "salt_shaker",
+   "name": "Salt Shaker",
+   "kind": "standard",
+   "tier": 1,
+   "unique": true,
+   "persistence": "day",
+   "spawn_rooms": [
+    "rumpus_room",
+    "walk_in_closet",
+    "billiard_room",
+    "dining_room",
+    "morning_room"
+   ],
+   "spawn_rooms_high_luck": [
+    "pantry",
+    "kitchen"
+   ],
+   "guaranteed_in": [],
+   "effects": [
+    {
+     "tag": "food_bonus",
+     "amount": 1
+    }
+   ],
+   "implemented": true,
+   "meta": {
+    "source": "https://blueprince.wiki.gg/wiki/Salt_Shaker",
+    "confidence": "wiki",
+    "absent_spawn_rooms": [],
+    "blocked_on": null
+   }
+  },
+  {
+   "id": "shovel",
+   "name": "Shovel",
+   "kind": "standard",
+   "tier": 2,
+   "unique": true,
+   "persistence": "day",
+   "spawn_rooms": [
+    "aquarium",
+    "attic",
+    "closet",
+    "courtyard",
+    "greenhouse",
+    "patio",
+    "storeroom",
+    "terrace",
+    "veranda",
+    "wine_cellar",
+    "workshop"
+   ],
+   "spawn_rooms_high_luck": [],
+   "guaranteed_in": [],
+   "effects": [
+    {
+     "tag": "dig_tool",
+     "table": "shovel"
+    }
+   ],
+   "implemented": true,
+   "meta": {
+    "source": "https://blueprince.wiki.gg/wiki/Shovel",
+    "confidence": "datamined",
+    "absent_spawn_rooms": [],
+    "blocked_on": null
+   }
+  },
+  {
+   "id": "sledge_hammer",
+   "name": "Sledge Hammer",
+   "kind": "standard",
+   "tier": 2,
+   "unique": true,
+   "persistence": "day",
+   "spawn_rooms": [
+    "attic",
+    "closet",
+    "courtyard",
+    "greenhouse",
+    "storeroom",
+    "veranda",
+    "workshop",
+    "wine_cellar",
+    "furnace",
+    "secret_garden"
+   ],
+   "spawn_rooms_high_luck": [],
+   "guaranteed_in": [],
+   "effects": [
+    {
+     "tag": "smash"
+    }
+   ],
+   "implemented": false,
+   "meta": {
+    "source": "https://blueprince.wiki.gg/wiki/Sledge_Hammer",
+    "confidence": "wiki",
+    "absent_spawn_rooms": [],
+    "blocked_on": "trunks_not_modeled"
+   }
+  },
+  {
+   "id": "sleeping_mask",
+   "name": "Sleeping Mask",
+   "kind": "standard",
+   "tier": 1,
+   "unique": true,
+   "persistence": "day",
+   "spawn_rooms": [
+    "bedroom",
+    "boudoir",
+    "closet",
+    "master_bedroom",
+    "sauna",
+    "walk_in_closet",
+    "mail_room"
+   ],
+   "spawn_rooms_high_luck": [
+    "foyer"
+   ],
+   "guaranteed_in": [],
+   "effects": [
+    {
+     "tag": "sleeping_mask",
+     "steps": 5
+    }
+   ],
+   "implemented": true,
+   "meta": {
+    "source": "https://blueprince.wiki.gg/wiki/Sleeping_Mask",
+    "confidence": "wiki",
+    "absent_spawn_rooms": [],
+    "blocked_on": null
+   }
+  },
+  {
+   "id": "stopwatch",
+   "name": "Stopwatch",
+   "kind": "standard",
+   "tier": null,
+   "unique": true,
+   "persistence": "until_used",
+   "spawn_rooms": [],
+   "spawn_rooms_high_luck": [],
+   "guaranteed_in": [
+    "clock_tower"
+   ],
+   "effects": [
+    {
+     "tag": "stopwatch",
+     "free_costs": 10
+    }
+   ],
+   "implemented": true,
+   "meta": {
+    "source": "https://blueprince.wiki.gg/wiki/Stopwatch",
+    "confidence": "inferred",
+    "absent_spawn_rooms": [],
+    "blocked_on": null
+   }
+  },
+  {
+   "id": "telescope",
+   "name": "Telescope",
+   "kind": "standard",
+   "tier": 4,
+   "unique": true,
+   "persistence": "day",
+   "spawn_rooms": [
+    "her_ladyships_chamber",
+    "walk_in_closet"
+   ],
+   "spawn_rooms_high_luck": [],
+   "guaranteed_in": [
+    "planetarium"
+   ],
+   "effects": [],
+   "implemented": false,
+   "meta": {
+    "source": "https://blueprince.wiki.gg/wiki/Telescope",
+    "confidence": "wiki",
+    "absent_spawn_rooms": [],
+    "blocked_on": "planetarium_not_modeled"
+   }
+  },
+  {
+   "id": "treasure_map",
+   "name": "Treasure Map",
+   "kind": "standard",
+   "tier": 2,
+   "unique": true,
+   "persistence": "day",
+   "spawn_rooms": [
+    "attic",
+    "drafting_studio",
+    "library",
+    "mail_room",
+    "observatory",
+    "rumpus_room",
+    "study",
+    "wine_cellar"
+   ],
+   "spawn_rooms_high_luck": [
+    "den",
+    "secret_passage",
+    "trophy_room"
+   ],
+   "guaranteed_in": [],
+   "effects": [
+    {
+     "tag": "treasure_map"
+    }
+   ],
+   "implemented": true,
+   "meta": {
+    "source": "https://blueprince.wiki.gg/wiki/Treasure_Map",
+    "confidence": "wiki",
+    "absent_spawn_rooms": [],
+    "blocked_on": null
+   }
+  },
+  {
+   "id": "watering_can",
+   "name": "Watering Can",
+   "kind": "standard",
+   "tier": 4,
+   "unique": true,
+   "persistence": "day",
+   "spawn_rooms": [
+    "greenhouse",
+    "toolshed",
+    "hovel"
+   ],
+   "spawn_rooms_high_luck": [],
+   "guaranteed_in": [],
+   "effects": [
+    {
+     "tag": "watering_can",
+     "capacity": 3
+    }
+   ],
+   "implemented": true,
+   "meta": {
+    "source": "https://blueprince.wiki.gg/wiki/Watering_Can",
+    "confidence": "wiki",
+    "absent_spawn_rooms": [],
+    "blocked_on": null
+   }
+  },
+  {
+   "id": "vault_key_149",
+   "name": "Vault Key 149",
+   "kind": "standard",
+   "tier": 3,
+   "unique": true,
+   "persistence": "until_used",
+   "spawn_rooms": [
+    "attic",
+    "rumpus_room",
+    "security"
+   ],
+   "spawn_rooms_high_luck": [],
+   "guaranteed_in": [],
+   "effects": [],
+   "implemented": false,
+   "meta": {
+    "source": "https://blueprince.wiki.gg/wiki/Vault_Key",
+    "confidence": "wiki",
+    "absent_spawn_rooms": [],
+    "blocked_on": "vault_not_modeled"
+   }
+  },
+  {
+   "id": "vault_key_233",
+   "name": "Vault Key 233",
+   "kind": "standard",
+   "tier": 3,
+   "unique": true,
+   "persistence": "until_used",
+   "spawn_rooms": [
+    "office",
+    "sauna",
+    "wine_cellar"
+   ],
+   "spawn_rooms_high_luck": [],
+   "guaranteed_in": [],
+   "effects": [],
+   "implemented": false,
+   "meta": {
+    "source": "https://blueprince.wiki.gg/wiki/Vault_Key",
+    "confidence": "wiki",
+    "absent_spawn_rooms": [],
+    "blocked_on": "vault_not_modeled"
+   }
+  },
+  {
+   "id": "vault_key_304",
+   "name": "Vault Key 304",
+   "kind": "standard",
+   "tier": 3,
+   "unique": true,
+   "persistence": "until_used",
+   "spawn_rooms": [
+    "conference_room",
+    "her_ladyships_chamber",
+    "walk_in_closet"
+   ],
+   "spawn_rooms_high_luck": [],
+   "guaranteed_in": [],
+   "effects": [],
+   "implemented": false,
+   "meta": {
+    "source": "https://blueprince.wiki.gg/wiki/Vault_Key",
+    "confidence": "wiki",
+    "absent_spawn_rooms": [],
+    "blocked_on": "vault_not_modeled"
+   }
+  },
+  {
+   "id": "vault_key_370",
+   "name": "Vault Key 370",
+   "kind": "standard",
+   "tier": 3,
+   "unique": true,
+   "persistence": "until_used",
+   "spawn_rooms": [],
+   "spawn_rooms_high_luck": [],
+   "guaranteed_in": [],
+   "effects": [],
+   "implemented": false,
+   "meta": {
+    "source": "https://blueprince.wiki.gg/wiki/Vault_Key",
+    "confidence": "wiki",
+    "absent_spawn_rooms": [],
+    "blocked_on": "vault_not_modeled"
+   }
+  },
+  {
+   "id": "basement_key",
+   "name": "Basement Key",
+   "kind": "special_key",
+   "tier": null,
+   "unique": true,
+   "persistence": "permanent",
+   "spawn_rooms": [],
+   "spawn_rooms_high_luck": [],
+   "guaranteed_in": [
+    "antechamber"
+   ],
+   "effects": [],
+   "implemented": false,
+   "meta": {
+    "source": "https://blueprince.wiki.gg/wiki/Basement_Key",
+    "confidence": "wiki",
+    "absent_spawn_rooms": [],
+    "blocked_on": "basement_not_modeled"
+   }
+  },
+  {
+   "id": "car_keys",
+   "name": "Car Keys",
+   "kind": "special_key",
+   "tier": null,
+   "unique": true,
+   "persistence": "day",
+   "spawn_rooms": [
+    "garage"
+   ],
+   "spawn_rooms_high_luck": [],
+   "guaranteed_in": [],
+   "effects": [],
+   "implemented": false,
+   "meta": {
+    "source": "https://blueprince.wiki.gg/wiki/Car_Keys",
+    "confidence": "wiki",
+    "absent_spawn_rooms": [],
+    "blocked_on": "trunks_not_modeled"
+   }
+  },
+  {
+   "id": "key_8",
+   "name": "Key 8",
+   "kind": "special_key",
+   "tier": null,
+   "unique": true,
+   "persistence": "permanent",
+   "spawn_rooms": [
+    "gallery"
+   ],
+   "spawn_rooms_high_luck": [],
+   "guaranteed_in": [],
+   "effects": [],
+   "implemented": true,
+   "meta": {
+    "source": "https://blueprince.wiki.gg/wiki/Key_8",
+    "confidence": "wiki",
+    "absent_spawn_rooms": [],
+    "blocked_on": null,
+    "notes": "Spawn-roll in the Gallery simplifies the art-naming puzzle chest."
+   }
+  },
+  {
+   "id": "keycard",
+   "name": "Keycard",
+   "kind": "special_key",
+   "tier": null,
+   "unique": true,
+   "persistence": "day",
+   "spawn_rooms": [],
+   "spawn_rooms_high_luck": [],
+   "guaranteed_in": [],
+   "effects": [],
+   "implemented": true,
+   "meta": {
+    "source": "https://blueprince.wiki.gg/wiki/Keycard",
+    "confidence": "wiki",
+    "absent_spawn_rooms": [],
+    "blocked_on": null,
+    "notes": "Spawning and state are owned by engine/locks.py (locks.json keycard.source_rooms); excluded from the generic spawn pipeline to avoid double-spawning, and the Lost & Found cannot steal it."
+   }
+  },
+  {
+   "id": "master_key",
+   "name": "Master Key",
+   "kind": "special_key",
+   "tier": 5,
+   "unique": true,
+   "persistence": "day",
+   "spawn_rooms": [],
+   "spawn_rooms_high_luck": [],
+   "guaranteed_in": [],
+   "effects": [
+    {
+     "tag": "master_key"
+    }
+   ],
+   "implemented": true,
+   "meta": {
+    "source": "https://blueprince.wiki.gg/wiki/Master_Key",
+    "confidence": "wiki",
+    "absent_spawn_rooms": [],
+    "blocked_on": null,
+    "notes": "Purchase-only (Showroom/Armory); obtainable when PR2 adds shop actions."
+   }
+  },
+  {
+   "id": "prism_key",
+   "name": "Prism Key",
+   "kind": "special_key",
+   "tier": 4,
+   "unique": false,
+   "persistence": "day",
+   "spawn_rooms": [
+    "music_room"
+   ],
+   "spawn_rooms_high_luck": [],
+   "guaranteed_in": [],
+   "effects": [],
+   "implemented": false,
+   "meta": {
+    "source": "https://blueprince.wiki.gg/wiki/Prism_Key",
+    "confidence": "wiki",
+    "absent_spawn_rooms": [],
+    "blocked_on": "color_biased_drafting_not_modeled"
+   }
+  },
+  {
+   "id": "sanctum_key",
+   "name": "Sanctum Key",
+   "kind": "special_key",
+   "tier": 5,
+   "unique": false,
+   "persistence": "until_used",
+   "spawn_rooms": [
+    "room_46",
+    "vault",
+    "clock_tower",
+    "throne_room",
+    "mechanarium",
+    "music_room"
+   ],
+   "spawn_rooms_high_luck": [],
+   "guaranteed_in": [],
+   "effects": [],
+   "implemented": false,
+   "meta": {
+    "source": "https://blueprince.wiki.gg/wiki/Sanctum_Key",
+    "confidence": "wiki",
+    "absent_spawn_rooms": [
+     "reservoir",
+     "safehouse"
+    ],
+    "blocked_on": "sanctum_not_modeled"
+   }
+  },
+  {
+   "id": "secret_garden_key",
+   "name": "Secret Garden Key",
+   "kind": "special_key",
+   "tier": 4,
+   "unique": true,
+   "persistence": "day",
+   "spawn_rooms": [
+    "attic",
+    "music_room"
+   ],
+   "spawn_rooms_high_luck": [],
+   "guaranteed_in": [],
+   "effects": [],
+   "implemented": true,
+   "meta": {
+    "source": "https://blueprince.wiki.gg/wiki/Secret_Garden_Key",
+    "confidence": "wiki",
+    "absent_spawn_rooms": [],
+    "blocked_on": null
+   }
+  },
+  {
+   "id": "silver_key",
+   "name": "Silver Key",
+   "kind": "special_key",
+   "tier": 3,
+   "unique": false,
+   "persistence": "day",
+   "spawn_rooms": [
+    "closet",
+    "music_room",
+    "her_ladyships_chamber"
+   ],
+   "spawn_rooms_high_luck": [],
+   "guaranteed_in": [],
+   "effects": [
+    {
+     "tag": "silver_key_bias"
+    }
+   ],
+   "implemented": true,
+   "meta": {
+    "source": "https://blueprince.wiki.gg/wiki/Silver_Key",
+    "confidence": "wiki",
+    "absent_spawn_rooms": [],
+    "blocked_on": null
+   }
+  },
+  {
+   "id": "burning_glass",
+   "name": "Burning Glass",
+   "kind": "contraption",
+   "tier": null,
+   "unique": true,
+   "persistence": "day",
+   "spawn_rooms": [],
+   "spawn_rooms_high_luck": [],
+   "guaranteed_in": [],
+   "effects": [],
+   "implemented": false,
+   "meta": {
+    "source": "https://blueprince.wiki.gg/wiki/Burning_Glass",
+    "confidence": "wiki",
+    "absent_spawn_rooms": [],
+    "blocked_on": "candles_not_modeled"
+   }
+  },
+  {
+   "id": "detector_shovel",
+   "name": "Detector Shovel",
+   "kind": "contraption",
+   "tier": null,
+   "unique": true,
+   "persistence": "day",
+   "spawn_rooms": [],
+   "spawn_rooms_high_luck": [],
+   "guaranteed_in": [],
+   "effects": [
+    {
+     "tag": "dig_tool",
+     "table": "detector_shovel"
+    },
+    {
+     "tag": "metal_detector_spawns",
+     "coins_chance": 60,
+     "key_chance": 25
+    }
+   ],
+   "implemented": true,
+   "meta": {
+    "source": "https://blueprince.wiki.gg/wiki/Detector_Shovel",
+    "confidence": "datamined",
+    "absent_spawn_rooms": [],
+    "blocked_on": null
+   }
+  },
+  {
+   "id": "dowsing_rod",
+   "name": "Dowsing Rod",
+   "kind": "contraption",
+   "tier": null,
+   "unique": true,
+   "persistence": "day",
+   "spawn_rooms": [],
+   "spawn_rooms_high_luck": [],
+   "guaranteed_in": [],
+   "effects": [
+    {
+     "tag": "dowsing_rod"
+    }
+   ],
+   "implemented": false,
+   "meta": {
+    "source": "https://blueprince.wiki.gg/wiki/Dowsing_Rod",
+    "confidence": "wiki",
+    "absent_spawn_rooms": [],
+    "blocked_on": "color_biased_drafting_not_modeled"
+   }
+  },
+  {
+   "id": "jack_hammer",
+   "name": "Jack Hammer",
+   "kind": "contraption",
+   "tier": null,
+   "unique": true,
+   "persistence": "day",
+   "spawn_rooms": [],
+   "spawn_rooms_high_luck": [],
+   "guaranteed_in": [],
+   "effects": [
+    {
+     "tag": "dig_tool",
+     "table": "jack_hammer"
+    }
+   ],
+   "implemented": true,
+   "meta": {
+    "source": "https://blueprince.wiki.gg/wiki/Jack_Hammer",
+    "confidence": "inferred",
+    "absent_spawn_rooms": [],
+    "blocked_on": null
+   }
+  },
+  {
+   "id": "lucky_purse",
+   "name": "Lucky Purse",
+   "kind": "contraption",
+   "tier": null,
+   "unique": true,
+   "persistence": "day",
+   "spawn_rooms": [],
+   "spawn_rooms_high_luck": [],
+   "guaranteed_in": [],
+   "effects": [
+    {
+     "tag": "coin_multiplier"
+    },
+    {
+     "tag": "luck_bonus",
+     "amount": 3
+    }
+   ],
+   "implemented": true,
+   "meta": {
+    "source": "https://blueprince.wiki.gg/wiki/Lucky_Purse",
+    "confidence": "wiki",
+    "absent_spawn_rooms": [],
+    "blocked_on": null
+   }
+  },
+  {
+   "id": "pick_sound_amplifier",
+   "name": "Pick Sound Amplifier",
+   "kind": "contraption",
+   "tier": null,
+   "unique": true,
+   "persistence": "day",
+   "spawn_rooms": [],
+   "spawn_rooms_high_luck": [],
+   "guaranteed_in": [],
+   "effects": [
+    {
+     "tag": "lockpick",
+     "rates": [
+      90,
+      85,
+      70,
+      65
+     ],
+     "denominator": 101,
+     "pity": 0
+    }
+   ],
+   "implemented": true,
+   "meta": {
+    "source": "https://blueprince.wiki.gg/wiki/Pick_Sound_Amplifier",
+    "confidence": "datamined",
+    "absent_spawn_rooms": [],
+    "blocked_on": null
+   }
+  },
+  {
+   "id": "power_hammer",
+   "name": "Power Hammer",
+   "kind": "contraption",
+   "tier": null,
+   "unique": true,
+   "persistence": "day",
+   "spawn_rooms": [],
+   "spawn_rooms_high_luck": [],
+   "guaranteed_in": [],
+   "effects": [
+    {
+     "tag": "smash"
+    }
+   ],
+   "implemented": false,
+   "meta": {
+    "source": "https://blueprince.wiki.gg/wiki/Power_Hammer",
+    "confidence": "wiki",
+    "absent_spawn_rooms": [],
+    "blocked_on": "trunks_not_modeled"
+   }
+  },
+  {
+   "id": "powered_electromagnet",
+   "name": "Powered Electromagnet",
+   "kind": "contraption",
+   "tier": null,
+   "unique": true,
+   "persistence": "day",
+   "spawn_rooms": [],
+   "spawn_rooms_high_luck": [],
+   "guaranteed_in": [],
+   "effects": [
+    {
+     "tag": "compass"
+    },
+    {
+     "tag": "auto_collect"
+    }
+   ],
+   "implemented": true,
+   "meta": {
+    "source": "https://blueprince.wiki.gg/wiki/Powered_Electromagnet",
+    "confidence": "wiki",
+    "absent_spawn_rooms": [],
+    "blocked_on": null
+   }
+  },
+  {
+   "id": "moon_pendant",
+   "name": "Moon Pendant",
+   "kind": "showroom",
+   "tier": null,
+   "unique": true,
+   "persistence": "day",
+   "spawn_rooms": [],
+   "spawn_rooms_high_luck": [],
+   "guaranteed_in": [],
+   "effects": [],
+   "implemented": false,
+   "meta": {
+    "source": "https://blueprince.wiki.gg/wiki/Showroom",
+    "confidence": "wiki",
+    "absent_spawn_rooms": [],
+    "blocked_on": "carry_over_not_modeled",
+    "notes": "Purchase-only (Showroom/Armory); obtainable when PR2 adds shop actions."
+   }
+  },
+  {
+   "id": "chronograph",
+   "name": "Chronograph",
+   "kind": "showroom",
+   "tier": null,
+   "unique": true,
+   "persistence": "day",
+   "spawn_rooms": [],
+   "spawn_rooms_high_luck": [],
+   "guaranteed_in": [],
+   "effects": [
+    {
+     "tag": "chronograph"
+    }
+   ],
+   "implemented": false,
+   "meta": {
+    "source": "https://blueprince.wiki.gg/wiki/Showroom",
+    "confidence": "wiki",
+    "absent_spawn_rooms": [],
+    "blocked_on": "redraw_rewind_not_modeled",
+    "notes": "Purchase-only (Showroom/Armory); obtainable when PR2 adds shop actions."
+   }
+  },
+  {
+   "id": "silver_spoon",
+   "name": "Silver Spoon",
+   "kind": "showroom",
+   "tier": null,
+   "unique": true,
+   "persistence": "day",
+   "spawn_rooms": [],
+   "spawn_rooms_high_luck": [],
+   "guaranteed_in": [],
+   "effects": [
+    {
+     "tag": "food_multiplier"
+    }
+   ],
+   "implemented": true,
+   "meta": {
+    "source": "https://blueprince.wiki.gg/wiki/Showroom",
+    "confidence": "wiki",
+    "absent_spawn_rooms": [],
+    "blocked_on": null,
+    "notes": "Purchase-only (Showroom/Armory); obtainable when PR2 adds shop actions."
+   }
+  },
+  {
+   "id": "ornate_compass",
+   "name": "Ornate Compass",
+   "kind": "showroom",
+   "tier": null,
+   "unique": true,
+   "persistence": "day",
+   "spawn_rooms": [],
+   "spawn_rooms_high_luck": [],
+   "guaranteed_in": [],
+   "effects": [
+    {
+     "tag": "ornate_compass"
+    }
+   ],
+   "implemented": true,
+   "meta": {
+    "source": "https://blueprince.wiki.gg/wiki/Showroom",
+    "confidence": "wiki",
+    "absent_spawn_rooms": [],
+    "blocked_on": null,
+    "notes": "Purchase-only (Showroom/Armory); obtainable when PR2 adds shop actions."
+   }
+  },
+  {
+   "id": "emerald_bracelet",
+   "name": "Emerald Bracelet",
+   "kind": "showroom",
+   "tier": null,
+   "unique": true,
+   "persistence": "day",
+   "spawn_rooms": [],
+   "spawn_rooms_high_luck": [],
+   "guaranteed_in": [],
+   "effects": [
+    {
+     "tag": "emerald_bracelet"
+    }
+   ],
+   "implemented": true,
+   "meta": {
+    "source": "https://blueprince.wiki.gg/wiki/Showroom",
+    "confidence": "wiki",
+    "absent_spawn_rooms": [],
+    "blocked_on": null,
+    "notes": "Purchase-only (Showroom/Armory); obtainable when PR2 adds shop actions."
+   }
+  },
+  {
+   "id": "trophy_of_wealth",
+   "name": "Trophy of Wealth",
+   "kind": "showroom",
+   "tier": null,
+   "unique": true,
+   "persistence": "day",
+   "spawn_rooms": [],
+   "spawn_rooms_high_luck": [],
+   "guaranteed_in": [],
+   "effects": [],
+   "implemented": false,
+   "meta": {
+    "source": "https://blueprince.wiki.gg/wiki/Showroom",
+    "confidence": "wiki",
+    "absent_spawn_rooms": [],
+    "blocked_on": "showroom_completion_not_modeled",
+    "notes": "Purchase-only (Showroom/Armory); obtainable when PR2 adds shop actions."
+   }
+  },
+  {
+   "id": "knights_shield",
+   "name": "Knight's Shield",
+   "kind": "armory",
+   "tier": null,
+   "unique": true,
+   "persistence": "day",
+   "spawn_rooms": [],
+   "spawn_rooms_high_luck": [],
+   "guaranteed_in": [],
+   "effects": [
+    {
+     "tag": "mask_red_room"
+    },
+    {
+     "tag": "negate_red_once_per_day"
+    }
+   ],
+   "implemented": true,
+   "meta": {
+    "source": "https://blueprince.wiki.gg/wiki/Armory",
+    "confidence": "wiki",
+    "absent_spawn_rooms": [],
+    "blocked_on": null,
+    "notes": "Purchase-only (Showroom/Armory); obtainable when PR2 adds shop actions."
+   }
+  },
+  {
+   "id": "morning_star",
+   "name": "Morning Star",
+   "kind": "armory",
+   "tier": null,
+   "unique": true,
+   "persistence": "day",
+   "spawn_rooms": [],
+   "spawn_rooms_high_luck": [],
+   "guaranteed_in": [],
+   "effects": [
+    {
+     "tag": "smash"
+    }
+   ],
+   "implemented": false,
+   "meta": {
+    "source": "https://blueprince.wiki.gg/wiki/Armory",
+    "confidence": "wiki",
+    "absent_spawn_rooms": [],
+    "blocked_on": "trunks_not_modeled",
+    "notes": "Purchase-only (Showroom/Armory); obtainable when PR2 adds shop actions."
+   }
+  },
+  {
+   "id": "the_axe",
+   "name": "The Axe",
+   "kind": "armory",
+   "tier": null,
+   "unique": true,
+   "persistence": "day",
+   "spawn_rooms": [],
+   "spawn_rooms_high_luck": [],
+   "guaranteed_in": [],
+   "effects": [],
+   "implemented": false,
+   "meta": {
+    "source": "https://blueprince.wiki.gg/wiki/Armory",
+    "confidence": "wiki",
+    "absent_spawn_rooms": [],
+    "blocked_on": "room_gem_cost_override_not_modeled",
+    "notes": "Purchase-only (Showroom/Armory); obtainable when PR2 adds shop actions."
+   }
+  },
+  {
+   "id": "torch",
+   "name": "Torch",
+   "kind": "armory",
+   "tier": null,
+   "unique": true,
+   "persistence": "day",
+   "spawn_rooms": [],
+   "spawn_rooms_high_luck": [],
+   "guaranteed_in": [],
+   "effects": [],
+   "implemented": false,
+   "meta": {
+    "source": "https://blueprince.wiki.gg/wiki/Armory",
+    "confidence": "wiki",
+    "absent_spawn_rooms": [],
+    "blocked_on": "candles_not_modeled",
+    "notes": "Purchase-only (Showroom/Armory); obtainable when PR2 adds shop actions."
+   }
+  },
+  {
+   "id": "allowance_token",
+   "name": "Allowance Token",
+   "kind": "unique",
+   "tier": null,
+   "unique": true,
+   "persistence": "permanent",
+   "spawn_rooms": [],
+   "spawn_rooms_high_luck": [],
+   "guaranteed_in": [],
+   "effects": [],
+   "implemented": false,
+   "meta": {
+    "source": "https://blueprince.wiki.gg/wiki/Allowance_Token",
+    "confidence": "wiki",
+    "absent_spawn_rooms": [],
+    "blocked_on": "allowance_not_modeled"
+   }
+  },
+  {
+   "id": "crown_of_the_blueprints",
+   "name": "Crown of the Blueprints",
+   "kind": "unique",
+   "tier": null,
+   "unique": true,
+   "persistence": "day",
+   "spawn_rooms": [
+    "room_46"
+   ],
+   "spawn_rooms_high_luck": [],
+   "guaranteed_in": [],
+   "effects": [
+    {
+     "tag": "crown_of_blueprints"
+    }
+   ],
+   "implemented": false,
+   "meta": {
+    "source": "https://blueprince.wiki.gg/wiki/Crown_of_the_Blueprints",
+    "confidence": "wiki",
+    "absent_spawn_rooms": [],
+    "blocked_on": "color_biased_drafting_not_modeled"
+   }
+  },
+  {
+   "id": "cursed_effigy",
+   "name": "Cursed Effigy",
+   "kind": "unique",
+   "tier": null,
+   "unique": true,
+   "persistence": "day",
+   "spawn_rooms": [
+    "shrine"
+   ],
+   "spawn_rooms_high_luck": [],
+   "guaranteed_in": [],
+   "effects": [
+    {
+     "tag": "set_steps_on_pickup",
+     "value": 13,
+     "only_if_above": true
+    }
+   ],
+   "implemented": true,
+   "meta": {
+    "source": "https://blueprince.wiki.gg/wiki/Cursed_Effigy",
+    "confidence": "wiki",
+    "absent_spawn_rooms": [],
+    "blocked_on": null
+   }
+  },
+  {
+   "id": "diary_key",
+   "name": "Diary Key",
+   "kind": "unique",
+   "tier": null,
+   "unique": true,
+   "persistence": "permanent",
+   "spawn_rooms": [
+    "tomb"
+   ],
+   "spawn_rooms_high_luck": [],
+   "guaranteed_in": [],
+   "effects": [],
+   "implemented": false,
+   "meta": {
+    "source": "https://blueprince.wiki.gg/wiki/Diary_Key",
+    "confidence": "wiki",
+    "absent_spawn_rooms": [],
+    "blocked_on": "lore_documents_not_modeled"
+   }
+  },
+  {
+   "id": "file_cabinet_key",
+   "name": "File Cabinet Key",
+   "kind": "unique",
+   "tier": null,
+   "unique": false,
+   "persistence": "until_used",
+   "spawn_rooms": [
+    "aquarium"
+   ],
+   "spawn_rooms_high_luck": [],
+   "guaranteed_in": [],
+   "effects": [],
+   "implemented": false,
+   "meta": {
+    "source": "https://blueprince.wiki.gg/wiki/File_Cabinet_Key",
+    "confidence": "wiki",
+    "absent_spawn_rooms": [
+     "crate_tunnel"
+    ],
+    "blocked_on": "file_cabinet_not_modeled"
+   }
+  },
+  {
+   "id": "key_of_aries",
+   "name": "Key of Aries",
+   "kind": "unique",
+   "tier": null,
+   "unique": true,
+   "persistence": "day",
+   "spawn_rooms": [],
+   "spawn_rooms_high_luck": [],
+   "guaranteed_in": [],
+   "effects": [],
+   "implemented": false,
+   "meta": {
+    "source": "https://blueprince.wiki.gg/wiki/Key_of_Aries",
+    "confidence": "wiki",
+    "absent_spawn_rooms": [
+     "precipice"
+    ],
+    "blocked_on": "precipice_not_modeled"
+   }
+  },
+  {
+   "id": "lunch_box",
+   "name": "Lunch Box",
+   "kind": "unique",
+   "tier": null,
+   "unique": true,
+   "persistence": "day",
+   "spawn_rooms": [
+    "dining_room"
+   ],
+   "spawn_rooms_high_luck": [],
+   "guaranteed_in": [],
+   "effects": [
+    {
+     "tag": "steps_at_rank",
+     "rank": 5,
+     "steps": 10
+    }
+   ],
+   "implemented": true,
+   "meta": {
+    "source": "https://blueprince.wiki.gg/wiki/Lunch_Box",
+    "confidence": "wiki",
+    "absent_spawn_rooms": [],
+    "blocked_on": null
+   }
+  },
+  {
+   "id": "microchip",
+   "name": "Microchip",
+   "kind": "unique",
+   "tier": null,
+   "unique": false,
+   "persistence": "permanent",
+   "spawn_rooms": [],
+   "spawn_rooms_high_luck": [],
+   "guaranteed_in": [],
+   "effects": [],
+   "implemented": false,
+   "meta": {
+    "source": "https://blueprince.wiki.gg/wiki/Microchip",
+    "confidence": "wiki",
+    "absent_spawn_rooms": [],
+    "blocked_on": "outer_areas_not_modeled"
+   }
+  },
+  {
+   "id": "paper_crown",
+   "name": "Paper Crown",
+   "kind": "unique",
+   "tier": null,
+   "unique": true,
+   "persistence": "day",
+   "spawn_rooms": [],
+   "spawn_rooms_high_luck": [],
+   "guaranteed_in": [
+    "closed_exhibit"
+   ],
+   "effects": [
+    {
+     "tag": "paper_crown"
+    }
+   ],
+   "implemented": true,
+   "meta": {
+    "source": "https://blueprince.wiki.gg/wiki/Paper_Crown",
+    "confidence": "wiki",
+    "absent_spawn_rooms": [],
+    "blocked_on": null,
+    "notes": "Guaranteed pickup simplifies the Closed Exhibit security-timer puzzle."
+   }
+  },
+  {
+   "id": "royal_scepter",
+   "name": "Royal Scepter",
+   "kind": "unique",
+   "tier": null,
+   "unique": true,
+   "persistence": "day",
+   "spawn_rooms": [
+    "entrance_hall"
+   ],
+   "spawn_rooms_high_luck": [],
+   "guaranteed_in": [],
+   "effects": [
+    {
+     "tag": "scepter"
+    }
+   ],
+   "implemented": false,
+   "meta": {
+    "source": "https://blueprince.wiki.gg/wiki/Royal_Scepter",
+    "confidence": "wiki",
+    "absent_spawn_rooms": [],
+    "blocked_on": "color_biased_drafting_not_modeled"
+   }
+  },
+  {
+   "id": "upgrade_disk",
+   "name": "Upgrade Disk",
+   "kind": "unique",
+   "tier": null,
+   "unique": false,
+   "persistence": "permanent",
+   "spawn_rooms": [],
+   "spawn_rooms_high_luck": [],
+   "guaranteed_in": [],
+   "effects": [],
+   "implemented": false,
+   "meta": {
+    "source": "https://blueprince.wiki.gg/wiki/Upgrade_Disk",
+    "confidence": "wiki",
+    "absent_spawn_rooms": [],
+    "blocked_on": "upgrade_disk_not_modeled"
+   }
+  },
+  {
+   "id": "wind_up_key",
+   "name": "Wind-up Key",
+   "kind": "unique",
+   "tier": null,
+   "unique": false,
+   "persistence": "until_used",
+   "spawn_rooms": [
+    "parlor"
+   ],
+   "spawn_rooms_high_luck": [],
+   "guaranteed_in": [],
+   "effects": [],
+   "implemented": false,
+   "meta": {
+    "source": "https://blueprince.wiki.gg/wiki/Wind-up_Key",
+    "confidence": "wiki",
+    "absent_spawn_rooms": [],
+    "blocked_on": "parlor_not_modeled"
+   }
+  }
+ ],
+ "spawn": {
+  "special_share": 25,
+  "high_luck_at": 16
+ },
+ "dig": {
+  "tables": {
+   "shovel": [
+    {
+     "weight": 28.8,
+     "kind": "junk"
+    },
+    {
+     "weight": 25.2,
+     "kind": "coins"
+    },
+    {
+     "weight": 14.4,
+     "kind": "turnip"
+    },
+    {
+     "weight": 10.8,
+     "kind": "key"
+    },
+    {
+     "weight": 8.0,
+     "kind": "gold_coin"
+    },
+    {
+     "weight": 8.0,
+     "kind": "nothing"
+    },
+    {
+     "weight": 2.16,
+     "kind": "junk"
+    },
+    {
+     "weight": 0.96,
+     "kind": "item",
+     "id": "broken_lever"
+    },
+    {
+     "weight": 0.48,
+     "kind": "item",
+     "id": "silver_key"
+    },
+    {
+     "weight": 0.384,
+     "kind": "item",
+     "id": "vault_key_304"
+    },
+    {
+     "weight": 0.384,
+     "kind": "item",
+     "id": "vault_key_149"
+    },
+    {
+     "weight": 0.24,
+     "kind": "item",
+     "id": "secret_garden_key"
+    },
+    {
+     "weight": 0.144,
+     "kind": "item",
+     "id": "vault_key_233"
+    },
+    {
+     "weight": 0.048,
+     "kind": "item",
+     "id": "vault_key_370"
+    }
+   ],
+   "detector_shovel": [
+    {
+     "weight": 24.0,
+     "kind": "key"
+    },
+    {
+     "weight": 17.5,
+     "kind": "coins",
+     "amount": 4
+    },
+    {
+     "weight": 12.5,
+     "kind": "junk"
+    },
+    {
+     "weight": 12.5,
+     "kind": "junk"
+    },
+    {
+     "weight": 10.5,
+     "kind": "coins",
+     "amount": 3
+    },
+    {
+     "weight": 4.0,
+     "kind": "item",
+     "id": "silver_key"
+    },
+    {
+     "weight": 4.0,
+     "kind": "item",
+     "id": "secret_garden_key"
+    },
+    {
+     "weight": 3.5,
+     "kind": "coins",
+     "amount": 2
+    },
+    {
+     "weight": 3.5,
+     "kind": "coins",
+     "amount": 1
+    },
+    {
+     "weight": 1.8,
+     "kind": "item",
+     "id": "broken_lever"
+    },
+    {
+     "weight": 2.48,
+     "kind": "item",
+     "id": "vault_key_304"
+    },
+    {
+     "weight": 2.48,
+     "kind": "item",
+     "id": "vault_key_149"
+    },
+    {
+     "weight": 0.93,
+     "kind": "item",
+     "id": "vault_key_233"
+    },
+    {
+     "weight": 0.31,
+     "kind": "item",
+     "id": "vault_key_370"
+    }
+   ],
+   "jack_hammer": [
+    {
+     "weight": 22.159091,
+     "kind": "gems",
+     "count": 2
+    },
+    {
+     "weight": 35.136364,
+     "kind": "coins"
+    },
+    {
+     "weight": 25.0,
+     "kind": "key"
+    },
+    {
+     "weight": 10.0,
+     "kind": "gold_coin"
+    },
+    {
+     "weight": 2.5,
+     "kind": "item",
+     "id": "silver_key"
+    },
+    {
+     "weight": 0.5,
+     "kind": "item",
+     "id": "secret_garden_key"
+    },
+    {
+     "weight": 0.8,
+     "kind": "item",
+     "id": "vault_key_304"
+    },
+    {
+     "weight": 0.8,
+     "kind": "item",
+     "id": "vault_key_149"
+    },
+    {
+     "weight": 0.3,
+     "kind": "item",
+     "id": "vault_key_233"
+    },
+    {
+     "weight": 0.1,
+     "kind": "item",
+     "id": "vault_key_370"
+    },
+    {
+     "weight": 0.5,
+     "kind": "item",
+     "id": "knights_shield"
+    },
+    {
+     "weight": 0.5,
+     "kind": "item",
+     "id": "allowance_token"
+    },
+    {
+     "weight": 1.704545,
+     "kind": "item",
+     "id": "wind_up_key"
+    }
+   ]
+  },
+  "coin_pile_split": [
+   45,
+   38,
+   15,
+   2
+  ],
+  "turnip_steps": 6
+ },
+ "treasure_map": {
+  "cells": [
+   20,
+   26,
+   36,
+   37,
+   28,
+   43,
+   24,
+   39
+  ],
+  "rewards": [
+   {
+    "coins": 40
+   },
+   {
+    "gems": 8
+   },
+   {
+    "coins": 25,
+    "gems": 3
+   }
+  ]
+ },
+ "lost_and_found": {
+  "gives": 2,
+  "pool": [
+   "die",
+   "gear_wrench",
+   "hall_pass",
+   "lucky_rabbits_foot",
+   "prism_key",
+   "repellent",
+   "secret_garden_key",
+   "stopwatch",
+   "telescope",
+   "upgrade_disk",
+   "vault_key_370",
+   "watering_can"
+  ]
+ },
+ "fabrication": [
+  {
+   "inputs": [
+    "metal_detector",
+    "magnifying_glass"
+   ],
+   "output": "burning_glass"
+  },
+  {
+   "inputs": [
+    "metal_detector",
+    "shovel"
+   ],
+   "output": "detector_shovel"
+  },
+  {
+   "inputs": [
+    "compass",
+    "shovel"
+   ],
+   "output": "dowsing_rod"
+  },
+  {
+   "inputs": [
+    "shovel",
+    "battery_pack",
+    "broken_lever"
+   ],
+   "output": "jack_hammer"
+  },
+  {
+   "inputs": [
+    "lucky_rabbits_foot",
+    "coin_purse"
+   ],
+   "output": "lucky_purse"
+  },
+  {
+   "inputs": [
+    "lock_pick_kit",
+    "metal_detector"
+   ],
+   "output": "pick_sound_amplifier"
+  },
+  {
+   "inputs": [
+    "sledge_hammer",
+    "battery_pack",
+    "broken_lever"
+   ],
+   "output": "power_hammer"
+  },
+  {
+   "inputs": [
+    "compass",
+    "battery_pack"
+   ],
+   "output": "powered_electromagnet"
+  }
+ ],
+ "trading": {
+  "dice_chance": 10
+ }
+}

@@ -1102,7 +1102,7 @@
      }
     ],
     "additional_max": 1,
-    "dig_spots": 0
+    "dig_spots": 1
    },
    "pool": "base",
    "meta": {
@@ -1155,7 +1155,7 @@
      }
     ],
     "additional_max": 1,
-    "dig_spots": 0
+    "dig_spots": 1
    },
    "pool": "upgrade_variant",
    "meta": {
@@ -1210,7 +1210,7 @@
      }
     ],
     "additional_max": 1,
-    "dig_spots": 0
+    "dig_spots": 1
    },
    "pool": "upgrade_variant",
    "meta": {
@@ -1265,7 +1265,7 @@
      }
     ],
     "additional_max": 1,
-    "dig_spots": 0
+    "dig_spots": 1
    },
    "pool": "upgrade_variant",
    "meta": {
@@ -1474,7 +1474,7 @@
      }
     ],
     "additional_max": 1,
-    "dig_spots": 0
+    "dig_spots": 1
    },
    "pool": "base",
    "meta": {
@@ -1639,7 +1639,7 @@
      }
     ],
     "additional_max": 1,
-    "dig_spots": 0
+    "dig_spots": 1
    },
    "pool": "base",
    "meta": {
@@ -2148,7 +2148,7 @@
    "items": {
     "guaranteed": [],
     "additional_max": 1,
-    "dig_spots": 0
+    "dig_spots": 1
    },
    "pool": "base",
    "meta": {
@@ -2180,7 +2180,7 @@
    "items": {
     "guaranteed": [],
     "additional_max": 1,
-    "dig_spots": 0
+    "dig_spots": 1
    },
    "pool": "pool_temp",
    "meta": {
@@ -2240,7 +2240,7 @@
    "items": {
     "guaranteed": [],
     "additional_max": 1,
-    "dig_spots": 0
+    "dig_spots": 1
    },
    "pool": "base",
    "meta": {
@@ -2614,7 +2614,7 @@
    "items": {
     "guaranteed": [],
     "additional_max": 1,
-    "dig_spots": 0
+    "dig_spots": 1
    },
    "pool": "base",
    "meta": {
@@ -3953,7 +3953,7 @@
    "items": {
     "guaranteed": [],
     "additional_max": 1,
-    "dig_spots": 0
+    "dig_spots": 1
    },
    "pool": "base",
    "meta": {
@@ -3991,7 +3991,7 @@
    "items": {
     "guaranteed": [],
     "additional_max": 1,
-    "dig_spots": 0
+    "dig_spots": 1
    },
    "pool": "base",
    "meta": {
@@ -4029,7 +4029,7 @@
    "items": {
     "guaranteed": [],
     "additional_max": 1,
-    "dig_spots": 0
+    "dig_spots": 1
    },
    "pool": "base",
    "meta": {
@@ -4067,7 +4067,7 @@
    "items": {
     "guaranteed": [],
     "additional_max": 1,
-    "dig_spots": 0
+    "dig_spots": 1
    },
    "pool": "upgrade_variant",
    "meta": {
@@ -4107,7 +4107,7 @@
    "items": {
     "guaranteed": [],
     "additional_max": 1,
-    "dig_spots": 0
+    "dig_spots": 1
    },
    "pool": "upgrade_variant",
    "meta": {
@@ -4179,7 +4179,7 @@
    "items": {
     "guaranteed": [],
     "additional_max": 1,
-    "dig_spots": 0
+    "dig_spots": 1
    },
    "pool": "base",
    "meta": {
@@ -4479,7 +4479,7 @@
    "items": {
     "guaranteed": [],
     "additional_max": 1,
-    "dig_spots": 0
+    "dig_spots": 1
    },
    "pool": "base",
    "meta": {
@@ -4521,7 +4521,7 @@
    "items": {
     "guaranteed": [],
     "additional_max": 1,
-    "dig_spots": 0
+    "dig_spots": 1
    },
    "pool": "base",
    "meta": {
@@ -4559,7 +4559,7 @@
      }
     ],
     "additional_max": 1,
-    "dig_spots": 0
+    "dig_spots": 1
    },
    "pool": "base",
    "meta": {
@@ -4609,7 +4609,7 @@
      }
     ],
     "additional_max": 1,
-    "dig_spots": 0
+    "dig_spots": 1
    },
    "pool": "base",
    "meta": {
@@ -5082,7 +5082,7 @@
    "items": {
     "guaranteed": [],
     "additional_max": 0,
-    "dig_spots": 0
+    "dig_spots": 1
    },
    "pool": "base",
    "meta": {
@@ -5117,7 +5117,7 @@
    "items": {
     "guaranteed": [],
     "additional_max": 1,
-    "dig_spots": 0
+    "dig_spots": 1
    },
    "pool": "studio_addition",
    "meta": {
@@ -5296,7 +5296,7 @@
    "items": {
     "guaranteed": [],
     "additional_max": 1,
-    "dig_spots": 0
+    "dig_spots": 1
    },
    "pool": "studio_addition",
    "meta": {
@@ -5323,7 +5323,7 @@
    "items": {
     "guaranteed": [],
     "additional_max": 1,
-    "dig_spots": 0
+    "dig_spots": 1
    },
    "pool": "studio_addition",
    "meta": {
@@ -5420,7 +5420,7 @@
    "items": {
     "guaranteed": [],
     "additional_max": 0,
-    "dig_spots": 0
+    "dig_spots": 1
    },
    "pool": "outer",
    "meta": {
@@ -5484,7 +5484,7 @@
    "items": {
     "guaranteed": [],
     "additional_max": 0,
-    "dig_spots": 0
+    "dig_spots": 1
    },
    "pool": "outer",
    "meta": {
@@ -5525,7 +5525,7 @@
    "items": {
     "guaranteed": [],
     "additional_max": 0,
-    "dig_spots": 0
+    "dig_spots": 1
    },
    "pool": "outer",
    "meta": {
@@ -5579,7 +5579,7 @@
    "items": {
     "guaranteed": [],
     "additional_max": 0,
-    "dig_spots": 0
+    "dig_spots": 1
    },
    "pool": "outer",
    "meta": {
@@ -5635,12 +5635,14 @@
    },
    "deck_copies": 1,
    "effects": [
-    {"tag": "conservatory_rerolls"}
+    {
+     "tag": "conservatory_rerolls"
+    }
    ],
    "items": {
     "guaranteed": [],
     "additional_max": 0,
-    "dig_spots": 0
+    "dig_spots": 1
    },
    "pool": "conditional",
    "meta": {
@@ -5657,7 +5659,9 @@
    "gem_cost": 0,
    "layout": "cross",
    "alt_layouts": [],
-   "draft_conditions": ["interior_only"],
+   "draft_conditions": [
+    "interior_only"
+   ],
    "flags": {
     "no_library_draft": false,
     "powered": false,
@@ -5721,7 +5725,9 @@
    "gem_cost": 0,
    "layout": "corner",
    "alt_layouts": [],
-   "draft_conditions": ["no_horizontal_end_rank"],
+   "draft_conditions": [
+    "no_horizontal_end_rank"
+   ],
    "flags": {
     "no_library_draft": false,
     "powered": false,
@@ -5731,7 +5737,7 @@
    "effects": [],
    "items": {
     "guaranteed": [],
-    "additional_max": 2,
+    "additional_max": 0,
     "dig_spots": 0
    },
    "pool": "studio_addition",
@@ -5785,7 +5791,9 @@
    "gem_cost": 0,
    "layout": "t",
    "alt_layouts": [],
-   "draft_conditions": ["no_horizontal_end_rank"],
+   "draft_conditions": [
+    "no_horizontal_end_rank"
+   ],
    "flags": {
     "no_library_draft": false,
     "powered": false,
@@ -5814,7 +5822,10 @@
    "gem_cost": 5,
    "layout": "t",
    "alt_layouts": [],
-   "draft_conditions": ["rank_gte_2", "rank_lte_8"],
+   "draft_conditions": [
+    "rank_gte_2",
+    "rank_lte_8"
+   ],
    "flags": {
     "no_library_draft": false,
     "powered": false,
@@ -5831,7 +5842,7 @@
    "meta": {
     "source": "wiki",
     "confidence": "wiki",
-    "effect_text": "'Reclaim the crown' — cross-day meta-progression objective (Throne of the Blue Prince transformation); entirely out of scope, no effect modeled. Contains the Sanctum Key and random valuables (reduced to standard item slots). PLACEMENT NOTE: 'cannot be rotated / must face the throne head-on' needs a fixed-orientation mechanic the sim lacks; left permissive on orientation. rank_gte_2 + rank_lte_8 cover the rank 1/9 restriction.",
+    "effect_text": "'Reclaim the crown' \u2014 cross-day meta-progression objective (Throne of the Blue Prince transformation); entirely out of scope, no effect modeled. Contains the Sanctum Key and random valuables (reduced to standard item slots). PLACEMENT NOTE: 'cannot be rotated / must face the throne head-on' needs a fixed-orientation mechanic the sim lacks; left permissive on orientation. rank_gte_2 + rank_lte_8 cover the rank 1/9 restriction.",
     "rarity_confidence": "wiki"
    }
   },
@@ -5857,7 +5868,10 @@
    "effects": [],
    "items": {
     "guaranteed": [
-     {"item": "random", "count": 1}
+     {
+      "item": "random",
+      "count": 1
+     }
     ],
     "additional_max": 0,
     "dig_spots": 3

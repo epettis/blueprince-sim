@@ -18,6 +18,7 @@ from .model import Registry, Room
 from .placement import legal_orientations, satisfies_draft_conditions
 from .rng import Rng
 from .rotation import orientation_weights
+from .special_items import compass_active_from_state
 from .state import DraftOption, GameState, PendingDraft, resolve_gem_cost
 
 CLOSET_ID = "closet"
@@ -155,6 +156,26 @@ def _deal_biased(ctx: DraftContext, slot: int, cell: int,
     return None
 
 
+def _deal_cross_t_biased(ctx: DraftContext, slot: int, cell: int,
+                         entry_dir: int, exclude: set[int]) -> DraftOption | None:
+    """Try to deal a cross/t-layout room for the Silver Key draft bias.
+
+    Returns a DraftOption or None if no cross/t card qualifies; the caller
+    then falls back to the normal draw. Silver Key wiki: biases toward cross/t
+    layouts; straight/L is the fallback (modeled assumption).
+    """
+    rooms = ctx.registry.rooms
+
+    def pred_cross_t(card: int) -> bool:
+        r = rooms[card]
+        return r.layout in ("cross", "t") and room_draftable(ctx, r, cell, entry_dir, exclude)
+
+    room = _deal_biased(ctx, slot, cell, entry_dir, exclude, pred_cross_t)
+    if room is None:
+        return None
+    return _make_option(ctx, room, slot, cell, entry_dir)
+
+
 def _apply_category_bias(ctx: DraftContext, room: Room, slot: int, cell: int,
                          entry_dir: int, exclude: set[int]) -> Room:
     """After a normal draw, apply any active category biases.
@@ -263,7 +284,9 @@ def _make_option(ctx: DraftContext, room: Room, slot: int, cell: int, entry_dir:
         # A drawn floorplan is rolled into a legal orientation with datamined,
         # south-biased weights (the Ornate Compass flips the bias northward).
         weights = orientation_weights(orientations, OPPOSITE[entry_dir],
-                                      ctx.state.day, ctx.cfg.compass)
+                                      ctx.state.day,
+                                      compass_active_from_state(
+                                          ctx.state, ctx.registry, ctx.cfg))
         orientation = orientations[ctx.rng.roll_weighted("orientation", weights)]
     cost = 0 if slot == 0 else resolve_gem_cost(room, ctx.state, ctx.registry.rooms)
     return DraftOption(room_idx=room.idx, orientation=orientation, gem_cost=cost,
@@ -319,14 +342,27 @@ def _fill_options(ctx: DraftContext, pending: PendingDraft, from_room: Room | No
         opt = _tunnel_chain_option(ctx, pending.target_cell, pending.direction)
         if opt is not None:
             pending.options.append(opt)
+            # Silver Key draft flag cleared: chain deal counts as the initial deal.
+            ctx.state.special.silver_key_draft = False
             return  # chain active: skip the normal three-slot deal
 
+    # Silver Key: on the initial deal, try cross/t layouts first for each slot,
+    # falling back to the normal draw when no cross/t card qualifies.
+    # Redraws clear the flag before calling _fill_options via redeal (flag already False).
+    silver_key_bias = ctx.state.special.silver_key_draft
     exclude: set[int] = set()
     for slot in range(3):
-        opt = draw_slot(ctx, slot, pending.target_cell, pending.direction, exclude)
+        opt = None
+        if silver_key_bias:
+            opt = _deal_cross_t_biased(ctx, slot, pending.target_cell,
+                                       pending.direction, exclude)
+        if opt is None:
+            opt = draw_slot(ctx, slot, pending.target_cell, pending.direction, exclude)
         if opt is not None:
             pending.options.append(opt)
             exclude.add(opt.room_idx)
+    # Clear after the initial deal; redraws of this hand use normal odds.
+    ctx.state.special.silver_key_draft = False
     hidden = _hidden_count(from_room)
     if hidden:
         n = len(pending.options)

@@ -121,16 +121,17 @@ GLYPH_MAP: dict[str, list[tuple[str, str]]] = {
 # "effects". Rooms not listed get no effects (their prose is out of scope).
 EFFECT_MAP: dict[str, dict] = {
     "nook": {"items": {"guaranteed": [{"item": "key", "count": 1}]}},
-    "garage": {"items": {"guaranteed": [{"item": "key", "count": 3}]}},
+    "garage": {"items": {"guaranteed": [{"item": "key", "count": 3}], "dig_spots": 1}},
     "music_room": {"items": {"guaranteed": [{"item": "key", "count": 2}]}},
     "den": {"items": {"guaranteed": [{"item": "gem", "count": 1}]}},
-    "wine_cellar": {"items": {"guaranteed": [{"item": "gem", "count": 3}]}},
+    "wine_cellar": {"items": {"guaranteed": [{"item": "gem", "count": 3}], "dig_spots": 1}},
     "trophy_room": {"items": {"guaranteed": [{"item": "gem", "count": 8}]}},
     "pantry": {"items": {"guaranteed": [{"item": "coins", "count": 1}]}},  # 4 coins: one pile approximated
     "rumpus_room": {"items": {"guaranteed": [{"item": "coins", "count": 2}]}},
     "vault": {"items": {"guaranteed": [{"item": "coins", "count": 8}]}},
     "storeroom": {"items": {"guaranteed": [
-        {"item": "key", "count": 1}, {"item": "gem", "count": 1}, {"item": "coins", "count": 1}]}},
+        {"item": "key", "count": 1}, {"item": "gem", "count": 1}, {"item": "coins", "count": 1}],
+        "dig_spots": 1}},
     "closet": {"items": {"guaranteed": [{"item": "random", "count": 2}]}},
     "walk_in_closet": {"items": {"guaranteed": [{"item": "random", "count": 4}]}},
     "attic": {"items": {"guaranteed": [{"item": "random", "count": 8}]}},
@@ -152,17 +153,28 @@ EFFECT_MAP: dict[str, dict] = {
     "the_pool": {"effects": [
         {"tag": "counts_as_drafting_room"},
         {"tag": "inject_pool", "rooms": ["locker_room", "sauna", "pump_room"]}]},
-    "greenhouse": {"effects": [{"tag": "greenhouse_bias"}, {"tag": "counts_as_drafting_room"}]},
-    "terrace": {"effects": [{"tag": "free_green_drafts"}]},
-    "morning_room": {"items": {"guaranteed": [{"item": "gem", "count": 2}]}},
-    "veranda": {"effects": [{"tag": "grant", "resource": "luck", "amount": 3}]},  # inferred magnitude
-    "courtyard": {"items": {"guaranteed": []}},
-    "secret_garden": {"items": {"guaranteed": [{"item": "gem", "count": 2}]}},
+    "greenhouse": {"effects": [{"tag": "greenhouse_bias"}, {"tag": "counts_as_drafting_room"}],
+                   "items": {"dig_spots": 1}},
+    "terrace": {"effects": [{"tag": "free_green_drafts"}], "items": {"dig_spots": 1}},
+    "morning_room": {"items": {"guaranteed": [{"item": "gem", "count": 2}], "dig_spots": 1}},
+    "veranda": {"effects": [{"tag": "grant", "resource": "luck", "amount": 3}],  # inferred magnitude
+                "items": {"dig_spots": 1}},
+    "courtyard": {"items": {"guaranteed": [], "dig_spots": 1}},
+    "secret_garden": {"items": {"guaranteed": [{"item": "gem", "count": 2}], "dig_spots": 1}},
     "observatory": {"effects": []},  # stars out of scope
     "dining_room": {"effects": []},
     "her_ladyships_chamber": {"effects": []},  # cross-room promise; Tier 2
     "freezer": {"effects": []},  # cross-day; out of scope
     "sauna": {"effects": []},    # cross-day; out of scope
+    # Dig spots (wiki source: blueprince.wiki.gg/wiki/Dig_Spot); count 1 when wiki gives no
+    # number. Supplemental-sourced rooms (furnace, dovecote, solarium, the_kennel,
+    # conservatory, outer rooms) carry theirs in tools/supplemental_rooms.json instead.
+    "boiler_room": {"items": {"dig_spots": 1}},
+    "pump_room": {"items": {"dig_spots": 1}},
+    "workshop": {"items": {"dig_spots": 1}},
+    "aquarium": {"items": {"dig_spots": 1}},
+    "patio": {"items": {"dig_spots": 1}},
+    "cloister": {"items": {"dig_spots": 1}},
 }
 
 # Per-category default for luck-scaled extra items (Item Spawns table is

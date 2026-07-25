@@ -26,6 +26,22 @@ KNOWN_CONDITIONS = {"west_wing", "east_wing", "west_or_east_wing", "not_on_wing"
                     "no_north_on_wing", "no_horizontal_end_rank", "north_south_only",
                     "pool_drafted", "library_only", "antechamber_north_door", "room8_key",
                     "knight_chess_piece", "secret_garden_key", "breakfast"}
+KNOWN_ITEM_EFFECT_TAGS = {
+    # PR1 functional set
+    "lockpick", "luck_bonus", "coin_interest", "coin_multiplier",
+    "food_bonus", "food_multiplier", "free_hallway_moves", "free_move_interval",
+    "stopwatch", "sleeping_mask", "watering_can", "master_key", "silver_key_bias",
+    "compass", "ornate_compass", "emerald_bracelet", "dig_tool", "treasure_map",
+    "metal_detector_spawns", "auto_collect", "mask_red_room", "paper_crown",
+    "set_steps_on_pickup", "steps_at_rank", "negate_red_once_per_day",
+    # PR2+ / inert tags
+    "shop_discount", "smash", "repellent", "scepter", "chronograph",
+    "crown_of_blueprints", "gear_wrench", "dowsing_rod",
+}
+VALID_ITEM_KINDS = {"standard", "special_key", "contraption", "showroom", "armory", "unique"}
+VALID_ITEM_PERSISTENCE = {"day", "until_used", "permanent"}
+VALID_DIG_OUTCOME_KINDS = {"junk", "nothing", "coins", "gold_coin", "turnip", "key", "item", "gems"}
+
 KNOWN_EFFECT_TAGS = {"grant", "grant_per_category", "grant_on_draft_category",
                      "set_resource_on_enter", "solarium_weights", "greenhouse_bias",
                      "furnace_bias", "conservatory_rerolls", "study_redraws",
@@ -155,8 +171,85 @@ def main() -> int:
         if required not in by_id:
             errors.append(f"required room missing: {required}")
 
+    # ── special_items.json ─────────────────────────────────────────────────
+    si_doc = json.loads((DATA / "special_items.json").read_text())
+    si_items = si_doc.get("items", [])
+    si_ids = [item["id"] for item in si_items]
+    if len(si_ids) != len(set(si_ids)):
+        dupes = {i for i in si_ids if si_ids.count(i) > 1}
+        errors.append(f"special_items: duplicate ids: {dupes}")
+    si_by_id = {item["id"]: item for item in si_items}
+    # "die" is a resource token allowed in lost_and_found pool and fabrication
+    si_resolvable = set(si_by_id) | {"die"}
+
+    for item in si_items:
+        where = f"special_items/{item['id']}"
+        if item.get("kind") not in VALID_ITEM_KINDS:
+            errors.append(f"{where}: invalid kind {item.get('kind')!r}")
+        if item.get("persistence") not in VALID_ITEM_PERSISTENCE:
+            errors.append(f"{where}: invalid persistence {item.get('persistence')!r}")
+        conf = item.get("meta", {}).get("confidence")
+        if conf not in VALID_CONFIDENCE:
+            errors.append(f"{where}: invalid confidence {conf!r}")
+        tier = item.get("tier")
+        if tier is not None and (not isinstance(tier, int) or tier < 1 or tier > 5):
+            errors.append(f"{where}: tier must be 1-5 or null, got {tier!r}")
+        for rid in item.get("spawn_rooms", []):
+            if rid not in by_id:
+                errors.append(f"{where}: spawn_rooms references unknown room {rid!r}")
+        for rid in item.get("spawn_rooms_high_luck", []):
+            if rid not in by_id:
+                errors.append(f"{where}: spawn_rooms_high_luck references unknown room {rid!r}")
+        for rid in item.get("guaranteed_in", []):
+            if rid not in by_id:
+                errors.append(f"{where}: guaranteed_in references unknown room {rid!r}")
+        for rid in item.get("meta", {}).get("absent_spawn_rooms", []):
+            if rid in by_id:
+                errors.append(
+                    f"{where}: absent_spawn_rooms {rid!r} exists in rooms.json — move to spawn_rooms"
+                )
+        if not item.get("implemented", True):
+            if not item.get("meta", {}).get("blocked_on"):
+                errors.append(f"{where}: implemented=false requires meta.blocked_on")
+        for eff in item.get("effects", []):
+            tag = eff.get("tag")
+            if tag not in KNOWN_ITEM_EFFECT_TAGS:
+                warnings.append(f"{where}: unknown effect tag {tag!r}")
+
+    # lost_and_found pool — ids must resolve (die allowed)
+    for pool_id in si_doc.get("lost_and_found", {}).get("pool", []):
+        if pool_id not in si_resolvable:
+            errors.append(f"special_items lost_and_found pool: unknown id {pool_id!r}")
+
+    # fabrication — inputs and output must be item ids
+    for recipe in si_doc.get("fabrication", []):
+        for iid in recipe.get("inputs", []):
+            if iid not in si_by_id:
+                errors.append(f"special_items fabrication: unknown input id {iid!r}")
+        oid = recipe.get("output")
+        if oid not in si_by_id:
+            errors.append(f"special_items fabrication: unknown output id {oid!r}")
+
+    # dig tables — weights sum to 100 ± 0.5; item ids resolve
+    for table_name, table in si_doc.get("dig", {}).get("tables", {}).items():
+        total = sum(row["weight"] for row in table)
+        if abs(total - 100.0) > 0.5:
+            errors.append(f"special_items dig/{table_name}: weights sum to {total:.4f}, expected ~100")
+        for row in table:
+            if row.get("kind") not in VALID_DIG_OUTCOME_KINDS:
+                errors.append(
+                    f"special_items dig/{table_name}: unknown outcome kind {row.get('kind')!r}"
+                )
+            if row.get("kind") == "item":
+                rid = row.get("id")
+                if rid not in si_by_id:
+                    errors.append(
+                        f"special_items dig/{table_name}: item outcome references unknown id {rid!r}"
+                    )
+
     base = [r for r in rooms if r.get("pool") == "base"]
     print(f"{len(rooms)} rooms ({len(base)} base pool); "
+          f"{len(si_items)} special items; "
           f"{len(errors)} errors, {len(warnings)} warnings")
     for w in warnings:
         print(f"  warning: {w}")
