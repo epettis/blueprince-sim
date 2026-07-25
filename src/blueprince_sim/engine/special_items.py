@@ -299,8 +299,11 @@ def configure(state, cfg) -> None:
         gated.append("lunch_box")
     if not cfg.cursed_effigy_unlocked:
         gated.append("cursed_effigy")
-    # royal_scepter activation lands in PR2; gate it out for PR1
-    gated.append("royal_scepter")
+    # Royal Scepter: gate out of spawn pool unless the carry-over flag is set.
+    # (Finding the scepter in-run requires the unmodeled Treasure Trove / Key of
+    # Aries puzzle; with royal_scepter_found it is granted at reset time instead.)
+    if not cfg.royal_scepter_found:
+        gated.append("royal_scepter")
     state.special.gated_out = gated
 
 

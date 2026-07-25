@@ -132,6 +132,10 @@ def _active_conditions(state) -> set[str]:
         conds.add("furnace_or_king")
     if state.greenhouse_placed:
         conds.add("greenhouse_or_king")
+    # Royal Scepter: once a color is activated, inject the scepter_<color> condition
+    # so _apply_category_bias picks up the corresponding priority_draws.json entry.
+    if state.shops.scepter_color is not None:
+        conds.add(f"scepter_{state.shops.scepter_color}")
     return conds
 
 

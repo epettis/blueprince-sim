@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from .model import Room
+from .shops import ShopsState
 from .special_items import SpecialItemsState
 
 
@@ -129,6 +130,8 @@ class GameState:
     # special items held (item id -> count; most items are unique, see special_items.py)
     inventory: dict[str, int] = field(default_factory=dict)
     special: SpecialItemsState = field(default_factory=SpecialItemsState)
+    # commerce/discovery bookkeeping (shop stock, trades, scepter; see shops.py)
+    shops: ShopsState = field(default_factory=ShopsState)
 
     pending: PendingDraft | None = None  # in-flight draft hand; None outside the drafting phase
     outer_room_drafted: bool = False  # today's single outer-room draft has been used

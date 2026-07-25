@@ -7,7 +7,7 @@ from enum import Enum
 from heapq import heappop, heappush
 
 from ..config import GameConfig
-from . import effects, special_items
+from . import effects, shops, special_items
 from .decks import build_decks, inject_rooms
 from .draft import deal_draft, redeal
 from .effects import Hook
@@ -75,6 +75,8 @@ class Game:
         if cfg.special_items:
             for item_id in sorted(cfg.starting_items):
                 special_items.grant(st, self.registry, item_id, source="config")
+            # Cross-day discovery grants (Royal Scepter, Entrance Hall chip).
+            shops.on_day_start(self)
 
         self.placed_ids: set[str] = set()
         # Lowest grid cell per placed room id (mirrors a low-to-high grid scan;
@@ -407,6 +409,58 @@ class Game:
         assert self.can_set_security_level(), "must stand in Security"
         self.state.security_level = level
 
+    # ------------------------------------------------------------- commerce
+    # Thin delegates into engine/shops.py (docs/special-items-design.md, PR2).
+    # All shopping happens from menus in the real game: no step cost.
+
+    def shop_stock(self) -> list | None:
+        """Purchasable entries of the shop the player stands in (None if not
+        in one); prices reflect sale days and a held Coupon Book."""
+        return shops.stock_for(self)
+
+    def buy(self, index: int) -> None:
+        """Buy the current shop's stock entry ``index`` with coins."""
+        assert self.cfg.special_items
+        shops.buy(self, index)
+
+    def trade_offers(self) -> list:
+        """Trades available right now inside the Trading Post."""
+        return shops.trade_offers(self)
+
+    def trade(self, give_id: str) -> None:
+        """Trade one held item at the Trading Post for its rolled return."""
+        assert self.cfg.special_items
+        shops.trade(self, give_id)
+
+    def fabricate_options(self) -> list[str]:
+        """Contraptions fabricable right now (in the Workshop, inputs held)."""
+        return shops.fabricate_options(self)
+
+    def fabricate(self, output_id: str) -> None:
+        """Fabricate a contraption at the Workshop bench, consuming its inputs."""
+        assert self.cfg.special_items
+        shops.fabricate(self, output_id)
+
+    def can_activate_scepter(self) -> bool:
+        return shops.can_activate_scepter(self)
+
+    def activate_scepter(self, color: str) -> None:
+        """Pick the Royal Scepter's color for the day (once, irrevocable)."""
+        assert self.cfg.special_items
+        shops.activate_scepter(self, color)
+
+    def can_smash_vase(self) -> bool:
+        return shops.can_smash_vase(self)
+
+    def smash_vase(self) -> None:
+        """Smash the Entrance Hall's west vase with a Sledge Hammer (microchip)."""
+        assert self.cfg.special_items
+        shops.smash_vase(self)
+
+    def carryover(self) -> dict[str, bool]:
+        """Cross-day discoveries to feed into tomorrow's GameConfig."""
+        return shops.carryover(self)
+
     def open_door(self, cell: int, direction: int) -> PendingDraft:
         """Draft (but do not enter) through a doorway of the current room.
 
@@ -553,6 +607,10 @@ class Game:
         # Deduct the off-grid path cost (EH->doorstep or garage->doorstep)
         st.steps -= offgrid_cost
         st.outer_loc = 1
+        if self.cfg.special_items:
+            # The West Path chip sits at the doorstep (same walking cost as
+            # the Outer Room door): carry-over grant or first-time dig.
+            shops.on_doorstep(self)
 
         key = (-1, 0)
         pending = self.doorway_drafts.get(key)
@@ -603,6 +661,12 @@ class Game:
         if outer_room is not None:
             effects.fire(self, outer_room, Hook.ON_ENTER)
             roll_room_items(st, self.registry, outer_room, self.rng)
+            if self.cfg.special_items:
+                # Outer rooms spawn special items too (Toolshed's Gear Wrench,
+                # the Trading Post pool); -1 = off-grid, no cell hooks apply.
+                special_items.on_enter(self, outer_room, -1)
+                if outer_room.category == "shop":
+                    shops.on_enter_shop(self, outer_room)
         self._check_termination()
 
     def return_from_outer(self, dest: str) -> None:
@@ -949,6 +1013,8 @@ class Game:
         roll_room_items(st, self.registry, room, self.rng)
         if self.cfg.special_items:
             special_items.on_enter(self, room, cell)
+            if room.category == "shop" or room.id == "workshop":  # workshop needs first-entry roll
+                shops.on_enter_shop(self, room)
         if self.cfg.door_locks:
             if room.id == "security":
                 # Assume the player always flips the terminal's offline mode

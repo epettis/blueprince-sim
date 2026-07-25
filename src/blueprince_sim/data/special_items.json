@@ -1662,12 +1662,13 @@
      "tag": "scepter"
     }
    ],
-   "implemented": false,
+   "implemented": true,
    "meta": {
     "source": "https://blueprince.wiki.gg/wiki/Royal_Scepter",
     "confidence": "wiki",
     "absent_spawn_rooms": [],
-    "blocked_on": "color_biased_drafting_not_modeled"
+    "blocked_on": null,
+    "notes": "Obtainable in-run only via the unmodeled Treasure Trove / Key of Aries puzzle; with royal_scepter_found carry-over flag it is granted at day start instead. Activation (color bias) and scepter_<color> category biases are modeled in PR2."
    }
   },
   {

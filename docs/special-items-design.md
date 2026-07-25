@@ -246,6 +246,117 @@ draws from the data pool (excluding already-held uniques; `die` grants a die).
     every listed room carries dig_spots=1 (inferred) except the datamined
     Tomb (2) and Tunnel (3).
 
+## PR2 — commerce and carry-over
+
+New module `engine/shops.py` (mirrors special_items.py: frozen rules from
+`data/shops.json`, a mutable `ShopsState` on GameState, hook/action functions taking
+duck-typed `game`). game.py gains thin action methods; env untouched until PR3.
+
+### Data schema — `data/shops.json`
+
+```jsonc
+{
+  "sale": {"days": [20, 21]},          // prices halved (round up) on these days
+  "trading": {
+    "trades_per_day": 3,               // wiki-undocumented; inferred knob
+    "dice_chance": 10,                 // % an offer resolves to a die
+    "t5_special_chance": 50            // % a tier-5 trade offers allowance_token/upgrade_disk
+  },
+  "shops": {                           // keyed by room id
+    "commissary": {
+      "slots": 4,                      // distinct stock entries offered per day
+      "stock": [
+        // kind: resource (grants coins/keys/gems/food) | item (special item id)
+        {"id": "gem", "kind": "resource", "grant": {"gems": 1}, "price": 3, "limit": 5},
+        {"id": "magnifying_glass", "kind": "item", "price": 4}   // limit 1 implied for items
+      ]
+    },
+    "locksmith": {
+      "stock": ["...unlimited key entries..."],
+      "special_key": {                 // one per day, 8g: priority lists rolled 30/40/30
+        "price": 8,
+        "rolls": [
+          {"chance": 30, "order": ["silver_key", "secret_garden_key", "prism_key"]},
+          {"chance": 40, "order": ["secret_garden_key", "prism_key", "silver_key"]},
+          {"chance": 30, "order": ["prism_key", "secret_garden_key", "silver_key"]}
+        ],
+        "fallback": "car_keys"         // then a duplicate silver_key
+      }
+    },
+    "showroom": {"tier_a": ["...20-30g ids..."], "tier_b": ["...50-80g ids..."],
+                  "trophy": {"id": "trophy_of_wealth", "price": 100}},
+    "gift_shop": {},                    // lunch_box 15g one-time; cursed_coffers (inferred price)
+    "the_armory": {}, "kitchen": {}, "bookshop": {}, "laundry_room": {}
+  }
+}
+```
+
+### Model decisions (confidence noted)
+
+- **Stock rolls** happen on FIRST entry to each placed shop (seeded substream
+  `shop_stock`); the Commissary offers `slots` distinct available entries uniformly
+  (the real game's 7 fixed combinations A–G are unpublished — inferred). Owned or
+  consumed special items never stock; the Showroom picks 2 from tier_a + 2 from
+  tier_b avoiding owned, and shows the Trophy once all four displayed items are
+  bought.
+- **buy(index)**: player must stand in the shop room (or be inside the Trading Post,
+  `outer_loc == 2`). Coins spent; Coupon Book applies −1 per purchase (reduction,
+  not refund — an item priced 1 above your gold is buyable); sale days halve prices
+  rounded up.
+- **Electromagnet Locksmith robbery** (`locksmith_rob`): on first entry to the
+  Locksmith while holding it: +24 keys, key/set-of-keys stock disabled for the day,
+  the special key NOT taken (wiki-verified).
+- **Gift Shop**: buying `lunch_box` (one-time; only offered when not
+  `lunch_box_unlocked`) or `cursed_coffers` (needs a Sledge Hammer; grants the
+  `cursed_effigy` immediately, its steps-to-13 pickup effect applies) records the
+  discovery for carry-over.
+- **Trading Post trades**: `trade(give_id)`: give one held tradeable item of tier T,
+  receive a uniformly random available same-tier item (dice_chance% a die instead;
+  tier-5: t5_special_chance% an allowance_token — inert — or upgrade_disk). Traded
+  items return to the spawn pool (`removed` NOT set); max trades_per_day. Offers
+  computed on demand (`trade_offers()`), never stored.
+- **Workshop**: `fabricate(output_id)` consumes the recipe inputs
+  (special_items.json fabrication list) and grants the contraption, any time the
+  player stands in the Workshop. First Workshop entry spawns one free component
+  (uniform over available components; fallback 5 coins) — wiki-documented.
+- **Royal Scepter**: with `royal_scepter_found`, granted at day start (the Entrance
+  Hall daily spawn; the hall is pre-entered, so reset-time grant).
+  `activate_scepter(color)` — color ∈ {blueprint, green, red, bedroom, hallway,
+  shop} — once per day, irrevocable for the day; sets a `scepter_<color>` condition
+  consumed by the existing data-driven `category_biases` machinery
+  (priority_draws.json entries; chance 40, magnitude unpublished — inferred).
+- **Microchips**: `smash_vase()` (standing in the Entrance Hall with a Sledge
+  Hammer, once) grants a `microchip` and records the vase discovery; with
+  `entrance_vase_broken` the chip is instead granted at day start. West Path chip:
+  with `outer_chip_dug`, granted on reaching the doorstep (`outer_loc` 1 — same
+  walking cost as the Outer Room door, per the game); the first-time dig happens
+  automatically at the doorstep while holding a digging tool, recording the
+  discovery. Chip holders/placement are not modeled (outer areas out of scope) —
+  chips stay inert, tier-2 tradeable.
+- **Carry-over report**: `Game.carryover() -> dict[str, bool]` — today's discoveries
+  for a multi-day wrapper to feed into tomorrow's GameConfig: keys
+  `lunch_box_unlocked`, `cursed_effigy_unlocked`, `entrance_vase_broken`,
+  `outer_chip_dug`, `royal_scepter_found` (True when newly discovered today OR
+  already configured). Persistent-item inventory carry-over (Key 8, Sanctum Keys,
+  Coat Check, Moon Pendant) stays deferred.
+- **Repellent stays deferred**: its only effect is next-day pool removal —
+  meaningless inside a single-day episode; inert until the multi-day wrapper.
+- **PR1 gap fixed in PR2**: `enter_outer_room` now calls `special_items.on_enter`,
+  so outer rooms spawn items (Toolshed's guaranteed Gear Wrench, Trading Post pool).
+
+### ShopsState (mutable, per-episode)
+
+```python
+stock: dict[str, list]         # shop room id -> rolled stock entries (mutable sold/limit state)
+special_key_offer: str | None  # today's Locksmith special-key id (rolled with stock)
+locksmith_robbed: bool         # Electromagnet robbery fired (key purchases disabled)
+trades_done: int               # Trading Post trades used today
+scepter_color: str | None      # activated color (category); None = not yet activated
+vase_smashed: bool             # Entrance Hall vase smashed today (discovery)
+chip_dug: bool                 # West Path chip dug today (discovery)
+gift_unlocks: list[str]        # one-time Gift Shop purchases made today (carry-over feed)
+```
+
 ## Test plan (per CLAUDE.md conventions: observable behavior, docstrings)
 
 - `tests/test_special_items.py` — core: spawn determinism per seed; unique items never
