@@ -45,6 +45,14 @@ class GameConfig:
     # draft (choose any legal orientation), the way the Dovecote is only while
     # it is one of the drawn options.
     ornate_compass: bool = False
+    # --- special items (engine/special_items.py; docs/special-items-design.md) ---
+    special_items: bool = True          # master toggle for special-item spawning/behavior
+    # Special items held at day start. RL curricula, tests, and the (future)
+    # multi-day carry-over wrapper all inject items through this.
+    starting_items: frozenset[str] = frozenset()
+    # Cross-day discovery unlocks (each changes what spawns today):
+    lunch_box_unlocked: bool = False    # bought once at the Gift Shop: Dining Rooms spawn it daily
+    cursed_effigy_unlocked: bool = False  # Cursed Coffers bought: the Shrine spawns the Effigy
     # --- reward selection for the env ---
     reward: str = "sparse"              # sparse|shaped|phased
     data_dir: Path | None = None        # alternate data/*.json directory (None = packaged data)
@@ -84,7 +92,8 @@ class GameConfig:
         for k, v in raw.items():
             if k not in valid:
                 raise KeyError(f"Unknown config key: {k}")
-            if k in ("studio_additions", "upgrade_disks", "satisfied_conditions"):
+            if k in ("studio_additions", "upgrade_disks", "satisfied_conditions",
+                     "starting_items"):
                 v = frozenset(v)
             elif k == "data_dir" and v is not None:
                 v = Path(v)

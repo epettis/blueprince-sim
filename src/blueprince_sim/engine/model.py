@@ -145,6 +145,7 @@ class Registry:
     priority: dict  # parsed priority_draws.json
     item_rules: dict  # parsed items.json
     lock_rules: dict  # parsed locks.json
+    special: object = None  # SpecialItemsRegistry (special_items.py; typed loosely to avoid a cycle)
     data_dir: Path = field(default=DEFAULT_DATA_DIR)  # directory the JSON files were loaded from
 
     @classmethod
@@ -154,6 +155,8 @@ class Registry:
         ``data_dir`` overrides the packaged data directory (GameConfig.data_dir
         plumbs through here). Room.idx is the position in rooms.json order.
         """
+        from .special_items import load_special_items  # deferred: special_items imports Effect
+
         d = Path(data_dir) if data_dir else DEFAULT_DATA_DIR
         rooms_raw = json.loads((d / "rooms.json").read_text())["rooms"]
         rooms = tuple(_parse_room(i, r) for i, r in enumerate(rooms_raw))
@@ -164,6 +167,7 @@ class Registry:
             priority=json.loads((d / "priority_draws.json").read_text()),
             item_rules=json.loads((d / "items.json").read_text()),
             lock_rules=json.loads((d / "locks.json").read_text()),
+            special=load_special_items(d),
             data_dir=d,
         )
 

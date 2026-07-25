@@ -8,6 +8,7 @@ content rooms (additional_max == 0) are unaffected by luck.
 
 from __future__ import annotations
 
+from . import special_items
 from .model import Registry, Room
 from .rng import Rng
 from .state import GameState
@@ -78,11 +79,14 @@ def luck_probability(state: GameState, registry: Registry) -> float:
     """
     luck = registry.item_rules["luck"]
     lo, hi = luck["floor"], luck["max_effect_at"]
-    if state.luck >= hi:
+    # Held lucky charms add to EFFECTIVE luck only, so losing the charm
+    # (Lost & Found) takes its bonus with it.
+    effective = state.luck + special_items.luck_bonus(state, registry)
+    if effective >= hi:
         return 1.0
-    if state.luck <= lo:
+    if effective <= lo:
         return 0.0
-    return (state.luck - lo) / (hi - lo)
+    return (effective - lo) / (hi - lo)
 
 
 def grant_item(state: GameState, item: str, count: int, rng: Rng, registry: Registry) -> None:
@@ -95,8 +99,11 @@ def grant_item(state: GameState, item: str, count: int, rng: Rng, registry: Regi
     match item:
         case "coins":
             pile = registry.item_rules["coins"]
+            got = 0
             for _ in range(count):
-                state.coins += rng.randint("coin_pile", pile["pile_min"], pile["pile_max"])
+                got += rng.randint("coin_pile", pile["pile_min"], pile["pile_max"])
+            # Coin Purse / Lucky Purse interest rides every coin pickup.
+            state.coins += got + special_items.on_coins_granted(state, registry, got)
         case "key":
             state.keys += count
         case "gem":
@@ -105,6 +112,11 @@ def grant_item(state: GameState, item: str, count: int, rng: Rng, registry: Regi
             state.dice += count
         case "steps":
             state.steps += count
+        case "food":
+            # Food restores steps; Salt Shaker / Silver Spoon modify each item.
+            base = registry.item_rules.get("food", {}).get("steps", 3)
+            for _ in range(count):
+                state.steps += special_items.food_steps(state, registry, base)
     state.items_found_log.append((item, count))
 
 
@@ -125,6 +137,12 @@ def roll_room_items(state: GameState, registry: Registry, room: Room, rng: Rng) 
     p = luck_probability(state, registry)
     for _ in range(room.items.additional_max):
         if rng.chance("extra_item", p):
+            # A luck proc may resolve to one of the room's special items
+            # (docs/special-items-design.md spawn model) instead of a
+            # resource from the table.
+            if special_items.roll_special_spawn(state, registry, room, rng) is not None:
+                found += 1
+                continue
             weights = tuple(w for _, w in EXTRA_ITEM_TABLE)
             idx = rng.roll_weighted("extra_item_kind", weights)
             grant_item(state, EXTRA_ITEM_TABLE[idx][0], 1, rng, registry)

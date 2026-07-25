@@ -9,6 +9,7 @@ for the Nursery's ON_DRAFT_ROOM effect).
 from __future__ import annotations
 
 from ..decks import reroll_random_rarities
+from .. import special_items
 from . import Hook, effect
 
 RESOURCES = ("steps", "gems", "keys", "coins", "dice", "stars")
@@ -38,9 +39,17 @@ def _grant(game, resource: str, amount: int) -> None:
 
 
 def _red_negated(game, room) -> bool:
-    """Shelter: negate the effects of the next N red rooms."""
-    if room.category == "red" and game.red_negations > 0:
+    """Shelter or Knight's Shield: negate negative effects of a red room.
+
+    Shelter decrements its counter on each negate. Knight's Shield fires once
+    per day (simplification #6: auto-applied, no player choice).
+    """
+    if room.category != "red":
+        return False
+    if game.red_negations > 0:
         game.red_negations -= 1
+        return True
+    if game.cfg.special_items and special_items.shield_negates(game):
         return True
     return False
 

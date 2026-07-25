@@ -7,7 +7,7 @@ from enum import Enum
 from heapq import heappop, heappush
 
 from ..config import GameConfig
-from . import effects
+from . import effects, special_items
 from .decks import build_decks, inject_rooms
 from .draft import deal_draft, redeal
 from .effects import Hook
@@ -70,7 +70,11 @@ class Game:
         st.stage = cfg.resolved_stage()
         st.luck = self.registry.item_rules["luck"]["day_start"]
         st.decks = build_decks(self.registry, cfg, self.rng)
+        st.special.enabled = cfg.special_items
         self.state = st
+        if cfg.special_items:
+            for item_id in sorted(cfg.starting_items):
+                special_items.grant(st, self.registry, item_id, source="config")
 
         self.placed_ids: set[str] = set()
         # Lowest grid cell per placed room id (mirrors a low-to-high grid scan;
@@ -178,9 +182,10 @@ class Game:
                 seg = door_state.get(segment_key(cell, d), DOOR_OPEN)
                 nspent = spent
                 if seg == DOOR_LOCKED:
-                    nspent = spent + 1
-                    if nspent > keys_cap:
-                        continue
+                    if not special_items.can_open_locked_free(self):
+                        nspent = spent + 1
+                        if nspent > keys_cap:
+                            continue
                 elif seg == DOOR_SECURITY and not sec_ok:
                     continue
                 # Keep only Pareto-optimal states: a later arrival is worth
@@ -328,7 +333,7 @@ class Game:
         :meth:`key_cost_map`)."""
         state = self.door_state_of(cell, direction)
         if state == DOOR_LOCKED:
-            return self.state.keys >= 1
+            return self.state.keys >= 1 or special_items.can_open_locked_free(self)
         if state == DOOR_SECURITY:
             return self.security_openable()
         return True
@@ -338,13 +343,26 @@ class Game:
         self.state.door_state[segment_key(cell, direction)] = DOOR_OPEN
         self.state.door_version += 1
 
-    def _unlock_for_passage(self, cell: int, direction: int) -> None:
-        """Open the segment the player is about to pass, spending a key if locked."""
+    def _unlock_for_passage(self, cell: int, direction: int,
+                            for_draft: bool = False) -> None:
+        """Open the segment the player is about to pass, spending a key if locked.
+
+        ``for_draft=True`` signals this is a frontier-draft opening (not movement):
+        when the Silver Key is held, it is consumed instead of a regular key and
+        the next deal is biased toward cross/t layouts.
+        """
         st = self.state
         state = self.door_state_of(cell, direction)
         if state == DOOR_LOCKED:
-            assert st.keys >= 1, "door is locked and you have no key"
-            st.keys -= 1
+            # Silver Key: consumed for drafting (not movement); does not return
+            # to the spawn pool today (consumed=False keeps it pool-eligible tomorrow).
+            if (for_draft and self.cfg.special_items
+                    and special_items.has(st, "silver_key")):
+                special_items.remove(st, "silver_key", consumed=False)
+                st.special.silver_key_draft = True
+            elif not (self.cfg.special_items and special_items.open_locked_free(self)):
+                assert st.keys >= 1, "door is locked and you have no key"
+                st.keys -= 1
             self._open_segment(cell, direction)
         elif state == DOOR_SECURITY:
             assert self.security_openable(), "security door cannot be opened"
@@ -404,13 +422,20 @@ class Game:
         assert st.placed_doors[cell] & direction, "no door in that direction"
         target = neighbor(cell, direction)
         assert target != -1 and st.grid[target] < 0, "invalid doorway"
-        self._unlock_for_passage(cell, direction)
+        self._unlock_for_passage(cell, direction, for_draft=True)
         key = (cell, direction)
         pending = self.doorway_drafts.get(key)
         if pending is None:
             pending = deal_draft(st, self.registry, self.cfg, self.rng,
                                  self.placed_ids, cell, direction, target)
             pending.redraws_left = st.drafting_room_count if self._in_classroom_context() else 0
+            # Paper Crown: +1 free redraw on an all-non-red initial deal.
+            # Hidden options are treated as potentially red (no crown bonus if any hidden).
+            if (self.cfg.special_items and special_items.has(st, "paper_crown")
+                    and not any(o.hidden for o in pending.options)
+                    and all(self.registry.rooms[o.room_idx].category != "red"
+                            for o in pending.options)):
+                pending.redraws_left += 1
             self.doorway_drafts[key] = pending
         st.pending = pending
         self.phase = Phase.DRAFTING
@@ -642,12 +667,18 @@ class Game:
         self._check_termination()
 
     def _effective_cost(self, room: Room, opt) -> int:
-        """Gem cost of an option: slot 0 and free-category rooms cost nothing."""
+        """Gem cost of an option: slot 0 and free-category rooms cost nothing.
+
+        Held items can waive or modify the remaining cost (Emerald Bracelet,
+        Hall Pass, Stopwatch — see special_items.gem_cost_modifier)."""
         if opt.slot == 0:
             return 0
         if room.category in self.free_categories:
             return 0
-        return resolve_gem_cost(room, self.state, self.registry.rooms)
+        cost = resolve_gem_cost(room, self.state, self.registry.rooms)
+        if self.cfg.special_items:
+            cost = special_items.gem_cost_modifier(self, room, cost)
+        return cost
 
     def affordable(self, room: Room, opt) -> bool:
         """Can the current draft option be paid for?
@@ -663,9 +694,15 @@ class Game:
         return self.state.gems >= cost
 
     def _pay(self, room: Room, opt) -> None:
-        """Deduct the option's gem cost - in steps at 3:1 when the Hovel is placed."""
+        """Deduct the option's gem cost - in steps at 3:1 when the Hovel is placed.
+
+        An active Stopwatch waives the payment (gems still required in hand;
+        the waiver spends a charge here, at pay time, so affordability
+        queries never consume it)."""
         cost = self._effective_cost(room, opt)
         if cost <= 0:
+            return
+        if self.cfg.special_items and special_items.stopwatch_waives_gems(self, cost):
             return
         if self.hovel_placed:
             self.state.steps -= 3 * cost
@@ -706,7 +743,7 @@ class Game:
             return False
         if st.pending.target_cell == -1:  # outer-room draft: no doorway to rotate against
             return False
-        if self.cfg.ornate_compass or "rotunda" in self.placed_ids:
+        if special_items.ornate_compass_active(self) or "rotunda" in self.placed_ids:
             return True
         return any(self.registry.rooms[o.room_idx].id == "dovecote"
                    for o in st.pending.options)
@@ -794,9 +831,15 @@ class Game:
             "no connected room that way"
         assert st.steps >= 1, "out of steps"
         self._unlock_for_passage(st.pos, direction)
-        st.steps -= 1
+        cost = 1
+        if self.cfg.special_items:
+            cost = special_items.move_step_cost(
+                self, st.pos, direction, self.registry.rooms[st.grid[nb]])
+        st.steps -= cost
         st.pos = nb
         self._enter(nb)
+        if self.cfg.special_items:
+            special_items.on_arrive(self, nb)
         self._check_termination()
 
     def move_to(self, cell: int) -> None:
@@ -882,6 +925,8 @@ class Game:
         if not entered:  # entered=True is only the pre-placed Entrance Hall
             self.drafted_rooms.append(room.name)
         effects.fire(self, room, Hook.ON_PLACE)
+        if self.cfg.special_items:
+            special_items.on_place(self, room, cell)
         # Relational draft hooks on every other placed room (Nursery etc.).
         for other_cell, idx in enumerate(st.grid):
             if idx >= 0 and other_cell != cell:
@@ -902,6 +947,8 @@ class Game:
         room = self.registry.rooms[st.grid[cell]]
         effects.fire(self, room, Hook.ON_ENTER)
         roll_room_items(st, self.registry, room, self.rng)
+        if self.cfg.special_items:
+            special_items.on_enter(self, room, cell)
         if self.cfg.door_locks:
             if room.id == "security":
                 # Assume the player always flips the terminal's offline mode

@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from .model import Room
+from .special_items import SpecialItemsState
 
 
 @dataclass(slots=True)
@@ -124,6 +125,10 @@ class GameState:
     keycard_power_on: bool = True     # Utility Closet breaker, "Keycard Entry"
     offline_unlocked: bool = False    # Security terminal offline mode (set on visit)
     has_keycard: bool = False         # Keycard held: opens security doors while power is on
+
+    # special items held (item id -> count; most items are unique, see special_items.py)
+    inventory: dict[str, int] = field(default_factory=dict)
+    special: SpecialItemsState = field(default_factory=SpecialItemsState)
 
     pending: PendingDraft | None = None  # in-flight draft hand; None outside the drafting phase
     outer_room_drafted: bool = False  # today's single outer-room draft has been used

@@ -1,6 +1,8 @@
 """Placement legality: orientations, wings, corners, connectivity."""
 
 from blueprince_sim.config import GameConfig
+from blueprince_sim.engine import special_items
+from blueprince_sim.engine.game import Game
 from blueprince_sim.engine.grid import (E, N, S, W, is_center_column, is_corner,
                                         is_east_wing, is_west_wing, neighbor, rank_of,
                                         rotate_mask)
@@ -263,3 +265,50 @@ def test_gated_conditions_via_config(registry):
     assert not satisfies_draft_conditions(garden, 0, N, st, cfg2, set(), False)   # rank 1 too low
     assert not satisfies_draft_conditions(garden, 40, N, st, cfg2, set(), False)  # rank 9 too high
     assert not satisfies_draft_conditions(garden, 22, N, st, cfg2, set(), False)  # col 2, not a wing
+
+
+def test_key_8_in_inventory_satisfies_room8_key_gate(registry):
+    """Holding the key_8 item grants the room8_key placement condition, allowing
+    Room 8 to be drafted; absence blocks it even if config has other conditions."""
+    room8 = registry.by_id["room_8"]
+    # Without key_8: gate blocks placement
+    st_empty = GameState()
+    assert not satisfies_draft_conditions(room8, 35, S, st_empty, GameConfig(), set(), False)
+    # With key_8 in inventory: gate satisfied (cell 35 = rank 8 west wing, southward)
+    st_with = GameState()
+    st_with.inventory["key_8"] = 1
+    assert satisfies_draft_conditions(room8, 35, S, st_with, GameConfig(), set(), False)
+    assert satisfies_draft_conditions(room8, 39, N, st_with, GameConfig(), set(), False)
+    # Wrong cell (rank 7, not 8): geometry gate still rejects
+    assert not satisfies_draft_conditions(room8, 30, S, st_with, GameConfig(), set(), False)
+
+
+def test_secret_garden_key_in_inventory_satisfies_gate(registry):
+    """Holding the secret_garden_key item satisfies the secret_garden_key placement
+    condition, enabling Secret Garden drafts without the config flag."""
+    garden = registry.by_id["secret_garden"]
+    # Cell 20 = rank 5, col 0 (west wing, within ranks 3-8 band)
+    st_empty = GameState()
+    assert not satisfies_draft_conditions(garden, 20, N, st_empty, GameConfig(), set(), False)
+    st_with = GameState()
+    st_with.inventory["secret_garden_key"] = 1
+    assert satisfies_draft_conditions(garden, 20, N, st_with, GameConfig(), set(), False)
+    # Interior cell still rejected (geometry gate)
+    assert not satisfies_draft_conditions(garden, 22, N, st_with, GameConfig(), set(), False)
+
+
+def test_secret_garden_key_consumed_on_secret_garden_placement(registry):
+    """The Secret Garden Key is consumed (removed from inventory, marked gone for the day)
+    when the Secret Garden is successfully placed via on_place."""
+    g = Game(GameConfig(starting_items=frozenset({"secret_garden_key"})), seed=1,
+             registry=registry)
+    assert special_items.has(g.state, "secret_garden_key")
+
+    garden = registry.by_id["secret_garden"]
+    # Directly call on_place to trigger the consumption hook
+    special_items.on_place(g, garden, cell=20)
+
+    assert not special_items.has(g.state, "secret_garden_key"), (
+        "Secret Garden Key must be consumed when the Secret Garden is placed")
+    assert "secret_garden_key" in g.state.special.removed, (
+        "Consumed key must appear in special.removed so it cannot respawn today")
