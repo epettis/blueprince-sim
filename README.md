@@ -245,9 +245,20 @@ under the same config ([docs/greedy-strategy.md](docs/greedy-strategy.md)
 describes the scripted baselines).
 
 Tuning flags: `--n-envs` (parallel workers), `--n-steps` (rollout length -
-also the progress-at-risk on stop), `--reward shaped|sparse` (see
+also the progress-at-risk on stop), `--reward shaped|sparse|phased` (see
 [docs/rewards.md](docs/rewards.md)), `--device` (default cpu; the nets are
 tiny MLPs).
+
+The trainer also appends **draft-frequency stats** to
+`<checkpoint-dir>/draft_stats.jsonl`: one line per 10,000-episode bucket
+with total drafts per room name and the number of seeds that drafted each
+room at least once (partial buckets from stops/resumes are merged back
+together by readers). Deterministic evals record the same two counters in
+their `eval.jsonl` rows. The `blueprince-dash` web dashboard charts both:
+a sortable bar view (raw counts or % of seeds, training stream or latest
+eval) and a stacked drafts-over-time view per bucket. History starts when
+a trainer first runs with this code - earlier episodes are not
+reconstructable from the sampled replays.
 
 ### Released models
 

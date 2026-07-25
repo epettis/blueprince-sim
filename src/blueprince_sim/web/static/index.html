@@ -31,6 +31,51 @@
     </p>
   </section>
   <section class="card">
+    <div class="card-head">
+      <h2>Draft frequency</h2>
+      <div class="draft-controls">
+        <select id="draft-source">
+          <option value="train">training episodes</option>
+          <option value="eval">deterministic eval</option>
+        </select>
+        <select id="draft-mode">
+          <option value="pct">% of seeds</option>
+          <option value="count">raw counts</option>
+        </select>
+        <select id="draft-window">
+          <option value="all">all recorded</option>
+          <option value="10">last 100k seeds</option>
+          <option value="1">last 10k seeds</option>
+        </select>
+      </div>
+    </div>
+    <div id="draft-legend" class="legend draft-legend"></div>
+    <div id="draft-bars"></div>
+    <p class="dim note">
+      Seeds in which each room was drafted at least once, colored by room category
+      — click a category chip above the bars to hide/show its rooms.
+      The 👣🔑💎🪙🍀 badges are the expected steps/keys/gems/coins/luck per draft,
+      computed from room data (guaranteed items + luck-rolled extras at day-start
+      luck + flat entry effects; coin piles at their size midpoint); zeros are
+      omitted. <b>training</b> =
+      every finished episode (explore mix included) in 10k-seed buckets;
+      <b>eval</b> = the latest checkpoint's deterministic rollouts (the window
+      selector applies to training only).
+    </p>
+  </section>
+  <section class="card">
+    <div class="card-head">
+      <h2>Drafts over time</h2>
+      <div id="draft-ts-legend" class="legend"></div>
+    </div>
+    <div id="draft-ts" class="chart"></div>
+    <p class="dim note">
+      Total drafts per room, stacked, one column per 10k-seed training bucket
+      (columns merge adjacent buckets once history outgrows the chart). Top 12
+      rooms colored; the rest fold into "other".
+    </p>
+  </section>
+  <section class="card">
     <h2>Latest checkpoints</h2>
     <div id="ckpt-table"></div>
   </section>

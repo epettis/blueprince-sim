@@ -85,6 +85,9 @@ class Game:
         self.termination_reason = ""
         self.rooms_placed = 0
         self.deepest_rank = 1
+        # Display names of every room drafted today, in draft order (the
+        # pre-placed Entrance Hall and Antechamber are not drafts).
+        self.drafted_rooms: list[str] = []
 
         entrance = self.registry.by_id["entrance_hall"]
         self._place_room(entrance, ENTRANCE_CELL, entrance.door_mask, entered=True)
@@ -552,6 +555,7 @@ class Game:
         room = self.registry.rooms[opt.room_idx]
         st.outer_room_drafted = True
         self.placed_ids.add(room.id)
+        self.drafted_rooms.append(room.name)
         del self.doorway_drafts[(-1, 0)]
         st.pending = None
         self.phase = Phase.NAVIGATE
@@ -875,6 +879,8 @@ class Game:
             self.room_cells[room.id] = cell
         self.rooms_placed += 1
         self.deepest_rank = max(self.deepest_rank, rank_of(cell))
+        if not entered:  # entered=True is only the pre-placed Entrance Hall
+            self.drafted_rooms.append(room.name)
         effects.fire(self, room, Hook.ON_PLACE)
         # Relational draft hooks on every other placed room (Nursery etc.).
         for other_cell, idx in enumerate(st.grid):
