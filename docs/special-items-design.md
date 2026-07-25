@@ -7,6 +7,15 @@ PR2 adds commerce (shop purchases, Trading Post trades, Workshop fabrication),
 carry-over unlock flags' actions (Royal Scepter activation, vase/dig microchips,
 item-use actions like Repellent), PR3 wires observation/action space.
 
+**PR3 observability requirements** (nothing item-related is observable today —
+`env/obs.py` encodes no inventory):
+- inventory vector (per-item held flags/counts, indexed by registry order);
+- the Treasure Map X cell once a map has been read (`special.treasure_cell` — as a
+  grid plane or cell index feature) plus `treasure_dug`;
+- per-day counters an agent must plan around: `stopwatch_left`, `water`,
+  `lockpick_attempts`/`lockpick_fails`, `shield_used`;
+- (PR2 data, observed in PR3) shop stock/prices per placed shop and the scepter color.
+
 ## Principles
 
 - **Data-driven**: every item is a record in `data/special_items.json`; behavior is
@@ -97,15 +106,26 @@ valid sets; every `spawn_rooms`/`guaranteed_in`/`lost_and_found.pool` (bar `die`
 
 ### SpecialItemsState (mutable, per-episode)
 
-`lockpick_attempts: int`, `lockpick_fails: int` (pity counter), `coin_interest: int`
-(coins collected since last interest payout), `water: int` (Watering Can charges),
-`stopwatch_left: int` (free cost events remaining; 0 = inactive), `stopwatch_used: bool`,
-`moves_since_free: int` (Running Shoes trigger), `dug: dict[int, int]` (cell → spots
-dug), `treasure_cell: int` (-1 = no map seen), `treasure_dug: bool`,
-`silver_key_draft: bool` (next draw biased to cross/t), `shield_used: bool`
-(Knight's Shield daily charge), `removed: list[str]` (ids taken by the Lost & Found or
-consumed — excluded from spawn pools), `spawned_today: set[str]` (unique items already
-spawned — a unique item spawns at most once per day).
+```python
+enabled: bool            # GameConfig.special_items, copied at reset (gates spawning)
+lockpick_attempts: int   # picks tried today (indexes the per-day rate table)
+lockpick_fails: int      # consecutive fails, for the Lock Pick Kit pity rule
+coin_interest: int       # coins collected since the last Coin Purse interest payout
+water: int               # Watering Can charges left (set to capacity on pickup)
+stopwatch_left: int      # free cost events remaining (0 = stopwatch inactive)
+stopwatch_used: bool     # a Stopwatch already ran today (unobtainable again)
+moves_since_free: int    # Running Shoes cadence counter
+dug: dict[int, int]      # cell -> dig spots already dug
+treasure_cell: int       # Treasure Map X cell; -1 = no map read today
+treasure_dug: bool       # the map's one-per-day treasure dig happened
+silver_key_draft: bool   # next draw biased toward cross/t layouts
+shield_used: bool        # Knight's Shield daily red-room negation spent
+removed: list[str]       # ids gone for the day (steals/consumed) — spawn pools skip them
+spawned_today: list[str] # unique ids already spawned (at most once per day each)
+gated_out: list[str]     # ids excluded by config unlock flags (populated by configure())
+configured: bool         # True once configure() ran this episode
+spawn_room_done: int     # room.idx that already spawned a special item; -1 = none
+```
 
 ### Public API (duck-typed `game`, mirroring `effects/` handlers)
 
@@ -130,7 +150,10 @@ spawned — a unique item spawns at most once per day).
 - `try_lockpick(game) -> bool` — Lock Pick Kit / Pick Sound Amplifier attempt with
   datamined rates + pity; called from `Game._unlock_for_passage` before spending a
   key. Master Key and active Stopwatch open locked doors at no key cost (key still
-  required in hand for Stopwatch, per the wiki).
+  required in hand for Stopwatch, per the wiki). All of these apply to REGULAR key
+  locks only — security doors stay exclusively on the keycard/power/offline system
+  (the Master Key never opens one; enforced by wiring these hooks into the
+  DOOR_LOCKED branches only, and pinned by a test).
 - `gem_cost_modifier(game, room, cost) -> int` — Emerald Bracelet waiver, Hall Pass
   free hallway-from-hallway drafts, Stopwatch waiver. Called from
   `Game._effective_cost` (after slot-0/free-category logic).
@@ -171,15 +194,26 @@ food-typed), `negate_red_once_per_day`.
 Tags NOT implemented in PR1 (records carry them for PR2+ or stay inert):
 `shop_discount` (Coupon Book — PR2), `smash` (Sledge Hammer / Morning Star / Power
 Hammer — vase/trunks PR2+), `repellent`, `scepter`, `chronograph`, `crown_of_blueprints`,
-`gear_wrench`, `dowsing_rod`, and everything on `implemented: false` records.
+`gear_wrench`, `dowsing_rod`, `locksmith_rob`, and everything on `implemented: false`
+records.
+
+`locksmith_rob` (Powered Electromagnet, PR2): approaching the Locksmith while holding
+the Electromagnet robs it —
+- auto-collects the 24 basic wall keys (four racks of 6 each; occasionally fewer in
+  the real game — modeled as a flat 24, the `keys` param);
+- the Locksmith's SPECIAL key (Silver/Secret Garden/Prism/Car Keys slot) is NOT
+  collected: special keys are never auto-collected by the Electromagnet;
+- both key purchase options (1 key / set of 3) are disabled for the rest of the day.
+Source: https://blueprince.wiki.gg/wiki/Powered_Electromagnet.
 
 ### Keycard
 
 Stays on the existing locks.json mechanism (`has_keycard`); the `keycard` item record
-exists with `meta.blocked_on: null` and a note that spawning/state are handled by
-`engine/locks.py` — it is excluded from the generic spawn pipeline to avoid
-double-spawning, and the Lost & Found cannot steal it (matches its resource-adjacent
-handling in the real game's Security inventory... simplification, documented).
+exists with a note that spawning/state are handled by `engine/locks.py`. It is
+excluded from the generic SPAWN pipeline (to avoid double-spawning), but the Lost &
+Found CAN steal it — the steal special-cases `state.has_keycard` (set to False;
+re-findable later via the locks.py source-room rolls, standing in for the pool-return
+of other stolen items).
 
 ### Lost & Found room
 
@@ -188,8 +222,8 @@ unusual) — contrary to the stale CLAUDE.md note about seven absent rooms. PR1 
 its entry effect: tag `lost_and_found` on the room record (in rooms.json AND the
 ingest_sheet.py effect-overrides map, so re-ingest keeps it), delegating to
 `special_items.lost_and_found_on_enter`: steal one uniformly random held special item
-(keycard excluded; nothing if inventory empty), then grant two draws from the data
-pool (excluding already-held uniques; `die` grants a die).
+(the Keycard included, via `has_keycard`; nothing if nothing is held), then grant two
+draws from the data pool (excluding already-held uniques; `die` grants a die).
 
 ## Simplifications introduced (all documented in README known-simplifications + here)
 

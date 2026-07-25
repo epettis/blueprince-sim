@@ -36,7 +36,7 @@ KNOWN_ITEM_EFFECT_TAGS = {
     "set_steps_on_pickup", "steps_at_rank", "negate_red_once_per_day",
     # PR2+ / inert tags
     "shop_discount", "smash", "repellent", "scepter", "chronograph",
-    "crown_of_blueprints", "gear_wrench", "dowsing_rod",
+    "crown_of_blueprints", "gear_wrench", "dowsing_rod", "locksmith_rob",
 }
 VALID_ITEM_KINDS = {"standard", "special_key", "contraption", "showroom", "armory", "unique"}
 VALID_ITEM_PERSISTENCE = {"day", "until_used", "permanent"}

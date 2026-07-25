@@ -27,16 +27,17 @@ from .model import Effect
 KINDS = ("standard", "special_key", "contraption", "showroom", "armory", "unique")
 PERSISTENCE = ("day", "until_used", "permanent")
 
-# Items the generic spawn/steal pipeline must never touch: the Keycard is
-# owned by engine/locks.py (state.has_keycard), kept there so the security
-# door system stays self-contained.
+# Items the generic SPAWN pipeline must never touch: the Keycard is owned by
+# engine/locks.py (state.has_keycard), kept there so the security door system
+# stays self-contained. The Lost & Found can still steal it (it special-cases
+# has_keycard directly).
 PIPELINE_EXCLUDED = frozenset({"keycard"})
 
 
 @dataclass(frozen=True, slots=True)
 class SpecialItem:
-    id: str
-    name: str
+    id: str  # stable snake_case identifier, unique across special_items.json
+    name: str  # human-readable display name
     kind: str  # standard|special_key|contraption|showroom|armory|unique
     tier: int | None  # Trading Post tier 1-5; None = untradeable
     unique: bool  # at most one may be held
@@ -46,7 +47,7 @@ class SpecialItem:
     guaranteed_in: tuple[str, ...]  # room ids that always contain it on first entry
     effects: tuple[Effect, ...]  # behavior tags dispatched by the functions below
     implemented: bool  # False = inert record (meta.blocked_on says what's missing)
-    confidence: str = "wiki"
+    confidence: str = "wiki"  # data provenance: datamined > wiki > inferred > placeholder
 
     def effect(self, tag: str) -> Effect | None:
         """The item's effect record for ``tag``, or None if it doesn't carry it."""
@@ -58,8 +59,8 @@ class SpecialItem:
 
 @dataclass(frozen=True)
 class SpecialItemsRegistry:
-    items: tuple[SpecialItem, ...]
-    by_id: dict[str, SpecialItem]
+    items: tuple[SpecialItem, ...]  # every item, in special_items.json order
+    by_id: dict[str, SpecialItem]  # item id -> SpecialItem lookup
     spawn_rules: dict  # "spawn" section: special_share, high_luck_at
     dig_rules: dict  # "dig" section: tables, coin_pile_split, turnip_steps
     treasure_map: dict  # "treasure_map" section: cells, rewards
@@ -468,12 +469,20 @@ def lost_and_found_on_enter(game) -> None:
     registry = game.registry
     rng = game.rng
 
-    # Steal one random held item (keycard is PIPELINE_EXCLUDED, so it stays safe)
+    # Steal one random held item. The Keycard is stealable like anything else,
+    # but lives on state.has_keycard (engine/locks.py), not the inventory.
     held = [iid for iid, cnt in state.inventory.items()
             if cnt > 0 and iid not in PIPELINE_EXCLUDED]
+    if state.has_keycard:
+        held.append("keycard")
     if held:
         stolen_id = rng.choice("lost_and_found", held)
-        remove(state, stolen_id, consumed=True)
+        if stolen_id == "keycard":
+            # Re-findable later via the locks.py source-room rolls, matching
+            # the pool-return behavior of other stolen items well enough.
+            state.has_keycard = False
+        else:
+            remove(state, stolen_id, consumed=True)
 
     # Grant lost_and_found.gives draws from the pool
     lf = registry.special.lost_and_found

@@ -4,7 +4,7 @@ from blueprince_sim.config import GameConfig
 from blueprince_sim.engine import special_items as si
 from blueprince_sim.engine.game import Game
 from blueprince_sim.engine.grid import N
-from blueprince_sim.engine.locks import DOOR_LOCKED, segment_key
+from blueprince_sim.engine.locks import DOOR_LOCKED, DOOR_SECURITY, segment_key
 from blueprince_sim.engine.model import Registry
 from blueprince_sim.engine.state import GameState
 
@@ -122,6 +122,23 @@ def test_master_key_doorway_passable_with_no_keys():
     game.state.door_state[seg] = DOOR_LOCKED
     game.state.door_version += 1
     assert game.doorway_passable(game.state.pos, N)
+
+
+def test_master_key_cannot_open_security_door():
+    """The Master Key opens regular key locks only — never security doors.
+
+    A security segment stays gated on the keycard/power system: with the
+    security system unopenable, a Master Key holder is still blocked.
+    """
+    game = _game(frozenset({"master_key"}))
+    game.state.has_keycard = False
+    game.state.keycard_power_on = True  # powered readers, no card: unopenable
+    seg = segment_key(game.state.pos, N)
+    game.state.door_state[seg] = DOOR_SECURITY
+    game.state.door_version += 1
+    assert si.can_open_locked_free(game)  # the key itself is held and active
+    assert not game.security_openable()
+    assert not game.doorway_passable(game.state.pos, N)
 
 
 def test_master_key_keys_unchanged_on_passage():

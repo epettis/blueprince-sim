@@ -56,6 +56,8 @@ source .venv/bin/activate          # do this before pytest / ruff / blueprince-*
 - **Test observable behaviors, not data contents.** Don't write change-detector tests that read `data/*.json` values back through a lookup function (e.g. asserting a table entry equals the JSON number) — schema/range/referential checks belong in `tools/validate_data.py`. Assert what a player or agent can observe instead: "rank 1–3 doors are never locked", "a Corridor's doors are always open", not "the table says 25".
 - `tools/ingest_sheet.py` regenerates `rooms.json` from `tools/raw/` + `tools/supplemental_rooms.json`; hand-edits to `rooms.json` that aren't reflected in those sources will be lost on re-ingest. The ingest condition map does not encode the finer wing/rank/direction rules, so those refinements live directly in the committed `rooms.json`.
 - Keep `rooms.json` diffs minimal: it is written with 1-space indent and `ensure_ascii=True` (currency glyphs stay as `\uXXXX` escapes).
+- **Comment every dataclass member.** One short inline comment per field stating what it means and its units/encoding/sentinels (see `Room`, `GameState`, `SpecialItemsState`). A field whose comment is hard to write is usually a field that doesn't know what it stores.
+- **Describe data structures in docs as bulleted lists or commented code blocks, never comma-run prose.** A reader should be able to scan one field per line (see the `SpecialItemsState` block in `docs/special-items-design.md`), not parse a paragraph of `field: type` pairs separated by commas.
 
 ## Known gaps and deferred work
 

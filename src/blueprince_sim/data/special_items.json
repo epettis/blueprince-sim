@@ -1195,6 +1195,10 @@
     },
     {
      "tag": "auto_collect"
+    },
+    {
+     "tag": "locksmith_rob",
+     "keys": 24
     }
    ],
    "implemented": true,
@@ -1202,7 +1206,8 @@
     "source": "https://blueprince.wiki.gg/wiki/Powered_Electromagnet",
     "confidence": "wiki",
     "absent_spawn_rooms": [],
-    "blocked_on": null
+    "blocked_on": null,
+    "notes": "Robs the Locksmith on approach: auto-collects the 24 basic wall keys (four racks of 6; occasionally fewer) and disables both key purchase options for the rest of the day. The special key is NOT collected (special keys are never auto-collected). PR2 shop behavior."
    }
   },
   {

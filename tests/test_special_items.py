@@ -293,17 +293,18 @@ def test_lost_and_found_grants_two_gifts():
     assert log_after - log_before == 2
 
 
-def test_lost_and_found_does_not_steal_keycard():
-    """The Lost & Found cannot steal the Keycard — it is PIPELINE_EXCLUDED.
+def test_lost_and_found_steals_keycard():
+    """The Lost & Found can steal the Keycard even though it lives on
+    state.has_keycard (locks.py) rather than the inventory.
 
-    The Keycard is handled by locks.py; stealing it would break the security-door model.
+    With the Keycard as the only held item it must be the steal target,
+    leaving the security-door system without a card.
     """
     cfg = GameConfig(studio_additions=frozenset({"lost_and_found"}))
     g = Game(cfg, seed=3)
     g.state.has_keycard = True
-    g.state.inventory["keycard"] = 1
     si.lost_and_found_on_enter(g)
-    assert g.state.inventory.get("keycard", 0) == 1
+    assert not g.state.has_keycard
 
 
 # ---------------------------------------------------------- spawn system
