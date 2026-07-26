@@ -120,8 +120,9 @@ td:first-child, th:first-child { text-align: left; }
 #house svg { height: 100%; max-width: 100%; }
 
 #detail-panel {
-  grid-area: detail; border-left: 1px solid var(--line); overflow-y: auto;
+  grid-area: detail; border-left: 1px solid var(--line); overflow-y: hidden;
   background: var(--panel); padding: 12px 14px; font-size: 13px;
+  display: flex; flex-direction: column;
 }
 #run-title { font-size: 13px; margin-bottom: 4px; }
 #move-line { font-size: 15px; font-weight: 600; margin-bottom: 10px; }
@@ -135,6 +136,13 @@ td:first-child, th:first-child { text-align: left; }
 #mode-line .explore { color: var(--explore); }
 #mode-line .exploit { color: var(--dim); font-weight: 400; }
 .panel-head { font-size: 11px; color: var(--dim); text-transform: uppercase; letter-spacing: .06em; margin: 12px 0 6px; }
+/* Fixed-height options area: 3 rows × 52px each = 156px; never collapses. */
+#options {
+  min-height: 156px; height: 156px; overflow-y: hidden;
+  display: flex; flex-direction: column; justify-content: flex-start;
+  flex-shrink: 0;
+}
+#options-placeholder { padding: 4px 2px; color: var(--dim); font-size: 12px; }
 .opt {
   display: flex; gap: 10px; align-items: center; background: var(--panel2);
   border: 1px solid var(--line); border-radius: 7px; padding: 6px 9px; margin-bottom: 6px;
@@ -144,7 +152,10 @@ td:first-child, th:first-child { text-align: left; }
 .opt .sub { font-size: 11px; color: var(--dim); }
 .opt .cost { margin-left: auto; text-align: right; font-variant-numeric: tabular-nums; }
 .opt.unaffordable { opacity: .45; }
-#action-log { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; }
+#action-log {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px;
+  overflow-y: auto; flex: 1; min-height: 0;
+}
 .log-row { padding: 1px 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .log-row .n { color: var(--dim); display: inline-block; width: 38px; }
 .log-row.explore { color: var(--explore); font-weight: 700; }
@@ -161,3 +172,13 @@ td:first-child, th:first-child { text-align: left; }
 #controls button:hover { border-color: var(--accent); }
 #pb-slider { flex: 1; accent-color: var(--accent); }
 #pb-pos { min-width: 90px; text-align: right; font-variant-numeric: tabular-nums; }
+
+/* ------------------------------------------------- scepter color tints */
+/* Muted tint applied to #house-panel background when a scepter color is active.
+   Hues match the room CAT_COLOR values in app.js at ~12% opacity over --bg. */
+#house-panel.scepter-blueprint { background: rgba(74, 127, 212, 0.12); }
+#house-panel.scepter-green     { background: rgba(76, 175, 80,  0.12); }
+#house-panel.scepter-red       { background: rgba(217, 83, 79,  0.12); }
+#house-panel.scepter-bedroom   { background: rgba(180, 92, 192, 0.12); }
+#house-panel.scepter-hallway   { background: rgba(185, 154, 58, 0.12); }
+#house-panel.scepter-shop      { background: rgba(217, 192, 74, 0.12); }

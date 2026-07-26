@@ -152,6 +152,38 @@ def test_observatory_runs_index_and_frames(tmp_path: Path):
     assert obs.run_frames(999) is None
 
 
+def test_frame_includes_scepter_color():
+    """Every frame carries scepter_color: null when the scepter is inactive,
+    the category string (e.g. 'green') once state.shops.scepter_color is set.
+
+    The field must always be present in the serialized frame dict; its value
+    is either None or one of the six SCEPTER_COLORS strings from shops.py.
+    """
+    from blueprince_sim.env.blueprince_env import BluePrinceEnv
+    from blueprince_sim.engine.shops import SCEPTER_COLORS
+    from blueprince_sim.rl.train import all_unlocks_config
+
+    # Fresh reset with no Royal Scepter configured: field is present and null.
+    env = BluePrinceEnv(cfg=all_unlocks_config("shaped"))
+    env.reset(seed=1)
+    assert env.game.state.shops.scepter_color is None
+    frame = replay._frame(env.game, None, "N")
+    assert "scepter_color" in frame
+    assert frame["scepter_color"] is None
+
+    # Manually activate the scepter: frame reflects the live state.
+    env.game.state.shops.scepter_color = "green"
+    frame_active = replay._frame(env.game, None, "N")
+    assert frame_active["scepter_color"] == "green"
+
+    # Full episode round-trip: every frame has the key; its value is either
+    # None or a valid scepter color (the episode may or may not activate it).
+    record, _ = _play_random_episode(seed=7)
+    frames = replay.build_frames(record)
+    valid = set(SCEPTER_COLORS) | {None}
+    assert all("scepter_color" in f and f["scepter_color"] in valid for f in frames)
+
+
 def test_metrics_merge_and_downsample(tmp_path: Path):
     """Observatory metrics drop duplicate checkpoint samples and serve the
     eval series alongside the training series."""

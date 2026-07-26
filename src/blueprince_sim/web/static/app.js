@@ -532,7 +532,6 @@ function renderFrame() {
     chosenSlot = Number(act.text.match(/^choose #(\d)/)[1]) - 1;
   }
   if (pend) {
-    $("#options-head").classList.remove("hidden");
     $("#options-head").textContent =
       `Draft options — facing ${pend.direction || "?"}` + (chosenSlot != null ? " (picked)" : "");
     $("#options").innerHTML = pend.options.map((o) => {
@@ -546,19 +545,35 @@ function renderFrame() {
         <div class="cost">${o.cost > 0 ? o.cost + " 💎" : "free"}</div></div>`;
     }).join("");
   } else {
-    $("#options-head").classList.add("hidden");
-    $("#options").innerHTML = "";
+    $("#options-head").textContent = "Draft options";
+    $("#options").innerHTML = '<div id="options-placeholder">— no draft in progress —</div>';
   }
 
-  const lo = Math.max(1, idx - 9);
+  // Scepter color tint on the board area
+  const housePanel = $("#house-panel");
+  const SCEPTER_CLASSES = ["blueprint", "green", "red", "bedroom", "hallway", "shop"]
+    .map((c) => `scepter-${c}`);
+  for (const cls of SCEPTER_CLASSES) housePanel.classList.remove(cls);
+  if (frame.scepter_color) housePanel.classList.add(`scepter-${frame.scepter_color}`);
+
+  // Action log: full history, scroll-locked to newest unless user scrolled up.
+  const logEl = $("#action-log");
+  const atBottom = logEl.scrollHeight - logEl.scrollTop - logEl.clientHeight < 4;
   let log = "";
-  for (let i = lo; i <= idx; i++) {
+  for (let i = 1; i <= idx; i++) {
     const a = run.frames[i].action;
     if (!a) continue;
-    log += `<div class="log-row${a.explore ? " explore" : ""}${i === idx ? " current" : ""}">
+    log += `<div class="log-row${a.explore ? " explore" : ""}${i === idx ? " current" : ""}" data-move="${i}">
       <span class="n">${i}</span>${esc(a.text)}</div>`;
   }
-  $("#action-log").innerHTML = log || '<div class="dim">—</div>';
+  logEl.innerHTML = log || '<div class="dim">—</div>';
+  // The current row is always the LAST rendered row (log runs 1..idx), so
+  // "keep the current move visible" reduces to "stay pinned to the bottom" —
+  // but only when the user was already there. If they scrolled up to read
+  // history, never yank them down mid-playback.
+  if (atBottom) {
+    logEl.scrollTop = logEl.scrollHeight;
+  }
 
   const slider = $("#pb-slider");
   slider.value = idx;
