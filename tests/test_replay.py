@@ -53,7 +53,8 @@ def test_replay_roundtrip_matches_live_episode():
     frame per action plus the reset state, with matching outcome and explore
     flags decoded from the modes string."""
     record, info = _play_random_episode(seed=99)
-    frames = replay.build_frames(record)
+    frames, divergence = replay.build_frames(record)
+    assert divergence is None  # single-day record must replay cleanly
     assert len(frames) == len(record["actions"]) + 1
     last = frames[-1]
     assert last["reason"] == info["termination_reason"]
@@ -69,11 +70,12 @@ def test_replay_roundtrip_matches_live_episode():
 
 def test_replay_is_deterministic():
     """build_frames is a pure function of the record: rebuilding twice gives
-    identical frames."""
+    identical frames and divergence info."""
     record, _ = _play_random_episode(seed=7)
-    a = replay.build_frames(record)
-    b = replay.build_frames(record)
-    assert a == b
+    a_frames, a_div = replay.build_frames(record)
+    b_frames, b_div = replay.build_frames(record)
+    assert a_frames == b_frames
+    assert a_div == b_div
 
 
 def test_describe_action_navigate_and_draft():
@@ -149,6 +151,7 @@ def test_observatory_runs_index_and_frames(tmp_path: Path):
 
     data = obs.run_frames(3)
     assert data is not None and len(data["frames"]) == len(record["actions"]) + 1
+    assert "divergence" in data  # key always present; None = clean replay
     assert obs.run_frames(999) is None
 
 
@@ -179,7 +182,7 @@ def test_frame_includes_scepter_color():
     # Full episode round-trip: every frame has the key; its value is either
     # None or a valid scepter color (the episode may or may not activate it).
     record, _ = _play_random_episode(seed=7)
-    frames = replay.build_frames(record)
+    frames, _div = replay.build_frames(record)
     valid = set(SCEPTER_COLORS) | {None}
     assert all("scepter_color" in f and f["scepter_color"] in valid for f in frames)
 

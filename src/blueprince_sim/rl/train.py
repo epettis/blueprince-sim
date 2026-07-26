@@ -82,11 +82,21 @@ def make_single_env(reward: str, seed: int, multi_day: int = 0):
 class EpisodeRecorder:
     """Samples finished episodes to ``<ckpt_dir>/replays.jsonl`` for the web replay UI.
 
-    An episode is stored as its seed plus the action sequence (determinism
-    given a seed is a tested engine invariant, so this reconstructs the run
-    exactly). Retention: a random ``sample_rate`` slice, plus the best episode
-    of every ``top_every``-episode window, scored (win, deepest_rank,
-    rooms_placed). ``modes`` is a 0/1 string per action ('0' = explore).
+    An episode is stored as its seed plus the action sequence.  In single-day
+    mode (no DayChain) the seed+actions pair reconstructs the run exactly, since
+    engine determinism is a tested invariant.  In multi-day mode the starting
+    conditions vary per day (day index, carry-over items/flags/bans), so the
+    record also carries ``"day_config"`` — a JSON-serializable diff of the
+    episode's ``GameConfig`` vs. the chain's base config.  ``replay.build_frames``
+    uses ``day_config`` to reconstruct the exact conditions; without it, the
+    replayed draft hands will diverge from the recorded run.  Records without
+    ``"day_config"`` (written before this field was added) are legacy and may
+    diverge; the replay UI will flag the divergence rather than silently
+    rendering an incomplete house.
+
+    Retention: a random ``sample_rate`` slice, plus the best episode of every
+    ``top_every``-episode window, scored (win, deepest_rank, rooms_placed).
+    ``modes`` is a 0/1 string per action ('0' = explore).
     """
 
     def __init__(self, path: Path, n_envs: int, reward: str, sample_rate: float,
@@ -131,6 +141,11 @@ class EpisodeRecorder:
             "reason": info.get("termination_reason"),
             "saved_at": time.strftime("%Y-%m-%dT%H:%M:%S"),
         }
+        # Only include day_config when present (multi-day mode); omit the key
+        # entirely for single-day records so their format stays byte-identical.
+        day_config = info.get("day_config")
+        if day_config is not None:
+            record["day_config"] = day_config
         if self.top_every:
             window = episode // self.top_every
             if window != self._window:

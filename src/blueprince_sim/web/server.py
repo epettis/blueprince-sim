@@ -152,12 +152,13 @@ class Observatory:
             if cached is not None:
                 self._frames_cache.move_to_end(episode)
                 return cached
-        frames = replay.build_frames(rec)
+        frames, divergence = replay.build_frames(rec)
         result = {
             "episode": episode, "seed": rec["seed"], "win": rec.get("win", False),
             "deepest_rank": rec.get("deepest_rank", 0),
             "reason": rec.get("reason"), "top": rec.get("top", False),
             "frames": frames,
+            "divergence": divergence,
         }
         with self._lock:
             self._frames_cache[episode] = result

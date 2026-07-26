@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import dataclasses
+
 import numpy as np
 import gymnasium
 from gymnasium import spaces
@@ -12,6 +14,44 @@ from . import actions as A
 from . import obs as O
 from .multiday import DayChain
 from .rewards import REWARDS, RewardFn, snapshot
+
+
+def _serialize_config_value(v):
+    """Coerce a GameConfig field value to a JSON-serializable form, or return None if not serializable.
+
+    Rules:
+    - frozenset[str] -> sorted list[str]
+    - bool, int, str -> pass through
+    - anything else (e.g. Path) -> None (skip)
+    """
+    if isinstance(v, frozenset):
+        return sorted(v)
+    if isinstance(v, (bool, int, str)):
+        return v
+    # Path, None, and anything else: not serializable for our purposes
+    return None
+
+
+def _day_config_diff(day_cfg: GameConfig, base_cfg: GameConfig) -> dict:
+    """Return a JSON-serializable dict of fields where day_cfg differs from base_cfg.
+
+    Iterates dataclasses.fields(GameConfig) generically so new per-day fields
+    are captured automatically.  Fields whose values are not JSON-serializable
+    (e.g. data_dir: Path | None) are silently skipped.
+    Only fields that differ are included.
+    """
+    diff = {}
+    for f in dataclasses.fields(GameConfig):
+        day_val = getattr(day_cfg, f.name)
+        base_val = getattr(base_cfg, f.name)
+        if day_val == base_val:
+            continue
+        serialized = _serialize_config_value(day_val)
+        if serialized is None and not isinstance(day_val, (bool, int, str)):
+            # Not serializable (Path, etc.) — skip
+            continue
+        diff[f.name] = serialized
+    return diff
 
 
 class BluePrinceEnv(gymnasium.Env):
@@ -56,6 +96,10 @@ class BluePrinceEnv(gymnasium.Env):
         # captured at reset() so it remains stable even after advance() mutates
         # day_chain.carried_flags at episode end.
         self._episode_carryover: dict[str, bool] = {}
+        # JSON-serializable diff of this episode's GameConfig vs. the chain's
+        # base_cfg; only present (non-empty) when a day_chain is active.
+        # Captured at reset() for use in info["day_config"].
+        self._episode_day_config: dict = {}
 
     def reset(self, *, seed: int | None = None, options: dict | None = None):
         """Start a new day, returning ``(obs, info)``.
@@ -68,7 +112,10 @@ class BluePrinceEnv(gymnasium.Env):
         When a ``day_chain`` is active, the day's ``GameConfig`` comes from
         ``day_chain.next_config()`` so the correct day index and carry-over
         flags are applied.  The registry is reused from the previous episode to
-        avoid re-parsing data files on every reset.
+        avoid re-parsing data files on every reset.  A JSON-serializable diff
+        of the day's config vs. the chain's base config is captured in
+        ``_episode_day_config`` and exposed as ``info["day_config"]`` so
+        recorders can store it for faithful replay.
         """
         super().reset(seed=seed)
         game_seed = seed if seed is not None else int(self.np_random.integers(0, 2**31))
@@ -79,8 +126,12 @@ class BluePrinceEnv(gymnasium.Env):
             # Build a fresh Game for this day's config, reusing the loaded registry.
             day_cfg = self.day_chain.next_config()
             self.game = Game(day_cfg, seed=game_seed, registry=self.game.registry)
+            # Capture the config diff for replay: snapshot AFTER next_config()
+            # so we have the full per-day GameConfig to compare.
+            self._episode_day_config = _day_config_diff(day_cfg, self.day_chain.base_cfg)
         else:
             self._episode_carryover = {}
+            self._episode_day_config = {}
             self.game.reset(game_seed)
         self._env_steps = 0
         self._episode_seed = game_seed
@@ -138,10 +189,13 @@ class BluePrinceEnv(gymnasium.Env):
     def _info(self, mask: list[bool] | None = None) -> dict:
         """Per-step info dict; pass ``mask`` to reuse an already-computed action mask.
 
-        When a ``day_chain`` is active, two extra keys are included:
-        ``"day"`` (1-based in-game day for the *current* episode) and
+        When a ``day_chain`` is active, three extra keys are included:
+        ``"day"`` (1-based in-game day for the *current* episode),
         ``"carryover"`` (the dict of carry-over flags that were active at
-        the *start* of this day, i.e. what ``day_chain.next_config()`` used).
+        the *start* of this day, i.e. what ``day_chain.next_config()`` used),
+        and ``"day_config"`` (a JSON-serializable dict of GameConfig fields
+        that differ from the chain's base_cfg — used by EpisodeRecorder so
+        replay.build_frames can reconstruct the day's exact conditions).
         These are present at every step so callers can read day progress
         without waiting for episode end.
         """
@@ -162,6 +216,10 @@ class BluePrinceEnv(gymnasium.Env):
             # flags that were active at the START of this day.  This is stable
             # even after advance() mutates day_chain.carried_flags at episode end.
             info["carryover"] = self._episode_carryover
+            # _episode_day_config is the JSON-serializable diff of this day's
+            # GameConfig vs. the chain's base_cfg, captured at reset() time.
+            # Recorders store this so replay can reconstruct the exact conditions.
+            info["day_config"] = self._episode_day_config
         return info
 
 
