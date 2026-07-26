@@ -1,7 +1,8 @@
 # Upgrade Disk draw mechanism — design
 
 Status: **spec-ready**, not implemented. Owner decisions recorded 2026-07-26.
-Supersedes the "random room" sketch in `docs/open_tasks.md` §2 decision 1.
+Authoritative for the draw mechanism; `docs/open_tasks.md` §2 covers the
+surrounding task (disk sources, terminal rooms, supply).
 
 Scope of this document: **how inserting a disk picks which room gets upgraded,
 and how the chosen upgrade takes effect.** Writing the individual upgrade
@@ -174,10 +175,9 @@ Once all 16 upgrades are applied, selection becomes a flat 1/15 over slots and
 the chosen slot's upgrade is **re-offered for replacement** — the player picks a
 different variant for a room already upgraded.
 
-This contradicts `open_tasks.md` §2 decision 4 ("track applied upgrades so a
-room is never offered twice"). The wiki behavior wins; the decision was written
-before the tables were found. Low practical impact — reaching saturation needs
-all 16 disks.
+So a room is not retired once upgraded — the tracking of applied upgrades exists
+to steer the chain walk, not to permanently exclude a room. Low practical impact
+either way: reaching saturation needs all 16 disks.
 
 ## New state
 
