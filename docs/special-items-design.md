@@ -404,6 +404,60 @@ chip_dug: bool                 # West Path chip dug today (discovery)
 gift_unlocks: list[str]        # one-time Gift Shop purchases made today (carry-over feed)
 ```
 
+## PR3 — env wiring (the single retrain point)
+
+Everything appends to the existing interface: no existing obs key changes shape and
+no existing action id moves, so the diff is reviewable and old replays stay
+decodable up to id 240. Trained checkpoints DO break (new obs keys + Discrete
+grows) — that is this PR's purpose.
+
+### Observation additions (`env/obs.py`, new Dict keys)
+
+```python
+"inventory":    Box(0, 99,  (n_items,),  int16)  # count per special item, registry order
+"item_state":   Box(-1, 999, (10,),      int16)  # per-day counters, order below
+"grid_dig":     Box(0, 9,   (9, 5),     uint8)  # dig spots REMAINING per cell
+"shop_stock":   Box(-1, 999, (6, 5),     int16)  # current shop's display entries
+"trade_offers": Box(-1, 999, (8, 2),     int16)  # inside the Trading Post
+"fabricate":    Box(0, 1,   (n_recipes,), uint8) # buildable-now mask, recipe order
+```
+
+- `item_state` order: stopwatch_left, water, lockpick_attempts, lockpick_fails,
+  shield_used, trades_left (trades_per_day − trades_done), scepter_color index+1
+  (0 = not activated), treasure_cell+1 (0 = no map read), treasure_dug,
+  dining_room_served.
+- `shop_stock` row (rows −1 when absent / not in a shop): item registry idx+1
+  (0 for resource entries), resource code (0 none, 1 coins, 2 keys, 3 gems,
+  4 dice, 5 food — dish identity is not exposed, noted simplification), resolved
+  price, sold_out, affordable. Display index i == buy action i.
+- `trade_offers` row: give item idx+1, receive item idx+1 (0 = dice). Offer
+  index i == trade action i.
+- `fabricate` indexes `registry.special.fabrication` order (stable data order).
+
+### Action additions (`env/actions.py`, appended; N_ACTIONS 241 → 270)
+
+```python
+BUY_BASE        = 241  # 241..246: buy current shop display entry 0..5
+TRADE_BASE      = 247  # 247..254: trade offer 0..7 (inside the Trading Post)
+FABRICATE_BASE  = 255  # 255..262: fabricate recipe 0..7 (in the Workshop)
+SCEPTER_BASE    = 263  # 263..268: activate the Royal Scepter color 0..5
+SMASH_VASE_ACTION = 269
+```
+
+- Masks: buy i ⇔ in a shop, i < len(stock), not sold_out, affordable; trade i ⇔
+  offer i exists; fabricate i ⇔ standing in the Workshop and the recipe's output
+  is in fabricate_options(); scepter i ⇔ can_activate_scepter(); vase ⇔
+  can_smash_vase(). SCEPTER color order = shops.SCEPTER_COLORS.
+- **Move-to re-entry extension**: the walk-to mask (196..240) previously allowed
+  only unentered rooms and the control rooms. It now also allows re-entering:
+  a shop cell whose stock still has a buyable entry, the Workshop while
+  fabricate_options() is non-empty, and a Dining Room whose main course is still
+  pending with the rank-8 gate open — otherwise the new actions are unreachable
+  after first entry.
+- Reward note: no reward change in PR3. The shaped/phased rewards value coins but
+  not held items, so purchases look locally negative to them — a known watch-for
+  for the first retrain, tune in a follow-up if it suppresses shopping.
+
 ## Test plan (per CLAUDE.md conventions: observable behavior, docstrings)
 
 - `tests/test_special_items.py` — core: spawn determinism per seed; unique items never

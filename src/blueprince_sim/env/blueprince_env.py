@@ -30,7 +30,11 @@ class BluePrinceEnv(gymnasium.Env):
         self.reward_fn = reward_fn or REWARDS[self.cfg.reward]
         self.render_mode = render_mode
         self.action_space = spaces.Discrete(A.N_ACTIONS)
-        self.observation_space = O.observation_space(len(self.game.registry.rooms))
+        self.observation_space = O.observation_space(
+            len(self.game.registry.rooms),
+            len(self.game.registry.special.items),
+            len(self.game.registry.special.fabrication),
+        )
         self._env_steps = 0
         self.max_env_steps = 1000
         self._episode_seed = 0

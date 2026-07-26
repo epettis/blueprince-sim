@@ -362,20 +362,24 @@ def current_shop_id(game) -> str | None:
     return None
 
 
-def stock_for(game) -> list | None:
-    """Today's purchasable entries for the shop the player stands in, with
-    resolved prices (sale + Coupon Book applied) and sold/limit state.
-    None when not in a shop. Task B."""
-    shop_id = current_shop_id(game)
-    if shop_id is None:
-        return None
+def stock_display(game, shop_id: str) -> list:
+    """Resolved display entries for a given shop_id using the current game state.
+
+    Position-independent: caller supplies ``shop_id`` rather than deriving it
+    from ``state.pos``.  Returns [] when stock has not been rolled for this shop
+    yet (first-entry rolling happens on_enter_shop; before that the shop's stock
+    dict entry is absent).
+
+    This is the shared pricing/sold-out logic consumed by both ``stock_for``
+    (current-shop path, checks position first) and the action-mask walk-to
+    re-entry check (needs to peek at arbitrary cell shops without moving there).
+    """
     state = game.state
     if shop_id not in state.shops.stock:
-        return None
+        return []
 
     sale_days = game.registry.shop_rules.sale.get("days", [])
     is_sale = state.day in sale_days
-
     has_coupon = si._has_item_effect(state, game.registry, "shop_discount")
 
     stored = state.shops.stock[shop_id]
@@ -423,12 +427,17 @@ def stock_for(game) -> list | None:
             if entry.get("id") in ("key", "set_of_3_keys") and not entry.get("special_key"):
                 sold_out = True
 
+        # Containers (Cursed Coffers) need their opener in hand to be buyable.
+        requires = entry.get("requires_item")
+        blocked = bool(requires) and not si.has(state, requires)
+
         display.append({
             "id": entry.get("id"),
             "kind": entry.get("kind"),
             "price": raw_price,
             "sold_out": sold_out,
             "affordable": state.coins >= raw_price,
+            "blocked": blocked,
         })
 
     # Showroom: append trophy once all stored entries sold
@@ -446,9 +455,22 @@ def stock_for(game) -> list | None:
                 "price": raw_price,
                 "sold_out": False,
                 "affordable": state.coins >= raw_price,
+                "blocked": False,
             })
 
     return display
+
+
+def stock_for(game) -> list | None:
+    """Today's purchasable entries for the shop the player stands in, with
+    resolved prices (sale + Coupon Book applied) and sold/limit state.
+    None when not in a shop or stock not yet rolled. Task B."""
+    shop_id = current_shop_id(game)
+    if shop_id is None:
+        return None
+    if shop_id not in game.state.shops.stock:
+        return None
+    return stock_display(game, shop_id)
 
 
 def buy(game, index: int) -> None:
@@ -465,6 +487,7 @@ def buy(game, index: int) -> None:
     d = display[index]
     assert not d["sold_out"], "entry is sold out"
     assert d["affordable"], "cannot afford this entry"
+    assert not d.get("blocked"), "entry requires an item not held"
 
     price = d["price"]
     state.coins -= price
