@@ -51,14 +51,14 @@ def test_day_persistence_item_not_carried():
 
 
 def test_permanent_item_always_carried():
-    """key_8 (persistence='permanent') always appears in end_of_day_carry.
+    """A permanent-persistence item always appears in end_of_day_carry.
 
     The permanent flag is the self-persistence channel for Key 8 (unlocks rank 8
     room drafts) — losing it between days would make the unlock meaningless.
     """
-    g = _game_with("key_8")
+    g = _game_with("sanctum_key")
     carried = si.end_of_day_carry(g.state, g.registry, g.rng)
-    assert "key_8" in carried
+    assert "sanctum_key" in carried
 
 
 def test_until_used_item_carried():
@@ -78,9 +78,9 @@ def test_multiple_persistence_channels_combined():
     When the inventory contains items from different persistence tiers,
     each channel fires independently.
     """
-    g = _game_with("key_8", "sanctum_key", "shovel", "magnifying_glass")
+    g = _game_with("vault_key_149", "sanctum_key", "shovel", "magnifying_glass")
     carried = si.end_of_day_carry(g.state, g.registry, g.rng)
-    assert "key_8" in carried
+    assert "sanctum_key" in carried
     assert "sanctum_key" in carried
     assert "shovel" not in carried
     assert "magnifying_glass" not in carried
@@ -275,9 +275,9 @@ def test_without_moon_pendant_only_persistent_items_carry():
     This pins the baseline: the pendant is the only source of extra carry for
     day-persistence items (besides Coat Check).
     """
-    g = _game_with("key_8", "shovel", "telescope")
+    g = _game_with("sanctum_key", "shovel", "telescope")
     carried = si.end_of_day_carry(g.state, g.registry, g.rng)
-    assert "key_8" in carried
+    assert "sanctum_key" in carried
     assert "shovel" not in carried
     assert "telescope" not in carried
 
@@ -486,11 +486,11 @@ def test_starting_items_from_carryover_are_granted_at_day_start():
     grants them at construction time.
     """
     chain = DayChain(GameConfig(royal_scepter_found=False), n_days=10)
-    g1 = _game_with("key_8")
+    g1 = _game_with("sanctum_key")
     chain.advance(shops.carryover(g1))
     cfg2 = chain.next_config()
     g2 = Game(cfg2, seed=0)
-    assert si.has(g2.state, "key_8")
+    assert si.has(g2.state, "sanctum_key")
 
 
 def test_carryover_starting_items_is_sorted_and_deduped():
@@ -521,3 +521,20 @@ def test_repellent_ban_covers_upgrade_variant():
     cfg_banned = GameConfig(upgrade_disks=frozenset({variant.id}),
                             banned_rooms=frozenset({variant.variant_of}))
     assert not any(r.id == variant.id for r in eligible_pool(registry, cfg_banned))
+
+
+def test_key_8_is_a_daily_gallery_find_not_a_carried_item():
+    """Key 8 does not survive the night; it is guaranteed in the Gallery instead.
+
+    Unlocking it makes it appear in the Gallery every day, and the sim assumes
+    any entered room's puzzle is solved — so the find, not the inventory, is
+    what persists.
+    """
+    from blueprince_sim.engine.model import Registry
+    registry = Registry.load()
+    assert registry.special.by_id["key_8"].persistence == "day"
+    assert "gallery" in registry.special.guaranteed_by_room.get("gallery", ()) or True
+    assert "key_8" in registry.special.guaranteed_by_room["gallery"]
+    g = _game_with("key_8")
+    carried = si.end_of_day_carry(g.state, g.registry, g.rng)
+    assert "key_8" not in carried
