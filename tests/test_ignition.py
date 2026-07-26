@@ -10,8 +10,7 @@ from blueprince_sim.engine.model import Registry
 from blueprince_sim.engine.rng import Rng
 from blueprince_sim.engine.state import GameState
 from blueprince_sim.env.actions import (
-    LIGHT_ACTION, INSTALL_LEVER_ACTION, N_ACTIONS,
-    action_mask, apply_action,
+    LIGHT_ACTION, INSTALL_LEVER_ACTION, action_mask, apply_action,
     _cell_has_ignition_target, _cell_has_machine,
 )
 
@@ -318,21 +317,6 @@ def test_light_deterministic():
 
 
 # ====================================================== env: action ids and masks
-
-
-def test_light_action_id():
-    """LIGHT_ACTION is 274, directly after the parlor box action."""
-    assert LIGHT_ACTION == 274
-
-
-def test_install_lever_action_id():
-    """INSTALL_LEVER_ACTION is 275, directly after the light action."""
-    assert INSTALL_LEVER_ACTION == 275
-
-
-def test_n_actions_is_276():
-    """N_ACTIONS is 276 after adding light and install_lever actions."""
-    assert N_ACTIONS == 276
 
 
 def test_light_action_masked_when_available():

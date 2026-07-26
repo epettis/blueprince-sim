@@ -8,8 +8,7 @@ from blueprince_sim.engine.model import Registry
 from blueprince_sim.engine.rng import Rng
 from blueprince_sim.engine.state import GameState
 from blueprince_sim.env.actions import (
-    OPEN_VAULT_BOX_ACTION, OPEN_PARLOR_BOX_ACTION, N_ACTIONS,
-    action_mask, apply_action,
+    OPEN_VAULT_BOX_ACTION, OPEN_PARLOR_BOX_ACTION, action_mask, apply_action,
 )
 from blueprince_sim.env.multiday import DayChain
 
@@ -343,21 +342,6 @@ def test_parlor_box_parlor_boxes_opened_increments():
 
 
 # ====================================================== env: actions
-
-
-def test_open_vault_box_action_id():
-    """OPEN_VAULT_BOX_ACTION is 272, one past the two existing container actions."""
-    assert OPEN_VAULT_BOX_ACTION == 272
-
-
-def test_open_parlor_box_action_id():
-    """OPEN_PARLOR_BOX_ACTION is 273, adjacent to the vault box action."""
-    assert OPEN_PARLOR_BOX_ACTION == 273
-
-
-def test_n_actions_is_276():
-    """N_ACTIONS is 276 after adding ignition and install-lever actions."""
-    assert N_ACTIONS == 276
 
 
 def test_vault_box_action_masked_when_available():

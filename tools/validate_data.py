@@ -250,6 +250,9 @@ def main() -> int:
                         f"special_items dig/{table_name}: item outcome references unknown id {rid!r}"
                     )
 
+    # Valid grant kinds inside a loot entry's grants list
+    VALID_GRANT_KINDS = {"coins", "keys", "gems", "dice", "item", "keycard"}
+
     # containers section
     containers_doc = si_doc.get("containers", {})
     containers_kinds = containers_doc.get("kinds", {})
@@ -258,15 +261,33 @@ def main() -> int:
         loot = kind_cfg.get("loot", [])
         if loot:
             total_w = sum(entry.get("weight", 0) for entry in loot)
-            if abs(total_w - 100.0) > 0.5:
-                errors.append(f"{where}: loot weights sum to {total_w:.4f}, expected ~100")
+            # Weights can use any consistent scale (normalised at runtime); just
+            # require positive total and no negative entries.
+            if total_w <= 0:
+                errors.append(f"{where}: loot weights sum to {total_w:.4f}, must be > 0")
             for entry in loot:
-                if entry.get("kind") == "item":
-                    iid = entry.get("id")
-                    if iid not in si_by_id:
-                        errors.append(f"{where}: loot item id {iid!r} not in special_items")
+                if entry.get("weight", 0) < 0:
+                    errors.append(f"{where}: loot entry has negative weight")
+            for entry in loot:
+                # New schema: grants list
+                grants = entry.get("grants")
+                if grants is not None:
+                    for g in grants:
+                        gkind = g.get("kind")
+                        if gkind not in VALID_GRANT_KINDS:
+                            errors.append(f"{where}: grant kind {gkind!r} not in {sorted(VALID_GRANT_KINDS)}")
+                        if gkind == "item":
+                            iid = g.get("id")
+                            if iid not in si_by_id:
+                                errors.append(f"{where}: grant item id {iid!r} not in special_items")
+                else:
+                    # Legacy single-grant top-level kind
+                    if entry.get("kind") == "item":
+                        iid = entry.get("id")
+                        if iid not in si_by_id:
+                            errors.append(f"{where}: loot item id {iid!r} not in special_items")
         for opener in kind_cfg.get("opener", []):
-            if opener not in ("smash", "key"):
+            if opener not in ("smash", "key", "key_only"):
                 errors.append(f"{where}: unknown opener {opener!r}")
     containers_rooms = containers_doc.get("rooms", {})
     for room_id, kinds in containers_rooms.items():

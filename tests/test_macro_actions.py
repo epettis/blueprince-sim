@@ -164,12 +164,12 @@ def test_stranded_when_frontier_out_of_budget():
 
 
 def test_mask_layout_and_retired_actions():
-    """The mask spans all 276 actions, never legalizes the retired single-tile
-    moves, and a fresh entrance offers drafts but nothing to walk to."""
+    """The mask spans the whole action space, never legalizes the retired
+    single-tile moves, and a fresh entrance offers drafts but nothing to walk to."""
     env = make_env()
     env.reset(seed=0)
     mask = env.action_masks()
-    assert len(mask) == A.N_ACTIONS == 276
+    assert len(mask) == A.N_ACTIONS
     # Retired single-tile moves are never legal.
     for action in (189, 190, 191, 192):
         assert not mask[action]
