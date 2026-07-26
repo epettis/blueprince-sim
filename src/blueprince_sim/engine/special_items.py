@@ -692,6 +692,31 @@ def stopwatch_waives_gems(game, cost: int) -> bool:
     return False
 
 
+def inventory_value(state, registry) -> float:
+    """Reward-shaping worth of the held special items.
+
+    Each item counts its Trading Post tier's value from items.json
+    special_item_values (untradeable items use the flat value). Purely a
+    shaping/reporting number — no game rule reads it. Keeping it here (not in
+    rewards.py) keeps the tier lookup beside the item registry it indexes.
+    """
+    if not state.inventory:
+        return 0.0
+    values = registry.item_rules.get("special_item_values", {})
+    by_tier = values.get("by_tier", {})
+    flat = values.get("untradeable", 0.0)
+    total = 0.0
+    for item_id, cnt in state.inventory.items():
+        if cnt <= 0:
+            continue
+        item = registry.special.by_id.get(item_id)
+        if item is None:
+            continue
+        worth = by_tier.get(str(item.tier), flat) if item.tier is not None else flat
+        total += worth * cnt
+    return total
+
+
 def luck_bonus(state, registry) -> int:
     """Flat luck added while lucky charms are held (Rabbit's Foot / Lucky
     Purse +3). Applied to effective luck, never stored.

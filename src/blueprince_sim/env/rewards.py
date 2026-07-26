@@ -6,6 +6,7 @@ from typing import Protocol
 
 from ..engine.game import Game
 from ..engine.grid import rank_of
+from ..engine.special_items import inventory_value
 
 
 class RewardFn(Protocol):
@@ -54,6 +55,7 @@ def snapshot(game: Game) -> dict:
         "steps": st.steps, "gems": st.gems, "keys": st.keys,
         "coins": st.coins, "dice": st.dice,
         "phi_keys": _phi_keys(game), "phi_frontier": _phi_frontier(game),
+        "inv_value": inventory_value(st, game.registry),
     }
 
 
@@ -66,8 +68,10 @@ def shaped(game: Game, prev: dict, terminated: bool) -> float:
     """Dense shaping around the sparse win signal.
 
     0.1 per new deepest rank reached, 0.01 per unit of resource value gained
-    (gems/keys/coins/dice at the datamined item values), -0.001 per decision
-    as time pressure, plus 1.0 on a winning termination.
+    (gems/keys/coins/dice at the datamined item values, held special items at
+    their tier values — so buying an item trades coin value for item value
+    instead of reading as a pure loss), -0.001 per decision as time pressure,
+    plus 1.0 on a winning termination.
     """
     values = game.registry.item_rules["item_values"]
     r = 0.1 * (game.deepest_rank - prev["deepest_rank"])
@@ -76,6 +80,7 @@ def shaped(game: Game, prev: dict, terminated: bool) -> float:
         + (game.state.keys - prev["keys"]) * values["key"]
         + (game.state.coins - prev["coins"]) * values["coin"]
         + (game.state.dice - prev["dice"]) * values["die"]
+        + (inventory_value(game.state, game.registry) - prev["inv_value"])
     )
     r += 0.01 * d_res
     r -= 0.001  # per-decision time pressure
@@ -100,7 +105,8 @@ def phased(game: Game, prev: dict, terminated: bool) -> float:
       potential (:func:`_phi_frontier`), rewarding runs that keep several
       live ways forward instead of tunneling a single corridor.
 
-    Gems/coins/dice deltas, time pressure, and the win bonus match `shaped`.
+    Gems/coins/dice/held-item deltas, time pressure, and the win bonus match
+    `shaped`.
     """
     values = game.registry.item_rules["item_values"]
     r = _rank_potential(game.deepest_rank) - _rank_potential(prev["deepest_rank"])
@@ -108,6 +114,7 @@ def phased(game: Game, prev: dict, terminated: bool) -> float:
         (game.state.gems - prev["gems"]) * values["gem"]
         + (game.state.coins - prev["coins"]) * values["coin"]
         + (game.state.dice - prev["dice"]) * values["die"]
+        + (inventory_value(game.state, game.registry) - prev["inv_value"])
     )
     r += 0.01 * d_res
     r += _phi_keys(game) - prev["phi_keys"]
