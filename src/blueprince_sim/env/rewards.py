@@ -4,9 +4,18 @@ from __future__ import annotations
 
 from typing import Protocol
 
-from ..engine.game import Game
-from ..engine.grid import rank_of
+from ..engine.game import ANTECHAMBER_CELL, Game
+from ..engine.grid import neighbor, rank_of
 from ..engine.special_items import inventory_value
+
+# ---------------------------------------------------------------------------
+# Path-preservation shaping knobs — tunable constants
+# ---------------------------------------------------------------------------
+# The owner's doctrine: always keep at least TWO pathways toward the
+# Antechamber open; drafting the last route closed should be scored very
+# negatively, dwarfing any dead-end room's resource payout.
+PATHS_ONE_PENALTY: float = -0.15   # potential when exactly 1 route survives
+PATHS_ZERO_PENALTY: float = -1.0   # potential when all routes are sealed
 
 
 class RewardFn(Protocol):
@@ -34,6 +43,49 @@ def _phi_keys(game: Game) -> float:
     return 0.01 * game.state.keys * key_value * _key_multiplier(game.deepest_rank)
 
 
+def _ante_paths(game: Game) -> int:
+    """Number of live routes toward the Antechamber.
+
+    If the Antechamber is already reachable on foot (distance > 0), returns a
+    large constant (99) so the potential is 0 and the +1.0 win bonus is
+    undiluted on the winning step.
+
+    Otherwise counts frontier doorways whose TARGET cell has a non-(-1)
+    optimistic distance to the Antechamber: drafting through that doorway could
+    still lead there.  Doorways into ante-walled-off pockets (target's optimistic
+    distance is -1) do not count, so dead-end islands are correctly excluded.
+    """
+    if game.distance_map()[ANTECHAMBER_CELL] > 0:
+        return 99  # goal already open on foot — no path penalty applies
+    od = game.optimistic_distances()
+    return sum(
+        1 for cell, d in game.frontier_doorways()
+        if od[neighbor(cell, d)] != -1
+    )
+
+
+def _phi_paths(n_paths: int) -> float:
+    """Potential encoding the owner's two-open-paths doctrine.
+
+    Returns 0.0 when two or more routes survive (healthy), PATHS_ONE_PENALTY
+    (-0.15) when exactly one remains (danger), and PATHS_ZERO_PENALTY (-1.0)
+    when all routes are sealed (fatal).
+
+    Interaction with terminals:
+    - Winning (walking into the Antechamber): at that moment the Antechamber
+      was reachable, so _ante_paths returned 99 and the potential is 0 — the
+      +1.0 win bonus is undiluted.
+    - dead_end termination: the sealing draft already charged ~-1.0 (or -0.15
+      for the second-to-last route), so the penalty is already baked in before
+      the terminal step fires.
+    """
+    if n_paths == 0:
+        return PATHS_ZERO_PENALTY
+    if n_paths == 1:
+        return PATHS_ONE_PENALTY
+    return 0.0
+
+
 def _phi_frontier(game: Game) -> float:
     """Potential of forward pathways: passable frontier doorways (open,
     locked with a key in hand, or security-openable) in the deepest two
@@ -55,6 +107,7 @@ def snapshot(game: Game) -> dict:
         "steps": st.steps, "gems": st.gems, "keys": st.keys,
         "coins": st.coins, "dice": st.dice,
         "phi_keys": _phi_keys(game), "phi_frontier": _phi_frontier(game),
+        "phi_paths": _phi_paths(_ante_paths(game)),
         "inv_value": inventory_value(st, game.registry),
     }
 
@@ -72,6 +125,14 @@ def shaped(game: Game, prev: dict, terminated: bool) -> float:
     their tier values — so buying an item trades coin value for item value
     instead of reading as a pure loss), -0.001 per decision as time pressure,
     plus 1.0 on a winning termination.
+
+    Path-preservation potential (phi_paths delta): the draft that closes the
+    last viable route to the Antechamber eats ~-1.0, dwarfing any dead-end
+    room's resource payout.  Dropping from 2 to 1 open path costs -0.15.
+    Reopening routes pays the potential back.  On a winning step the
+    Antechamber was already reachable (potential 0), so the +1.0 win bonus is
+    undiluted.  A dead_end termination lands with the sealing -1.0 already
+    charged on the prior draft.
     """
     values = game.registry.item_rules["item_values"]
     r = 0.1 * (game.deepest_rank - prev["deepest_rank"])
@@ -83,6 +144,7 @@ def shaped(game: Game, prev: dict, terminated: bool) -> float:
         + (inventory_value(game.state, game.registry) - prev["inv_value"])
     )
     r += 0.01 * d_res
+    r += _phi_paths(_ante_paths(game)) - prev["phi_paths"]
     r -= 0.001  # per-decision time pressure
     if terminated and game.success():
         r += 1.0
@@ -104,6 +166,13 @@ def phased(game: Game, prev: dict, terminated: bool) -> float:
     - Passable frontier doorways at the leading edge carry a standing
       potential (:func:`_phi_frontier`), rewarding runs that keep several
       live ways forward instead of tunneling a single corridor.
+    - Path-preservation potential (phi_paths delta): the draft that closes the
+      last viable route to the Antechamber eats ~-1.0, dwarfing any dead-end
+      room's resource payout.  Dropping from 2 to 1 open path costs -0.15.
+      Reopening routes pays the potential back.  On a winning step the
+      Antechamber was already reachable (potential 0), so the +1.0 win bonus
+      is undiluted.  A dead_end termination lands with the sealing -1.0
+      already charged on the prior draft.
 
     Gems/coins/dice/held-item deltas, time pressure, and the win bonus match
     `shaped`.
@@ -119,6 +188,7 @@ def phased(game: Game, prev: dict, terminated: bool) -> float:
     r += 0.01 * d_res
     r += _phi_keys(game) - prev["phi_keys"]
     r += _phi_frontier(game) - prev["phi_frontier"]
+    r += _phi_paths(_ante_paths(game)) - prev["phi_paths"]
     r -= 0.001  # per-decision time pressure
     if terminated and game.success():
         r += 1.0
