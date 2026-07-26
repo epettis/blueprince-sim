@@ -90,6 +90,8 @@ def observation_space(n_rooms: int, n_items: int, n_recipes: int) -> spaces.Dict
         "trade_offers": spaces.Box(-1, 999, shape=(TRADE_OFFER_ROWS, 2), dtype=np.int16),
         # buildable-now mask over fabrication recipes (registry order)
         "fabricate": spaces.Box(0, 1, shape=(n_recipes,), dtype=np.uint8),
+        # unopened containers per cell (placed rooms only; 0 = empty or fully opened)
+        "grid_containers": spaces.Box(0, 9, shape=(9, 5), dtype=np.uint8),
     })
 
 
@@ -299,6 +301,21 @@ def encode(game: Game) -> dict:
             if remaining > 0:
                 grid_dig[cell // 5, cell % 5] = remaining
 
+    # grid_containers: unopened container count per cell
+    grid_containers = np.zeros((9, 5), dtype=np.uint8)
+    containers_data = registry.special.containers
+    if containers_data:
+        rooms_map = containers_data.get("rooms", {})
+        for cell, room_idx in enumerate(st.grid):
+            if room_idx >= 0:
+                room = registry.rooms[room_idx]
+                all_kinds = rooms_map.get(room.id, {})
+                total = sum(all_kinds.values())
+                already = special.opened_containers.get(cell, 0)
+                remaining = max(0, total - already)
+                if remaining > 0:
+                    grid_containers[cell // 5, cell % 5] = remaining
+
     # shop_stock: current shop's display (SHOP_STOCK_ROWS x 5), -1 sentinel rows
     shop_stock_arr = _encode_shop_stock(game)
 
@@ -332,6 +349,7 @@ def encode(game: Game) -> dict:
         "inventory": inventory,
         "item_state": item_state,
         "grid_dig": grid_dig,
+        "grid_containers": grid_containers,
         "shop_stock": shop_stock_arr,
         "trade_offers": trade_offers_arr,
         "fabricate": fabricate,

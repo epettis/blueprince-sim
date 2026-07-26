@@ -552,12 +552,12 @@
      "tag": "smash"
     }
    ],
-   "implemented": false,
+   "implemented": true,
    "meta": {
     "source": "https://blueprince.wiki.gg/wiki/Sledge_Hammer",
     "confidence": "wiki",
     "absent_spawn_rooms": [],
-    "blocked_on": "trunks_not_modeled"
+    "blocked_on": null
    }
   },
   {
@@ -830,12 +830,12 @@
    "spawn_rooms_high_luck": [],
    "guaranteed_in": [],
    "effects": [],
-   "implemented": false,
+   "implemented": true,
    "meta": {
     "source": "https://blueprince.wiki.gg/wiki/Car_Keys",
     "confidence": "wiki",
     "absent_spawn_rooms": [],
-    "blocked_on": "trunks_not_modeled"
+    "blocked_on": null
    }
   },
   {
@@ -1171,12 +1171,12 @@
      "tag": "smash"
     }
    ],
-   "implemented": false,
+   "implemented": true,
    "meta": {
     "source": "https://blueprince.wiki.gg/wiki/Power_Hammer",
     "confidence": "wiki",
     "absent_spawn_rooms": [],
-    "blocked_on": "trunks_not_modeled"
+    "blocked_on": null
    }
   },
   {
@@ -1392,12 +1392,12 @@
      "tag": "smash"
     }
    ],
-   "implemented": false,
+   "implemented": true,
    "meta": {
     "source": "https://blueprince.wiki.gg/wiki/Armory",
     "confidence": "wiki",
     "absent_spawn_rooms": [],
-    "blocked_on": "trunks_not_modeled",
+    "blocked_on": null,
     "notes": "Purchase-only (Showroom/Armory); obtainable when PR2 adds shop actions."
    }
   },
@@ -2032,5 +2032,70 @@
  ],
  "trading": {
   "dice_chance": 10
+ },
+ "containers": {
+  "kinds": {
+   "trunk": {
+    "locked": true,
+    "opener": ["smash", "key"],
+    "loot": [
+     {"weight": 30, "kind": "coins", "amount": 5},
+     {"weight": 20, "kind": "item", "id": "battery_pack"},
+     {"weight": 15, "kind": "item", "id": "treasure_map"},
+     {"weight": 12, "kind": "item", "id": "lock_pick_kit"},
+     {"weight": 10, "kind": "item", "id": "magnifying_glass"},
+     {"weight": 8, "kind": "item", "id": "silver_key"},
+     {"weight": 5, "kind": "item", "id": "vault_key_149"}
+    ]
+   },
+   "chest": {
+    "locked": true,
+    "opener": ["key"],
+    "loot": [
+     {"weight": 25, "kind": "coins", "amount": 8},
+     {"weight": 20, "kind": "item", "id": "treasure_map"},
+     {"weight": 20, "kind": "item", "id": "lock_pick_kit"},
+     {"weight": 15, "kind": "item", "id": "magnifying_glass"},
+     {"weight": 10, "kind": "item", "id": "silver_key"},
+     {"weight": 10, "kind": "item", "id": "vault_key_149"}
+    ]
+   },
+   "locker": {
+    "locked": false,
+    "opener": [],
+    "loot": [
+     {"weight": 35, "kind": "coins", "amount": 3},
+     {"weight": 25, "kind": "item", "id": "running_shoes"},
+     {"weight": 20, "kind": "item", "id": "treasure_map"},
+     {"weight": 10, "kind": "item", "id": "lock_pick_kit"},
+     {"weight": 10, "kind": "item", "id": "silver_key"}
+    ]
+   }
+  },
+  "rooms": {
+   "attic": {"trunk": 1},
+   "wine_cellar": {"trunk": 1},
+   "storeroom": {"trunk": 1},
+   "boiler_room": {"trunk": 1},
+   "archives": {"trunk": 1},
+   "laboratory": {"trunk": 1},
+   "servants_quarters": {"trunk": 1},
+   "spare_room": {"trunk": 1},
+   "rumpus_room": {"trunk": 1},
+   "furnace": {"trunk": 1},
+   "locker_room": {"locker": 3},
+   "gymnasium": {"locker": 2}
+  },
+  "garage_car": {
+   "first_loot": [{"kind": "item", "id": "upgrade_disk"}],
+   "later_pool": ["battery_pack", "keycard", "lock_pick_kit", "magnifying_glass", "secret_garden_key", "treasure_map"],
+   "later_gold": 5,
+   "later_draws": 2
+  },
+  "meta": {
+   "source": "https://blueprince.wiki.gg",
+   "confidence": "inferred",
+   "notes": "Trunk rooms: attic/wine_cellar/storeroom/boiler_room sourced from item spawn-room lists (wiki); others inferred (vague wiki mention). Locker rooms: locker_room x3/gymnasium x2 sourced from item spawn-room lists (wiki). No reliable per-room chest data — chests appear but room assignments not wiki-documented. Garage car trunk loot from Car Keys wiki page."
+  }
  }
 }

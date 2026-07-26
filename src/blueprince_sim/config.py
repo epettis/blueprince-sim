@@ -57,6 +57,7 @@ class GameConfig:
     # Default True: the unlock puzzle (Key of Aries -> Treasure Trove) is unmodeled, so
     # defaulting on is the only way the scepter is ever exercised.  Set False to disable.
     royal_scepter_found: bool = True
+    garage_car_used_before: bool = False  # Car Keys first-use taken: later uses draw from pool instead of Upgrade Disk
     entrance_vase_broken: bool = False  # west vase smashed before: its microchip granted at day start
     outer_chip_dug: bool = False        # West Path chip dug up before: granted on reaching the doorstep
     # Room ids banned from the draft pool by the Repellent item.  Each

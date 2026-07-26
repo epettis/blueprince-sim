@@ -457,6 +457,24 @@ class Game:
         assert self.cfg.special_items
         shops.smash_vase(self)
 
+    def can_open_container(self) -> bool:
+        """At least one unopened container at the current cell can be opened."""
+        return special_items.can_open_container(self, self.state.pos)
+
+    def open_container(self) -> str | None:
+        """Open the next container at the current cell; return what was granted."""
+        assert self.cfg.special_items
+        return special_items.open_container(self, self.state.pos)
+
+    def can_open_car_trunk(self) -> bool:
+        """Car Keys held, standing in the Garage, trunk not yet opened today."""
+        return special_items.can_open_car_trunk(self)
+
+    def open_car_trunk(self) -> list[str]:
+        """Open the Garage car trunk with Car Keys."""
+        assert self.cfg.special_items
+        return special_items.open_car_trunk(self)
+
     def can_use_repellent(self) -> bool:
         """Is using the Repellent available right now (held + NAVIGATE phase)?"""
         return shops.can_use_repellent(self)

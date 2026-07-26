@@ -67,6 +67,7 @@ class SpecialItemsRegistry:
     lost_and_found: dict  # "lost_and_found" section: gives, pool
     fabrication: tuple[tuple[tuple[str, ...], str], ...]  # ((inputs...), output)
     trading: dict  # "trading" section (consumed by PR2)
+    containers: dict = field(default_factory=dict)  # "containers" section: kinds/rooms/garage_car
     # room id -> item ids that can spawn there (derived; excludes guaranteed_in)
     spawn_pool_by_room: dict[str, tuple[str, ...]] = field(default_factory=dict)
     spawn_pool_high_luck: dict[str, tuple[str, ...]] = field(default_factory=dict)
@@ -121,6 +122,7 @@ def load_special_items(data_dir: Path) -> SpecialItemsRegistry:
         lost_and_found=raw["lost_and_found"],
         fabrication=tuple((tuple(f["inputs"]), f["output"]) for f in raw.get("fabrication", [])),
         trading=raw.get("trading", {}),
+        containers=raw.get("containers", {}),
         spawn_pool_by_room={k: tuple(v) for k, v in pool.items()},
         spawn_pool_high_luck={k: tuple(v) for k, v in pool_hl.items()},
         guaranteed_by_room={k: tuple(v) for k, v in guaranteed.items()},
@@ -162,6 +164,8 @@ class SpecialItemsState:
     # is returned via end_of_day_carry() and injected as a starting_item.
     # None = no item stored today.
     coat_check_item: str | None = None
+    opened_containers: dict[int, int] = field(default_factory=dict)  # cell -> count of containers already opened there
+    garage_car_opened: bool = False  # Car Keys garage car trunk used today (once per day)
 
 
 # --------------------------------------------------------------- inventory ops
@@ -1117,3 +1121,227 @@ def dig_all(game, cell: int) -> None:
             state.gems += gems
             state.items_found_log.append(("gem", gems))
         state.special.treasure_dug = True
+
+
+# ----------------------------------------------------------------- containers
+
+def containers_in(registry, room_id: str) -> dict[str, int]:
+    """Container kinds and counts for ``room_id``, or {} if none.
+
+    Reads from registry.special.containers["rooms"]; returns e.g. {"trunk": 1}.
+    """
+    return dict(registry.special.containers.get("rooms", {}).get(room_id, {}))
+
+
+def _container_kinds_at(state, registry, cell: int) -> list[tuple[str, int]]:
+    """Remaining openable (kind, remaining_count) pairs at ``cell``.
+
+    Subtracts already-opened count from the room's total per kind.
+    Returns an empty list when there are no containers or all are opened.
+    """
+    if state.grid[cell] < 0:
+        return []
+    room = registry.rooms[state.grid[cell]]
+    all_kinds = containers_in(registry, room.id)
+    if not all_kinds:
+        return []
+    already = state.special.opened_containers.get(cell, 0)
+    total = sum(all_kinds.values())
+    remaining = total - already
+    if remaining <= 0:
+        return []
+    # Deterministic open order: trunk first, then chest, then locker.
+    result = []
+    used = already
+    for kind in ("trunk", "chest", "locker"):
+        n = all_kinds.get(kind, 0)
+        if n <= 0:
+            continue
+        taken = min(used, n)
+        left = n - taken
+        used -= taken
+        if left > 0:
+            result.append((kind, left))
+    return result
+
+
+def _next_container_kind(state, registry, cell: int) -> str | None:
+    """The kind of the NEXT container to open at ``cell``, or None if exhausted.
+
+    Opens in a deterministic order: trunk first, then chest, then locker.
+    """
+    pairs = _container_kinds_at(state, registry, cell)
+    return pairs[0][0] if pairs else None
+
+
+def can_open_container(game, cell: int) -> bool:
+    """True when the player at ``cell`` can open at least one container there.
+
+    A trunk needs either a smash-tagged item (Sledge Hammer / Morning Star /
+    Power Hammer) OR at least 1 key in hand. A chest needs a key. A locker is
+    always free. At least one container must remain unopened.
+    """
+    state = game.state
+    registry = game.registry
+    kind = _next_container_kind(state, registry, cell)
+    if kind is None:
+        return False
+    kinds_cfg = registry.special.containers.get("kinds", {})
+    kind_cfg = kinds_cfg.get(kind, {})
+    openers = kind_cfg.get("opener", [])
+    if not openers:
+        return True  # locker: free
+    if "smash" in openers and _has_item_effect(state, registry, "smash"):
+        return True
+    if "key" in openers and state.keys >= 1:
+        return True
+    return False
+
+
+def open_container(game, cell: int) -> str | None:
+    """Open ONE unopened container at ``cell``; return what was granted or None.
+
+    Trunk: smash-tagged item is free (no key); else spend 1 key.
+    Chest: always spend 1 key (never smashable).
+    Locker: free.
+
+    Rolls loot from the kind's loot table on the "container" named substream,
+    granting items via grant() or resources directly (mirrors dig_all).
+    Returns a log string like "coins:5" or the item id.
+    """
+    state = game.state
+    registry = game.registry
+    kind = _next_container_kind(state, registry, cell)
+    if kind is None:
+        return None
+
+    kinds_cfg = registry.special.containers.get("kinds", {})
+    kind_cfg = kinds_cfg.get(kind, {})
+    openers = kind_cfg.get("opener", [])
+
+    # Pay the cost (if any)
+    if openers:
+        if "smash" in openers and _has_item_effect(state, registry, "smash"):
+            pass  # smash-tagged item opens trunks for free
+        elif "key" in openers and state.keys >= 1:
+            state.keys -= 1
+        else:
+            return None  # cannot open
+
+    # Mark one container opened at this cell
+    state.special.opened_containers[cell] = state.special.opened_containers.get(cell, 0) + 1
+
+    # Roll loot
+    loot_table = kind_cfg.get("loot", [])
+    if not loot_table:
+        return None
+    weights = tuple(float(entry["weight"]) for entry in loot_table)
+    idx = game.rng.roll_weighted("container", weights)
+    entry = loot_table[idx]
+    entry_kind = entry["kind"]
+
+    match entry_kind:
+        case "coins":
+            amount = entry.get("amount", 1)
+            bonus = on_coins_granted(state, registry, amount)
+            state.coins += amount + bonus
+            state.items_found_log.append(("coins", amount))
+            return f"coins:{amount}"
+        case "key":
+            state.keys += 1
+            state.items_found_log.append(("key", 1))
+            return "key"
+        case "item":
+            item_id = entry["id"]
+            if _is_available(state, item_id, registry):
+                grant(state, registry, item_id, source="container")
+            else:
+                # Fallback: 1 coin when the item is unavailable
+                bonus = on_coins_granted(state, registry, 1)
+                state.coins += 1 + bonus
+                state.items_found_log.append(("coins", 1))
+                return "coins:1"
+            return item_id
+        case _:
+            return None
+
+
+def can_open_car_trunk(game) -> bool:
+    """True when: special items enabled, Car Keys held, standing in the Garage,
+    and the car trunk has not yet been opened today.
+
+    The garage car trunk is a one-per-day mechanic separate from regular containers.
+    """
+    state = game.state
+    registry = game.registry
+    if not state.special.enabled:
+        return False
+    if state.special.garage_car_opened:
+        return False
+    if not has(state, "car_keys"):
+        return False
+    if state.grid[state.pos] < 0:
+        return False
+    room = registry.rooms[state.grid[state.pos]]
+    # Accept garage or any garage variant (id starts with "garage")
+    garage_ids = getattr(game, "_garage_ids", ())
+    if room.id != "garage" and not any(room.id == gid for gid in garage_ids):
+        return False
+    return True
+
+
+def open_car_trunk(game) -> list[str]:
+    """Use the Car Keys on the Garage car trunk; return list of granted item ids.
+
+    First use ever (cfg.garage_car_used_before is False):
+      grants the Upgrade Disk (from garage_car.first_loot).
+    Later uses (cfg.garage_car_used_before is True):
+      draws later_draws (2) items at random from later_pool + grants later_gold coins.
+
+    One use per day; sets state.special.garage_car_opened=True.
+    """
+    state = game.state
+    registry = game.registry
+    cfg = game.cfg
+    car_cfg = registry.special.containers.get("garage_car", {})
+
+    state.special.garage_car_opened = True
+    granted: list[str] = []
+
+    # First-ever use: grant items from first_loot
+    first_loot = car_cfg.get("first_loot", [])
+    if not getattr(cfg, "garage_car_used_before", False) and first_loot:
+        for entry in first_loot:
+            if entry.get("kind") == "item":
+                iid = entry["id"]
+                if _is_available(state, iid, registry):
+                    grant(state, registry, iid, source="garage_car")
+                    granted.append(iid)
+        return granted
+
+    # Later uses: draw from later_pool + grant later_gold coins
+    later_pool = list(car_cfg.get("later_pool", []))
+    later_draws = car_cfg.get("later_draws", 2)
+    later_gold = car_cfg.get("later_gold", 5)
+
+    available = [iid for iid in later_pool
+                 if iid == "keycard" or _is_available(state, iid, registry)]
+    for _ in range(later_draws):
+        if not available:
+            break
+        pick_idx = game.rng.randint("garage_car", 0, len(available) - 1)
+        picked = available.pop(pick_idx)
+        if picked == "keycard":
+            state.has_keycard = True
+            state.items_found_log.append(("keycard", 1))
+            granted.append("keycard")
+        elif _is_available(state, picked, registry):
+            grant(state, registry, picked, source="garage_car")
+            granted.append(picked)
+
+    if later_gold > 0:
+        bonus = on_coins_granted(state, registry, later_gold)
+        state.coins += later_gold + bonus
+        state.items_found_log.append(("coins", later_gold))
+
+    return granted

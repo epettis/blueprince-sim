@@ -564,3 +564,83 @@ grants them at construction.  `advance()` replaces `carried_items` from
 `DayChain.next_config()` passes `frozenset(active_ban_room_ids)` as
 `GameConfig.banned_rooms`.  `engine/decks.py::eligible_pool` skips any room
 whose id is in `cfg.banned_rooms` before building the eight solitaire decks.
+
+## Containers (trunks, chests, lockers, garage car)
+
+Source: `docs/research/special-items-wiki.md` (Sledge Hammer, Car Keys, and
+per-item spawn-source entries mentioning trunks/lockers).
+
+### Data schema — `data/special_items.json` `"containers"` section
+
+```python
+containers: {
+  kinds: {
+    trunk:  {locked: True, opener: ["smash", "key"], loot: [...]},
+    chest:  {locked: True, opener: ["key"],           loot: [...]},
+    locker: {locked: False, opener: [],               loot: [...]},
+  },
+  rooms: {room_id: {kind: count}},  # e.g. {"attic": {"trunk": 1}}
+  garage_car: {
+    first_loot: [{"kind": "item", "id": "upgrade_disk"}],
+    later_pool: ["battery_pack", "keycard", ...],
+    later_gold: 5,
+    later_draws: 2,
+  },
+  meta: {source, confidence, notes},
+}
+```
+
+### Engine surface
+
+- `containers_in(registry, room_id) -> dict[str, int]` — container kinds and
+  counts for a room (empty dict if none).
+- `can_open_container(game, cell) -> bool` — True when at least one unopened
+  container at `cell` is openable given current resources.
+- `open_container(game, cell) -> str | None` — open ONE container, paying cost
+  if required; roll loot from the kind's table on substream `"container"`;
+  return a log string (e.g. `"coins:5"` or item id).
+- `can_open_car_trunk(game) -> bool` / `open_car_trunk(game) -> list[str]` —
+  Car Keys + standing in the Garage; first use grants the Upgrade Disk; later
+  uses draw `later_draws` items from `later_pool` + `later_gold` coins.
+
+Game delegates: `Game.can_open_container()`, `open_container()`,
+`can_open_car_trunk()`, `open_car_trunk()`. The `can_*` predicates take the
+cell explicitly at the engine layer so the env can query any cell for the
+walk-to mask without moving the player.
+
+Env wiring (this PR):
+- Action ids 270 (`OPEN_CONTAINER_ACTION`) and 271 (`OPEN_CAR_TRUNK_ACTION`).
+- Obs key `"grid_containers"` (9×5 uint8): unopened container count per cell.
+- Walk-to re-entry extended via `_cell_has_openable_container`.
+
+### Model decisions
+
+- **Open order**: deterministic trunk → chest → locker (within a room, all
+  trunks are opened before chests, chests before lockers).
+- **No auto-open**: unlike dig spots (always free, auto-executed), opening can
+  cost a key — so skipping is non-dominated. The agent picks `OPEN_CONTAINER_ACTION`
+  explicitly.
+- **Smash opener**: any item with the `smash` effect tag (Sledge Hammer, Morning
+  Star, Power Hammer) opens trunks for free. Chests are never smashable.
+- **Garage car `first_loot`**: `GameConfig.garage_car_used_before = False`
+  (default) triggers the Upgrade Disk path; `True` switches to the `later_pool`
+  draw. **Known gap**: the flag is not yet reported by `Game.carryover()`, so a
+  `DayChain` run currently offers the Upgrade Disk again each day. Wiring it
+  into the carry-over dict alongside the other discovery flags is a follow-up.
+- **Keycard in later_pool**: the Car Keys wiki page lists Keycard as a possible
+  trunk loot; it is handled by setting `state.has_keycard = True` (same as
+  `locks.py`) rather than the generic `grant` pipeline.
+
+### Simplification #15
+
+Container loot tables are inferred from items whose wiki pages list trunks or
+lockers as spawn sources (Battery Pack, Treasure Map, Lock Pick Kit, Magnifying
+Glass, Silver Key, Vault Key 149, Running Shoes). Actual per-container loot
+tables are not datamined. Trunk rooms sourced from wiki item-spawn lists
+(attic, wine_cellar, storeroom, boiler_room); the remaining six (archives,
+laboratory, servants_quarters, spare_room, rumpus_room, furnace) are `inferred`
+from vague wiki mentions. Locker room counts (Locker Room ×3, Gymnasium ×2) are
+`inferred` from the number of distinct item types mentioned as locker sources.
+No room carries a **chest**: the kind is fully modeled and validated, but the
+wiki documents no per-room chest assignments, so the `rooms` map has none. The
+whole section is `meta.confidence: inferred` for this reason.

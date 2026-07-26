@@ -249,6 +249,47 @@ def main() -> int:
                         f"special_items dig/{table_name}: item outcome references unknown id {rid!r}"
                     )
 
+    # containers section
+    containers_doc = si_doc.get("containers", {})
+    containers_kinds = containers_doc.get("kinds", {})
+    for kind_name, kind_cfg in containers_kinds.items():
+        where = f"special_items/containers/kinds/{kind_name}"
+        loot = kind_cfg.get("loot", [])
+        if loot:
+            total_w = sum(entry.get("weight", 0) for entry in loot)
+            if abs(total_w - 100.0) > 0.5:
+                errors.append(f"{where}: loot weights sum to {total_w:.4f}, expected ~100")
+            for entry in loot:
+                if entry.get("kind") == "item":
+                    iid = entry.get("id")
+                    if iid not in si_by_id:
+                        errors.append(f"{where}: loot item id {iid!r} not in special_items")
+        for opener in kind_cfg.get("opener", []):
+            if opener not in ("smash", "key"):
+                errors.append(f"{where}: unknown opener {opener!r}")
+    containers_rooms = containers_doc.get("rooms", {})
+    for room_id, kinds in containers_rooms.items():
+        if room_id not in by_id:
+            errors.append(f"special_items/containers/rooms: unknown room id {room_id!r}")
+        for kind_name in kinds:
+            if kind_name not in containers_kinds:
+                errors.append(
+                    f"special_items/containers/rooms/{room_id}: unknown kind {kind_name!r}"
+                )
+    garage_car = containers_doc.get("garage_car", {})
+    for entry in garage_car.get("first_loot", []):
+        if entry.get("kind") == "item":
+            iid = entry.get("id")
+            if iid not in si_by_id:
+                errors.append(
+                    f"special_items/containers/garage_car first_loot: unknown item {iid!r}"
+                )
+    for iid in garage_car.get("later_pool", []):
+        if iid not in si_by_id and iid != "keycard":
+            errors.append(
+                f"special_items/containers/garage_car later_pool: unknown item {iid!r}"
+            )
+
     # ── shops.json ─────────────────────────────────────────────────────────────
     VALID_STOCK_KINDS = {"resource", "item", "container"}
     VALID_GRANT_KEYS = {"coins", "keys", "gems", "food", "dice"}
