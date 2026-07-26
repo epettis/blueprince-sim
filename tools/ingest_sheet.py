@@ -78,7 +78,8 @@ CATEGORY_FROM_TYPE1 = {
 # "ð" (their trailing UTF-8 bytes are invisible C1 controls). Resolved
 # DEFINITIVELY by byte inspection of the cached export: 3rd byte 0x94 = key,
 # 0x92 = gem. All entries below are therefore confidence=datamined. Each
-# entry: room name -> resolution per bare-glyph occurrence in its Effect text.
+# entry: room name -> ambiguous-glyph resolution per BARE "ð" occurrence in its
+# Effect text (tailed forms ð², ð°, ð£ are decoded mechanically by resolve_glyphs).
 GLYPH_MAP: dict[str, list[tuple[str, str]]] = {
     # keys (bytes F0 9F 94 91)
     "Nook": [("key", "datamined")],
@@ -90,7 +91,7 @@ GLYPH_MAP: dict[str, list[tuple[str, str]]] = {
     "Servant's Quarters": [("key", "datamined")],
     "Servant's Spare Quarters": [("key", "datamined")],
     "Hallway": [("key", "datamined")],
-    "Storeroom": [("key", "datamined"), ("gem", "datamined")],  # key then gem
+    "Storeroom": [("key", "datamined"), ("gem", "datamined")],  # key then gem; ð° decoded mechanically
     # gems (bytes F0 9F 92 8E)
     "Den": [("gem", "datamined")],
     "Wine Cellar": [("gem", "datamined")],
@@ -111,8 +112,33 @@ GLYPH_MAP: dict[str, list[tuple[str, str]]] = {
     "Terrace": [("gem", "datamined")],
     "Spare Terrace": [("gem", "datamined")],
     "Cloister of Rynna": [("luck", "datamined")],
-    # Bunk Room variants: idx 20 doubles keys, 21 doubles gems, 22 doubles coins
-    "Bunk Room": [("key", "datamined"), ("gem", "datamined")],
+}
+
+# Per-variant overrides for the ambiguous-glyph list, keyed by suffixed record id.
+# Mirrors VARIANT_EFFECT_MAP: used when a variant's Effect text differs from its base
+# (different number of bare ð glyphs, or a different icon). Also used for variants
+# whose text has NO bare glyphs (empty list) so resolve_glyphs sees no leftovers.
+# Bunk Room: base has no glyphs; ix20 doubles keys, ix21 doubles gems, ix22 doubles
+# coins (ð° — decoded mechanically, so ambiguous list is empty).
+VARIANT_GLYPH_MAP: dict[str, list[tuple[str, str]]] = {
+    # Hallway: only ix74 has a bare ð; base and ix75/ix76 have no glyph in text.
+    "hallway": [],
+    "hallway__ix75": [],
+    "hallway__ix76": [],
+    # Boudoir: ix17 has ð² (dice, decoded mechanically) — no bare ð to resolve.
+    "boudoir": [],
+    "boudoir__ix17": [],
+    # Courtyard: base and ix49 have no glyph in text.
+    "courtyard": [],
+    "courtyard__ix49": [],
+    # Parlor: base and ix109 have no glyph in text.
+    "parlor": [],
+    "parlor__ix109": [],
+    # Bunk Room: each variant has its own bare-ð icon; base has no glyph.
+    "bunk_room": [],
+    "bunk_room__ix20": [("key", "datamined")],
+    "bunk_room__ix21": [("gem", "datamined")],
+    "bunk_room__ix22": [],  # ð° is coins, decoded mechanically
 }
 
 # --- structured effects -----------------------------------------------------
@@ -199,6 +225,52 @@ GLYPH_STEPS = "ð£"   # mojibake for U+1F463
 GLYPH_COINS = "ð°"   # U+1F4B0
 GLYPH_DICE = "ð²"    # U+1F3B2
 GLYPH_BARE = "ð"          # key or gem (ambiguous)
+
+# Tail char -> icon. Each tailed form is GLYPH_BARE plus the one trailing byte that
+# survived the export as a printable character, so it needs no disambiguation. Derived
+# from the constants above so the two never drift apart.
+GLYPH_TAILS = {
+    GLYPH_DICE[1]: "dice",
+    GLYPH_COINS[1]: "coins",
+    GLYPH_STEPS[1]: "steps",
+}
+
+
+def resolve_glyphs(text: str, ambiguous: list[tuple[str, str]], room_id: str = "?") -> list[dict]:
+    """Decode all mojibake glyph occurrences in *text*, returning one entry per glyph in order.
+
+    Tailed forms are unambiguous and decoded mechanically:
+      ð² -> dice, ð° -> coins, ð£ -> steps.
+    Bare ð (not followed by ², °, or £) consumes the next entry from *ambiguous*.
+    Raises ValueError if *ambiguous* is exhausted before the text is fully scanned,
+    or if entries remain in *ambiguous* after the scan completes.
+    """
+    result = []
+    remaining = list(ambiguous)
+    i = 0
+    while i < len(text):
+        if text[i] == GLYPH_BARE:
+            tail_icon = GLYPH_TAILS.get(text[i + 1] if i + 1 < len(text) else "")
+            if tail_icon is not None:               # tailed form — unambiguous
+                result.append({"icon": tail_icon, "confidence": "datamined"})
+                i += 2
+            else:                                   # bare ð — needs the map
+                if not remaining:
+                    raise ValueError(
+                        f"resolve_glyphs: ran out of ambiguous entries at pos {i} "
+                        f"for room {room_id!r} (text={text!r})"
+                    )
+                icon, conf = remaining.pop(0)
+                result.append({"icon": icon, "confidence": conf})
+                i += 1
+        else:
+            i += 1
+    if remaining:
+        raise ValueError(
+            f"resolve_glyphs: {len(remaining)} unused ambiguous entries for room "
+            f"{room_id!r} (text={text!r}, leftover={remaining!r})"
+        )
+    return result
 
 
 def slugify(name: str) -> str:
@@ -320,9 +392,36 @@ def build_room(row: dict) -> dict | None:
             entry["effects"] = variant_overrides["effects"]
         if "items" in variant_overrides:
             entry["items"].update(variant_overrides["items"])
-    if name in GLYPH_MAP:
-        entry["meta"]["glyph_resolution"] = [
-            {"icon": icon, "confidence": conf} for icon, conf in GLYPH_MAP[name]]
+    # Resolve glyphs per-record: id-keyed override takes precedence over name-keyed map.
+    # VARIANT_GLYPH_MAP entries with an empty list signal "no bare glyphs in this variant"
+    # and resolve to [] (no glyph_resolution key written). The name-keyed GLYPH_MAP only
+    # supplies the ambiguous list; tailed forms (ð², ð°, ð£) are decoded mechanically.
+    # Any room whose text contains a bare GLYPH_BARE but has no map entry raises ValueError.
+    record_id = entry["id"]
+    effect_text = entry["meta"].get("effect_text", "")
+    # A "bare" glyph is ð not immediately followed by one of the GLYPH_TAILS chars.
+    has_bare = any(
+        effect_text[i] == GLYPH_BARE
+        and (i + 1 >= len(effect_text) or effect_text[i + 1] not in GLYPH_TAILS)
+        for i in range(len(effect_text))
+    )
+    has_any_glyph = GLYPH_BARE in effect_text  # includes tailed forms
+    if record_id in VARIANT_GLYPH_MAP:
+        ambiguous: list[tuple[str, str]] | None = VARIANT_GLYPH_MAP[record_id]
+    elif name in GLYPH_MAP:
+        ambiguous = GLYPH_MAP[name]
+    elif has_bare:
+        # Bare glyph with no disambiguation entry — loud failure so nothing slips through.
+        raise ValueError(
+            f"build_room: room {record_id!r} has bare glyph in effect_text but no "
+            f"GLYPH_MAP or VARIANT_GLYPH_MAP entry (text={effect_text!r})"
+        )
+    else:
+        ambiguous = None
+    if ambiguous is not None or has_any_glyph:
+        resolved = resolve_glyphs(effect_text, ambiguous or [], room_id=record_id)
+        if resolved:
+            entry["meta"]["glyph_resolution"] = resolved
     if layout_note:
         entry["meta"]["layout_note"] = layout_note
     return entry
