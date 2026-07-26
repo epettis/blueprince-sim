@@ -547,7 +547,12 @@
    "deck_copies": 1,
    "effects": [],
    "items": {
-    "guaranteed": [],
+    "guaranteed": [
+     {
+      "item": "gem",
+      "count": 2
+     }
+    ],
     "additional_max": 1,
     "dig_spots": 0
    },
@@ -583,7 +588,12 @@
    "deck_copies": 1,
    "effects": [],
    "items": {
-    "guaranteed": [],
+    "guaranteed": [
+     {
+      "item": "gem",
+      "count": 3
+     }
+    ],
     "additional_max": 1,
     "dig_spots": 0
    },

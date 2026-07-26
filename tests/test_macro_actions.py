@@ -242,12 +242,11 @@ def test_masked_rollout_never_revisits_pointlessly():
                     if not game.state.entered[cell] or cell in control:
                         continue
                     # Entered cell: must be re-enterable (shop/workshop/dining room/
-                    # container/vault deposit box/parlor box)
+                    # container/vault deposit box)
                     assert (A._cell_is_shop_re_enterable(game, cell)
                             or A._dining_room_re_enterable(game, cell)
                             or A._cell_has_openable_container(game, cell)
-                            or A._cell_has_vault_box(game, cell)
-                            or A._cell_has_parlor_box(game, cell)), (
+                            or A._cell_has_vault_box(game, cell)), (
                         f"entered cell {cell} is walkable but not a control room "
                         f"or re-enterable special room"
                     )

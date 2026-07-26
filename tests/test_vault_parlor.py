@@ -1,14 +1,15 @@
-"""Vault Key deposit boxes and Parlor Wind-up Key box systems."""
+"""Vault Key deposit boxes and Parlor gem-grant system."""
 
 from __future__ import annotations
 
 from blueprince_sim.config import GameConfig
 from blueprince_sim.engine import special_items as si
+from blueprince_sim.engine.game import Game
 from blueprince_sim.engine.model import Registry
 from blueprince_sim.engine.rng import Rng
 from blueprince_sim.engine.state import GameState
 from blueprince_sim.env.actions import (
-    OPEN_VAULT_BOX_ACTION, OPEN_PARLOR_BOX_ACTION, action_mask, apply_action,
+    OPEN_VAULT_BOX_ACTION, action_mask, apply_action,
 )
 from blueprince_sim.env.multiday import DayChain
 
@@ -226,132 +227,65 @@ def test_used_vault_keys_resets_on_attempt_wrap():
     assert chain.used_vault_keys == frozenset()
 
 
-# ====================================================== parlor wind-up key
+# ====================================================== parlor gem grant
 
 
-def test_parlor_grants_wind_up_key_on_entry():
-    """Entering a Parlor room grants 1 wind_up_key to the player."""
-    st, reg = _state_with_registry()
+def _make_game_with_room(room_id: str, cell: int, seed: int = 0) -> Game:
+    """Return a Game instance with ``room_id`` placed at ``cell``, not yet entered."""
+    cfg = GameConfig(special_items=True)
+    g = Game(cfg, seed=seed)
+    room = g.registry.by_id[room_id]
+    g.state.grid[cell] = room.idx
+    g.state.placed_doors[cell] = room.door_mask
+    return g
+
+
+def test_parlor_entry_grants_two_gems():
+    """Entering a base Parlor grants exactly 2 gems on first entry via the guaranteed pipeline."""
     cell = 5
-    _place_room(st, reg, "parlor", cell)
-    st.pos = cell
-    room = reg.by_id["parlor"]
+    g = _make_game_with_room("parlor", cell)
+    gems_before = g.state.gems
 
-    game = _fake_game(st, reg)
-    si.on_enter(game, room, cell)
-    assert st.inventory.get("wind_up_key", 0) >= 1
+    g._enter(cell)
+    assert g.state.gems == gems_before + 2
 
 
-def test_can_open_parlor_box_with_wind_up_key():
-    """can_open_parlor_box is True when standing in Parlor holding a wind_up_key."""
-    st, reg = _state_with_registry()
-    si.grant(st, reg, "wind_up_key", source="test")
-    _place_room(st, reg, "parlor", 5)
-    st.pos = 5
-
-    game = _fake_game(st, reg)
-    assert si.can_open_parlor_box(game)
-
-
-def test_cannot_open_parlor_box_without_wind_up_key():
-    """can_open_parlor_box is False when standing in Parlor without a wind_up_key."""
-    st, reg = _state_with_registry()
-    _place_room(st, reg, "parlor", 5)
-    st.pos = 5
-
-    game = _fake_game(st, reg)
-    assert not si.can_open_parlor_box(game)
-
-
-def test_cannot_open_parlor_box_outside_parlor():
-    """can_open_parlor_box is False when holding a wind_up_key but not standing in a Parlor."""
-    st, reg = _state_with_registry()
-    si.grant(st, reg, "wind_up_key", source="test")
-    _place_room(st, reg, "entrance_hall", 5)
-    st.pos = 5
-
-    game = _fake_game(st, reg)
-    assert not si.can_open_parlor_box(game)
-
-
-def test_opening_parlor_box_consumes_wind_up_key():
-    """Opening a Parlor box removes exactly 1 wind_up_key from inventory."""
-    st, reg = _state_with_registry()
-    si.grant(st, reg, "wind_up_key", source="test")
-    si.grant(st, reg, "wind_up_key", source="test")
-    _place_room(st, reg, "parlor", 5)
-    st.pos = 5
-
-    game = _fake_game(st, reg, seed=1)
-    before = st.inventory.get("wind_up_key", 0)
-    si.open_parlor_box(game)
-    after = st.inventory.get("wind_up_key", 0)
-    assert after == before - 1
-
-
-def test_parlor_box_cap_is_one_per_cell_for_base_parlor():
-    """The base Parlor has a cap of 1 box per cell; the second open attempt is blocked."""
-    st, reg = _state_with_registry()
-    si.grant(st, reg, "wind_up_key", source="test")
-    si.grant(st, reg, "wind_up_key", source="test")
-    _place_room(st, reg, "parlor", 5)
-    st.pos = 5
-
-    game = _fake_game(st, reg, seed=2)
-    si.open_parlor_box(game)
-    assert not si.can_open_parlor_box(game), "base Parlor cap is 1 box per cell"
-
-
-def test_parlor_box_open_returns_loot_string():
-    """open_parlor_box returns a non-None loot descriptor when successful."""
-    st, reg = _state_with_registry()
-    si.grant(st, reg, "wind_up_key", source="test")
-    _place_room(st, reg, "parlor", 5)
-    st.pos = 5
-
-    game = _fake_game(st, reg, seed=3)
-    result = si.open_parlor_box(game)
-    assert result is not None, "open_parlor_box must return a loot string on success"
-
-
-def test_parlor_box_loot_is_deterministic():
-    """open_parlor_box produces the same result given the same seed (RNG substream determinism)."""
-    def _run(seed):
-        st, reg = _state_with_registry()
-        si.grant(st, reg, "wind_up_key", source="test")
-        _place_room(st, reg, "parlor", 5)
-        st.pos = 5
-        game = _fake_game(st, reg, seed=seed)
-        return si.open_parlor_box(game)
-
-    assert _run(42) == _run(42)
-    assert _run(99) == _run(99)
-
-
-def test_parlor_box_parlor_boxes_opened_increments():
-    """After opening a Parlor box, parlor_boxes_opened[cell] is incremented by 1."""
-    st, reg = _state_with_registry()
-    si.grant(st, reg, "wind_up_key", source="test")
+def test_parlor_entry_grants_once_only():
+    """The Parlor gem grant fires only on the first entry; Game._enter is idempotent."""
     cell = 5
-    _place_room(st, reg, "parlor", cell)
-    st.pos = cell
+    g = _make_game_with_room("parlor", cell)
+    g._enter(cell)
+    gems_after_first = g.state.gems
 
-    game = _fake_game(st, reg, seed=4)
-    si.open_parlor_box(game)
-    assert st.special.parlor_boxes_opened.get(cell, 0) == 1
+    g._enter(cell)  # second call — must be a no-op
+    assert g.state.gems == gems_after_first, "re-entering Parlor must not grant gems again"
+
+
+def test_parlor_upgrade_ix108_grants_three_gems():
+    """Entering parlor__ix108 ('3ð Prize' upgrade) grants exactly 3 gems on first entry.
+
+    ix108 is identified as the gems upgrade by its datamined effect_text '3ð Prize'.
+    """
+    cell = 5
+    g = _make_game_with_room("parlor__ix108", cell)
+    gems_before = g.state.gems
+
+    g._enter(cell)
+    assert g.state.gems == gems_before + 3
+
+
+def test_parlor_upgrade_ix108_grants_once_only():
+    """parlor__ix108 gem grant fires only on first entry; Game._enter is idempotent."""
+    cell = 5
+    g = _make_game_with_room("parlor__ix108", cell)
+    g._enter(cell)
+    gems_after_first = g.state.gems
+
+    g._enter(cell)  # second call — must be a no-op
+    assert g.state.gems == gems_after_first, "re-entering parlor__ix108 must not grant gems again"
 
 
 # ====================================================== env: actions
-
-
-def test_open_vault_box_action_id():
-    """OPEN_VAULT_BOX_ACTION is 272, one past the two existing container actions."""
-    assert OPEN_VAULT_BOX_ACTION == 272
-
-
-def test_open_parlor_box_action_id():
-    """OPEN_PARLOR_BOX_ACTION is 273, adjacent to the vault box action."""
-    assert OPEN_PARLOR_BOX_ACTION == 273
 
 
 def test_vault_box_action_masked_when_available():
@@ -382,32 +316,6 @@ def test_vault_box_action_masked_when_unavailable():
     assert not mask[OPEN_VAULT_BOX_ACTION]
 
 
-def test_parlor_box_action_masked_when_available():
-    """OPEN_PARLOR_BOX_ACTION is True in the mask when standing in Parlor with a wind_up_key."""
-    from blueprince_sim.engine.game import Game
-
-    cfg = GameConfig(starting_items=frozenset({"wind_up_key"}))
-    g = Game(cfg, seed=42)
-    parlor = g.registry.by_id["parlor"]
-    cell = 5
-    g.state.grid[cell] = parlor.idx
-    g.state.placed_doors[cell] = parlor.door_mask
-    g.state.entered[cell] = True
-    g.state.pos = cell
-
-    mask = action_mask(g)
-    assert mask[OPEN_PARLOR_BOX_ACTION]
-
-
-def test_parlor_box_action_masked_when_unavailable():
-    """OPEN_PARLOR_BOX_ACTION is False when holding no wind_up_key."""
-    from blueprince_sim.engine.game import Game
-
-    g = Game(GameConfig(), seed=42)
-    mask = action_mask(g)
-    assert not mask[OPEN_PARLOR_BOX_ACTION]
-
-
 def test_apply_vault_box_action():
     """apply_action(OPEN_VAULT_BOX_ACTION) calls open_vault_box and grants the box contents."""
     from blueprince_sim.engine.game import Game
@@ -423,21 +331,3 @@ def test_apply_vault_box_action():
 
     apply_action(g, OPEN_VAULT_BOX_ACTION)
     assert "vault_key_233" in g.state.special.vault_boxes_opened
-
-
-def test_apply_parlor_box_action():
-    """apply_action(OPEN_PARLOR_BOX_ACTION) calls open_parlor_box and decrements wind_up_key count."""
-    from blueprince_sim.engine.game import Game
-
-    cfg = GameConfig(starting_items=frozenset({"wind_up_key"}))
-    g = Game(cfg, seed=42)
-    parlor = g.registry.by_id["parlor"]
-    cell = 5
-    g.state.grid[cell] = parlor.idx
-    g.state.placed_doors[cell] = parlor.door_mask
-    g.state.entered[cell] = True
-    g.state.pos = cell
-
-    before = g.state.inventory.get("wind_up_key", 0)
-    apply_action(g, OPEN_PARLOR_BOX_ACTION)
-    assert g.state.inventory.get("wind_up_key", 0) == before - 1

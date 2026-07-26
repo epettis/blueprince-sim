@@ -26,7 +26,7 @@ item-use actions like Repellent), PR3 wires observation/action space.
   (like room effects), so partial data coverage degrades gracefully.
 - **One module**: all special-item behavior lives in `engine/special_items.py` (per-item
   logic reviewable and testable in isolation). `game.py` only gains thin call sites.
-- **Inert until modeled**: items whose target system is out of scope (Vault, Parlor,
+- **Inert until modeled**: items whose target system is out of scope (Vault,
   trunks, candles, basement, lore) ship as full records with `"implemented": false`
   and a `meta.blocked_on` note. They can spawn, be held, be stolen by the Lost &
   Found, and (PR2) traded — their *use* is just absent.
@@ -43,7 +43,7 @@ item-use actions like Repellent), PR3 wires observation/action space.
       "name": "Lock Pick Kit",
       "kind": "standard",               // standard|special_key|contraption|showroom|armory|unique
       "tier": 3,                         // 1-5 Trading Post tier; null = untradeable
-      "unique": true,                    // at most one held (false: wind_up_key, sanctum_key, microchip, file_cabinet_key)
+      "unique": true,                    // at most one held (false: sanctum_key, microchip, file_cabinet_key)
       "persistence": "day",             // day|until_used|permanent (informational in PR1; PR2 carry-over uses it)
       "spawn_rooms": ["archives", ...], // sim room ids where it can spawn on first entry
       "spawn_rooms_high_luck": [...],   // additional pool entries at luck >= spawn.high_luck_at
@@ -524,7 +524,7 @@ and reported as `carryover()["starting_items"]`:
 - **Self-persisting items**: any held item whose `SpecialItem.persistence` is
   `"permanent"` (key_8, allowance_token, diary_key, microchip, upgrade_disk,
   basement_key) or `"until_used"` (sanctum_key, all four vault keys,
-  file_cabinet_key, stopwatch, repellent, wind_up_key).
+  file_cabinet_key, stopwatch, repellent).
 - **Coat Check** (`room id: coat_check`): entering the Coat Check room calls
   `coat_check_on_enter(game)`, which sets `SpecialItemsState.coat_check_item`
   to the highest-tier held item (ties broken alphabetically).  The stored id is
@@ -644,3 +644,27 @@ from vague wiki mentions. Locker room counts (Locker Room ×3, Gymnasium ×2) ar
 No room carries a **chest**: the kind is fully modeled and validated, but the
 wiki documents no per-room chest assignments, so the `rooms` map has none. The
 whole section is `meta.confidence: inferred` for this reason.
+
+## Parlor room
+
+The Parlor room contains a box that always grants a fixed number of gems on
+first entry — no loot roll, no key required:
+
+- **Base Parlor**: 2 gems, encoded as `items.guaranteed` in `data/rooms.json`
+  and delivered by the standard guaranteed-item pipeline in `special_items.on_enter`.
+- **Parlor upgrade variant `parlor__ix108`** ("3ð Prize"): 3 gems. Identified by
+  its datamined `effect_text` field ("3ð Prize") and internal_index 108. The
+  other upgrade variants (`parlor__ix109` "2 Wind-up Keys", `funeral_parlor__ix110`)
+  inherit the base 2-gem grant or no grant, respectively.
+
+### Simplification #16 — Wind-up Key deliberately not modeled
+
+In the real game the Parlor desk spawns Wind-up Keys which the player uses to
+open the Parlor boxes (one key per box). The Wind-up Key has exactly one
+purpose — solving the Parlor room puzzle — and is consumed once used. Rather
+than widen the action space with a dedicated OPEN_PARLOR_BOX action (and the
+required walk-to re-entry logic, box-cap tracking, and per-run key spawn
+suppression), the gems are granted directly on first entry via the standard
+`items.guaranteed` mechanism. A future reader should **not** "fix" this back to
+the key-based model without weighing the action-space cost: the Wind-up Key
+adds no strategy surface the agent needs to learn.

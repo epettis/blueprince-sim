@@ -110,3 +110,25 @@ it: microchips, Power Hammer wall breaks, the Sanctum keys.
   explicit that lockers are not doors, so the Lock Pick Kit, Master Key, Stopwatch
   and smashers do nothing. This is what makes the Locker Room's key-spreading
   (task 1) load-bearing rather than flavour.
+
+## 5. Throttle the training terminal output
+
+The trainer currently refreshes the dashboard after every completed seed, which
+costs real throughput on long runs (terminal writes are synchronous and the render
+rebuilds the whole frame).
+
+Requirements:
+- Emit updates roughly **5% of the time** rather than every episode.
+- Expose the cadence as a **command-line flag** on `blueprince-train` (e.g.
+  `--dashboard-every 0.05` as a fraction, or `--dashboard-every 20` as "every Nth
+  episode" — pick one and document it; a fraction reads better against "5% of the
+  time").
+- The rate should apply to the per-episode refresh path only. Keep terminal events
+  that matter regardless of cadence (checkpoint writes, the chain's day rollover
+  note, warnings) unthrottled, and make sure the final frame after a run ends is
+  always rendered so the last numbers on screen are true.
+- Relevant code: `src/blueprince_sim/rl/train.py` (the callback that calls
+  `Dashboard.update` / `emit`) and `src/blueprince_sim/rl/dashboard.py`.
+
+Worth measuring before and after with `tools/benchmark_env.py` or a short timed run
+so the win is quantified rather than assumed.

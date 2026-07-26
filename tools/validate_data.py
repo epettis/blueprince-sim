@@ -325,30 +325,6 @@ def main() -> int:
                 if grant_id not in si_resolvable:
                     errors.append(f"{where}: grant id {grant_id!r} not in special_items")
 
-    # parlor_boxes: rooms exist, count positive int, loot weights ~100, item ids resolve
-    parlor_boxes = containers_doc.get("parlor_boxes", {})
-    if parlor_boxes:
-        for rid in parlor_boxes.get("rooms", []):
-            if rid not in by_id:
-                errors.append(f"special_items/containers/parlor_boxes: room {rid!r} not in rooms.json")
-        count = parlor_boxes.get("count")
-        if not isinstance(count, int) or count < 1:
-            errors.append(f"special_items/containers/parlor_boxes: count must be a positive int, got {count!r}")
-        loot = parlor_boxes.get("loot", [])
-        if loot:
-            total_w = sum(entry.get("weight", 0) for entry in loot)
-            if abs(total_w - 100.0) > 0.5:
-                errors.append(
-                    f"special_items/containers/parlor_boxes: loot weights sum to {total_w:.4f}, expected ~100"
-                )
-            for entry in loot:
-                if entry.get("kind") == "item":
-                    iid = entry.get("id")
-                    if iid not in si_resolvable:
-                        errors.append(
-                            f"special_items/containers/parlor_boxes: loot item id {iid!r} not in special_items"
-                        )
-
     # ── shops.json ─────────────────────────────────────────────────────────────
     VALID_STOCK_KINDS = {"resource", "item", "container"}
     VALID_GRANT_KEYS = {"coins", "keys", "gems", "food", "dice"}
