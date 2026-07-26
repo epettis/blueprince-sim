@@ -40,11 +40,13 @@ the in-run action that awards one.
 Wiki research (https://blueprince.wiki.gg/wiki/Upgrade_Disk):
 - **Terminals**: standing at any terminal with a disk lets you insert it. Owner adds
   Security, Laboratory, Office, Shelter, Blackbridge Grotto as the terminal rooms.
-- **Selection**: the program "flips through various floorplans, seemingly at random,
-  before settling on one to upgrade", then offers **three** upgrade options for that
-  room; only the new icons are inspectable before choosing. The disk is consumed and
-  the upgrade is **permanent** across days.
-- **Supply**: exactly **16** disks exist — enough to perform every upgrade once.
+- **Selection**: the terminal settles on one room to upgrade, then offers **three**
+  upgrade options for it; only the new icons are inspectable before choosing. The
+  disk is consumed, the upgrade applies **immediately** (a room still in today's
+  draft pool can be drafted in its upgraded form the same day), and it is
+  **permanent** across days. Which room gets picked is a weighted, chained
+  algorithm — [`upgrade-disks-design.md`](upgrade-disks-design.md) is authoritative.
+- **Supply**: exactly **16** disks exist, one per upgrade slot.
   The wiki enumerates **15 fixed one-time locations** (Office desk, Morning Room,
   Her Ladyship's Chamber, Commissary reserve 15g, Garage car trunk, Great Hall
   prize door, Vault box 304, Trading Post dynamite chamber, Freezer ice wall, Tomb
@@ -56,30 +58,39 @@ Wiki research (https://blueprince.wiki.gg/wiki/Upgrade_Disk):
   the other nine sit in unmodeled rooms/areas and should be added with their rooms.
   Because every disk id is a UNIQUE item, the supply cap enforces itself: once the
   traded disk is held, tier-5 trades stop offering it and decay to dice.
-- **Upgradable rooms** (16 upgrades): Spare Room (Spare Bedroom / Greenroom / Hall),
-  Parlor (Gems / Keys / Funeral), Billiard Room (Speakeasy / Break Room / Pool Hall),
-  Closet (Hallway / Bedroom / Empty), Storeroom (Keys / Gems / Coins), Nook (Extra
-  Key / Breakfast / Reading), Mail Room (Same Day / No Contact / Freight), Aquarium
-  (Goldfish / Starfish / Electric Eel), plus unnumbered Boudoir, Guest Bedroom,
-  Nursery, Bunk Room, Hallway, Courtyard, Cloister (8 variants); Spare Bedroom
-  uniquely allows a second upgrade.
+- **Upgradable rooms**: **15 rooms carrying 16 upgrade slots**, because Spare Room
+  is upgraded twice — the first pick turns it into Spare Bedroom / Greenroom / Hall,
+  and the second upgrades whichever of those was chosen into one of *its* own three
+  sub-variants (`rooms.json` models this as a second-level `variant_of` chain).
+  The other fourteen: Parlor (Gems / Keys / Funeral), Billiard Room (Speakeasy /
+  Break Room / Pool Hall), Closet (Hallway / Bedroom / Empty), Storeroom (Keys /
+  Gems / Coins), Nook (Extra Key / Breakfast / Reading), Mail Room (Same Day / No
+  Contact / Freight), Aquarium (Goldfish / Starfish / Electric Eel), plus
+  unnumbered Boudoir, Guest Bedroom, Nursery, Bunk Room, Hallway, Courtyard, and
+  Cloister. Cloister has **8** variants but the terminal still shows only three, so
+  three of the eight are sampled.
 - The wiki publishes **no** tier list of "best" upgrades. It notes one endgame trick:
   switching *off* Cloister of Joya keeps its benefit while applying another upgrade.
 
 **Owner decisions** (interview, 2026-07-26) — implement to these:
-1. **Random room, agent picks the upgrade.** Inserting a disk rolls a random
-   upgradable room (wiki-faithful), then the agent chooses among that room's three
-   upgrades — 3 new action slots, masked to the offered options. Keeps the luck
-   element while leaving a real strategic choice.
+1. **The draw mechanism** — which room gets picked, how its three options are
+   offered, and how the chosen upgrade is applied — is specified in full in
+   [`upgrade-disks-design.md`](upgrade-disks-design.md). Read that before
+   implementing; it is authoritative and covers the selection tables, the
+   same-day application, and the action/observation cost.
 2. **Terminals**: Security, Laboratory, Office, Shelter, Blackbridge Grotto (the
    last is outside the grid — gate it behind task 4). Insert requires standing in a
    terminal room holding a disk; the disk is consumed.
-3. **Persistence**: an upgrade lasts the rest of the 200-day attempt and **resets on
-   chain wrap**, consistent with every other carry-over flag. Mechanically this
-   means `carryover()` adds the chosen variant id to `GameConfig.upgrade_disks`
-   (which already drives deck building) and `DayChain` clears it on wrap.
-4. Supply cap: 16 disks exist in the real game; each upgrade can be applied once.
-   Track applied upgrades so a room is never offered twice in one attempt.
+3. **Persistence**: an upgrade takes effect immediately, lasts the rest of the
+   200-day attempt, and **resets on chain wrap**, consistent with every other
+   carry-over flag. Mechanically that is two paths: the live decks are rewritten
+   the moment the upgrade is chosen (design doc, "Applying the upgrade
+   immediately"), and `carryover()` adds the chosen variant id to
+   `GameConfig.upgrade_disks` — which already drives deck building — so later days
+   rebuild with it, until `DayChain` clears it on wrap.
+4. Supply cap: 16 disks exist in the real game, one per upgrade slot. Once every
+   slot is filled the game keeps offering rooms, at a flat 1/15, so an upgrade
+   already applied can be swapped for a different variant of the same room.
 
 ## 3. Room safes — permanent +1 gem
 

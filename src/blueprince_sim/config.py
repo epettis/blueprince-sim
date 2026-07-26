@@ -24,7 +24,7 @@ class GameConfig:
     outer_enter_cost: int = 1                 # steps, user-verified: doorstep <-> inside Outer Room
     orchard_unlocked: bool = False                   # Apple Orchard: +20 starting steps (wiki)
     mine_unlocked: bool = False                      # Gemstone Cavern: +2 gems at day start (wiki)
-    upgrade_disks: frozenset[str] = frozenset()      # applied upgrade ids (e.g. "pool_hall")
+    upgrade_disks: frozenset[str] = frozenset()      # applied variant room ids (e.g. "pool_hall__ix12")
     veteran_mode: bool = False                       # triggers gem deck-size gates (with day>=16/room46)
     room46_reached: bool = False                     # Room 46 reached before: gem deck-size gate
     # Draft-condition gates satisfied for this run (item/unlock-dependent

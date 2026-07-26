@@ -93,7 +93,7 @@ un-axes the 3rd), Torch 8g (lights candles/fuses; interchangeable with Burning G
 | Microchip (×3) | Placed in holders to open outer areas. Middle chip: Entrance Hall west vase (Sledge Hammer). Largest: buried on the West Path right of the bridge (Shovel; same walking cost as the Outer Room door). Smallest: pre-placed in Blackbridge Grotto. | As listed. Placed chips permanent; lost unplaced chips respawn nearby. |
 | Paper Crown | If no Red Room among the first 3 floorplans drawn: free redraw, once per draft. | Closed Exhibit security puzzle. |
 | Royal Scepter | On pickup choose a color → that color's floorplans more common all day; re-selectable once/day; color persists if the scepter is lost. | Key of Aries → Treasure Trove; after unlock, spawns in the Entrance Hall every morning. NOT tradeable. |
-| Upgrade Disk (×16) | Terminal FLOORPLAN UPGRADE: permanently upgrade a random room (3 options). | 15 fixed one-time spots + Trading Post tier-5 trades. |
+| Upgrade Disk (×16) | Terminal FLOORPLAN UPGRADE: permanently upgrade one room, picked by weighted/chained rules (3 options offered, applied immediately). See `docs/upgrade-disks-design.md`. | 15 fixed one-time spots + Trading Post tier-5 trades. |
 | Wind-up Key | Opens one Parlor box; consumed. | Parlor desk (1/day); digs. Non-unique (can hold several). |
 
 ## Shops
