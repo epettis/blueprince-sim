@@ -66,11 +66,17 @@ Wiki research (https://blueprince.wiki.gg/wiki/Upgrade_Disk):
 - The wiki publishes **no** tier list of "best" upgrades. It notes one endgame trick:
   switching *off* Cloister of Joya keeps its benefit while applying another upgrade.
 
+> **The draw mechanism is now designed in full: see
+> [`docs/upgrade-disks-design.md`](upgrade-disks-design.md).** Decisions 1 and 4
+> below were taken before the datamined selection tables were found, and are
+> SUPERSEDED by that document. Decisions 2 and 3 still stand.
+
 **Owner decisions** (interview, 2026-07-26) — implement to these:
-1. **Random room, agent picks the upgrade.** Inserting a disk rolls a random
-   upgradable room (wiki-faithful), then the agent chooses among that room's three
-   upgrades — 3 new action slots, masked to the offered options. Keeps the luck
-   element while leaving a real strategic choice.
+1. ~~**Random room, agent picks the upgrade.**~~ **SUPERSEDED.** Selection is not
+   a uniform roll: a weighted 7-room table governs the *first* upgrade (Storeroom
+   35%, Courtyard 25%, ...), and every later one walks priority chains. The agent
+   still chooses among three offered options, so the strategic choice this
+   decision was protecting survives intact.
 2. **Terminals**: Security, Laboratory, Office, Shelter, Blackbridge Grotto (the
    last is outside the grid — gate it behind task 4). Insert requires standing in a
    terminal room holding a disk; the disk is consumed.
@@ -79,7 +85,11 @@ Wiki research (https://blueprince.wiki.gg/wiki/Upgrade_Disk):
    means `carryover()` adds the chosen variant id to `GameConfig.upgrade_disks`
    (which already drives deck building) and `DayChain` clears it on wrap.
 4. Supply cap: 16 disks exist in the real game; each upgrade can be applied once.
-   Track applied upgrades so a room is never offered twice in one attempt.
+   ~~Track applied upgrades so a room is never offered twice in one attempt.~~
+   **The "never twice" half is SUPERSEDED**: once all 16 upgrades are applied the
+   game re-offers rooms at a flat 1/15 so an existing upgrade can be *changed*.
+   The supply cap itself still holds, and still enforces itself — every disk is a
+   unique item id.
 
 ## 3. Room safes — permanent +1 gem
 
