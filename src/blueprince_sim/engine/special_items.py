@@ -166,6 +166,10 @@ class SpecialItemsState:
     coat_check_item: str | None = None
     opened_containers: dict[int, int] = field(default_factory=dict)  # cell -> count of containers already opened there
     garage_car_opened: bool = False  # Car Keys garage car trunk used today (once per day)
+    # Vault Key ids whose deposit box was opened today (at most once per key per day).
+    vault_boxes_opened: list[str] = field(default_factory=list)
+    # cell -> count of Parlor boxes opened there today (capped by parlor_boxes.count/upgraded_count).
+    parlor_boxes_opened: dict[int, int] = field(default_factory=dict)
 
 
 # --------------------------------------------------------------- inventory ops
@@ -317,6 +321,10 @@ def configure(state, cfg) -> None:
     # Aries puzzle; with royal_scepter_found it is granted at reset time instead.)
     if not cfg.royal_scepter_found:
         gated.append("royal_scepter")
+    # Vault keys permanently used (across all days): never spawn again.
+    for vk_id in getattr(cfg, "used_vault_keys", frozenset()):
+        if vk_id not in gated:
+            gated.append(vk_id)
     state.special.gated_out = gated
 
 
@@ -431,6 +439,17 @@ def on_enter(game, room, cell: int) -> None:
                 state.special.water -= 1
                 state.gems += 1
             break
+
+    # Parlor desk: grant wind_up_keys on first entry.
+    # Base Parlor gets 1 key; upgraded Parlor variants get 2 (parlor_boxes.upgraded_count).
+    # Handled here (not via guaranteed_in) so upgraded variants receive the higher count.
+    if state.special.enabled and (room.id == "parlor" or room.variant_of == "parlor"):
+        parlor_boxes = registry.special.containers.get("parlor_boxes", {})
+        is_upgrade = room.variant_of == "parlor"
+        n_keys = (parlor_boxes.get("upgraded_count", 2) if is_upgrade
+                  else parlor_boxes.get("count", 1))
+        for _ in range(n_keys):
+            grant(state, registry, "wind_up_key", source="guaranteed")
 
 
 def _maybe_serve_main_course(state, registry) -> None:
@@ -1345,3 +1364,153 @@ def open_car_trunk(game) -> list[str]:
         state.items_found_log.append(("coins", later_gold))
 
     return granted
+
+
+# --------------------------------------------------------- vault deposit boxes
+
+def can_open_vault_box(game) -> str | None:
+    """Return the vault key id usable right now, or None.
+
+    Requires: standing in the Vault, holding a vault key whose box has not
+    been opened today and is not in cfg.used_vault_keys (permanently removed).
+    Priority order: 149, 233, 304, 370.
+    """
+    state = game.state
+    registry = game.registry
+    if not state.special.enabled:
+        return None
+    if state.grid[state.pos] < 0:
+        return None
+    room = registry.rooms[state.grid[state.pos]]
+    if room.id != "vault":
+        return None
+    vault_boxes = registry.special.containers.get("vault_boxes", {})
+    boxes = vault_boxes.get("boxes", {})
+    used_keys = getattr(game.cfg, "used_vault_keys", frozenset())
+    for key_id in ("vault_key_149", "vault_key_233", "vault_key_304", "vault_key_370"):
+        if key_id not in boxes:
+            continue
+        if key_id in used_keys:
+            continue
+        if key_id in state.special.vault_boxes_opened:
+            continue
+        if state.inventory.get(key_id, 0) > 0:
+            return key_id
+    return None
+
+
+def open_vault_box(game) -> list[str]:
+    """Open the vault deposit box for the matching held vault key.
+
+    The key STAYS in inventory (not consumed) but is added to state.special.removed
+    so it can never spawn again this run. The used_vault_keys carryover records it
+    permanently across days. Grants: allowance_token (149/233), upgrade_disk (304),
+    sanctum_key (370). Returns the list of granted item ids.
+    """
+    state = game.state
+    registry = game.registry
+    key_id = can_open_vault_box(game)
+    if key_id is None:
+        return []
+    vault_boxes = registry.special.containers.get("vault_boxes", {})
+    boxes = vault_boxes.get("boxes", {})
+    box_data = boxes.get(key_id, {})
+
+    state.special.vault_boxes_opened.append(key_id)
+    # Key is not consumed from inventory; only barred from spawning again.
+    if key_id not in state.special.removed:
+        state.special.removed.append(key_id)
+
+    granted = []
+    for item_id in box_data.get("grants", []):
+        if _is_available(state, item_id, registry):
+            grant(state, registry, item_id, source="vault_box")
+            granted.append(item_id)
+    return granted
+
+
+# ------------------------------------------------------------ parlor boxes
+
+def can_open_parlor_box(game) -> bool:
+    """True when: special items enabled, standing in a Parlor (or upgrade variant),
+    holding at least one wind_up_key, and the per-cell box cap is not yet reached.
+
+    Cap: parlor_boxes.count (1) for the base Parlor; parlor_boxes.upgraded_count (2)
+    for upgrade variants (variant_of == "parlor").
+    """
+    state = game.state
+    registry = game.registry
+    if not state.special.enabled:
+        return False
+    if not has(state, "wind_up_key"):
+        return False
+    if state.grid[state.pos] < 0:
+        return False
+    room = registry.rooms[state.grid[state.pos]]
+    if room.id != "parlor" and room.variant_of != "parlor":
+        return False
+    parlor_boxes = registry.special.containers.get("parlor_boxes", {})
+    is_upgrade = room.variant_of == "parlor"
+    cap = (parlor_boxes.get("upgraded_count", 2) if is_upgrade
+           else parlor_boxes.get("count", 1))
+    already = state.special.parlor_boxes_opened.get(state.pos, 0)
+    return already < cap
+
+
+def open_parlor_box(game) -> str | None:
+    """Open one Parlor box; consume one wind_up_key; roll the parlor_boxes loot table.
+
+    Returns a log string ("coins:5", "key", "gems:1", "die", or an item id), or None.
+    """
+    state = game.state
+    registry = game.registry
+    if not can_open_parlor_box(game):
+        return None
+    # Consume one wind_up_key (not permanently — just spent for this use).
+    remove(state, "wind_up_key", consumed=False)
+    cell = state.pos
+    state.special.parlor_boxes_opened[cell] = (
+        state.special.parlor_boxes_opened.get(cell, 0) + 1
+    )
+    parlor_boxes = registry.special.containers.get("parlor_boxes", {})
+    loot_table = parlor_boxes.get("loot", [])
+    if not loot_table:
+        return None
+    weights = tuple(float(entry["weight"]) for entry in loot_table)
+    idx = game.rng.roll_weighted("parlor_box", weights)
+    entry = loot_table[idx]
+    entry_kind = entry["kind"]
+
+    match entry_kind:
+        case "coins":
+            amount = entry.get("amount", 1)
+            bonus = on_coins_granted(state, registry, amount)
+            state.coins += amount + bonus
+            state.items_found_log.append(("coins", amount))
+            return f"coins:{amount}"
+        case "key":
+            state.keys += 1
+            state.items_found_log.append(("key", 1))
+            return "key"
+        case "gems":
+            count_val = entry.get("count", 1)
+            state.gems += count_val
+            state.items_found_log.append(("gem", count_val))
+            return f"gems:{count_val}"
+        case "die":
+            from . import items as items_mod
+            items_mod.grant_item(state, "die", 1, game.rng, registry)
+            state.items_found_log.append(("die", 1))
+            return "die"
+        case "item":
+            item_id = entry["id"]
+            if _is_available(state, item_id, registry):
+                grant(state, registry, item_id, source="parlor_box")
+            else:
+                bonus = on_coins_granted(state, registry, 1)
+                state.coins += 1 + bonus
+                state.items_found_log.append(("coins", 1))
+                return "coins:1"
+            return item_id
+        case _:
+            return None

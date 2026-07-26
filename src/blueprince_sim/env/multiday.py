@@ -71,6 +71,8 @@ class DayChain:
         self.carried_flags: dict[str, bool] = {}      # only True values stored; False == absent
         # Item ids to inject as starting_items on the next day; empty at attempt start.
         self.carried_items: frozenset[str] = frozenset()
+        # Vault key ids permanently used: accumulate across all days; never reset within attempt.
+        self.used_vault_keys: frozenset[str] = frozenset()
         # Repellent bans: room_id -> days_remaining (positive integer).
         # Decremented each advance(); 0 = expired (dropped before next_config).
         self.repellent_bans: dict[str, int] = {}
@@ -95,6 +97,7 @@ class DayChain:
                 self.base_cfg.starting_items | self.carried_items
             ),
             banned_rooms=active_bans,
+            used_vault_keys=self.used_vault_keys,
             **self.carried_flags,          # unpack only the True flags
         )
 
@@ -121,7 +124,7 @@ class DayChain:
         After day ``n_days``, the chain wraps: ``current_day`` returns to 1
         and ALL state (flags, items, bans) is cleared for a fresh attempt.
 
-        Unknown keys outside ``_CARRYOVER_KEYS`` and the two special non-bool
+        Unknown keys outside ``_CARRYOVER_KEYS`` and the three special non-bool
         keys are silently ignored.
         """
         # --- bool flags ---
@@ -133,6 +136,11 @@ class DayChain:
         items_val = carryover.get("starting_items")
         if items_val is not None:
             self.carried_items = frozenset(items_val)
+
+        # --- used_vault_keys (permanently-used vault key ids; accumulate forever within attempt) ---
+        vk_val = carryover.get("used_vault_keys")
+        if vk_val is not None:
+            self.used_vault_keys = self.used_vault_keys | frozenset(vk_val)
 
         # --- banned_rooms (Repellent bans from this day) ---
         # Decrement PRE-EXISTING bans first (one day has elapsed for them),
@@ -169,5 +177,6 @@ class DayChain:
             self.current_day = 1
             self.carried_flags = {}       # fresh attempt; all discoveries reset
             self.carried_items = frozenset()
+            self.used_vault_keys = frozenset()
             self.repellent_bans = {}
             self._ban_order = []

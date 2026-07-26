@@ -164,12 +164,12 @@ def test_stranded_when_frontier_out_of_budget():
 
 
 def test_mask_layout_and_retired_actions():
-    """The mask spans all 272 actions, never legalizes the retired single-tile
+    """The mask spans all 274 actions, never legalizes the retired single-tile
     moves, and a fresh entrance offers drafts but nothing to walk to."""
     env = make_env()
     env.reset(seed=0)
     mask = env.action_masks()
-    assert len(mask) == A.N_ACTIONS == 272
+    assert len(mask) == A.N_ACTIONS == 274
     # Retired single-tile moves are never legal.
     for action in (189, 190, 191, 192):
         assert not mask[action]
@@ -241,10 +241,13 @@ def test_masked_rollout_never_revisits_pointlessly():
                     cell = a - A.MOVE_TO_BASE
                     if not game.state.entered[cell] or cell in control:
                         continue
-                    # Entered cell: must be re-enterable (shop/workshop/dining room/container)
+                    # Entered cell: must be re-enterable (shop/workshop/dining room/
+                    # container/vault deposit box/parlor box)
                     assert (A._cell_is_shop_re_enterable(game, cell)
                             or A._dining_room_re_enterable(game, cell)
-                            or A._cell_has_openable_container(game, cell)), (
+                            or A._cell_has_openable_container(game, cell)
+                            or A._cell_has_vault_box(game, cell)
+                            or A._cell_has_parlor_box(game, cell)), (
                         f"entered cell {cell} is walkable but not a control room "
                         f"or re-enterable special room"
                     )

@@ -82,17 +82,18 @@ def _mask(game: Game) -> list[bool]:
 
 # ================================================================= mask length & defaults
 
-def test_mask_length_is_272():
-    """The action mask has exactly 272 entries matching N_ACTIONS after container expansion.
+def test_mask_length_is_274():
+    """The action mask has exactly 274 entries matching N_ACTIONS after vault/parlor expansion.
 
-    270 (post-PR3) + 2 container actions (OPEN_CONTAINER_ACTION, OPEN_CAR_TRUNK_ACTION) = 272.
+    270 (post-PR3) + 4 container actions (OPEN_CONTAINER_ACTION, OPEN_CAR_TRUNK_ACTION,
+    OPEN_VAULT_BOX_ACTION, OPEN_PARLOR_BOX_ACTION) = 274.
     Old replays decode correctly up to id 269; new actions never appear in pre-container episodes.
     """
     env = make_env()
     env.reset(seed=0)
     mask = env.action_masks()
-    assert len(mask) == 272
-    assert A.N_ACTIONS == 272
+    assert len(mask) == 274
+    assert A.N_ACTIONS == 274
 
 
 def test_new_action_slots_all_false_at_reset():

@@ -475,6 +475,24 @@ class Game:
         assert self.cfg.special_items
         return special_items.open_car_trunk(self)
 
+    def can_open_vault_box(self) -> bool:
+        """A vault key is held, standing in the Vault, and the matching box is unopened."""
+        return special_items.can_open_vault_box(self) is not None
+
+    def open_vault_box(self) -> list[str]:
+        """Open the vault deposit box for the first matching held vault key."""
+        assert self.cfg.special_items
+        return special_items.open_vault_box(self)
+
+    def can_open_parlor_box(self) -> bool:
+        """A wind_up_key is held, standing in a Parlor, and the per-cell cap is not reached."""
+        return special_items.can_open_parlor_box(self)
+
+    def open_parlor_box(self) -> str | None:
+        """Open one Parlor box, consuming one wind_up_key."""
+        assert self.cfg.special_items
+        return special_items.open_parlor_box(self)
+
     def can_use_repellent(self) -> bool:
         """Is using the Repellent available right now (held + NAVIGATE phase)?"""
         return shops.can_use_repellent(self)
