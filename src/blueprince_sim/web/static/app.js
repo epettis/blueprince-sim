@@ -410,8 +410,37 @@ async function loadRun(episode) {
   const slider = $("#pb-slider");
   slider.max = state.run.frames.length - 1;
   slider.value = 0;
+  renderDivergenceBanner(state.run);
   refreshRuns();  // update selection highlight
   renderFrame();
+}
+
+function renderDivergenceBanner(run) {
+  let banner = $("#divergence-banner");
+  if (!banner) {
+    // Insert the banner at the top of the house panel so it overlays the grid.
+    banner = document.createElement("div");
+    banner.id = "divergence-banner";
+    banner.className = "divergence-banner hidden";
+    $("#house-panel").prepend(banner);
+  }
+  const div = run ? run.divergence : null;
+  if (!div) {
+    banner.classList.add("hidden");
+    banner.textContent = "";
+    return;
+  }
+  const total = run.frames ? run.frames.length - 1 : "?";
+  // A legacy record has a known cause; anything else is an unexplained bug and
+  // must not be misattributed to the old record format.
+  const cause = div.legacy_record
+    ? "Record predates day-config capture, so this day's starting state is unrecoverable."
+    : "This record carries a day-config, so the divergence is unexplained — worth reporting.";
+  banner.classList.remove("hidden");
+  banner.textContent =
+    `⚠ Replay diverged from the recorded run at action ${div.first_invalid_index} — ` +
+    `${div.invalid_count} of ${total} actions could not be applied. ` +
+    `This house is incomplete. ${cause}`;
 }
 
 /* ------------------------------------------------------ house rendering */
