@@ -92,5 +92,19 @@
  "meta": {
   "confidence": "wiki",
   "source": "wiki.gg Luck + Item Spawns prose (extracted 2026-07-20)"
+ },
+ "special_item_values": {
+  "by_tier": {
+   "1": 4.0,
+   "2": 6.0,
+   "3": 10.0,
+   "4": 15.0,
+   "5": 40.0
+  },
+  "untradeable": 6.0,
+  "meta": {
+   "confidence": "inferred",
+   "notes": "Reward-shaping worth of a held special item, keyed by its Trading Post tier (untradeable items use the flat value). Calibrated near typical purchase prices so a fair buy is roughly reward-neutral; tunable knobs for retraining experiments, not game data."
+  }
  }
 }
