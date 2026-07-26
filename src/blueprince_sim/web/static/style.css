@@ -180,5 +180,5 @@ td:first-child, th:first-child { text-align: left; }
 #house-panel.scepter-green     { background: rgba(76, 175, 80,  0.12); }
 #house-panel.scepter-red       { background: rgba(217, 83, 79,  0.12); }
 #house-panel.scepter-bedroom   { background: rgba(180, 92, 192, 0.12); }
-#house-panel.scepter-hallway   { background: rgba(185, 154, 58, 0.12); }
-#house-panel.scepter-shop      { background: rgba(217, 192, 74, 0.12); }
+#house-panel.scepter-hallway   { background: rgba(224, 123, 40,  0.12); }
+#house-panel.scepter-shop      { background: rgba(242, 208, 36,  0.12); }
