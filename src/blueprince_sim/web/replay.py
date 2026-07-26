@@ -69,6 +69,8 @@ def _frame(game: Game, action: dict | None, facing: str | None) -> dict:
 
     ``action`` describes the step that PRODUCED this state (None for the
     initial frame); ``facing`` is the client-side sprite direction.
+    ``scepter_color`` is the Royal Scepter category bias active this episode
+    (one of blueprint/green/red/bedroom/hallway/shop), or null when none.
     """
     st = game.state
     return {
@@ -85,6 +87,7 @@ def _frame(game: Game, action: dict | None, facing: str | None) -> dict:
         "reason": game.termination_reason,
         "pending": _pending_dict(game),
         "action": action,
+        "scepter_color": st.shops.scepter_color,
     }
 
 
