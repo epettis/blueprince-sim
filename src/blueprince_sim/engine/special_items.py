@@ -166,6 +166,8 @@ class SpecialItemsState:
     coat_check_item: str | None = None
     opened_containers: dict[int, int] = field(default_factory=dict)  # cell -> count of containers already opened there
     garage_car_opened: bool = False  # Car Keys garage car trunk used today (once per day)
+    # Vault Key ids whose deposit box was opened today (at most once per key per day).
+    vault_boxes_opened: list[str] = field(default_factory=list)
 
 
 # --------------------------------------------------------------- inventory ops
@@ -317,6 +319,10 @@ def configure(state, cfg) -> None:
     # Aries puzzle; with royal_scepter_found it is granted at reset time instead.)
     if not cfg.royal_scepter_found:
         gated.append("royal_scepter")
+    # Vault keys permanently used (across all days): never spawn again.
+    for vk_id in getattr(cfg, "used_vault_keys", frozenset()):
+        if vk_id not in gated:
+            gated.append(vk_id)
     state.special.gated_out = gated
 
 
@@ -1402,4 +1408,67 @@ def open_car_trunk(game) -> list[str]:
         state.coins += later_gold + bonus
         state.items_found_log.append(("coins", later_gold))
 
+    return granted
+
+
+# --------------------------------------------------------- vault deposit boxes
+
+def can_open_vault_box(game) -> str | None:
+    """Return the vault key id usable right now, or None.
+
+    Requires: standing in the Vault, holding a vault key whose box has not
+    been opened today and is not in cfg.used_vault_keys (permanently removed).
+    Priority order: 149, 233, 304, 370.
+    """
+    state = game.state
+    registry = game.registry
+    if not state.special.enabled:
+        return None
+    if state.grid[state.pos] < 0:
+        return None
+    room = registry.rooms[state.grid[state.pos]]
+    if room.id != "vault":
+        return None
+    vault_boxes = registry.special.containers.get("vault_boxes", {})
+    boxes = vault_boxes.get("boxes", {})
+    used_keys = getattr(game.cfg, "used_vault_keys", frozenset())
+    for key_id in ("vault_key_149", "vault_key_233", "vault_key_304", "vault_key_370"):
+        if key_id not in boxes:
+            continue
+        if key_id in used_keys:
+            continue
+        if key_id in state.special.vault_boxes_opened:
+            continue
+        if state.inventory.get(key_id, 0) > 0:
+            return key_id
+    return None
+
+
+def open_vault_box(game) -> list[str]:
+    """Open the vault deposit box for the matching held vault key.
+
+    The key STAYS in inventory (not consumed) but is added to state.special.removed
+    so it can never spawn again this run. The used_vault_keys carryover records it
+    permanently across days. Grants: allowance_token (149/233), upgrade_disk (304),
+    sanctum_key (370). Returns the list of granted item ids.
+    """
+    state = game.state
+    registry = game.registry
+    key_id = can_open_vault_box(game)
+    if key_id is None:
+        return []
+    vault_boxes = registry.special.containers.get("vault_boxes", {})
+    boxes = vault_boxes.get("boxes", {})
+    box_data = boxes.get(key_id, {})
+
+    state.special.vault_boxes_opened.append(key_id)
+    # Key is not consumed from inventory; only barred from spawning again.
+    if key_id not in state.special.removed:
+        state.special.removed.append(key_id)
+
+    granted = []
+    for item_id in box_data.get("grants", []):
+        if _is_available(state, item_id, registry):
+            grant(state, registry, item_id, source="vault_box")
+            granted.append(item_id)
     return granted

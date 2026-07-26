@@ -78,8 +78,9 @@ def observation_space(n_rooms: int, n_items: int, n_recipes: int) -> spaces.Dict
         # per-day item counters in documented order:
         # stopwatch_left, water, lockpick_attempts, lockpick_fails, shield_used,
         # trades_left, scepter_color_idx+1 (0=none), treasure_cell+1 (0=none),
-        # treasure_dug, dining_room_served
-        "item_state": spaces.Box(-1, 999, shape=(10,), dtype=np.int16),
+        # treasure_dug, dining_room_served,
+        # can_open_vault_box (0/1)
+        "item_state": spaces.Box(-1, 999, shape=(11,), dtype=np.int16),
         # dig spots REMAINING per cell (placed rooms; 0 = empty or fully dug)
         "grid_dig": spaces.Box(0, 9, shape=(9, 5), dtype=np.uint8),
         # current shop's display entries, -1 rows when absent / not in a shop.
@@ -278,16 +279,17 @@ def encode(game: Game) -> dict:
                    if shops_state.scepter_color is not None else 0)
     treasure_col = special.treasure_cell + 1  # -1 -> 0 (sentinel = no map read)
     item_state = np.array([
-        special.stopwatch_left,      # 0
-        special.water,               # 1
-        special.lockpick_attempts,   # 2
-        special.lockpick_fails,      # 3
-        int(special.shield_used),    # 4
-        trades_left,                 # 5
-        scepter_col,                 # 6  scepter_color index+1; 0 = not activated
-        treasure_col,                # 7  treasure_cell+1; 0 = no map read today
-        int(special.treasure_dug),   # 8
+        special.stopwatch_left,           # 0
+        special.water,                    # 1
+        special.lockpick_attempts,        # 2
+        special.lockpick_fails,           # 3
+        int(special.shield_used),         # 4
+        trades_left,                      # 5
+        scepter_col,                      # 6  scepter_color index+1; 0 = not activated
+        treasure_col,                     # 7  treasure_cell+1; 0 = no map read today
+        int(special.treasure_dug),        # 8
         int(special.dining_room_served),  # 9
+        int(game.can_open_vault_box()),   # 10 vault deposit box openable right now (0/1)
     ], dtype=np.int16)
 
     # grid_dig: remaining dig spots per cell (placed rooms only)

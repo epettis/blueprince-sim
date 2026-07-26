@@ -723,12 +723,12 @@
    "spawn_rooms_high_luck": [],
    "guaranteed_in": [],
    "effects": [],
-   "implemented": false,
+   "implemented": true,
    "meta": {
     "source": "https://blueprince.wiki.gg/wiki/Vault_Key",
     "confidence": "wiki",
     "absent_spawn_rooms": [],
-    "blocked_on": "vault_not_modeled"
+    "blocked_on": null
    }
   },
   {
@@ -746,12 +746,12 @@
    "spawn_rooms_high_luck": [],
    "guaranteed_in": [],
    "effects": [],
-   "implemented": false,
+   "implemented": true,
    "meta": {
     "source": "https://blueprince.wiki.gg/wiki/Vault_Key",
     "confidence": "wiki",
     "absent_spawn_rooms": [],
-    "blocked_on": "vault_not_modeled"
+    "blocked_on": null
    }
   },
   {
@@ -769,12 +769,12 @@
    "spawn_rooms_high_luck": [],
    "guaranteed_in": [],
    "effects": [],
-   "implemented": false,
+   "implemented": true,
    "meta": {
     "source": "https://blueprince.wiki.gg/wiki/Vault_Key",
     "confidence": "wiki",
     "absent_spawn_rooms": [],
-    "blocked_on": "vault_not_modeled"
+    "blocked_on": null
    }
   },
   {
@@ -788,12 +788,12 @@
    "spawn_rooms_high_luck": [],
    "guaranteed_in": [],
    "effects": [],
-   "implemented": false,
+   "implemented": true,
    "meta": {
     "source": "https://blueprince.wiki.gg/wiki/Vault_Key",
     "confidence": "wiki",
     "absent_spawn_rooms": [],
-    "blocked_on": "vault_not_modeled"
+    "blocked_on": null
    }
   },
   {
@@ -1693,27 +1693,6 @@
     "absent_spawn_rooms": [],
     "blocked_on": "upgrade_disk_not_modeled"
    }
-  },
-  {
-   "id": "wind_up_key",
-   "name": "Wind-up Key",
-   "kind": "unique",
-   "tier": null,
-   "unique": false,
-   "persistence": "until_used",
-   "spawn_rooms": [
-    "parlor"
-   ],
-   "spawn_rooms_high_luck": [],
-   "guaranteed_in": [],
-   "effects": [],
-   "implemented": false,
-   "meta": {
-    "source": "https://blueprince.wiki.gg/wiki/Wind-up_Key",
-    "confidence": "wiki",
-    "absent_spawn_rooms": [],
-    "blocked_on": "parlor_not_modeled"
-   }
   }
  ],
  "spawn": {
@@ -1916,8 +1895,7 @@
     },
     {
      "weight": 1.704545,
-     "kind": "item",
-     "id": "wind_up_key"
+     "kind": "coins"
     }
    ]
   },
@@ -1927,7 +1905,10 @@
    15,
    2
   ],
-  "turnip_steps": 6
+  "turnip_steps": 6,
+  "meta": {
+   "note": "jack_hammer table: wind_up_key entry (weight 1.704545) replaced with coins \u2014 Wind-up Key is deliberately not modeled (action-space simplification)."
+  }
  },
  "treasure_map": {
   "cells": [
@@ -2037,84 +2018,460 @@
   "kinds": {
    "trunk": {
     "locked": true,
-    "opener": ["smash", "key"],
+    "opener": [
+     "smash",
+     "key"
+    ],
     "loot": [
-     {"weight": 42.857, "grants": [{"kind": "item", "id": "lock_pick_kit"}]},
-     {"weight": 42.857, "grants": [{"kind": "item", "id": "car_keys"}, {"kind": "gems", "amount": 1}]},
-     {"weight": 42.857, "grants": [{"kind": "item", "id": "silver_key"}, {"kind": "gems", "amount": 1}]},
-     {"weight": 192.857, "grants": [{"kind": "dice", "amount": 2}, {"kind": "coins", "amount": 4}]},
-     {"weight": 42.857, "grants": [{"kind": "keycard"}, {"kind": "gems", "amount": 1}]},
-     {"weight": 100.0, "grants": [{"kind": "gems", "amount": 3}]},
-     {"weight": 42.857, "grants": [{"kind": "item", "id": "treasure_map"}, {"kind": "item", "id": "compass"}]},
-     {"weight": 75.0, "grants": [{"kind": "keys", "amount": 2}]},
-     {"weight": 75.0, "grants": [{"kind": "keys", "amount": 3}]},
-     {"weight": 50.0, "grants": [{"kind": "keys", "amount": 1}, {"kind": "gems", "amount": 1}, {"kind": "coins", "amount": 2}]},
-     {"weight": 42.857, "grants": [{"kind": "item", "id": "secret_garden_key"}]},
-     {"weight": 31.25, "grants": [{"kind": "coins", "amount": 9}]},
-     {"weight": 31.25, "grants": [{"kind": "coins", "amount": 10}]},
-     {"weight": 31.25, "grants": [{"kind": "coins", "amount": 11}]},
-     {"weight": 31.25, "grants": [{"kind": "coins", "amount": 12}]},
-     {"weight": 31.25, "grants": [{"kind": "coins", "amount": 13}]},
-     {"weight": 31.25, "grants": [{"kind": "coins", "amount": 14}]},
-     {"weight": 31.25, "grants": [{"kind": "coins", "amount": 15}]},
-     {"weight": 25.0, "grants": [{"kind": "gems", "amount": 4}]}
+     {
+      "weight": 42.857,
+      "grants": [
+       {
+        "kind": "item",
+        "id": "lock_pick_kit"
+       }
+      ]
+     },
+     {
+      "weight": 42.857,
+      "grants": [
+       {
+        "kind": "item",
+        "id": "car_keys"
+       },
+       {
+        "kind": "gems",
+        "amount": 1
+       }
+      ]
+     },
+     {
+      "weight": 42.857,
+      "grants": [
+       {
+        "kind": "item",
+        "id": "silver_key"
+       },
+       {
+        "kind": "gems",
+        "amount": 1
+       }
+      ]
+     },
+     {
+      "weight": 192.857,
+      "grants": [
+       {
+        "kind": "dice",
+        "amount": 2
+       },
+       {
+        "kind": "coins",
+        "amount": 4
+       }
+      ]
+     },
+     {
+      "weight": 42.857,
+      "grants": [
+       {
+        "kind": "keycard"
+       },
+       {
+        "kind": "gems",
+        "amount": 1
+       }
+      ]
+     },
+     {
+      "weight": 100.0,
+      "grants": [
+       {
+        "kind": "gems",
+        "amount": 3
+       }
+      ]
+     },
+     {
+      "weight": 42.857,
+      "grants": [
+       {
+        "kind": "item",
+        "id": "treasure_map"
+       },
+       {
+        "kind": "item",
+        "id": "compass"
+       }
+      ]
+     },
+     {
+      "weight": 75.0,
+      "grants": [
+       {
+        "kind": "keys",
+        "amount": 2
+       }
+      ]
+     },
+     {
+      "weight": 75.0,
+      "grants": [
+       {
+        "kind": "keys",
+        "amount": 3
+       }
+      ]
+     },
+     {
+      "weight": 50.0,
+      "grants": [
+       {
+        "kind": "keys",
+        "amount": 1
+       },
+       {
+        "kind": "gems",
+        "amount": 1
+       },
+       {
+        "kind": "coins",
+        "amount": 2
+       }
+      ]
+     },
+     {
+      "weight": 42.857,
+      "grants": [
+       {
+        "kind": "item",
+        "id": "secret_garden_key"
+       }
+      ]
+     },
+     {
+      "weight": 31.25,
+      "grants": [
+       {
+        "kind": "coins",
+        "amount": 9
+       }
+      ]
+     },
+     {
+      "weight": 31.25,
+      "grants": [
+       {
+        "kind": "coins",
+        "amount": 10
+       }
+      ]
+     },
+     {
+      "weight": 31.25,
+      "grants": [
+       {
+        "kind": "coins",
+        "amount": 11
+       }
+      ]
+     },
+     {
+      "weight": 31.25,
+      "grants": [
+       {
+        "kind": "coins",
+        "amount": 12
+       }
+      ]
+     },
+     {
+      "weight": 31.25,
+      "grants": [
+       {
+        "kind": "coins",
+        "amount": 13
+       }
+      ]
+     },
+     {
+      "weight": 31.25,
+      "grants": [
+       {
+        "kind": "coins",
+        "amount": 14
+       }
+      ]
+     },
+     {
+      "weight": 31.25,
+      "grants": [
+       {
+        "kind": "coins",
+        "amount": 15
+       }
+      ]
+     },
+     {
+      "weight": 25.0,
+      "grants": [
+       {
+        "kind": "gems",
+        "amount": 4
+       }
+      ]
+     }
     ]
    },
    "chest": {
     "locked": true,
-    "opener": ["key"],
+    "opener": [
+     "key"
+    ],
     "loot": [
-     {"weight": 25, "grants": [{"kind": "coins", "amount": 8}]},
-     {"weight": 20, "grants": [{"kind": "item", "id": "treasure_map"}]},
-     {"weight": 20, "grants": [{"kind": "item", "id": "lock_pick_kit"}]},
-     {"weight": 15, "grants": [{"kind": "item", "id": "magnifying_glass"}]},
-     {"weight": 10, "grants": [{"kind": "item", "id": "silver_key"}]},
-     {"weight": 10, "grants": [{"kind": "item", "id": "vault_key_149"}]}
+     {
+      "weight": 25,
+      "grants": [
+       {
+        "kind": "coins",
+        "amount": 8
+       }
+      ]
+     },
+     {
+      "weight": 20,
+      "grants": [
+       {
+        "kind": "item",
+        "id": "treasure_map"
+       }
+      ]
+     },
+     {
+      "weight": 20,
+      "grants": [
+       {
+        "kind": "item",
+        "id": "lock_pick_kit"
+       }
+      ]
+     },
+     {
+      "weight": 15,
+      "grants": [
+       {
+        "kind": "item",
+        "id": "magnifying_glass"
+       }
+      ]
+     },
+     {
+      "weight": 10,
+      "grants": [
+       {
+        "kind": "item",
+        "id": "silver_key"
+       }
+      ]
+     },
+     {
+      "weight": 10,
+      "grants": [
+       {
+        "kind": "item",
+        "id": "vault_key_149"
+       }
+      ]
+     }
     ]
    },
    "locker_open": {
     "locked": false,
     "opener": [],
     "loot": [
-     {"weight": 40, "grants": [{"kind": "coins", "amount": 3}]},
-     {"weight": 25, "grants": [{"kind": "coins", "amount": 2}]},
-     {"weight": 15, "grants": [{"kind": "keys", "amount": 1}]},
-     {"weight": 10, "grants": [{"kind": "gems", "amount": 1}]},
-     {"weight": 7, "grants": [{"kind": "item", "id": "running_shoes"}]},
-     {"weight": 3, "grants": [{"kind": "item", "id": "lock_pick_kit"}]}
+     {
+      "weight": 40,
+      "grants": [
+       {
+        "kind": "coins",
+        "amount": 3
+       }
+      ]
+     },
+     {
+      "weight": 25,
+      "grants": [
+       {
+        "kind": "coins",
+        "amount": 2
+       }
+      ]
+     },
+     {
+      "weight": 15,
+      "grants": [
+       {
+        "kind": "keys",
+        "amount": 1
+       }
+      ]
+     },
+     {
+      "weight": 10,
+      "grants": [
+       {
+        "kind": "gems",
+        "amount": 1
+       }
+      ]
+     },
+     {
+      "weight": 7,
+      "grants": [
+       {
+        "kind": "item",
+        "id": "running_shoes"
+       }
+      ]
+     },
+     {
+      "weight": 3,
+      "grants": [
+       {
+        "kind": "item",
+        "id": "lock_pick_kit"
+       }
+      ]
+     }
     ]
    },
    "locker_locked": {
     "locked": true,
-    "opener": ["key_only"],
+    "opener": [
+     "key_only"
+    ],
     "loot": [
-     {"weight": 35, "grants": [{"kind": "coins", "amount": 3}]},
-     {"weight": 20, "grants": [{"kind": "coins", "amount": 5}]},
-     {"weight": 15, "grants": [{"kind": "keys", "amount": 1}]},
-     {"weight": 10, "grants": [{"kind": "gems", "amount": 1}]},
-     {"weight": 10, "grants": [{"kind": "item", "id": "running_shoes"}]},
-     {"weight": 7, "grants": [{"kind": "item", "id": "lock_pick_kit"}]},
-     {"weight": 3, "grants": [{"kind": "item", "id": "treasure_map"}]}
+     {
+      "weight": 35,
+      "grants": [
+       {
+        "kind": "coins",
+        "amount": 3
+       }
+      ]
+     },
+     {
+      "weight": 20,
+      "grants": [
+       {
+        "kind": "coins",
+        "amount": 5
+       }
+      ]
+     },
+     {
+      "weight": 15,
+      "grants": [
+       {
+        "kind": "keys",
+        "amount": 1
+       }
+      ]
+     },
+     {
+      "weight": 10,
+      "grants": [
+       {
+        "kind": "gems",
+        "amount": 1
+       }
+      ]
+     },
+     {
+      "weight": 10,
+      "grants": [
+       {
+        "kind": "item",
+        "id": "running_shoes"
+       }
+      ]
+     },
+     {
+      "weight": 7,
+      "grants": [
+       {
+        "kind": "item",
+        "id": "lock_pick_kit"
+       }
+      ]
+     },
+     {
+      "weight": 3,
+      "grants": [
+       {
+        "kind": "item",
+        "id": "treasure_map"
+       }
+      ]
+     }
     ]
    }
   },
   "rooms": {
-   "attic": {"trunk": 1},
-   "wine_cellar": {"trunk": 1},
-   "storeroom": {"trunk": 1},
-   "boiler_room": {"trunk": 1},
-   "archives": {"trunk": 1},
-   "laboratory": {"trunk": 1},
-   "servants_quarters": {"trunk": 1},
-   "spare_room": {"trunk": 1},
-   "rumpus_room": {"trunk": 1},
-   "furnace": {"trunk": 1},
-   "locker_room": {"locker_open": 3, "locker_locked": 17},
-   "gymnasium": {"locker_open": 1, "locker_locked": 1}
+   "attic": {
+    "trunk": 1
+   },
+   "wine_cellar": {
+    "trunk": 1
+   },
+   "storeroom": {
+    "trunk": 1
+   },
+   "boiler_room": {
+    "trunk": 1
+   },
+   "archives": {
+    "trunk": 1
+   },
+   "laboratory": {
+    "trunk": 1
+   },
+   "servants_quarters": {
+    "trunk": 1
+   },
+   "spare_room": {
+    "trunk": 1
+   },
+   "rumpus_room": {
+    "trunk": 1
+   },
+   "furnace": {
+    "trunk": 1
+   },
+   "locker_room": {
+    "locker_open": 3,
+    "locker_locked": 17
+   },
+   "gymnasium": {
+    "locker_open": 1,
+    "locker_locked": 1
+   }
   },
   "garage_car": {
-   "first_loot": [{"kind": "item", "id": "upgrade_disk"}],
-   "later_pool": ["battery_pack", "keycard", "lock_pick_kit", "magnifying_glass", "secret_garden_key", "treasure_map"],
+   "first_loot": [
+    {
+     "kind": "item",
+     "id": "upgrade_disk"
+    }
+   ],
+   "later_pool": [
+    "battery_pack",
+    "keycard",
+    "lock_pick_kit",
+    "magnifying_glass",
+    "secret_garden_key",
+    "treasure_map"
+   ],
    "later_gold": 5,
    "later_draws": 2
   },
@@ -2122,6 +2479,36 @@
    "source": "https://blueprince.wiki.gg/wiki/Trunk",
    "confidence": "datamined",
    "notes": "Trunk loot from https://blueprince.wiki.gg/wiki/Trunk (datamined probabilities). Fractions sum to ~0.994 as published; weights are fractions x1000 normalised by actual total. The 1-key+1-gem+1-4-coin outcome models coin count as 2 (midpoint). Locker split from https://blueprince.wiki.gg/wiki/Locker_Room: 3 open + 17 locked out of 36 (16 sealed/inaccessible excluded). Locker loot is inferred. Gymnasium: 2 total, split 1 open + 1 locked (inferred). Trunk rooms: attic/wine_cellar/storeroom/boiler_room sourced from item spawn-room lists (wiki); others inferred. Garage car trunk loot from Car Keys wiki page."
+  },
+  "vault_boxes": {
+   "room": "vault",
+   "boxes": {
+    "vault_key_149": {
+     "grants": [
+      "allowance_token"
+     ]
+    },
+    "vault_key_233": {
+     "grants": [
+      "allowance_token"
+     ]
+    },
+    "vault_key_304": {
+     "grants": [
+      "upgrade_disk"
+     ]
+    },
+    "vault_key_370": {
+     "grants": [
+      "sanctum_key"
+     ]
+    }
+   },
+   "meta": {
+    "source": "https://blueprince.wiki.gg/wiki/Vault_Key",
+    "confidence": "wiki",
+    "note": "Each key opens its numbered deposit box; key stays in inventory but is permanently removed from spawn pool (added to used_vault_keys carry-over)."
+   }
   }
  }
 }

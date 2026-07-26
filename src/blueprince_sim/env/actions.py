@@ -5,7 +5,7 @@ to draft, or a room to enter) and the engine walks the shortest connected
 path, paying the normal one-step-per-room cost. Re-entering rooms grants
 nothing, so free-form single-tile moves were retired.
 
-Layout (Discrete(272)):
+Layout (Discrete(273)):
   0..179   draft at doorway: cell (45) x direction (4: N,E,S,W) ->
            cell*4 + dir_index. Walks to the room first if needed. Legal for
            every frontier doorway reachable with at least one step to spare
@@ -30,7 +30,8 @@ Layout (Discrete(272)):
            Security to work their switches; also re-enters shop cells with a
            buyable entry, the Workshop with fabricate options, a Dining
            Room whose main course is still pending once rank 8 is reached,
-           and any cell still holding a container the player can open.
+           a cell still holding a container the player can open, and a Vault
+           cell with an openable deposit box.
   241..246 buy current shop display entry 0..5 (NAVIGATE; on-grid shop or
            inside outer shop, outer_loc == 2)
   247..254 trade offer 0..7 (inside the Trading Post; offer index matches
@@ -42,6 +43,7 @@ Layout (Discrete(272)):
   269      smash the Entrance Hall vase
   270      open container at the current cell (trunk/chest/locker; one per action)
   271      open the Garage car trunk (standing in the Garage with Car Keys held)
+  272      open vault deposit box (standing in the Vault with a matching vault key)
 """
 
 from __future__ import annotations
@@ -52,7 +54,7 @@ from ..engine.locks import DOOR_LOCKED, DOOR_SECURITY, SECURITY_LEVELS
 from ..engine import shops as _shops
 from ..engine import special_items as _si
 
-N_ACTIONS = 272
+N_ACTIONS = 273
 OPEN_BASE, CHOOSE_BASE, ALT_BASE = 0, 180, 183
 REDRAW_ACTION, OUTER_DRAFT_ACTION = 186, 188
 ENTER_OUTER_ACTION = 187   # enter outer room from doorstep
@@ -69,6 +71,7 @@ SCEPTER_BASE = 263  # 263..268: activate the Royal Scepter color 0..5
 SMASH_VASE_ACTION = 269
 OPEN_CONTAINER_ACTION = 270  # open the next container at the current cell
 OPEN_CAR_TRUNK_ACTION = 271  # open garage car trunk (Garage + Car Keys)
+OPEN_VAULT_BOX_ACTION = 272  # open a vault deposit box (Vault + matching vault key)
 DIR_INDEX = {d: i for i, d in enumerate(DIRS)}
 
 
@@ -132,6 +135,32 @@ def _cell_has_openable_container(game: Game, cell: int) -> bool:
     Allows re-entry to a placed room that still has containers available.
     """
     return _si.can_open_container(game, cell)
+
+
+def _cell_has_vault_box(game: Game, cell: int) -> bool:
+    """True when ``cell`` is the Vault and the player holds a key for an unopened box.
+
+    Position-independent: used to enable walk-to re-entry so the agent can
+    return to the Vault after picking up a vault key elsewhere.
+    """
+    st = game.state
+    if st.grid[cell] < 0:
+        return False
+    room = game.registry.rooms[st.grid[cell]]
+    if room.id != "vault":
+        return False
+    vault_boxes = game.registry.special.containers.get("vault_boxes", {})
+    boxes = vault_boxes.get("boxes", {})
+    used_keys = getattr(game.cfg, "used_vault_keys", frozenset())
+    for key_id in boxes:
+        if key_id in used_keys:
+            continue
+        if key_id in st.special.vault_boxes_opened:
+            continue
+        if st.inventory.get(key_id, 0) > 0:
+            return True
+    return False
+
 
 
 def action_mask(game: Game, prev_action: int | None = None) -> list[bool]:
@@ -214,9 +243,11 @@ def action_mask(game: Game, prev_action: int | None = None) -> list[bool]:
                     mask[MOVE_TO_BASE + cell] = True
                 elif st.entered[cell]:
                     # Re-entry extensions for shops / Workshop / Dining Room / containers
+                    # / vault deposit boxes
                     if (_cell_is_shop_re_enterable(game, cell)
                             or _dining_room_re_enterable(game, cell)
-                            or _cell_has_openable_container(game, cell)):
+                            or _cell_has_openable_container(game, cell)
+                            or _cell_has_vault_box(game, cell)):
                         mask[MOVE_TO_BASE + cell] = True
             # Buy actions from an on-grid shop (current cell)
             stock = game.shop_stock()
@@ -245,6 +276,8 @@ def action_mask(game: Game, prev_action: int | None = None) -> list[bool]:
                 mask[OPEN_CONTAINER_ACTION] = True
             if game.can_open_car_trunk():
                 mask[OPEN_CAR_TRUNK_ACTION] = True
+            if game.can_open_vault_box():
+                mask[OPEN_VAULT_BOX_ACTION] = True
             if game.outer_draft_available():
                 mask[OUTER_DRAFT_ACTION] = True
             if game.can_toggle_keycard_power():
@@ -342,6 +375,8 @@ def apply_action(game: Game, action: int) -> None:
         game.open_container()
     elif action == OPEN_CAR_TRUNK_ACTION:
         game.open_car_trunk()
+    elif action == OPEN_VAULT_BOX_ACTION:
+        game.open_vault_box()
     else:
         raise ValueError(f"unimplemented action {action}")
 
@@ -415,4 +450,6 @@ def describe_action(game: Game, action: int) -> str:
         return "open container"
     if action == OPEN_CAR_TRUNK_ACTION:
         return "open car trunk"
+    if action == OPEN_VAULT_BOX_ACTION:
+        return "open vault deposit box"
     return f"action {action}"

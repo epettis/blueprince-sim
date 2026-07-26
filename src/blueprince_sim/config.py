@@ -58,6 +58,9 @@ class GameConfig:
     # defaulting on is the only way the scepter is ever exercised.  Set False to disable.
     royal_scepter_found: bool = True
     garage_car_used_before: bool = False  # Car Keys first-use taken: later uses draw from pool instead of Upgrade Disk
+    # Vault Key ids whose deposit box has been opened (ever, across all days).
+    # These keys are never grantable again — permanently removed from spawn pool.
+    used_vault_keys: frozenset[str] = frozenset()
     entrance_vase_broken: bool = False  # west vase smashed before: its microchip granted at day start
     outer_chip_dug: bool = False        # West Path chip dug up before: granted on reaching the doorstep
     # Room ids banned from the draft pool by the Repellent item.  Each
@@ -106,7 +109,7 @@ class GameConfig:
             if k not in valid:
                 raise KeyError(f"Unknown config key: {k}")
             if k in ("studio_additions", "upgrade_disks", "satisfied_conditions",
-                     "starting_items", "banned_rooms"):
+                     "starting_items", "banned_rooms", "used_vault_keys"):
                 v = frozenset(v)
             elif k == "data_dir" and v is not None:
                 v = Path(v)

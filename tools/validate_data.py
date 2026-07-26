@@ -311,6 +311,20 @@ def main() -> int:
                 f"special_items/containers/garage_car later_pool: unknown item {iid!r}"
             )
 
+    # vault_boxes: room exists, key ids exist as items, grant ids exist
+    vault_boxes = containers_doc.get("vault_boxes", {})
+    if vault_boxes:
+        vb_room = vault_boxes.get("room", "")
+        if vb_room not in by_id:
+            errors.append(f"special_items/containers/vault_boxes: room {vb_room!r} not in rooms.json")
+        for key_id, box_data in vault_boxes.get("boxes", {}).items():
+            where = f"special_items/containers/vault_boxes/boxes/{key_id}"
+            if key_id not in si_by_id:
+                errors.append(f"{where}: key id {key_id!r} not in special_items")
+            for grant_id in box_data.get("grants", []):
+                if grant_id not in si_resolvable:
+                    errors.append(f"{where}: grant id {grant_id!r} not in special_items")
+
     # ── shops.json ─────────────────────────────────────────────────────────────
     VALID_STOCK_KINDS = {"resource", "item", "container"}
     VALID_GRANT_KEYS = {"coins", "keys", "gems", "food", "dice"}
