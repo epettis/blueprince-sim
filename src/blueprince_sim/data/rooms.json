@@ -257,6 +257,10 @@
     "unlock": "Upgrade Spare Bedroom",
     "glyph_resolution": [
      {
+      "icon": "steps",
+      "confidence": "datamined"
+     },
+     {
       "icon": "gem",
       "confidence": "datamined"
      }
@@ -292,7 +296,13 @@
     "directory_number": "3",
     "internal_index": 136,
     "effect_text": "+1\u00f0\u00a3 for each room in your house.",
-    "unlock": "Upgrade Spare Bedroom"
+    "unlock": "Upgrade Spare Bedroom",
+    "glyph_resolution": [
+     {
+      "icon": "steps",
+      "confidence": "datamined"
+     }
+    ]
    },
    "variant_of": "spare_bedroom__ix131"
   },
@@ -562,13 +572,7 @@
     "confidence": "datamined",
     "directory_number": "5",
     "internal_index": 107,
-    "effect_text": "",
-    "glyph_resolution": [
-     {
-      "icon": "gem",
-      "confidence": "datamined"
-     }
-    ]
+    "effect_text": ""
    }
   },
   {
@@ -642,13 +646,7 @@
     "directory_number": "5",
     "internal_index": 109,
     "effect_text": "2 Wind-up Keys",
-    "unlock": "Upgrade Parlor",
-    "glyph_resolution": [
-     {
-      "icon": "gem",
-      "confidence": "datamined"
-     }
-    ]
+    "unlock": "Upgrade Parlor"
    },
    "variant_of": "parlor"
   },
@@ -684,6 +682,10 @@
     "glyph_resolution": [
      {
       "icon": "gem",
+      "confidence": "datamined"
+     },
+     {
+      "icon": "steps",
       "confidence": "datamined"
      }
     ]
@@ -1129,6 +1131,10 @@
      {
       "icon": "gem",
       "confidence": "datamined"
+     },
+     {
+      "icon": "coins",
+      "confidence": "datamined"
      }
     ]
    }
@@ -1182,6 +1188,10 @@
      },
      {
       "icon": "gem",
+      "confidence": "datamined"
+     },
+     {
+      "icon": "coins",
       "confidence": "datamined"
      }
     ]
@@ -1238,6 +1248,10 @@
      {
       "icon": "gem",
       "confidence": "datamined"
+     },
+     {
+      "icon": "coins",
+      "confidence": "datamined"
      }
     ]
    },
@@ -1292,6 +1306,10 @@
      },
      {
       "icon": "gem",
+      "confidence": "datamined"
+     },
+     {
+      "icon": "coins",
       "confidence": "datamined"
      }
     ]
@@ -1785,7 +1803,13 @@
     "confidence": "datamined",
     "directory_number": "21",
     "internal_index": 106,
-    "effect_text": "+4\u00f0\u00b0"
+    "effect_text": "+4\u00f0\u00b0",
+    "glyph_resolution": [
+     {
+      "icon": "coins",
+      "confidence": "datamined"
+     }
+    ]
    }
   },
   {
@@ -1820,7 +1844,13 @@
     "confidence": "datamined",
     "directory_number": "22",
     "internal_index": 119,
-    "effect_text": "+8\u00f0\u00b0"
+    "effect_text": "+8\u00f0\u00b0",
+    "glyph_resolution": [
+     {
+      "icon": "coins",
+      "confidence": "datamined"
+     }
+    ]
    }
   },
   {
@@ -1855,7 +1885,13 @@
     "confidence": "datamined",
     "directory_number": "23",
     "internal_index": 161,
-    "effect_text": "+40\u00f0\u00b0"
+    "effect_text": "+40\u00f0\u00b0",
+    "glyph_resolution": [
+     {
+      "icon": "coins",
+      "confidence": "datamined"
+     }
+    ]
    }
   },
   {
@@ -1885,7 +1921,13 @@
     "confidence": "datamined",
     "directory_number": "24",
     "internal_index": 105,
-    "effect_text": "Opportunity to earn and spread \u00f0\u00b0"
+    "effect_text": "Opportunity to earn and spread \u00f0\u00b0",
+    "glyph_resolution": [
+     {
+      "icon": "coins",
+      "confidence": "datamined"
+     }
+    ]
    }
   },
   {
@@ -2320,7 +2362,13 @@
     "confidence": "datamined",
     "directory_number": "37",
     "internal_index": 120,
-    "effect_text": "Tomorrow, you will start the day with 20 extra\u00f0\u00a3."
+    "effect_text": "Tomorrow, you will start the day with 20 extra\u00f0\u00a3.",
+    "glyph_resolution": [
+     {
+      "icon": "steps",
+      "confidence": "datamined"
+     }
+    ]
    }
   },
   {
@@ -2509,6 +2557,10 @@
     "effect_text": "Freezes your accounts.  (\u00f0\u00b0 and \u00f0 amounts will not reset at the end of the day and they cannot be adjusted or used until tomorrow.)",
     "glyph_resolution": [
      {
+      "icon": "coins",
+      "confidence": "datamined"
+     },
+     {
       "icon": "gem",
       "confidence": "datamined"
      }
@@ -2663,7 +2715,13 @@
     "directory_number": "44",
     "internal_index": 2,
     "effect_text": "AQUARIUM is every color of room.  +10\u00f0\u00b0",
-    "unlock": "Upgrade Aquarium"
+    "unlock": "Upgrade Aquarium",
+    "glyph_resolution": [
+     {
+      "icon": "coins",
+      "confidence": "datamined"
+     }
+    ]
    },
    "variant_of": "aquarium"
   },
@@ -2826,7 +2884,13 @@
     "confidence": "datamined",
     "directory_number": "47",
     "internal_index": 8,
-    "effect_text": "Whenever you enter this room, gain 2\u00f0\u00a3"
+    "effect_text": "Whenever you enter this room, gain 2\u00f0\u00a3",
+    "glyph_resolution": [
+     {
+      "icon": "steps",
+      "confidence": "datamined"
+     }
+    ]
    }
   },
   {
@@ -2856,13 +2920,7 @@
     "confidence": "datamined",
     "directory_number": "48",
     "internal_index": 15,
-    "effect_text": "",
-    "glyph_resolution": [
-     {
-      "icon": "gem",
-      "confidence": "datamined"
-     }
-    ]
+    "effect_text": ""
    }
   },
   {
@@ -2934,7 +2992,7 @@
     "unlock": "Upgrade Boudoir",
     "glyph_resolution": [
      {
-      "icon": "gem",
+      "icon": "dice",
       "confidence": "datamined"
      }
     ]
@@ -3012,7 +3070,13 @@
     "confidence": "datamined",
     "directory_number": "49",
     "internal_index": 68,
-    "effect_text": "+10\u00f0\u00a3"
+    "effect_text": "+10\u00f0\u00a3",
+    "glyph_resolution": [
+     {
+      "icon": "steps",
+      "confidence": "datamined"
+     }
+    ]
    }
   },
   {
@@ -3043,7 +3107,17 @@
     "directory_number": "49",
     "internal_index": 69,
     "effect_text": "+2\u00f0\u00b2  If you have TOMB on the estate today, gain an additional 4\u00f0\u00b2.",
-    "unlock": "Upgrade Guest Bedroom"
+    "unlock": "Upgrade Guest Bedroom",
+    "glyph_resolution": [
+     {
+      "icon": "dice",
+      "confidence": "datamined"
+     },
+     {
+      "icon": "dice",
+      "confidence": "datamined"
+     }
+    ]
    },
    "variant_of": "guest_bedroom"
   },
@@ -3107,7 +3181,17 @@
     "directory_number": "49",
     "internal_index": 71,
     "effect_text": "+10\u00f0\u00a3  If you enter ANTECHAMBER today, add 2\u00f0\u00b0 to your allowance.",
-    "unlock": "Upgrade Guest Bedroom"
+    "unlock": "Upgrade Guest Bedroom",
+    "glyph_resolution": [
+     {
+      "icon": "steps",
+      "confidence": "datamined"
+     },
+     {
+      "icon": "coins",
+      "confidence": "datamined"
+     }
+    ]
    },
    "variant_of": "guest_bedroom"
   },
@@ -3145,7 +3229,13 @@
     "confidence": "datamined",
     "directory_number": "50",
     "internal_index": 100,
-    "effect_text": "Whenever you draft a Bedroom, gain 5\u00f0\u00a3"
+    "effect_text": "Whenever you draft a Bedroom, gain 5\u00f0\u00a3",
+    "glyph_resolution": [
+     {
+      "icon": "steps",
+      "confidence": "datamined"
+     }
+    ]
    }
   },
   {
@@ -3183,7 +3273,13 @@
     "directory_number": "50",
     "internal_index": 101,
     "effect_text": "Whenever you draft a Bedroom, gain 8\u00f0\u00a3",
-    "unlock": "Upgrade Nursery"
+    "unlock": "Upgrade Nursery",
+    "glyph_resolution": [
+     {
+      "icon": "steps",
+      "confidence": "datamined"
+     }
+    ]
    },
    "variant_of": "nursery"
   },
@@ -3215,7 +3311,17 @@
     "directory_number": "50",
     "internal_index": 102,
     "effect_text": "If you have less than 10\u00f0\u00a3 when you enter this room, set your \u00f0\u00a3 to 20.",
-    "unlock": "Upgrade Nursery"
+    "unlock": "Upgrade Nursery",
+    "glyph_resolution": [
+     {
+      "icon": "steps",
+      "confidence": "datamined"
+     },
+     {
+      "icon": "steps",
+      "confidence": "datamined"
+     }
+    ]
    },
    "variant_of": "nursery"
   },
@@ -3332,17 +3438,7 @@
     "confidence": "datamined",
     "directory_number": "52",
     "internal_index": 19,
-    "effect_text": "This room counts as 2 BEDROOMS.",
-    "glyph_resolution": [
-     {
-      "icon": "key",
-      "confidence": "datamined"
-     },
-     {
-      "icon": "gem",
-      "confidence": "datamined"
-     }
-    ]
+    "effect_text": "This room counts as 2 BEDROOMS."
    }
   },
   {
@@ -3382,10 +3478,6 @@
     "glyph_resolution": [
      {
       "icon": "key",
-      "confidence": "datamined"
-     },
-     {
-      "icon": "gem",
       "confidence": "datamined"
      }
     ]
@@ -3427,10 +3519,6 @@
     "effect_text": "This room counts as 2 BEDROOMS.  If you have exactly 2 GREEN ROOMS when drafting this room, DOUBLE your \u00f0",
     "unlock": "Upgrade Bunk Room",
     "glyph_resolution": [
-     {
-      "icon": "key",
-      "confidence": "datamined"
-     },
      {
       "icon": "gem",
       "confidence": "datamined"
@@ -3475,11 +3563,7 @@
     "unlock": "Upgrade Bunk Room",
     "glyph_resolution": [
      {
-      "icon": "key",
-      "confidence": "datamined"
-     },
-     {
-      "icon": "gem",
+      "icon": "coins",
       "confidence": "datamined"
      }
     ]
@@ -3517,6 +3601,10 @@
     "internal_index": 77,
     "effect_text": "The next time you enter BOUDOIR, gain 10\u00f0\u00a3  The next time you enter WALK-IN CLOSET, gain 3\u00f0",
     "glyph_resolution": [
+     {
+      "icon": "steps",
+      "confidence": "datamined"
+     },
      {
       "icon": "gem",
       "confidence": "datamined"
@@ -3560,7 +3648,13 @@
     "confidence": "datamined",
     "directory_number": "54",
     "internal_index": 92,
-    "effect_text": "+1\u00f0\u00a3 for each room in your house."
+    "effect_text": "+1\u00f0\u00a3 for each room in your house.",
+    "glyph_resolution": [
+     {
+      "icon": "steps",
+      "confidence": "datamined"
+     }
+    ]
    }
   },
   {
@@ -3592,13 +3686,7 @@
     "confidence": "datamined",
     "directory_number": "55",
     "internal_index": 73,
-    "effect_text": "",
-    "glyph_resolution": [
-     {
-      "icon": "key",
-      "confidence": "datamined"
-     }
-    ]
+    "effect_text": ""
    }
   },
   {
@@ -3671,13 +3759,7 @@
     "directory_number": "55",
     "internal_index": 75,
     "effect_text": "+1 locked trunk",
-    "unlock": "Upgrade Hallway",
-    "glyph_resolution": [
-     {
-      "icon": "key",
-      "confidence": "datamined"
-     }
-    ]
+    "unlock": "Upgrade Hallway"
    },
    "variant_of": "hallway"
   },
@@ -3711,13 +3793,7 @@
     "directory_number": "55",
     "internal_index": 76,
     "effect_text": "Add an extra HALLWAY to tomorrow's draft pool.",
-    "unlock": "Upgrade Hallway",
-    "glyph_resolution": [
-     {
-      "icon": "key",
-      "confidence": "datamined"
-     }
-    ]
+    "unlock": "Upgrade Hallway"
    },
    "variant_of": "hallway"
   },
@@ -4047,13 +4123,7 @@
     "confidence": "datamined",
     "directory_number": "65",
     "internal_index": 47,
-    "effect_text": "",
-    "glyph_resolution": [
-     {
-      "icon": "gem",
-      "confidence": "datamined"
-     }
-    ]
+    "effect_text": ""
    }
   },
   {
@@ -4126,13 +4196,7 @@
     "directory_number": "65",
     "internal_index": 49,
     "effect_text": "5 dig spots",
-    "unlock": "Upgrade Courtyard",
-    "glyph_resolution": [
-     {
-      "icon": "gem",
-      "confidence": "datamined"
-     }
-    ]
+    "unlock": "Upgrade Courtyard"
    },
    "variant_of": "courtyard"
   },
@@ -4266,7 +4330,13 @@
     "directory_number": "66",
     "internal_index": 30,
     "effect_text": "Permanently add an extra 5\u00f0\u00a3 to the MAIN COURSE for each KITCHEN, PANTRY, or FURNACE you draft from this CLOISTER.",
-    "unlock": "Upgrade Cloister"
+    "unlock": "Upgrade Cloister",
+    "glyph_resolution": [
+     {
+      "icon": "steps",
+      "confidence": "datamined"
+     }
+    ]
    },
    "variant_of": "cloister"
   },
@@ -4394,7 +4464,13 @@
     "directory_number": "66",
     "internal_index": 34,
     "effect_text": "Add 2\u00f0\u00b0 to your allowance for each SHOP you draft from this CLOISTER.",
-    "unlock": "Upgrade Cloister"
+    "unlock": "Upgrade Cloister",
+    "glyph_resolution": [
+     {
+      "icon": "coins",
+      "confidence": "datamined"
+     }
+    ]
    },
    "variant_of": "cloister"
   },
@@ -4458,7 +4534,13 @@
     "directory_number": "66",
     "internal_index": 36,
     "effect_text": "Gain 4\u00f0\u00b2 for each DEAD-END room that you WILL draft from this CLOISTER.",
-    "unlock": "Upgrade Cloister"
+    "unlock": "Upgrade Cloister",
+    "glyph_resolution": [
+     {
+      "icon": "dice",
+      "confidence": "datamined"
+     }
+    ]
    },
    "variant_of": "cloister"
   },
