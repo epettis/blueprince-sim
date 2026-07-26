@@ -1,0 +1,479 @@
+{
+  "schema_version": 1,
+  "comment": "Upgrade Disk selection tables — post-Patch 1.7. Grammar: each chain line is walked left to right. A 'check' entry that fails abandons the whole remaining line (fall to the next line). A 'slot' entry with min_drafts is sugar for a check-then-slot: if the draft count for the slot's base room is below the threshold, the line is abandoned (same as a failed check). A plain 'slot' entry that is already upgraded merely advances to the next entry. Sub-lines (sub: true) are never the initial pick; they are only reachable by fallthrough from the line above. Version skew: this repo reproduces the datamined v1.3 draft algorithm; these selection tables are explicitly post-Patch-1.7. The two subsystems are independent so the v1.3 claim about drafting remains accurate.",
+  "slots": {
+    "closet":       {"room": "closet"},
+    "storeroom":    {"room": "storeroom"},
+    "courtyard":    {"room": "courtyard"},
+    "boudoir":      {"room": "boudoir"},
+    "nook":         {"room": "nook"},
+    "hallway":      {"room": "hallway"},
+    "nursery":      {"room": "nursery"},
+    "bunk_room":    {"room": "bunk_room"},
+    "parlor":       {"room": "parlor"},
+    "cloister":     {"room": "cloister"},
+    "billiard_room":{"room": "billiard_room"},
+    "mail_room":    {"room": "mail_room"},
+    "guest_bedroom":{"room": "guest_bedroom"},
+    "aquarium":     {"room": "aquarium"},
+    "spare_1":      {"room": "spare_room"},
+    "spare_2":      {"room": "spare_room"}
+  },
+  "non_veteran": {
+    "first_upgrade": {
+      "weights": {
+        "storeroom":  0.35,
+        "courtyard":  0.25,
+        "boudoir":    0.10,
+        "spare_1":    0.10,
+        "hallway":    0.10,
+        "closet":     0.05,
+        "nook":       0.05
+      },
+      "meta": {
+        "source": "blueprince.wiki.gg/wiki/Upgrade_Disk post-Patch-1.7 datamined tables",
+        "confidence": "datamined"
+      }
+    },
+    "chains": [
+      {
+        "line": "1",
+        "sub": false,
+        "entries": [
+          {"slot": "nursery",      "min_drafts": 1},
+          {"slot": "bunk_room"},
+          {"slot": "parlor"},
+          {"slot": "cloister"},
+          {"slot": "billiard_room"},
+          {"slot": "mail_room"},
+          {"slot": "boudoir"},
+          {"slot": "nook"},
+          {"slot": "hallway"},
+          {"slot": "closet"},
+          {"slot": "guest_bedroom"},
+          {"slot": "aquarium"},
+          {"slot": "spare_1"},
+          {"slot": "courtyard"},
+          {"slot": "spare_2"},
+          {"slot": "storeroom"}
+        ]
+      },
+      {
+        "line": "2",
+        "sub": false,
+        "entries": [
+          {"slot": "spare_1",   "min_drafts": 2},
+          {"slot": "boudoir"},
+          {"slot": "hallway"},
+          {"slot": "mail_room", "min_drafts": 2}
+        ]
+      },
+      {
+        "line": "3",
+        "sub": false,
+        "entries": [
+          {"slot": "closet"},
+          {"check": "room_drafts", "room": "boiler_room", "count": 2},
+          {"slot": "aquarium",  "min_drafts": 2},
+          {"slot": "parlor"}
+        ]
+      },
+      {
+        "line": "4",
+        "sub": false,
+        "entries": [
+          {"slot": "hallway"},
+          {"slot": "storeroom"},
+          {"slot": "nook"},
+          {"slot": "billiard_room"}
+        ]
+      },
+      {
+        "line": "5",
+        "sub": false,
+        "entries": [
+          {"slot": "courtyard",    "min_drafts": 1},
+          {"slot": "parlor"},
+          {"slot": "spare_1"},
+          {"slot": "guest_bedroom"},
+          {"slot": "spare_2"},
+          {"slot": "nursery"}
+        ]
+      },
+      {
+        "line": "5a",
+        "sub": true,
+        "entries": [
+          {"check": "room_drafts", "room": "boiler_room", "count": 2},
+          {"slot": "aquarium",    "min_drafts": 2},
+          {"slot": "nursery"},
+          {"slot": "bunk_room"},
+          {"slot": "cloister"}
+        ]
+      },
+      {
+        "line": "5b",
+        "sub": true,
+        "entries": [
+          {"slot": "guest_bedroom", "min_drafts": 1},
+          {"slot": "storeroom"},
+          {"slot": "boudoir"},
+          {"slot": "spare_1"},
+          {"slot": "spare_2"},
+          {"slot": "cloister"},
+          {"slot": "nook"},
+          {"slot": "mail_room"},
+          {"slot": "bunk_room"},
+          {"slot": "hallway"},
+          {"slot": "closet"},
+          {"slot": "billiard_room"},
+          {"slot": "parlor"},
+          {"slot": "nursery"},
+          {"slot": "aquarium"},
+          {"slot": "courtyard"}
+        ]
+      },
+      {
+        "line": "6",
+        "sub": false,
+        "entries": [
+          {"slot": "storeroom"},
+          {"slot": "guest_bedroom"},
+          {"slot": "spare_1"},
+          {"slot": "spare_2"},
+          {"slot": "nook"}
+        ]
+      },
+      {
+        "line": "7",
+        "sub": false,
+        "entries": [
+          {"check": "catacombs_unlocked"},
+          {"slot": "cloister",      "min_drafts": 1},
+          {"slot": "parlor"},
+          {"slot": "aquarium"},
+          {"slot": "mail_room"}
+        ]
+      },
+      {
+        "line": "8",
+        "sub": false,
+        "entries": [
+          {"check": "room_drafts", "room": "library", "count": 2},
+          {"slot": "nook",      "min_drafts": 1},
+          {"slot": "courtyard", "min_drafts": 1},
+          {"slot": "hallway"},
+          {"slot": "closet"},
+          {"slot": "boudoir"},
+          {"slot": "aquarium"}
+        ]
+      },
+      {
+        "line": "9",
+        "sub": false,
+        "entries": [
+          {"slot": "billiard_room", "min_drafts": 5},
+          {"slot": "mail_room",     "min_drafts": 4},
+          {"slot": "guest_bedroom"},
+          {"slot": "courtyard"}
+        ]
+      },
+      {
+        "line": "10",
+        "sub": false,
+        "entries": [
+          {"slot": "parlor",    "min_drafts": 2},
+          {"slot": "bunk_room", "min_drafts": 2},
+          {"slot": "closet"},
+          {"slot": "hallway"},
+          {"slot": "guest_bedroom"}
+        ]
+      },
+      {
+        "line": "10a",
+        "sub": true,
+        "entries": [
+          {"slot": "mail_room", "min_drafts": 4},
+          {"slot": "bunk_room"},
+          {"slot": "guest_bedroom"},
+          {"slot": "storeroom"}
+        ]
+      },
+      {
+        "line": "11",
+        "sub": false,
+        "entries": [
+          {"slot": "boudoir",      "min_drafts": 1},
+          {"check": "room_drafts", "room": "library", "count": 2},
+          {"slot": "nook",         "min_drafts": 1},
+          {"slot": "mail_room",    "min_drafts": 4},
+          {"slot": "bunk_room"},
+          {"slot": "hallway"},
+          {"slot": "closet"},
+          {"slot": "guest_bedroom"},
+          {"slot": "billiard_room"},
+          {"slot": "cloister"},
+          {"slot": "parlor"},
+          {"slot": "nursery"},
+          {"slot": "aquarium"},
+          {"slot": "spare_1"},
+          {"slot": "courtyard"},
+          {"slot": "storeroom"},
+          {"slot": "spare_2"}
+        ]
+      },
+      {
+        "line": "11a",
+        "sub": true,
+        "entries": [
+          {"slot": "storeroom"},
+          {"slot": "hallway"},
+          {"slot": "boudoir"},
+          {"slot": "bunk_room"},
+          {"slot": "nook"},
+          {"slot": "mail_room"},
+          {"slot": "closet"},
+          {"slot": "spare_1"},
+          {"slot": "guest_bedroom"},
+          {"slot": "billiard_room"},
+          {"slot": "cloister"},
+          {"slot": "parlor"},
+          {"slot": "nursery"},
+          {"slot": "aquarium"},
+          {"slot": "courtyard"},
+          {"slot": "spare_2"}
+        ]
+      }
+    ],
+    "meta": {
+      "source": "blueprince.wiki.gg/wiki/Upgrade_Disk post-Patch-1.7 datamined tables",
+      "confidence": "datamined"
+    }
+  },
+  "veteran": {
+    "first_upgrade": {
+      "uniform_over": "all_slots",
+      "meta": {
+        "source": "blueprince.wiki.gg/wiki/Upgrade_Disk post-Patch-1.7 datamined tables",
+        "confidence": "datamined"
+      }
+    },
+    "day1_shortcut": {
+      "chance": 0.70,
+      "order": [
+        "spare_room", "bunk_room", "closet", "billiard_room", "parlor",
+        "storeroom", "courtyard", "mail_room", "hallway", "boudoir",
+        "guest_bedroom", "nursery", "aquarium", "nook", "cloister"
+      ],
+      "meta": {
+        "source": "blueprince.wiki.gg/wiki/Upgrade_Disk post-Patch-1.7 datamined tables",
+        "confidence": "datamined",
+        "notes": "The shortcut also skips rooms 'already drafted'. That check requires grid state this pure module lacks. It is modelled as a known simplification (see module docstring in upgrades.py)."
+      }
+    },
+    "chains": [
+      {
+        "line": "1",
+        "sub": false,
+        "entries": [
+          {"slot": "storeroom"},
+          {"slot": "guest_bedroom"},
+          {"slot": "spare_1"},
+          {"slot": "spare_2"},
+          {"slot": "nook"}
+        ]
+      },
+      {
+        "line": "2",
+        "sub": false,
+        "entries": [
+          {"slot": "spare_1"},
+          {"slot": "boudoir"},
+          {"slot": "hallway"},
+          {"slot": "spare_2"},
+          {"slot": "mail_room"}
+        ]
+      },
+      {
+        "line": "3",
+        "sub": false,
+        "entries": [
+          {"slot": "courtyard"},
+          {"slot": "parlor"},
+          {"slot": "spare_1"},
+          {"slot": "guest_bedroom"},
+          {"slot": "spare_2"},
+          {"slot": "nursery"}
+        ]
+      },
+      {
+        "line": "4",
+        "sub": false,
+        "entries": [
+          {"slot": "mail_room"},
+          {"slot": "bunk_room"},
+          {"slot": "guest_bedroom"},
+          {"slot": "storeroom"}
+        ]
+      },
+      {
+        "line": "5",
+        "sub": false,
+        "entries": [
+          {"slot": "bunk_room"},
+          {"slot": "guest_bedroom"},
+          {"slot": "storeroom"}
+        ]
+      },
+      {
+        "line": "6",
+        "sub": false,
+        "note": "Wiki documents this line as bugged: it begins with an always-false check, so Closet can never be selected via this line.",
+        "entries": [
+          {"check": "always_false"},
+          {"slot": "closet"}
+        ]
+      },
+      {
+        "line": "7",
+        "sub": false,
+        "entries": [
+          {"slot": "hallway"},
+          {"slot": "storeroom"},
+          {"slot": "nook"},
+          {"slot": "billiard_room"}
+        ]
+      },
+      {
+        "line": "8",
+        "sub": false,
+        "entries": [
+          {"slot": "boudoir"},
+          {"slot": "nook"},
+          {"slot": "mail_room"},
+          {"slot": "bunk_room"},
+          {"slot": "hallway"},
+          {"slot": "closet"},
+          {"slot": "guest_bedroom"},
+          {"slot": "billiard_room"},
+          {"slot": "cloister"},
+          {"slot": "parlor"},
+          {"slot": "nursery"},
+          {"slot": "aquarium"},
+          {"slot": "spare_1"},
+          {"slot": "courtyard"},
+          {"slot": "storeroom"},
+          {"slot": "spare_2"}
+        ]
+      },
+      {
+        "line": "9",
+        "sub": false,
+        "entries": [
+          {"slot": "parlor"},
+          {"slot": "bunk_room"},
+          {"slot": "closet"},
+          {"slot": "hallway"},
+          {"slot": "guest_bedroom"}
+        ]
+      },
+      {
+        "line": "10",
+        "sub": false,
+        "entries": [
+          {"slot": "billiard_room"},
+          {"slot": "mail_room"},
+          {"slot": "guest_bedroom"},
+          {"slot": "courtyard"}
+        ]
+      },
+      {
+        "line": "11",
+        "sub": false,
+        "entries": [
+          {"slot": "guest_bedroom"},
+          {"slot": "storeroom"},
+          {"slot": "boudoir"},
+          {"slot": "spare_1"},
+          {"slot": "spare_2"},
+          {"slot": "cloister"},
+          {"slot": "nook"},
+          {"slot": "mail_room"},
+          {"slot": "bunk_room"},
+          {"slot": "hallway"},
+          {"slot": "closet"},
+          {"slot": "billiard_room"},
+          {"slot": "parlor"},
+          {"slot": "nursery"},
+          {"slot": "aquarium"},
+          {"slot": "courtyard"}
+        ]
+      },
+      {
+        "line": "12",
+        "sub": false,
+        "entries": [
+          {"slot": "nursery"},
+          {"slot": "bunk_room"},
+          {"slot": "parlor"},
+          {"slot": "cloister"},
+          {"slot": "billiard_room"},
+          {"slot": "mail_room"},
+          {"slot": "boudoir"},
+          {"slot": "nook"},
+          {"slot": "hallway"},
+          {"slot": "closet"},
+          {"slot": "guest_bedroom"},
+          {"slot": "aquarium"},
+          {"slot": "spare_1"},
+          {"slot": "courtyard"},
+          {"slot": "spare_2"},
+          {"slot": "storeroom"}
+        ]
+      },
+      {
+        "line": "13",
+        "sub": false,
+        "entries": [
+          {"slot": "aquarium"},
+          {"slot": "nursery"},
+          {"slot": "bunk_room"},
+          {"slot": "cloister"}
+        ]
+      },
+      {
+        "line": "14",
+        "sub": false,
+        "note": "Hallway appears twice in the original wiki data; both occurrences are preserved faithfully.",
+        "entries": [
+          {"slot": "nook"},
+          {"slot": "courtyard"},
+          {"slot": "hallway"},
+          {"slot": "closet"},
+          {"slot": "boudoir"},
+          {"slot": "aquarium"},
+          {"slot": "hallway"}
+        ]
+      },
+      {
+        "line": "15",
+        "sub": false,
+        "entries": [
+          {"slot": "cloister"},
+          {"slot": "parlor"},
+          {"slot": "aquarium"},
+          {"slot": "mail_room"}
+        ]
+      }
+    ],
+    "meta": {
+      "source": "blueprince.wiki.gg/wiki/Upgrade_Disk post-Patch-1.7 datamined tables",
+      "confidence": "datamined"
+    }
+  },
+  "meta": {
+    "source": "blueprince.wiki.gg/wiki/Upgrade_Disk post-Patch-1.7 datamined tables",
+    "confidence": "datamined",
+    "notes": "Version skew: the draft core is v1.3; these upgrade selection tables are post-Patch-1.7. The wiki explicitly states upgrade selection 'was changed significantly in Patch 1.7'. No v1.3 upgrade table has been published. This is an accepted deliberate skew documented here and in docs/upgrade-disks-design.md."
+  }
+}

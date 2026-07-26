@@ -60,10 +60,14 @@ variants offer all of them; **Cloister has 8 variants, so three are sampled**
 (owner-confirmed from play — he drew neither Orinda nor Draxus on his first
 playthrough). This keeps the choose block uniform at 3 slots for every room.
 
-Sampling is assumed **uniform without replacement** over the room's variants;
-whether the real game weights them is unknown and should be flagged as an
-assumption in `meta`. Already-applied variants are excluded at saturation, when
-the roll re-offers a room so its upgrade can be changed.
+Sampling is **uniform without replacement** over the room's variants; whether the
+real game weights them is unknown, so the tables carry `confidence: inferred`.
+
+The offered three are **not** filtered against the already-applied variant. At
+saturation the roll re-offers a room so its upgrade can be changed, and for a
+three-variant room excluding the current one would leave only two options while
+the terminal must always show three. The wiki does not claim exclusion either.
+Re-picking the variant a room already has is therefore a legal no-op.
 
 This is load-bearing for task 9's validation signal: Cloister of Orinda is only
 offered on ~3/8 of Cloister rolls, so the measured baseline value of Orinda must
@@ -77,8 +81,9 @@ explaining the mechanisms, and entries carrying `meta.confidence` /
 
 Top-level keys:
 
-- `slots` — the 15 selectable slots, each mapping to the room id it upgrades
-  (`spare_1` / `spare_2` are the pseudo-slots described above).
+- `slots` — the 16 selectable slots, each mapping to the room id it upgrades.
+  Sixteen slots over fifteen rooms, because `spare_1` and `spare_2` both map to
+  `spare_room`. Saturation's "even 1/15" is a roll over *rooms*, not slots.
 - `non_veteran.first_upgrade` — the weighted table for the very first upgrade.
 - `non_veteran.chains` — the ordered fallback lines.
 - `veteran.first_upgrade`, `veteran.day1_shortcut`, `veteran.chains`.
@@ -169,6 +174,38 @@ fallthrough-only.
   same walk semantics. Falling off the last veteran line continues into
   **non-veteran line 1**, including its checks.
 
+The veteran lines carry no sub-lines and no `[N]` brackets, so their walk is
+simply "first not-yet-upgraded slot wins, else next line":
+
+```
+ 1  Storeroom > Guest Bedroom > Spare 1 > Spare 2 > Nook
+ 2  Spare 1 > Boudoir > Hallway > Spare 2 > Mail Room
+ 3  Courtyard > Parlor > Spare 1 > Guest Bedroom > Spare 2 > Nursery
+ 4  Mail Room > Bunk Room > Guest Bedroom > Storeroom
+ 5  Bunk Room > Guest Bedroom > Storeroom
+ 6  (always false) > Closet
+ 7  Hallway > Storeroom > Nook > Billiard Room
+ 8  Boudoir > Nook > Mail Room > Bunk Room > Hallway > Closet > Guest Bedroom
+      > Billiard Room > Cloister > Parlor > Nursery > Aquarium > Spare 1
+      > Courtyard > Storeroom > Spare 2
+ 9  Parlor > Bunk Room > Closet > Hallway > Guest Bedroom
+10  Billiard Room > Mail Room > Guest Bedroom > Courtyard
+11  Guest Bedroom > Storeroom > Boudoir > Spare 1 > Spare 2 > Cloister > Nook
+      > Mail Room > Bunk Room > Hallway > Closet > Billiard Room > Parlor
+      > Nursery > Aquarium > Courtyard
+12  Nursery > Bunk Room > Parlor > Cloister > Billiard Room > Mail Room
+      > Boudoir > Nook > Hallway > Closet > Guest Bedroom > Aquarium > Spare 1
+      > Courtyard > Spare 2 > Storeroom
+13  Aquarium > Nursery > Bunk Room > Cloister
+14  Nook > Courtyard > Hallway > Closet > Boudoir > Aquarium > Hallway
+15  Cloister > Parlor > Aquarium > Mail Room
+```
+
+Two quirks are faithful to the source, not transcription slips. **Line 6** is
+documented on the wiki as bugged — it carries an always-false check, so it can
+never select Closet and always falls through to line 7. **Line 14** really does
+list Hallway twice; the second occurrence is unreachable whenever the first was.
+
 ### Saturation
 
 Once all 16 upgrades are applied, selection becomes a flat 1/15 over slots and
@@ -229,11 +266,13 @@ live decks:
   card as the variant. No RNG is consumed and no card changes position, so
   determinism given a seed (a tested invariant) is preserved exactly.
 - **The 8 Cloister variants are the exception**: all move `unusual` -> `standard`,
-  and Cloister of Draxus additionally drops `gem_cost` 3 -> 0. These need a
-  cross-deck move (remove from the unusual deck, insert into the standard one).
-  Insertion position is arbitrary and must be made deterministic by an explicit
-  documented rule; this is a genuine simplification and should be recorded as
-  one.
+  and Cloister of Draxus additionally drops `gem_cost` 3 -> 0, which moves it
+  from the gem deck to the free one. These need a cross-deck move: drop the base
+  card from the unusual/gem deck's undealt slice and insert the variant into the
+  standard deck at a uniform random undealt index (see "Resolved calls" 3).
+  Note the existing `DeckState.add_copies` is the wrong tool here — it reshuffles
+  the whole deck and resets the cursor, which would make cards already dealt
+  today dealable again.
 
 Already-dealt cards and rooms already placed on the grid are untouched — the
 upgrade affects future draws only. Cards are substituted, not added, so deck
@@ -270,16 +309,56 @@ Note `shelter` has `pool: outer` — it sits in the outer-room abstraction rathe
 than on the 5x9 grid, so "standing in it" needs checking against `outer_loc`
 rather than a cell. Verify before implementing.
 
-## Open questions
+## Resolved calls
 
-1. **Is the 3-of-8 Cloister sample uniform?** Resolved that the game samples 3
-   (owner-confirmed), but not whether the 8 are equally likely. Assumed uniform.
-2. **Does the roll consider rooms not in today's pool?** The wiki says
-   upgradable rooms are "rooms that appear in the initial draft pool" (room
-   *types*), and only the veteran day-1 shortcut checks "already drafted". Read
-   literally, the non-veteran chains ignore the house entirely. Worth confirming.
-3. **Cloister deck-move insertion position** — needs an explicit deterministic
-   rule (see above).
+1. **The 3-of-8 Cloister sample is uniform without replacement.** The wiki is
+   silent on whether the eight are equally likely, and no datamine gives
+   weights, so uniform is the only defensible reading. Tables carry
+   `confidence: inferred` on this point specifically.
+2. **The roll ignores house and pool state.** Confirmed against the wiki: "All
+   upgradable rooms are rooms that appear in the initial draft pool" describes
+   which room *types* can ever be upgraded, not a per-day filter. The only house
+   state any non-veteran line consults is the `[N]` per-attempt draft counts.
+   A room can therefore be selected for upgrade on a day it is unreachable, or
+   while it is Repellent-banned.
+3. **Cloister deck-move insertion is a uniform random index into the
+   destination deck's undealt slice**, drawn from the dedicated
+   `upgrade_deck_insert` substream. The cursor and every already-dealt card are
+   left alone, so the upgrade cannot resurrect a card dealt earlier today. Any
+   fixed position would bias the draw; the real game's position is unknown.
+
+## Simplifications this design accepts
+
+Each is faithful-where-known and flagged where invented.
+
+- **Catacombs is permanently locked.** There is no `catacombs` record, so line
+  7's check never passes and the line always falls through. Revisit with task 4.
+- **The veteran day-1 shortcut ignores "already drafted".** The wiki's shortcut
+  skips rooms already drafted as well as already upgraded; selection is
+  otherwise provably independent of house state, and the drafted test would be
+  the only place the roll consults the grid. Modelled as upgraded-only.
+- **Chain exhaustion falls back to a uniform pick over selectable slots.** The
+  wiki does not say what happens when every line is walked without a hit.
+  Wrapping to line 1 instead risks a non-terminating walk.
+- **Spare Room at saturation re-offers `spare_2`, never `spare_1`.** Saturation
+  rolls a *room*; re-rolling Spare Room's first stage would orphan the second.
+- **`spare_2` is unselectable until `spare_1` is applied**, and the chain walk
+  treats it exactly like an already-upgraded slot — it advances within the line
+  rather than abandoning it.
+- **Draft counters key on the root base room id.** `[2] Mail Room` counts every
+  Mail Room variant too, so an upgraded room keeps accumulating toward the
+  brackets that mention it. Counting only the unupgraded base id would silently
+  freeze those checks the moment the room was upgraded.
+
+## The one semantic most likely to be got wrong
+
+A bracketed slot is a **check**, not a filter. `[2] Spare 1` desugars to
+*2 Spare Room drafts* > Spare 1, and a failed check abandons the entire rest of
+the line. So a failing bracket must **not** merely advance to the next entry —
+it drops the walk to the next line. Contrast a plain slot that happens to be
+already upgraded, which does merely advance. Both failure modes for a *line*
+land in the same place (the next line in written order), which is why the walk
+returns a single "no selection" result for both.
 
 ## Test plan
 
