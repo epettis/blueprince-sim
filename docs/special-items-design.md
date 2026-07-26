@@ -248,6 +248,18 @@ draws from the data pool (excluding already-held uniques; `die` grants a die).
 11. Dig-spot counts: the wiki's Dig Spot list names rooms but not counts, so
     every listed room carries dig_spots=1 (inferred) except the datamined
     Tomb (2) and Tunnel (3).
+12. Coat Check: the real game lets the player choose which item to store and
+    retrieve it on any later day.  The sim auto-stores the highest-tier item
+    (ties broken alphabetically by id) and auto-returns it exactly the NEXT day.
+13. Moon Pendant: 2 uniformly random items are drawn from the full held set
+    (pendant eligible; uses the named substream "moon_pendant_carry").  The wiki
+    says "2 random inventory items"; we take this literally at end-of-day (not
+    mid-day) regardless of what happened to the inventory during the day.
+14. Repellent: today's already-built decks are not affected by a same-day use
+    (the ban takes effect from the next day).  The ban counter starts at 7 and
+    the advance() that FOLLOWS the day the repellent is used does NOT decrement
+    it; each subsequent advance decrements once, so the ban is active for exactly
+    7 `next_config()` calls (7 days) before dropping.
 
 ## PR2 — commerce and carry-over
 
@@ -498,3 +510,57 @@ SMASH_VASE_ACTION = 269
 - `tests/test_placement.py` additions — key_8 / secret_garden_key inventory gating.
 - Determinism: same seed + config ⇒ identical `items_found_log` (extends the existing
   invariant test).
+
+## Multi-day item persistence (carried items and Repellent bans)
+
+Implemented alongside `env/multiday.py::DayChain`.  Source:
+`docs/research/special-items-wiki.md` "Taxonomy and global rules".
+
+### Carry channels
+
+The three channels are computed by `special_items.end_of_day_carry(state, registry, rng) -> list[str]`
+and reported as `carryover()["starting_items"]`:
+
+- **Self-persisting items**: any held item whose `SpecialItem.persistence` is
+  `"permanent"` (key_8, allowance_token, diary_key, microchip, upgrade_disk,
+  basement_key) or `"until_used"` (sanctum_key, all four vault keys,
+  file_cabinet_key, stopwatch, repellent, wind_up_key).
+- **Coat Check** (`room id: coat_check`): entering the Coat Check room calls
+  `coat_check_on_enter(game)`, which sets `SpecialItemsState.coat_check_item`
+  to the highest-tier held item (ties broken alphabetically).  The stored id is
+  returned by `end_of_day_carry()` and appears in the next day's
+  `starting_items`.  The item is NOT removed from today's inventory (the player
+  keeps it for the rest of the day).
+- **Moon Pendant** (`item id: moon_pendant`): if held at end of day, 2 uniformly
+  random distinct held items (pendant itself eligible) are selected via the
+  named rng substream `"moon_pendant_carry"` and included in the carry list.
+  When ≤ 2 items are held, all carry automatically.
+
+### DayChain integration
+
+`DayChain.carried_items: frozenset[str]` holds the persistent item ids.
+`next_config()` merges `base_cfg.starting_items | carried_items` so `Game.reset`
+grants them at construction.  `advance()` replaces `carried_items` from
+`carryover()["starting_items"]` each day.
+
+### Repellent bans
+
+`Game.use_repellent(room_id)` (delegates to `shops.use_repellent`):
+- Asserts a Repellent is held; consumes it (`consumed=True`).
+- Refuses `entrance_hall`, `antechamber`, `room_46` (wiki exclusions).
+- Records the ban in `ShopsState.repellent_bans[room_id] = 7`.
+
+`carryover()["banned_rooms"]` carries the `dict[str, int]` of new bans into
+`DayChain.advance()`, which:
+
+- Decrements all pre-existing ban counters first (one day has elapsed).
+- Drops any counter that reaches ≤ 0 (expired).
+- Merges the new bans at their original count (7) without decrementing them on
+  the first advance, so the ban is active for exactly 7 subsequent
+  `next_config()` calls (simplification #14 above).
+- Enforces the 3-ban cap by evicting the oldest ban (insertion order) when more
+  than 3 are active.
+
+`DayChain.next_config()` passes `frozenset(active_ban_room_ids)` as
+`GameConfig.banned_rooms`.  `engine/decks.py::eligible_pool` skips any room
+whose id is in `cfg.banned_rooms` before building the eight solitaire decks.

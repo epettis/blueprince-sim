@@ -37,6 +37,8 @@ KNOWN_ITEM_EFFECT_TAGS = {
     # PR2+ / inert tags
     "shop_discount", "smash", "repellent", "scepter", "chronograph",
     "crown_of_blueprints", "gear_wrench", "dowsing_rod", "locksmith_rob",
+    # Multi-day carry-over (PR2 item persistence)
+    "moon_pendant_carry",
 }
 VALID_ITEM_KINDS = {"standard", "special_key", "contraption", "showroom", "armory", "unique"}
 VALID_ITEM_PERSISTENCE = {"day", "until_used", "permanent"}

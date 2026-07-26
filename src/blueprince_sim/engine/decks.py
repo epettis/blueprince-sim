@@ -34,6 +34,9 @@ def eligible_pool(registry: Registry, cfg: GameConfig) -> list[Room]:
     for room in registry.rooms:
         if room.rarity is None or room.id in replaced:
             continue
+        # Repellent bans: rooms temporarily removed from the pool for 7 days.
+        if room.id in cfg.banned_rooms:
+            continue
         if room.pool == "base":
             out.append(room)
         elif room.pool == "studio_addition" and room.id in cfg.studio_additions:
@@ -41,7 +44,12 @@ def eligible_pool(registry: Registry, cfg: GameConfig) -> list[Room]:
         # "outer": drafted at the dedicated outer location, not in decks
         # "pool_temp": injected by The Pool's effect during the day
         # "conditional"/"none": forced-only or gated rooms, never dealt normally
-    out.extend(v for v in chosen_variants if v.rarity is not None)
+    # A ban targets the FLOORPLAN, so it covers the room's upgrade variant too
+    # (banning "courtyard" must not leave an upgraded Courtyard dealable).
+    out.extend(v for v in chosen_variants
+               if v.rarity is not None
+               and v.id not in cfg.banned_rooms
+               and v.variant_of not in cfg.banned_rooms)
     return out
 
 

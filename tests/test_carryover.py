@@ -371,25 +371,26 @@ def test_doorstep_no_chip_without_dig_tool_or_flag():
 # ============================================================ CARRYOVER REPORT
 
 def test_carryover_all_false_defaults():
-    """carryover() returns all-False values on a fresh game with no discoveries.
+    """carryover() returns all-False bool values on a fresh game with no discoveries.
 
-    The report must always have the full set of keys and default to False when
-    nothing was found or configured.  royal_scepter_found is explicitly False
-    here because the default flipped to True (the unlock puzzle is unmodeled,
-    so defaulting on is the only way the scepter is exercised; pass False to
-    disable).  The gate, not the default, is what this test pins.
+    The bool keys must always be present and default to False when nothing was
+    found or configured.  royal_scepter_found is explicitly False here because
+    the default flipped to True (the unlock puzzle is unmodeled, so defaulting
+    on is the only way the scepter is exercised; pass False to disable).  The
+    gate, not the default, is what this test pins.  The non-bool keys
+    (starting_items, banned_rooms) are always present but not False-typed.
     """
     g = _game(GameConfig(royal_scepter_found=False))
     report = shops.carryover(g)
-    expected_keys = {
+    bool_keys = {
         "lunch_box_unlocked",
         "cursed_effigy_unlocked",
         "entrance_vase_broken",
         "outer_chip_dug",
         "royal_scepter_found",
     }
-    assert set(report.keys()) == expected_keys
-    assert all(not v for v in report.values()), f"expected all False, got {report}"
+    assert bool_keys <= set(report.keys())
+    assert all(not report[k] for k in bool_keys), f"expected all False, got {report}"
 
 
 def test_carryover_entrance_vase_broken_from_smash():
@@ -442,14 +443,19 @@ def test_carryover_lunch_box_from_gift_shop():
 
 
 def test_carryover_shape_is_complete():
-    """carryover() dict always contains exactly the five carry-over keys regardless of state."""
-    expected_keys = {
+    """carryover() dict always contains all carry-over keys regardless of state.
+
+    The five bool keys must always be present; the non-bool keys
+    (starting_items, banned_rooms) are also always included.
+    """
+    bool_keys = {
         "lunch_box_unlocked",
         "cursed_effigy_unlocked",
         "entrance_vase_broken",
         "outer_chip_dug",
         "royal_scepter_found",
     }
+    expected_keys = bool_keys | {"starting_items", "banned_rooms"}
     # Test a variety of configs
     for cfg in [
         GameConfig(),

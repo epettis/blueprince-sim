@@ -157,6 +157,11 @@ class SpecialItemsState:
     # Draft conditions satisfied by in-run events (e.g. "breakfast" from Bacon & Eggs).
     # Checked by satisfied_condition_items alongside item-gated conditions.
     extra_conditions: set[str] = field(default_factory=set)
+    # Coat Check: one item stored for pickup at the start of the NEXT day.
+    # Set in on_enter when the player enters the Coat Check room; the stored id
+    # is returned via end_of_day_carry() and injected as a starting_item.
+    # None = no item stored today.
+    coat_check_item: str | None = None
 
 
 # --------------------------------------------------------------- inventory ops
@@ -385,6 +390,15 @@ def on_enter(game, room, cell: int) -> None:
     if room.id == "lost_and_found":
         lost_and_found_on_enter(game)
 
+    # Coat Check: store the most valuable held item overnight.
+    # The real game lets the player choose which item to store and retrieve it on
+    # any later day; we auto-store the highest-tier item (ties broken by id for
+    # determinism) and auto-return it at the start of the NEXT day.  Only fires
+    # if the player holds at least one non-excluded item and no item is already
+    # stored this day.  (Simplification documented in docs/special-items-design.md.)
+    if room.id == "coat_check" and state.special.coat_check_item is None:
+        coat_check_on_enter(game)
+
     # Sleeping Mask: grant steps when entering a bedroom (including Bunk Room x2)
     for item_id, cnt in state.inventory.items():
         if cnt <= 0:
@@ -543,6 +557,92 @@ def lost_and_found_on_enter(game) -> None:
             items_mod.grant_item(state, "die", 1, rng, registry)
         else:
             grant(state, registry, chosen, source="lost_and_found")
+
+
+def coat_check_on_enter(game) -> None:
+    """Auto-store the most valuable held item in the Coat Check for overnight.
+
+    Picks the highest-tier item from inventory (untradeable/no tier counts as 0;
+    ties broken alphabetically by id for determinism).  The stored item is NOT
+    removed from today's inventory — the player keeps it for the rest of the day.
+    It is returned by end_of_day_carry() as a starting_item for tomorrow.
+
+    Simplification: the real game lets the player choose which item to store
+    and retrieve it on any later day.  We auto-store the best item and
+    auto-return it exactly the next day.  (Documented in docs/special-items-design.md.)
+    """
+    state = game.state
+    registry = game.registry
+
+    # Collect all held items that are not excluded from the pipeline
+    held = [
+        iid for iid, cnt in state.inventory.items()
+        if cnt > 0 and iid not in PIPELINE_EXCLUDED
+    ]
+    if not held:
+        return
+
+    def _item_sort_key(iid: str):
+        item = registry.special.by_id.get(iid)
+        tier = item.tier if (item is not None and item.tier is not None) else 0
+        return (-tier, iid)  # highest tier first; ties broken by id ascending
+
+    best = sorted(held, key=_item_sort_key)[0]
+    state.special.coat_check_item = best
+
+
+def end_of_day_carry(state, registry, rng) -> list[str]:
+    """Compute the item ids that persist into tomorrow's starting_items.
+
+    Carry channels (in priority order — results are de-duplicated):
+    1. Self-persisting items: any held item whose record has persistence
+       "permanent" or "until_used".
+    2. Coat Check: the item stored when the player entered the Coat Check room
+       this day (state.special.coat_check_item), if any.
+    3. Moon Pendant: if held at end of day, TWO uniformly random distinct items
+       from the full held inventory (moon_pendant itself is eligible) carry over.
+       The selection is deterministic given ``rng`` (substream "moon_pendant_carry").
+
+    Returns a sorted, de-duplicated list of item ids.  Does NOT include items
+    that are currently absent from the inventory (the coat_check_item may have
+    been stolen by the Lost & Found after storage, for example; we check held
+    status only for the Moon Pendant draw, but the Coat Check item is returned
+    regardless since it is conceptually "at the Coat Check", not in inventory).
+
+    Caller (shops.carryover / DayChain) is responsible for injecting these into
+    the next day's GameConfig.starting_items.
+    """
+    result: set[str] = set()
+
+    # 1. Self-persisting items (permanent or until_used)
+    for item_id, cnt in state.inventory.items():
+        if cnt <= 0:
+            continue
+        item = registry.special.by_id.get(item_id)
+        if item is not None and item.persistence in ("permanent", "until_used"):
+            result.add(item_id)
+
+    # 2. Coat Check stored item (returns to player next day regardless of
+    # what happened to the inventory copy this day)
+    if state.special.coat_check_item is not None:
+        result.add(state.special.coat_check_item)
+
+    # 3. Moon Pendant: 2 random distinct held items (pendant itself eligible)
+    if has(state, "moon_pendant"):
+        held_ids = sorted(
+            iid for iid, cnt in state.inventory.items() if cnt > 0
+        )
+        if len(held_ids) <= 2:
+            # Fewer than 2 held: all carry anyway
+            result.update(held_ids)
+        else:
+            # Draw 2 distinct ids uniformly at random from the held set
+            indices = list(range(len(held_ids)))
+            rng.shuffle("moon_pendant_carry", indices)
+            result.add(held_ids[indices[0]])
+            result.add(held_ids[indices[1]])
+
+    return sorted(result)
 
 
 # ------------------------------------------------------- movement & door costs
