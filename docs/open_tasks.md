@@ -122,7 +122,7 @@ it: microchips, Power Hammer wall breaks, the Sanctum keys.
   and smashers do nothing. This is what makes the Locker Room's key-spreading
   (task 1) load-bearing rather than flavour.
 
-## 5. Throttle the training terminal output
+## 5. Throttle the training terminal output — DONE
 
 The trainer currently refreshes the dashboard after every completed seed, which
 costs real throughput on long runs (terminal writes are synchronous and the render
@@ -141,8 +141,14 @@ Requirements:
 - Relevant code: `src/blueprince_sim/rl/train.py` (the callback that calls
   `Dashboard.update` / `emit`) and `src/blueprince_sim/rl/dashboard.py`.
 
-Worth measuring before and after with `tools/benchmark_env.py` or a short timed run
-so the win is quantified rather than assumed.
+Implemented as `--dashboard-every FRACTION` (default 0.05 = one line in 20; 0
+disables the per-episode lines entirely). The per-episode chain note was the only
+high-frequency terminal output — every other emit is lifecycle (checkpoint, stop
+signal, resume banner, final summary) and stays unthrottled, and
+`dashboard.deactivate()` still renders a true final frame.
+
+Not yet measured: the throughput win is assumed, not quantified. Worth a timed
+before/after on a real run.
 
 ## 6. Remove "puzzle only" items
 
