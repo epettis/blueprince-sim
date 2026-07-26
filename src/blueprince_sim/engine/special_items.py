@@ -172,8 +172,13 @@ class SpecialItemsState:
     garage_car_opened: bool = False  # Car Keys garage car trunk used today (once per day)
     # Vault Key ids whose deposit box was opened today (at most once per key per day).
     vault_boxes_opened: list[str] = field(default_factory=list)
-    lit_targets: list[str] = field(default_factory=list)  # room ids lit today (ignition mechanic)
+    lit_targets: list[str] = field(default_factory=list)  # room ids lit this day (ignition mechanic)
     machines_used: list[str] = field(default_factory=list)  # machine room ids used today (lever install)
+    # Keeper of Tithes: coins actually banked (incremented each time the Chapel's -1
+    # coin entry penalty fires and the player had at least 1 coin to lose).  Paid out
+    # in full when the Chapel altar is lit.  Resets across days via carryover() — the
+    # running total lives in GameConfig.chapel_tithes and is re-injected at configure().
+    chapel_tithes: int = 0
 
 
 # --------------------------------------------------------------- inventory ops
@@ -330,6 +335,14 @@ def configure(state, cfg) -> None:
         if vk_id not in gated:
             gated.append(vk_id)
     state.special.gated_out = gated
+    # Ignition targets permanently lit across days: pre-populate lit_targets so
+    # can_light() blocks them on day N+1 just as it would mid-day.
+    for target_id in getattr(cfg, "lit_targets", frozenset()):
+        if target_id not in state.special.lit_targets:
+            state.special.lit_targets.append(target_id)
+    # Keeper of Tithes: seed the running tithe counter from config so the total
+    # accumulates correctly across days.
+    state.special.chapel_tithes = getattr(cfg, "chapel_tithes", 0)
 
 
 # ------------------------------------------------------------- spawn pipeline
@@ -1522,10 +1535,15 @@ def can_light(game) -> bool:
 def light(game) -> None:
     """Light the ignition target in the current room; grant its rewards.
 
-    Marks the room as lit today (one-shot per room per day). Grants all
-    entries from the target's 'grants' list: coins/gems directly, items via
-    grant(). Does not consume the tool (torch/burning_glass are reusable).
+    Marks the room as lit (one-shot per room; persists across days via
+    carryover/configure). Grants all entries from the target's 'grants' list:
+    - coins/gems/dice: granted directly.
+    - item: granted via grant() (no-op if unavailable).
+    - chapel_tithe_payout: pays out state.special.chapel_tithes coins (the
+      Keeper of Tithes accumulated total) as a one-time reward.
+    Does not consume the tool (torch/burning_glass are reusable).
     """
+    from . import items as items_mod  # deferred to avoid cycles
     state = game.state
     registry = game.registry
     if not can_light(game):
@@ -1546,6 +1564,20 @@ def light(game) -> None:
                 amount = reward.get("amount", 0)
                 state.gems += amount
                 state.items_found_log.append(("gem", amount))
+            case "dice":
+                amount = reward.get("amount", 1)
+                items_mod.grant_item(state, "die", amount, game.rng, registry)
+                state.items_found_log.append(("die", amount))
+            case "chapel_tithe_payout":
+                # Pay out the Keeper of Tithes accumulated total: every coin the
+                # Chapel's -1 entry penalty ever took.  The counter is cleared
+                # after payout (the piggy bank is broken and emptied).
+                payout = state.special.chapel_tithes
+                if payout > 0:
+                    bonus = on_coins_granted(state, registry, payout)
+                    state.coins += payout + bonus
+                    state.items_found_log.append(("coins", payout))
+                    state.special.chapel_tithes = 0
             case "item":
                 item_id = reward.get("id", "")
                 if _is_available(state, item_id, registry):
@@ -1605,11 +1637,14 @@ def install_lever(game) -> None:
     from .grid import N
     match effect:
         case "antechamber_lever":
-            # Unlock the Antechamber's north doorway segment.
-            # The segment is between rank-8 center (cell 37) and the Antechamber
-            # (cell 42). segment_key(37, N=1) -> (37, 1) because neighbor(37,1)=42>37.
-            # game._open_segment handles the door_state update and cache invalidation.
-            ante_cell = 37  # rank-8 center, north of which is ANTECHAMBER_CELL=42
+            # Unlock the Antechamber's SOUTH doorway segment (the wiki calls it
+            # the "south door").  The segment is shared between rank-8 center
+            # (cell 37) and the Antechamber (cell 42): segment_key(42, S) ==
+            # segment_key(37, N) == (37, 1).  We call _open_segment(37, N) because
+            # that is how segment_key canonicalizes it (lower cell, north direction).
+            # The Antechamber's north door opens only from the Throne Room and the
+            # Sanctum lever — neither is modeled.
+            ante_cell = 37  # rank-8 center; neighbor(37, N) == ANTECHAMBER_CELL(42)
             game._open_segment(ante_cell, N)
         case "slot_bonus":
             for reward in machine_cfg.get("grants", []):

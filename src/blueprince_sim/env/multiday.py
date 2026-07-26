@@ -73,6 +73,13 @@ class DayChain:
         self.carried_items: frozenset[str] = frozenset()
         # Vault key ids permanently used: accumulate across all days; never reset within attempt.
         self.used_vault_keys: frozenset[str] = frozenset()
+        # Ignition targets permanently lit: accumulated union across all days.  Once lit,
+        # a target cannot be lit again in any later day within the same attempt.
+        self.lit_targets: frozenset[str] = frozenset()
+        # Keeper of Tithes: running sum of coins banked by the Chapel entry penalty.
+        # Accumulated across all days until the Chapel altar is lit (one-time-ever);
+        # after payout the counter stays 0 (state.special.chapel_tithes cleared to 0).
+        self.chapel_tithes: int = 0
         # Repellent bans: room_id -> days_remaining (positive integer).
         # Decremented each advance(); 0 = expired (dropped before next_config).
         self.repellent_bans: dict[str, int] = {}
@@ -98,6 +105,8 @@ class DayChain:
             ),
             banned_rooms=active_bans,
             used_vault_keys=self.used_vault_keys,
+            lit_targets=self.lit_targets,
+            chapel_tithes=self.chapel_tithes,
             **self.carried_flags,          # unpack only the True flags
         )
 
@@ -142,6 +151,17 @@ class DayChain:
         if vk_val is not None:
             self.used_vault_keys = self.used_vault_keys | frozenset(vk_val)
 
+        # --- lit_targets (permanently-lit ignition targets; accumulate forever within attempt) ---
+        lt_val = carryover.get("lit_targets")
+        if lt_val is not None:
+            self.lit_targets = self.lit_targets | frozenset(lt_val)
+
+        # --- chapel_tithes (Keeper of Tithes running total; accumulate until payout) ---
+        # After the altar is lit the counter is cleared to 0; subsequent days carry 0.
+        ct_val = carryover.get("chapel_tithes")
+        if ct_val is not None:
+            self.chapel_tithes = ct_val
+
         # --- banned_rooms (Repellent bans from this day) ---
         # Decrement PRE-EXISTING bans first (one day has elapsed for them),
         # then merge the NEW bans from this day.  New bans are not decremented
@@ -175,8 +195,10 @@ class DayChain:
         self.current_day += 1
         if self.current_day > self.n_days:
             self.current_day = 1
-            self.carried_flags = {}       # fresh attempt; all discoveries reset
+            self.carried_flags = {}           # fresh attempt; all discoveries reset
             self.carried_items = frozenset()
             self.used_vault_keys = frozenset()
+            self.lit_targets = frozenset()    # fresh attempt; ignition history reset
+            self.chapel_tithes = 0            # fresh attempt; tithe bank reset
             self.repellent_bans = {}
             self._ban_order = []

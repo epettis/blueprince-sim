@@ -154,9 +154,9 @@ def _encode_trade_offers(game: Game) -> np.ndarray:
     """Encode Trading Post trade offers into a (TRADE_OFFER_ROWS, 2) int16 array.
 
     Rows are -1 when absent (outside the post). Row: [give_idx+1, receive_idx+1];
-    receive is 0 only for dice — allowance_token and upgrade_disk are real
-    registry items and encode as their index, so a tier-5 special offer is
-    distinguishable from a dice offer.
+    receive is 0 only for dice — allowance_token is a real registry item and
+    encodes as its index, so a tier-5 special offer is distinguishable from a
+    dice offer.
     """
     arr = np.full((TRADE_OFFER_ROWS, 2), -1, dtype=np.int16)
     offers = game.trade_offers()
@@ -165,8 +165,8 @@ def _encode_trade_offers(game: Game) -> np.ndarray:
     item_idx_map = {item.id: i for i, item in enumerate(game.registry.special.items)}
     for row_i, offer in enumerate(offers[:TRADE_OFFER_ROWS]):
         give_col = item_idx_map.get(offer["give"], -1) + 1  # 1-based; 0 = unknown
-        # "dice" is the only non-item terminal; the other graph sentinels
-        # (allowance_token, upgrade_disk) resolve through the item map.
+        # "dice" is the only non-item sentinel; allowance_token resolves through
+        # the item map like any other item id.
         receive_col = item_idx_map.get(offer["receive"], -1) + 1
         arr[row_i] = [give_col, receive_col]
     return arr

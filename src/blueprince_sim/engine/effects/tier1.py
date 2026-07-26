@@ -59,11 +59,24 @@ def _red_negated(game, room) -> bool:
 @effect("grant", Hook.ON_ENTER)
 def grant(game, room, eff, ctx_room) -> None:
     """Flat resource grant on first entry; negative amounts are red-room
-    penalties, which Shelter's negation can cancel."""
+    penalties, which Shelter's negation can cancel.
+
+    Chapel -1 coin: the Keeper of Tithes secretly banks each coin actually
+    taken (player had >=1 coin).  Tracked in special.chapel_tithes and paid
+    out when the Chapel altar is lit.
+    """
     amount = eff.param("amount", 0)
     if amount < 0 and _red_negated(game, room):
         return
-    _grant(game, eff.param("resource"), amount)
+    resource = eff.param("resource")
+    # Keeper of Tithes: bank the coin before it is taken, but only when the
+    # player has at least one coin to lose (no coins -> no penalty -> no tithe).
+    if (resource == "coins" and amount < 0
+            and (room.id == "chapel" or room.variant_of == "chapel")):
+        coins_taken = min(-amount, game.state.coins)
+        if coins_taken > 0:
+            game.state.special.chapel_tithes += coins_taken
+    _grant(game, resource, amount)
 
 
 @effect("grant_per_category", Hook.ON_ENTER)

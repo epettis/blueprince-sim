@@ -13,6 +13,7 @@ from blueprince_sim.env.actions import (
     LIGHT_ACTION, INSTALL_LEVER_ACTION, action_mask, apply_action,
     _cell_has_ignition_target, _cell_has_machine,
 )
+from blueprince_sim.env.multiday import DayChain
 
 
 # ----------------------------------------------------------------- helpers
@@ -94,55 +95,195 @@ def test_target_lights_at_most_once_per_day():
     assert not si.can_light(game), "chapel must not be lightable twice in one day"
 
 
-def test_light_chapel_grants_coins():
-    """Lighting the Chapel grants coins (wiki-documented: candles; amount is inferred)."""
+def test_light_chapel_grants_accumulated_tithes():
+    """Lighting the Chapel grants the Keeper of Tithes accumulated total (coins banked by entry penalty).
+
+    The altar pays out exactly what was banked, not a flat amount.
+    """
     st, reg = _state_with_registry()
     si.grant(st, reg, "torch", source="test")
     _place_room(st, reg, "chapel", 5)
     st.pos = 5
+    # Manually seed some banked tithes (as configure() would inject from cfg.chapel_tithes)
+    st.special.chapel_tithes = 7
     game = _fake_game(st, reg)
     before = st.coins
     si.light(game)
-    assert st.coins > before, "lighting the Chapel must grant coins"
+    assert st.coins == before + 7, (
+        f"Chapel must grant exactly the banked tithes (7); got coins delta {st.coins - before}"
+    )
 
 
-# ====================================================== ignition: Tomb gate
+def test_light_chapel_zero_tithes_grants_zero_coins():
+    """Lighting the Chapel with no tithes banked grants zero coins (piggy bank is empty)."""
+    st, reg = _state_with_registry()
+    si.grant(st, reg, "torch", source="test")
+    _place_room(st, reg, "chapel", 5)
+    st.pos = 5
+    st.special.chapel_tithes = 0
+    game = _fake_game(st, reg)
+    before = st.coins
+    si.light(game)
+    assert st.coins == before, "empty tithe bank must grant 0 coins"
 
 
-def test_tomb_requires_diary_key():
-    """can_light at the Tomb returns False when holding a torch but no diary_key."""
+# ====================================================== ignition: Chapel tithes accumulation
+
+
+def _game_with_chapel_at_cell(cell: int = 5, starting_coins: int = 5) -> Game:
+    """Return a Game with the Chapel placed at *cell* and the player standing there.
+
+    Uses a real Game (not _fake_game) so that tier1.grant has access to game.red_negations
+    and the full effect dispatch infrastructure.
+    """
+    cfg = GameConfig(special_items=True)
+    g = Game(cfg, seed=0)
+    chapel_room = g.registry.by_id["chapel"]
+    g.state.grid[cell] = chapel_room.idx
+    g.state.placed_doors[cell] = chapel_room.door_mask
+    g.state.pos = cell
+    g.state.entered[cell] = True
+    g.state.coins = starting_coins
+    return g
+
+
+def test_chapel_entry_penalty_banks_coin_when_player_has_coins():
+    """The Chapel -1 coin entry penalty increments chapel_tithes when the player has coins.
+
+    The Keeper of Tithes banks each coin actually taken; a player with coins loses one and
+    the tithe counter goes up by one.
+    """
+    from blueprince_sim.engine.effects.tier1 import grant as tier1_grant
+
+    g = _game_with_chapel_at_cell(starting_coins=5)
+    chapel_room = g.registry.by_id["chapel"]
+
+    # Find and fire the -1 coin grant effect directly (as on_enter would)
+    for eff in chapel_room.effects:
+        if eff.tag == "grant" and eff.param("resource") == "coins" and eff.param("amount", 0) < 0:
+            tier1_grant(g, chapel_room, eff, None)
+            break
+
+    assert g.state.coins == 4, "player must lose 1 coin"
+    assert g.state.special.chapel_tithes == 1, "tithe counter must increment by the coin taken"
+
+
+def test_chapel_entry_penalty_banks_nothing_when_broke():
+    """The Chapel -1 coin penalty banks nothing when the player has zero coins.
+
+    No coins to take means the Keeper of Tithes receives nothing.
+    """
+    from blueprince_sim.engine.effects.tier1 import grant as tier1_grant
+
+    g = _game_with_chapel_at_cell(starting_coins=0)
+    chapel_room = g.registry.by_id["chapel"]
+
+    for eff in chapel_room.effects:
+        if eff.tag == "grant" and eff.param("resource") == "coins" and eff.param("amount", 0) < 0:
+            tier1_grant(g, chapel_room, eff, None)
+            break
+
+    assert g.state.coins == 0, "player with no coins must not go negative"
+    assert g.state.special.chapel_tithes == 0, "tithe counter must not increment when player is broke"
+
+
+def test_chapel_tithes_persist_across_days_via_daychain():
+    """Chapel tithes accumulated on day N appear in the GameConfig on day N+1.
+
+    The counter must carry through DayChain so the total grows across multiple
+    days of entering the Chapel before the altar is lit.
+    """
+    chain = DayChain(GameConfig(), n_days=5)
+    # Simulate day 1: 3 tithes banked
+    chain.advance({"chapel_tithes": 3})
+    cfg_day2 = chain.next_config()
+    assert cfg_day2.chapel_tithes == 3, (
+        "chapel_tithes from day 1 must appear in day 2's config"
+    )
+
+    # Simulate day 2: 2 more tithes banked (total 5)
+    chain.advance({"chapel_tithes": 5})
+    cfg_day3 = chain.next_config()
+    assert cfg_day3.chapel_tithes == 5, (
+        "chapel_tithes must reflect the latest running total (5 after payout update)"
+    )
+
+
+def test_chapel_tithes_reset_on_chain_wrap():
+    """DayChain resets chapel_tithes to 0 when wrapping to a fresh attempt."""
+    chain = DayChain(GameConfig(), n_days=2)
+    chain.advance({"chapel_tithes": 10})
+    chain.advance({"chapel_tithes": 10})  # this advance wraps the chain
+    assert chain.chapel_tithes == 0, "tithe bank must reset when the attempt wraps"
+
+
+# ====================================================== ignition: Tomb
+
+
+def test_tomb_can_be_lit_without_diary_key():
+    """can_light at the Tomb returns True when holding a torch (Diary Key is not required).
+
+    Wiki-verified: the Diary Key is a REWARD of lighting the Tomb, not a prerequisite.
+    """
     st, reg = _state_with_registry()
     si.grant(st, reg, "torch", source="test")
     _place_room(st, reg, "tomb", 5)
     st.pos = 5
     game = _fake_game(st, reg)
-    assert not si.can_light(game), "Tomb candles require the Diary Key"
+    assert si.can_light(game), "Tomb must be lightable with only a torch (no diary_key required)"
 
 
-def test_tomb_unlocked_with_diary_key():
-    """can_light at the Tomb returns True when holding both a torch and the diary_key."""
+def test_lighting_tomb_grants_diary_key():
+    """Lighting the Tomb grants the diary_key as a reward (wiki-documented)."""
     st, reg = _state_with_registry()
     si.grant(st, reg, "torch", source="test")
-    si.grant(st, reg, "diary_key", source="test")
     _place_room(st, reg, "tomb", 5)
     st.pos = 5
     game = _fake_game(st, reg)
-    assert si.can_light(game), "Diary Key must unlock Tomb candles"
+    si.light(game)
+    assert st.inventory.get("diary_key", 0) > 0, "lighting the Tomb must grant diary_key"
+
+
+def test_lighting_tomb_grants_upgrade_disk_tomb():
+    """Lighting the Tomb grants the upgrade_disk_tomb (near candles, wiki-documented)."""
+    st, reg = _state_with_registry()
+    si.grant(st, reg, "torch", source="test")
+    _place_room(st, reg, "tomb", 5)
+    st.pos = 5
+    game = _fake_game(st, reg)
+    si.light(game)
+    assert st.inventory.get("upgrade_disk_tomb", 0) > 0, (
+        "lighting the Tomb must grant upgrade_disk_tomb"
+    )
+
+
+def test_lighting_tomb_grants_four_dice():
+    """Lighting the Tomb grants 4 dice (near candles, wiki-documented)."""
+    st, reg = _state_with_registry()
+    si.grant(st, reg, "torch", source="test")
+    _place_room(st, reg, "tomb", 5)
+    st.pos = 5
+    game = _fake_game(st, reg)
+    si.light(game)
+    # Dice are granted through the items module (die roll items)
+    dice_entries = sum(amt for kind, amt in st.items_found_log if kind == "die")
+    assert dice_entries >= 4, f"lighting the Tomb must grant 4 dice; found_log dice: {dice_entries}"
 
 
 # ====================================================== ignition: Trading Post
 
 
-def test_trading_post_fuse_grants_upgrade_disk():
-    """Lighting the Trading Post fuse grants an upgrade_disk (wiki-documented reward)."""
+def test_trading_post_fuse_grants_upgrade_disk_trading_post():
+    """Lighting the Trading Post fuse grants upgrade_disk_trading_post (wiki-documented reward)."""
     st, reg = _state_with_registry()
     si.grant(st, reg, "torch", source="test")
     _place_room(st, reg, "trading_post", 5)
     st.pos = 5
     game = _fake_game(st, reg)
-    before_disk = st.inventory.get("upgrade_disk", 0)
     si.light(game)
-    assert st.inventory.get("upgrade_disk", 0) > before_disk, "fuse must grant upgrade_disk"
+    assert st.inventory.get("upgrade_disk_trading_post", 0) > 0, (
+        "Trading Post fuse must grant upgrade_disk_trading_post"
+    )
 
 
 def test_trading_post_fuse_grants_40_coins():
@@ -155,6 +296,68 @@ def test_trading_post_fuse_grants_40_coins():
     before = st.coins
     si.light(game)
     assert st.coins >= before + 40, "Trading Post fuse must grant at least 40 coins"
+
+
+# ====================================================== ignition: permanence across days
+
+
+def test_lit_target_blocks_can_light_on_next_day():
+    """A target lit on day N cannot be lit on day N+1 (ignition persists across days).
+
+    Lighting is permanent: configure() injects cfg.lit_targets into state.special.lit_targets
+    so can_light returns False even though state starts fresh.
+    """
+    # Day 1: light the chapel
+    st1, reg = _state_with_registry()
+    si.grant(st1, reg, "torch", source="test")
+    _place_room(st1, reg, "chapel", 5)
+    st1.pos = 5
+    game1 = _fake_game(st1, reg)
+    si.light(game1)
+    assert "chapel" in st1.special.lit_targets
+
+    # Simulate carryover: chapel is now in lit_targets
+    cfg_day2 = GameConfig(lit_targets=frozenset({"chapel"}), special_items=True,
+                          starting_items=frozenset({"torch"}))
+
+    # Day 2: fresh state, torch in starting_items, chapel in lit_targets from config
+    g2 = Game(cfg_day2, seed=0)
+    chapel_room = g2.registry.by_id["chapel"]
+    cell = 5
+    g2.state.grid[cell] = chapel_room.idx
+    g2.state.placed_doors[cell] = chapel_room.door_mask
+    g2.state.pos = cell
+    # configure() is called lazily on on_enter; trigger it manually
+    si.configure(g2.state, cfg_day2)
+
+    assert not si.can_light(g2), (
+        "Chapel already lit on a prior day must not be lightable again"
+    )
+
+
+def test_lit_targets_persist_via_daychain():
+    """lit_targets accumulate in DayChain and appear in the next day's GameConfig.
+
+    A target lit on day N must appear in cfg.lit_targets on day N+1, blocking re-ignition.
+    """
+    chain = DayChain(GameConfig(), n_days=5)
+    chain.advance({"lit_targets": ["chapel"]})
+    cfg_day2 = chain.next_config()
+    assert "chapel" in cfg_day2.lit_targets, (
+        "chapel lit on day 1 must appear in day 2 cfg.lit_targets"
+    )
+    # After another day with no new lit targets the value should persist
+    chain.advance({"lit_targets": ["chapel"]})
+    cfg_day3 = chain.next_config()
+    assert "chapel" in cfg_day3.lit_targets, "lit_targets must persist across multiple days"
+
+
+def test_lit_targets_reset_on_chain_wrap():
+    """DayChain resets lit_targets to frozenset() when wrapping to a fresh attempt."""
+    chain = DayChain(GameConfig(), n_days=2)
+    chain.advance({"lit_targets": ["chapel", "tomb"]})
+    chain.advance({"lit_targets": ["chapel", "tomb"]})  # wraps
+    assert chain.lit_targets == frozenset(), "lit_targets must be empty after attempt wrap"
 
 
 # ====================================================== broken lever: greenhouse
@@ -308,6 +511,7 @@ def test_light_deterministic():
         si.grant(st, reg, "torch", source="test")
         _place_room(st, reg, "chapel", 5)
         st.pos = 5
+        st.special.chapel_tithes = 5
         game = _fake_game(st, reg, seed=seed)
         si.light(game)
         return st.coins

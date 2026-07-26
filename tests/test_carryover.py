@@ -446,7 +446,8 @@ def test_carryover_shape_is_complete():
     """carryover() dict always contains all carry-over keys regardless of state.
 
     The six bool keys must always be present; the non-bool keys
-    (starting_items, banned_rooms, used_vault_keys) are also always included.
+    (starting_items, banned_rooms, used_vault_keys, lit_targets, chapel_tithes)
+    are also always included.
     """
     bool_keys = {
         "lunch_box_unlocked",
@@ -456,7 +457,10 @@ def test_carryover_shape_is_complete():
         "royal_scepter_found",
         "garage_car_used_before",
     }
-    expected_keys = bool_keys | {"starting_items", "banned_rooms", "used_vault_keys"}
+    expected_keys = bool_keys | {
+        "starting_items", "banned_rooms", "used_vault_keys",
+        "lit_targets", "chapel_tithes",
+    }
     # Test a variety of configs
     for cfg in [
         GameConfig(),
