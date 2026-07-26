@@ -9,6 +9,7 @@ from ..engine.game import ANTECHAMBER_CELL, Game, Phase
 from ..engine.grid import DIRS, OPPOSITE, neighbor
 from ..engine.locks import DOOR_LOCKED, DOOR_SECURITY, SECURITY_LEVELS
 from ..engine.model import LAYOUTS
+from ..engine.shops import SCEPTER_COLORS, current_shop_id
 
 CATEGORIES = ("blueprint", "bedroom", "hallway", "green", "shop", "red",
               "blackprint", "studio_addition", "outer", "objective")
@@ -26,12 +27,26 @@ HOUSE_FLAGS = 13  # solarium, greenhouse, study, library, hovel, bedroom_bonus,
                   # keycard_power_on, offline_unlocked, security_level,
                   # security_openable
 
+# shop_stock resource code: 0 none, 1 coins, 2 keys, 3 gems, 4 dice, 5 food.
+# Mapped from the stored entry's "grant" dict key (first key wins).
+_GRANT_KEY_CODE = {"coins": 1, "keys": 2, "gems": 3, "dice": 4, "food": 5}
 
-def observation_space(n_rooms: int) -> spaces.Dict:
+# Maximum row counts for the padded observation arrays (caps match the
+# maximum real display length — asserted in tests).
+SHOP_STOCK_ROWS = 6    # showroom with trophy = 5; cap at 6 for one free slot
+TRADE_OFFER_ROWS = 8   # generous; 24 tradeables, real sessions hold far fewer
+
+SCEPTER_COLOR_INDEX = {c: i for i, c in enumerate(SCEPTER_COLORS)}
+
+
+def observation_space(n_rooms: int, n_items: int, n_recipes: int) -> spaces.Dict:
     """Dict observation space over the 9x5 (rank-major) grid; see :func:`encode`.
 
     Room ids are shifted by +1 so 0 means "empty cell"; -1 is the sentinel for
     unreachable/walled-off in the distance planes and for absent option slots.
+
+    ``n_items`` is the number of special items in registry order (inventory
+    vector length); ``n_recipes`` is the number of fabrication recipes.
     """
     return spaces.Dict({
         "grid_room": spaces.Box(0, n_rooms, shape=(9, 5), dtype=np.int16),
@@ -57,6 +72,24 @@ def observation_space(n_rooms: int) -> spaces.Dict:
         # deepest_rank, optimistic player->Antechamber distance (-1 if walled
         # off), Antechamber connected+walkable right now (0/1), outer_loc (0/1/2).
         "progress": spaces.Box(-1, 999, shape=(4,), dtype=np.int16),
+        # Special-item observation keys (PR3 additions).
+        # count per special item (registry order, 0 = not held)
+        "inventory": spaces.Box(0, 99, shape=(n_items,), dtype=np.int16),
+        # per-day item counters in documented order:
+        # stopwatch_left, water, lockpick_attempts, lockpick_fails, shield_used,
+        # trades_left, scepter_color_idx+1 (0=none), treasure_cell+1 (0=none),
+        # treasure_dug, dining_room_served
+        "item_state": spaces.Box(-1, 999, shape=(10,), dtype=np.int16),
+        # dig spots REMAINING per cell (placed rooms; 0 = empty or fully dug)
+        "grid_dig": spaces.Box(0, 9, shape=(9, 5), dtype=np.uint8),
+        # current shop's display entries, -1 rows when absent / not in a shop.
+        # row: [item_idx+1 or 0, resource_code, price, sold_out, affordable]
+        "shop_stock": spaces.Box(-1, 999, shape=(SHOP_STOCK_ROWS, 5), dtype=np.int16),
+        # Trading Post trade offers (inside the post); -1 rows otherwise.
+        # row: [give item idx+1, receive item idx+1 (0 = dice/sentinel)]
+        "trade_offers": spaces.Box(-1, 999, shape=(TRADE_OFFER_ROWS, 2), dtype=np.int16),
+        # buildable-now mask over fabrication recipes (registry order)
+        "fabricate": spaces.Box(0, 1, shape=(n_recipes,), dtype=np.uint8),
     })
 
 
@@ -68,6 +101,72 @@ def _cost_split(game: Game, room, opt) -> tuple[int, int]:
     if game.hovel_placed:
         return 0, 3 * cost
     return cost, 0
+
+
+def _encode_shop_stock(game: Game) -> np.ndarray:
+    """Encode the current shop's display into a (SHOP_STOCK_ROWS, 5) int16 array.
+
+    Rows are -1 when absent (not in a shop or row index >= display length).
+    Row layout: [item_idx+1 or 0, resource_code, price, sold_out, affordable].
+    resource_code: 0=none, 1=coins, 2=keys, 3=gems, 4=dice, 5=food.
+    item_idx is the registry index (0-based); 0 in column 0 means resource entry.
+    """
+    arr = np.full((SHOP_STOCK_ROWS, 5), -1, dtype=np.int16)
+    display = game.shop_stock()
+    if display is None:
+        return arr
+    # Build item id -> index map for registry lookup (cheap per-call dict comp)
+    item_idx_map = {item.id: i for i, item in enumerate(game.registry.special.items)}
+    # Corresponding stored entries for grant-key lookup (display index == stored index
+    # for all real shops; showroom trophy is appended last with no stored entry).
+    shop_id = current_shop_id(game)
+    stored = game.state.shops.stock.get(shop_id, []) if shop_id else []
+
+    for row_i, d in enumerate(display[:SHOP_STOCK_ROWS]):
+        item_id = d.get("id")
+        if d.get("kind") == "item":
+            item_col = item_idx_map.get(item_id, -1) + 1  # +1: 0 = resource entry
+            if item_col <= 0:
+                item_col = 0
+            resource_code = 0
+        else:
+            # Resource entry: look up grant key from the underlying stored entry
+            item_col = 0
+            resource_code = 0
+            if row_i < len(stored):
+                grant = stored[row_i].get("grant", {})
+                for gkey, code in _GRANT_KEY_CODE.items():
+                    if gkey in grant:
+                        resource_code = code
+                        break
+        # Column 4 mirrors the BUY action mask: affordable AND not blocked
+        # by an unmet container requirement (Cursed Coffers without a hammer).
+        arr[row_i] = [item_col, resource_code, d["price"],
+                      int(d["sold_out"]),
+                      int(d["affordable"] and not d.get("blocked", False))]
+    return arr
+
+
+def _encode_trade_offers(game: Game) -> np.ndarray:
+    """Encode Trading Post trade offers into a (TRADE_OFFER_ROWS, 2) int16 array.
+
+    Rows are -1 when absent (outside the post). Row: [give_idx+1, receive_idx+1];
+    receive is 0 only for dice — allowance_token and upgrade_disk are real
+    registry items and encode as their index, so a tier-5 special offer is
+    distinguishable from a dice offer.
+    """
+    arr = np.full((TRADE_OFFER_ROWS, 2), -1, dtype=np.int16)
+    offers = game.trade_offers()
+    if not offers:
+        return arr
+    item_idx_map = {item.id: i for i, item in enumerate(game.registry.special.items)}
+    for row_i, offer in enumerate(offers[:TRADE_OFFER_ROWS]):
+        give_col = item_idx_map.get(offer["give"], -1) + 1  # 1-based; 0 = unknown
+        # "dice" is the only non-item terminal; the other graph sentinels
+        # (allowance_token, upgrade_disk) resolve through the item map.
+        receive_col = item_idx_map.get(offer["receive"], -1) + 1
+        arr[row_i] = [give_col, receive_col]
+    return arr
 
 
 def encode(game: Game) -> dict:
@@ -158,6 +257,62 @@ def encode(game: Game) -> dict:
         st.outer_loc,
     ], dtype=np.int16)
 
+    # --- Special-item observation keys (PR3) ---
+    registry = game.registry
+    n_items = len(registry.special.items)
+
+    # inventory: count per item, registry order
+    inventory = np.zeros(n_items, dtype=np.int16)
+    for i, item in enumerate(registry.special.items):
+        inventory[i] = st.inventory.get(item.id, 0)
+
+    # item_state: 10 per-day counters in documented order
+    special = st.special
+    shops_state = st.shops
+    trading = registry.shop_rules.trading
+    trades_per_day = trading.get("trades_per_day", 20)
+    trades_left = max(0, trades_per_day - shops_state.trades_done)
+    scepter_col = (SCEPTER_COLOR_INDEX.get(shops_state.scepter_color, -1) + 1
+                   if shops_state.scepter_color is not None else 0)
+    treasure_col = special.treasure_cell + 1  # -1 -> 0 (sentinel = no map read)
+    item_state = np.array([
+        special.stopwatch_left,      # 0
+        special.water,               # 1
+        special.lockpick_attempts,   # 2
+        special.lockpick_fails,      # 3
+        int(special.shield_used),    # 4
+        trades_left,                 # 5
+        scepter_col,                 # 6  scepter_color index+1; 0 = not activated
+        treasure_col,                # 7  treasure_cell+1; 0 = no map read today
+        int(special.treasure_dug),   # 8
+        int(special.dining_room_served),  # 9
+    ], dtype=np.int16)
+
+    # grid_dig: remaining dig spots per cell (placed rooms only)
+    grid_dig = np.zeros((9, 5), dtype=np.uint8)
+    for cell, room_idx in enumerate(st.grid):
+        if room_idx >= 0:
+            room = registry.rooms[room_idx]
+            total = room.items.dig_spots
+            already = special.dug.get(cell, 0)
+            remaining = max(0, total - already)
+            if remaining > 0:
+                grid_dig[cell // 5, cell % 5] = remaining
+
+    # shop_stock: current shop's display (SHOP_STOCK_ROWS x 5), -1 sentinel rows
+    shop_stock_arr = _encode_shop_stock(game)
+
+    # trade_offers: Trading Post offers (TRADE_OFFER_ROWS x 2), -1 sentinel rows
+    trade_offers_arr = _encode_trade_offers(game)
+
+    # fabricate: mask over recipes (registry.special.fabrication order)
+    buildable = set(game.fabricate_options())
+    fabricate = np.array(
+        [1 if output in buildable else 0
+         for _inputs, output in registry.special.fabrication],
+        dtype=np.uint8,
+    )
+
     return {
         "grid_room": grid_room,
         "grid_doors": grid_doors,
@@ -174,4 +329,10 @@ def encode(game: Game) -> dict:
         "stage": STAGE_INDEX.get(st.stage, 2),
         "house_flags": house_flags,
         "progress": progress,
+        "inventory": inventory,
+        "item_state": item_state,
+        "grid_dig": grid_dig,
+        "shop_stock": shop_stock_arr,
+        "trade_offers": trade_offers_arr,
+        "fabricate": fabricate,
     }

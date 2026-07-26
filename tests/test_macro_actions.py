@@ -164,12 +164,12 @@ def test_stranded_when_frontier_out_of_budget():
 
 
 def test_mask_layout_and_retired_actions():
-    """The mask spans all 241 actions, never legalizes the retired single-tile
+    """The mask spans all 270 actions, never legalizes the retired single-tile
     moves, and a fresh entrance offers drafts but nothing to walk to."""
     env = make_env()
     env.reset(seed=0)
     mask = env.action_masks()
-    assert len(mask) == A.N_ACTIONS == 241
+    assert len(mask) == A.N_ACTIONS == 270
     # Retired single-tile moves are never legal.
     for action in (189, 190, 191, 192):
         assert not mask[action]
@@ -215,7 +215,12 @@ def test_mask_move_to_targets_unentered_only():
 
 
 def test_masked_rollout_never_revisits_pointlessly():
-    """No legal action sequence can walk A->B->A: re-entry is unreachable."""
+    """Every legal move_to target is unentered, a control room, or a re-enterable cell.
+
+    Re-enterable cells are shops with buyable stock, the Workshop with fabrication
+    options, and a Dining Room with the rank-8 gate open and course unserved
+    (PR3 move-to re-entry extension). Pointless revisits remain illegal.
+    """
     env = make_env()
     rng = np.random.default_rng(7)
     for episode in range(3):
@@ -225,16 +230,23 @@ def test_masked_rollout_never_revisits_pointlessly():
             legal = np.flatnonzero(mask)
             if len(legal) == 0:
                 break
-            # Every legal move_to target must be unentered (or the win cell),
-            # except the control rooms (Utility Closet / Security), which stay
-            # revisitable so their switches can be worked mid-day.
-            control = {c for c in (env.game.room_cells.get("utility_closet", -1),
-                                   env.game.room_cells.get("security", -1))
+            # Every legal move_to target must be unentered, a control room, or
+            # a cell the PR3 re-entry extension explicitly allows.
+            game = env.game
+            control = {c for c in (game.room_cells.get("utility_closet", -1),
+                                   game.room_cells.get("security", -1))
                        if c >= 0}
             for a in legal:
                 if A.MOVE_TO_BASE <= a < A.MOVE_TO_BASE + N_CELLS:
                     cell = a - A.MOVE_TO_BASE
-                    assert not env.game.state.entered[cell] or cell in control
+                    if not game.state.entered[cell] or cell in control:
+                        continue
+                    # Entered cell: must be re-enterable (shop/workshop/dining room)
+                    assert (A._cell_is_shop_re_enterable(game, cell)
+                            or A._dining_room_re_enterable(game, cell)), (
+                        f"entered cell {cell} is walkable but not a control room "
+                        f"or re-enterable special room"
+                    )
             _, _, term, trunc, _ = env.step(int(rng.choice(legal)))
             if term or trunc:
                 break

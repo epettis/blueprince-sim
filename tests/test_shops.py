@@ -536,7 +536,10 @@ def test_gift_shop_cursed_coffers_without_sledge_hammer_raises():
     )
     if coffers_idx is None:
         pytest.skip("cursed_coffers not in gift_shop stock (already unlocked config)")
-    with pytest.raises(AssertionError, match="sledge_hammer"):
+    # The display marks the unmet requirement as blocked, and buy refuses it
+    # (the same "blocked" bit keeps the env BUY action masked off).
+    assert shops.stock_for(g)[coffers_idx]["blocked"]
+    with pytest.raises(AssertionError, match="requires an item not held"):
         shops.buy(g, coffers_idx)
 
 
