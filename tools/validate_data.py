@@ -249,6 +249,68 @@ def main() -> int:
                         f"special_items dig/{table_name}: item outcome references unknown id {rid!r}"
                     )
 
+    # Valid grant kinds inside a loot entry's grants list
+    VALID_GRANT_KINDS = {"coins", "keys", "gems", "dice", "item", "keycard"}
+
+    # containers section
+    containers_doc = si_doc.get("containers", {})
+    containers_kinds = containers_doc.get("kinds", {})
+    for kind_name, kind_cfg in containers_kinds.items():
+        where = f"special_items/containers/kinds/{kind_name}"
+        loot = kind_cfg.get("loot", [])
+        if loot:
+            total_w = sum(entry.get("weight", 0) for entry in loot)
+            # Weights can use any consistent scale (normalised at runtime); just
+            # require positive total and no negative entries.
+            if total_w <= 0:
+                errors.append(f"{where}: loot weights sum to {total_w:.4f}, must be > 0")
+            for entry in loot:
+                if entry.get("weight", 0) < 0:
+                    errors.append(f"{where}: loot entry has negative weight")
+            for entry in loot:
+                # New schema: grants list
+                grants = entry.get("grants")
+                if grants is not None:
+                    for g in grants:
+                        gkind = g.get("kind")
+                        if gkind not in VALID_GRANT_KINDS:
+                            errors.append(f"{where}: grant kind {gkind!r} not in {sorted(VALID_GRANT_KINDS)}")
+                        if gkind == "item":
+                            iid = g.get("id")
+                            if iid not in si_by_id:
+                                errors.append(f"{where}: grant item id {iid!r} not in special_items")
+                else:
+                    # Legacy single-grant top-level kind
+                    if entry.get("kind") == "item":
+                        iid = entry.get("id")
+                        if iid not in si_by_id:
+                            errors.append(f"{where}: loot item id {iid!r} not in special_items")
+        for opener in kind_cfg.get("opener", []):
+            if opener not in ("smash", "key", "key_only"):
+                errors.append(f"{where}: unknown opener {opener!r}")
+    containers_rooms = containers_doc.get("rooms", {})
+    for room_id, kinds in containers_rooms.items():
+        if room_id not in by_id:
+            errors.append(f"special_items/containers/rooms: unknown room id {room_id!r}")
+        for kind_name in kinds:
+            if kind_name not in containers_kinds:
+                errors.append(
+                    f"special_items/containers/rooms/{room_id}: unknown kind {kind_name!r}"
+                )
+    garage_car = containers_doc.get("garage_car", {})
+    for entry in garage_car.get("first_loot", []):
+        if entry.get("kind") == "item":
+            iid = entry.get("id")
+            if iid not in si_by_id:
+                errors.append(
+                    f"special_items/containers/garage_car first_loot: unknown item {iid!r}"
+                )
+    for iid in garage_car.get("later_pool", []):
+        if iid not in si_by_id and iid != "keycard":
+            errors.append(
+                f"special_items/containers/garage_car later_pool: unknown item {iid!r}"
+            )
+
     # ── shops.json ─────────────────────────────────────────────────────────────
     VALID_STOCK_KINDS = {"resource", "item", "container"}
     VALID_GRANT_KEYS = {"coins", "keys", "gems", "food", "dice"}

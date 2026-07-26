@@ -454,6 +454,7 @@ def test_carryover_shape_is_complete():
         "entrance_vase_broken",
         "outer_chip_dug",
         "royal_scepter_found",
+        "garage_car_used_before",
     }
     expected_keys = bool_keys | {"starting_items", "banned_rooms"}
     # Test a variety of configs

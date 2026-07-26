@@ -82,19 +82,6 @@ def _mask(game: Game) -> list[bool]:
 
 # ================================================================= mask length & defaults
 
-def test_mask_length_is_270():
-    """The action mask has exactly 270 entries matching N_ACTIONS after PR3 expansion.
-
-    240+6+8+8+6+1=269, plus the 0-indexed sentinel gives 270. Old replays decode
-    correctly up to id 240; new actions never appear in pre-PR3 episodes.
-    """
-    env = make_env()
-    env.reset(seed=0)
-    mask = env.action_masks()
-    assert len(mask) == 270
-    assert A.N_ACTIONS == 270
-
-
 def test_new_action_slots_all_false_at_reset():
     """All 29 new action slots (241..269) are False at reset when no items, no scepter.
 

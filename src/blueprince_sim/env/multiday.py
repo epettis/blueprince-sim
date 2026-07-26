@@ -32,6 +32,7 @@ _CARRYOVER_KEYS: frozenset[str] = frozenset({
     "entrance_vase_broken",
     "outer_chip_dug",
     "royal_scepter_found",
+    "garage_car_used_before",
 })
 
 # Maximum active Repellent bans allowed simultaneously (wiki: 3).

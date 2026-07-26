@@ -1056,6 +1056,8 @@ def carryover(game) -> dict:
         "entrance_vase_broken": cfg.entrance_vase_broken or state.shops.vase_smashed,
         "outer_chip_dug": cfg.outer_chip_dug or state.shops.chip_dug,
         "royal_scepter_found": cfg.royal_scepter_found,
+        # The Garage car's Upgrade Disk is a one-time find for the whole save.
+        "garage_car_used_before": cfg.garage_car_used_before or state.special.garage_car_opened,
         "starting_items": carried_items,              # list[str]: item ids for next starting_items
         "banned_rooms": dict(state.shops.repellent_bans),  # dict[str, int]: new bans from today
     }
