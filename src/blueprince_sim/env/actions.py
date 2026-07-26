@@ -120,7 +120,7 @@ def _dining_room_re_enterable(game: Game, cell: int) -> bool:
     return True
 
 
-def action_mask(game: Game) -> list[bool]:
+def action_mask(game: Game, prev_action: int | None = None) -> list[bool]:
     """Legality mask over the flat action space for the current phase.
 
     NAVIGATE off-grid (``outer_loc > 0``) permits only outer-area actions.
@@ -129,6 +129,13 @@ def action_mask(game: Game) -> list[bool]:
     control rooms, and the outer-draft/switch actions. DRAFTING permits
     affordable slots plus redraw/rotate when available. TERMINAL masks
     everything off.
+
+    ``prev_action`` enables the security-setpoint repeat guard: when the
+    previous *applied* action was a set-security-level id (SET_LEVEL_BASE
+    <= prev_action < SET_LEVEL_BASE + 3), all three set-level ids are forced
+    False regardless of position.  This prevents a policy from thrashing the
+    setpoint back-and-forth for free.  Pass None (default) to omit the guard;
+    existing callers that do not track ``prev_action`` are unaffected.
     """
     mask = [False] * N_ACTIONS
     if game.phase is Phase.NAVIGATE:
@@ -237,6 +244,12 @@ def action_mask(game: Game) -> list[bool]:
             mask[REDRAW_ACTION] = True
         if game.rotation_available():
             mask[ROTATE_ACTION] = True
+    # Security-setpoint repeat guard: if the last applied action was a
+    # set-level id, mask all three off so the agent must do something else
+    # before touching the setpoint again.
+    if prev_action is not None and SET_LEVEL_BASE <= prev_action < SET_LEVEL_BASE + 3:
+        for i in range(3):
+            mask[SET_LEVEL_BASE + i] = False
     return mask
 
 

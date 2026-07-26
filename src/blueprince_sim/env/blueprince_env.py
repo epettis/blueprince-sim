@@ -48,6 +48,10 @@ class BluePrinceEnv(gymnasium.Env):
         self._env_steps = 0
         self.max_env_steps = 1000
         self._episode_seed = 0
+        # Last *applied* action id (legal actions only); None at reset and after
+        # any illegal (masked-out) action.  Threaded into action_mask() so the
+        # security-setpoint repeat guard can fire without touching engine state.
+        self._prev_action: int | None = None
         # Snapshot of the carry-over flags active at the START of this episode;
         # captured at reset() so it remains stable even after advance() mutates
         # day_chain.carried_flags at episode end.
@@ -80,6 +84,7 @@ class BluePrinceEnv(gymnasium.Env):
             self.game.reset(game_seed)
         self._env_steps = 0
         self._episode_seed = game_seed
+        self._prev_action = None
         return O.encode(self.game), self._info()
 
     def step(self, action: int):
@@ -95,14 +100,16 @@ class BluePrinceEnv(gymnasium.Env):
         """
         assert self.game.phase is not Phase.TERMINAL, "episode is over; call reset()"
         prev = snapshot(self.game)
-        mask = A.action_mask(self.game)
+        mask = A.action_mask(self.game, self._prev_action)
         if not mask[action]:
             # Invalid action: no state change, small penalty. Masked agents
-            # never hit this; random agents learn from it.
+            # never hit this; random agents learn from it.  Illegal actions do
+            # NOT update _prev_action so the setpoint guard stays active.
             terminated = False
             reward = -0.01
         else:
             A.apply_action(self.game, action)
+            self._prev_action = action  # record only legal applied actions
             terminated = self.game.phase is Phase.TERMINAL
             reward = self.reward_fn(self.game, prev, terminated)
         self._env_steps += 1
@@ -110,7 +117,7 @@ class BluePrinceEnv(gymnasium.Env):
         # Post-step mask, computed once and shared with _info. A NAVIGATE
         # state with no legal action is terminal (dead end); the all-False
         # mask stays valid after _terminate (TERMINAL masks everything off).
-        post_mask = A.action_mask(self.game)
+        post_mask = A.action_mask(self.game, self._prev_action)
         if not terminated and not any(post_mask):
             self.game._terminate("dead_end")
             terminated = True
@@ -121,7 +128,7 @@ class BluePrinceEnv(gymnasium.Env):
 
     def action_masks(self) -> np.ndarray:
         """Boolean legality mask; the hook MaskablePPO reads via ActionMasker."""
-        return np.array(A.action_mask(self.game), dtype=bool)
+        return np.array(A.action_mask(self.game, self._prev_action), dtype=bool)
 
     def render(self):
         from ..cli.render import render_grid
@@ -139,7 +146,7 @@ class BluePrinceEnv(gymnasium.Env):
         without waiting for episode end.
         """
         if mask is None:
-            mask = A.action_mask(self.game)
+            mask = A.action_mask(self.game, self._prev_action)
         info: dict = {
             "deepest_rank": self.game.deepest_rank,
             "rooms_placed": self.game.rooms_placed,

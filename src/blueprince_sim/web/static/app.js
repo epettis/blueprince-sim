@@ -5,8 +5,8 @@ const $ = (sel) => document.querySelector(sel);
 const N = 1, E = 2, S = 4, W = 8;
 
 const CAT_COLOR = {
-  blueprint: "#4a7fd4", bedroom: "#b45cc0", hallway: "#b99a3a",
-  green: "#4caf50", shop: "#d9c04a", red: "#d9534f",
+  blueprint: "#4a7fd4", bedroom: "#b45cc0", hallway: "#e07b28",
+  green: "#4caf50", shop: "#f2d024", red: "#d9534f",
   blackprint: "#5c6068", studio_addition: "#3ab5b0",
   outer: "#2a9d8f", objective: "#e8e8ee",
 };
@@ -448,8 +448,13 @@ function renderHouse(frame) {
       svg += `<rect x="${x + 4}" y="${y + 4}" width="${CELL - 8}" height="${CELL - 8}" rx="9"
                fill="${color}" class="room"><title>${esc(room.name)}</title></rect>`;
       svg += doorStubs(x, y, frame.doors[cell], color);
-      svg += `<text x="${x + CELL / 2}" y="${y + CELL / 2 + 7}" class="room-label${dark ? " dark" : ""}"
-               text-anchor="middle">${esc(roomAbbrev(room.name))}</text>`;
+      // Full room name in a foreignObject so CSS word-wrap keeps long names
+      // legible without overflowing into neighboring tiles. The container is
+      // inset 6px from each tile edge so door stubs aren't obscured.
+      const fo = CELL - 12;
+      svg += `<foreignObject x="${x + 6}" y="${y + 6}" width="${fo}" height="${fo}">` +
+             `<div xmlns="http://www.w3.org/1999/xhtml" class="room-label${dark ? " dark" : ""}">` +
+             `${esc(room.name)}</div></foreignObject>`;
     } else if (cell === 2 || cell === 42) {
       svg += `<text x="${x + CELL / 2}" y="${y + CELL / 2 + 4}" class="cell-hint"
                text-anchor="middle">${cell === 2 ? "ENTRANCE" : "ANTECHAMBER"}</text>`;
@@ -476,8 +481,14 @@ function renderHouse(frame) {
       <style>
         .cell-bg { fill: #191c21; stroke: #262a31; stroke-width: 1; }
         .room { stroke: rgba(0,0,0,.35); stroke-width: 1.5; }
-        .room-label { fill: #fff; font: 700 26px -apple-system, sans-serif; opacity: .92; }
-        .room-label.dark { fill: #222; }
+        .room-label {
+          display: flex; align-items: center; justify-content: center;
+          width: 100%; height: 100%;
+          color: #fff; font: 600 8.5px/1.2 -apple-system, sans-serif;
+          text-align: center; word-break: break-word; overflow: hidden;
+          opacity: .92; padding: 2px;
+        }
+        .room-label.dark { color: #222; }
         .cell-hint { fill: #3c414a; font: 600 11px -apple-system, sans-serif; letter-spacing: .06em; }
         .draft-target { fill: none; stroke: #e8c34a; stroke-width: 3; stroke-dasharray: 8 6; }
         .player { fill: #fff; stroke: #14161a; stroke-width: 3; }
