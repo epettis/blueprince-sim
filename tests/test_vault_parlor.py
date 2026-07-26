@@ -8,8 +8,7 @@ from blueprince_sim.engine.model import Registry
 from blueprince_sim.engine.rng import Rng
 from blueprince_sim.engine.state import GameState
 from blueprince_sim.env.actions import (
-    OPEN_VAULT_BOX_ACTION, OPEN_PARLOR_BOX_ACTION, N_ACTIONS,
-    action_mask, apply_action,
+    OPEN_VAULT_BOX_ACTION, OPEN_PARLOR_BOX_ACTION, action_mask, apply_action,
 )
 from blueprince_sim.env.multiday import DayChain
 
@@ -353,11 +352,6 @@ def test_open_vault_box_action_id():
 def test_open_parlor_box_action_id():
     """OPEN_PARLOR_BOX_ACTION is 273, adjacent to the vault box action."""
     assert OPEN_PARLOR_BOX_ACTION == 273
-
-
-def test_n_actions_is_274():
-    """N_ACTIONS is 274 after adding vault and parlor box actions."""
-    assert N_ACTIONS == 274
 
 
 def test_vault_box_action_masked_when_available():

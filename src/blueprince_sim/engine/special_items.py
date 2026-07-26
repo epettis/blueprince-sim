@@ -1169,10 +1169,17 @@ def _container_kinds_at(state, registry, cell: int) -> list[tuple[str, int]]:
     remaining = total - already
     if remaining <= 0:
         return []
-    # Deterministic open order: trunk first, then chest, then locker.
+    # Deterministic open order: trunk first, then chest, then locker_open, then
+    # locker_locked, then any other kinds in stable insertion order.
+    _PRIORITY = ("trunk", "chest", "locker_open", "locker_locked", "locker")
+    ordered_kinds = list(_PRIORITY)
+    for k in all_kinds:
+        if k not in _PRIORITY:
+            ordered_kinds.append(k)
+
     result = []
     used = already
-    for kind in ("trunk", "chest", "locker"):
+    for kind in ordered_kinds:
         n = all_kinds.get(kind, 0)
         if n <= 0:
             continue
@@ -1197,8 +1204,10 @@ def can_open_container(game, cell: int) -> bool:
     """True when the player at ``cell`` can open at least one container there.
 
     A trunk needs either a smash-tagged item (Sledge Hammer / Morning Star /
-    Power Hammer) OR at least 1 key in hand. A chest needs a key. A locker is
-    always free. At least one container must remain unopened.
+    Power Hammer) OR at least 1 key in hand. A chest needs a key. A locker_open
+    is always free. A locker_locked needs exactly 1 key — no smash/lockpick/
+    master-key substitutes (wiki: lockers are not doors). At least one container
+    must remain unopened.
     """
     state = game.state
     registry = game.registry
@@ -1209,7 +1218,10 @@ def can_open_container(game, cell: int) -> bool:
     kind_cfg = kinds_cfg.get(kind, {})
     openers = kind_cfg.get("opener", [])
     if not openers:
-        return True  # locker: free
+        return True  # locker_open or legacy locker: free
+    if openers == ["key_only"]:
+        # locker_locked: requires exactly one basic key — no special openers
+        return state.keys >= 1
     if "smash" in openers and _has_item_effect(state, registry, "smash"):
         return True
     if "key" in openers and state.keys >= 1:
@@ -1217,16 +1229,70 @@ def can_open_container(game, cell: int) -> bool:
     return False
 
 
+def _apply_grant(state, registry, game, grant_entry: dict) -> str:
+    """Apply one grant entry from a loot ``grants`` list; return a log tag.
+
+    Supported kinds: coins, keys, gems, dice, item, keycard.
+    Unknown kinds are silently skipped and return "".
+    """
+    from . import items as items_mod  # deferred import to avoid cycles
+    gkind = grant_entry.get("kind", "")
+    match gkind:
+        case "coins":
+            amount = grant_entry.get("amount", 1)
+            bonus = on_coins_granted(state, registry, amount)
+            state.coins += amount + bonus
+            state.items_found_log.append(("coins", amount))
+            return f"coins:{amount}"
+        case "keys":
+            amount = grant_entry.get("amount", 1)
+            state.keys += amount
+            state.items_found_log.append(("key", amount))
+            return f"keys:{amount}"
+        case "gems":
+            amount = grant_entry.get("amount", 1)
+            state.gems += amount
+            state.items_found_log.append(("gem", amount))
+            return f"gems:{amount}"
+        case "dice":
+            amount = grant_entry.get("amount", 1)
+            items_mod.grant_item(state, "die", amount, game.rng, registry)
+            state.items_found_log.append(("die", amount))
+            return f"dice:{amount}"
+        case "keycard":
+            state.has_keycard = True
+            state.items_found_log.append(("keycard", 1))
+            return "keycard"
+        case "item":
+            item_id = grant_entry.get("id", "")
+            if _is_available(state, item_id, registry):
+                grant(state, registry, item_id, source="container")
+            else:
+                # Fallback: 1 coin when the item is unavailable
+                bonus = on_coins_granted(state, registry, 1)
+                state.coins += 1 + bonus
+                state.items_found_log.append(("coins", 1))
+                return "coins:1"
+            return item_id
+        case _:
+            return ""
+
+
 def open_container(game, cell: int) -> str | None:
     """Open ONE unopened container at ``cell``; return what was granted or None.
 
     Trunk: smash-tagged item is free (no key); else spend 1 key.
     Chest: always spend 1 key (never smashable).
-    Locker: free.
+    Locker_open: free.
+    Locker_locked: spend exactly 1 key — no smash/lockpick/master-key
+    substitutes (wiki: lockers are not doors).
 
-    Rolls loot from the kind's loot table on the "container" named substream,
-    granting items via grant() or resources directly (mirrors dig_all).
-    Returns a log string like "coins:5" or the item id.
+    Loot entries use a ``grants`` list for multi-outcome entries; legacy
+    single-grant entries (``kind``/``id``/``amount`` at top level) are not
+    used in the shipped data but would need ``grants`` wrapping if added.
+
+    Returns a log string like "coins:5", "gems:3", an item id, or a
+    slash-joined multi-grant string like "car_keys/gems:1".
     """
     state = game.state
     registry = game.registry
@@ -1239,7 +1305,12 @@ def open_container(game, cell: int) -> str | None:
     openers = kind_cfg.get("opener", [])
 
     # Pay the cost (if any)
-    if openers:
+    if openers == ["key_only"]:
+        # locker_locked: exactly one basic key, no special openers
+        if state.keys < 1:
+            return None
+        state.keys -= 1
+    elif openers:
         if "smash" in openers and _has_item_effect(state, registry, "smash"):
             pass  # smash-tagged item opens trunks for free
         elif "key" in openers and state.keys >= 1:
@@ -1257,32 +1328,19 @@ def open_container(game, cell: int) -> str | None:
     weights = tuple(float(entry["weight"]) for entry in loot_table)
     idx = game.rng.roll_weighted("container", weights)
     entry = loot_table[idx]
-    entry_kind = entry["kind"]
 
-    match entry_kind:
-        case "coins":
-            amount = entry.get("amount", 1)
-            bonus = on_coins_granted(state, registry, amount)
-            state.coins += amount + bonus
-            state.items_found_log.append(("coins", amount))
-            return f"coins:{amount}"
-        case "key":
-            state.keys += 1
-            state.items_found_log.append(("key", 1))
-            return "key"
-        case "item":
-            item_id = entry["id"]
-            if _is_available(state, item_id, registry):
-                grant(state, registry, item_id, source="container")
-            else:
-                # Fallback: 1 coin when the item is unavailable
-                bonus = on_coins_granted(state, registry, 1)
-                state.coins += 1 + bonus
-                state.items_found_log.append(("coins", 1))
-                return "coins:1"
-            return item_id
-        case _:
-            return None
+    # New schema: list of grants per outcome
+    grants_list = entry.get("grants")
+    if grants_list is not None:
+        tags = []
+        for g in grants_list:
+            tag = _apply_grant(state, registry, game, g)
+            if tag:
+                tags.append(tag)
+        return "/".join(tags) if tags else None
+
+    # Legacy single-grant entries (backward compat)
+    return _apply_grant(state, registry, game, entry)
 
 
 def can_open_car_trunk(game) -> bool:

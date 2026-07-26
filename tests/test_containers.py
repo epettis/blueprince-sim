@@ -7,8 +7,8 @@ from blueprince_sim.engine.model import Registry
 from blueprince_sim.engine.rng import Rng
 from blueprince_sim.engine.state import GameState
 from blueprince_sim.env.actions import (
-    N_ACTIONS, OPEN_CONTAINER_ACTION, OPEN_CAR_TRUNK_ACTION,
-    action_mask, apply_action,
+    OPEN_CONTAINER_ACTION, OPEN_CAR_TRUNK_ACTION,
+    action_mask, apply_action, N_ACTIONS,
 )
 from blueprince_sim.env import obs as obs_mod
 
@@ -42,23 +42,41 @@ def _place_room(state, registry, room_id: str, cell: int) -> None:
 
 # ------------------------------------------------ container data
 
-def test_room_container_count_bounds_how_many_can_be_opened():
-    """A room yields exactly as many openable containers as its data count, then stops.
+def test_locker_room_has_open_and_locked_kinds():
+    """The Locker Room has both locker_open (free) and locker_locked (key cost) kinds.
 
-    Pins the count to data through behavior rather than reading the table back:
-    the Locker Room's lockers are free, so every one of them opens and no more.
+    This pins the wiki split (3 open, 17 locked out of 20 accessible lockers)
+    as a behavioral property: containers_in returns both kinds with nonzero counts.
     """
     st, reg = _state_with_registry()
-    expected = sum(si.containers_in(reg, "locker_room").values())
-    _place_room(st, reg, "locker_room", 7)
+    kinds = si.containers_in(reg, "locker_room")
+    assert kinds.get("locker_open", 0) > 0, "Locker Room must have at least one free locker"
+    assert kinds.get("locker_locked", 0) > 0, "Locker Room must have at least one locked locker"
+
+
+def test_locker_open_kind_requires_no_key():
+    """A locker_open container is openable with zero keys and costs nothing to open.
+
+    Uses a single-kind stub room to isolate the free-locker branch.
+    """
+    st, reg = _state_with_registry()
+    reg.special.containers["kinds"]["locker_open_stub"] = {
+        "locked": False,
+        "opener": [],
+        "loot": [{"weight": 1, "grants": [{"kind": "coins", "amount": 1}]}],
+    }
+    reg.special.containers["rooms"]["entrance_hall"] = {"locker_open_stub": 3}
+    _place_room(st, reg, "entrance_hall", 7)
+    st.keys = 0
 
     game = _fake_game(st, reg, seed=3)
     opened = 0
     while si.can_open_container(game, 7):
         si.open_container(game, 7)
         opened += 1
-        assert opened <= expected + 1, "opening must terminate at the room's count"
-    assert opened == expected
+        assert opened <= 4, "loop guard"
+    assert opened == 3, "all three free lockers must open with 0 keys"
+    assert st.keys == 0, "no keys spent on free lockers"
 
 
 def test_room_without_containers_is_never_openable():
@@ -141,15 +159,16 @@ def test_chest_is_unopenable_with_a_smasher_but_no_key():
 
 
 def test_open_locker_is_free():
-    """Opening a locker requires no key and no smash item."""
+    """Opening a locker_open container requires no key and no smash item."""
     st, reg = _state_with_registry()
     st.keys = 0
     _place_room(st, reg, "locker_room", 5)
 
     game = _fake_game(st, reg)
-    assert si.can_open_container(game, 5), "locker should be openable with 0 keys"
+    # The first container in order is locker_open (free)
+    assert si.can_open_container(game, 5), "locker_open should be openable with 0 keys"
     si.open_container(game, 5)
-    assert st.keys == 0, "opening a locker must not spend any key"
+    assert st.keys == 0, "opening a locker_open must not spend any key"
 
 
 def test_cannot_open_trunk_with_no_key_no_smasher():
@@ -189,12 +208,12 @@ def test_open_container_marks_opened():
 def test_open_all_containers_then_exhausted():
     """After all containers in a room are opened, can_open_container returns False."""
     st, reg = _state_with_registry()
-    st.keys = 10
-    # Locker Room has 3 lockers
+    st.keys = 100
+    total = sum(si.containers_in(reg, "locker_room").values())
     _place_room(st, reg, "locker_room", 7)
 
     game = _fake_game(st, reg, seed=3)
-    for _ in range(3):
+    for _ in range(total):
         assert si.can_open_container(game, 7)
         si.open_container(game, 7)
     assert not si.can_open_container(game, 7), "all lockers opened — none remain"
@@ -288,11 +307,6 @@ def test_garage_car_requires_car_keys():
 
 
 # ------------------------------------------------ env: actions
-
-def test_n_actions_grew():
-    """N_ACTIONS is now 274, accounting for the four container action ids (containers, car trunk, vault box, parlor box)."""
-    assert N_ACTIONS == 274
-
 
 def test_open_container_action_masked_when_available():
     """OPEN_CONTAINER_ACTION is True in the mask when a container is openable at current cell."""
@@ -411,3 +425,165 @@ def test_garage_disk_is_one_time_across_days():
     game.state.special.garage_car_opened = True  # the trunk was opened today
     chain.advance(game.carryover())
     assert chain.next_config().garage_car_used_before
+
+
+# ------------------------------------------------ trunk datamined table (new tests)
+
+def test_trunk_multi_grant_item_and_gem():
+    """A trunk outcome granting an item AND a gem applies both grants.
+
+    The car_keys + 1 gem entry must add the item to inventory and increment gems.
+    Uses seed fishing to hit that outcome; falls back to direct injection via a
+    single-entry stub table for determinism.
+    """
+    st, reg = _state_with_registry()
+    # Inject a 1-entry table that always gives car_keys + 1 gem
+    reg.special.containers["rooms"]["entrance_hall"] = {"trunk": 1}
+    reg.special.containers["kinds"]["trunk_test"] = {
+        "locked": False,
+        "opener": [],
+        "loot": [
+            {"weight": 1, "grants": [
+                {"kind": "item", "id": "car_keys"},
+                {"kind": "gems", "amount": 1},
+            ]},
+        ],
+    }
+    reg.special.containers["rooms"]["entrance_hall"] = {"trunk_test": 1}
+    _place_room(st, reg, "entrance_hall", 5)
+    gems_before = st.gems
+
+    game = _fake_game(st, reg, seed=0)
+    si.open_container(game, 5)
+    assert st.inventory.get("car_keys", 0) >= 1, "car_keys must be in inventory"
+    assert st.gems == gems_before + 1, "gem grant must be applied alongside item"
+
+
+def test_trunk_keycard_outcome_sets_has_keycard():
+    """A trunk outcome granting a keycard sets state.has_keycard = True.
+
+    The keycard is PIPELINE_EXCLUDED from normal item grants, so the container
+    handler must use the direct has_keycard path (mirroring open_car_trunk).
+    """
+    st, reg = _state_with_registry()
+    reg.special.containers["kinds"]["trunk_kc"] = {
+        "locked": False,
+        "opener": [],
+        "loot": [{"weight": 1, "grants": [{"kind": "keycard"}]}],
+    }
+    reg.special.containers["rooms"]["entrance_hall"] = {"trunk_kc": 1}
+    _place_room(st, reg, "entrance_hall", 5)
+
+    game = _fake_game(st, reg, seed=0)
+    assert not st.has_keycard
+    si.open_container(game, 5)
+    assert st.has_keycard, "keycard grant from trunk must set state.has_keycard"
+
+
+# ------------------------------------------------ locker_locked: key-only rule
+
+def test_locked_locker_costs_exactly_one_key():
+    """Opening a locker_locked spends exactly 1 key."""
+    st, reg = _state_with_registry()
+    # Use locker_locked directly via a single-kind room stub
+    reg.special.containers["rooms"]["entrance_hall"] = {"locker_locked": 1}
+    _place_room(st, reg, "entrance_hall", 5)
+    st.keys = 3
+
+    game = _fake_game(st, reg, seed=0)
+    assert si.can_open_container(game, 5)
+    si.open_container(game, 5)
+    assert st.keys == 2, "locker_locked must spend exactly 1 key"
+
+
+def test_locked_locker_refused_with_zero_keys_even_with_all_door_bypasses():
+    """A locker_locked is refused with 0 keys even when holding Sledge Hammer,
+    Lock Pick Kit, and Master Key.
+
+    Lockers are not doors (wiki: 'cannot be lockpicked or opened by special keys
+    or unlock effects'), so only a basic key works.
+    """
+    st, reg = _state_with_registry()
+    reg.special.containers["rooms"]["entrance_hall"] = {"locker_locked": 1}
+    _place_room(st, reg, "entrance_hall", 5)
+    st.keys = 0
+
+    # Grant all door-bypass tools
+    si.grant(st, reg, "sledge_hammer", source="test")
+    si.grant(st, reg, "lock_pick_kit", source="test")
+    si.grant(st, reg, "master_key", source="test")
+
+    game = _fake_game(st, reg, seed=0)
+    assert not si.can_open_container(game, 5), (
+        "locker_locked must be refused with 0 keys even with every door-bypass tool"
+    )
+    result = si.open_container(game, 5)
+    assert result is None
+    assert st.keys == 0
+
+
+def test_open_locker_open_costs_nothing():
+    """A locker_open container requires no key and no smash item."""
+    st, reg = _state_with_registry()
+    reg.special.containers["rooms"]["entrance_hall"] = {"locker_open": 1}
+    _place_room(st, reg, "entrance_hall", 5)
+    st.keys = 0
+
+    game = _fake_game(st, reg, seed=0)
+    assert si.can_open_container(game, 5), "locker_open must be free"
+    si.open_container(game, 5)
+    assert st.keys == 0, "locker_open must not spend a key"
+
+
+# ------------------------------------------------ trunk special-item share (statistical)
+
+def test_trunk_special_item_share_plausible():
+    """Over many seeded trunk rolls, the item-granting outcome share is in a plausible band.
+
+    The datamined table has ~26% item outcomes; the band 0.15-0.40 guards against
+    a broken weight list without hard-coding the exact value.
+    """
+    N = 2000
+
+    def _outcome_has_item(result: str | None) -> bool:
+        """True when any slash-separated part of result is an item id (not a resource tag)."""
+        if not result:
+            return False
+        for part in result.split("/"):
+            if part and not (
+                part.startswith("coins:") or part.startswith("keys:")
+                or part.startswith("gems:") or part.startswith("dice:")
+                or part in ("", "keycard")
+            ):
+                return True
+        return False
+
+    item_count = 0
+    for seed in range(N):
+        st, reg = _state_with_registry()
+        st.keys = 5
+        _place_room(st, reg, "attic", 5)
+        game = _fake_game(st, reg, seed=seed)
+        outcome = si.open_container(game, 5)
+        if _outcome_has_item(outcome):
+            item_count += 1
+
+    share = item_count / N
+    assert 0.15 <= share <= 0.40, (
+        f"trunk special-item share {share:.3f} outside expected band 0.15-0.40"
+    )
+
+
+# ------------------------------------------------ container action space: structural
+
+def test_open_container_action_mask_length_matches_n_actions():
+    """The action mask produced by action_mask() has exactly N_ACTIONS entries.
+
+    This pins the relationship (mask length == N_ACTIONS) rather than the
+    literal value, so it stays valid when the action space grows.
+    """
+    g = Game(GameConfig(), seed=0)
+    mask = action_mask(g)
+    assert len(mask) == N_ACTIONS, (
+        f"mask length {len(mask)} must equal N_ACTIONS={N_ACTIONS}"
+    )
