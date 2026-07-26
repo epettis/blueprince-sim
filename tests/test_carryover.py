@@ -373,10 +373,13 @@ def test_doorstep_no_chip_without_dig_tool_or_flag():
 def test_carryover_all_false_defaults():
     """carryover() returns all-False values on a fresh game with no discoveries.
 
-    The report must always have the full set of keys and default to False
-    when nothing was found or configured.
+    The report must always have the full set of keys and default to False when
+    nothing was found or configured.  royal_scepter_found is explicitly False
+    here because the default flipped to True (the unlock puzzle is unmodeled,
+    so defaulting on is the only way the scepter is exercised; pass False to
+    disable).  The gate, not the default, is what this test pins.
     """
-    g = _game()
+    g = _game(GameConfig(royal_scepter_found=False))
     report = shops.carryover(g)
     expected_keys = {
         "lunch_box_unlocked",

@@ -55,15 +55,23 @@ def all_unlocks_config(reward: str = "shaped") -> GameConfig:
     )
 
 
-def make_single_env(reward: str, seed: int):
-    """Module-level factory (picklable for SubprocVecEnv spawn)."""
+def make_single_env(reward: str, seed: int, multi_day: int = 0):
+    """Module-level factory (picklable for SubprocVecEnv spawn).
+
+    When ``multi_day`` > 0, each worker builds its own ``DayChain`` of that
+    many days and passes it to BluePrinceEnv; chains are per-worker so episodes
+    in different envs advance independently.
+    """
     from sb3_contrib.common.wrappers import ActionMasker
     from stable_baselines3.common.monitor import Monitor
 
     from ..env.blueprince_env import BluePrinceEnv
+    from ..env.multiday import DayChain
 
     def _thunk():
-        env = BluePrinceEnv(cfg=all_unlocks_config(reward))
+        cfg = all_unlocks_config(reward)
+        chain = DayChain(cfg, n_days=multi_day) if multi_day > 0 else None
+        env = BluePrinceEnv(cfg=cfg, day_chain=chain)
         env.reset(seed=seed)
         env = ActionMasker(env, lambda e: e.unwrapped.action_masks())
         return Monitor(env)
@@ -213,7 +221,8 @@ class CheckpointAndStopCallback:
             def __init__(self, ckpt_dir: Path, every_episodes: int,
                          episodes_done: int, snapshot_every: int,
                          recorder: EpisodeRecorder | None = None,
-                         draft_stats: DraftStatsWriter | None = None) -> None:
+                         draft_stats: DraftStatsWriter | None = None,
+                         multi_day: int = 0) -> None:
                 super().__init__()
                 self.ckpt_dir = ckpt_dir
                 self.every = every_episodes
@@ -226,6 +235,7 @@ class CheckpointAndStopCallback:
                 self.recent_exploit = deque(maxlen=1000)
                 self.recent_explore = deque(maxlen=1000)
                 self.t0 = time.time()
+                self.multi_day = multi_day  # 0 = single-day mode; >0 = chain length
 
             def _on_step(self) -> bool:
                 """Count episode ends, checkpoint on schedule, honor STOP.
@@ -259,6 +269,23 @@ class CheckpointAndStopCallback:
                             self.recent_exploit.append(win)
                         else:
                             self.recent_explore.append(win)
+                    if self.multi_day > 0 and "day" in info:
+                        # Compact one-line chain-state note after each episode.
+                        # Short key aliases keep the line width manageable.
+                        _KEY_ABBREV = {
+                            "royal_scepter_found": "scepter",
+                            "entrance_vase_broken": "vase",
+                            "outer_chip_dug": "chip",
+                            "lunch_box_unlocked": "lunchbox",
+                            "cursed_effigy_unlocked": "effigy",
+                        }
+                        carry = info.get("carryover", {})
+                        carry_str = (",".join(
+                            _KEY_ABBREV.get(k, k)
+                            for k, v in carry.items() if v
+                        ) or "none")
+                        emit(f"[chain] env{i} day {info['day']}/{self.multi_day}"
+                             f" | carry: {carry_str}")
                     done_indices.append(i)
                 if mixed and done_indices and not policy.per_decision:
                     policy.resample_modes(done_indices)
@@ -463,6 +490,12 @@ def main(argv: list[str] | None = None) -> int:
                              "rooms placed) of every such window (0 = off)")
     parser.add_argument("--no-record", action="store_true",
                         help="disable episode recording entirely")
+    # --- multi-day loop ---
+    parser.add_argument("--multi-day", type=int, default=0, metavar="N",
+                        help="enable the multi-day loop: each env worker runs a "
+                             "DayChain of N days before wrapping back to day 1 "
+                             "(carry-over flags accumulate across the chain). "
+                             "0 = off (default, each episode is independent).")
     # --- explore/exploit mixing ---
     parser.add_argument("--exploit-prob", type=float, default=0.9,
                         help="probability EACH DECISION is taken in EXPLOIT mode "
@@ -511,7 +544,8 @@ def main(argv: list[str] | None = None) -> int:
             "blueprince-train",
             f"{ckpt_dir} · reward={args.reward} · pid {os.getpid()}")
 
-    fns = [make_single_env(args.reward, args.seed + i) for i in range(args.n_envs)]
+    fns = [make_single_env(args.reward, args.seed + i, args.multi_day)
+           for i in range(args.n_envs)]
     vec_env = SubprocVecEnv(fns) if args.n_envs > 1 else DummyVecEnv(fns)
 
     from .mixed_policy import MixedExplorationPolicy
@@ -578,7 +612,7 @@ def main(argv: list[str] | None = None) -> int:
     draft_stats = DraftStatsWriter(ckpt_dir / "draft_stats.jsonl", episodes_done)
     callback = CheckpointAndStopCallback(
         ckpt_dir, args.checkpoint_every, episodes_done, args.snapshot_every,
-        recorder=recorder, draft_stats=draft_stats)
+        recorder=recorder, draft_stats=draft_stats, multi_day=args.multi_day)
     _install_signal_handlers()
     emit(f"[train] pid {os.getpid()} - stop with: kill {os.getpid()} (or Ctrl-C)")
 
