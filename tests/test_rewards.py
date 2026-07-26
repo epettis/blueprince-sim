@@ -147,9 +147,11 @@ def test_inventory_value_uses_tier_values(registry):
     use the flat value; counts multiply.
 
     Items must carry shaping worth or every purchase reads as a coin loss.
+    royal_scepter_found=False is explicit because the default is now True (the unlock
+    puzzle is unmodeled; False keeps the starting inventory empty for this test).
     """
     from blueprince_sim.engine.special_items import inventory_value
-    g = _game(registry)
+    g = _game(registry, royal_scepter_found=False)
     values = registry.item_rules["special_item_values"]
     assert inventory_value(g.state, registry) == 0.0
     g.state.inventory["magnifying_glass"] = 1  # tier 1

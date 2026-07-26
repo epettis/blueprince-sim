@@ -404,6 +404,30 @@ chip_dug: bool                 # West Path chip dug today (discovery)
 gift_unlocks: list[str]        # one-time Gift Shop purchases made today (carry-over feed)
 ```
 
+## Multi-day loop (`env/multiday.py`, alongside PR2/PR3)
+
+`DayChain(base_cfg, n_days=200)` coordinates a multi-day Blue Prince attempt.
+Each call to `next_config()` returns a `GameConfig` with the correct `day` index
+and any accumulated carry-over flags merged in.  `advance(carryover_dict)` merges
+True flags from `Game.carryover()` and increments the day; after `n_days` days
+the chain wraps to day 1 and clears all flags (fresh attempt).
+
+`BluePrinceEnv` accepts an optional `day_chain: DayChain` kwarg.  When set:
+
+- `reset()` calls `day_chain.next_config()` to build the day's `Game`, reusing
+  the already-loaded registry to avoid re-parsing data files.
+- Terminal/truncated `step()` calls `day_chain.advance(game.carryover())`.
+- `info` dicts include `"day"` (1-based current day) and `"carryover"` (the
+  flags active at episode START, stable even after `advance()` mutates the chain).
+
+`blueprince-train --multi-day N` enables this: each worker constructs its own
+`DayChain(cfg, N)` and the dashboard's event tail logs a compact one-liner per
+episode: `[chain] env0 day 37/200 | carry: scepter,vase`.
+
+`royal_scepter_found` defaults to `True` (changed alongside this PR): the Key of
+Aries -> Treasure Trove unlock puzzle is unmodeled, so defaulting on is the only
+way to exercise the scepter.  Pass `royal_scepter_found=False` to disable.
+
 ## PR3 — env wiring (the single retrain point)
 
 Everything appends to the existing interface: no existing obs key changes shape and

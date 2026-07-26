@@ -112,8 +112,12 @@ def test_encoded_obs_contained_after_entering_shop():
 # ------------------------------------------------------------------ inventory
 
 def test_inventory_all_zeros_on_empty_inventory():
-    """inventory is all-zero at start when no starting_items are configured."""
-    g = _game()
+    """inventory is all-zero at start when no starting_items are configured and scepter disabled.
+
+    royal_scepter_found=False is explicit because the default is now True (the unlock
+    puzzle is unmodeled; False disables the day-start grant, keeping inventory clean).
+    """
+    g = _game(GameConfig(royal_scepter_found=False))
     assert np.all(_obs(g)["inventory"] == 0)
 
 

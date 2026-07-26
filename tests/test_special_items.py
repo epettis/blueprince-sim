@@ -265,7 +265,7 @@ def test_lost_and_found_steals_one_item():
     separately from gifts (gifts may add items back to the pool).
     """
     reg = _registry()
-    cfg = GameConfig(studio_additions=frozenset({"lost_and_found"}))
+    cfg = GameConfig(studio_additions=frozenset({"lost_and_found"}), royal_scepter_found=False)
     g = Game(cfg, seed=42)
     # Inject two items directly so we have something to steal
     si.grant(g.state, reg, "shovel", source="test")
@@ -298,9 +298,12 @@ def test_lost_and_found_steals_keycard():
     state.has_keycard (locks.py) rather than the inventory.
 
     With the Keycard as the only held item it must be the steal target,
-    leaving the security-door system without a card.
+    leaving the security-door system without a card.  royal_scepter_found=False
+    is explicit so the scepter is not in inventory and the keycard is the only
+    steal candidate (the default flipped to True; False disables the grant).
     """
-    cfg = GameConfig(studio_additions=frozenset({"lost_and_found"}))
+    cfg = GameConfig(studio_additions=frozenset({"lost_and_found"}),
+                     royal_scepter_found=False)
     g = Game(cfg, seed=3)
     g.state.has_keycard = True
     si.lost_and_found_on_enter(g)
@@ -415,9 +418,13 @@ def test_cursed_effigy_gated_without_unlock():
     assert "cursed_effigy" in g.state.special.gated_out
 
 
-def test_royal_scepter_always_gated_in_pr1():
-    """Royal Scepter is always gated out in PR1 regardless of config."""
-    cfg = GameConfig()
+def test_royal_scepter_gated_when_flag_false():
+    """Royal Scepter is gated out when royal_scepter_found=False.
+
+    The default is now True (the unlock puzzle is unmodeled, so the scepter
+    must be opt-out rather than opt-in); passing False explicitly still gates it.
+    """
+    cfg = GameConfig(royal_scepter_found=False)
     g = Game(cfg, seed=1)
     si.configure(g.state, g.cfg)
     assert "royal_scepter" in g.state.special.gated_out

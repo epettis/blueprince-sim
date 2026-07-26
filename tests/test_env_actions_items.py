@@ -96,12 +96,13 @@ def test_mask_length_is_270():
 
 
 def test_new_action_slots_all_false_at_reset():
-    """All 29 new action slots (241..269) are False on a fresh default-config game.
+    """All 29 new action slots (241..269) are False at reset when no items, no scepter.
 
-    A default game has no items, no shop standing, no scepter, intact vase — so
-    none of the new actions are legal immediately after reset.
+    royal_scepter_found=False is explicit because the default is now True (the unlock
+    puzzle is unmodeled; False disables the day-start grant).  With no items and no shop
+    standing, none of the new actions should be legal immediately after reset.
     """
-    env = make_env()
+    env = make_env(GameConfig(royal_scepter_found=False))
     env.reset(seed=0)
     mask = env.action_masks()
     for action_id in range(241, 270):
@@ -345,9 +346,11 @@ def test_fabricate_mask_false_without_inputs():
 def test_scepter_mask_all_false_without_royal_scepter():
     """All 6 scepter slots are False when the Royal Scepter is not held.
 
-    The scepter action is gated on can_activate_scepter(), which requires holding it.
+    The scepter action is gated on can_activate_scepter(), which requires holding
+    it.  royal_scepter_found=False is explicit because the default is now True
+    (the unlock puzzle is unmodeled; False disables the day-start grant).
     """
-    game = _game(seed=0)
+    game = _game(GameConfig(royal_scepter_found=False), seed=0)
     assert not si.has(game.state, "royal_scepter")
     mask = _mask(game)
     assert not any(mask[A.SCEPTER_BASE + i] for i in range(6)), (

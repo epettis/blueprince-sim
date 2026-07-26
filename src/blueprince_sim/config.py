@@ -53,7 +53,10 @@ class GameConfig:
     # Cross-day discovery unlocks (each changes what spawns today):
     lunch_box_unlocked: bool = False    # bought once at the Gift Shop: Dining Rooms spawn it daily
     cursed_effigy_unlocked: bool = False  # Cursed Coffers bought: the Shrine spawns the Effigy
-    royal_scepter_found: bool = False   # Treasure Trove opened before: scepter granted at day start
+    # Treasure Trove opened before: scepter granted at day start.
+    # Default True: the unlock puzzle (Key of Aries -> Treasure Trove) is unmodeled, so
+    # defaulting on is the only way the scepter is ever exercised.  Set False to disable.
+    royal_scepter_found: bool = True
     entrance_vase_broken: bool = False  # west vase smashed before: its microchip granted at day start
     outer_chip_dug: bool = False        # West Path chip dug up before: granted on reaching the doorstep
     # --- reward selection for the env ---
