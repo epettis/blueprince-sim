@@ -484,15 +484,6 @@ class Game:
         assert self.cfg.special_items
         return special_items.open_vault_box(self)
 
-    def can_open_parlor_box(self) -> bool:
-        """A wind_up_key is held, standing in a Parlor, and the per-cell cap is not reached."""
-        return special_items.can_open_parlor_box(self)
-
-    def open_parlor_box(self) -> str | None:
-        """Open one Parlor box, consuming one wind_up_key."""
-        assert self.cfg.special_items
-        return special_items.open_parlor_box(self)
-
     def can_light(self) -> bool:
         """Holding an ignition tool (Torch/Burning Glass) in a lightable room."""
         return special_items.can_light(self)
@@ -510,6 +501,7 @@ class Game:
         """Install the Broken Lever in the current machine room; apply its effect."""
         assert self.cfg.special_items
         special_items.install_lever(self)
+
 
     def can_use_repellent(self) -> bool:
         """Is using the Repellent available right now (held + NAVIGATE phase)?"""

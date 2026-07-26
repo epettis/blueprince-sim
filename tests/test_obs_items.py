@@ -72,7 +72,7 @@ def test_all_six_new_keys_present_in_observation_space():
     assert "fabricate"    in space.spaces
 
     assert space.spaces["inventory"].shape    == (n_items,)
-    assert space.spaces["item_state"].shape   == (12,)
+    assert space.spaces["item_state"].shape   == (11,)
     assert space.spaces["grid_dig"].shape     == (9, 5)
     assert space.spaces["shop_stock"].shape   == (O.SHOP_STOCK_ROWS, 5)
     assert space.spaces["trade_offers"].shape == (O.TRADE_OFFER_ROWS, 2)

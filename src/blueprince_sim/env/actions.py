@@ -5,7 +5,7 @@ to draft, or a room to enter) and the engine walks the shortest connected
 path, paying the normal one-step-per-room cost. Re-entering rooms grants
 nothing, so free-form single-tile moves were retired.
 
-Layout (Discrete(276)):
+Layout (Discrete(275)):
   0..179   draft at doorway: cell (45) x direction (4: N,E,S,W) ->
            cell*4 + dir_index. Walks to the room first if needed. Legal for
            every frontier doorway reachable with at least one step to spare
@@ -31,10 +31,9 @@ Layout (Discrete(276)):
            buyable entry, the Workshop with fabricate options, a Dining
            Room whose main course is still pending once rank 8 is reached,
            a cell still holding a container the player can open, a Vault cell
-           with an openable deposit box, a Parlor with wind_up_key held,
-           an ignition target (chapel/tomb/trading_post) with a torch or
-           burning_glass held, and a machine room (greenhouse/casino) with
-           a broken_lever held.
+           with an openable deposit box, an ignition target (chapel/tomb/trading_post)
+           with a torch or burning_glass held, and a machine room (greenhouse/casino)
+           with a broken_lever held.
   241..246 buy current shop display entry 0..5 (NAVIGATE; on-grid shop or
            inside outer shop, outer_loc == 2)
   247..254 trade offer 0..7 (inside the Trading Post; offer index matches
@@ -47,9 +46,8 @@ Layout (Discrete(276)):
   270      open container at the current cell (trunk/chest/locker; one per action)
   271      open the Garage car trunk (standing in the Garage with Car Keys held)
   272      open vault deposit box (standing in the Vault with a matching vault key)
-  273      open a Parlor box (standing in a Parlor with a wind_up_key; consumed)
-  274      light ignition target (standing in chapel/tomb/trading_post with torch or burning_glass)
-  275      install broken lever in a machine room (greenhouse/casino)
+  273      light ignition target (standing in chapel/tomb/trading_post with torch or burning_glass)
+  274      install broken lever in a machine room (greenhouse/casino)
 """
 
 from __future__ import annotations
@@ -60,7 +58,7 @@ from ..engine.locks import DOOR_LOCKED, DOOR_SECURITY, SECURITY_LEVELS
 from ..engine import shops as _shops
 from ..engine import special_items as _si
 
-N_ACTIONS = 276
+N_ACTIONS = 275
 OPEN_BASE, CHOOSE_BASE, ALT_BASE = 0, 180, 183
 REDRAW_ACTION, OUTER_DRAFT_ACTION = 186, 188
 ENTER_OUTER_ACTION = 187   # enter outer room from doorstep
@@ -78,9 +76,8 @@ SMASH_VASE_ACTION = 269
 OPEN_CONTAINER_ACTION = 270  # open the next container at the current cell
 OPEN_CAR_TRUNK_ACTION = 271  # open garage car trunk (Garage + Car Keys)
 OPEN_VAULT_BOX_ACTION = 272  # open a vault deposit box (Vault + matching vault key)
-OPEN_PARLOR_BOX_ACTION = 273  # open a Parlor box (Parlor + wind_up_key; consumed)
-LIGHT_ACTION = 274           # light ignition target (torch or burning_glass)
-INSTALL_LEVER_ACTION = 275   # install broken_lever in a machine room
+LIGHT_ACTION = 273           # light ignition target (torch or burning_glass)
+INSTALL_LEVER_ACTION = 274   # install broken_lever in a machine room
 DIR_INDEX = {d: i for i, d in enumerate(DIRS)}
 
 
@@ -170,27 +167,6 @@ def _cell_has_vault_box(game: Game, cell: int) -> bool:
             return True
     return False
 
-
-def _cell_has_parlor_box(game: Game, cell: int) -> bool:
-    """True when ``cell`` is a Parlor and a wind_up_key is held with cap not reached.
-
-    Position-independent: used to enable walk-to re-entry so the agent can
-    return to the Parlor after picking up a wind_up_key.
-    """
-    st = game.state
-    if st.grid[cell] < 0:
-        return False
-    room = game.registry.rooms[st.grid[cell]]
-    if room.id != "parlor" and room.variant_of != "parlor":
-        return False
-    if not _si.has(st, "wind_up_key"):
-        return False
-    parlor_boxes = game.registry.special.containers.get("parlor_boxes", {})
-    is_upgrade = room.variant_of == "parlor"
-    cap = (parlor_boxes.get("upgraded_count", 2) if is_upgrade
-           else parlor_boxes.get("count", 1))
-    already = st.special.parlor_boxes_opened.get(cell, 0)
-    return already < cap
 
 
 def _cell_has_ignition_target(game: Game, cell: int) -> bool:
@@ -317,12 +293,11 @@ def action_mask(game: Game, prev_action: int | None = None) -> list[bool]:
                     mask[MOVE_TO_BASE + cell] = True
                 elif st.entered[cell]:
                     # Re-entry extensions for shops / Workshop / Dining Room / containers
-                    # / vault deposit boxes / Parlor boxes
+                    # / vault deposit boxes
                     if (_cell_is_shop_re_enterable(game, cell)
                             or _dining_room_re_enterable(game, cell)
                             or _cell_has_openable_container(game, cell)
                             or _cell_has_vault_box(game, cell)
-                            or _cell_has_parlor_box(game, cell)
                             or _cell_has_ignition_target(game, cell)
                             or _cell_has_machine(game, cell)):
                         mask[MOVE_TO_BASE + cell] = True
@@ -355,8 +330,6 @@ def action_mask(game: Game, prev_action: int | None = None) -> list[bool]:
                 mask[OPEN_CAR_TRUNK_ACTION] = True
             if game.can_open_vault_box():
                 mask[OPEN_VAULT_BOX_ACTION] = True
-            if game.can_open_parlor_box():
-                mask[OPEN_PARLOR_BOX_ACTION] = True
             if game.can_light():
                 mask[LIGHT_ACTION] = True
             if game.can_install_lever():
@@ -460,8 +433,6 @@ def apply_action(game: Game, action: int) -> None:
         game.open_car_trunk()
     elif action == OPEN_VAULT_BOX_ACTION:
         game.open_vault_box()
-    elif action == OPEN_PARLOR_BOX_ACTION:
-        game.open_parlor_box()
     elif action == LIGHT_ACTION:
         game.light()
     elif action == INSTALL_LEVER_ACTION:
@@ -541,8 +512,6 @@ def describe_action(game: Game, action: int) -> str:
         return "open car trunk"
     if action == OPEN_VAULT_BOX_ACTION:
         return "open vault deposit box"
-    if action == OPEN_PARLOR_BOX_ACTION:
-        return "open parlor box"
     if action == LIGHT_ACTION:
         return "light ignition target"
     if action == INSTALL_LEVER_ACTION:

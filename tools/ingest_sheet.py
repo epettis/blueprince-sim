@@ -175,6 +175,16 @@ EFFECT_MAP: dict[str, dict] = {
     "aquarium": {"items": {"dig_spots": 1}},
     "patio": {"items": {"dig_spots": 1}},
     "cloister": {"items": {"dig_spots": 1}},
+    # Parlor: box always contains 2 gems on first entry; Wind-up Key is deliberately
+    # not modeled (action-space simplification — see docs/special-items-design.md).
+    "parlor": {"items": {"guaranteed": [{"item": "gem", "count": 2}]}},
+}
+
+# Per-variant overrides, keyed by the suffixed id (e.g. "parlor__ix108").
+# Applied AFTER EFFECT_MAP so these override the base-slug entry.
+VARIANT_EFFECT_MAP: dict[str, dict] = {
+    # ix108: "3ð Prize" — the upgrade variant that increases the Parlor box to 3 gems.
+    "parlor__ix108": {"items": {"guaranteed": [{"item": "gem", "count": 3}]}},
 }
 
 # Per-category default for luck-scaled extra items (Item Spawns table is
@@ -303,6 +313,13 @@ def build_room(row: dict) -> dict | None:
             entry["effects"] = overrides["effects"]
         if "items" in overrides:
             entry["items"].update(overrides["items"])
+    # Per-variant overrides applied after base EFFECT_MAP (may tighten, e.g. gem count).
+    variant_overrides = VARIANT_EFFECT_MAP.get(entry["id"])
+    if variant_overrides:
+        if "effects" in variant_overrides:
+            entry["effects"] = variant_overrides["effects"]
+        if "items" in variant_overrides:
+            entry["items"].update(variant_overrides["items"])
     if name in GLYPH_MAP:
         entry["meta"]["glyph_resolution"] = [
             {"icon": icon, "confidence": conf} for icon, conf in GLYPH_MAP[name]]
