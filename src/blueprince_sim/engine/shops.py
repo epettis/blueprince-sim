@@ -69,6 +69,12 @@ class ShopsState:
     vase_smashed: bool = False  # Entrance Hall vase smashed today (discovery)
     chip_dug: bool = False  # West Path chip dug today (discovery)
     gift_unlocks: list[str] = field(default_factory=list)  # one-time Gift Shop buys today
+    # Repellent bans added this day: room_id -> days remaining (always 7 when first added).
+    # Merged into DayChain.repellent_bans on advance(); DayChain enforces the 3-ban cap
+    # (oldest evicted when a 4th is added) and decrements all counters each day.
+    # The dict here grows only within the current episode (multiple repellent uses allowed
+    # up to the cap).
+    repellent_bans: dict[str, int] = field(default_factory=dict)
 
 
 # ------------------------------------------------------------------ stock & buy
@@ -962,12 +968,84 @@ def smash_vase(game) -> None:
     game.state.shops.vase_smashed = True
 
 
-def carryover(game) -> dict[str, bool]:
-    """Today's cross-day discoveries, keyed by the GameConfig flag a multi-day
-    wrapper would set for tomorrow. True = newly discovered today OR already
-    configured. Task D."""
+# Rooms that can never be banned by the Repellent (wiki-documented exclusions):
+# the Entrance Hall (the day always starts here), the Antechamber (the win
+# condition), and Room 46 (the special secret room).  Room ids are stable
+# snake_case identifiers matching rooms.json.
+_REPELLENT_ILLEGAL_TARGETS = frozenset({"entrance_hall", "antechamber", "room_46"})
+
+# Maximum number of simultaneously active Repellent bans (wiki: max 3).
+_REPELLENT_MAX_BANS = 3
+
+# Days a Repellent ban lasts (wiki: 7 days).
+_REPELLENT_BAN_DAYS = 7
+
+
+def can_use_repellent(game) -> bool:
+    """Repellent usable: held at least one, NAVIGATE phase, on the grid.
+
+    The target room is the room the player currently stands in; validity
+    (not an illegal target) is checked in use_repellent().
+    """
+    from .game import Phase
+    return (
+        game.phase is Phase.NAVIGATE
+        and game.state.outer_loc == 0
+        and si.has(game.state, "repellent")
+    )
+
+
+def use_repellent(game, room_id: str) -> None:
+    """Consume one Repellent and ban ``room_id`` from the draft pool for 7 days.
+
+    Rules enforced:
+    - The player must hold at least one Repellent (consumed, not pool-returned).
+    - ``room_id`` must not be entrance_hall, antechamber, or room_46 (wiki
+      exclusions — these rooms always appear in the house).
+    - The global cap of 3 active bans is enforced by DayChain on advance(); a
+      4th ban added here is recorded on ShopsState and DayChain will evict the
+      oldest on the next advance().
+
+    The ban takes effect on the NEXT day's draft pool (GameConfig.banned_rooms
+    fed by DayChain.next_config()).  Today's already-built decks are unaffected.
+    """
+    assert can_use_repellent(game), "no Repellent held or not in navigate phase"
+    assert room_id not in _REPELLENT_ILLEGAL_TARGETS, (
+        f"{room_id!r} cannot be banned (entrance_hall/antechamber/room_46 are excluded)"
+    )
+    # The room must exist in the registry
+    assert game.registry.by_id.get(room_id) is not None, (
+        f"unknown room id {room_id!r}"
+    )
+
+    si.remove(game.state, "repellent", consumed=True)
+    # Record or refresh the ban for this room (7 days from now)
+    game.state.shops.repellent_bans[room_id] = _REPELLENT_BAN_DAYS
+
+
+def carryover(game) -> dict:
+    """Today's cross-day discoveries for a multi-day wrapper.
+
+    Returns a dict with:
+    - bool keys (GameConfig flag names): True when discovered today or already
+      configured.  False values signal "still not discovered" — DayChain ignores
+      them for bool flags (accumulative: once True, always True within an attempt).
+    - ``"starting_items"``: sorted list of item ids that persist into tomorrow
+      (permanent/until_used self-persisters + Coat Check + Moon Pendant carry).
+    - ``"banned_rooms"``: dict room_id -> days_remaining for NEW Repellent bans
+      added THIS day only.  DayChain already owns the old bans from previous days
+      and decrements them itself; this key carries only new bans to merge in.
+
+    DayChain.advance() handles the non-bool keys explicitly (merging/decrementing
+    bans, storing starting_items).  Task D.
+    """
+    from . import special_items as si_mod
     cfg = game.cfg
     state = game.state
+
+    # Item persistence carry
+    carried_items = si_mod.end_of_day_carry(state, game.registry, game.rng)
+
     return {
         "lunch_box_unlocked": (
             cfg.lunch_box_unlocked or "lunch_box_unlocked" in state.shops.gift_unlocks
@@ -978,4 +1056,6 @@ def carryover(game) -> dict[str, bool]:
         "entrance_vase_broken": cfg.entrance_vase_broken or state.shops.vase_smashed,
         "outer_chip_dug": cfg.outer_chip_dug or state.shops.chip_dug,
         "royal_scepter_found": cfg.royal_scepter_found,
+        "starting_items": carried_items,              # list[str]: item ids for next starting_items
+        "banned_rooms": dict(state.shops.repellent_bans),  # dict[str, int]: new bans from today
     }

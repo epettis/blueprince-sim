@@ -59,6 +59,12 @@ class GameConfig:
     royal_scepter_found: bool = True
     entrance_vase_broken: bool = False  # west vase smashed before: its microchip granted at day start
     outer_chip_dug: bool = False        # West Path chip dug up before: granted on reaching the doorstep
+    # Room ids banned from the draft pool by the Repellent item.  Each
+    # repellent use records a ban for 7 days; DayChain decrements the counters
+    # on advance() and passes the survivors here.  Rooms in this set are excluded
+    # from eligible_pool() in engine/decks.py.  The dict lives in DayChain and is
+    # converted to a frozenset of active (days_left > 0) room ids for the config.
+    banned_rooms: frozenset[str] = frozenset()
     # --- reward selection for the env ---
     reward: str = "sparse"              # sparse|shaped|phased
     data_dir: Path | None = None        # alternate data/*.json directory (None = packaged data)
@@ -99,7 +105,7 @@ class GameConfig:
             if k not in valid:
                 raise KeyError(f"Unknown config key: {k}")
             if k in ("studio_additions", "upgrade_disks", "satisfied_conditions",
-                     "starting_items"):
+                     "starting_items", "banned_rooms"):
                 v = frozenset(v)
             elif k == "data_dir" and v is not None:
                 v = Path(v)

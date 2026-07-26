@@ -457,7 +457,20 @@ class Game:
         assert self.cfg.special_items
         shops.smash_vase(self)
 
-    def carryover(self) -> dict[str, bool]:
+    def can_use_repellent(self) -> bool:
+        """Is using the Repellent available right now (held + NAVIGATE phase)?"""
+        return shops.can_use_repellent(self)
+
+    def use_repellent(self, room_id: str) -> None:
+        """Consume a Repellent, banning ``room_id`` from the draft pool for 7 days.
+
+        Illegal targets (entrance_hall, antechamber, room_46) are refused.
+        The ban takes effect from the next day; today's decks are already built.
+        """
+        assert self.cfg.special_items
+        shops.use_repellent(self, room_id)
+
+    def carryover(self) -> dict:
         """Cross-day discoveries to feed into tomorrow's GameConfig."""
         return shops.carryover(self)
 

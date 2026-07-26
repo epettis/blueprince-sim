@@ -413,12 +413,12 @@
      "tag": "repellent"
     }
    ],
-   "implemented": false,
+   "implemented": true,
    "meta": {
     "source": "https://blueprince.wiki.gg/wiki/Repellent",
     "confidence": "wiki",
     "absent_spawn_rooms": [],
-    "blocked_on": "repellent_not_modeled"
+    "blocked_on": null
    }
   },
   {
@@ -844,12 +844,12 @@
    "kind": "special_key",
    "tier": null,
    "unique": true,
-   "persistence": "permanent",
-   "spawn_rooms": [
+   "persistence": "day",
+   "spawn_rooms": [],
+   "spawn_rooms_high_luck": [],
+   "guaranteed_in": [
     "gallery"
    ],
-   "spawn_rooms_high_luck": [],
-   "guaranteed_in": [],
    "effects": [],
    "implemented": true,
    "meta": {
@@ -857,7 +857,7 @@
     "confidence": "wiki",
     "absent_spawn_rooms": [],
     "blocked_on": null,
-    "notes": "Spawn-roll in the Gallery simplifies the art-naming puzzle chest."
+    "notes": "Unlocking Key 8 (the Gallery art-naming puzzle) makes it appear in the Gallery every day rather than staying in the inventory. The sim assumes the player solves the puzzles of any room they enter, so the unlock and the find collapse into one guaranteed Gallery spawn - behaviourally the same check-in/check-out shape as the Coat Check."
    }
   },
   {
@@ -1220,14 +1220,18 @@
    "spawn_rooms": [],
    "spawn_rooms_high_luck": [],
    "guaranteed_in": [],
-   "effects": [],
-   "implemented": false,
+   "effects": [
+    {
+     "tag": "moon_pendant_carry"
+    }
+   ],
+   "implemented": true,
    "meta": {
     "source": "https://blueprince.wiki.gg/wiki/Showroom",
     "confidence": "wiki",
     "absent_spawn_rooms": [],
-    "blocked_on": "carry_over_not_modeled",
-    "notes": "Purchase-only (Showroom/Armory); obtainable when PR2 adds shop actions."
+    "notes": "Purchase-only (Showroom/Armory); obtainable when PR2 adds shop actions.",
+    "blocked_on": null
    }
   },
   {
