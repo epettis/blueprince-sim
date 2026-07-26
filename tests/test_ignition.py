@@ -233,69 +233,47 @@ def test_tomb_can_be_lit_without_diary_key():
     assert si.can_light(game), "Tomb must be lightable with only a torch (no diary_key required)"
 
 
-def test_lighting_tomb_grants_diary_key():
-    """Lighting the Tomb grants the diary_key as a reward (wiki-documented)."""
-    st, reg = _state_with_registry()
-    si.grant(st, reg, "torch", source="test")
-    _place_room(st, reg, "tomb", 5)
-    st.pos = 5
-    game = _fake_game(st, reg)
-    si.light(game)
-    assert st.inventory.get("diary_key", 0) > 0, "lighting the Tomb must grant diary_key"
-
-
-def test_lighting_tomb_grants_upgrade_disk_tomb():
-    """Lighting the Tomb grants the upgrade_disk_tomb (near candles, wiki-documented)."""
-    st, reg = _state_with_registry()
-    si.grant(st, reg, "torch", source="test")
-    _place_room(st, reg, "tomb", 5)
-    st.pos = 5
-    game = _fake_game(st, reg)
-    si.light(game)
-    assert st.inventory.get("upgrade_disk_tomb", 0) > 0, (
-        "lighting the Tomb must grant upgrade_disk_tomb"
-    )
-
-
-def test_lighting_tomb_grants_four_dice():
-    """Lighting the Tomb grants 4 dice (near candles, wiki-documented)."""
-    st, reg = _state_with_registry()
-    si.grant(st, reg, "torch", source="test")
-    _place_room(st, reg, "tomb", 5)
-    st.pos = 5
-    game = _fake_game(st, reg)
-    si.light(game)
-    # Dice are granted through the items module (die roll items)
-    dice_entries = sum(amt for kind, amt in st.items_found_log if kind == "die")
-    assert dice_entries >= 4, f"lighting the Tomb must grant 4 dice; found_log dice: {dice_entries}"
-
-
 # ====================================================== ignition: Trading Post
 
 
-def test_trading_post_fuse_grants_upgrade_disk_trading_post():
-    """Lighting the Trading Post fuse grants upgrade_disk_trading_post (wiki-documented reward)."""
-    st, reg = _state_with_registry()
-    si.grant(st, reg, "torch", source="test")
-    _place_room(st, reg, "trading_post", 5)
-    st.pos = 5
-    game = _fake_game(st, reg)
-    si.light(game)
-    assert st.inventory.get("upgrade_disk_trading_post", 0) > 0, (
-        "Trading Post fuse must grant upgrade_disk_trading_post"
-    )
+def test_lighting_grants_exactly_what_the_data_declares():
+    """Every ignition target hands over precisely the grants its data record
+    lists — item ids, coin, gem and dice amounts.
 
-
-def test_trading_post_fuse_grants_40_coins():
-    """Lighting the Trading Post fuse grants 40 coins (wiki-documented reward)."""
-    st, reg = _state_with_registry()
-    si.grant(st, reg, "torch", source="test")
-    _place_room(st, reg, "trading_post", 5)
-    st.pos = 5
-    game = _fake_game(st, reg)
-    before = st.coins
-    si.light(game)
-    assert st.coins >= before + 40, "Trading Post fuse must grant at least 40 coins"
+    Asserting against the record rather than against numbers copied out of it
+    means tuning a reward is a data edit, not a test edit, while still proving
+    the engine honours whatever is configured.
+    """
+    _, reg = _state_with_registry()
+    targets = reg.special.ignition["targets"]
+    assert targets, "no ignition targets configured"
+    for room_id, target in targets.items():
+        st, reg = _state_with_registry()
+        si.grant(st, reg, "torch", source="test")
+        _place_room(st, reg, room_id, 5)
+        st.pos = 5
+        game = _fake_game(st, reg)
+        before = {"coins": st.coins, "gems": st.gems, "dice": st.dice}
+        si.light(game)
+        for grant in target.get("grants", []):
+            kind = grant.get("kind")
+            match kind:
+                case "item":
+                    assert st.inventory.get(grant["id"], 0) > 0, (
+                        f"{room_id} must grant item {grant['id']}"
+                    )
+                case "coins" | "gems":
+                    got = (st.coins if kind == "coins" else st.gems) - before[kind]
+                    assert got == grant["amount"], (
+                        f"{room_id} must grant {grant['amount']} {kind}, granted {got}"
+                    )
+                case "dice":
+                    got = sum(n for k, n in st.items_found_log if k == "die")
+                    assert got == grant["amount"], (
+                        f"{room_id} must grant {grant['amount']} dice, granted {got}"
+                    )
+                case "chapel_tithe_payout":
+                    pass  # dynamic: covered by the tithe-bank tests above
 
 
 # ====================================================== ignition: permanence across days

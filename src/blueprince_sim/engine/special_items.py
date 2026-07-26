@@ -1262,8 +1262,9 @@ def _apply_grant(state, registry, game, grant_entry: dict) -> str:
             return f"gems:{amount}"
         case "dice":
             amount = grant_entry.get("amount", 1)
+            # grant_item logs the pickup itself; a second append would
+            # double-count dice in items_found_log.
             items_mod.grant_item(state, "die", amount, game.rng, registry)
-            state.items_found_log.append(("die", amount))
             return f"dice:{amount}"
         case "keycard":
             state.has_keycard = True
@@ -1566,8 +1567,8 @@ def light(game) -> None:
                 state.items_found_log.append(("gem", amount))
             case "dice":
                 amount = reward.get("amount", 1)
+                # grant_item already logs the pickup (see above).
                 items_mod.grant_item(state, "die", amount, game.rng, registry)
-                state.items_found_log.append(("die", amount))
             case "chapel_tithe_payout":
                 # Pay out the Keeper of Tithes accumulated total: every coin the
                 # Chapel's -1 entry penalty ever took.  The counter is cleared
