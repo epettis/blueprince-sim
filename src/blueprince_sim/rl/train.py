@@ -222,7 +222,8 @@ class CheckpointAndStopCallback:
                          episodes_done: int, snapshot_every: int,
                          recorder: EpisodeRecorder | None = None,
                          draft_stats: DraftStatsWriter | None = None,
-                         multi_day: int = 0) -> None:
+                         multi_day: int = 0,
+                         note_fraction: float = 0.05) -> None:
                 super().__init__()
                 self.ckpt_dir = ckpt_dir
                 self.every = every_episodes
@@ -236,6 +237,12 @@ class CheckpointAndStopCallback:
                 self.recent_explore = deque(maxlen=1000)
                 self.t0 = time.time()
                 self.multi_day = multi_day  # 0 = single-day mode; >0 = chain length
+                # Per-episode chain notes are the only high-frequency terminal
+                # output; every line re-renders the whole dashboard frame, which
+                # costs real throughput on long runs. Emit one every Nth episode
+                # instead (0.05 -> every 20th). Lifecycle lines (checkpoints,
+                # stop signals, the final summary) are never throttled.
+                self.note_every = max(1, round(1.0 / note_fraction)) if note_fraction > 0 else 0
 
             def _on_step(self) -> bool:
                 """Count episode ends, checkpoint on schedule, honor STOP.
@@ -269,7 +276,8 @@ class CheckpointAndStopCallback:
                             self.recent_exploit.append(win)
                         else:
                             self.recent_explore.append(win)
-                    if self.multi_day > 0 and "day" in info:
+                    if (self.multi_day > 0 and "day" in info and self.note_every
+                            and self.episodes % self.note_every == 0):
                         # Compact one-line chain-state note after each episode.
                         # Short key aliases keep the line width manageable.
                         _KEY_ABBREV = {
@@ -462,6 +470,13 @@ def main(argv: list[str] | None = None) -> int:
                         help="optional cap; default runs until signaled")
     parser.add_argument("--tensorboard", action="store_true",
                         help="also log to <checkpoint-dir>/tb")
+    parser.add_argument("--dashboard-every", type=float, default=0.05,
+                        metavar="FRACTION",
+                        help="fraction of finished episodes that emit a chain-state "
+                             "line to the dashboard (default 0.05 = one in 20). Each "
+                             "line re-renders the frame, so lowering this speeds up "
+                             "long runs; 0 disables the per-episode lines entirely. "
+                             "Checkpoint, stop and summary lines are never throttled.")
     parser.add_argument("--no-dashboard", action="store_true",
                         help="print sb3's scrolling metric table instead of "
                              "the in-place dashboard (the dashboard is also "
@@ -612,7 +627,8 @@ def main(argv: list[str] | None = None) -> int:
     draft_stats = DraftStatsWriter(ckpt_dir / "draft_stats.jsonl", episodes_done)
     callback = CheckpointAndStopCallback(
         ckpt_dir, args.checkpoint_every, episodes_done, args.snapshot_every,
-        recorder=recorder, draft_stats=draft_stats, multi_day=args.multi_day)
+        recorder=recorder, draft_stats=draft_stats, multi_day=args.multi_day,
+        note_fraction=args.dashboard_every)
     _install_signal_handlers()
     emit(f"[train] pid {os.getpid()} - stop with: kill {os.getpid()} (or Ctrl-C)")
 

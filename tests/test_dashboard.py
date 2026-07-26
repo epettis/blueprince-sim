@@ -408,3 +408,21 @@ def test_live_close_restores_the_cursor():
     dash.close()
     assert "\x1b[?25l" in buf.getvalue()    # hidden while running
     assert buf.getvalue().endswith("\x1b[?25h")
+
+
+def test_chain_note_cadence_from_fraction():
+    """The dashboard-every fraction becomes an every-Nth-episode interval, and
+    0 disables the per-episode chain lines outright.
+
+    Each note re-renders the whole frame, so this is the knob that keeps long
+    runs from spending their time drawing instead of training.
+    """
+    def interval(fraction: float) -> int:
+        # Mirrors CheckpointAndStopCallback's computation (the callback itself
+        # needs torch, which the test environment does not require).
+        return max(1, round(1.0 / fraction)) if fraction > 0 else 0
+
+    assert interval(0.05) == 20     # the default: one line in twenty episodes
+    assert interval(1.0) == 1       # every episode
+    assert interval(0.5) == 2
+    assert interval(0) == 0         # disabled
