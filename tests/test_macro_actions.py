@@ -164,12 +164,12 @@ def test_stranded_when_frontier_out_of_budget():
 
 
 def test_mask_layout_and_retired_actions():
-    """The mask spans all 274 actions, never legalizes the retired single-tile
+    """The mask spans all 276 actions, never legalizes the retired single-tile
     moves, and a fresh entrance offers drafts but nothing to walk to."""
     env = make_env()
     env.reset(seed=0)
     mask = env.action_masks()
-    assert len(mask) == A.N_ACTIONS == 274
+    assert len(mask) == A.N_ACTIONS == 276
     # Retired single-tile moves are never legal.
     for action in (189, 190, 191, 192):
         assert not mask[action]
@@ -218,8 +218,11 @@ def test_masked_rollout_never_revisits_pointlessly():
     """Every legal move_to target is unentered, a control room, or a re-enterable cell.
 
     Re-enterable cells are shops with buyable stock, the Workshop with fabrication
-    options, and a Dining Room with the rank-8 gate open and course unserved
-    (PR3 move-to re-entry extension). Pointless revisits remain illegal.
+    options, a Dining Room with the rank-8 gate open and course unserved,
+    cells with openable containers, Vault cells with matching keys, Parlor cells
+    with a wind_up_key, ignition target cells with a tool held, and machine rooms
+    with a broken_lever held (PR3/PR4 move-to re-entry extensions).
+    Pointless revisits remain illegal.
     """
     env = make_env()
     rng = np.random.default_rng(7)
@@ -247,7 +250,9 @@ def test_masked_rollout_never_revisits_pointlessly():
                             or A._dining_room_re_enterable(game, cell)
                             or A._cell_has_openable_container(game, cell)
                             or A._cell_has_vault_box(game, cell)
-                            or A._cell_has_parlor_box(game, cell)), (
+                            or A._cell_has_parlor_box(game, cell)
+                            or A._cell_has_ignition_target(game, cell)
+                            or A._cell_has_machine(game, cell)), (
                         f"entered cell {cell} is walkable but not a control room "
                         f"or re-enterable special room"
                     )

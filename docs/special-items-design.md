@@ -26,8 +26,8 @@ item-use actions like Repellent), PR3 wires observation/action space.
   (like room effects), so partial data coverage degrades gracefully.
 - **One module**: all special-item behavior lives in `engine/special_items.py` (per-item
   logic reviewable and testable in isolation). `game.py` only gains thin call sites.
-- **Inert until modeled**: items whose target system is out of scope (Vault, Parlor,
-  trunks, candles, basement, lore) ship as full records with `"implemented": false`
+- **Inert until modeled**: items whose target system is out of scope (Grounds,
+  Sanctum, Orindian Ruins, lore) ship as full records with `"implemented": false`
   and a `meta.blocked_on` note. They can spawn, be held, be stolen by the Lost &
   Found, and (PR2) traded — their *use* is just absent.
 - **Determinism**: every roll uses named rng substreams (`special_spawn`,
@@ -128,6 +128,8 @@ spawned_today: list[str] # unique ids already spawned (at most once per day each
 gated_out: list[str]     # ids excluded by config unlock flags (populated by configure())
 configured: bool         # True once configure() ran this episode
 spawn_room_done: int     # room.idx that already spawned a special item; -1 = none
+lit_targets: list[str]   # ignition target room ids lit today (each lights at most once)
+machines_used: list[str] # machine room ids that already took a Broken Lever today
 ```
 
 ### Public API (duck-typed `game`, mirroring `effects/` handlers)
@@ -644,3 +646,102 @@ from vague wiki mentions. Locker room counts (Locker Room ×3, Gymnasium ×2) ar
 No room carries a **chest**: the kind is fully modeled and validated, but the
 wiki documents no per-room chest assignments, so the `rooms` map has none. The
 whole section is `meta.confidence: inferred` for this reason.
+
+## Ignition targets and machines (Torch / Burning Glass / Broken Lever)
+
+Source: `docs/research/special-items-wiki.md` (Torch and Burning Glass rows —
+"lights candles/fuses, interchangeable"; Broken Lever — "no inherent function;
+placeable on broken machines"; Diary Key — Tomb candle access).
+
+These are the last two inert item systems from the catalogue. After this pass
+every item either functions or is blocked only on an explicitly out-of-scope
+area (Grounds, Sanctum, Orindian Ruins, lore documents).
+
+### Data schema — `data/special_items.json` `"ignition"` section
+
+```python
+ignition: {
+  tools: ["torch", "burning_glass"],   # either one lights any target
+  targets: {                            # room id -> what lighting it yields
+    chapel:       {candles: 2, grants: [{kind: "coins", amount: 8}]},
+    tomb:         {candles: 2, grants: [...], requires_item: "diary_key"},
+    trading_post: {fuse: True,  grants: [upgrade_disk, {coins: 40}]},
+  },
+  meta: {source, confidence, absent_targets, notes},
+}
+```
+
+### Data schema — `"machines"` section
+
+```python
+machines: {
+  greenhouse: {item: "broken_lever", effect: "antechamber_lever", notes: ...},
+  casino:     {item: "broken_lever", effect: "slot_bonus", grants: [...]},
+  meta: {source, confidence, notes},
+}
+```
+
+### Engine surface
+
+- `can_light(game) -> bool` — standing in a target room, holding a tool, target
+  unlit today, and `requires_item` satisfied when the target declares one.
+- `light(game) -> None` — grants the target's rewards and appends the room id to
+  `SpecialItemsState.lit_targets`. The tool is **not** consumed (a Torch relights
+  all day); each target lights at most once per day.
+- `can_install_lever(game) -> bool` — standing in a machine room holding a
+  `broken_lever`, machine unused today.
+- `install_lever(game) -> None` — consumes the lever via `remove(..., consumed=True)`,
+  records the room in `SpecialItemsState.machines_used`, and dispatches the effect
+  with `match`/`case`.
+
+Game delegates: `Game.can_light()`, `light()`, `can_install_lever()`,
+`install_lever()`. Env: `LIGHT_ACTION = 274`, `INSTALL_LEVER_ACTION = 275`
+(`N_ACTIONS` 274 → 276); walk-to re-entry extended via
+`_cell_has_ignition_target` and `_cell_has_machine`, so an agent can return to a
+chapel or casino after picking up the enabling item.
+
+### The Greenhouse lever and the Antechamber's south door
+
+`antechamber_lever` unlocks the Antechamber's south doorway **segment** for free
+via `Game._open_segment`, which also bumps `door_version` to invalidate the nav
+caches. The direction here is a live trap worth stating explicitly:
+
+- **N increases rank in this grid.** `neighbor(37, N) == 42` (the Antechamber).
+- The Antechamber's own south door and cell 37's north door are the *same*
+  segment: `segment_key(42, S) == segment_key(37, N) == (37, 1)`.
+
+So the wiki's "south Antechamber lever" is modeled as `_open_segment(37, N)`.
+Using `S` there would silently unlock `(32, 1)` — an unrelated door two ranks
+away — and leave the Antechamber untouched. A test that seeds *and* asserts the
+same `segment_key(37, <dir>)` cannot catch that inversion, which is why
+`test_greenhouse_lever_opens_antechamber_south_segment` pins the identity
+against `segment_key(ANTECHAMBER_CELL, S)`, and a second test asserts the
+payoff behaviorally: passable with **zero** keys held, and no key consumed.
+
+Because a rank-8↔9 segment sits at 130% base lock chance, the Antechamber
+normally starts locked — so this is a genuinely useful late-run play rather
+than a no-op.
+
+### Simplification #16
+
+Only `chapel`, `tomb`, and `trading_post` are modeled as ignition targets. The
+Trading Post fuse reward is **wiki-documented** (dynamite barrels → a permanent
+secret room holding an Upgrade Disk + 40 gold), collapsed here to an immediate
+grant since the secret room itself is not modeled. The Chapel and Tomb amounts
+are **inferred** — the wiki confirms candles exist and that the Tomb's are gated
+behind the Diary Key, but publishes no payouts; modest values (8 coins, 1 gem)
+are placeholders tuned to be worth a detour without dominating.
+
+The digest also lists Abandoned Mine (8 candles) and Crate Tunnel as targets;
+both are absent from `rooms.json` and are recorded in `meta.absent_targets`,
+mirroring how items record `absent_spawn_rooms`. The validator asserts anything
+listed there genuinely *is* absent, so the list cannot rot silently if those
+rooms are added later. The Freezer thaw is skipped deliberately: the wiki
+describes it as temporary/daily, which the one-shot `lit_targets` model does not
+express.
+
+The Casino `slot_bonus` payout (20 coins + 2 gems) is `inferred` — the wiki says
+5 bonus spins instead of 3 but gives no expected value. `diary_key` stays
+`implemented: false`: its remaining blocker is the unmodeled Sleep Diary lore
+document, not candle access, so lighting the Tomb consumes the gate without
+unlocking the diary itself.

@@ -68,6 +68,8 @@ class SpecialItemsRegistry:
     fabrication: tuple[tuple[tuple[str, ...], str], ...]  # ((inputs...), output)
     trading: dict  # "trading" section (consumed by PR2)
     containers: dict = field(default_factory=dict)  # "containers" section: kinds/rooms/garage_car
+    ignition: dict = field(default_factory=dict)   # "ignition" section from special_items.json
+    machines: dict = field(default_factory=dict)   # "machines" section from special_items.json
     # room id -> item ids that can spawn there (derived; excludes guaranteed_in)
     spawn_pool_by_room: dict[str, tuple[str, ...]] = field(default_factory=dict)
     spawn_pool_high_luck: dict[str, tuple[str, ...]] = field(default_factory=dict)
@@ -123,6 +125,8 @@ def load_special_items(data_dir: Path) -> SpecialItemsRegistry:
         fabrication=tuple((tuple(f["inputs"]), f["output"]) for f in raw.get("fabrication", [])),
         trading=raw.get("trading", {}),
         containers=raw.get("containers", {}),
+        ignition=raw.get("ignition", {}),
+        machines=raw.get("machines", {}),
         spawn_pool_by_room={k: tuple(v) for k, v in pool.items()},
         spawn_pool_high_luck={k: tuple(v) for k, v in pool_hl.items()},
         guaranteed_by_room={k: tuple(v) for k, v in guaranteed.items()},
@@ -170,6 +174,8 @@ class SpecialItemsState:
     vault_boxes_opened: list[str] = field(default_factory=list)
     # cell -> count of Parlor boxes opened there today (capped by parlor_boxes.count/upgraded_count).
     parlor_boxes_opened: dict[int, int] = field(default_factory=dict)
+    lit_targets: list[str] = field(default_factory=list)  # room ids lit today (ignition mechanic)
+    machines_used: list[str] = field(default_factory=list)  # machine room ids used today (lever install)
 
 
 # --------------------------------------------------------------- inventory ops
@@ -1514,3 +1520,158 @@ def open_parlor_box(game) -> str | None:
             return item_id
         case _:
             return None
+
+
+# ----------------------------------------------------------------- ignition
+
+def _ignition_tools(registry) -> frozenset:
+    """Set of item ids that can light ignition targets (torch and burning_glass)."""
+    return frozenset(registry.special.ignition.get("tools", []))
+
+
+def can_light(game) -> bool:
+    """True when: special items enabled, standing in an ignition target room,
+    holding a torch or burning_glass, target not yet lit today, and any
+    requires_item satisfied.
+
+    Only rooms listed in ignition.targets that are present in the current
+    grid are actionable; absent-room targets (abandoned_mine, crate_tunnel)
+    are listed in ignition.meta.absent_targets and never appear here.
+    """
+    state = game.state
+    registry = game.registry
+    if not state.special.enabled:
+        return False
+    if state.grid[state.pos] < 0:
+        return False
+    room = registry.rooms[state.grid[state.pos]]
+    targets = registry.special.ignition.get("targets", {})
+    if room.id not in targets:
+        return False
+    if room.id in state.special.lit_targets:
+        return False
+    # Check tool held
+    tools = _ignition_tools(registry)
+    if not any(state.inventory.get(t, 0) > 0 for t in tools):
+        return False
+    # Check requires_item
+    target_cfg = targets[room.id]
+    req = target_cfg.get("requires_item")
+    if req is not None and state.inventory.get(req, 0) <= 0:
+        return False
+    return True
+
+
+def light(game) -> None:
+    """Light the ignition target in the current room; grant its rewards.
+
+    Marks the room as lit today (one-shot per room per day). Grants all
+    entries from the target's 'grants' list: coins/gems directly, items via
+    grant(). Does not consume the tool (torch/burning_glass are reusable).
+    """
+    state = game.state
+    registry = game.registry
+    if not can_light(game):
+        return
+    room = registry.rooms[state.grid[state.pos]]
+    targets = registry.special.ignition.get("targets", {})
+    target_cfg = targets[room.id]
+    state.special.lit_targets.append(room.id)
+    for reward in target_cfg.get("grants", []):
+        kind = reward.get("kind")
+        match kind:
+            case "coins":
+                amount = reward.get("amount", 0)
+                bonus = on_coins_granted(state, registry, amount)
+                state.coins += amount + bonus
+                state.items_found_log.append(("coins", amount))
+            case "gems":
+                amount = reward.get("amount", 0)
+                state.gems += amount
+                state.items_found_log.append(("gem", amount))
+            case "item":
+                item_id = reward.get("id", "")
+                if _is_available(state, item_id, registry):
+                    grant(state, registry, item_id, source="ignition")
+            case _:
+                pass
+
+
+# --------------------------------------------------------------- lever install
+
+def can_install_lever(game) -> bool:
+    """True when: special items enabled, standing in a machine room listed in
+    machines, holding a broken_lever, and the machine has not been used today.
+
+    Machine rooms: greenhouse (antechamber_lever), casino (slot_bonus).
+    """
+    state = game.state
+    registry = game.registry
+    if not state.special.enabled:
+        return False
+    if not has(state, "broken_lever"):
+        return False
+    if state.grid[state.pos] < 0:
+        return False
+    room = registry.rooms[state.grid[state.pos]]
+    machines = registry.special.machines
+    machine_ids = {k for k in machines if k != "meta"}
+    if room.id not in machine_ids:
+        return False
+    if room.id in state.special.machines_used:
+        return False
+    return True
+
+
+def install_lever(game) -> None:
+    """Install the broken_lever in the current machine room; apply its effect.
+
+    Consumes the broken_lever (consumed=True so it doesn't re-spawn today).
+    Records the room id in machines_used to prevent a second install.
+    Dispatches effects:
+    - antechamber_lever: unlock the Antechamber north doorway (segment (37, N))
+    - slot_bonus: grant the casino loot from machines.casino.grants
+    """
+    state = game.state
+    registry = game.registry
+    if not can_install_lever(game):
+        return
+    room = registry.rooms[state.grid[state.pos]]
+    machines = registry.special.machines
+    machine_cfg = machines.get(room.id, {})
+    effect = machine_cfg.get("effect")
+
+    # Consume the lever first
+    remove(state, "broken_lever", consumed=True)
+    state.special.machines_used.append(room.id)
+
+    from .grid import N
+    match effect:
+        case "antechamber_lever":
+            # Unlock the Antechamber's north doorway segment.
+            # The segment is between rank-8 center (cell 37) and the Antechamber
+            # (cell 42). segment_key(37, N=1) -> (37, 1) because neighbor(37,1)=42>37.
+            # game._open_segment handles the door_state update and cache invalidation.
+            ante_cell = 37  # rank-8 center, north of which is ANTECHAMBER_CELL=42
+            game._open_segment(ante_cell, N)
+        case "slot_bonus":
+            for reward in machine_cfg.get("grants", []):
+                kind = reward.get("kind")
+                match kind:
+                    case "coins":
+                        amount = reward.get("amount", 0)
+                        bonus = on_coins_granted(state, registry, amount)
+                        state.coins += amount + bonus
+                        state.items_found_log.append(("coins", amount))
+                    case "gems":
+                        amount = reward.get("amount", 0)
+                        state.gems += amount
+                        state.items_found_log.append(("gem", amount))
+                    case "item":
+                        item_id = reward.get("id", "")
+                        if _is_available(state, item_id, registry):
+                            grant(state, registry, item_id, source="machine")
+                    case _:
+                        pass
+        case _:
+            pass

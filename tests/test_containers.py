@@ -290,8 +290,8 @@ def test_garage_car_requires_car_keys():
 # ------------------------------------------------ env: actions
 
 def test_n_actions_grew():
-    """N_ACTIONS is now 274, accounting for the four container action ids (containers, car trunk, vault box, parlor box)."""
-    assert N_ACTIONS == 274
+    """N_ACTIONS is now 276, accounting for container, lever, and ignition action ids."""
+    assert N_ACTIONS == 276
 
 
 def test_open_container_action_masked_when_available():

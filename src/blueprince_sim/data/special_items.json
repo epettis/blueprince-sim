@@ -69,12 +69,12 @@
    "spawn_rooms_high_luck": [],
    "guaranteed_in": [],
    "effects": [],
-   "implemented": false,
+   "implemented": true,
    "meta": {
     "source": "https://blueprince.wiki.gg/wiki/Broken_Lever",
     "confidence": "wiki",
     "absent_spawn_rooms": [],
-    "blocked_on": "component_only"
+    "blocked_on": null
    }
   },
   {
@@ -1013,13 +1013,17 @@
    "spawn_rooms": [],
    "spawn_rooms_high_luck": [],
    "guaranteed_in": [],
-   "effects": [],
-   "implemented": false,
+   "effects": [
+    {
+     "tag": "ignition_tool"
+    }
+   ],
+   "implemented": true,
    "meta": {
     "source": "https://blueprince.wiki.gg/wiki/Burning_Glass",
     "confidence": "wiki",
     "absent_spawn_rooms": [],
-    "blocked_on": "candles_not_modeled"
+    "blocked_on": null
    }
   },
   {
@@ -1431,13 +1435,17 @@
    "spawn_rooms": [],
    "spawn_rooms_high_luck": [],
    "guaranteed_in": [],
-   "effects": [],
-   "implemented": false,
+   "effects": [
+    {
+     "tag": "ignition_tool"
+    }
+   ],
+   "implemented": true,
    "meta": {
     "source": "https://blueprince.wiki.gg/wiki/Armory",
     "confidence": "wiki",
     "absent_spawn_rooms": [],
-    "blocked_on": "candles_not_modeled",
+    "blocked_on": null,
     "notes": "Purchase-only (Showroom/Armory); obtainable when PR2 adds shop actions."
    }
   },
@@ -2294,6 +2302,81 @@
     "confidence": "inferred",
     "note": "Parlor box contents not published by the wiki; loot spread is inferred (coins/keys/gems/dice plus low-tier special items). Upgraded Parlor variants get 2 boxes (upgraded_count)."
    }
+  }
+ },
+ "ignition": {
+  "tools": [
+   "torch",
+   "burning_glass"
+  ],
+  "targets": {
+   "chapel": {
+    "candles": 2,
+    "grants": [
+     {
+      "kind": "coins",
+      "amount": 8
+     }
+    ]
+   },
+   "tomb": {
+    "candles": 2,
+    "grants": [
+     {
+      "kind": "gems",
+      "amount": 1
+     }
+    ],
+    "requires_item": "diary_key"
+   },
+   "trading_post": {
+    "fuse": true,
+    "grants": [
+     {
+      "kind": "item",
+      "id": "upgrade_disk"
+     },
+     {
+      "kind": "coins",
+      "amount": 40
+     }
+    ]
+   }
+  },
+  "meta": {
+   "source": "https://blueprince.wiki.gg",
+   "confidence": "wiki",
+   "absent_targets": [
+    "abandoned_mine",
+    "crate_tunnel"
+   ],
+   "notes": "Chapel/Tomb grant amounts are inferred (wiki does not document exact rewards). Trading Post fuse grants (Upgrade Disk + 40 coins) are wiki-documented. Freezer thaw is temporary/daily and not modeled. absent_targets list rooms the wiki mentions but that are absent from rooms.json."
+  }
+ },
+ "machines": {
+  "greenhouse": {
+   "item": "broken_lever",
+   "effect": "antechamber_lever",
+   "notes": "Installing the lever unlocks the Antechamber's north doorway segment (between rank-8 center cell 37 and Antechamber cell 42) for free, enabling walk-through without a key."
+  },
+  "casino": {
+   "item": "broken_lever",
+   "effect": "slot_bonus",
+   "grants": [
+    {
+     "kind": "coins",
+     "amount": 20
+    },
+    {
+     "kind": "gems",
+     "amount": 2
+    }
+   ]
+  },
+  "meta": {
+   "source": "https://blueprince.wiki.gg",
+   "confidence": "wiki",
+   "notes": "Greenhouse: antechamber_lever unlocks the north Antechamber door segment (rank-8 center to Antechamber, segment key (37,1)). Casino: slot_bonus grants listed loot once; actual casino payout is inferred (wiki says 5 bonus spins vs 3, not specific amounts)."
   }
  }
 }

@@ -5,7 +5,7 @@ to draft, or a room to enter) and the engine walks the shortest connected
 path, paying the normal one-step-per-room cost. Re-entering rooms grants
 nothing, so free-form single-tile moves were retired.
 
-Layout (Discrete(274)):
+Layout (Discrete(276)):
   0..179   draft at doorway: cell (45) x direction (4: N,E,S,W) ->
            cell*4 + dir_index. Walks to the room first if needed. Legal for
            every frontier doorway reachable with at least one step to spare
@@ -31,7 +31,10 @@ Layout (Discrete(274)):
            buyable entry, the Workshop with fabricate options, a Dining
            Room whose main course is still pending once rank 8 is reached,
            a cell still holding a container the player can open, a Vault cell
-           with an openable deposit box, and a Parlor with wind_up_key held.
+           with an openable deposit box, a Parlor with wind_up_key held,
+           an ignition target (chapel/tomb/trading_post) with a torch or
+           burning_glass held, and a machine room (greenhouse/casino) with
+           a broken_lever held.
   241..246 buy current shop display entry 0..5 (NAVIGATE; on-grid shop or
            inside outer shop, outer_loc == 2)
   247..254 trade offer 0..7 (inside the Trading Post; offer index matches
@@ -45,6 +48,8 @@ Layout (Discrete(274)):
   271      open the Garage car trunk (standing in the Garage with Car Keys held)
   272      open vault deposit box (standing in the Vault with a matching vault key)
   273      open a Parlor box (standing in a Parlor with a wind_up_key; consumed)
+  274      light ignition target (standing in chapel/tomb/trading_post with torch or burning_glass)
+  275      install broken lever in a machine room (greenhouse/casino)
 """
 
 from __future__ import annotations
@@ -55,7 +60,7 @@ from ..engine.locks import DOOR_LOCKED, DOOR_SECURITY, SECURITY_LEVELS
 from ..engine import shops as _shops
 from ..engine import special_items as _si
 
-N_ACTIONS = 274
+N_ACTIONS = 276
 OPEN_BASE, CHOOSE_BASE, ALT_BASE = 0, 180, 183
 REDRAW_ACTION, OUTER_DRAFT_ACTION = 186, 188
 ENTER_OUTER_ACTION = 187   # enter outer room from doorstep
@@ -74,6 +79,8 @@ OPEN_CONTAINER_ACTION = 270  # open the next container at the current cell
 OPEN_CAR_TRUNK_ACTION = 271  # open garage car trunk (Garage + Car Keys)
 OPEN_VAULT_BOX_ACTION = 272  # open a vault deposit box (Vault + matching vault key)
 OPEN_PARLOR_BOX_ACTION = 273  # open a Parlor box (Parlor + wind_up_key; consumed)
+LIGHT_ACTION = 274           # light ignition target (torch or burning_glass)
+INSTALL_LEVER_ACTION = 275   # install broken_lever in a machine room
 DIR_INDEX = {d: i for i, d in enumerate(DIRS)}
 
 
@@ -186,6 +193,50 @@ def _cell_has_parlor_box(game: Game, cell: int) -> bool:
     return already < cap
 
 
+def _cell_has_ignition_target(game: Game, cell: int) -> bool:
+    """True when ``cell`` holds an unlit ignition target and the player holds a tool.
+
+    Position-independent: enables walk-to re-entry so the agent can return to
+    a chapel/tomb/trading_post after picking up a torch or burning_glass.
+    """
+    st = game.state
+    if st.grid[cell] < 0:
+        return False
+    room = game.registry.rooms[st.grid[cell]]
+    targets = game.registry.special.ignition.get("targets", {})
+    if room.id not in targets:
+        return False
+    if room.id in st.special.lit_targets:
+        return False
+    tools = frozenset(game.registry.special.ignition.get("tools", []))
+    if not any(st.inventory.get(t, 0) > 0 for t in tools):
+        return False
+    target_cfg = targets[room.id]
+    req = target_cfg.get("requires_item")
+    if req is not None and st.inventory.get(req, 0) <= 0:
+        return False
+    return True
+
+
+def _cell_has_machine(game: Game, cell: int) -> bool:
+    """True when ``cell`` holds a machine room usable with the broken_lever.
+
+    Position-independent: enables walk-to re-entry so the agent can return
+    to the greenhouse or casino after picking up a broken_lever.
+    """
+    st = game.state
+    if st.grid[cell] < 0:
+        return False
+    room = game.registry.rooms[st.grid[cell]]
+    machines = game.registry.special.machines
+    machine_ids = {k for k in machines if k != "meta"}
+    if room.id not in machine_ids:
+        return False
+    if room.id in st.special.machines_used:
+        return False
+    return _si.has(st, "broken_lever")
+
+
 def action_mask(game: Game, prev_action: int | None = None) -> list[bool]:
     """Legality mask over the flat action space for the current phase.
 
@@ -271,7 +322,9 @@ def action_mask(game: Game, prev_action: int | None = None) -> list[bool]:
                             or _dining_room_re_enterable(game, cell)
                             or _cell_has_openable_container(game, cell)
                             or _cell_has_vault_box(game, cell)
-                            or _cell_has_parlor_box(game, cell)):
+                            or _cell_has_parlor_box(game, cell)
+                            or _cell_has_ignition_target(game, cell)
+                            or _cell_has_machine(game, cell)):
                         mask[MOVE_TO_BASE + cell] = True
             # Buy actions from an on-grid shop (current cell)
             stock = game.shop_stock()
@@ -304,6 +357,10 @@ def action_mask(game: Game, prev_action: int | None = None) -> list[bool]:
                 mask[OPEN_VAULT_BOX_ACTION] = True
             if game.can_open_parlor_box():
                 mask[OPEN_PARLOR_BOX_ACTION] = True
+            if game.can_light():
+                mask[LIGHT_ACTION] = True
+            if game.can_install_lever():
+                mask[INSTALL_LEVER_ACTION] = True
             if game.outer_draft_available():
                 mask[OUTER_DRAFT_ACTION] = True
             if game.can_toggle_keycard_power():
@@ -405,6 +462,10 @@ def apply_action(game: Game, action: int) -> None:
         game.open_vault_box()
     elif action == OPEN_PARLOR_BOX_ACTION:
         game.open_parlor_box()
+    elif action == LIGHT_ACTION:
+        game.light()
+    elif action == INSTALL_LEVER_ACTION:
+        game.install_lever()
     else:
         raise ValueError(f"unimplemented action {action}")
 
@@ -482,4 +543,8 @@ def describe_action(game: Game, action: int) -> str:
         return "open vault deposit box"
     if action == OPEN_PARLOR_BOX_ACTION:
         return "open parlor box"
+    if action == LIGHT_ACTION:
+        return "light ignition target"
+    if action == INSTALL_LEVER_ACTION:
+        return "install broken lever"
     return f"action {action}"

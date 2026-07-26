@@ -355,9 +355,9 @@ def test_open_parlor_box_action_id():
     assert OPEN_PARLOR_BOX_ACTION == 273
 
 
-def test_n_actions_is_274():
-    """N_ACTIONS is 274 after adding vault and parlor box actions."""
-    assert N_ACTIONS == 274
+def test_n_actions_is_276():
+    """N_ACTIONS is 276 after adding ignition and install-lever actions."""
+    assert N_ACTIONS == 276
 
 
 def test_vault_box_action_masked_when_available():

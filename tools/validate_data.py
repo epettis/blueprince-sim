@@ -39,6 +39,7 @@ KNOWN_ITEM_EFFECT_TAGS = {
     "crown_of_blueprints", "gear_wrench", "dowsing_rod", "locksmith_rob",
     # Multi-day carry-over (PR2 item persistence)
     "moon_pendant_carry",
+    "ignition_tool",
 }
 VALID_ITEM_KINDS = {"standard", "special_key", "contraption", "showroom", "armory", "unique"}
 VALID_ITEM_PERSISTENCE = {"day", "until_used", "permanent"}
@@ -327,6 +328,46 @@ def main() -> int:
                         errors.append(
                             f"special_items/containers/parlor_boxes: loot item id {iid!r} not in special_items"
                         )
+
+    # ignition section: tools and targets exist
+    ignition_doc = si_doc.get("ignition", {})
+    for tool_id in ignition_doc.get("tools", []):
+        if tool_id not in si_by_id:
+            errors.append(f"special_items/ignition/tools: unknown item id {tool_id!r}")
+    for room_id, target_cfg in ignition_doc.get("targets", {}).items():
+        where = f"special_items/ignition/targets/{room_id}"
+        if room_id not in by_id:
+            errors.append(f"{where}: target room {room_id!r} not in rooms.json")
+        req = target_cfg.get("requires_item")
+        if req is not None and req not in si_by_id:
+            errors.append(f"{where}: requires_item {req!r} not in special_items")
+        for reward in target_cfg.get("grants", []):
+            if reward.get("kind") == "item":
+                iid = reward.get("id")
+                if iid not in si_by_id:
+                    errors.append(f"{where}: grant item {iid!r} not in special_items")
+    for absent_id in ignition_doc.get("meta", {}).get("absent_targets", []):
+        if absent_id in by_id:
+            errors.append(
+                f"special_items/ignition/meta.absent_targets: {absent_id!r} exists in rooms.json — move to targets"
+            )
+
+    # machines section: item and rooms exist
+    machines_doc = si_doc.get("machines", {})
+    for machine_id, machine_cfg in machines_doc.items():
+        if machine_id == "meta":
+            continue
+        where = f"special_items/machines/{machine_id}"
+        if machine_id not in by_id:
+            errors.append(f"{where}: machine room {machine_id!r} not in rooms.json")
+        item_id = machine_cfg.get("item")
+        if item_id is not None and item_id not in si_by_id:
+            errors.append(f"{where}: item {item_id!r} not in special_items")
+        for reward in machine_cfg.get("grants", []):
+            if reward.get("kind") == "item":
+                iid = reward.get("id")
+                if iid not in si_by_id:
+                    errors.append(f"{where}: grant item {iid!r} not in special_items")
 
     # ── shops.json ─────────────────────────────────────────────────────────────
     VALID_STOCK_KINDS = {"resource", "item", "container"}
