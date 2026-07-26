@@ -39,31 +39,50 @@ Training: the user runs `blueprince-train --checkpoint-dir runs/<name> --reward
 phased --multi-day 200` themselves; never touch live trainer processes. Old
 checkpoints (pre-#19) are interface-incompatible — fresh checkpoint dir required.
 
-## In flight (this branch)
+## Delivered since (stacked PRs, merge top-down)
 
-1. **Security setpoint thrash guard**: the env must not allow changing the
-   security level twice in a row (mask ids 190–192 when the previous applied
-   action was one of them; a different action re-enables them). Motivation: runs
-   with 861 actions (seed 1099560591) burning hundreds of steps toggling
-   setpoints, killing learning throughput. Engine API unchanged — env-mask only.
-   (Possible follow-up, not yet requested: the keycard power toggle, id 189, has
-   the same free-toggle structure.)
-2. **Observatory colors**: shops → obvious yellow, hallways → obvious orange
-   (currently near-identical yellows in `app.js CAT_COLOR`); keep the
-   `scepter-*` tint classes in `style.css` in sync.
-3. **Observatory tiles**: spell out the full room name in the runs-view board
-   (was 2-letter abbreviations), small wrapped text sized to the tile.
+- **#25 (MERGED)** — multi-day ITEM persistence: `end_of_day_carry` (permanent /
+  until_used records, Coat Check storage, Moon Pendant's two-item draw), a working
+  Repellent (7-day floorplan bans riding `DayChain` into `GameConfig.banned_rooms`,
+  honored by deck building incl. upgrade variants). Key 8 is modeled as a
+  guaranteed daily Gallery find, NOT a carried item (owner correction: unlocking it
+  makes it appear in the Gallery every day; the sim assumes entered rooms' puzzles
+  are solved, so unlock and find collapse into one guaranteed spawn).
+- **#26** — containers: trunks (smash free with a hammer / 1 key), chests (key only,
+  never smashable), lockers (free), the Garage car trunk (one-time Upgrade Disk,
+  then pool draws; `garage_car_used_before` rides the chain). Actions 270/271,
+  `grid_containers` obs plane, walk-to re-entry.
+- **#27** — Vault deposit boxes (the four numbered keys; key stays but is spent for
+  good via `used_vault_keys` across days) and Parlor boxes (Wind-up Keys, inferred
+  loot table, per-cell cap). Actions 272/273, `item_state` 10 -> 12.
+- **#28** — ignition + machines: Torch / Burning Glass light the Chapel, Tomb
+  (gated on the Diary Key) and the Trading Post fuse (Upgrade Disk + 40 gold);
+  the Broken Lever installs on the Greenhouse machine (opens the Antechamber's
+  rank-8 doorway segment, `segment_key(37, N) == segment_key(42, S)`) and the
+  Casino slot. Actions 274/275.
+
+Suite: 692 tests green at #28. Every catalogued item now either functions or is
+blocked only on an explicitly out-of-scope area (Grounds, Sanctum, Orindian Ruins,
+lore documents) — `blocked_on` on each record names which.
+
+### Stacked-PR merge discipline (learned the hard way)
+
+Retarget a child PR to `main` BEFORE deleting its merged base branch. Deleting
+first CLOSES the child and it cannot be reopened while the base ref is missing;
+recovery is push the old base sha back, `gh pr reopen`, `gh pr edit --base main`,
+delete again.
 
 ## Next (user-endorsed, not started)
 
-- Coat Check / Moon Pendant item carry-over (extend `DayChain` + the
-  `persistence` field already on every item record).
-- Chest/trunk system (unblocks Sledge Hammer trunks, Car Keys, `blocked_on:
-  trunks_not_modeled` records).
 - Reward calibration from multi-day training stats (all shaping constants are
   deliberate knobs: `special_item_values`, `PATHS_*_PENALTY`, scepter bias).
-- Larger deferred systems: Vault boxes, Parlor, candles/Torch, Antechamber
-  levers, Sanctum; Repellent needs the multi-day wrapper's pool-removal support.
+- Sanctum: the 8 Sanctum Keys have sources and persist, but the Inner Sanctum
+  itself (8 doors, the area behind them) is unmodeled — the largest remaining
+  system and worth its own design pass rather than a rushed PR.
+- Out-of-scope areas that keep a handful of items inert: Grounds, Orindian Ruins,
+  Precipice, lore documents (Sleep Diary keeps `diary_key` blocked).
+- Freezer thaw: excluded from the ignition targets because the wiki calls it
+  temporary/daily, which the one-shot `lit_targets` model cannot express.
 
 ## Workflow (proven over PRs #17–#23)
 
@@ -81,4 +100,14 @@ checkpoints (pre-#19) are interface-incompatible — fresh checkpoint dir requir
 - Style rules now in CLAUDE.md: comment every dataclass member; bulleted or
   commented-code-block data structures in docs; match/case over long if/elif
   value dispatch.
-- Suite size at last green: 560 tests.
+- Suite size at last green: 692 tests.
+
+## Maintenance sharp edges
+
+- `N_ACTIONS` is asserted in four test files; any action-space change updates all.
+- `tests/test_macro_actions.py::test_masked_rollout_never_revisits_pointlessly`
+  hand-enumerates the walk-to re-entry predicates — extend it whenever a new
+  re-entry reason is added.
+- `data/special_items.json` must round-trip exactly through
+  `json.dumps(indent=1, ensure_ascii=True)`; hand-written inline arrays break that
+  and churn the next programmatic rewrite.

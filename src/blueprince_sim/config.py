@@ -69,6 +69,18 @@ class GameConfig:
     # from eligible_pool() in engine/decks.py.  The dict lives in DayChain and is
     # converted to a frozenset of active (days_left > 0) room ids for the config.
     banned_rooms: frozenset[str] = frozenset()
+    # Ignition targets permanently lit across days (set of room ids, e.g. "chapel",
+    # "tomb", "trading_post").  Once a target is lit it cannot be lit again in any
+    # later day within the same attempt.  Carried by DayChain as a frozenset and
+    # merged as a union — a lit target never un-lights.
+    lit_targets: frozenset[str] = frozenset()
+    # Accumulated Keeper of Tithes coins: every time the Chapel's entry -1 coin
+    # penalty actually fires (player has at least 1 coin when entering the Chapel),
+    # this counter increments.  Lighting the Chapel altar pays out the running total
+    # immediately.  Carried by DayChain as a running sum so the total grows across
+    # all days until the altar is lit (which is a one-time-ever event by construction,
+    # since lit_targets makes the Chapel un-lightable on future days).
+    chapel_tithes: int = 0
     # --- reward selection for the env ---
     reward: str = "sparse"              # sparse|shaped|phased
     data_dir: Path | None = None        # alternate data/*.json directory (None = packaged data)
@@ -109,7 +121,7 @@ class GameConfig:
             if k not in valid:
                 raise KeyError(f"Unknown config key: {k}")
             if k in ("studio_additions", "upgrade_disks", "satisfied_conditions",
-                     "starting_items", "banned_rooms", "used_vault_keys"):
+                     "starting_items", "banned_rooms", "used_vault_keys", "lit_targets"):
                 v = frozenset(v)
             elif k == "data_dir" and v is not None:
                 v = Path(v)

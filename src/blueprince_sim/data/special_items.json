@@ -69,12 +69,12 @@
    "spawn_rooms_high_luck": [],
    "guaranteed_in": [],
    "effects": [],
-   "implemented": false,
+   "implemented": true,
    "meta": {
     "source": "https://blueprince.wiki.gg/wiki/Broken_Lever",
     "confidence": "wiki",
     "absent_spawn_rooms": [],
-    "blocked_on": "component_only"
+    "blocked_on": null
    }
   },
   {
@@ -1013,13 +1013,17 @@
    "spawn_rooms": [],
    "spawn_rooms_high_luck": [],
    "guaranteed_in": [],
-   "effects": [],
-   "implemented": false,
+   "effects": [
+    {
+     "tag": "ignition_tool"
+    }
+   ],
+   "implemented": true,
    "meta": {
     "source": "https://blueprince.wiki.gg/wiki/Burning_Glass",
     "confidence": "wiki",
     "absent_spawn_rooms": [],
-    "blocked_on": "candles_not_modeled"
+    "blocked_on": null
    }
   },
   {
@@ -1431,13 +1435,17 @@
    "spawn_rooms": [],
    "spawn_rooms_high_luck": [],
    "guaranteed_in": [],
-   "effects": [],
-   "implemented": false,
+   "effects": [
+    {
+     "tag": "ignition_tool"
+    }
+   ],
+   "implemented": true,
    "meta": {
     "source": "https://blueprince.wiki.gg/wiki/Armory",
     "confidence": "wiki",
     "absent_spawn_rooms": [],
-    "blocked_on": "candles_not_modeled",
+    "blocked_on": null,
     "notes": "Purchase-only (Showroom/Armory); obtainable when PR2 adds shop actions."
    }
   },
@@ -1676,11 +1684,11 @@
    }
   },
   {
-   "id": "upgrade_disk",
-   "name": "Upgrade Disk",
+   "id": "upgrade_disk_vault_304",
+   "name": "Upgrade Disk (Vault 304)",
    "kind": "unique",
    "tier": null,
-   "unique": false,
+   "unique": true,
    "persistence": "permanent",
    "spawn_rooms": [],
    "spawn_rooms_high_luck": [],
@@ -1691,7 +1699,128 @@
     "source": "https://blueprince.wiki.gg/wiki/Upgrade_Disk",
     "confidence": "wiki",
     "absent_spawn_rooms": [],
-    "blocked_on": "upgrade_disk_not_modeled"
+    "blocked_on": "upgrade_disk_not_modeled",
+    "notes": "One unique disk per source so each is inherently one-time use. Granted by opening Vault box 304. USE is still unmodeled (open task 2)."
+   }
+  },
+  {
+   "id": "upgrade_disk_commissary",
+   "name": "Upgrade Disk (Commissary)",
+   "kind": "unique",
+   "tier": null,
+   "unique": true,
+   "persistence": "permanent",
+   "spawn_rooms": [],
+   "spawn_rooms_high_luck": [],
+   "guaranteed_in": [],
+   "effects": [],
+   "implemented": false,
+   "meta": {
+    "source": "https://blueprince.wiki.gg/wiki/Upgrade_Disk",
+    "confidence": "wiki",
+    "absent_spawn_rooms": [],
+    "blocked_on": "upgrade_disk_not_modeled",
+    "notes": "One unique disk per source so each is inherently one-time use. Reserve stock item in the Commissary. USE is still unmodeled (open task 2)."
+   }
+  },
+  {
+   "id": "upgrade_disk_garage",
+   "name": "Upgrade Disk (Garage)",
+   "kind": "unique",
+   "tier": null,
+   "unique": true,
+   "persistence": "permanent",
+   "spawn_rooms": [],
+   "spawn_rooms_high_luck": [],
+   "guaranteed_in": [],
+   "effects": [],
+   "implemented": false,
+   "meta": {
+    "source": "https://blueprince.wiki.gg/wiki/Upgrade_Disk",
+    "confidence": "wiki",
+    "absent_spawn_rooms": [],
+    "blocked_on": "upgrade_disk_not_modeled",
+    "notes": "One unique disk per source so each is inherently one-time use. First use of the Garage car trunk. USE is still unmodeled (open task 2)."
+   }
+  },
+  {
+   "id": "upgrade_disk_trading_post",
+   "name": "Upgrade Disk (Trading Post)",
+   "kind": "unique",
+   "tier": null,
+   "unique": true,
+   "persistence": "permanent",
+   "spawn_rooms": [],
+   "spawn_rooms_high_luck": [],
+   "guaranteed_in": [],
+   "effects": [],
+   "implemented": false,
+   "meta": {
+    "source": "https://blueprince.wiki.gg/wiki/Trading_Post",
+    "confidence": "wiki",
+    "absent_spawn_rooms": [],
+    "blocked_on": "upgrade_disk_not_modeled",
+    "notes": "One unique disk per source so each is inherently one-time use. Granted by lighting the Trading Post fuse. USE is still unmodeled (open task 2)."
+   }
+  },
+  {
+   "id": "upgrade_disk_trade",
+   "name": "Upgrade Disk (traded)",
+   "kind": "unique",
+   "tier": null,
+   "unique": true,
+   "persistence": "permanent",
+   "spawn_rooms": [],
+   "spawn_rooms_high_luck": [],
+   "guaranteed_in": [],
+   "effects": [],
+   "implemented": false,
+   "meta": {
+    "source": "https://blueprince.wiki.gg/wiki/Trading_Post",
+    "confidence": "wiki",
+    "absent_spawn_rooms": [],
+    "blocked_on": "upgrade_disk_not_modeled",
+    "notes": "The 16th and only repeatably-OFFERED disk: 15 fixed locations plus this one exhaust the game's supply of 16. The wiki says 'Unlike the other Upgrade Disks, this disk can appear repeatedly' - the OFFER recurs, but the disk is unique, so once held the tier-5 trade falls through to its other outcomes."
+   }
+  },
+  {
+   "id": "upgrade_disk_lost_and_found",
+   "name": "Upgrade Disk (Lost & Found)",
+   "kind": "unique",
+   "tier": null,
+   "unique": true,
+   "persistence": "permanent",
+   "spawn_rooms": [],
+   "spawn_rooms_high_luck": [],
+   "guaranteed_in": [],
+   "effects": [],
+   "implemented": false,
+   "meta": {
+    "source": "https://blueprince.wiki.gg/wiki/Upgrade_Disk",
+    "confidence": "wiki",
+    "absent_spawn_rooms": [],
+    "blocked_on": "upgrade_disk_not_modeled",
+    "notes": "One unique disk per source so each is inherently one-time use. Awarded by the Lost and Found. USE is still unmodeled (open task 2)."
+   }
+  },
+  {
+   "id": "upgrade_disk_tomb",
+   "name": "Upgrade Disk (Tomb)",
+   "kind": "unique",
+   "tier": null,
+   "unique": true,
+   "persistence": "permanent",
+   "spawn_rooms": [],
+   "spawn_rooms_high_luck": [],
+   "guaranteed_in": [],
+   "effects": [],
+   "implemented": false,
+   "meta": {
+    "source": "https://blueprince.wiki.gg/wiki/Tomb",
+    "confidence": "wiki",
+    "absent_spawn_rooms": [],
+    "blocked_on": "upgrade_disk_not_modeled",
+    "notes": "One unique disk per source so each is inherently one-time use. Granted by lighting the near candles in the Tomb. USE is still unmodeled (open task 2)."
    }
   }
  ],
@@ -1946,7 +2075,7 @@
    "secret_garden_key",
    "stopwatch",
    "telescope",
-   "upgrade_disk",
+   "upgrade_disk_lost_and_found",
    "vault_key_370",
    "watering_can"
   ]
@@ -2461,7 +2590,7 @@
    "first_loot": [
     {
      "kind": "item",
-     "id": "upgrade_disk"
+     "id": "upgrade_disk_garage"
     }
    ],
    "later_pool": [
@@ -2495,7 +2624,7 @@
     },
     "vault_key_304": {
      "grants": [
-      "upgrade_disk"
+      "upgrade_disk_vault_304"
      ]
     },
     "vault_key_370": {
@@ -2509,6 +2638,87 @@
     "confidence": "wiki",
     "note": "Each key opens its numbered deposit box; key stays in inventory but is permanently removed from spawn pool (added to used_vault_keys carry-over)."
    }
+  }
+ },
+ "ignition": {
+  "tools": [
+   "torch",
+   "burning_glass"
+  ],
+  "targets": {
+   "chapel": {
+    "candles": 2,
+    "grants": [
+     {
+      "kind": "chapel_tithe_payout"
+     }
+    ]
+   },
+   "tomb": {
+    "candles": 2,
+    "grants": [
+     {
+      "kind": "item",
+      "id": "upgrade_disk_tomb"
+     },
+     {
+      "kind": "dice",
+      "amount": 4
+     },
+     {
+      "kind": "item",
+      "id": "diary_key"
+     }
+    ]
+   },
+   "trading_post": {
+    "fuse": true,
+    "grants": [
+     {
+      "kind": "item",
+      "id": "upgrade_disk_trading_post"
+     },
+     {
+      "kind": "coins",
+      "amount": 40
+     }
+    ]
+   }
+  },
+  "meta": {
+   "source": "https://blueprince.wiki.gg",
+   "confidence": "wiki",
+   "absent_targets": [
+    "abandoned_mine",
+    "crate_tunnel"
+   ],
+   "notes": "Tomb: near candles grant upgrade_disk_tomb + 4 dice; far candles reveal Diary Key \u2014 both pairs modeled as one ignition event granting all three (simplification: two-step reveal collapsed to one). Diary Key is a REWARD of lighting the Tomb, not a prerequisite. Chapel: lighting the altar grants accumulated Keeper of Tithes coins (chapel_tithes counter, incremented each time the entry -1 coin penalty actually fires); the payout is resolved in engine/special_items.py light(). Trading Post fuse grants (Upgrade Disk + 40 coins) are wiki-documented; the secret room is collapsed to an immediate grant since it is not modeled. Freezer thaw is temporary/daily and not modeled. absent_targets lists rooms the wiki mentions but that are absent from rooms.json. requires_item is supported by the engine but no target uses it (the Diary Key is a reward of the Tomb, not a prerequisite)."
+  }
+ },
+ "machines": {
+  "greenhouse": {
+   "item": "broken_lever",
+   "effect": "antechamber_lever",
+   "notes": "Installing the lever unlocks the Antechamber's south doorway segment (between rank-8 center cell 37 and Antechamber cell 42) for free, enabling walk-through without a key. The north door opens only from the Throne Room and the Sanctum lever (neither modeled)."
+  },
+  "casino": {
+   "item": "broken_lever",
+   "effect": "slot_bonus",
+   "grants": [
+    {
+     "kind": "coins",
+     "amount": 20
+    },
+    {
+     "kind": "gems",
+     "amount": 2
+    }
+   ]
+  },
+  "meta": {
+   "source": "https://blueprince.wiki.gg",
+   "confidence": "wiki",
+   "notes": "Greenhouse: antechamber_lever unlocks the south Antechamber door segment (rank-8 center to Antechamber, segment key (37,1)). The Antechamber's south door and cell-37's north door are the same segment: segment_key(42,S)==segment_key(37,N)==(37,1). The north door opens only from the Throne Room and the Sanctum lever (neither modeled). Casino: slot_bonus grants listed loot once; actual casino payout is inferred (wiki says 5 bonus spins vs 3, not specific amounts)."
   }
  }
 }

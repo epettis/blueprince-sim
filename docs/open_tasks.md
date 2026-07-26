@@ -45,6 +45,17 @@ Wiki research (https://blueprince.wiki.gg/wiki/Upgrade_Disk):
   room; only the new icons are inspectable before choosing. The disk is consumed and
   the upgrade is **permanent** across days.
 - **Supply**: exactly **16** disks exist — enough to perform every upgrade once.
+  The wiki enumerates **15 fixed one-time locations** (Office desk, Morning Room,
+  Her Ladyship's Chamber, Commissary reserve 15g, Garage car trunk, Great Hall
+  prize door, Vault box 304, Trading Post dynamite chamber, Freezer ice wall, Tomb
+  candles, The Foundation, Abandoned Mine, Lost & Found pool, Mechanarium, Archives
+  cabinet) plus **one repeatable Trading Post trade** — "Unlike the other Upgrade
+  Disks, this disk can appear repeatedly" — which is the 16th. The sim models the
+  six reachable fixed sources today (`upgrade_disk_vault_304`, `_commissary`,
+  `_garage`, `_trading_post`, `_lost_and_found`, `_tomb`) plus `upgrade_disk_trade`;
+  the other nine sit in unmodeled rooms/areas and should be added with their rooms.
+  Because every disk id is a UNIQUE item, the supply cap enforces itself: once the
+  traded disk is held, tier-5 trades stop offering it and decay to dice.
 - **Upgradable rooms** (16 upgrades): Spare Room (Spare Bedroom / Greenroom / Hall),
   Parlor (Gems / Keys / Funeral), Billiard Room (Speakeasy / Break Room / Pool Hall),
   Closet (Hallway / Bedroom / Empty), Storeroom (Keys / Gems / Coins), Nook (Extra
@@ -132,3 +143,55 @@ Requirements:
 
 Worth measuring before and after with `tools/benchmark_env.py` or a short timed run
 so the win is quantified rather than assumed.
+
+## 6. Remove "puzzle only" items
+
+Some items exist solely to open one specific thing and are consumed doing it. They
+cost an inventory slot, a spawn roll, trade-tier membership and often an action id,
+and return nothing an agent can reason about — the sim already assumes the player
+solves the puzzle of any room they enter, so the *reward* can simply arrive on
+entry. The Wind-up Key was removed on exactly this reasoning (design doc
+simplification #17); apply the same test to the rest of the catalogue.
+
+Candidates to audit: `diary_key` (opens the Sleep Diary only), `key_of_aries`
+(opens the Treasure Trove box only), `file_cabinet_key` (one drawer each),
+`basement_key`, `mora_jai`-adjacent records if any. For each: does holding it ever
+present the agent with a *choice*? If not, delete the item and grant its payoff
+directly.
+
+## 7. Ignition candles near the Reservoir
+
+Blocked on task 4 (outside-area movement graph). Lighting them creates a
+**connection between the Precipice and the Reservoir**, so it is a graph edge, not
+just a reward — add it when the area graph lands.
+
+## 8. Model the Casino games
+
+The Casino is a room of gambling minigames (slot machine, roulette). Two pieces:
+1. **Expected value** for the reward function, so a policy can price entering.
+2. **Outcome simulation** so those rewards actualize — seeded rolls, per-game odds
+   in data.
+
+Ties into the Broken Lever (its golden slot machine gives 5 bonus spins instead of
+3) and the Allowance Token (roulette is a repeatable source).
+
+## 9. The Antechamber needs a lever, not just a door
+
+**Current model is wrong in an important way**: the run is resolved by walking into
+the Antechamber, but in the real game its doors must first be opened by a lever
+found in the **Secret Garden**, **Great Hall**, **Greenhouse** (with a Broken
+Lever), or **Weight Room** (after breaking the wall with a Power Hammer). The
+Greenhouse case is already modeled (PR #28) as opening the Antechamber's south
+segment; the other three are not, and neither is the requirement itself.
+
+This changes the shape of a winning run and therefore the reward landscape — treat
+it as a design pass, not a patch. The north Antechamber door is a separate matter:
+it opens only from the Throne Room and the Sanctum lever.
+
+## 10. Allowance for assumed-solved puzzles
+
+Because the sim assumes the player solves every puzzle in a room they enter,
+several rooms should carry a standing **+2 allowance**: the **Cloister**, the
+**Trading Post**, and the **Closed Exhibit**. Verify against the wiki whether this
+is allowance (the daily gold packet) or a one-time grant, then encode it the same
+way task 3's safes are.

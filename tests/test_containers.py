@@ -251,7 +251,7 @@ def test_container_determinism_per_seed():
 # ------------------------------------------------ garage car trunk
 
 def test_garage_car_first_use_grants_upgrade_disk():
-    """Car Keys first use (garage_car_used_before=False) grants the Upgrade Disk."""
+    """Car Keys first use (garage_car_used_before=False) grants upgrade_disk_garage (unique per source)."""
     st, reg = _state_with_registry()
     si.grant(st, reg, "car_keys", source="test")
     _place_room(st, reg, "garage", 5)
@@ -260,8 +260,8 @@ def test_garage_car_first_use_grants_upgrade_disk():
     game = _fake_game(st, reg, seed=0, cfg=GameConfig(garage_car_used_before=False))
     assert si.can_open_car_trunk(game)
     granted = si.open_car_trunk(game)
-    assert "upgrade_disk" in granted or st.inventory.get("upgrade_disk", 0) > 0, \
-        "first car trunk use must grant Upgrade Disk"
+    assert "upgrade_disk_garage" in granted or st.inventory.get("upgrade_disk_garage", 0) > 0, \
+        "first car trunk use must grant upgrade_disk_garage"
 
 
 def test_garage_car_later_use_draws_from_pool():

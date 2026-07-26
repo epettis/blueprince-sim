@@ -484,6 +484,25 @@ class Game:
         assert self.cfg.special_items
         return special_items.open_vault_box(self)
 
+    def can_light(self) -> bool:
+        """Holding an ignition tool (Torch/Burning Glass) in a lightable room."""
+        return special_items.can_light(self)
+
+    def light(self) -> None:
+        """Light the ignition target in the current room; grant its rewards."""
+        assert self.cfg.special_items
+        special_items.light(self)
+
+    def can_install_lever(self) -> bool:
+        """Holding a Broken Lever in a machine room that hasn't been used today."""
+        return special_items.can_install_lever(self)
+
+    def install_lever(self) -> None:
+        """Install the Broken Lever in the current machine room; apply its effect."""
+        assert self.cfg.special_items
+        special_items.install_lever(self)
+
+
     def can_use_repellent(self) -> bool:
         """Is using the Repellent available right now (held + NAVIGATE phase)?"""
         return shops.can_use_repellent(self)

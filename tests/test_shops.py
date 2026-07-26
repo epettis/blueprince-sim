@@ -98,7 +98,7 @@ def test_commissary_excludes_already_owned_unique_item():
 
 
 def test_commissary_reserve_not_in_primary_draw():
-    """The upgrade_disk (reserve=true) is excluded from the 4-slot primary draw.
+    """The upgrade_disk_commissary (reserve=true) is excluded from the 4-slot primary draw.
 
     Reserve entries only fill remaining slots when fewer than 4 primary entries
     are available; with all primary entries available it must never appear.
@@ -107,7 +107,9 @@ def test_commissary_reserve_not_in_primary_draw():
         g = _game(seed=seed)
         _enter_shop(g, "commissary")
         ids = [e["id"] for e in g.state.shops.stock["commissary"]]
-        assert "upgrade_disk" not in ids, f"seed={seed}: reserve entry upgrade_disk appeared"
+        assert "upgrade_disk_commissary" not in ids, (
+            f"seed={seed}: reserve entry upgrade_disk_commissary appeared"
+        )
 
 
 def test_commissary_stock_not_rerolled_on_second_entry():

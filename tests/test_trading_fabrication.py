@@ -244,11 +244,12 @@ def test_trade_same_tier_return():
     assert tier_returns_correct, "non-dice trade return had wrong tier"
 
 
-def test_trade_t5_sometimes_yields_allowance_or_upgrade():
-    """A tier-5 trade sometimes returns allowance_token or upgrade_disk.
+def test_trade_t5_sometimes_yields_allowance_or_the_traded_disk():
+    """A tier-5 trade sometimes returns allowance_token (upgrade_disk no longer from trade path).
 
     With t5_special_chance=50%, across many seeds we should see at least one
-    allowance_token or upgrade_disk among the returns.
+    allowance_token among the returns. Upgrade Disks are one-time-per-source items;
+    the repeatable trade path only yields allowance_token as the tier-5 special.
     """
     specials_seen = set()
     for seed in range(200):
@@ -260,10 +261,10 @@ def test_trade_t5_sometimes_yields_allowance_or_upgrade():
         shops.trade(game, "master_key")
         new_entries = state.items_found_log[log_before:]
         for kind, _ in new_entries:
-            if kind in ("allowance_token", "upgrade_disk"):
+            if kind == "allowance_token":
                 specials_seen.add(kind)
     assert specials_seen, (
-        f"expected some t5 trades to yield allowance_token/upgrade_disk; got {specials_seen}"
+        f"expected some t5 trades to yield allowance_token; got {specials_seen}"
     )
 
 
@@ -355,8 +356,8 @@ def test_trade_graph_covers_all_tradeable_items():
 def test_trade_graph_successors_same_tier_or_sentinel():
     """Every item in the graph points to a same-tier item or an allowed sentinel.
 
-    Items must only cycle within their own tier.  Dice/allowance_token/upgrade_disk
-    are permitted cross-tier sentinels.
+    Items must only cycle within their own tier.  Dice and allowance_token are
+    permitted cross-tier sentinels; upgrade_disk is no longer on the trade path.
     """
     game = _game(seed=0)
     state = game.state
@@ -364,7 +365,7 @@ def test_trade_graph_successors_same_tier_or_sentinel():
     _set_trading_post_inner(game)
     shops.trade_offers(game)
     reg = game.registry
-    sentinels = {"dice", "allowance_token", "upgrade_disk"}
+    sentinels = {"dice", "allowance_token"}
     for give_id, successor in state.shops.trade_graph.items():
         if successor in sentinels:
             continue
@@ -392,7 +393,7 @@ def test_trade_offer_receive_never_already_held():
     held = {iid for iid, cnt in state.inventory.items() if cnt > 0}
     for offer in offers:
         receive = offer.get("receive")
-        if receive is not None and receive not in {"dice", "allowance_token", "upgrade_disk"}:
+        if receive is not None and receive not in {"dice", "allowance_token"}:
             assert receive not in held, (
                 f"offer for {offer['give']!r} shows receive={receive!r} which is already held"
             )
@@ -759,3 +760,24 @@ def test_fabricated_pick_sound_amplifier_opens_locked_door():
     assert successes >= 5, (
         "expected pick_sound_amplifier to open at least 5 locked doors across 50 seeds"
     )
+
+
+def test_traded_upgrade_disk_is_one_and_only_one():
+    """The tradeable Upgrade Disk is unique, so a second tier-5 trade can never
+    hand over another one.
+
+    Fifteen fixed locations plus this single traded disk are the game's whole
+    supply of sixteen; once it is held the offer must decay to something else.
+    """
+    from blueprince_sim.engine.model import Registry
+    registry = Registry.load()
+    disks = [i.id for i in registry.special.items if i.id.startswith("upgrade_disk")]
+    assert "upgrade_disk_trade" in disks
+    assert registry.special.by_id["upgrade_disk_trade"].unique
+    game = _game(GameConfig(starting_items=frozenset({"upgrade_disk_trade"})), seed=0)
+    state = game.state
+    _set_trading_post_inner(game)
+    # Holding it already: every resolved trade offer must point elsewhere.
+    state.inventory["master_key"] = 1
+    for offer in shops.trade_offers(game):
+        assert offer["receive"] != "upgrade_disk_trade"
