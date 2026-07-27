@@ -626,11 +626,11 @@ Env wiring (this PR):
   explicitly.
 - **Smash opener**: any item with the `smash` effect tag (Sledge Hammer, Morning
   Star, Power Hammer) opens trunks for free. Chests are never smashable.
-- **Garage car `first_loot`**: `GameConfig.garage_car_used_before = False`
-  (default) triggers the Upgrade Disk path; `True` switches to the `later_pool`
-  draw. **Known gap**: the flag is not yet reported by `Game.carryover()`, so a
-  `DayChain` run currently offers the Upgrade Disk again each day. Wiring it
-  into the carry-over dict alongside the other discovery flags is a follow-up.
+- **Garage car `first_loot`**: the trunk re-locks every night, so Car Keys are
+  required on every open. What decides the loot is whether the disk has been
+  spent: while `upgrade_disk_garage` is absent from `GameConfig.collected_disks`
+  the trunk yields the Upgrade Disk again, and once the disk is inserted at a
+  terminal the trunk switches to the `later_pool` draw.
 - **Keycard in later_pool**: the Car Keys wiki page lists Keycard as a possible
   trunk loot; it is handled by setting `state.has_keycard = True` (same as
   `locks.py`) rather than the generic `grant` pipeline.

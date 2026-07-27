@@ -148,10 +148,26 @@ class BluePrinceEnv(gymnasium.Env):
         When a ``day_chain`` is active, terminal or truncated episodes call
         ``day_chain.advance(game.carryover())`` so cross-day discoveries are
         carried forward before the next ``reset()``.
+
+        Upgrade decisions: when action falls in the CHOOSE_UPGRADE range (276-278)
+        and the action is legal, an ``"upgrade_decision"`` key is included in the
+        returned info dict with the fields needed for bottleneck analysis.  The
+        snapshot is taken before apply_action so pending_upgrade_slot/options are
+        still populated.
         """
         assert self.game.phase is not Phase.TERMINAL, "episode is over; call reset()"
         prev = snapshot(self.game)
         mask = A.action_mask(self.game, self._prev_action)
+
+        # Capture upgrade context BEFORE apply_action clears pending_upgrade_*.
+        # Only fire for legal CHOOSE_UPGRADE actions (276-278).
+        upgrade_record: dict | None = None
+        if mask[action] and A.CHOOSE_UPGRADE_BASE <= action <= A.CHOOSE_UPGRADE_BASE + 2:
+            upgrade_record = _capture_upgrade_decision(
+                self.game, action, self._episode_seed,
+                self.day_chain.current_day if self.day_chain is not None else None,
+            )
+
         if not mask[action]:
             # Invalid action: no state change, small penalty. Masked agents
             # never hit this; random agents learn from it.  Illegal actions do
@@ -174,8 +190,10 @@ class BluePrinceEnv(gymnasium.Env):
             terminated = True
         if (terminated or truncated) and self.day_chain is not None:
             self.day_chain.advance(self.game.carryover())
-        return (O.encode(self.game), reward, terminated, truncated,
-                self._info(post_mask))
+        info = self._info(post_mask)
+        if upgrade_record is not None:
+            info["upgrade_decision"] = upgrade_record
+        return (O.encode(self.game), reward, terminated, truncated, info)
 
     def action_masks(self) -> np.ndarray:
         """Boolean legality mask; the hook MaskablePPO reads via ActionMasker."""
@@ -221,6 +239,73 @@ class BluePrinceEnv(gymnasium.Env):
             # Recorders store this so replay can reconstruct the exact conditions.
             info["day_config"] = self._episode_day_config
         return info
+
+
+def _capture_upgrade_decision(game: Game, action: int,
+                               episode_seed: int, day: int | None) -> dict:
+    """Snapshot an upgrade decision for the upgrade event log.
+
+    Called immediately BEFORE apply_action so pending_upgrade_slot and
+    pending_upgrade_options are still populated.  Returns a plain dict with
+    JSON-serializable values; all fields needed for bottleneck analysis are
+    included if available.
+
+    Fields:
+    - ``episode_seed``: int — the seed that uniquely identifies this episode.
+    - ``day``: int | None — in-game day index (1-based); None in single-day mode.
+    - ``slot``: str — the selected upgrade slot id (e.g. "cloister").
+    - ``offered``: list[str] — the three offered variant room ids.
+    - ``chosen_index``: int — 0, 1, or 2; which option the agent picked.
+    - ``chosen_variant``: str — the variant room id that was chosen.
+    - ``catacombs_unlocked``: bool — whether Catacombs were unlocked at insert time.
+    - ``draft_counts``: dict[str, int] — cumulative draft counts for the slot's
+      root base room id (the ``min_drafts`` bracket input).  Keyed by base room id.
+    - ``slots_upgraded``: int — number of slots already upgraded before this decision.
+    - ``disks_held``: int — upgrade disks REMAINING in inventory, i.e. the
+      POST-consume count.  ``insert_disk`` removes the inserted disk (game.py,
+      ``remove(..., consumed=True)``) before it sets ``pending_upgrade_*``, so the
+      disk driving this decision is already gone when this snapshot is taken.
+      0 is normal and means the agent just spent its last disk.
+    """
+    from ..engine.upgrades import root_base_id, upgraded_slots
+
+    st = game.state
+    chosen_index = action - A.CHOOSE_UPGRADE_BASE  # 0, 1, or 2
+    slot = st.pending_upgrade_slot or ""
+    offered = list(st.pending_upgrade_options)
+    chosen_variant = offered[chosen_index] if 0 <= chosen_index < len(offered) else ""
+
+    # draft_counts for the slot's root base room
+    slot_draft_counts: dict[str, int] = {}
+    if slot:
+        # Find the base room for this slot (any variant maps to the same base)
+        base_ids = {
+            root_base_id(game.registry, game.registry.by_id[v])
+            for v in offered
+            if v in game.registry.by_id
+        }
+        for bid in base_ids:
+            if bid in st.draft_counts:
+                slot_draft_counts[bid] = st.draft_counts[bid]
+
+    # Upgrade disks held right now (pre-consume; choose_upgrade hasn't fired yet,
+    # but insert_disk already consumed the disk so this reflects the post-insert count)
+    disks_held = len(game.held_disk_ids())
+
+    slots_already_upgraded = len(upgraded_slots(frozenset(st.applied_upgrades), game.registry))
+
+    return {
+        "episode_seed": episode_seed,
+        "day": day,
+        "slot": slot,
+        "offered": offered,
+        "chosen_index": chosen_index,
+        "chosen_variant": chosen_variant,
+        "catacombs_unlocked": game.catacombs_unlocked(),
+        "draft_counts": slot_draft_counts,
+        "slots_upgraded": slots_already_upgraded,
+        "disks_held": disks_held,
+    }
 
 
 def register() -> None:

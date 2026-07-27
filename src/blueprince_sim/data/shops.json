@@ -13,7 +13,7 @@
  "shops": {
   "commissary": {
    "slots": 4,
-   "_note": "Selection model: wiki names 7 fixed combinations A-G (unpublished contents); sim infers uniform random draw of `slots` distinct available entries. upgrade_disk_commissary marked reserve=true; the engine may treat reserve entries as fallback stock.",
+   "_note": "Selection model: wiki names 7 fixed combinations A-G (unpublished contents); sim infers uniform random draw of `slots` distinct available entries. upgrade_disk_commissary competes for those slots like any other entry, so it is offered on roughly 4-in-13 days until spent.",
    "stock": [
     {
      "id": "gem",
@@ -96,8 +96,7 @@
     {
      "id": "upgrade_disk_commissary",
      "kind": "item",
-     "price": 15,
-     "reserve": true
+     "price": 15
     }
    ],
    "meta": {

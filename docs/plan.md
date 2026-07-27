@@ -49,8 +49,8 @@ checkpoints (pre-#19) are interface-incompatible — fresh checkpoint dir requir
   makes it appear in the Gallery every day; the sim assumes entered rooms' puzzles
   are solved, so unlock and find collapse into one guaranteed spawn).
 - **#26** — containers: trunks (smash free with a hammer / 1 key), chests (key only,
-  never smashable), lockers (free), the Garage car trunk (one-time Upgrade Disk,
-  then pool draws; `garage_car_used_before` rides the chain). Actions 270/271,
+  never smashable), lockers (free), the Garage car trunk (Upgrade Disk until it is
+  spent, then pool draws). Actions 270/271,
   `grid_containers` obs plane, walk-to re-entry.
 - **#27** — Vault deposit boxes (the four numbered keys; key stays but is spent for
   good via `used_vault_keys` across days) and Parlor boxes (Wind-up Keys, inferred
