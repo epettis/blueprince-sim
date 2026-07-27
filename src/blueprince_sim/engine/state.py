@@ -50,6 +50,49 @@ class DeckState:
         shuffler(self.order)
         self.pos = 0
 
+    def replace_card(self, old_idx: int, new_idx: int) -> int:
+        """Rewrite every card equal to ``old_idx`` as ``new_idx``; return count changed.
+
+        Covers dealt cards as well as undealt ones. An Upgrade Disk retires the
+        base floorplan from the pool outright, and ``deal_next``'s attempt-3
+        reshuffle resets the cursor to 0 — so leaving a dealt base card behind
+        would let the un-upgraded room be drafted again later the same day.
+        No card moves position and the cursor is untouched.
+        """
+        count = 0
+        for i, card in enumerate(self.order):
+            if card == old_idx:
+                self.order[i] = new_idx
+                count += 1
+        return count
+
+    def remove_card(self, room_idx: int) -> int:
+        """Drop every card equal to ``room_idx``; return how many were removed.
+
+        Removals before the cursor drag it back with them, so ``order[:pos]``
+        keeps meaning "already dealt this cycle". Same rationale as
+        :meth:`replace_card`: the retired floorplan must not survive a reshuffle.
+        """
+        kept, removed, new_pos = [], 0, self.pos
+        for i, card in enumerate(self.order):
+            if card == room_idx:
+                removed += 1
+                if i < self.pos:
+                    new_pos -= 1
+            else:
+                kept.append(card)
+        self.order[:] = kept
+        self.pos = new_pos
+        return removed
+
+    def insert_undealt(self, room_idx: int, at: int) -> None:
+        """Insert one card at absolute index ``at``, which must be in [pos, len(order)].
+
+        Leaves order[:pos] and pos untouched. The caller is responsible for
+        choosing at within [pos, len(order)] so the insert lands in the undealt slice.
+        """
+        self.order.insert(at, room_idx)
+
     def add_copies(self, room_idx: int, n: int, shuffler) -> None:
         """Shuffle ``n`` copies of a room into the deck (mid-day injection).
 
@@ -139,6 +182,12 @@ class GameState:
     outer_room_entered: bool = False  # True once ON_ENTER has fired for today's outer room
     # chronological (item id, count) pickups this run, for CLI/replay reporting
     items_found_log: list[tuple[str, int]] = field(default_factory=list)
+
+    # --- upgrade disks (engine/upgrades.py) ---
+    draft_counts: dict[str, int] = field(default_factory=dict)  # cumulative attempt-wide draft counts by root base room id; seeded from cfg.draft_counts, incremented on placement
+    applied_upgrades: set[str] = field(default_factory=set)     # variant ids applied so far this attempt; seeded from cfg.upgrade_disks
+    pending_upgrade_slot: str | None = None                      # slot awaiting the player's upgrade choice; None when not mid-upgrade
+    pending_upgrade_options: tuple[str, ...] = ()                # the three offered variant ids; empty when not mid-upgrade
 
     def deck(self, rarity_idx: int, is_gem: bool) -> DeckState:
         return self.decks[rarity_idx * 2 + (1 if is_gem else 0)]

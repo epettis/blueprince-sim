@@ -25,6 +25,11 @@ RAW = ROOT / "tools" / "raw" / "tfmurphy_room_table.md"
 SUPPLEMENTAL = ROOT / "tools" / "supplemental_rooms.json"
 OUT = ROOT / "src" / "blueprince_sim" / "data" / "rooms.json"
 
+# Rooms whose terminal accepts an Upgrade Disk (docs/upgrade-disks-design.md).
+# Blackbridge Grotto is a fifth in the real game but has no record yet, so it
+# stays gated behind the outside-area work in docs/open_tasks.md task 4.
+DISK_READER_IDS = {"security", "laboratory", "office", "shelter"}
+
 LAYOUT_MAP = {
     "Dead End": "dead_end",
     "Straight": "straight",
@@ -349,6 +354,7 @@ def build_room(row: dict) -> dict | None:
             "no_library_draft": row["no_library"] == "Yes",
             "powered": row["powered"] == "Yes",
             "duct": row["duct"] == "Yes",
+            "disk_reader": False,
         },
         "deck_copies": 1,
         "effects": [],
@@ -460,6 +466,14 @@ def main() -> None:
             if r["id"] not in seen:
                 seen.add(r["id"])
                 rooms.append(r)
+
+    # Terminals that accept an Upgrade Disk. Applied here rather than in
+    # build_room because the raw sheet has no such column and one of the four
+    # (shelter) arrives from supplemental_rooms.json, which is copied verbatim.
+    # Keyed by id, not name: GLYPH_MAP's name keying is what let the Boudoir
+    # dice glyph be recorded as a gem.
+    for r in rooms:
+        r.setdefault("flags", {})["disk_reader"] = r["id"] in DISK_READER_IDS
 
     out = {
         "schema_version": 1,

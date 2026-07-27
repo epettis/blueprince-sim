@@ -1088,4 +1088,8 @@ def carryover(game) -> dict:
         "chapel_tithes": state.special.chapel_tithes,
         "starting_items": carried_items,              # list[str]: item ids for next starting_items
         "banned_rooms": dict(state.shops.repellent_bans),  # dict[str, int]: new bans from today
+        # Upgrade Disks: variant ids applied this attempt; union-accumulated across days.
+        "upgrade_disks": sorted(set(cfg.upgrade_disks) | state.applied_upgrades),
+        # Draft counts: cumulative per-attempt counts by root base room id; replaced each day.
+        "draft_counts": dict(state.draft_counts),
     }

@@ -521,6 +521,102 @@ def main() -> int:
                     f"{where} trophy/{troph_id}: price must be a non-negative int, got {troph_price!r}"
                 )
 
+    # ── Upgrade Disk terminals ────────────────────────────────────────────────
+    # The rooms whose terminal accepts an Upgrade Disk (docs/upgrade-disks-design.md).
+    # Blackbridge Grotto is a fifth in the real game but has no record yet.
+    # Mirrored in tools/ingest_sheet.py's DISK_READER_IDS; this check is what
+    # catches the two drifting apart, or the flag being dropped from a record.
+    DISK_READER_ROOMS = {"security", "laboratory", "office", "shelter"}
+    actual_readers = {r["id"] for r in rooms if r.get("flags", {}).get("disk_reader")}
+    if actual_readers != DISK_READER_ROOMS:
+        missing = DISK_READER_ROOMS - actual_readers
+        extra = actual_readers - DISK_READER_ROOMS
+        errors.append(
+            f"disk_reader flag mismatch: missing {sorted(missing)}, unexpected {sorted(extra)}"
+        )
+
+    # ── upgrade_selection.json ─────────────────────────────────────────────────
+    KNOWN_CHECKS = {"room_drafts", "catacombs_unlocked", "always_false"}
+    us_doc = json.loads((DATA / "upgrade_selection.json").read_text())
+
+    # Validate slot definitions.
+    us_slots = us_doc.get("slots", {})
+    for slot_id, slot_info in us_slots.items():
+        room_id = slot_info.get("room")
+        if room_id not in by_id:
+            errors.append(f"upgrade_selection/slots/{slot_id}: room {room_id!r} not in rooms.json")
+        # Every slot but the two Spare Room stages is named after the room it
+        # upgrades; upgrades.offer_variants relies on that to resolve a slot to
+        # its variants without consulting the tables.
+        elif not slot_id.startswith("spare_") and slot_id != room_id:
+            errors.append(
+                f"upgrade_selection/slots/{slot_id}: slot id must equal its room id {room_id!r}"
+            )
+
+    known_slots = set(us_slots.keys())
+
+    # Validate non_veteran.first_upgrade weights sum to 1.0.
+    nv_fu = us_doc.get("non_veteran", {}).get("first_upgrade", {})
+    fu_weights = nv_fu.get("weights", {})
+    for slot_id in fu_weights:
+        if slot_id not in known_slots:
+            errors.append(f"upgrade_selection/non_veteran/first_upgrade: unknown slot {slot_id!r}")
+    weight_total = sum(fu_weights.values())
+    if abs(weight_total - 1.0) > 1e-9:
+        errors.append(
+            f"upgrade_selection/non_veteran/first_upgrade weights sum to {weight_total:.10f}, expected 1.0"
+        )
+
+    # Validate chains for both modes.
+    def _validate_chains(chains: list, label: str) -> None:
+        for chain_line in chains:
+            line_label = chain_line.get("line", "?")
+            where = f"upgrade_selection/{label}/chains/line {line_label}"
+            for entry in chain_line.get("entries", []):
+                if "slot" in entry:
+                    slot_id = entry["slot"]
+                    if slot_id not in known_slots:
+                        errors.append(f"{where}: unknown slot {slot_id!r}")
+                elif "check" in entry:
+                    check_kind = entry["check"]
+                    if check_kind not in KNOWN_CHECKS:
+                        errors.append(f"{where}: unknown check kind {check_kind!r}")
+                    if check_kind == "room_drafts":
+                        room_id = entry.get("room")
+                        if room_id not in by_id:
+                            errors.append(f"{where}: room_drafts references unknown room {room_id!r}")
+                else:
+                    errors.append(f"{where}: entry has neither 'slot' nor 'check'")
+
+    _validate_chains(us_doc.get("non_veteran", {}).get("chains", []), "non_veteran")
+    _validate_chains(us_doc.get("veteran", {}).get("chains", []), "veteran")
+
+    # Validate veteran first_upgrade.
+    vet_fu = us_doc.get("veteran", {}).get("first_upgrade", {})
+    if vet_fu.get("uniform_over") not in (None, "all_slots"):
+        errors.append(
+            f"upgrade_selection/veteran/first_upgrade: unexpected uniform_over value "
+            f"{vet_fu.get('uniform_over')!r}"
+        )
+
+    # Validate veteran day1_shortcut order contains real room ids.
+    vet_sc = us_doc.get("veteran", {}).get("day1_shortcut", {})
+    for room_id in vet_sc.get("order", []):
+        if room_id not in by_id:
+            errors.append(f"upgrade_selection/veteran/day1_shortcut: unknown room {room_id!r}")
+
+    # Validate meta.confidence on all top-level and mode-level metas.
+    for meta_path, meta in [
+        ("upgrade_selection", us_doc.get("meta", {})),
+        ("upgrade_selection/non_veteran", us_doc.get("non_veteran", {}).get("meta", {})),
+        ("upgrade_selection/non_veteran/first_upgrade", nv_fu.get("meta", {})),
+        ("upgrade_selection/veteran", us_doc.get("veteran", {}).get("meta", {})),
+        ("upgrade_selection/veteran/first_upgrade", vet_fu.get("meta", {})),
+    ]:
+        conf = meta.get("confidence")
+        if meta and conf not in VALID_CONFIDENCE:
+            errors.append(f"{meta_path}: invalid meta.confidence {conf!r}")
+
     base = [r for r in rooms if r.get("pool") == "base"]
     n_shops = len(shops)
     print(f"{len(rooms)} rooms ({len(base)} base pool); "

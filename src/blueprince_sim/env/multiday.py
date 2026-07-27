@@ -85,6 +85,13 @@ class DayChain:
         self.repellent_bans: dict[str, int] = {}
         # Insertion-ordered list for oldest-first eviction when the cap is hit.
         self._ban_order: list[str] = []
+        # Upgrade Disks: variant ids applied this attempt; union-merged across days.
+        # Seeded from the base config rather than empty, because unlike the other
+        # carry-over fields this one is also a legitimate configuration input —
+        # a preset upgrade would otherwise be wiped on day 1.
+        self.applied_upgrades: frozenset[str] = frozenset(base_cfg.upgrade_disks)
+        # Draft counts: cumulative by root base room id; replaced from carryover each advance.
+        self.draft_counts: dict[str, int] = dict(base_cfg.draft_counts)
 
     def next_config(self) -> GameConfig:
         """Return the ``GameConfig`` for the current day.
@@ -107,6 +114,8 @@ class DayChain:
             used_vault_keys=self.used_vault_keys,
             lit_targets=self.lit_targets,
             chapel_tithes=self.chapel_tithes,
+            upgrade_disks=self.applied_upgrades,
+            draft_counts=dict(self.draft_counts),
             **self.carried_flags,          # unpack only the True flags
         )
 
@@ -162,6 +171,16 @@ class DayChain:
         if ct_val is not None:
             self.chapel_tithes = ct_val
 
+        # --- upgrade_disks (variant ids applied this attempt; accumulate as union) ---
+        ud_val = carryover.get("upgrade_disks")
+        if ud_val is not None:
+            self.applied_upgrades = self.applied_upgrades | frozenset(ud_val)
+
+        # --- draft_counts (cumulative attempt draft counts; replace each advance) ---
+        dc_val = carryover.get("draft_counts")
+        if dc_val is not None:
+            self.draft_counts = dict(dc_val)
+
         # --- banned_rooms (Repellent bans from this day) ---
         # Decrement PRE-EXISTING bans first (one day has elapsed for them),
         # then merge the NEW bans from this day.  New bans are not decremented
@@ -202,3 +221,7 @@ class DayChain:
             self.chapel_tithes = 0            # fresh attempt; tithe bank reset
             self.repellent_bans = {}
             self._ban_order = []
+            # Fresh attempt: drop everything earned in-run, but keep whatever the
+            # base config presets, which is the same baseline day 1 started from.
+            self.applied_upgrades = frozenset(self.base_cfg.upgrade_disks)
+            self.draft_counts = dict(self.base_cfg.draft_counts)

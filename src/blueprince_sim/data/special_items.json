@@ -1694,13 +1694,13 @@
    "spawn_rooms_high_luck": [],
    "guaranteed_in": [],
    "effects": [],
-   "implemented": false,
+   "implemented": true,
    "meta": {
     "source": "https://blueprince.wiki.gg/wiki/Upgrade_Disk",
     "confidence": "wiki",
     "absent_spawn_rooms": [],
-    "blocked_on": "upgrade_disk_not_modeled",
-    "notes": "One unique disk per source so each is inherently one-time use. Granted by opening Vault box 304. USE is still unmodeled (open task 2)."
+    "blocked_on": null,
+    "notes": "One unique disk per source so each is inherently one-time use. Granted by opening Vault box 304. Draw mechanism implemented (chunk 2); individual upgrade effects deferred (task 9)."
    }
   },
   {
@@ -1714,13 +1714,13 @@
    "spawn_rooms_high_luck": [],
    "guaranteed_in": [],
    "effects": [],
-   "implemented": false,
+   "implemented": true,
    "meta": {
     "source": "https://blueprince.wiki.gg/wiki/Upgrade_Disk",
     "confidence": "wiki",
     "absent_spawn_rooms": [],
-    "blocked_on": "upgrade_disk_not_modeled",
-    "notes": "One unique disk per source so each is inherently one-time use. Reserve stock item in the Commissary. USE is still unmodeled (open task 2)."
+    "blocked_on": null,
+    "notes": "One unique disk per source so each is inherently one-time use. Reserve stock item in the Commissary. Draw mechanism implemented (chunk 2); individual upgrade effects deferred (task 9)."
    }
   },
   {
@@ -1734,13 +1734,13 @@
    "spawn_rooms_high_luck": [],
    "guaranteed_in": [],
    "effects": [],
-   "implemented": false,
+   "implemented": true,
    "meta": {
     "source": "https://blueprince.wiki.gg/wiki/Upgrade_Disk",
     "confidence": "wiki",
     "absent_spawn_rooms": [],
-    "blocked_on": "upgrade_disk_not_modeled",
-    "notes": "One unique disk per source so each is inherently one-time use. First use of the Garage car trunk. USE is still unmodeled (open task 2)."
+    "blocked_on": null,
+    "notes": "One unique disk per source so each is inherently one-time use. First use of the Garage car trunk. Draw mechanism implemented (chunk 2); individual upgrade effects deferred (task 9)."
    }
   },
   {
@@ -1754,13 +1754,13 @@
    "spawn_rooms_high_luck": [],
    "guaranteed_in": [],
    "effects": [],
-   "implemented": false,
+   "implemented": true,
    "meta": {
     "source": "https://blueprince.wiki.gg/wiki/Trading_Post",
     "confidence": "wiki",
     "absent_spawn_rooms": [],
-    "blocked_on": "upgrade_disk_not_modeled",
-    "notes": "One unique disk per source so each is inherently one-time use. Granted by lighting the Trading Post fuse. USE is still unmodeled (open task 2)."
+    "blocked_on": null,
+    "notes": "One unique disk per source so each is inherently one-time use. Granted by lighting the Trading Post fuse. Draw mechanism implemented (chunk 2); individual upgrade effects deferred (task 9)."
    }
   },
   {
@@ -1774,12 +1774,12 @@
    "spawn_rooms_high_luck": [],
    "guaranteed_in": [],
    "effects": [],
-   "implemented": false,
+   "implemented": true,
    "meta": {
     "source": "https://blueprince.wiki.gg/wiki/Trading_Post",
     "confidence": "wiki",
     "absent_spawn_rooms": [],
-    "blocked_on": "upgrade_disk_not_modeled",
+    "blocked_on": null,
     "notes": "The 16th and only repeatably-OFFERED disk: 15 fixed locations plus this one exhaust the game's supply of 16. The wiki says 'Unlike the other Upgrade Disks, this disk can appear repeatedly' - the OFFER recurs, but the disk is unique, so once held the tier-5 trade falls through to its other outcomes."
    }
   },
@@ -1794,13 +1794,13 @@
    "spawn_rooms_high_luck": [],
    "guaranteed_in": [],
    "effects": [],
-   "implemented": false,
+   "implemented": true,
    "meta": {
     "source": "https://blueprince.wiki.gg/wiki/Upgrade_Disk",
     "confidence": "wiki",
     "absent_spawn_rooms": [],
-    "blocked_on": "upgrade_disk_not_modeled",
-    "notes": "One unique disk per source so each is inherently one-time use. Awarded by the Lost and Found. USE is still unmodeled (open task 2)."
+    "blocked_on": null,
+    "notes": "One unique disk per source so each is inherently one-time use. Awarded by the Lost and Found. Draw mechanism implemented (chunk 2); individual upgrade effects deferred (task 9)."
    }
   },
   {
@@ -1814,13 +1814,13 @@
    "spawn_rooms_high_luck": [],
    "guaranteed_in": [],
    "effects": [],
-   "implemented": false,
+   "implemented": true,
    "meta": {
     "source": "https://blueprince.wiki.gg/wiki/Tomb",
     "confidence": "wiki",
     "absent_spawn_rooms": [],
-    "blocked_on": "upgrade_disk_not_modeled",
-    "notes": "One unique disk per source so each is inherently one-time use. Granted by lighting the near candles in the Tomb. USE is still unmodeled (open task 2)."
+    "blocked_on": null,
+    "notes": "One unique disk per source so each is inherently one-time use. Granted by lighting the near candles in the Tomb. Draw mechanism implemented (chunk 2); individual upgrade effects deferred (task 9)."
    }
   }
  ],

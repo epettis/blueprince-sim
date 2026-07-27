@@ -460,6 +460,7 @@ def test_carryover_shape_is_complete():
     expected_keys = bool_keys | {
         "starting_items", "banned_rooms", "used_vault_keys",
         "lit_targets", "chapel_tithes",
+        "upgrade_disks", "draft_counts",
     }
     # Test a variety of configs
     for cfg in [

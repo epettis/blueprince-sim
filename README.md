@@ -152,6 +152,13 @@ data JSON (or regenerate: `python tools/ingest_sheet.py`, which rebuilds
   no-op'd; see `meta.effect_text` in `rooms.json` for what the real room does.
 - Red-room rarities/layouts and a few studio-addition costs are estimates
   (their wiki table is bot-blocked); marked `inferred` in data.
+- **Upgrade Disks**: the selection tables are post-Patch-1.7 while the draft
+  core is v1.3 — a deliberate version skew, since upgrade selection is a
+  separate subsystem. The Catacombs check is permanently false (no such room
+  record yet), the veteran day-1 shortcut ignores its "already drafted" test,
+  the Cloister 3-of-8 sample is assumed uniform, and the Cloister cross-deck
+  insertion position is invented. All catalogued in
+  [docs/upgrade-disks-design.md](docs/upgrade-disks-design.md).
 
 ## Project layout
 

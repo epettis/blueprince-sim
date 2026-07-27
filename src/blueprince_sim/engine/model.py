@@ -62,6 +62,7 @@ class Room:
     no_library_draft: bool  # never dealt when drafting through the Library's doorway
     powered: bool  # powered-room flag; the duct-adjacency category bias targets these
     duct: bool  # duct-room flag; the powered-adjacency category bias targets these
+    disk_reader: bool  # True when this room has an Upgrade Disk terminal (Security, Laboratory, Office, Shelter)
     deck_copies: int  # copies shuffled into this room's deck at day start
     effects: tuple[Effect, ...]  # Tier-1 room effects (dispatched via the effects/ hook registry)
     items: ItemSpec  # items granted/rolled when the room is first entered
@@ -124,6 +125,7 @@ def _parse_room(idx: int, raw: dict) -> Room:
         no_library_draft=bool(raw.get("flags", {}).get("no_library_draft", False)),
         powered=bool(raw.get("flags", {}).get("powered", False)),
         duct=bool(raw.get("flags", {}).get("duct", False)),
+        disk_reader=bool(raw.get("flags", {}).get("disk_reader", False)),
         deck_copies=int(raw.get("deck_copies", 1)),
         effects=_parse_effects(raw.get("effects", [])),
         items=ItemSpec(
@@ -147,6 +149,7 @@ class Registry:
     lock_rules: dict  # parsed locks.json
     special: object = None  # SpecialItemsRegistry (special_items.py; typed loosely to avoid a cycle)
     shop_rules: object = None  # ShopsRegistry (shops.py; typed loosely for the same reason)
+    upgrade_tables: object = None  # UpgradeTables (upgrades.py; typed loosely to avoid import cycle)
     data_dir: Path = field(default=DEFAULT_DATA_DIR)  # directory the JSON files were loaded from
 
     @classmethod
@@ -158,6 +161,7 @@ class Registry:
         """
         from .shops import load_shops  # deferred, matching special_items below
         from .special_items import load_special_items  # deferred: special_items imports Effect
+        from .upgrades import load_tables as load_upgrade_tables  # deferred: upgrades imports Registry
 
         d = Path(data_dir) if data_dir else DEFAULT_DATA_DIR
         rooms_raw = json.loads((d / "rooms.json").read_text())["rooms"]
@@ -171,6 +175,7 @@ class Registry:
             lock_rules=json.loads((d / "locks.json").read_text()),
             special=load_special_items(d),
             shop_rules=load_shops(d),
+            upgrade_tables=load_upgrade_tables(d),
             data_dir=d,
         )
 

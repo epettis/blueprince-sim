@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, fields
+from dataclasses import dataclass, field, fields
 from pathlib import Path
 
 STAGES = ("week1", "week2", "late", "auto")
@@ -61,6 +61,9 @@ class GameConfig:
     # Vault Key ids whose deposit box has been opened (ever, across all days).
     # These keys are never grantable again — permanently removed from spawn pool.
     used_vault_keys: frozenset[str] = frozenset()
+    # Cumulative per-attempt draft counts keyed by root base room id, carried
+    # from previous days.  Plain dict — NOT in the frozenset-coercion list.
+    draft_counts: dict[str, int] = field(default_factory=dict)
     entrance_vase_broken: bool = False  # west vase smashed before: its microchip granted at day start
     outer_chip_dug: bool = False        # West Path chip dug up before: granted on reaching the doorstep
     # Room ids banned from the draft pool by the Repellent item.  Each
