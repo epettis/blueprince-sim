@@ -521,6 +521,20 @@ def main() -> int:
                     f"{where} trophy/{troph_id}: price must be a non-negative int, got {troph_price!r}"
                 )
 
+    # ── Upgrade Disk terminals ────────────────────────────────────────────────
+    # The rooms whose terminal accepts an Upgrade Disk (docs/upgrade-disks-design.md).
+    # Blackbridge Grotto is a fifth in the real game but has no record yet.
+    # Mirrored in tools/ingest_sheet.py's DISK_READER_IDS; this check is what
+    # catches the two drifting apart, or the flag being dropped from a record.
+    DISK_READER_ROOMS = {"security", "laboratory", "office", "shelter"}
+    actual_readers = {r["id"] for r in rooms if r.get("flags", {}).get("disk_reader")}
+    if actual_readers != DISK_READER_ROOMS:
+        missing = DISK_READER_ROOMS - actual_readers
+        extra = actual_readers - DISK_READER_ROOMS
+        errors.append(
+            f"disk_reader flag mismatch: missing {sorted(missing)}, unexpected {sorted(extra)}"
+        )
+
     # ── upgrade_selection.json ─────────────────────────────────────────────────
     KNOWN_CHECKS = {"room_drafts", "catacombs_unlocked", "always_false"}
     us_doc = json.loads((DATA / "upgrade_selection.json").read_text())

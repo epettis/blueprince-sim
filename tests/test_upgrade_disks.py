@@ -57,11 +57,16 @@ def _grant_disk(game: Game, disk_id: str = "upgrade_disk_vault_304") -> None:
 # disk_reader flag
 # ---------------------------------------------------------------------------
 
-def test_disk_reader_flag_on_terminal_rooms(registry: Registry) -> None:
-    """Security, Laboratory, Office and Shelter have disk_reader=True; no other room does."""
-    expected = {"security", "laboratory", "office", "shelter"}
-    actual = {r.id for r in registry.rooms if r.disk_reader}
-    assert actual == expected
+def test_a_disk_reader_room_is_distinguishable_from_an_ordinary_one(registry: Registry) -> None:
+    """The disk_reader flag actually reaches the parsed Room and separates rooms.
+
+    Which rooms carry the flag is a data question, checked in
+    tools/validate_data.py; asserting the id set here would only re-read
+    rooms.json back through the registry.
+    """
+    readers = [r for r in registry.rooms if r.disk_reader]
+    assert readers, "at least one room must be a disk reader or the feature is unreachable"
+    assert any(not r.disk_reader for r in registry.rooms), "the flag must not be universal"
 
 
 # ---------------------------------------------------------------------------

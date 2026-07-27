@@ -183,15 +183,14 @@ def _parse_mode(raw: dict, has_shortcut: bool) -> ModeTable:
     )
 
 
-def load_tables(data_dir: Path | None = None) -> UpgradeTables:
-    """Load and parse upgrade_selection.json from ``data_dir``.
+def parse_tables(raw: dict) -> UpgradeTables:
+    """Build ``UpgradeTables`` from an already-decoded table document.
 
-    ``data_dir`` follows the same convention as ``Registry.load``: defaults to
-    the packaged data directory and can be overridden for testing.
+    Split out from :func:`load_tables` so callers can supply tables directly
+    instead of reading the packaged file. Tests use this to exercise the walk
+    against purpose-built tables: asserting the algorithm's behaviour against
+    the shipped tables would only pin what the data file happens to say today.
     """
-    d = Path(data_dir) if data_dir else DEFAULT_DATA_DIR
-    raw = json.loads((d / "upgrade_selection.json").read_text())
-
     slot_defs = tuple(
         SlotDef(slot=slot_id, room=info["room"])
         for slot_id, info in raw["slots"].items()
@@ -203,6 +202,16 @@ def load_tables(data_dir: Path | None = None) -> UpgradeTables:
         non_veteran=_parse_mode(raw["non_veteran"], has_shortcut=False),
         veteran=_parse_mode(raw["veteran"], has_shortcut=True),
     )
+
+
+def load_tables(data_dir: Path | None = None) -> UpgradeTables:
+    """Load and parse upgrade_selection.json from ``data_dir``.
+
+    ``data_dir`` follows the same convention as ``Registry.load``: defaults to
+    the packaged data directory and can be overridden for testing.
+    """
+    d = Path(data_dir) if data_dir else DEFAULT_DATA_DIR
+    return parse_tables(json.loads((d / "upgrade_selection.json").read_text()))
 
 
 # ---------------------------------------------------------------------------
