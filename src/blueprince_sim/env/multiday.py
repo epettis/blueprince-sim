@@ -76,6 +76,10 @@ class DayChain:
         # Ignition targets permanently lit: accumulated union across all days.  Once lit,
         # a target cannot be lit again in any later day within the same attempt.
         self.lit_targets: frozenset[str] = frozenset()
+        # Fixed-location Upgrade Disk ids collected: accumulated union across all days.
+        # Their rooms re-grant on first entry every day, so this set is the only thing
+        # stopping a re-draft of the room from minting a duplicate disk.
+        self.collected_disks: frozenset[str] = frozenset()
         # Keeper of Tithes: running sum of coins banked by the Chapel entry penalty.
         # Accumulated across all days until the Chapel altar is lit (one-time-ever);
         # after payout the counter stays 0 (state.special.chapel_tithes cleared to 0).
@@ -113,6 +117,7 @@ class DayChain:
             banned_rooms=active_bans,
             used_vault_keys=self.used_vault_keys,
             lit_targets=self.lit_targets,
+            collected_disks=self.collected_disks,
             chapel_tithes=self.chapel_tithes,
             upgrade_disks=self.applied_upgrades,
             draft_counts=dict(self.draft_counts),
@@ -164,6 +169,11 @@ class DayChain:
         lt_val = carryover.get("lit_targets")
         if lt_val is not None:
             self.lit_targets = self.lit_targets | frozenset(lt_val)
+
+        # --- collected_disks (fixed-location Upgrade Disks; accumulate forever within attempt) ---
+        cd_val = carryover.get("collected_disks")
+        if cd_val is not None:
+            self.collected_disks = self.collected_disks | frozenset(cd_val)
 
         # --- chapel_tithes (Keeper of Tithes running total; accumulate until payout) ---
         # After the altar is lit the counter is cleared to 0; subsequent days carry 0.
@@ -218,6 +228,7 @@ class DayChain:
             self.carried_items = frozenset()
             self.used_vault_keys = frozenset()
             self.lit_targets = frozenset()    # fresh attempt; ignition history reset
+            self.collected_disks = frozenset()  # fresh attempt; disks back in the house
             self.chapel_tithes = 0            # fresh attempt; tithe bank reset
             self.repellent_bans = {}
             self._ban_order = []

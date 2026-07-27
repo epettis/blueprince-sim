@@ -52,12 +52,24 @@ Wiki research (https://blueprince.wiki.gg/wiki/Upgrade_Disk):
   prize door, Vault box 304, Trading Post dynamite chamber, Freezer ice wall, Tomb
   candles, The Foundation, Abandoned Mine, Lost & Found pool, Mechanarium, Archives
   cabinet) plus **one repeatable Trading Post trade** — "Unlike the other Upgrade
-  Disks, this disk can appear repeatedly" — which is the 16th. The sim models the
-  six reachable fixed sources today (`upgrade_disk_vault_304`, `_commissary`,
-  `_garage`, `_trading_post`, `_lost_and_found`, `_tomb`) plus `upgrade_disk_trade`;
-  the other nine sit in unmodeled rooms/areas and should be added with their rooms.
-  Because every disk id is a UNIQUE item, the supply cap enforces itself: once the
-  traded disk is held, tier-5 trades stop offering it and decay to dice.
+  Disks, this disk can appear repeatedly" — which is the 16th. The sim models
+  **14 of the 16**: six bespoke sources (`upgrade_disk_vault_304`, `_commissary`,
+  `_garage`, `_trading_post`, `_lost_and_found`, `_tomb`), the repeatable
+  `upgrade_disk_trade`, and seven fixed room pickups added via `guaranteed_in`
+  (`_office`, `_morning_room`, `_her_ladyships_chamber`, `_great_hall`, `_freezer`,
+  `_archives`, `_mechanarium`). Only **The Foundation** and the **Abandoned Mine**
+  remain; both are off-grid and wait on task 4.
+
+  **Uniqueness alone does NOT enforce the supply cap.** A unique item is only
+  blocked while it is *held* — `special_items.remove(consumed=True)` records it in
+  `state.special.removed`, which is per-day state. Spend a disk and the next day's
+  `guaranteed_in` grant mints another, which measured at 7 duplicates per day. What
+  actually enforces the cap is the `GameConfig.collected_disks` carryover: seeded
+  into `gated_out` at day start, accumulated as a union by `DayChain`, and cleared
+  on attempt wrap — the same shape as `used_vault_keys` and `lit_targets`. It
+  deliberately covers only the `guaranteed_in` disks; the six bespoke sources carry
+  their own permanence flags, and excluding them is also what keeps the repeatable
+  trade disk repeatable.
 - **Upgradable rooms**: **15 rooms carrying 16 upgrade slots**, because Spare Room
   is upgraded twice — the first pick turns it into Spare Bedroom / Greenroom / Hall,
   and the second upgrades whichever of those was chosen into one of *its* own three
