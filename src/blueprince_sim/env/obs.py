@@ -66,7 +66,13 @@ def observation_space(n_rooms: int, n_items: int, n_recipes: int) -> spaces.Dict
         "player_pos": spaces.Discrete(45),
         "resources": spaces.Box(-1, 999, shape=(7,), dtype=np.int16),
         "options": spaces.Box(-1, max(n_rooms, 999), shape=(3, OPTION_FEATURES), dtype=np.int16),
-        "phase": spaces.Discrete(3),
+        # upgrade_options: Room.idx+1 for each of the three offered upgrade variants
+        # while in UPGRADE_PENDING, or -1 in every slot otherwise.
+        "upgrade_options": spaces.Box(-1, max(n_rooms, 999), shape=(3,), dtype=np.int16),
+        "phase": spaces.Discrete(4),
+        # disks_held: count of upgrade disks in inventory (0..7). Lets the agent
+        # know whether inserting is possible without inspecting the full inventory.
+        "disks_held": spaces.Discrete(8),
         "stage": spaces.Discrete(3),
         "house_flags": spaces.Box(0, 999, shape=(HOUSE_FLAGS,), dtype=np.int16),
         # deepest_rank, optimistic player->Antechamber distance (-1 if walled
@@ -318,6 +324,16 @@ def encode(game: Game) -> dict:
                 if remaining > 0:
                     grid_containers[cell // 5, cell % 5] = remaining
 
+    # upgrade_options: offered variant room indices (+1) in UPGRADE_PENDING, else -1
+    upgrade_options = np.full(3, -1, dtype=np.int16)
+    if game.phase is Phase.UPGRADE_PENDING:
+        for i, variant_id in enumerate(st.pending_upgrade_options[:3]):
+            room = game.registry.by_id.get(variant_id)
+            upgrade_options[i] = room.idx + 1 if room is not None else -1
+
+    # disks_held: count of upgrade disk items currently in inventory (capped at 7)
+    disks_held = min(len(game.held_disk_ids()), 7)
+
     # shop_stock: current shop's display (SHOP_STOCK_ROWS x 5), -1 sentinel rows
     shop_stock_arr = _encode_shop_stock(game)
 
@@ -344,7 +360,9 @@ def encode(game: Game) -> dict:
         "player_pos": st.pos,
         "resources": resources,
         "options": options,
+        "upgrade_options": upgrade_options,
         "phase": game.phase.value,
+        "disks_held": disks_held,
         "stage": STAGE_INDEX.get(st.stage, 2),
         "house_flags": house_flags,
         "progress": progress,

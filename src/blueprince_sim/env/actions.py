@@ -5,7 +5,7 @@ to draft, or a room to enter) and the engine walks the shortest connected
 path, paying the normal one-step-per-room cost. Re-entering rooms grants
 nothing, so free-form single-tile moves were retired.
 
-Layout (Discrete(275)):
+Layout (Discrete(279)):
   0..179   draft at doorway: cell (45) x direction (4: N,E,S,W) ->
            cell*4 + dir_index. Walks to the room first if needed. Legal for
            every frontier doorway reachable with at least one step to spare
@@ -48,6 +48,9 @@ Layout (Discrete(275)):
   272      open vault deposit box (standing in the Vault with a matching vault key)
   273      light ignition target (standing in chapel/tomb/trading_post with torch or burning_glass)
   274      install broken lever in a machine room (greenhouse/casino)
+  275      insert an Upgrade Disk (NAVIGATE; standing at a disk reader holding a disk)
+  276..278 choose upgrade variant slot 0/1/2 (UPGRADE_PENDING only; exactly
+           three options are always offered)
 """
 
 from __future__ import annotations
@@ -58,7 +61,7 @@ from ..engine.locks import DOOR_LOCKED, DOOR_SECURITY, SECURITY_LEVELS
 from ..engine import shops as _shops
 from ..engine import special_items as _si
 
-N_ACTIONS = 275
+N_ACTIONS = 279
 OPEN_BASE, CHOOSE_BASE, ALT_BASE = 0, 180, 183
 REDRAW_ACTION, OUTER_DRAFT_ACTION = 186, 188
 ENTER_OUTER_ACTION = 187   # enter outer room from doorstep
@@ -78,6 +81,8 @@ OPEN_CAR_TRUNK_ACTION = 271  # open garage car trunk (Garage + Car Keys)
 OPEN_VAULT_BOX_ACTION = 272  # open a vault deposit box (Vault + matching vault key)
 LIGHT_ACTION = 273           # light ignition target (torch or burning_glass)
 INSTALL_LEVER_ACTION = 274   # install broken_lever in a machine room
+INSERT_DISK_ACTION = 275     # insert an Upgrade Disk at a disk reader (NAVIGATE)
+CHOOSE_UPGRADE_BASE = 276    # 276..278: choose upgrade variant slot 0/1/2 (UPGRADE_PENDING)
 DIR_INDEX = {d: i for i, d in enumerate(DIRS)}
 
 
@@ -233,6 +238,11 @@ def action_mask(game: Game, prev_action: int | None = None) -> list[bool]:
     mask = [False] * N_ACTIONS
     if game.phase is Phase.NAVIGATE:
         st = game.state
+        # Set outside the on-grid/off-grid split: three disk readers sit on the
+        # grid but Shelter is an outer room, and can_insert_disk() already
+        # resolves both cases. Putting it in either branch strands the other.
+        if game.can_insert_disk():
+            mask[INSERT_DISK_ACTION] = True
         if st.outer_loc > 0:
             # Off-grid: only outer-area actions are legal
             inside_penalty = 1 if st.outer_loc == 2 else 0
@@ -352,6 +362,11 @@ def action_mask(game: Game, prev_action: int | None = None) -> list[bool]:
             mask[REDRAW_ACTION] = True
         if game.rotation_available():
             mask[ROTATE_ACTION] = True
+    elif game.phase is Phase.UPGRADE_PENDING:
+        # Exactly three upgrade variants are always offered; enable all three.
+        # No other actions are legal in this phase — the player must choose.
+        for i in range(3):
+            mask[CHOOSE_UPGRADE_BASE + i] = True
     # Security-setpoint repeat guard: if the last applied action was a
     # set-level id, mask all three off so the agent must do something else
     # before touching the setpoint again.
@@ -437,6 +452,10 @@ def apply_action(game: Game, action: int) -> None:
         game.light()
     elif action == INSTALL_LEVER_ACTION:
         game.install_lever()
+    elif action == INSERT_DISK_ACTION:
+        game.insert_disk()
+    elif CHOOSE_UPGRADE_BASE <= action < CHOOSE_UPGRADE_BASE + 3:
+        game.choose_upgrade(action - CHOOSE_UPGRADE_BASE)
     else:
         raise ValueError(f"unimplemented action {action}")
 
@@ -516,4 +535,11 @@ def describe_action(game: Game, action: int) -> str:
         return "light ignition target"
     if action == INSTALL_LEVER_ACTION:
         return "install broken lever"
+    if action == INSERT_DISK_ACTION:
+        return "insert upgrade disk"
+    if CHOOSE_UPGRADE_BASE <= action < CHOOSE_UPGRADE_BASE + 3:
+        i = action - CHOOSE_UPGRADE_BASE
+        opts = game.state.pending_upgrade_options
+        variant = opts[i] if i < len(opts) else "?"
+        return f"choose upgrade #{i} ({variant})"
     return f"action {action}"

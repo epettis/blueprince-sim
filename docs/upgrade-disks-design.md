@@ -1,6 +1,10 @@
 # Upgrade Disk draw mechanism — design
 
-Status: **spec-ready**, not implemented. Owner decisions recorded 2026-07-26.
+Status: **implemented** 2026-07-26 — tables in
+`src/blueprince_sim/data/upgrade_selection.json`, selection in
+`engine/upgrades.py`, deck substitution in `decks.apply_upgrade`, the player-facing
+API on `Game` (`can_insert_disk` / `insert_disk` / `choose_upgrade`).
+The individual upgrade *effects* are still unwritten — that is the next task.
 Authoritative for the draw mechanism; `docs/open_tasks.md` §2 covers the
 surrounding task (disk sources, terminal rooms, supply).
 
