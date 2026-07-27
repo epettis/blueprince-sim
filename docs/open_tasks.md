@@ -142,6 +142,28 @@ it: microchips, Power Hammer wall breaks, the Sanctum keys.
   and smashers do nothing. This is what makes the Locker Room's key-spreading
   (task 1) load-bearing rather than flavour.
 
+- **2026-07-27, Catacombs unlock**: `catacombs_unlocked` is true only on days the
+  Tomb has been **drafted as the outer room AND entered**. It is deliberately NOT a
+  permanent carry-over flag, even though the wiki says the angel-statue puzzle opens
+  the wall permanently, because reaching the Catacombs still needs the Tomb present
+  that day. Modelled as a data flag `flags.unlocks_catacombs` on the Tomb record
+  rather than a hardcoded room id, so the rule is a data edit.
+
+  This also settles the "Catacombs unlock condition" open decision in
+  [`upgrade-value-measurement.md`](upgrade-value-measurement.md). Consequence: the
+  42x lift quoted there assumed the check simply being true, so the realized gain is
+  that figure scaled by P(Tomb drafted and entered) — roughly a 1-in-8 outer-room
+  draw, times the chance the agent spends the steps to walk the West Path. The real
+  offer rate must be **measured**, not assumed.
+
+- **2026-07-27, area-graph scope**: task 4 is NOT a prerequisite for making Cloister
+  of Orinda measurable. The Catacombs gate needs only the Tomb (already modelled),
+  and 7 of the 9 unmodelled Upgrade Disks sit in rooms that already deal (Office,
+  Morning Room, Her Ladyship's Chamber, Great Hall, Freezer, Archives, Mechanarium).
+  Only **The Foundation** (record exists but `pool=none`) and the **Abandoned Mine**
+  (no record) are genuinely off-grid. Task 4 still owns Blackbridge Grotto (the 5th
+  disk terminal) and the action-space change worth bundling with the retrain.
+
 ## 5. Throttle the training terminal output — DONE
 
 The trainer currently refreshes the dashboard after every completed seed, which
@@ -185,11 +207,18 @@ Candidates to audit: `diary_key` (opens the Sleep Diary only), `key_of_aries`
 present the agent with a *choice*? If not, delete the item and grant its payoff
 directly.
 
-## 7. Ignition candles near the Reservoir
+## 7. Ignition candles in the Abandoned Mine
 
-Blocked on task 4 (outside-area movement graph). Lighting them creates a
-**connection between the Precipice and the Reservoir**, so it is a graph edge, not
-just a reward — add it when the area graph lands.
+Blocked on task 4 (outside-area movement graph). Eight candlesticks stand in the
+Abandoned Mine's circular room; lighting them all with an ignition tool (Torch or
+Burning Glass) permanently sinks the floor into a stairway down to **the
+Precipice**. So it is a graph edge, not just a reward — add it when the area graph
+lands, as a permanent `abandoned_mine -> precipice` edge.
+
+The Mine is also what connects the Reservoir's north and south halves, which is
+the likely source of the earlier belief that the candles linked the Reservoir to
+the Precipice. They do not: the Reservoir reaches the Precipice only by walking
+through the Mine.
 
 ## 8. Model the Casino games
 

@@ -535,6 +535,22 @@ def main() -> int:
             f"disk_reader flag mismatch: missing {sorted(missing)}, unexpected {sorted(extra)}"
         )
 
+    # ── unlocks_catacombs flag ────────────────────────────────────────────────
+    # Only the Tomb carries this flag; it must be a boolean when present.
+    # Mirrored in tools/ingest_sheet.py's UNLOCKS_CATACOMBS_IDS.
+    UNLOCKS_CATACOMBS_ROOMS = {"tomb"}
+    actual_unlockers = {r["id"] for r in rooms if r.get("flags", {}).get("unlocks_catacombs")}
+    if actual_unlockers != UNLOCKS_CATACOMBS_ROOMS:
+        missing = UNLOCKS_CATACOMBS_ROOMS - actual_unlockers
+        extra = actual_unlockers - UNLOCKS_CATACOMBS_ROOMS
+        errors.append(
+            f"unlocks_catacombs flag mismatch: missing {sorted(missing)}, unexpected {sorted(extra)}"
+        )
+    for r in rooms:
+        val = r.get("flags", {}).get("unlocks_catacombs")
+        if val is not None and not isinstance(val, bool):
+            errors.append(f"room {r['id']!r}: flags.unlocks_catacombs must be bool, got {val!r}")
+
     # ── upgrade_selection.json ─────────────────────────────────────────────────
     KNOWN_CHECKS = {"room_drafts", "catacombs_unlocked", "always_false"}
     us_doc = json.loads((DATA / "upgrade_selection.json").read_text())

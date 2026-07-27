@@ -240,10 +240,8 @@ metric worth plotting over training.
 6. Antechamber locks (task 9), retrain, re-run Phase 1, compare
    difference-in-differences.
 
-### Why task 4 goes first
+### Why task 4 still matters
 
-- It is the **only** thing that makes Orinda measurable at all: the Catacombs
-  check gates the single early path to Cloister, worth 42x on offer rate.
 - It supplies **Blackbridge Grotto**, the fifth disk-reader terminal, currently
   the one modelled terminal with no room record.
 - It almost certainly changes the action or observation space, so bundling it
@@ -257,11 +255,28 @@ shakedown, not a bankable baseline**, because task 4 changes the world the
 baseline describes. Run it to debug the pipeline; re-run it afterwards for the
 number that counts.
 
+### What the Catacombs gate actually needs
+
+The Catacombs unlock does **not** require the area graph. Access is gated on
+drafting and entering the **Tomb**, which is already one of the eight modelled
+outer rooms, and the sim already assumes the player solves any puzzle in a room
+they enter. `catacombs_unlocked` is therefore a same-day check on the Tomb
+(`flags.unlocks_catacombs`), landed ahead of task 4.
+
+Likewise, seven of the nine unmodelled Upgrade Disks sit in rooms that already
+deal — Office, Morning Room, Her Ladyship's Chamber, Great Hall, Freezer,
+Archives, Mechanarium. Only **The Foundation** (record exists, `pool=none`) and
+the **Abandoned Mine** (no record) are genuinely off-grid. Both levers named
+above are reachable without task 4.
+
+**The 42x figure is an upper bound, not a prediction.** It was computed by forcing
+the check true. Gating on same-day Tomb entry scales it by P(Tomb drawn as the
+outer room AND entered) — a 1-in-8 draw, times the chance the policy spends the
+steps to walk the West Path. Measure the realized offer rate; do not quote 42x.
+
 ## Open decisions
 
-- **Disk supply** — leave at 7, or model more of the 16?
+- **Disk supply** — leave at 7, or model more of the 16? Seven of the nine gaps
+  are in already-dealing rooms, so this is mostly a data change.
 - **A/B scope** — all 16 upgrades per eval, or a watchlist of Orinda plus
   controls with an occasional full sweep? The watchlist is recommended.
-- **Catacombs unlock condition** — once a `catacombs` record exists, how often
-  should it actually be unlocked? Orinda's availability is roughly linear in
-  this, so it is a load-bearing modelling choice, not a detail.

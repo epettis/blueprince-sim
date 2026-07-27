@@ -6,11 +6,9 @@ the engine.
 
 ## Known simplifications / documented deviations
 
-1. **Catacombs check always False** — non-veteran line 7 begins with
-   ``(Unlocked Catacombs)``. There is no ``catacombs`` record in rooms.json
-   (task-4 area content is out of scope). The check is modelled as permanently
-   False so line 7 always falls through to line 8. Revisit when the area graph
-   lands.
+1. **Catacombs check** — non-veteran line 7 begins with ``(Unlocked Catacombs)``.
+   The check passes when today's Tomb has been drafted AND entered (same-day only);
+   it is not a permanent carry-over flag.
 
 2. **Veteran day-1 shortcut ignores 'already drafted'** — the wiki's shortcut
    skips a room that is already drafted as well as one already upgraded. Every
@@ -228,6 +226,7 @@ class SelectionContext:
     draft_counts: Mapping[str, int]
     veteran: bool                    # True if veteran mode is active
     day: int                         # current day number (1-based)
+    catacombs_unlocked: bool         # True when today's Tomb has been drafted AND entered (same-day only)
 
 
 # ---------------------------------------------------------------------------
@@ -275,8 +274,7 @@ def _eval_check(entry: CheckEntry, ctx: SelectionContext) -> bool:
         case "room_drafts":
             return ctx.draft_counts.get(entry.room, 0) >= entry.count
         case "catacombs_unlocked":
-            # Always False — no catacombs record exists (documented simplification).
-            return False
+            return ctx.catacombs_unlocked
         case "always_false":
             return False
         case _:

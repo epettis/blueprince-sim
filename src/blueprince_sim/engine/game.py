@@ -1100,6 +1100,21 @@ class Game:
 
     # ---------------------------------------------------------- upgrade disks
 
+    def catacombs_unlocked(self) -> bool:
+        """True when today's outer room grants Catacombs access AND has been entered today.
+
+        The Catacombs are unlocked by drafting and physically entering the Tomb on the same
+        day: the sim assumes the player solves any puzzle in a room they enter, so entering
+        the Tomb solves the angel-statue puzzle. Same-day physical access is still required
+        (owner decision 2026-07-27). The flag is NOT a permanent carry-over.
+        """
+        outer_room = next((r for r in self.outer_rooms if r.id in self.placed_ids), None)
+        return (
+            outer_room is not None
+            and outer_room.unlocks_catacombs
+            and self.state.outer_room_entered
+        )
+
     def disk_reader_here(self) -> bool:
         """True when the player's current location has an Upgrade Disk terminal.
 
@@ -1146,6 +1161,7 @@ class Game:
             draft_counts=st.draft_counts,
             veteran=self.cfg.veteran_mode,
             day=self.cfg.day,
+            catacombs_unlocked=self.catacombs_unlocked(),
         )
         slot = select_slot(self.registry.upgrade_tables, ctx, self.rng)
         if slot is None:

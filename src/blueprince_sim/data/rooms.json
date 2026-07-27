@@ -5588,7 +5588,8 @@
     "no_library_draft": false,
     "powered": false,
     "duct": false,
-    "disk_reader": false
+    "disk_reader": false,
+    "unlocks_catacombs": true
    },
    "deck_copies": 1,
    "effects": [
