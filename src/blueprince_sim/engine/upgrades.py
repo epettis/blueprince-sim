@@ -504,3 +504,49 @@ def offer_variants(
             # The fourteen ordinary slots are named after the room they upgrade;
             # validate_data.py pins that correspondence in upgrade_selection.json.
             return _three_variants_of(registry, slot)
+
+
+# ---------------------------------------------------------------------------
+# Helpers for engine wiring (chunk 2)
+# ---------------------------------------------------------------------------
+
+def root_base_id(registry: Registry, room) -> str:
+    """Walk variant_of to the root; return the root base room id.
+
+    A non-variant room returns its own id. Upgraded variants count toward
+    [N] brackets naming their base room — a Mail Room variant must still
+    increment the 'mail_room' draft counter.
+    """
+    current = room
+    while current.variant_of is not None:
+        parent = registry.by_id.get(current.variant_of)
+        if parent is None:
+            break
+        current = parent
+    return current.id
+
+
+def upgraded_slots(applied_variants: frozenset[str], registry: Registry) -> frozenset[str]:
+    """Map applied variant ids to slot ids.
+
+    A variant whose variant_of is 'spare_room' implies 'spare_1'.
+    A variant whose variant_of is itself a first-level spare variant implies
+    both 'spare_2' and 'spare_1'. Every other variant implies the slot named
+    by its variant_of.
+    """
+    first_level_spare_ids = frozenset(
+        r.id for r in registry.rooms if r.variant_of == "spare_room"
+    )
+    slots: set[str] = set()
+    for vid in applied_variants:
+        room = registry.by_id.get(vid)
+        if room is None or room.variant_of is None:
+            continue
+        if room.variant_of == "spare_room":
+            slots.add("spare_1")
+        elif room.variant_of in first_level_spare_ids:
+            slots.add("spare_1")
+            slots.add("spare_2")
+        else:
+            slots.add(room.variant_of)
+    return frozenset(slots)

@@ -152,3 +152,37 @@ def reroll_random_rarities(state: GameState, rng: Rng, count: int = 3,
 
 
 RARITY_NAMES = RARITIES
+
+
+def apply_upgrade(state: GameState, registry: Registry, variant_id: str, rng: Rng) -> None:
+    """Apply an upgrade to the live decks by substituting base cards for variant cards.
+
+    For same-bucket upgrades (same rarity and free/gem class): rewrites every
+    base card as the variant card in-place. No RNG consumed, no card changes
+    position.
+
+    For cross-bucket upgrades (the 8 Cloister variants, all unusual/gem ->
+    standard/gem or standard/free): removes base cards from the source deck and
+    inserts variant cards at random undealt positions in the destination deck.
+    Uses the 'upgrade_deck_insert' substream.
+
+    Rooms already placed on the grid are never touched, and neither is a draft
+    hand already dealt — but the deck itself retires the base floorplan
+    completely, including cards dealt earlier this cycle, because draft.py's
+    attempt-3 reshuffle would otherwise make the un-upgraded room dealable again.
+    """
+    variant = registry.by_id[variant_id]
+    base = registry.by_id[variant.variant_of]
+
+    src_deck = state.deck(base.rarity_idx, not base.is_free)
+    dst_deck = state.deck(variant.rarity_idx, not variant.is_free)
+
+    if src_deck is dst_deck:
+        # Same bucket: in-place substitution, no RNG consumed
+        src_deck.replace_card(base.idx, variant.idx)
+    else:
+        # Cross-bucket (Cloister variants): remove from source, insert into destination
+        removed = src_deck.remove_card(base.idx)
+        for _ in range(removed):
+            at = rng.randint("upgrade_deck_insert", dst_deck.pos, len(dst_deck.order))
+            dst_deck.insert_undealt(variant.idx, at)

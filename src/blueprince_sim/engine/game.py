@@ -8,7 +8,7 @@ from heapq import heappop, heappush
 
 from ..config import GameConfig
 from . import effects, shops, special_items
-from .decks import build_decks, inject_rooms
+from .decks import apply_upgrade, build_decks, inject_rooms
 from .draft import deal_draft, redeal
 from .effects import Hook
 from .grid import (ADJACENT, DIRS, ENTRANCE_CELL, N_CELLS, OPPOSITE, neighbor,
@@ -20,6 +20,8 @@ from .locks import security_openable as _security_openable
 from .model import Registry, Room
 from .placement import legal_orientations
 from .rng import Rng
+from .upgrades import (SelectionContext, offer_variants, root_base_id,
+                       select_slot, upgraded_slots)
 from .state import DraftOption, GameState, PendingDraft, resolve_gem_cost
 
 ANTECHAMBER_CELL = 42  # rank 9, center column
@@ -29,6 +31,7 @@ class Phase(Enum):
     NAVIGATE = 0
     DRAFTING = 1
     TERMINAL = 2
+    UPGRADE_PENDING = 3
 
 
 class RedrawKind(Enum):
@@ -71,6 +74,10 @@ class Game:
         st.luck = self.registry.item_rules["luck"]["day_start"]
         st.decks = build_decks(self.registry, cfg, self.rng)
         st.special.enabled = cfg.special_items
+        st.draft_counts = dict(cfg.draft_counts)
+        st.applied_upgrades = set(cfg.upgrade_disks)
+        st.pending_upgrade_slot = None
+        st.pending_upgrade_options = ()
         self.state = st
         if cfg.special_items:
             for item_id in sorted(cfg.starting_items):
@@ -1045,8 +1052,10 @@ class Game:
             self.room_cells[room.id] = cell
         self.rooms_placed += 1
         self.deepest_rank = max(self.deepest_rank, rank_of(cell))
-        if not entered:  # entered=True is only the pre-placed Entrance Hall
+        if not entered:  # entered=True is only the pre-placed Entrance Hall; skip draft counting for it
             self.drafted_rooms.append(room.name)
+            root_id = root_base_id(self.registry, room)
+            self.state.draft_counts[root_id] = self.state.draft_counts.get(root_id, 0) + 1
         effects.fire(self, room, Hook.ON_PLACE)
         if self.cfg.special_items:
             special_items.on_place(self, room, cell)
@@ -1088,6 +1097,86 @@ class Game:
 
     def inject_rooms(self, room_ids: list[str]) -> None:
         inject_rooms(self.state, self.registry, room_ids, self.rng)
+
+    # ---------------------------------------------------------- upgrade disks
+
+    def disk_reader_here(self) -> bool:
+        """True when the player's current location has an Upgrade Disk terminal.
+
+        Checks both the grid room at the player's cell and the outer room when
+        the player is inside it (outer_loc == 2), since Shelter is an outer room.
+        """
+        st = self.state
+        if st.outer_loc == 2:
+            outer_room = next((r for r in self.outer_rooms if r.id in self.placed_ids), None)
+            return outer_room is not None and outer_room.disk_reader
+        if 0 <= st.pos < len(st.grid) and st.grid[st.pos] >= 0:
+            return self.registry.rooms[st.grid[st.pos]].disk_reader
+        return False
+
+    def held_disk_ids(self) -> list[str]:
+        """Item ids starting with 'upgrade_disk_', sorted for deterministic consumption order."""
+        return sorted(
+            item_id for item_id in self.state.inventory if item_id.startswith("upgrade_disk_")
+        )
+
+    def can_insert_disk(self) -> bool:
+        """True when inserting a disk is a legal action right now."""
+        return (
+            self.phase is Phase.NAVIGATE
+            and self.disk_reader_here()
+            and bool(self.held_disk_ids())
+        )
+
+    def insert_disk(self) -> bool:
+        """Insert the first held Upgrade Disk, triggering the selection algorithm.
+
+        Builds a SelectionContext, calls select_slot, and if a slot is selectable
+        consumes the disk, sets pending_upgrade_slot and pending_upgrade_options,
+        and advances phase to UPGRADE_PENDING. Returns True if the disk was
+        inserted (phase changed), False if no slot was selectable (disk NOT consumed).
+
+        Inserting a disk costs no step and has no per-day limit — the wiki
+        mentions neither constraint.
+        """
+        assert self.can_insert_disk(), "must hold a disk and stand at a disk reader"
+        st = self.state
+        ctx = SelectionContext(
+            upgraded_slots=upgraded_slots(frozenset(st.applied_upgrades), self.registry),
+            draft_counts=st.draft_counts,
+            veteran=self.cfg.veteran_mode,
+            day=self.cfg.day,
+        )
+        slot = select_slot(self.registry.upgrade_tables, ctx, self.rng)
+        if slot is None:
+            return False
+
+        # Consume the first held disk (sorted order is deterministic)
+        disk_ids = self.held_disk_ids()
+        special_items.remove(st, disk_ids[0], consumed=True)
+
+        options = offer_variants(slot, frozenset(st.applied_upgrades), self.registry, self.rng)
+        st.pending_upgrade_slot = slot
+        st.pending_upgrade_options = tuple(options)
+        self.phase = Phase.UPGRADE_PENDING
+        return True
+
+    def choose_upgrade(self, index: int) -> None:
+        """Choose one of the three offered upgrade variants.
+
+        Only legal in UPGRADE_PENDING with 0 <= index < 3. Adds the chosen
+        variant to applied_upgrades, calls apply_upgrade on the live decks,
+        clears the pending fields, and returns phase to NAVIGATE.
+        """
+        assert self.phase is Phase.UPGRADE_PENDING, "choose_upgrade only legal in UPGRADE_PENDING"
+        assert 0 <= index < 3, f"index must be 0, 1, or 2; got {index}"
+        st = self.state
+        variant_id = st.pending_upgrade_options[index]
+        st.applied_upgrades.add(variant_id)
+        apply_upgrade(st, self.registry, variant_id, self.rng)
+        st.pending_upgrade_slot = None
+        st.pending_upgrade_options = ()
+        self.phase = Phase.NAVIGATE
 
     def _terminate(self, reason: str) -> None:
         self.phase = Phase.TERMINAL
