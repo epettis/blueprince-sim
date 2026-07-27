@@ -106,6 +106,15 @@ the safe gem is truly daily and per-room-instance.
 
 ## 4. Connectivity graph for the outside areas
 
+**Now a prerequisite for measuring upgrades — schedule it before the upgrade
+retrain.** This task supplies the `catacombs` record, and the Catacombs check
+gates non-veteran chain line 7, the only line where Cloister sits first. Held
+permanently false, Cloister of Orinda is offered on 0.07% of upgrade events;
+unlocked, 2.96% — a 42x difference, and the difference between measurable and
+not. It also supplies Blackbridge Grotto, the fifth disk-reader terminal. See
+[`upgrade-value-measurement.md`](upgrade-value-measurement.md) for the numbers
+and the sequencing argument.
+
 Everything beyond the 5×9 grid — West Path / Outer Rooms, the Grounds, Blackbridge
 Grotto, Orindian Ruins, the Precipice, the Abandoned Mine, Crate Tunnel, the Inner
 Sanctum — is modeled today only as the single "outer room" doorstep abstraction
@@ -193,6 +202,14 @@ Ties into the Broken Lever (its golden slot machine gives 5 bonus spins instead 
 3) and the Allowance Token (roulette is a repeatable source).
 
 ## 9. The Antechamber needs a lever, not just a door
+
+Landing this is the validation test for the Upgrade Disk work: Cloister of
+Orinda opens a random Antechamber door, which is worthless while the Antechamber
+has no locks, so Orinda's measured value should rise once this lands. How to
+measure that — and why the comparison needs control upgrades and a fixed
+instrument — is in
+[`upgrade-value-measurement.md`](upgrade-value-measurement.md). Take the
+pre-lock baseline **before** starting this task.
 
 **Current model is wrong in an important way**: the run is resolved by walking into
 the Antechamber, but in the real game its doors must first be opened by a lever
