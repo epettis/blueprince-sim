@@ -77,15 +77,15 @@ class GameConfig:
     # later day within the same attempt.  Carried by DayChain as a frozenset and
     # merged as a union — a lit target never un-lights.
     lit_targets: frozenset[str] = frozenset()
-    # Upgrade Disk ids already collected from their fixed room location (the
-    # `guaranteed_in` disks: Office, Morning Room, Her Ladyship's Chamber, Great
-    # Hall, Freezer, Archives, Mechanarium).  Those disks sit at one spot in the
-    # house and are gone for the whole attempt once taken, but `guaranteed_in`
+    # Upgrade Disk ids already spent (inserted at a terminal) from their fixed room
+    # location (the `guaranteed_in` disks: Office, Morning Room, Her Ladyship's
+    # Chamber, Great Hall, Freezer, Archives, Mechanarium).  An unspent disk drops
+    # at end of day and returns to its room on re-entry; only spending it (which
+    # calls remove(..., consumed=True)) makes removal permanent.  `guaranteed_in`
     # re-fires on first entry every day, so without this set re-drafting the room
-    # tomorrow would mint a duplicate.  Carried by DayChain as a frozenset and
-    # merged as a union; seeded into gated_out at day start so _is_available
-    # refuses them.  Membership means "already found", whether or not it was
-    # spent — a consumed disk does not respawn.
+    # after spending a disk would re-mint it.  Carried by DayChain as a frozenset
+    # and merged as a union; seeded into gated_out at day start so _is_available
+    # refuses them.
     collected_disks: frozenset[str] = frozenset()
     # Accumulated Keeper of Tithes coins: every time the Chapel's entry -1 coin
     # penalty actually fires (player has at least 1 coin when entering the Chapel),

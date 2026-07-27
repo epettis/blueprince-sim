@@ -76,9 +76,10 @@ class DayChain:
         # Ignition targets permanently lit: accumulated union across all days.  Once lit,
         # a target cannot be lit again in any later day within the same attempt.
         self.lit_targets: frozenset[str] = frozenset()
-        # Fixed-location Upgrade Disk ids collected: accumulated union across all days.
-        # Their rooms re-grant on first entry every day, so this set is the only thing
-        # stopping a re-draft of the room from minting a duplicate disk.
+        # Fixed-location Upgrade Disk ids spent (inserted at a terminal): accumulated
+        # union across all days. An unspent disk drops overnight and returns to its room;
+        # only a spent disk is permanently gone.  This set gates _is_available so the
+        # room's guaranteed_in grant cannot re-mint a disk that was already consumed.
         self.collected_disks: frozenset[str] = frozenset()
         # Keeper of Tithes: running sum of coins banked by the Chapel entry penalty.
         # Accumulated across all days until the Chapel altar is lit (one-time-ever);
@@ -170,7 +171,7 @@ class DayChain:
         if lt_val is not None:
             self.lit_targets = self.lit_targets | frozenset(lt_val)
 
-        # --- collected_disks (fixed-location Upgrade Disks; accumulate forever within attempt) ---
+        # --- collected_disks (spent fixed-location Upgrade Disks; accumulate forever within attempt) ---
         cd_val = carryover.get("collected_disks")
         if cd_val is not None:
             self.collected_disks = self.collected_disks | frozenset(cd_val)

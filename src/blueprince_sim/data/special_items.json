@@ -1829,7 +1829,7 @@
    "kind": "unique",
    "tier": null,
    "unique": true,
-   "persistence": "permanent",
+   "persistence": "day",
    "spawn_rooms": [],
    "spawn_rooms_high_luck": [],
    "guaranteed_in": [
@@ -1852,7 +1852,7 @@
    "kind": "unique",
    "tier": null,
    "unique": true,
-   "persistence": "permanent",
+   "persistence": "day",
    "spawn_rooms": [],
    "spawn_rooms_high_luck": [],
    "guaranteed_in": [
@@ -1875,7 +1875,7 @@
    "kind": "unique",
    "tier": null,
    "unique": true,
-   "persistence": "permanent",
+   "persistence": "day",
    "spawn_rooms": [],
    "spawn_rooms_high_luck": [],
    "guaranteed_in": [
@@ -1898,7 +1898,7 @@
    "kind": "unique",
    "tier": null,
    "unique": true,
-   "persistence": "permanent",
+   "persistence": "day",
    "spawn_rooms": [],
    "spawn_rooms_high_luck": [],
    "guaranteed_in": [
@@ -1921,7 +1921,7 @@
    "kind": "unique",
    "tier": null,
    "unique": true,
-   "persistence": "permanent",
+   "persistence": "day",
    "spawn_rooms": [],
    "spawn_rooms_high_luck": [],
    "guaranteed_in": [
@@ -1944,7 +1944,7 @@
    "kind": "unique",
    "tier": null,
    "unique": true,
-   "persistence": "permanent",
+   "persistence": "day",
    "spawn_rooms": [],
    "spawn_rooms_high_luck": [],
    "guaranteed_in": [
@@ -1967,7 +1967,7 @@
    "kind": "unique",
    "tier": null,
    "unique": true,
-   "persistence": "permanent",
+   "persistence": "day",
    "spawn_rooms": [],
    "spawn_rooms_high_luck": [],
    "guaranteed_in": [

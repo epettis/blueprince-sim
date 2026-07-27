@@ -853,16 +853,18 @@ def inventory_value(state, registry) -> float:
     return total
 
 
-def fixed_disks_found_today(state, registry) -> set[str]:
-    """Fixed-location Upgrade Disk ids obtained today, for the collected_disks carryover.
+def fixed_disks_spent_today(state, registry) -> set[str]:
+    """Fixed-location Upgrade Disk ids spent today, for the collected_disks carryover.
 
     Only disks with a ``guaranteed_in`` room qualify: those sit at one spot in the
-    house and are gone for the attempt once taken. The original disks (Vault, Garage,
-    Tomb, ...) are excluded because each already carries its own permanence flag, and
-    excluding them also keeps the repeatable Trading Post trade disk repeatable.
+    house and are permanently gone once inserted at a terminal. The original disks
+    (Vault, Garage, Tomb, ...) are excluded because each already carries its own
+    source mechanic, and excluding them keeps the repeatable Trading Post trade
+    disk repeatable.
 
-    Counts a disk as found whether it is still held or was already consumed today —
-    spending a disk does not put it back in the house.
+    A disk collected but not spent drops overnight and returns to its room — only
+    inserting it (which calls remove(..., consumed=True), appending to
+    state.special.removed) makes the removal permanent.
     """
     guaranteed = {
         item_id
@@ -870,8 +872,7 @@ def fixed_disks_found_today(state, registry) -> set[str]:
         for item_id in ids
         if item_id.startswith("upgrade_disk_")
     }
-    seen = set(state.inventory) | set(state.special.removed)
-    return guaranteed & seen
+    return guaranteed & set(state.special.removed)
 
 
 def luck_bonus(state, registry) -> int:

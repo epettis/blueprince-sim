@@ -1082,12 +1082,12 @@ def carryover(game) -> dict:
             set(getattr(cfg, "lit_targets", frozenset()))
             | set(state.special.lit_targets)
         ),
-        # Fixed-location Upgrade Disks collected: accumulated union across all days.
-        # Their rooms re-grant on first entry each day, so this is what stops a
-        # re-draft from minting a duplicate (see config.collected_disks).
+        # Fixed-location Upgrade Disks spent (inserted at a terminal) today: accumulated
+        # union across all days. Only spent disks are permanently gone; an unspent disk
+        # drops overnight and returns to its room (see config.collected_disks).
         "collected_disks": sorted(
             set(getattr(cfg, "collected_disks", frozenset()))
-            | si_mod.fixed_disks_found_today(state, game.registry)
+            | si_mod.fixed_disks_spent_today(state, game.registry)
         ),
         # Keeper of Tithes: running total of coins the Chapel penalty has banked.
         # The payout (lighting the altar) clears chapel_tithes to 0 in state;

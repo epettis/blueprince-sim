@@ -93,11 +93,12 @@ def test_disks_held_encodes_counts_above_the_old_cap():
 
 
 def test_consumed_disk_is_not_regranted_on_a_later_day():
-    """A fixed-location disk collected and spent on day 1 is not handed out again on day 2.
+    """A fixed-location disk spent (inserted at a terminal) on day 1 is not re-granted on day 2.
 
     `guaranteed_in` re-fires on every day's first entry and `state.special.removed`
     only lasts the day, so without the collected_disks carryover each of these rooms
-    would mint a fresh disk daily against a real-game cap of one per attempt.
+    would re-mint a disk after it had been consumed — undermining the upgrade economy's
+    one-disk-per-attempt-per-room supply cap.
     """
     g = _game()
     _enter(g, "office")
@@ -106,7 +107,7 @@ def test_consumed_disk_is_not_regranted_on_a_later_day():
 
     carry = shops.carryover(g)
     assert "upgrade_disk_office" in carry["collected_disks"], (
-        "a disk found today must appear in collected_disks even after being spent"
+        "a spent disk must appear in collected_disks so it cannot be re-granted later"
     )
 
     day2 = Game(
@@ -143,19 +144,22 @@ def test_repeated_days_cannot_exceed_one_disk_per_fixed_location():
     )
 
 
-def test_unspent_disk_still_carries_in_inventory_to_the_next_day():
-    """A disk found but not spent is still held the next day; gating must not eat it.
+def test_unspent_disk_is_not_in_next_day_inventory():
+    """An unspent Ingrid disk drops at end-of-day and is absent from day 2's starting inventory.
 
-    collected_disks blocks re-granting, not possession — breaking the normal
-    permanent-item carry would quietly delete disks the player is saving for a reader.
+    Disks have persistence="day", so end_of_day_carry() does not include them —
+    only spending (inserting) a disk makes its removal permanent.
     """
     g = _game()
     _enter(g, "office")
-    assert g.state.inventory.get("upgrade_disk_office", 0) == 1
+    assert g.state.inventory.get("upgrade_disk_office", 0) == 1, "disk must be in hand after entry"
 
     carry = shops.carryover(g)
-    assert "upgrade_disk_office" in carry["starting_items"], (
-        "an unspent permanent disk must carry over as a starting item"
+    assert "upgrade_disk_office" not in carry["collected_disks"], (
+        "an unspent disk must not appear in collected_disks — it was not consumed"
+    )
+    assert "upgrade_disk_office" not in carry["starting_items"], (
+        "an unspent day-persistence disk must not carry to the next day's starting_items"
     )
 
     day2 = Game(
@@ -166,8 +170,97 @@ def test_unspent_disk_still_carries_in_inventory_to_the_next_day():
         ),
         seed=1,
     )
+    si.configure(day2.state, day2.cfg)
+    assert day2.state.inventory.get("upgrade_disk_office", 0) == 0, (
+        "the unspent disk must not appear in day 2's inventory — it dropped overnight"
+    )
+
+
+def test_unspent_disk_is_regranted_when_room_reentered():
+    """A disk collected but not spent returns to its room and is re-granted on re-entry.
+
+    This is the core drop-and-respawn rule: persistence="day" means the disk is absent
+    from day 2's starting items, and because it was not spent (not in collected_disks),
+    _is_available allows the room to re-grant it when entered again.
+    """
+    g = _game()
+    _enter(g, "office")
+    assert g.state.inventory.get("upgrade_disk_office", 0) == 1, "disk in hand after day 1 entry"
+
+    carry = shops.carryover(g)
+    # Disk was not spent -> not in collected_disks -> room can re-grant on day 2
+    assert "upgrade_disk_office" not in carry["collected_disks"]
+
+    day2 = Game(
+        GameConfig(
+            special_items=True,
+            collected_disks=frozenset(carry["collected_disks"]),
+            starting_items=frozenset(carry["starting_items"]),
+        ),
+        seed=1,
+    )
+    si.configure(day2.state, day2.cfg)
+    assert day2.state.inventory.get("upgrade_disk_office", 0) == 0, (
+        "disk must not be in day 2 starting inventory — it was not carried over"
+    )
+
+    _enter(day2, "office")
     assert day2.state.inventory.get("upgrade_disk_office", 0) == 1, (
-        "the carried disk was lost on the next day"
+        "re-entering the Office on day 2 must re-grant the disk that was not spent"
+    )
+
+
+def test_spend_vs_no_spend_diverge_across_days():
+    """Spending a disk and not spending it produce opposite outcomes on the next day.
+
+    Spend path: disk consumed -> in collected_disks -> room blocked -> disk absent on day 2.
+    No-spend path: disk drops overnight -> not in collected_disks -> room re-grants on day 2.
+    """
+    # --- spend path ---
+    g_spend = _game()
+    _enter(g_spend, "office")
+    si.remove(g_spend.state, "upgrade_disk_office", consumed=True)
+    carry_spend = shops.carryover(g_spend)
+    assert "upgrade_disk_office" in carry_spend["collected_disks"], "spent disk must be in carryover"
+
+    day2_spend = Game(
+        GameConfig(
+            special_items=True,
+            collected_disks=frozenset(carry_spend["collected_disks"]),
+            starting_items=frozenset(carry_spend["starting_items"]),
+        ),
+        seed=1,
+    )
+    si.configure(day2_spend.state, day2_spend.cfg)
+    _enter(day2_spend, "office")
+    after_spend = day2_spend.state.inventory.get("upgrade_disk_office", 0)
+
+    # --- no-spend path ---
+    g_keep = _game()
+    _enter(g_keep, "office")
+    # disk is in inventory but NOT spent
+    carry_keep = shops.carryover(g_keep)
+    assert "upgrade_disk_office" not in carry_keep["collected_disks"], (
+        "unspent disk must not be in collected_disks"
+    )
+
+    day2_keep = Game(
+        GameConfig(
+            special_items=True,
+            collected_disks=frozenset(carry_keep["collected_disks"]),
+            starting_items=frozenset(carry_keep["starting_items"]),
+        ),
+        seed=1,
+    )
+    si.configure(day2_keep.state, day2_keep.cfg)
+    _enter(day2_keep, "office")
+    after_keep = day2_keep.state.inventory.get("upgrade_disk_office", 0)
+
+    assert after_spend == 0, (
+        f"spent path: Office on day 2 must not re-grant the disk (got {after_spend})"
+    )
+    assert after_keep == 1, (
+        f"no-spend path: Office on day 2 must re-grant the disk (got {after_keep})"
     )
 
 
