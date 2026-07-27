@@ -147,6 +147,7 @@ def _ctx(
     draft_counts: dict[str, int] | None = None,
     veteran: bool = False,
     day: int = 2,
+    catacombs_unlocked: bool = False,
 ) -> SelectionContext:
     """Convenience factory for SelectionContext."""
     return SelectionContext(
@@ -154,6 +155,7 @@ def _ctx(
         draft_counts=draft_counts or {},
         veteran=veteran,
         day=day,
+        catacombs_unlocked=catacombs_unlocked,
     )
 
 
@@ -852,6 +854,60 @@ def test_offer_variants_already_applied_not_excluded():
     offered = offer_variants("closet", applied, reg, Rng(0))
     assert len(offered) == 3, "must always offer 3 even when a variant is already applied"
     assert set(offered) == {"closet_v1", "closet_v2", "closet_v3"}
+
+
+# ---------------------------------------------------------------------------
+# catacombs_unlocked check in chain walk
+# ---------------------------------------------------------------------------
+
+def test_catacombs_check_false_abandons_line():
+    """Line 7 is the only early path to Cloister; a locked Catacombs must make it fall through.
+
+    A chain line headed by catacombs_unlocked check falls through when the context
+    has catacombs_unlocked=False, leaving only the fallback line reachable.
+    """
+    t = _tables(
+        slots={"cloister": "cloister", "nook": "nook"},
+        nv_chains=[
+            _chain_line("7", [_check_entry("catacombs_unlocked"), _slot_entry("cloister")]),
+            _chain_line("8", [_slot_entry("nook")]),
+        ],
+    )
+    # One slot upgraded to skip first-upgrade path; cloister and nook both selectable.
+    ctx = _ctx(upgraded=frozenset({"storeroom"}), catacombs_unlocked=False)
+
+    seen: set[str] = set()
+    for seed in range(200):
+        slot = select_slot(t, ctx, Rng(seed))
+        if slot is not None:
+            seen.add(slot)
+
+    assert "cloister" not in seen, "cloister must be unreachable when catacombs_unlocked=False"
+    assert "nook" in seen, "nook must be reachable via line 8 fallthrough"
+
+
+def test_catacombs_check_true_allows_line():
+    """When catacombs_unlocked=True the check passes and the line proceeds to Cloister.
+
+    Both cloister and nook should be reachable depending on which line is picked.
+    """
+    t = _tables(
+        slots={"cloister": "cloister", "nook": "nook"},
+        nv_chains=[
+            _chain_line("7", [_check_entry("catacombs_unlocked"), _slot_entry("cloister")]),
+            _chain_line("8", [_slot_entry("nook")]),
+        ],
+    )
+    ctx = _ctx(upgraded=frozenset({"storeroom"}), catacombs_unlocked=True)
+
+    seen: set[str] = set()
+    for seed in range(500):
+        slot = select_slot(t, ctx, Rng(seed))
+        if slot is not None:
+            seen.add(slot)
+
+    assert "cloister" in seen, "cloister must be reachable when catacombs_unlocked=True"
+    assert "nook" in seen, "nook must still be reachable (line 8 still picked sometimes)"
 
 
 # ---------------------------------------------------------------------------

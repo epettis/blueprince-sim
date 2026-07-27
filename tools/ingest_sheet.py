@@ -475,6 +475,18 @@ def main() -> None:
     for r in rooms:
         r.setdefault("flags", {})["disk_reader"] = r["id"] in DISK_READER_IDS
 
+    # Rooms whose entry grants same-day Catacombs access (solving the angel-statue puzzle).
+    # Keyed by id: the Tomb is the only outer room that unlocks the Catacombs area.
+    # Written ONLY when true, unlike disk_reader above: disk_reader is already present on
+    # every record, so writing it unconditionally reproduces the committed file, whereas
+    # this flag is present on the Tomb alone. Emitting `false` everywhere would make a
+    # re-ingest diverge from rooms.json by 168 spurious lines. Room.unlocks_catacombs
+    # defaults to False when the key is absent.
+    UNLOCKS_CATACOMBS_IDS = {"tomb"}
+    for r in rooms:
+        if r["id"] in UNLOCKS_CATACOMBS_IDS:
+            r.setdefault("flags", {})["unlocks_catacombs"] = True
+
     out = {
         "schema_version": 1,
         "source": "TFMurphy decompiled sheet v1.3 (rooms 1-77 + variants) + supplemental_rooms.json",

@@ -547,3 +547,62 @@ def test_preset_upgrade_disks_survive_the_day_chain() -> None:
     assert chain.current_day == 1, "chain should have wrapped"
     assert preset <= chain.next_config().upgrade_disks, \
         "a wrap clears earned upgrades but must not clear the configured baseline"
+
+
+# ---------------------------------------------------------------------------
+# Game.catacombs_unlocked() — same-day outer-room flag
+# ---------------------------------------------------------------------------
+
+def _game_with_outer_room_placed(
+    room_id: str, entered: bool = False
+) -> Game:
+    """Set up a Game whose outer room slot is filled by the named room.
+
+    Bypasses the draft to avoid randomness: directly manipulates placed_ids
+    and outer_room_entered exactly as the real draft + enter flow would,
+    without triggering ON_PLACE / ON_ENTER effects.
+    """
+    g = Game(GameConfig(outer_rooms_unlocked=True, special_items=False), seed=0)
+    g.placed_ids.add(room_id)
+    g.state.outer_room_drafted = True
+    g.state.outer_loc = 2 if entered else 1
+    g.state.outer_room_entered = entered
+    return g
+
+
+def test_catacombs_unlocked_false_before_entry():
+    """catacombs_unlocked() is False when the Tomb is drafted but not yet entered.
+
+    Physical access is required; placing the Tomb at the doorstep is not sufficient.
+    """
+    g = _game_with_outer_room_placed("tomb", entered=False)
+    assert not g.catacombs_unlocked()
+
+
+def test_catacombs_unlocked_true_after_entry():
+    """catacombs_unlocked() is True once a room flagged unlocks_catacombs has been entered.
+
+    Entering the Tomb solves the angel-statue puzzle; same-day access is then active.
+    """
+    g = _game_with_outer_room_placed("tomb", entered=True)
+    assert g.catacombs_unlocked()
+
+
+def test_catacombs_unlocked_false_for_non_tomb_outer_room():
+    """catacombs_unlocked() is False when an entered outer room lacks the unlocks_catacombs flag.
+
+    Entering any other outer room should not unlock the Catacombs.
+    """
+    g = _game_with_outer_room_placed("toolshed", entered=True)
+    assert not g.catacombs_unlocked()
+
+
+def test_catacombs_unlocked_does_not_persist_across_days():
+    """catacombs_unlocked() is False on a fresh day even if tomb was entered yesterday.
+
+    The flag is same-day only; reset() clears outer_room_entered and placed_ids.
+    """
+    g = _game_with_outer_room_placed("tomb", entered=True)
+    assert g.catacombs_unlocked(), "sanity: should be True before reset"
+    g.reset()  # new day
+    assert not g.catacombs_unlocked(), "must not persist after reset — same-day only"
