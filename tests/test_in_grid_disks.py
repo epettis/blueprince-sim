@@ -1,4 +1,4 @@
-"""Tests for the 7 Ingrid Upgrade Disks and the widened disks_held observation.
+"""Tests for the 7 in-grid Upgrade Disks and the widened disks_held observation.
 
 All seven disks (office, morning_room, her_ladyships_chamber, great_hall,
 freezer, archives, mechanarium) are granted on first room entry; none of their
@@ -20,7 +20,7 @@ from blueprince_sim.engine.game import Game
 from blueprince_sim.env import obs as O
 from blueprince_sim.env.multiday import DayChain
 
-_INGRID_DISK_ROOMS = [
+_IN_GRID_DISK_ROOMS = [
     ("office", "upgrade_disk_office"),
     ("morning_room", "upgrade_disk_morning_room"),
     ("her_ladyships_chamber", "upgrade_disk_her_ladyships_chamber"),
@@ -46,12 +46,12 @@ def _enter(game: Game, room_id: str, cell: int = 5) -> None:
 
 
 def test_entering_grants_one_disk_and_reentry_grants_none():
-    """Each Ingrid room hands over its disk on entry, and entering it again yields nothing.
+    """Each in-grid room hands over its disk on entry, and entering it again yields nothing.
 
     Uniqueness is what caps disk supply: a second grant of a `unique` item must be
     refused, otherwise a player could farm one room for unlimited upgrades.
     """
-    for room_id, disk_id in _INGRID_DISK_ROOMS:
+    for room_id, disk_id in _IN_GRID_DISK_ROOMS:
         g = _game()
         assert g.state.inventory.get(disk_id, 0) == 0, f"{disk_id} held before entering {room_id}"
 
@@ -69,11 +69,12 @@ def test_entering_grants_one_disk_and_reentry_grants_none():
 def test_disks_held_encodes_counts_above_the_old_cap():
     """Holding more disks than the old cap of 7 encodes the true count, in-range for the space.
 
-    The pre-Ingrid space was Discrete(8) with a min(..., 7) clamp; leaving either in
-    place would silently report 7 forever once 8+ disks became reachable.
+    Before these disks landed the space was Discrete(8) with a min(..., 7) clamp;
+    leaving either in place would silently report 7 forever once 8+ disks became
+    reachable.
     """
     g = _game()
-    for _, disk_id in _INGRID_DISK_ROOMS:
+    for _, disk_id in _IN_GRID_DISK_ROOMS:
         si.grant(g.state, g.registry, disk_id, source="test")
     si.grant(g.state, g.registry, "upgrade_disk_vault_304", source="test")
     held = len(g.held_disk_ids())
@@ -122,7 +123,7 @@ def test_consumed_disk_is_not_regranted_on_a_later_day():
 
 
 def test_repeated_days_cannot_exceed_one_disk_per_fixed_location():
-    """Re-drafting every Ingrid room across many days yields each disk at most once.
+    """Re-drafting every in-grid room across many days yields each disk at most once.
 
     This is the supply cap the upgrade economy depends on: 7 fixed disks per attempt,
     not 7 per day.
@@ -132,20 +133,20 @@ def test_repeated_days_cannot_exceed_one_disk_per_fixed_location():
     for day in range(5):
         g = Game(GameConfig(special_items=True, collected_disks=collected), seed=day)
         si.configure(g.state, g.cfg)
-        for cell, (room_id, disk_id) in enumerate(_INGRID_DISK_ROOMS):
+        for cell, (room_id, disk_id) in enumerate(_IN_GRID_DISK_ROOMS):
             _enter(g, room_id, cell=cell)
             if g.state.inventory.get(disk_id, 0):
                 total_grants += 1
                 si.remove(g.state, disk_id, consumed=True)
         collected = frozenset(shops.carryover(g)["collected_disks"])
 
-    assert total_grants == len(_INGRID_DISK_ROOMS), (
-        f"expected {len(_INGRID_DISK_ROOMS)} disks over the whole attempt, got {total_grants}"
+    assert total_grants == len(_IN_GRID_DISK_ROOMS), (
+        f"expected {len(_IN_GRID_DISK_ROOMS)} disks over the whole attempt, got {total_grants}"
     )
 
 
 def test_unspent_disk_is_not_in_next_day_inventory():
-    """An unspent Ingrid disk drops at end-of-day and is absent from day 2's starting inventory.
+    """An unspent in-grid disk drops at end-of-day and is absent from day 2's starting inventory.
 
     Disks have persistence="day", so end_of_day_carry() does not include them —
     only spending (inserting) a disk makes its removal permanent.
@@ -295,7 +296,7 @@ def test_disks_held_cap_can_represent_every_disk_in_the_registry():
     """
     g = _game()
     n_disks = sum(1 for item in g.registry.special.items if item.id.startswith("upgrade_disk_"))
-    assert n_disks >= 8, f"expected the Ingrid disks to be registered, found {n_disks}"
+    assert n_disks >= 8, f"expected the in-grid disks to be registered, found {n_disks}"
     assert O.MAX_DISKS_HELD >= n_disks, (
         f"MAX_DISKS_HELD={O.MAX_DISKS_HELD} cannot represent {n_disks} distinct disks"
     )
