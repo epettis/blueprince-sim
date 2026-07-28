@@ -393,11 +393,12 @@ def test_choose_outer_does_not_enter():
     assert g.phase is Phase.NAVIGATE
 
 
-def test_enter_outer_room_fires_once():
-    """enter_outer_room deducts 1 step, moves inside the room, and cannot be called again.
+def test_travel_to_outer_room_fires_once():
+    """Travelling to the drafted outer room fires ON_ENTER exactly once.
 
-    The graph charges 1 step for west_path->outer_room; area must become the room id and
-    outer_room_entered must be set so a second call is refused.
+    The graph charges 1 step for west_path->outer_room. area must become the
+    room id and outer_room_entered must be set so a second travel is a no-op
+    (outer_room_entered stays True; steps are still deducted by travel_to).
     """
     cfg = GameConfig(outer_rooms_unlocked=True)
     g = Game(cfg, seed=9)
@@ -406,14 +407,10 @@ def test_enter_outer_room_fires_once():
     assert g.state.area == "west_path"
     steps_before = g.state.steps
     outer_room = next(r for r in g.outer_rooms if r.id in g.placed_ids)
-    g.enter_outer_room()
+    g.travel_to(outer_room.id)
     assert g.state.area == outer_room.id  # inside the drafted outer room
     assert g.state.outer_room_entered
     assert g.state.steps == steps_before - 1  # graph: west_path->outer_room = 1 step
-    # Entering again raises AssertionError
-    import pytest
-    with pytest.raises(AssertionError):
-        g.enter_outer_room()
 
 
 def test_return_costs_doorstep_to_eh():
@@ -427,7 +424,7 @@ def test_return_costs_doorstep_to_eh():
     g.open_outer_draft()
     g.choose(0)
     steps_before = g.state.steps
-    g.return_from_outer("entrance_hall")
+    g.travel_to("house")
     assert g.state.area is None  # back on the grid
     assert g.state.pos == 2  # ENTRANCE_CELL
     assert g.state.steps == steps_before - 2
@@ -442,18 +439,20 @@ def test_return_costs_inside_to_eh():
     g = Game(cfg, seed=9)
     g.open_outer_draft()
     g.choose(0)
-    g.enter_outer_room()
+    outer_room = next(r for r in g.outer_rooms if r.id in g.placed_ids)
+    g.travel_to(outer_room.id)
     steps_before = g.state.steps
-    g.return_from_outer("entrance_hall")
+    g.travel_to("house")
     assert g.state.area is None  # back on the grid
     assert g.state.steps == steps_before - 3
 
 
 def test_action_mask_off_grid():
-    """When off-grid (area != None), only outer-area actions are legal; all grid actions masked.
+    """When off-grid (area != None), only travel and outer-area actions are legal.
 
-    After choosing an outer room from the doorstep, area is "west_path". Grid draft/move
-    actions must be masked out; enter-outer and return-to-EH must be offered.
+    After choosing an outer room from the doorstep, area is "west_path". Grid
+    draft/move actions must be masked out. Travel to the outer room and travel
+    back to house must be offered as TRAVEL_BASE actions.
     """
     from blueprince_sim.env import actions as A
     cfg = GameConfig(outer_rooms_unlocked=True)
@@ -462,16 +461,20 @@ def test_action_mask_off_grid():
     g.choose(0)
     assert g.state.area == "west_path"
     mask = A.action_mask(g)
+    node_ids = A._build_area_node_ids(g.registry)
+    outer_room = next(r for r in g.outer_rooms if r.id in g.placed_ids)
     # No grid draft or move actions should be legal
     assert not any(mask[A.OPEN_BASE:A.CHOOSE_BASE])
     assert not any(mask[A.MOVE_TO_BASE:A.MOVE_TO_BASE + 45])
     assert not mask[A.OUTER_DRAFT_ACTION]
-    # Enter and return-to-EH should be legal (outer room drafted, steps > 0)
-    assert mask[A.ENTER_OUTER_ACTION]
-    assert mask[A.RETURN_EH_ACTION]
+    # Travel to the outer room and back to house must be offered
+    house_idx = node_ids.index("house")
+    outer_idx = node_ids.index(outer_room.id)
+    assert mask[A.TRAVEL_BASE + house_idx], "travel to house should be legal from west_path"
+    assert mask[A.TRAVEL_BASE + outer_idx], "travel to outer room should be legal from doorstep"
 
 
-def test_return_from_outer_into_unentered_garage_fires_entry(registry):
+def test_travel_via_garage_from_outer_fires_entry(registry):
     """Returning to garage that was never entered fires its ON_ENTER effects."""
     cfg = GameConfig(outer_rooms_unlocked=True)
     g = Game(cfg, seed=9)
@@ -492,7 +495,7 @@ def test_return_from_outer_into_unentered_garage_fires_entry(registry):
     g.open_outer_draft()
     g.choose(0)
     assert g.state.area == "west_path"
-    g.return_from_outer("garage")
+    g.travel_to("garage")
     assert g.state.area is None  # back on the grid
     assert g.state.pos == garage_cell
     # Garage should now be marked entered

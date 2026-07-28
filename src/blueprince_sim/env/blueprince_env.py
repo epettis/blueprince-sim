@@ -84,6 +84,7 @@ class BluePrinceEnv(gymnasium.Env):
             len(self.game.registry.rooms),
             len(self.game.registry.special.items),
             len(self.game.registry.special.fabrication),
+            len(self.game.registry.area_graph.nodes),
         )
         self._env_steps = 0
         self.max_env_steps = 1000

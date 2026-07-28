@@ -155,17 +155,18 @@ def test_garage_route_not_taken_when_breaker_off() -> None:
 
 
 def test_1step_rule_doorstep_to_outer_room() -> None:
-    """Entering the outer room from the doorstep deducts exactly 1 step.
+    """Travelling to the outer room from the doorstep deducts exactly 1 step.
 
     west_path->outer_room is 1 edge in the graph; after arriving at west_path
-    and choosing an outer room, entering it must cost exactly 1 step.
+    and choosing an outer room, travelling to it must cost exactly 1 step.
     """
     cfg = GameConfig(outer_rooms_unlocked=True)
     g = Game(cfg, seed=9)
     g.open_outer_draft()
     g.choose(0)
     steps_before = g.state.steps
-    g.enter_outer_room()
+    outer_room = next(r for r in g.outer_rooms if r.id in g.placed_ids)
+    g.travel_to(outer_room.id)
     assert g.state.steps == steps_before - 1
 
 
@@ -651,8 +652,8 @@ def test_area_round_trip_full_outer_room_lifecycle() -> None:
     """state.area tracks the full outer-room lifecycle: None -> west_path -> room id -> None.
 
     After open_outer_draft, area is "west_path".
-    After enter_outer_room, area is the drafted room's id.
-    After return_from_outer, area is None and pos is the destination cell.
+    After travel_to(outer_room.id), area is the drafted room's id.
+    After travel_to("house"), area is None and pos is the Entrance Hall cell.
     """
     from blueprince_sim.engine.grid import ENTRANCE_CELL
     cfg = GameConfig(outer_rooms_unlocked=True)
@@ -666,10 +667,10 @@ def test_area_round_trip_full_outer_room_lifecycle() -> None:
     assert g.state.area == "west_path"  # still at doorstep after choosing
     outer_room_id = next(r.id for r in g.outer_rooms if r.id in g.placed_ids)
 
-    g.enter_outer_room()
+    g.travel_to(outer_room_id)
     assert g.state.area == outer_room_id  # now inside the outer room
 
-    g.return_from_outer("entrance_hall")
+    g.travel_to("house")
     assert g.state.area is None  # back on the grid
     assert g.state.pos == ENTRANCE_CELL
 

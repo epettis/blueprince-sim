@@ -174,23 +174,22 @@ Sanctum — is modeled today only as the single "outer room" doorstep abstractio
 
 ### Implementation plan (2026-07-27)
 
-`outer_loc` is read at 40+ sites across `game.py`, `env/actions.py`, `env/obs.py`,
-`engine/shops.py`, `engine/special_items.py` and `cli/play.py`, and it doubles as a
-phase flag for the action masker — so it cannot be widened in place. Task 4 is
-therefore three PRs, each independently green:
+`outer_loc` was read at 40+ sites across `game.py`, `env/actions.py`, `env/obs.py`,
+`engine/shops.py`, `engine/special_items.py` and `cli/play.py`, and doubled as a
+phase flag for the action masker — so it could not be widened in place. Task 4
+was delivered as two PRs, each independently green:
 
 1. **The graph as data plus a pure library.** `src/blueprince_sim/data/areas.json`
    (nodes, directed edges, gates as declarative string tags in the
    `draft_conditions` idiom) plus `engine/areas.py` (frozen dataclasses, gate
    evaluation, BFS pathfinding at 1 step per edge) and `validate_data.py`
    referential checks. Nothing calls it, so there is zero behaviour change.
-2. **Engine adoption.** `GameState` gains an area field; the graph replaces
-   `_outer_route_cost`, `open_outer_draft`, `return_from_outer` and the three
-   `GameConfig` outer step costs.
-3. **Env layer.** Per-area travel actions replacing `RETURN_EH_ACTION` /
-   `RETURN_GARAGE_ACTION`, and a position encoding that stops being a single
-   `Discrete(45)` field. **This is the retrain point** — bundle it with the
-   retrain already owed for PR #36.
+2. **Engine adoption and the env layer, together.** `GameState.area` replaces
+   `outer_loc`; BFS derives the route costs, so the three `GameConfig` outer step
+   costs are deleted rather than kept as a second source of truth; per-area
+   travel actions replace `RETURN_EH_ACTION` / `RETURN_GARAGE_ACTION` /
+   `ENTER_OUTER_ACTION`; and `player_area` joins the observation so position
+   stops being a single grid-only `Discrete(45)` field.
 
 Several currently-inert items unblock with this: microchips, Power Hammer wall
 breaks, the Sanctum keys.
@@ -290,6 +289,67 @@ breaks, the Sanctum keys.
   is Phase 3 of [`upgrade-value-measurement.md`](upgrade-value-measurement.md) and
   is independent of task 4; it does not block the Phase 1 A/B, which needs no offer
   and no rare draw.
+
+- **2026-07-27, task 4 PR2 and PR3 merged into one PR**: the split existed to keep
+  the action space frozen until the env PR, protecting live checkpoints. That
+  protection was already void — PR #36 moved `disks_held` to `Discrete(15)` and
+  `n_items` to 76, so no checkpoint loads regardless. One retrain is owed either
+  way, so splitting bought nothing and cost a throwaway compatibility layer
+  (an `outer_loc`-shaped observation re-encoded from `state.area` purely to keep
+  the old space alive for one commit).
+
+- **2026-07-27, the West Gate IS `GameConfig.outer_rooms_unlocked`**: unlatching
+  it is permanent across the whole save, not per attempt (owner-confirmed), so the
+  existing config field already models the gate and maps directly onto the
+  `west_gate_unlatched` graph flag. No new per-attempt flag and no `DayChain`
+  carryover entry — modelling it again as in-run state would have stored one fact
+  twice.
+
+  This also retracts an earlier worry: honouring the gate does **not** shift the
+  measurement baseline. Day-1 outer-room access is unchanged. The "first West Path
+  visit must come through the Garage" rule is the one-time act that sets
+  `outer_rooms_unlocked` in the first place, which happens before any simulated
+  day begins.
+
+- **2026-07-27, `absent_spawn_rooms` resolved**: the field named off-grid AREAS,
+  never rooms, and the check was silent in both directions. Renamed to
+  `meta.absent_spawn_areas` and validated against `areas.json` node ids as well as
+  `rooms.json`. Corrections from the wiki: `sanctum_key`'s `reservoir` became
+  `reservoir_north` (the graph splits the halves; the box is on the Foundation
+  Elevator side — inferred, not datamined, since the wiki gives no side), and
+  `key_of_aries`'s `precipice` became `unknown_underground` (the clock is in the
+  Unknown; the Precipice is only the access route). `file_cabinet_key` ->
+  `crate_tunnel` was already correct: there are three distinct File Cabinet Keys,
+  and the Archives Upgrade Disk sits behind the Patio key from the Aquarium, which
+  is already modelled.
+
+  Note the limit, confirmed by mutation: the new check catches nonexistent ids but
+  **not** a wrong-yet-valid one. Restoring `precipice` passes validation, because
+  it is a real node. That correction came from research, not tooling.
+
+- **2026-07-27, travel actions are offered only to `modelled` areas**: exposing all
+  36 nodes made the open stub gates expensive for the first time. 13 nodes are
+  reachable on day 1 — including Blackbridge Grotto, the Precipice and the
+  Safehouse — and none has modelled contents, so a random policy spent **80% of
+  its steps** wandering an empty map (off-grid, 99.8% of the legal mask was
+  travel). That is a direct tax on the fresh retrain.
+
+  Fixed with a required boolean `modelled` on each area node. Only modelled nodes
+  are offered as destinations; the pathfinder still routes through the others.
+  Eleven are modelled today: `house`, `garage`, `west_path`, and the 8 outer
+  rooms. Off-grid step share fell to 30%.
+
+  **An action slot exists for every node regardless**, so switching an area on
+  later is mask-only — no action-space change, no extra retrain. The flag lives in
+  the data precisely so it is not a Python list of "useful areas" to hand-maintain.
+
+  This does NOT touch the earlier "stubs default OPEN" decision: the stubs are
+  still open and anything measured is still an upper bound. It only stops the sim
+  from advertising empty rooms as somewhere worth walking.
+
+  Note `greedy_rank` is unaffected — it never uses travel actions, and batch
+  results are byte-identical to before this PR, so the Phase 1 A/B instrument is
+  unchanged.
 
 ## 5. Throttle the training terminal output — DONE
 

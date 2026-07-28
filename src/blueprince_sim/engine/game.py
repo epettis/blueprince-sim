@@ -711,6 +711,11 @@ class Game:
         Special case — grid anchors ("house", "garage"):
         sets area=None and pos=<anchor cell>, then fires _enter() when the cell
         has not been entered yet (preserves ON_ENTER effects for the Garage).
+
+        Special case — drafted outer room:
+        when arriving at the today's outer room for the first time, marks it
+        entered, fires ON_ENTER effects, rolls items, and runs special-item
+        on_enter hooks (mirrors what the old enter_outer_room wrapper did).
         """
         result = self.area_route_cost(dest)
         assert result is not None, f"area node {dest!r} is not reachable"
@@ -749,6 +754,20 @@ class Game:
                 self._enter(dest_cell)  # returning into a never-entered room fires ON_ENTER
         else:
             st.area = dest
+            # Fire ON_ENTER the first time the player enters the drafted outer room.
+            outer_room = next((r for r in self.outer_rooms if r.id in self.placed_ids), None)
+            if (outer_room is not None and dest == outer_room.id
+                    and not st.outer_room_entered):
+                st.outer_room_entered = True
+                effects.fire(self, outer_room, Hook.ON_ENTER)
+                roll_room_items(st, self.registry, outer_room, self.rng)
+                if self.cfg.special_items:
+                    # Outer rooms spawn special items too (Toolshed's Gear Wrench,
+                    # the Trading Post pool); -1 = off-grid, no cell hooks apply.
+                    special_items.on_enter(self, outer_room, -1)
+                    if outer_room.category == "shop":
+                        shops.on_enter_shop(self, outer_room)
+        self._check_termination()
 
     def _outer_route_cost(self) -> int | None:
         """Cheapest available route cost to the outer-area doorstep ("west_path").
@@ -827,55 +846,6 @@ class Game:
         self.phase = Phase.NAVIGATE
         effects.fire(self, room, Hook.ON_PLACE)
         # Player stays at the doorstep (area == "west_path"); ON_ENTER fires when they enter.
-        self._check_termination()
-
-    def enter_outer_room(self) -> None:
-        """Enter the outer room from the doorstep (costs 1 step, fires ON_ENTER once)."""
-        st = self.state
-        assert self.phase is Phase.NAVIGATE
-        assert st.area == "west_path", "must be at doorstep to enter"
-        assert st.outer_room_drafted, "no outer room drafted today"
-        assert not st.outer_room_entered, "outer room already entered today"
-        outer_room = next((r for r in self.outer_rooms if r.id in self.placed_ids), None)
-        assert outer_room is not None, "no outer room placed"
-        assert st.steps >= 1, "not enough steps"
-        self.travel_to(outer_room.id)
-        st.outer_room_entered = True
-        if outer_room is not None:
-            effects.fire(self, outer_room, Hook.ON_ENTER)
-            roll_room_items(st, self.registry, outer_room, self.rng)
-            if self.cfg.special_items:
-                # Outer rooms spawn special items too (Toolshed's Gear Wrench,
-                # the Trading Post pool); -1 = off-grid, no cell hooks apply.
-                special_items.on_enter(self, outer_room, -1)
-                if outer_room.category == "shop":
-                    shops.on_enter_shop(self, outer_room)
-        self._check_termination()
-
-    def return_from_outer(self, dest: str) -> None:
-        """Walk back from the outer area to the grid.
-
-        dest: "entrance_hall" (-> "house" anchor) or "garage"
-        """
-        st = self.state
-        assert self.phase is Phase.NAVIGATE
-        assert self.off_grid, "not in outer area"
-
-        match dest:
-            case "entrance_hall":
-                area_dest = "house"
-            case "garage":
-                assert self._breaker_on(), "garage route requires breaker"
-                area_dest = "garage"
-                assert self._garage_cell() >= 0, "garage not placed"
-            case _:
-                raise ValueError(f"unknown dest: {dest}")
-
-        result = self.area_route_cost(area_dest)
-        assert result is not None, f"destination {dest!r} not reachable"
-        cost, _ = result
-        assert st.steps >= cost, "not enough steps"
-        self.travel_to(area_dest)
         self._check_termination()
 
     def choose(self, slot: int) -> None:
@@ -1342,26 +1312,17 @@ class Game:
     def _outer_action_in_budget(self) -> bool:
         """True if any action is affordable while the player is off-grid.
 
-        Checks whether the player can enter the outer room (if at doorstep and
-        not yet entered), or return to the grid via "house" or "garage".
-        Costs are derived from the area graph via area_route_cost.
+        Checks whether the player can travel to any reachable destination with
+        at least one step to spare on arrival (strict: steps > cost), using the
+        same affordability contract as the travel action mask.
         """
         st = self.state
-        # Can enter the outer room (from west_path, outer room drafted but not entered)?
-        if (st.area == "west_path" and st.outer_room_drafted and not st.outer_room_entered):
-            outer_room = next((r for r in self.outer_rooms if r.id in self.placed_ids), None)
-            if outer_room is not None:
-                result = self.area_route_cost(outer_room.id)
-                if result is not None and st.steps >= result[0]:
-                    return True
-        # Can return to Entrance Hall?
-        result_eh = self.area_route_cost("house")
-        if result_eh is not None and st.steps >= result_eh[0]:
-            return True
-        # Can return via garage?
-        if self._garage_cell() >= 0 and self._breaker_on():
-            result_g = self.area_route_cost("garage")
-            if result_g is not None and st.steps >= result_g[0]:
+        graph = self.registry.area_graph
+        for node_id in graph.nodes:
+            if node_id == st.area:
+                continue  # no self-travel
+            result = self.area_route_cost(node_id)
+            if result is not None and st.steps > result[0]:
                 return True
         return False
 

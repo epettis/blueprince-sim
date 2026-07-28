@@ -1,25 +1,26 @@
 # Outside-area connectivity graph
 
-Status: **owner-reviewed; PR1 (graph as data + traversal library) implemented.**
-This is the specification for `open_tasks.md` task 4. [`areas.dot`](areas.dot) is
-the same graph in Graphviz form; the two must be kept in step.
+Status: **owner-reviewed; implemented.** This is the specification for
+`open_tasks.md` task 4. [`areas.dot`](areas.dot) is the same graph in Graphviz
+form; the two must be kept in step.
 
 The graph ships as `src/blueprince_sim/data/areas.json`, parsed by
 `engine/areas.py` into an immutable `AreaGraph` with gate evaluation and BFS
-pathfinding at 1 step per edge. **Nothing in the engine calls it yet** — PR2 is
-engine adoption (replacing `outer_loc` and the three `GameConfig` outer step
-costs), PR3 is the env action/observation change and the retrain point.
+pathfinding at 1 step per edge. It is the engine's only model of where the
+player is when off the 5x9 grid: `GameState.area` holds an area node id (or
+None on the grid), and route costs are derived by BFS rather than declared.
+
+Delivered in two parts. PR1 shipped the graph as data plus the pure traversal
+library, calling nothing. The second PR adopted it in the engine *and* changed
+the action and observation spaces together — originally planned as two PRs,
+merged once it was clear the retrain they force was already owed for #36, so
+splitting them bought nothing and cost a throwaway compatibility layer.
 
 Render the picture with:
 
 ```bash
 dot -Tpng -Gdpi=150 docs/areas.dot -o /tmp/areas.png    # or -Tsvg
 ```
-
-Everything beyond the 5x9 grid is modelled today as a single "outer room
-doorstep" abstraction — `GameState.outer_loc` (0 = on grid, 1 = doorstep,
-2 = inside the outer room) plus three fixed step costs in `GameConfig`. This
-graph replaces that.
 
 ## Ground rules
 
@@ -246,25 +247,52 @@ All currently inert with `meta.blocked_on` set:
 - `key_of_aries` — from the Unknown (Underground) clock.
 - `file_cabinet_key` — Crate Tunnel. Note the Archives disk sits behind it.
 
-## What changes in code
+## How it works in code
 
-- `engine/state.py` — `outer_loc` (0/1/2) becomes an area node id. It currently
-  doubles as a phase flag for the action masker, so it cannot simply be widened
-  in place; the graph needs its own observation key.
-- `env/obs.py` — `outer_loc` is packed as element 3 of the 4-wide `progress`
-  vector. `player_pos` is `Discrete(45)` and holds a grid cell even when
-  off-grid, so "where is the player" needs to stop being a single field.
-- `env/actions.py` — `RETURN_EH_ACTION` (194) and `RETURN_GARAGE_ACTION` (195)
-  are replaced by per-area travel actions. The off-grid mask branch currently
-  admits only 6 action families.
-- `engine/game.py` — `_outer_route_cost`, `open_outer_draft`,
-  `return_from_outer`, and the off-grid budget checks all assume the two
-  hard-coded routes.
-- `tools/validate_data.py` — needs referential checks for a new `data/areas.json`
-  (node ids in edges, room ids, item ids in gates). While there: it does **not**
-  currently check `special_items.json`'s `absent_spawn_rooms`, which already
-  names `reservoir`, `safehouse`, `crate_tunnel` and `precipice` — room ids that
-  do not exist.
+- `engine/state.py` — `GameState.area` is `str | None`: None means "on the 5x9
+  grid, position is `pos`", otherwise it is an area node id. It replaced an
+  `outer_loc` int that encoded 0/1/2 and doubled as a phase flag.
+- `engine/game.py` — `area_route_cost(dest)` runs BFS from each grid anchor and
+  returns the cheapest walk-to-anchor plus area hops; `travel_to(dest)` pays it.
+  The `off_grid` and `inside_outer_room` properties replace bare integer
+  comparisons at ~40 call sites. The three `GameConfig` outer step costs are
+  gone: the graph derives all three, so keeping them would be a second source
+  of truth for one number.
+- `env/actions.py` — one travel action per node, masked to destinations that are
+  reachable, affordable, and **modelled** (see below), replacing the two hardcoded
+  return actions and the enter-outer action. The node ordering is derived from the
+  graph, never hand-listed. `OUTER_DRAFT_ACTION` survives: travelling to
+  `west_path` and opening the draft while standing there are deliberately
+  separate, which is the same drafting-is-not-moving split the grid already uses.
+
+### `modelled`: which areas are offered as destinations
+
+Every node carries a required boolean `modelled`. Only modelled nodes are offered
+as travel actions; the pathfinder still routes *through* the rest. Today 11 are
+modelled — `house`, `garage`, `west_path`, and the 8 outer rooms — which is
+exactly the set that has contents worth walking to.
+
+This is not tidiness, it is a measured fix. With all 36 exposed, 13 nodes were
+reachable on day 1 through open stub gates, none of them holding anything
+modelled, and a random policy spent **80% of its steps** wandering them; off-grid,
+99.8% of the legal mask was travel. Gating on `modelled` cut that to 30%.
+
+An action slot exists for **every** node, modelled or not, so switching an area on
+later is a mask-only change: **no action-space change and therefore no retrain.**
+That is the whole reason the flag lives in the data rather than in a Python list
+of "useful" areas.
+- `env/obs.py` — `player_area` (`Discrete(37)`; 0 = on the grid) says where the
+  player is. `player_pos` still holds a grid cell but is only meaningful when
+  `player_area == 0`.
+- `tools/validate_data.py` — referential checks over `areas.json`, plus the
+  edge check that an `outer_room`-gated edge must end at an anchor whose room
+  has `pool == "outer"`.
+
+**The west gate is `GameConfig.outer_rooms_unlocked`**, not a per-attempt flag.
+Unlatching it is permanent across the whole save (owner-confirmed), so the
+existing config field IS the gate and maps straight onto `west_gate_unlatched`.
+Modelling it a second time as in-run state would have been the same fact stored
+twice.
 
 ## Corrections already applied
 

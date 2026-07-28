@@ -24,6 +24,11 @@ class Area:
     name: str         # human-readable display name
     kind: str         # "area" (graph node) or "anchor" (on-grid/drafted room)
     surface: bool | None  # True = surface area; False = underground; None for anchors
+    # True once this area's contents are modelled and travelling there can pay off.
+    # Only modelled areas are offered as travel actions; the rest are still routed
+    # THROUGH by the pathfinder.  Flipping this to True is how a later PR switches an
+    # area on, and it is mask-only — the action space does not change, so no retrain.
+    modelled: bool
 
 
 @dataclass(frozen=True, slots=True)
@@ -95,6 +100,7 @@ def load_areas(raw: dict) -> AreaGraph:
             name=n["name"],
             kind=n["kind"],
             surface=n.get("surface", None),
+            modelled=n["modelled"],
         )
 
     gates: dict[str, Gate] = {}

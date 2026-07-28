@@ -706,6 +706,11 @@ def main() -> int:
         where = f"areas/nodes/{n['id']}"
         if n.get("kind") not in VALID_AREA_NODE_KINDS:
             errors.append(f"{where}: invalid kind {n.get('kind')!r}")
+        # Required, not defaulted: a new node must state whether its contents are
+        # modelled, because that decides whether the env offers a travel action to it.
+        # Silently defaulting would let an empty area be advertised as a destination.
+        if not isinstance(n.get("modelled"), bool):
+            errors.append(f"{where}: 'modelled' must be present and boolean")
         conf = n.get("meta", {}).get("confidence")
         if conf not in VALID_CONFIDENCE:
             errors.append(f"{where}: invalid meta.confidence {conf!r}")

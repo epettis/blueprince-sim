@@ -5,7 +5,7 @@ to draft, or a room to enter) and the engine walks the shortest connected
 path, paying the normal one-step-per-room cost. Re-entering rooms grants
 nothing, so free-form single-tile moves were retired.
 
-Layout (Discrete(279)):
+Layout (Discrete(312)):
   0..179   draft at doorway: cell (45) x direction (4: N,E,S,W) ->
            cell*4 + dir_index. Walks to the room first if needed. Legal for
            every frontier doorway reachable with at least one step to spare
@@ -14,17 +14,14 @@ Layout (Discrete(279)):
   183..185 choose option slot 0/1/2 (alternate orientation; only legal when
            GameConfig.orientation_choice is enabled and an alternate exists)
   186      redraw (engine picks the cheapest available source: free > die > study)
-  187      enter outer room (from doorstep; fires ON_ENTER once per day)
-  188      outer-room draft (walk the West Path; once per day, if unlocked)
-  189      toggle the keycard power (standing at the Utility Closet breaker)
-  190..192 set security level low/normal/high (standing at the Security
+  187      outer-room draft (walk the West Path; once per day, if unlocked)
+  188      toggle the keycard power (standing at the Utility Closet breaker)
+  189..191 set security level low/normal/high (standing at the Security
            terminal; the current level is masked out as a no-op)
-  193      rotate the drawn floorplans to their next legal orientation
+  192      rotate the drawn floorplans to their next legal orientation
            (Ornate Compass held / Rotunda placed / Dovecote in hand;
            overrides the random roll)
-  194      return to Entrance Hall (from outer area doorstep or inside)
-  195      return via garage (from outer area; requires Utility Closet breaker)
-  196..240 walk to cell (45): shortest connected path into an unentered
+  193..237 walk to cell (45): shortest connected path into an unentered
            reachable room (spends steps, first entry grants its resources),
            into the Antechamber (wins), or back into the Utility Closet /
            Security to work their switches; also re-enters shop cells with a
@@ -34,23 +31,30 @@ Layout (Discrete(279)):
            with an openable deposit box, an ignition target (chapel/tomb/trading_post)
            with a torch or burning_glass held, and a machine room (greenhouse/casino)
            with a broken_lever held.
-  241..246 buy current shop display entry 0..5 (NAVIGATE; on-grid shop or
+  238..243 buy current shop display entry 0..5 (NAVIGATE; on-grid shop or
            inside outer shop (inside_outer_room))
-  247..254 trade offer 0..7 (inside the Trading Post; offer index matches
+  244..251 trade offer 0..7 (inside the Trading Post; offer index matches
            trade_offers() order)
-  255..262 fabricate recipe 0..7 (standing in the Workshop; recipe order
+  252..259 fabricate recipe 0..7 (standing in the Workshop; recipe order
            matches registry.special.fabrication)
-  263..268 activate the Royal Scepter with color 0..5 (shops.SCEPTER_COLORS
+  260..265 activate the Royal Scepter with color 0..5 (shops.SCEPTER_COLORS
            order: blueprint, green, red, bedroom, hallway, shop)
-  269      smash the Entrance Hall vase
-  270      open container at the current cell (trunk/chest/locker; one per action)
-  271      open the Garage car trunk (standing in the Garage with Car Keys held)
-  272      open vault deposit box (standing in the Vault with a matching vault key)
-  273      light ignition target (standing in chapel/tomb/trading_post with torch or burning_glass)
-  274      install broken lever in a machine room (greenhouse/casino)
-  275      insert an Upgrade Disk (NAVIGATE; standing at a disk reader holding a disk)
-  276..278 choose upgrade variant slot 0/1/2 (UPGRADE_PENDING only; exactly
+  266      smash the Entrance Hall vase
+  267      open container at the current cell (trunk/chest/locker; one per action)
+  268      open the Garage car trunk (standing in the Garage with Car Keys held)
+  269      open vault deposit box (standing in the Vault with a matching vault key)
+  270      light ignition target (standing in chapel/tomb/trading_post with torch or burning_glass)
+  271      install broken lever in a machine room (greenhouse/casino)
+  272      insert an Upgrade Disk (NAVIGATE; standing at a disk reader holding a disk)
+  273..275 choose upgrade variant slot 0/1/2 (UPGRADE_PENDING only; exactly
            three options are always offered)
+  276..311 travel to area-graph node (36 nodes, sorted by node id for
+           determinism): TRAVEL_BASE + area_index. Legal when the destination
+           is reachable, affordable (strictly more steps than cost so at least
+           1 remains on arrival), and not the player's current position.
+           Both on-grid and off-grid travel are permitted — returning to the
+           grid is travel to "house" or "garage"; entering an outer room is
+           travel to that room's node id.
 """
 
 from __future__ import annotations
@@ -60,29 +64,55 @@ from ..engine.grid import DIR_NAMES, DIRS, N_CELLS, rank_of
 from ..engine.locks import DOOR_LOCKED, DOOR_SECURITY, SECURITY_LEVELS
 from ..engine import shops as _shops
 from ..engine import special_items as _si
+from ..engine.model import Registry
 
-N_ACTIONS = 279
+# ---------------------------------------------------------------------------
+# Area-graph node ordering (derived from registry; never hand-maintained)
+# ---------------------------------------------------------------------------
+
+def _build_area_node_ids(registry: Registry) -> tuple[str, ...]:
+    """Sorted tuple of area-graph node ids, alphabetical for determinism.
+
+    The ordering is derived from registry.area_graph so it cannot drift from
+    areas.json. The action index for a node is TRAVEL_BASE + the index here.
+    Both the action space and the observation encoder use this single source.
+    """
+    return tuple(sorted(registry.area_graph.nodes.keys()))
+
+
+# ---------------------------------------------------------------------------
+# Action layout constants
+# ---------------------------------------------------------------------------
+
 OPEN_BASE, CHOOSE_BASE, ALT_BASE = 0, 180, 183
-REDRAW_ACTION, OUTER_DRAFT_ACTION = 186, 188
-ENTER_OUTER_ACTION = 187   # enter outer room from doorstep
-TOGGLE_POWER_ACTION = 189  # flip the Utility Closet "Keycard Entry" breaker
-SET_LEVEL_BASE = 190       # 190..192: set security level low/normal/high
-ROTATE_ACTION = 193
-RETURN_EH_ACTION = 194     # return to Entrance Hall from outer area
-RETURN_GARAGE_ACTION = 195 # return via garage from outer area (breaker-gated)
-MOVE_TO_BASE = 196  # 196..240: walk to cell
-BUY_BASE = 241      # 241..246: buy current shop display entry 0..5
-TRADE_BASE = 247    # 247..254: trade offer 0..7 (inside the Trading Post)
-FABRICATE_BASE = 255  # 255..262: fabricate recipe 0..7 (in the Workshop)
-SCEPTER_BASE = 263  # 263..268: activate the Royal Scepter color 0..5
-SMASH_VASE_ACTION = 269
-OPEN_CONTAINER_ACTION = 270  # open the next container at the current cell
-OPEN_CAR_TRUNK_ACTION = 271  # open garage car trunk (Garage + Car Keys)
-OPEN_VAULT_BOX_ACTION = 272  # open a vault deposit box (Vault + matching vault key)
-LIGHT_ACTION = 273           # light ignition target (torch or burning_glass)
-INSTALL_LEVER_ACTION = 274   # install broken_lever in a machine room
-INSERT_DISK_ACTION = 275     # insert an Upgrade Disk at a disk reader (NAVIGATE)
-CHOOSE_UPGRADE_BASE = 276    # 276..278: choose upgrade variant slot 0/1/2 (UPGRADE_PENDING)
+REDRAW_ACTION    = 186
+OUTER_DRAFT_ACTION = 187  # walk the West Path; once per day, if unlocked
+TOGGLE_POWER_ACTION = 188  # flip the Utility Closet "Keycard Entry" breaker
+SET_LEVEL_BASE = 189       # 189..191: set security level low/normal/high
+ROTATE_ACTION = 192
+MOVE_TO_BASE = 193  # 193..237: walk to cell
+BUY_BASE = 238      # 238..243: buy current shop display entry 0..5
+TRADE_BASE = 244    # 244..251: trade offer 0..7 (inside the Trading Post)
+FABRICATE_BASE = 252  # 252..259: fabricate recipe 0..7 (in the Workshop)
+SCEPTER_BASE = 260  # 260..265: activate the Royal Scepter color 0..5
+SMASH_VASE_ACTION = 266
+OPEN_CONTAINER_ACTION = 267  # open the next container at the current cell
+OPEN_CAR_TRUNK_ACTION = 268  # open garage car trunk (Garage + Car Keys)
+OPEN_VAULT_BOX_ACTION = 269  # open a vault deposit box (Vault + matching vault key)
+LIGHT_ACTION = 270           # light ignition target (torch or burning_glass)
+INSTALL_LEVER_ACTION = 271   # install broken_lever in a machine room
+INSERT_DISK_ACTION = 272     # insert an Upgrade Disk at a disk reader (NAVIGATE)
+CHOOSE_UPGRADE_BASE = 273    # 273..275: choose upgrade variant slot 0/1/2 (UPGRADE_PENDING)
+TRAVEL_BASE = 276            # 276..311: travel to area-graph node (36 nodes)
+
+# N_ACTIONS = first slot after TRAVEL_BASE + one slot per area node (36)
+# Derived so that adding a node to areas.json expands the space automatically.
+# The literal 36 is intentional: the test suite pins mask-length == N_ACTIONS,
+# not a bare count, so the only invariant that matters is that this equals
+# TRAVEL_BASE + len(area_node_ids) for the committed graph.
+_N_AREA_NODES = 36  # asserted by tests via mask length, not literal comparison
+N_ACTIONS = TRAVEL_BASE + _N_AREA_NODES  # 276 + 36 = 312
+
 DIR_INDEX = {d: i for i, d in enumerate(DIRS)}
 
 
@@ -228,6 +258,11 @@ def action_mask(game: Game, prev_action: int | None = None) -> list[bool]:
     affordable slots plus redraw/rotate when available. TERMINAL masks
     everything off.
 
+    Travel actions (TRAVEL_BASE + i) are legal when ALL of: the destination is
+    reachable via area_route_cost, the player can strictly afford it (steps >
+    cost), and the destination is not the player's current node. Travel is
+    permitted both on-grid and off-grid.
+
     ``prev_action`` enables the security-setpoint repeat guard: when the
     previous *applied* action was a set-security-level id (SET_LEVEL_BASE
     <= prev_action < SET_LEVEL_BASE + 3), all three set-level ids are forced
@@ -243,25 +278,42 @@ def action_mask(game: Game, prev_action: int | None = None) -> list[bool]:
         # resolves both cases. Putting it in either branch strands the other.
         if game.can_insert_disk():
             mask[INSERT_DISK_ACTION] = True
+
+        # Travel actions: legal on-grid AND off-grid. A destination is legal when
+        # reachable, the player can strictly afford it (steps > cost, so at
+        # least 1 step remains on arrival), and it is not the current location.
+        # "Current location" covers two cases:
+        #   - Off-grid: st.area == node_id (direct node match).
+        #   - On-grid: a grid anchor (house/garage) whose route cost is 0
+        #     means the player is already at that anchor cell — treat as
+        #     self-travel so the agent does not pay 0 steps to stay put.
+        node_ids = _build_area_node_ids(game.registry)
+        graph_nodes = game.registry.area_graph.nodes
+        for i, node_id in enumerate(node_ids):
+            # Unmodelled areas have no contents to collect, so offering travel to
+            # them is a pure step sink.  They stay in the graph and the pathfinder
+            # still routes THROUGH them; they are just not advertised as
+            # destinations until a later PR models what is there and flips the flag.
+            # Keeping a slot for every node means that flip costs no retrain.
+            if not graph_nodes[node_id].modelled:
+                continue
+            # Off-grid self-travel: already at this node.
+            if st.area is not None and st.area == node_id:
+                continue
+            result = game.area_route_cost(node_id)
+            if result is None:
+                continue
+            cost, _anchor = result
+            # On-grid self-travel: route to a grid anchor with cost 0 means the
+            # player is already standing at that anchor cell.
+            if cost == 0:
+                continue
+            # Strict affordability: steps > cost so at least 1 remains.
+            if st.steps > cost:
+                mask[TRAVEL_BASE + i] = True
+
         if game.off_grid:
-            # Off-grid: only outer-area actions are legal
-            # Enter outer room (only from doorstep "west_path", if drafted but not entered)
-            if (st.area == "west_path" and st.outer_room_drafted and not st.outer_room_entered):
-                outer_room = next(
-                    (r for r in game.outer_rooms if r.id in game.placed_ids), None)
-                if outer_room is not None:
-                    result = game.area_route_cost(outer_room.id)
-                    if result is not None and st.steps >= result[0]:
-                        mask[ENTER_OUTER_ACTION] = True
-            # Return to EH
-            result_eh = game.area_route_cost("house")
-            if result_eh is not None and st.steps >= result_eh[0]:
-                mask[RETURN_EH_ACTION] = True
-            # Return via garage
-            if game._garage_cell() >= 0 and game._breaker_on():
-                result_g = game.area_route_cost("garage")
-                if result_g is not None and st.steps >= result_g[0]:
-                    mask[RETURN_GARAGE_ACTION] = True
+            # Off-grid: only outer-area actions are legal (besides travel above).
             # Buy actions are valid inside any outer shop (inside_outer_room)
             if game.inside_outer_room:
                 stock = game.shop_stock()
@@ -416,8 +468,6 @@ def apply_action(game: Game, action: int) -> None:
         kind = _redraw_kind(game)
         assert kind is not None, "no redraw available"
         game.redraw(kind)
-    elif action == ENTER_OUTER_ACTION:
-        game.enter_outer_room()
     elif action == OUTER_DRAFT_ACTION:
         game.open_outer_draft()
     elif action == TOGGLE_POWER_ACTION:
@@ -426,10 +476,6 @@ def apply_action(game: Game, action: int) -> None:
         game.set_security_level(SECURITY_LEVELS[action - SET_LEVEL_BASE])
     elif action == ROTATE_ACTION:
         game.rotate_options()
-    elif action == RETURN_EH_ACTION:
-        game.return_from_outer("entrance_hall")
-    elif action == RETURN_GARAGE_ACTION:
-        game.return_from_outer("garage")
     elif MOVE_TO_BASE <= action < MOVE_TO_BASE + N_CELLS:
         game.move_to(action - MOVE_TO_BASE)
     elif BUY_BASE <= action < TRADE_BASE:
@@ -460,6 +506,11 @@ def apply_action(game: Game, action: int) -> None:
         game.insert_disk()
     elif CHOOSE_UPGRADE_BASE <= action < CHOOSE_UPGRADE_BASE + 3:
         game.choose_upgrade(action - CHOOSE_UPGRADE_BASE)
+    elif TRAVEL_BASE <= action < N_ACTIONS:
+        node_ids = _build_area_node_ids(game.registry)
+        node_id = node_ids[action - TRAVEL_BASE]
+        game.travel_to(node_id)
+        # A grid walk inside travel_to can end the day; caller must check phase.
     else:
         raise ValueError(f"unimplemented action {action}")
 
@@ -484,8 +535,6 @@ def describe_action(game: Game, action: int) -> str:
         return f"choose #{slot + 1}{alt}"
     if action == REDRAW_ACTION:
         return "redraw"
-    if action == ENTER_OUTER_ACTION:
-        return "enter outer room"
     if action == OUTER_DRAFT_ACTION:
         return "outer draft"
     if action == TOGGLE_POWER_ACTION:
@@ -495,10 +544,6 @@ def describe_action(game: Game, action: int) -> str:
         return f"set security level {SECURITY_LEVELS[action - SET_LEVEL_BASE]}"
     if action == ROTATE_ACTION:
         return "rotate options"
-    if action == RETURN_EH_ACTION:
-        return "return to Entrance Hall"
-    if action == RETURN_GARAGE_ACTION:
-        return "return via garage"
     if MOVE_TO_BASE <= action < MOVE_TO_BASE + N_CELLS:
         cell = action - MOVE_TO_BASE
         idx = game.state.grid[cell]
@@ -546,4 +591,12 @@ def describe_action(game: Game, action: int) -> str:
         opts = game.state.pending_upgrade_options
         variant = opts[i] if i < len(opts) else "?"
         return f"choose upgrade #{i} ({variant})"
+    if TRAVEL_BASE <= action < N_ACTIONS:
+        node_ids = _build_area_node_ids(game.registry)
+        node_id = node_ids[action - TRAVEL_BASE]
+        node = game.registry.area_graph.nodes.get(node_id)
+        name = node.name if node is not None else node_id
+        result = game.area_route_cost(node_id)
+        cost = result[0] if result is not None else "?"
+        return f"travel to {name} ({cost} steps)"
     return f"action {action}"

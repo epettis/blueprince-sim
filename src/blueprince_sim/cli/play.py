@@ -28,42 +28,38 @@ def play(cfg: GameConfig, seed: int) -> None:
         print(render_status(game))
         if game.phase is Phase.NAVIGATE:
             st = game.state
-            # Off-grid: outer-area actions only
+            # Off-grid: show reachable area destinations the player can afford.
             if game.off_grid:
-                loc_name = "inside the outer room" if game.inside_outer_room else "at the doorstep"
-                print(f"You are {loc_name}.")
-                garage_cell = game._garage_cell()
-                can_enter = (
-                    st.area == "west_path" and st.outer_room_drafted and not st.outer_room_entered)
-                if can_enter:
-                    outer_room = next(
-                        (r for r in game.outer_rooms if r.id in game.placed_ids), None)
-                    enter_ok = False
-                    if outer_room is not None:
-                        result = game.area_route_cost(outer_room.id)
-                        enter_ok = result is not None and st.steps >= result[0]
-                    if enter_ok:
-                        print("  [e] enter the outer room")
-                result_eh = game.area_route_cost("house")
-                eh_cost = result_eh[0] if result_eh is not None else "?"
-                print(f"  [h] return to Entrance Hall ({eh_cost} steps)")
-                if garage_cell >= 0 and game._breaker_on():
-                    result_g = game.area_route_cost("garage")
-                    g_cost = result_g[0] if result_g is not None else "?"
-                    print(f"  [g] return via garage ({g_cost} steps)")
+                area_node = game.registry.area_graph.nodes.get(st.area or "")
+                loc_name = area_node.name if area_node is not None else (st.area or "?")
+                print(f"You are at: {loc_name}.")
+                # Build a numbered list of reachable, affordable destinations.
+                graph = game.registry.area_graph
+                reachable_opts: list[tuple[str, int]] = []
+                for node_id in sorted(graph.nodes.keys()):
+                    if node_id == st.area:
+                        continue  # no self-travel
+                    result = game.area_route_cost(node_id)
+                    if result is None:
+                        continue
+                    cost, _ = result
+                    if st.steps > cost:  # strict: at least 1 step left on arrival
+                        reachable_opts.append((node_id, cost))
+                print("Travel to:")
+                for i, (node_id, cost) in enumerate(reachable_opts):
+                    dest_node = graph.nodes[node_id]
+                    print(f"  [{i + 1}] {dest_node.name} ({cost} step(s))")
                 cmd = input("outer> ").strip().lower()
-                match cmd:
-                    case "q":
-                        return
-                    case "e" if (st.area == "west_path" and st.outer_room_drafted
-                                 and not st.outer_room_entered):
-                        game.enter_outer_room()
-                    case "h":
-                        game.return_from_outer("entrance_hall")
-                    case "g" if garage_cell >= 0 and game._breaker_on():
-                        game.return_from_outer("garage")
-                    case _:
-                        print("  ? invalid command")
+                if cmd == "q":
+                    return
+                try:
+                    choice = int(cmd) - 1
+                    if 0 <= choice < len(reachable_opts):
+                        game.travel_to(reachable_opts[choice][0])
+                    else:
+                        print("  ? invalid choice")
+                except ValueError:
+                    print("  ? enter a number or 'q'")
                 continue
             doors = game.open_doorways()
             moves = game.adjacent_moves()
