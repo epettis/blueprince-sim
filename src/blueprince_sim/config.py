@@ -77,6 +77,16 @@ class GameConfig:
     # later day within the same attempt.  Carried by DayChain as a frozenset and
     # merged as a union — a lit target never un-lights.
     lit_targets: frozenset[str] = frozenset()
+    # Upgrade Disk ids already spent (inserted at a terminal) from their fixed room
+    # location (the `guaranteed_in` disks: Office, Morning Room, Her Ladyship's
+    # Chamber, Great Hall, Freezer, Archives, Mechanarium).  An unspent disk drops
+    # at end of day and returns to its room on re-entry; only spending it (which
+    # calls remove(..., consumed=True)) makes removal permanent.  `guaranteed_in`
+    # re-fires on first entry every day, so without this set re-drafting the room
+    # after spending a disk would re-mint it.  Carried by DayChain as a frozenset
+    # and merged as a union; seeded into gated_out at day start so _is_available
+    # refuses them.
+    collected_disks: frozenset[str] = frozenset()
     # Accumulated Keeper of Tithes coins: every time the Chapel's entry -1 coin
     # penalty actually fires (player has at least 1 coin when entering the Chapel),
     # this counter increments.  Lighting the Chapel altar pays out the running total
@@ -124,7 +134,8 @@ class GameConfig:
             if k not in valid:
                 raise KeyError(f"Unknown config key: {k}")
             if k in ("studio_additions", "upgrade_disks", "satisfied_conditions",
-                     "starting_items", "banned_rooms", "used_vault_keys", "lit_targets"):
+                     "starting_items", "banned_rooms", "used_vault_keys", "lit_targets",
+                     "collected_disks"):
                 v = frozenset(v)
             elif k == "data_dir" and v is not None:
                 v = Path(v)

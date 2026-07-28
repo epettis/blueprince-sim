@@ -1822,6 +1822,167 @@
     "blocked_on": null,
     "notes": "One unique disk per source so each is inherently one-time use. Granted by lighting the near candles in the Tomb. Draw mechanism implemented (chunk 2); individual upgrade effects deferred (task 9)."
    }
+  },
+  {
+   "id": "upgrade_disk_office",
+   "name": "Upgrade Disk (Office)",
+   "kind": "unique",
+   "tier": null,
+   "unique": true,
+   "persistence": "day",
+   "spawn_rooms": [],
+   "spawn_rooms_high_luck": [],
+   "guaranteed_in": [
+    "office"
+   ],
+   "effects": [],
+   "implemented": true,
+   "meta": {
+    "source": "https://blueprince.wiki.gg/wiki/Upgrade_Disk",
+    "confidence": "wiki",
+    "absent_spawn_rooms": [],
+    "blocked_on": null,
+    "notes": "One unique disk per source so each is inherently one-time use. Found in the Office desk on first entry (no real-game gate). Draw mechanism implemented; individual upgrade effects deferred (task 9).",
+    "simplification": "none - no gate in the real game"
+   }
+  },
+  {
+   "id": "upgrade_disk_morning_room",
+   "name": "Upgrade Disk (Morning Room)",
+   "kind": "unique",
+   "tier": null,
+   "unique": true,
+   "persistence": "day",
+   "spawn_rooms": [],
+   "spawn_rooms_high_luck": [],
+   "guaranteed_in": [
+    "morning_room"
+   ],
+   "effects": [],
+   "implemented": true,
+   "meta": {
+    "source": "https://blueprince.wiki.gg/wiki/Upgrade_Disk",
+    "confidence": "wiki",
+    "absent_spawn_rooms": [],
+    "blocked_on": null,
+    "notes": "One unique disk per source so each is inherently one-time use. Found on the Morning Room table on first entry (no real-game gate). Draw mechanism implemented; individual upgrade effects deferred (task 9).",
+    "simplification": "none - no gate in the real game"
+   }
+  },
+  {
+   "id": "upgrade_disk_her_ladyships_chamber",
+   "name": "Upgrade Disk (Her Ladyship's Chamber)",
+   "kind": "unique",
+   "tier": null,
+   "unique": true,
+   "persistence": "day",
+   "spawn_rooms": [],
+   "spawn_rooms_high_luck": [],
+   "guaranteed_in": [
+    "her_ladyships_chamber"
+   ],
+   "effects": [],
+   "implemented": true,
+   "meta": {
+    "source": "https://blueprince.wiki.gg/wiki/Upgrade_Disk",
+    "confidence": "wiki",
+    "absent_spawn_rooms": [],
+    "blocked_on": null,
+    "notes": "One unique disk per source so each is inherently one-time use. Found on the far table in Her Ladyship's Chamber on first entry (no real-game gate). Draw mechanism implemented; individual upgrade effects deferred (task 9).",
+    "simplification": "none - no gate in the real game"
+   }
+  },
+  {
+   "id": "upgrade_disk_great_hall",
+   "name": "Upgrade Disk (Great Hall)",
+   "kind": "unique",
+   "tier": null,
+   "unique": true,
+   "persistence": "day",
+   "spawn_rooms": [],
+   "spawn_rooms_high_luck": [],
+   "guaranteed_in": [
+    "great_hall"
+   ],
+   "effects": [],
+   "implemented": true,
+   "meta": {
+    "source": "https://blueprince.wiki.gg/wiki/Upgrade_Disk",
+    "confidence": "wiki",
+    "absent_spawn_rooms": [],
+    "blocked_on": null,
+    "notes": "One unique disk per source so each is inherently one-time use. Found behind the prize door in the Great Hall. Real-game gate (prize door) is not modeled; disk granted on first entry per the sim's 'player solves every puzzle' doctrine. Draw mechanism implemented; individual upgrade effects deferred (task 9).",
+    "simplification": "prize door not modeled - disk granted on first entry instead"
+   }
+  },
+  {
+   "id": "upgrade_disk_freezer",
+   "name": "Upgrade Disk (Freezer)",
+   "kind": "unique",
+   "tier": null,
+   "unique": true,
+   "persistence": "day",
+   "spawn_rooms": [],
+   "spawn_rooms_high_luck": [],
+   "guaranteed_in": [
+    "freezer"
+   ],
+   "effects": [],
+   "implemented": true,
+   "meta": {
+    "source": "https://blueprince.wiki.gg/wiki/Upgrade_Disk",
+    "confidence": "wiki",
+    "absent_spawn_rooms": [],
+    "blocked_on": null,
+    "notes": "One unique disk per source so each is inherently one-time use. Found behind the ice wall in the Freezer. Real-game gate (Power Hammer breaks ice wall; wall regrows daily) is not modeled as a container/wall mechanic in the sim; disk granted on first entry per the 'player solves every puzzle' doctrine. Draw mechanism implemented; individual upgrade effects deferred (task 9).",
+    "simplification": "ice wall / Power Hammer mechanic not modeled - disk granted on first entry instead"
+   }
+  },
+  {
+   "id": "upgrade_disk_archives",
+   "name": "Upgrade Disk (Archives)",
+   "kind": "unique",
+   "tier": null,
+   "unique": true,
+   "persistence": "day",
+   "spawn_rooms": [],
+   "spawn_rooms_high_luck": [],
+   "guaranteed_in": [
+    "archives"
+   ],
+   "effects": [],
+   "implemented": true,
+   "meta": {
+    "source": "https://blueprince.wiki.gg/wiki/Upgrade_Disk",
+    "confidence": "wiki",
+    "absent_spawn_rooms": [],
+    "blocked_on": null,
+    "notes": "One unique disk per source so each is inherently one-time use. Found in the Archives filing cabinet; real game requires a File Cabinet Key. file_cabinet_key is implemented=false (blocked_on: file_cabinet_not_modeled); disk granted on first entry per the 'player solves every puzzle' doctrine. Draw mechanism implemented; individual upgrade effects deferred (task 9).",
+    "simplification": "File Cabinet Key gate not modeled - disk granted on first entry instead"
+   }
+  },
+  {
+   "id": "upgrade_disk_mechanarium",
+   "name": "Upgrade Disk (Mechanarium)",
+   "kind": "unique",
+   "tier": null,
+   "unique": true,
+   "persistence": "day",
+   "spawn_rooms": [],
+   "spawn_rooms_high_luck": [],
+   "guaranteed_in": [
+    "mechanarium"
+   ],
+   "effects": [],
+   "implemented": true,
+   "meta": {
+    "source": "https://blueprince.wiki.gg/wiki/Upgrade_Disk",
+    "confidence": "wiki",
+    "absent_spawn_rooms": [],
+    "blocked_on": null,
+    "notes": "One unique disk per source so each is inherently one-time use. Found behind the 3rd diagonal door in the Mechanarium. Real-game gate (gated mechanical arms) is not modeled per CLAUDE.md; disk granted on first entry per the 'player solves every puzzle' doctrine. Draw mechanism implemented; individual upgrade effects deferred (task 9).",
+    "simplification": "gated mechanical arms not modeled - disk granted on first entry instead"
+   }
   }
  ],
  "spawn": {

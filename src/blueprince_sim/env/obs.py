@@ -36,6 +36,13 @@ _GRANT_KEY_CODE = {"coins": 1, "keys": 2, "gems": 3, "dice": 4, "food": 5}
 SHOP_STOCK_ROWS = 6    # showroom with trophy = 5; cap at 6 for one free slot
 TRADE_OFFER_ROWS = 8   # generous; 24 tradeables, real sessions hold far fewer
 
+# Cap on the encoded disks_held count. Disks are unique items, so the true
+# maximum is the number of "upgrade_disk_*" records in the registry (14: the 7
+# original + the 7 in-grid disks). Declared as Discrete(MAX_DISKS_HELD + 1) and
+# used as the encode clamp, so the space bound and the clamp cannot drift apart.
+# tests/test_in_grid_disks.py pins this against the registry's actual disk count.
+MAX_DISKS_HELD = 14
+
 SCEPTER_COLOR_INDEX = {c: i for i, c in enumerate(SCEPTER_COLORS)}
 
 
@@ -70,9 +77,10 @@ def observation_space(n_rooms: int, n_items: int, n_recipes: int) -> spaces.Dict
         # while in UPGRADE_PENDING, or -1 in every slot otherwise.
         "upgrade_options": spaces.Box(-1, max(n_rooms, 999), shape=(3,), dtype=np.int16),
         "phase": spaces.Discrete(4),
-        # disks_held: count of upgrade disks in inventory (0..7). Lets the agent
-        # know whether inserting is possible without inspecting the full inventory.
-        "disks_held": spaces.Discrete(8),
+        # disks_held: count of upgrade disks in inventory, clamped to
+        # MAX_DISKS_HELD. Lets the agent know whether inserting is possible
+        # without inspecting the full inventory.
+        "disks_held": spaces.Discrete(MAX_DISKS_HELD + 1),
         "stage": spaces.Discrete(3),
         "house_flags": spaces.Box(0, 999, shape=(HOUSE_FLAGS,), dtype=np.int16),
         # deepest_rank, optimistic player->Antechamber distance (-1 if walled
@@ -331,8 +339,9 @@ def encode(game: Game) -> dict:
             room = game.registry.by_id.get(variant_id)
             upgrade_options[i] = room.idx + 1 if room is not None else -1
 
-    # disks_held: count of upgrade disk items currently in inventory (capped at 7)
-    disks_held = min(len(game.held_disk_ids()), 7)
+    # disks_held: count of upgrade disk items currently in inventory, clamped to
+    # the same MAX_DISKS_HELD that bounds the declared space above.
+    disks_held = min(len(game.held_disk_ids()), MAX_DISKS_HELD)
 
     # shop_stock: current shop's display (SHOP_STOCK_ROWS x 5), -1 sentinel rows
     shop_stock_arr = _encode_shop_stock(game)

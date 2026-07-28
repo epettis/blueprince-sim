@@ -334,6 +334,13 @@ def configure(state, cfg) -> None:
     for vk_id in getattr(cfg, "used_vault_keys", frozenset()):
         if vk_id not in gated:
             gated.append(vk_id)
+    # Fixed-location Upgrade Disks already collected on an earlier day: gate them
+    # so the room's guaranteed_in grant cannot re-mint one on a later day. Needed
+    # because state.special.removed only survives the day, while these disks are
+    # gone from the house for the whole attempt once taken.
+    for disk_id in getattr(cfg, "collected_disks", frozenset()):
+        if disk_id not in gated:
+            gated.append(disk_id)
     state.special.gated_out = gated
     # Ignition targets permanently lit across days: pre-populate lit_targets so
     # can_light() blocks them on day N+1 just as it would mid-day.
@@ -844,6 +851,28 @@ def inventory_value(state, registry) -> float:
         worth = by_tier.get(str(item.tier), flat) if item.tier is not None else flat
         total += worth * cnt
     return total
+
+
+def fixed_disks_spent_today(state, registry) -> set[str]:
+    """Fixed-location Upgrade Disk ids spent today, for the collected_disks carryover.
+
+    Only disks with a ``guaranteed_in`` room qualify: those sit at one spot in the
+    house and are permanently gone once inserted at a terminal. The original disks
+    (Vault, Garage, Tomb, ...) are excluded because each already carries its own
+    source mechanic, and excluding them keeps the repeatable Trading Post trade
+    disk repeatable.
+
+    A disk collected but not spent drops overnight and returns to its room — only
+    inserting it (which calls remove(..., consumed=True), appending to
+    state.special.removed) makes the removal permanent.
+    """
+    guaranteed = {
+        item_id
+        for ids in registry.special.guaranteed_by_room.values()
+        for item_id in ids
+        if item_id.startswith("upgrade_disk_")
+    }
+    return guaranteed & set(state.special.removed)
 
 
 def luck_bonus(state, registry) -> int:
