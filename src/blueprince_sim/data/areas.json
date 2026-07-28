@@ -1,0 +1,529 @@
+{
+ "meta": {
+  "source": "docs/areas.md",
+  "confidence": "wiki",
+  "notes": "Outside-area connectivity graph, owner-reviewed 2026-07-27. Node and edge counts are enforced against the spec by tools/validate_data.py. docs/areas.dot is the co-authoritative source and must be kept in step."
+ },
+ "nodes": [
+  {
+   "id": "house",
+   "name": "House (Entrance Hall / 5x9 grid)",
+   "kind": "anchor",
+   "meta": {"source": "docs/areas.md", "confidence": "wiki", "notes": "Represents the entire 5x9 grid; no single rooms.json entry."}
+  },
+  {
+   "id": "garage",
+   "name": "Garage (in-grid room)",
+   "kind": "anchor",
+   "meta": {"source": "docs/areas.md", "confidence": "wiki"}
+  },
+  {
+   "id": "the_foundation",
+   "name": "The Foundation (in-grid room)",
+   "kind": "anchor",
+   "meta": {"source": "docs/areas.md", "confidence": "wiki"}
+  },
+  {
+   "id": "tomb",
+   "name": "Tomb (outer room, 1 of 8)",
+   "kind": "anchor",
+   "meta": {"source": "docs/areas.md", "confidence": "wiki"}
+  },
+  {
+   "id": "schoolhouse",
+   "name": "Schoolhouse (outer room - torch on DRAFT)",
+   "kind": "anchor",
+   "meta": {"source": "docs/areas.md", "confidence": "wiki"}
+  },
+  {
+   "id": "hovel",
+   "name": "Hovel (outer room - torch on DRAFT)",
+   "kind": "anchor",
+   "meta": {"source": "docs/areas.md", "confidence": "wiki"}
+  },
+  {
+   "id": "grounds",
+   "name": "The Grounds",
+   "kind": "area",
+   "surface": true,
+   "meta": {"source": "docs/areas.md", "confidence": "wiki"}
+  },
+  {
+   "id": "west_path",
+   "name": "West Path (= the outer-room doorstep)",
+   "kind": "area",
+   "surface": true,
+   "meta": {"source": "docs/areas.md", "confidence": "wiki", "notes": "Also serves as the outer-room drafting cave; the Outer Room drafting cave IS West Path's south section, not a separate node."}
+  },
+  {
+   "id": "private_drive",
+   "name": "Private Drive",
+   "kind": "area",
+   "surface": true,
+   "meta": {"source": "docs/areas.md", "confidence": "wiki"}
+  },
+  {
+   "id": "blackbridge_grotto",
+   "name": "Blackbridge Grotto (5th disk terminal)",
+   "kind": "area",
+   "surface": true,
+   "meta": {"source": "docs/areas.md", "confidence": "wiki", "notes": "5th Upgrade Disk reader terminal; no room record in rooms.json"}
+  },
+  {
+   "id": "orindian_ruins",
+   "name": "Orindian Ruins (Throne Room floorplan)",
+   "kind": "area",
+   "surface": true,
+   "meta": {"source": "docs/areas.md", "confidence": "wiki"}
+  },
+  {
+   "id": "campsite",
+   "name": "Campsite",
+   "kind": "area",
+   "surface": true,
+   "meta": {"source": "docs/areas.md", "confidence": "wiki"}
+  },
+  {
+   "id": "apple_orchard",
+   "name": "Apple Orchard (+20 steps/day - torch on ENTRY)",
+   "kind": "area",
+   "surface": true,
+   "meta": {"source": "docs/areas.md", "confidence": "wiki"}
+  },
+  {
+   "id": "gemstone_cavern",
+   "name": "Gemstone Cavern (2 gems/day - torch on ENTRY)",
+   "kind": "area",
+   "surface": true,
+   "meta": {"source": "docs/areas.md", "confidence": "wiki"}
+  },
+  {
+   "id": "crate_tunnel",
+   "name": "Crate Tunnel (entrance only)",
+   "kind": "area",
+   "surface": true,
+   "meta": {"source": "docs/areas.md", "confidence": "wiki", "notes": "Modelled to entrance only; igniting torches grants Tunnel floorplan. Everything deeper is story, not progression."}
+  },
+  {
+   "id": "sealed_entrance",
+   "name": "Sealed Entrance",
+   "kind": "area",
+   "surface": true,
+   "meta": {"source": "docs/areas.md", "confidence": "wiki"}
+  },
+  {
+   "id": "basement",
+   "name": "Basement",
+   "kind": "area",
+   "surface": false,
+   "meta": {"source": "docs/areas.md", "confidence": "wiki"}
+  },
+  {
+   "id": "well",
+   "name": "Well",
+   "kind": "area",
+   "surface": false,
+   "meta": {"source": "docs/areas.md", "confidence": "wiki"}
+  },
+  {
+   "id": "reservoir_south",
+   "name": "Reservoir (South)",
+   "kind": "area",
+   "surface": false,
+   "meta": {"source": "docs/areas.md", "confidence": "wiki"}
+  },
+  {
+   "id": "reservoir_north",
+   "name": "Reservoir (North)",
+   "kind": "area",
+   "surface": false,
+   "meta": {"source": "docs/areas.md", "confidence": "wiki"}
+  },
+  {
+   "id": "safehouse",
+   "name": "Safehouse (Sanctum Key)",
+   "kind": "area",
+   "surface": false,
+   "meta": {"source": "docs/areas.md", "confidence": "wiki"}
+  },
+  {
+   "id": "catacombs",
+   "name": "Catacombs",
+   "kind": "area",
+   "surface": false,
+   "meta": {"source": "docs/areas.md", "confidence": "wiki"}
+  },
+  {
+   "id": "mine_south",
+   "name": "Abandoned Mine (South)",
+   "kind": "area",
+   "surface": false,
+   "meta": {"source": "docs/areas.md", "confidence": "wiki", "notes": "Upgrade Disk sits openly on a table; obtainable WITHOUT lighting candlesticks. Candles independently open the Precipice stairway."}
+  },
+  {
+   "id": "mine_north",
+   "name": "Abandoned Mine (North)",
+   "kind": "area",
+   "surface": false,
+   "meta": {"source": "docs/areas.md", "confidence": "wiki"}
+  },
+  {
+   "id": "rotating_gear",
+   "name": "Rotating Gear (stays where left)",
+   "kind": "area",
+   "surface": false,
+   "meta": {"source": "docs/areas.md", "confidence": "wiki"}
+  },
+  {
+   "id": "upper_rotating_gear",
+   "name": "Upper Rotating Gear",
+   "kind": "area",
+   "surface": false,
+   "meta": {"source": "docs/areas.md", "confidence": "wiki"}
+  },
+  {
+   "id": "underpass",
+   "name": "The Underpass",
+   "kind": "area",
+   "surface": false,
+   "meta": {"source": "docs/areas.md", "confidence": "wiki"}
+  },
+  {
+   "id": "inner_sanctum",
+   "name": "Inner Sanctum (Antechamber N lever)",
+   "kind": "area",
+   "surface": false,
+   "meta": {"source": "docs/areas.md", "confidence": "wiki"}
+  },
+  {
+   "id": "sigil_chambers",
+   "name": "8 Sigil Chambers",
+   "kind": "area",
+   "surface": false,
+   "meta": {"source": "docs/areas.md", "confidence": "wiki", "notes": "Each opened by 1 Sanctum Key (consumed), stays permanently open, grants +2 allowance from its Mora Jai box."}
+  },
+  {
+   "id": "precipice",
+   "name": "The Precipice",
+   "kind": "area",
+   "surface": false,
+   "meta": {"source": "docs/areas.md", "confidence": "wiki"}
+  },
+  {
+   "id": "unknown_underground",
+   "name": "Unknown (Underground) (Key of Aries clock)",
+   "kind": "area",
+   "surface": false,
+   "meta": {"source": "docs/areas.md", "confidence": "wiki"}
+  }
+ ],
+ "gates": [
+  {
+   "id": "garage_door_breaker",
+   "kind": "unmodelled",
+   "permanence": "daily",
+   "stub": true,
+   "detail": "Garage door requires the breaker to be on. Deferred: Power system not modelled. Passes (stub open) so Garage <-> West Path is reachable.",
+   "retire_in": "PR-power-system",
+   "meta": {"source": "docs/areas.md", "confidence": "wiki"}
+  },
+  {
+   "id": "west_gate_unlatched",
+   "kind": "flag",
+   "permanence": "permanent",
+   "stub": false,
+   "detail": "The west gate can only be unlatched from the inside (first ever West Path visit must come via Garage). Once unlatched the flag is permanent.",
+   "meta": {"source": "docs/areas.md", "confidence": "wiki"}
+  },
+  {
+   "id": "outer_room_drawn",
+   "kind": "unmodelled",
+   "permanence": "daily",
+   "stub": true,
+   "detail": "West Path -> outer room: the outer room must be drawn as today's outer room (1 of 8). Deferred: outer-room selection mechanism not wired to areas yet. Passes so all anchored outer rooms are reachable.",
+   "retire_in": "PR2-engine-adoption",
+   "meta": {"source": "docs/areas.md", "confidence": "wiki"}
+  },
+  {
+   "id": "lab_steam_and_power",
+   "kind": "unmodelled",
+   "permanence": "permanent",
+   "stub": true,
+   "detail": "Private Drive -> Blackbridge Grotto: requires Laboratory steam/lever puzzle AND POWER. Deferred: Power system not modelled. Passes (stub open).",
+   "retire_in": "PR-power-system",
+   "meta": {"source": "docs/areas.md", "confidence": "wiki"}
+  },
+  {
+   "id": "three_microchips",
+   "kind": "item",
+   "permanence": "daily",
+   "stub": false,
+   "detail": "Blackbridge Grotto -> Orindian Ruins: all 3 microchips placed in the pedestal.",
+   "item_ids": ["microchip"],
+   "count": 3,
+   "meta": {"source": "docs/areas.md", "confidence": "wiki"}
+  },
+  {
+   "id": "padlock_code",
+   "kind": "puzzle",
+   "permanence": "permanent",
+   "stub": false,
+   "detail": "Campsite -> Apple Orchard: padlock code 1128. Under the sim's 'player solves every puzzle they enter' doctrine this always passes.",
+   "meta": {"source": "docs/areas.md", "confidence": "wiki"}
+  },
+  {
+   "id": "vac_puzzle_lever",
+   "kind": "puzzle",
+   "permanence": "permanent",
+   "stub": false,
+   "detail": "Campsite -> Gemstone Cavern: V.A.C. puzzle (Utility Closet) + lever. Under the sim's 'player solves every puzzle' doctrine this always passes.",
+   "meta": {"source": "docs/areas.md", "confidence": "wiki"}
+  },
+  {
+   "id": "power_hammer_planks",
+   "kind": "item",
+   "permanence": "permanent",
+   "stub": false,
+   "detail": "Grounds -> Sealed Entrance: Power Hammer breaks the planks (permanent once broken).",
+   "item_ids": ["power_hammer"],
+   "count": 1,
+   "meta": {"source": "docs/areas.md", "confidence": "wiki"}
+  },
+  {
+   "id": "pump_water_lte8",
+   "kind": "unmodelled",
+   "permanence": "daily",
+   "stub": true,
+   "detail": "Grounds -> Well: Pump Room water level <= 8. Deferred: Pump Room water level not modelled. Passes (stub open).",
+   "retire_in": "PR-pump-room",
+   "meta": {"source": "docs/areas.md", "confidence": "wiki"}
+  },
+  {
+   "id": "ignition_torches_crate",
+   "kind": "item",
+   "permanence": "daily",
+   "stub": false,
+   "detail": "Grounds -> Crate Tunnel: ignition tool lights the torches, granting the Tunnel floorplan. Requires an ignition tool item (torch or burning_glass).",
+   "item_ids": ["torch", "burning_glass"],
+   "count": 1,
+   "meta": {"source": "docs/areas.md", "confidence": "wiki"}
+  },
+  {
+   "id": "cliffside_elevator_down",
+   "kind": "unmodelled",
+   "permanence": "daily",
+   "stub": true,
+   "detail": "Grounds -> Precipice: cliffside elevator; requires 4 torches lit AND car at the top. Deferred: torch tracking and elevator position not modelled. Passes (stub open).",
+   "retire_in": "PR-torches-elevator",
+   "meta": {"source": "docs/areas.md", "confidence": "wiki"}
+  },
+  {
+   "id": "cliffside_elevator_up",
+   "kind": "unmodelled",
+   "permanence": "daily",
+   "stub": true,
+   "detail": "Precipice -> Grounds: elevator; only if the car was ridden down (cannot be called up from below). Deferred: elevator position not modelled. Passes (stub open).",
+   "retire_in": "PR-torches-elevator",
+   "meta": {"source": "docs/areas.md", "confidence": "wiki"}
+  },
+  {
+   "id": "foundation_elevator_down",
+   "kind": "unmodelled",
+   "permanence": "permanent",
+   "stub": true,
+   "detail": "The Foundation -> Basement: elevator; crank revealed AND car at the top. Deferred: Foundation elevator position not modelled. Passes (stub open).",
+   "retire_in": "PR-foundation-elevator",
+   "meta": {"source": "docs/areas.md", "confidence": "wiki"}
+  },
+  {
+   "id": "foundation_elevator_up",
+   "kind": "unmodelled",
+   "permanence": "daily",
+   "stub": true,
+   "detail": "Basement -> The Foundation: elevator; keycard to SUMMON if the car is not already down. Deferred: elevator position not modelled. Passes (stub open).",
+   "retire_in": "PR-foundation-elevator",
+   "meta": {"source": "docs/areas.md", "confidence": "wiki"}
+  },
+  {
+   "id": "power_hammer_wall",
+   "kind": "item",
+   "permanence": "permanent",
+   "stub": false,
+   "detail": "Sealed Entrance -> Basement: Power Hammer breaks the wall (permanent once broken).",
+   "item_ids": ["power_hammer"],
+   "count": 1,
+   "meta": {"source": "docs/areas.md", "confidence": "wiki"}
+  },
+  {
+   "id": "basement_sealed_entrance_return",
+   "kind": "unmodelled",
+   "permanence": "daily",
+   "stub": true,
+   "detail": "Basement -> Sealed Entrance: regrows daily unless the Grounds planks are also broken. Deferred: cross-gate dependency (planks state) not modelled. Passes (stub open).",
+   "retire_in": "PR2-engine-adoption",
+   "meta": {"source": "docs/areas.md", "confidence": "wiki"}
+  },
+  {
+   "id": "pallet_jack_puzzle",
+   "kind": "puzzle",
+   "permanence": "permanent",
+   "stub": false,
+   "detail": "Basement -> Reservoir North: pallet-jack puzzle. Under the sim's 'player solves every puzzle' doctrine this always passes.",
+   "meta": {"source": "docs/areas.md", "confidence": "wiki"}
+  },
+  {
+   "id": "basement_key_well",
+   "kind": "item",
+   "permanence": "permanent",
+   "stub": false,
+   "detail": "Well -> Reservoir South: Basement Key (not consumed; permanent once unlocked).",
+   "item_ids": ["basement_key"],
+   "count": 1,
+   "meta": {"source": "docs/areas.md", "confidence": "wiki"}
+  },
+  {
+   "id": "mine_south_visited",
+   "kind": "flag",
+   "permanence": "permanent",
+   "stub": false,
+   "detail": "Reservoir North -> Mine North AND Rotating Gear -> Underpass: owner simplification collapses mine-cart move and gear positioning into a single 'mine_south_visited' flag set on first Mine South visit.",
+   "meta": {"source": "docs/areas.md", "confidence": "wiki"}
+  },
+  {
+   "id": "rowboat_water_6",
+   "kind": "unmodelled",
+   "permanence": "daily",
+   "stub": true,
+   "detail": "Reservoir South <-> Safehouse: rowboat; water level must be exactly 6. Two-way once set. Deferred: Pump Room water level not modelled. Passes (stub open).",
+   "retire_in": "PR-pump-room",
+   "meta": {"source": "docs/areas.md", "confidence": "wiki"}
+  },
+  {
+   "id": "tomb_catacombs",
+   "kind": "room",
+   "permanence": "daily",
+   "stub": false,
+   "detail": "Tomb -> Catacombs: seven-angel puzzle (wall permanently broken once solved), but the Tomb must be drafted that day. Gate: Tomb room drafted/entered today.",
+   "room_id": "tomb",
+   "meta": {"source": "docs/areas.md", "confidence": "wiki"}
+  },
+  {
+   "id": "draxus_scythe",
+   "kind": "puzzle",
+   "permanence": "daily",
+   "stub": false,
+   "detail": "Catacombs -> Mine South: lower Draxus's scythe. ONE-WAY; no reverse edge. Shuts at day end. Under the sim's 'player solves every puzzle' doctrine this always passes.",
+   "meta": {"source": "docs/areas.md", "confidence": "wiki"}
+  },
+  {
+   "id": "candlestick_stairway",
+   "kind": "item",
+   "permanence": "permanent",
+   "stub": false,
+   "detail": "Mine South -> Precipice: ignition tool lights all 8 candlesticks, opening a permanent stairway. Note: the Upgrade Disk in Mine South is obtainable WITHOUT this; the candles independently open the stairway.",
+   "item_ids": ["torch", "burning_glass"],
+   "count": 1,
+   "meta": {"source": "docs/areas.md", "confidence": "wiki"}
+  },
+  {
+   "id": "castling_puzzle",
+   "kind": "puzzle",
+   "permanence": "permanent",
+   "stub": false,
+   "detail": "Precipice -> Unknown (Underground): Castling Puzzle. Under the sim's 'player solves every puzzle' doctrine this always passes.",
+   "meta": {"source": "docs/areas.md", "confidence": "wiki"}
+  },
+  {
+   "id": "boiler_room_steam",
+   "kind": "unmodelled",
+   "permanence": "permanent",
+   "stub": true,
+   "detail": "Underpass -> Upper Rotating Gear: red door powered by Boiler Room steam. Deferred: Power/steam system not modelled. Passes (stub open).",
+   "retire_in": "PR-power-system",
+   "meta": {"source": "docs/areas.md", "confidence": "wiki"}
+  },
+  {
+   "id": "tunnel_metal_door",
+   "kind": "puzzle",
+   "permanence": "daily",
+   "stub": false,
+   "detail": "Underpass -> Inner Sanctum: mid-tunnel metal door (no key; resets daily). Under the sim's 'player solves every puzzle' doctrine this always passes.",
+   "meta": {"source": "docs/areas.md", "confidence": "wiki"}
+  },
+  {
+   "id": "sanctum_key_chamber",
+   "kind": "item",
+   "permanence": "permanent",
+   "stub": false,
+   "detail": "Inner Sanctum -> Sigil Chambers: 1 Sanctum Key per chamber (consumed); door then stays permanently open.",
+   "item_ids": ["sanctum_key"],
+   "count": 1,
+   "meta": {"source": "docs/areas.md", "confidence": "wiki"}
+  }
+ ],
+ "edges": [
+  {"from": "house", "to": "grounds", "requires": [], "meta": {"source": "docs/areas.md", "confidence": "wiki"}},
+  {"from": "grounds", "to": "house", "requires": [], "meta": {"source": "docs/areas.md", "confidence": "wiki"}},
+  {"from": "garage", "to": "west_path", "requires": ["garage_door_breaker"], "meta": {"source": "docs/areas.md", "confidence": "wiki"}},
+  {"from": "west_path", "to": "garage", "requires": ["garage_door_breaker"], "meta": {"source": "docs/areas.md", "confidence": "wiki"}},
+  {"from": "grounds", "to": "west_path", "requires": ["west_gate_unlatched"], "meta": {"source": "docs/areas.md", "confidence": "wiki"}},
+  {"from": "west_path", "to": "grounds", "requires": ["west_gate_unlatched"], "meta": {"source": "docs/areas.md", "confidence": "wiki", "notes": "Unlatching from the inside is the act that sets west_gate_unlatched for the first time."}},
+  {"from": "west_path", "to": "tomb", "requires": ["outer_room_drawn"], "meta": {"source": "docs/areas.md", "confidence": "wiki"}},
+  {"from": "west_path", "to": "schoolhouse", "requires": ["outer_room_drawn"], "meta": {"source": "docs/areas.md", "confidence": "wiki"}},
+  {"from": "west_path", "to": "hovel", "requires": ["outer_room_drawn"], "meta": {"source": "docs/areas.md", "confidence": "wiki"}},
+  {"from": "tomb", "to": "west_path", "requires": [], "meta": {"source": "docs/areas.md", "confidence": "wiki"}},
+  {"from": "schoolhouse", "to": "west_path", "requires": [], "meta": {"source": "docs/areas.md", "confidence": "wiki"}},
+  {"from": "hovel", "to": "west_path", "requires": [], "meta": {"source": "docs/areas.md", "confidence": "wiki"}},
+  {"from": "grounds", "to": "private_drive", "requires": [], "meta": {"source": "docs/areas.md", "confidence": "wiki"}},
+  {"from": "private_drive", "to": "grounds", "requires": [], "meta": {"source": "docs/areas.md", "confidence": "wiki"}},
+  {"from": "private_drive", "to": "blackbridge_grotto", "requires": ["lab_steam_and_power"], "meta": {"source": "docs/areas.md", "confidence": "wiki"}},
+  {"from": "blackbridge_grotto", "to": "private_drive", "requires": [], "meta": {"source": "docs/areas.md", "confidence": "wiki"}},
+  {"from": "blackbridge_grotto", "to": "orindian_ruins", "requires": ["three_microchips"], "meta": {"source": "docs/areas.md", "confidence": "wiki"}},
+  {"from": "orindian_ruins", "to": "blackbridge_grotto", "requires": [], "meta": {"source": "docs/areas.md", "confidence": "wiki"}},
+  {"from": "private_drive", "to": "campsite", "requires": [], "meta": {"source": "docs/areas.md", "confidence": "wiki"}},
+  {"from": "campsite", "to": "private_drive", "requires": [], "meta": {"source": "docs/areas.md", "confidence": "wiki"}},
+  {"from": "campsite", "to": "apple_orchard", "requires": ["padlock_code"], "meta": {"source": "docs/areas.md", "confidence": "wiki"}},
+  {"from": "apple_orchard", "to": "campsite", "requires": [], "meta": {"source": "docs/areas.md", "confidence": "wiki"}},
+  {"from": "campsite", "to": "gemstone_cavern", "requires": ["vac_puzzle_lever"], "meta": {"source": "docs/areas.md", "confidence": "wiki"}},
+  {"from": "gemstone_cavern", "to": "campsite", "requires": [], "meta": {"source": "docs/areas.md", "confidence": "wiki"}},
+  {"from": "grounds", "to": "sealed_entrance", "requires": ["power_hammer_planks"], "meta": {"source": "docs/areas.md", "confidence": "wiki"}},
+  {"from": "sealed_entrance", "to": "grounds", "requires": [], "meta": {"source": "docs/areas.md", "confidence": "wiki"}},
+  {"from": "grounds", "to": "well", "requires": ["pump_water_lte8"], "meta": {"source": "docs/areas.md", "confidence": "wiki"}},
+  {"from": "well", "to": "grounds", "requires": [], "meta": {"source": "docs/areas.md", "confidence": "wiki"}},
+  {"from": "grounds", "to": "crate_tunnel", "requires": ["ignition_torches_crate"], "meta": {"source": "docs/areas.md", "confidence": "wiki"}},
+  {"from": "crate_tunnel", "to": "grounds", "requires": [], "meta": {"source": "docs/areas.md", "confidence": "wiki"}},
+  {"from": "grounds", "to": "precipice", "requires": ["cliffside_elevator_down"], "meta": {"source": "docs/areas.md", "confidence": "wiki"}},
+  {"from": "precipice", "to": "grounds", "requires": ["cliffside_elevator_up"], "meta": {"source": "docs/areas.md", "confidence": "wiki"}},
+  {"from": "the_foundation", "to": "basement", "requires": ["foundation_elevator_down"], "meta": {"source": "docs/areas.md", "confidence": "wiki"}},
+  {"from": "basement", "to": "the_foundation", "requires": ["foundation_elevator_up"], "meta": {"source": "docs/areas.md", "confidence": "wiki"}},
+  {"from": "sealed_entrance", "to": "basement", "requires": ["power_hammer_wall"], "meta": {"source": "docs/areas.md", "confidence": "wiki"}},
+  {"from": "basement", "to": "sealed_entrance", "requires": ["basement_sealed_entrance_return"], "meta": {"source": "docs/areas.md", "confidence": "wiki"}},
+  {"from": "basement", "to": "reservoir_north", "requires": ["pallet_jack_puzzle"], "meta": {"source": "docs/areas.md", "confidence": "wiki"}},
+  {"from": "reservoir_north", "to": "basement", "requires": [], "meta": {"source": "docs/areas.md", "confidence": "wiki"}},
+  {"from": "well", "to": "reservoir_south", "requires": ["basement_key_well"], "meta": {"source": "docs/areas.md", "confidence": "wiki"}},
+  {"from": "reservoir_south", "to": "well", "requires": [], "meta": {"source": "docs/areas.md", "confidence": "wiki"}},
+  {"from": "reservoir_south", "to": "mine_south", "requires": [], "meta": {"source": "docs/areas.md", "confidence": "wiki"}},
+  {"from": "mine_south", "to": "reservoir_south", "requires": [], "meta": {"source": "docs/areas.md", "confidence": "wiki"}},
+  {"from": "reservoir_north", "to": "mine_north", "requires": ["mine_south_visited"], "meta": {"source": "docs/areas.md", "confidence": "wiki"}},
+  {"from": "mine_north", "to": "reservoir_north", "requires": [], "meta": {"source": "docs/areas.md", "confidence": "wiki"}},
+  {"from": "reservoir_south", "to": "safehouse", "requires": ["rowboat_water_6"], "meta": {"source": "docs/areas.md", "confidence": "wiki"}},
+  {"from": "safehouse", "to": "reservoir_south", "requires": ["rowboat_water_6"], "meta": {"source": "docs/areas.md", "confidence": "wiki"}},
+  {"from": "tomb", "to": "catacombs", "requires": ["tomb_catacombs"], "meta": {"source": "docs/areas.md", "confidence": "wiki"}},
+  {"from": "catacombs", "to": "tomb", "requires": [], "meta": {"source": "docs/areas.md", "confidence": "wiki"}},
+  {"from": "catacombs", "to": "mine_south", "requires": ["draxus_scythe"], "meta": {"source": "docs/areas.md", "confidence": "wiki", "notes": "ONE-WAY; no reverse edge. Shuts at day end."}},
+  {"from": "mine_south", "to": "precipice", "requires": ["candlestick_stairway"], "meta": {"source": "docs/areas.md", "confidence": "wiki"}},
+  {"from": "precipice", "to": "mine_south", "requires": [], "meta": {"source": "docs/areas.md", "confidence": "wiki"}},
+  {"from": "precipice", "to": "unknown_underground", "requires": ["castling_puzzle"], "meta": {"source": "docs/areas.md", "confidence": "wiki"}},
+  {"from": "unknown_underground", "to": "precipice", "requires": [], "meta": {"source": "docs/areas.md", "confidence": "wiki"}},
+  {"from": "mine_north", "to": "rotating_gear", "requires": [], "meta": {"source": "docs/areas.md", "confidence": "wiki"}},
+  {"from": "rotating_gear", "to": "mine_north", "requires": [], "meta": {"source": "docs/areas.md", "confidence": "wiki"}},
+  {"from": "rotating_gear", "to": "underpass", "requires": ["mine_south_visited"], "meta": {"source": "docs/areas.md", "confidence": "wiki"}},
+  {"from": "underpass", "to": "rotating_gear", "requires": [], "meta": {"source": "docs/areas.md", "confidence": "wiki"}},
+  {"from": "underpass", "to": "upper_rotating_gear", "requires": ["boiler_room_steam"], "meta": {"source": "docs/areas.md", "confidence": "wiki"}},
+  {"from": "upper_rotating_gear", "to": "underpass", "requires": [], "meta": {"source": "docs/areas.md", "confidence": "wiki"}},
+  {"from": "underpass", "to": "inner_sanctum", "requires": ["tunnel_metal_door"], "meta": {"source": "docs/areas.md", "confidence": "wiki"}},
+  {"from": "inner_sanctum", "to": "underpass", "requires": [], "meta": {"source": "docs/areas.md", "confidence": "wiki"}},
+  {"from": "inner_sanctum", "to": "sigil_chambers", "requires": ["sanctum_key_chamber"], "meta": {"source": "docs/areas.md", "confidence": "wiki"}},
+  {"from": "sigil_chambers", "to": "inner_sanctum", "requires": [], "meta": {"source": "docs/areas.md", "confidence": "wiki"}}
+ ]
+}

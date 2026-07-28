@@ -152,6 +152,7 @@ class Registry:
     special: object = None  # SpecialItemsRegistry (special_items.py; typed loosely to avoid a cycle)
     shop_rules: object = None  # ShopsRegistry (shops.py; typed loosely for the same reason)
     upgrade_tables: object = None  # UpgradeTables (upgrades.py; typed loosely to avoid import cycle)
+    area_graph: object = None  # AreaGraph (areas.py; typed loosely to avoid import cycle)
     data_dir: Path = field(default=DEFAULT_DATA_DIR)  # directory the JSON files were loaded from
 
     @classmethod
@@ -161,6 +162,7 @@ class Registry:
         ``data_dir`` overrides the packaged data directory (GameConfig.data_dir
         plumbs through here). Room.idx is the position in rooms.json order.
         """
+        from .areas import load_areas  # deferred: avoids any future circular imports
         from .shops import load_shops  # deferred, matching special_items below
         from .special_items import load_special_items  # deferred: special_items imports Effect
         from .upgrades import load_tables as load_upgrade_tables  # deferred: upgrades imports Registry
@@ -178,6 +180,7 @@ class Registry:
             special=load_special_items(d),
             shop_rules=load_shops(d),
             upgrade_tables=load_upgrade_tables(d),
+            area_graph=load_areas(json.loads((d / "areas.json").read_text())),
             data_dir=d,
         )
 

@@ -658,6 +658,127 @@ def main() -> int:
         if meta and conf not in VALID_CONFIDENCE:
             errors.append(f"{meta_path}: invalid meta.confidence {conf!r}")
 
+    # ── areas.json ─────────────────────────────────────────────────────────────
+    # Referential integrity for the outside-area connectivity graph (docs/areas.md).
+    # Checks: unique node/edge ids; every edge endpoint declared; every requires
+    # tag declared; every anchor id in rooms.json; every item gate id in
+    # special_items.json; every gate is referenced by at least one edge (warn if not).
+
+    areas_doc = json.loads((DATA / "areas.json").read_text())
+    a_nodes = areas_doc.get("nodes", [])
+    a_edges = areas_doc.get("edges", [])
+    a_gates = areas_doc.get("gates", [])
+
+    VALID_AREA_NODE_KINDS = {"area", "anchor"}
+    VALID_GATE_KINDS = {"item", "flag", "room", "puzzle", "unmodelled"}
+    VALID_PERMANENCE = {"permanent", "daily", "none"}
+
+    # Node uniqueness
+    a_node_ids = [n["id"] for n in a_nodes]
+    if len(a_node_ids) != len(set(a_node_ids)):
+        dupes = {i for i in a_node_ids if a_node_ids.count(i) > 1}
+        errors.append(f"areas: duplicate node ids: {dupes}")
+    a_node_id_set = set(a_node_ids)
+
+    for n in a_nodes:
+        where = f"areas/nodes/{n['id']}"
+        if n.get("kind") not in VALID_AREA_NODE_KINDS:
+            errors.append(f"{where}: invalid kind {n.get('kind')!r}")
+        conf = n.get("meta", {}).get("confidence")
+        if conf not in VALID_CONFIDENCE:
+            errors.append(f"{where}: invalid meta.confidence {conf!r}")
+        # Anchor nodes must exist as room ids in rooms.json.
+        # Exception: "house" represents the entire 5x9 grid (the Entrance Hall
+        # complex), not a single draftable room, and has no rooms.json record.
+        if n.get("kind") == "anchor" and n["id"] != "house":
+            if n["id"] not in by_id:
+                errors.append(f"{where}: anchor id {n['id']!r} not in rooms.json")
+
+    # Gate uniqueness and schema
+    a_gate_ids = [g["id"] for g in a_gates]
+    if len(a_gate_ids) != len(set(a_gate_ids)):
+        dupes = {i for i in a_gate_ids if a_gate_ids.count(i) > 1}
+        errors.append(f"areas: duplicate gate ids: {dupes}")
+    a_gate_id_set = set(a_gate_ids)
+
+    for g in a_gates:
+        where = f"areas/gates/{g['id']}"
+        if g.get("kind") not in VALID_GATE_KINDS:
+            errors.append(f"{where}: invalid kind {g.get('kind')!r}")
+        if g.get("permanence") not in VALID_PERMANENCE:
+            errors.append(f"{where}: invalid permanence {g.get('permanence')!r}")
+        if not isinstance(g.get("stub"), bool):
+            errors.append(f"{where}: stub must be bool, got {g.get('stub')!r}")
+        conf = g.get("meta", {}).get("confidence")
+        if conf not in VALID_CONFIDENCE:
+            errors.append(f"{where}: invalid meta.confidence {conf!r}")
+        # item gates: item_ids list must be non-empty; every id must exist in special_items.json
+        if g.get("kind") == "item":
+            iids = g.get("item_ids")
+            if not iids:
+                errors.append(f"{where}: kind=item gate missing or empty item_ids field")
+            else:
+                for iid in iids:
+                    if iid not in si_by_id:
+                        errors.append(f"{where}: item_ids entry {iid!r} not in special_items.json")
+        # room gates: room_id field must exist and name a real room
+        if g.get("kind") == "room":
+            rid = g.get("room_id")
+            if rid is None:
+                errors.append(f"{where}: kind=room gate missing room_id field")
+            elif rid not in by_id:
+                errors.append(f"{where}: room_id {rid!r} not in rooms.json")
+        # stub invariants:
+        # 1. A stub gate must carry retire_in (the only record of what retires it).
+        # 2. kind=unmodelled implies stub=True; otherwise the edge goes dead silently.
+        if g.get("stub") is True and not g.get("retire_in"):
+            errors.append(f"{where}: stub=true gate missing retire_in field")
+        if g.get("kind") == "unmodelled" and g.get("stub") is not True:
+            errors.append(f"{where}: kind=unmodelled gate must have stub=true")
+
+    # Edge uniqueness and referential integrity
+    a_edge_pairs = [(e["from"], e["to"]) for e in a_edges]
+    if len(a_edge_pairs) != len(set(a_edge_pairs)):
+        dupes = {p for p in a_edge_pairs if a_edge_pairs.count(p) > 1}
+        errors.append(f"areas: duplicate edges: {dupes}")
+
+    gates_used: set[str] = set()
+    for e in a_edges:
+        where = f"areas/edges/{e['from']}->{e['to']}"
+        conf = e.get("meta", {}).get("confidence")
+        if conf not in VALID_CONFIDENCE:
+            errors.append(f"{where}: invalid meta.confidence {conf!r}")
+        if e["from"] not in a_node_id_set:
+            errors.append(f"{where}: from {e['from']!r} not a declared node")
+        if e["to"] not in a_node_id_set:
+            errors.append(f"{where}: to {e['to']!r} not a declared node")
+        for gid in e.get("requires", []):
+            if gid not in a_gate_id_set:
+                errors.append(f"{where}: requires unknown gate {gid!r}")
+            gates_used.add(gid)
+
+    # Warn on declared gates that no edge references (likely a stale or orphaned gate).
+    for gid in a_gate_id_set:
+        if gid not in gates_used:
+            warnings.append(f"areas/gates/{gid}: gate declared but not referenced by any edge")
+
+    # Node and edge count consistency: docs/areas.md specifies 31 nodes (25 area + 6 anchors)
+    # and 63 directed edges. A mismatch means the data and spec have drifted.
+    SPEC_NODE_COUNT = 31
+    SPEC_EDGE_COUNT = 63
+    actual_node_count = len(a_node_ids)
+    actual_edge_count = len(a_edges)
+    if actual_node_count != SPEC_NODE_COUNT:
+        errors.append(
+            f"areas: node count is {actual_node_count}, spec says {SPEC_NODE_COUNT} "
+            f"(25 area nodes + 6 anchors); update docs/areas.md if the graph has changed"
+        )
+    if actual_edge_count != SPEC_EDGE_COUNT:
+        errors.append(
+            f"areas: edge count is {actual_edge_count}, spec says {SPEC_EDGE_COUNT}; "
+            f"update docs/areas.md if the graph has changed"
+        )
+
     base = [r for r in rooms if r.get("pool") == "base"]
     n_shops = len(shops)
     print(f"{len(rooms)} rooms ({len(base)} base pool); "
