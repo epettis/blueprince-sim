@@ -1,0 +1,229 @@
+"""Pure area-graph library: nodes, edges, gates, BFS traversal.
+
+PR1 deliverable: data + traversal only.  Nothing in the engine calls this yet;
+ZERO behaviour change to the game.  Engine adoption is PR2; env wiring is PR3.
+
+Every edge costs exactly 1 step (owner-confirmed).  See docs/areas.md for the
+full specification and docs/areas.dot for the co-authoritative edge set.
+"""
+
+from __future__ import annotations
+
+from collections import deque
+from dataclasses import dataclass, field
+from typing import Mapping
+
+# ---------------------------------------------------------------------------
+# Frozen dataclasses
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True, slots=True)
+class Area:
+    id: str           # snake_case node identifier matching areas.json
+    name: str         # human-readable display name
+    kind: str         # "area" (graph node) or "anchor" (on-grid/drafted room)
+    surface: bool | None  # True = surface area; False = underground; None for anchors
+
+
+@dataclass(frozen=True, slots=True)
+class Gate:
+    id: str              # snake_case gate identifier, referenced in AreaEdge.requires
+    kind: str            # "item" | "flag" | "room" | "puzzle" | "unmodelled"
+    permanence: str      # "permanent" | "daily" | "none"
+    stub: bool           # True when the mechanism is deferred; passes unconditionally
+    detail: str          # human-readable explanation of the real gate condition
+    item_ids: tuple[str, ...]  # item ids (ANY of these count); non-empty only for kind="item"
+    count: int           # how many items (summed across item_ids) the player must hold; default 1
+    room_id: str | None  # room that must have been entered today; non-None only for kind="room"
+    retire_in: str | None  # PR that replaces this stub with the real gate; non-None iff stub
+
+
+@dataclass(frozen=True, slots=True)
+class AreaEdge:
+    from_id: str              # source node id
+    to_id: str                # destination node id
+    requires: tuple[str, ...]  # gate tag ids (ALL must hold — AND semantics)
+
+
+@dataclass(frozen=True)
+class AreaGraph:
+    nodes: dict[str, Area]           # node id -> Area
+    gates: dict[str, Gate]           # gate id -> Gate
+    edges: tuple[AreaEdge, ...]      # all directed edges
+    # adjacency: node id -> list of (neighbour id, gate ids tuple)
+    adjacency: dict[str, list[tuple[str, tuple[str, ...]]]] = field(default_factory=dict)
+
+
+@dataclass(frozen=True, slots=True)
+class GateContext:
+    """Everything gate_open needs to evaluate a gate.  Kept minimal for PR1.
+
+    PR2 will widen this as engine state becomes available; for now only flags
+    and held items are plumbed, which is enough to exercise the graph.
+    """
+    held_items: Mapping[str, int]    # special-item id -> count held by the player right now
+    flags: frozenset[str]            # persistent boolean flags set during this run
+    rooms_entered: frozenset[str]    # room ids entered today (e.g. "tomb" for catacombs gate)
+
+
+# ---------------------------------------------------------------------------
+# Loading
+# ---------------------------------------------------------------------------
+
+
+def stub_gates(graph: AreaGraph) -> dict[str, str]:
+    """Return {gate id: retiring PR} for every gate still standing in for a real mechanism.
+
+    Derived from the graph rather than hand-maintained, so it cannot drift from
+    areas.json.  A stub gate passes unconditionally, so anything measured while
+    one is open is an UPPER BOUND on what a real player could reach.
+    """
+    return {g.id: (g.retire_in or "unassigned") for g in graph.gates.values() if g.stub}
+
+
+def load_areas(raw: dict) -> AreaGraph:
+    """Parse a raw areas.json dict into an immutable AreaGraph.
+
+    Called by Registry.load(); ``raw`` is the result of json.loads on areas.json.
+    """
+    nodes: dict[str, Area] = {}
+    for n in raw["nodes"]:
+        nodes[n["id"]] = Area(
+            id=n["id"],
+            name=n["name"],
+            kind=n["kind"],
+            surface=n.get("surface", None),
+        )
+
+    gates: dict[str, Gate] = {}
+    for g in raw["gates"]:
+        gates[g["id"]] = Gate(
+            id=g["id"],
+            kind=g["kind"],
+            permanence=g["permanence"],
+            stub=g["stub"],
+            detail=g["detail"],
+            item_ids=tuple(g.get("item_ids", [])),
+            count=g.get("count", 1),
+            room_id=g.get("room_id", None),
+            retire_in=g.get("retire_in", None),
+        )
+
+    edges_list: list[AreaEdge] = []
+    adjacency: dict[str, list[tuple[str, tuple[str, ...]]]] = {nid: [] for nid in nodes}
+    for e in raw["edges"]:
+        edge = AreaEdge(
+            from_id=e["from"],
+            to_id=e["to"],
+            requires=tuple(e.get("requires", [])),
+        )
+        edges_list.append(edge)
+        adjacency[e["from"]].append((e["to"], edge.requires))
+
+    return AreaGraph(
+        nodes=nodes,
+        gates=gates,
+        edges=tuple(edges_list),
+        adjacency=adjacency,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Gate evaluation
+# ---------------------------------------------------------------------------
+
+
+def gate_open(graph: AreaGraph, gate_id: str, ctx: GateContext) -> bool:
+    """Return True if the named gate is passable in the given context.
+
+    Dispatches on Gate.kind using match/case (repo convention for 4+ arm dispatch).
+    Stub gates always pass — they represent deferred mechanisms; see stub_gates().
+    """
+    gate = graph.gates[gate_id]
+
+    if gate.stub:
+        return True
+
+    match gate.kind:
+        case "item":
+            # item gate: player must hold at least gate.count items in total across
+            # gate.item_ids (ANY of the listed ids contribute to the count).
+            total = sum(ctx.held_items.get(iid, 0) for iid in gate.item_ids)
+            return total >= gate.count
+
+        case "flag":
+            # flag gate: a persistent engine boolean must be set
+            return gate_id in ctx.flags
+
+        case "room":
+            # room gate: a specific room was drafted/entered today
+            if gate.room_id is None:
+                return False
+            return gate.room_id in ctx.rooms_entered
+
+        case "puzzle":
+            # puzzle gate: sim doctrine — player solves every puzzle they enter
+            return True
+
+        case "unmodelled":
+            # unmodelled gate: mechanism deferred; stub=False shouldn't occur
+            # (stub=True already returns True above), but be explicit.
+            return False
+
+        case _:
+            return False
+
+
+# ---------------------------------------------------------------------------
+# Traversal
+# ---------------------------------------------------------------------------
+
+
+def _edge_passable(graph: AreaGraph, requires: tuple[str, ...], ctx: GateContext) -> bool:
+    """Return True if all gates on this edge are open."""
+    return all(gate_open(graph, gid, ctx) for gid in requires)
+
+
+def reachable(graph: AreaGraph, origin: str, ctx: GateContext) -> dict[str, int]:
+    """BFS from origin; return {node_id: step_distance} for every reachable node.
+
+    Every edge costs exactly 1 step (owner-confirmed).  Only nodes reachable
+    with all required gates open are included.  The origin itself is at distance 0.
+    """
+    dist: dict[str, int] = {origin: 0}
+    queue: deque[str] = deque([origin])
+    while queue:
+        current = queue.popleft()
+        for neighbour, requires in graph.adjacency.get(current, []):
+            if neighbour not in dist and _edge_passable(graph, requires, ctx):
+                dist[neighbour] = dist[current] + 1
+                queue.append(neighbour)
+    return dist
+
+
+def path(graph: AreaGraph, origin: str, dest: str, ctx: GateContext) -> tuple[str, ...] | None:
+    """Return the shortest path from origin to dest, or None if unreachable.
+
+    The returned tuple includes both origin and dest as the first and last elements.
+    Every edge costs 1 step.
+    """
+    if origin == dest:
+        return (origin,)
+    parent: dict[str, str | None] = {origin: None}
+    queue: deque[str] = deque([origin])
+    while queue:
+        current = queue.popleft()
+        for neighbour, requires in graph.adjacency.get(current, []):
+            if neighbour not in parent and _edge_passable(graph, requires, ctx):
+                parent[neighbour] = current
+                if neighbour == dest:
+                    # Reconstruct path from dest back to origin.
+                    steps: list[str] = []
+                    node: str | None = dest
+                    while node is not None:
+                        steps.append(node)
+                        node = parent[node]
+                    return tuple(reversed(steps))
+                queue.append(neighbour)
+    return None

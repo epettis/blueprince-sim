@@ -1,8 +1,14 @@
 # Outside-area connectivity graph
 
-Status: **owner-reviewed, not implemented.** This is the specification for
-`open_tasks.md` task 4. [`areas.dot`](areas.dot) is the same graph in Graphviz
-form; the two must be kept in step.
+Status: **owner-reviewed; PR1 (graph as data + traversal library) implemented.**
+This is the specification for `open_tasks.md` task 4. [`areas.dot`](areas.dot) is
+the same graph in Graphviz form; the two must be kept in step.
+
+The graph ships as `src/blueprince_sim/data/areas.json`, parsed by
+`engine/areas.py` into an immutable `AreaGraph` with gate evaluation and BFS
+pathfinding at 1 step per edge. **Nothing in the engine calls it yet** — PR2 is
+engine adoption (replacing `outer_loc` and the three `GameConfig` outer step
+costs), PR3 is the env action/observation change and the retrain point.
 
 Render the picture with:
 
@@ -162,6 +168,50 @@ day, so the fourth torch could never be lit within a single day.
 Both elevators need **position tracked**, because arriving at an area overland
 does not bring the car with you. Reaching the Precipice via the Abandoned Mine
 strands you there unless the car was already ridden down.
+
+## PR1 stub gates — the deferred mechanisms, and what they cost
+
+PR1 ships graph traversal only. The mechanisms above are not modelled, so the
+edges that depend on them are gated by **stubs that pass unconditionally**
+(owner decision, 2026-07-27).
+
+The alternative — closing them — was rejected because it strands **8 of the 31
+nodes**: Blackbridge Grotto (POWER), Orindian Ruins (behind the Grotto), the
+Safehouse and the Well (water level), and Underpass / Inner Sanctum / Sigil
+Chambers / Upper Rotating Gear (Rotating Gear position). That would delete
+Blackbridge Grotto, the one thing task 4 uniquely supplies. An unreachable node
+measures exactly zero, which is a worse and more misleading failure than a
+slightly-too-generous world.
+
+> **Anything measured while these stubs are open is an UPPER BOUND** on what a
+> real player could reach. Print that caveat next to any number taken before the
+> mechanism PRs land.
+
+Each stub carries `stub: true` and a `retire_in` in `areas.json`;
+`validate_data.py` enforces that both are present and that `kind: "unmodelled"`
+implies `stub: true`, so an unmodelled gate can never silently go *closed* and
+kill its edges. `engine/areas.py::stub_gates()` derives this table from the data
+rather than repeating it, so the two cannot drift.
+
+| Gate | Retires in | Real condition it stands in for |
+|---|---|---|
+| `foundation_elevator_down` | PR-foundation-elevator | The Foundation -> Basement: crank revealed AND car at the top |
+| `foundation_elevator_up` | PR-foundation-elevator | Basement -> The Foundation: keycard to SUMMON if the car is not already down |
+| `boiler_room_steam` | PR-power-system | Underpass -> Upper Rotating Gear: red door powered by Boiler Room steam |
+| `garage_door_breaker` | PR-power-system | Garage door requires the breaker to be on |
+| `lab_steam_and_power` | PR-power-system | Private Drive -> Blackbridge Grotto: Laboratory steam/lever puzzle AND POWER |
+| `pump_water_lte8` | PR-pump-room | Grounds -> Well: water level <= 8 |
+| `rowboat_water_6` | PR-pump-room | Reservoir South <-> Safehouse: rowboat, water level exactly 6 |
+| `cliffside_elevator_down` | PR-torches-elevator | Grounds -> Precipice: 4 torches lit AND car at the top |
+| `cliffside_elevator_up` | PR-torches-elevator | Precipice -> Grounds: only if the car was ridden down |
+| `basement_sealed_entrance_return` | PR2-engine-adoption | Basement -> Sealed Entrance: regrows daily unless the Grounds planks are also broken |
+| `outer_room_drawn` | PR2-engine-adoption | West Path -> outer room: must be the room drawn as today's outer room (1 of 8) |
+
+Gates that are **not** stubs are already live: item gates (Power Hammer, Basement
+Key, ignition tools, microchips, Sanctum Keys), the `west_gate_unlatched` and
+`mine_south_visited` flags, the `tomb_catacombs` room gate, and the six
+`puzzle` gates that pass under the sim's standing "the player solves every puzzle
+in a room they enter" doctrine.
 
 ## Systems the sim lacks entirely
 

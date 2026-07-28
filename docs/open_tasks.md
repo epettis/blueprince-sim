@@ -172,12 +172,28 @@ Grotto, Orindian Ruins, the Precipice, the Abandoned Mine, Crate Tunnel, the Inn
 Sanctum — is modeled today only as the single "outer room" doorstep abstraction
 (`outer_loc` 0/1/2 plus fixed step costs in `GameConfig`).
 
-**Owner is supplying the area graph** (nodes, edges, and the dependencies that gate
-each edge — microchips, keys, opened walls, lit candles). Until then this stays
-blocked. When it arrives, the natural shape is a data file (`data/areas.json`)
-of nodes/edges with per-edge requirements, replacing the hard-coded outer costs, and
-an action set for moving between areas. Several currently-inert items unblock with
-it: microchips, Power Hammer wall breaks, the Sanctum keys.
+### Implementation plan (2026-07-27)
+
+`outer_loc` is read at 40+ sites across `game.py`, `env/actions.py`, `env/obs.py`,
+`engine/shops.py`, `engine/special_items.py` and `cli/play.py`, and it doubles as a
+phase flag for the action masker — so it cannot be widened in place. Task 4 is
+therefore three PRs, each independently green:
+
+1. **The graph as data plus a pure library.** `src/blueprince_sim/data/areas.json`
+   (nodes, directed edges, gates as declarative string tags in the
+   `draft_conditions` idiom) plus `engine/areas.py` (frozen dataclasses, gate
+   evaluation, BFS pathfinding at 1 step per edge) and `validate_data.py`
+   referential checks. Nothing calls it, so there is zero behaviour change.
+2. **Engine adoption.** `GameState` gains an area field; the graph replaces
+   `_outer_route_cost`, `open_outer_draft`, `return_from_outer` and the three
+   `GameConfig` outer step costs.
+3. **Env layer.** Per-area travel actions replacing `RETURN_EH_ACTION` /
+   `RETURN_GARAGE_ACTION`, and a position encoding that stops being a single
+   `Discrete(45)` field. **This is the retrain point** — bundle it with the
+   retrain already owed for PR #36.
+
+Several currently-inert items unblock with this: microchips, Power Hammer wall
+breaks, the Sanctum keys.
 
 ## Also outstanding (from `docs/plan.md`)
 
@@ -219,6 +235,61 @@ it: microchips, Power Hammer wall breaks, the Sanctum keys.
   Only **The Foundation** (record exists but `pool=none`) and the **Abandoned Mine**
   (no record) are genuinely off-grid. Task 4 still owns Blackbridge Grotto (the 5th
   disk terminal) and the action-space change worth bundling with the retrain.
+
+- **2026-07-27, task 4 sequencing**: task 4 runs BEFORE the Phase 1 forced-upgrade
+  A/B. Phase 1 needs no checkpoint and so looks runnable immediately, but
+  [`upgrade-value-measurement.md`](upgrade-value-measurement.md) is explicit that a
+  Phase 1 run made before task 4 is a **harness shakedown, not a bankable
+  baseline** — task 4 changes the world the baseline describes, and the pre-lock
+  and post-lock measurements must differ *only* by locks. Before task 4 is the only
+  cheap window.
+
+- **2026-07-27, task 4 PR1 scope — "graph traversal only"**: the stateful
+  mechanisms the graph implies (POWER, Pump Room water level, the two elevator
+  positions, the Rotating Gear position, the four torches) are NOT modelled in the
+  first implementation. They land in later PRs.
+
+- **2026-07-27, deferred gates default OPEN, explicitly stubbed**: each deferred
+  mechanism gets a named stub that currently passes, carried in the data as
+  `stub: true` and listed in a table so later PRs know exactly what to tighten.
+
+  The alternative — closing them — was rejected because it kills **8 of 31 nodes**:
+  Blackbridge Grotto needs POWER, Orindian Ruins sits behind the Grotto, the
+  Safehouse needs water level exactly 6, the Well needs water ≤ 8, and Underpass /
+  Inner Sanctum / Sigil Chambers / Upper Rotating Gear all sit behind the Rotating
+  Gear position. That would delete Blackbridge Grotto, the one thing task 4
+  uniquely supplies. An unreachable node measures exactly zero, which is a worse
+  and more misleading failure than a slightly-too-generous world.
+
+  **Consequence to print next to any number measured before the mechanism PRs
+  land: it is an upper bound.** The `stub: true` flag is what keeps that visible
+  rather than mysterious.
+
+- **2026-07-27, `absent_spawn_rooms` names non-existent rooms** (found while
+  building the area graph, deliberately NOT fixed in that PR). Three special
+  items name ids that do not exist in `rooms.json`:
+  `sanctum_key` -> `["reservoir", "safehouse"]`, `file_cabinet_key` ->
+  `["crate_tunnel"]`, `key_of_aries` -> `["precipice"]`.
+
+  `validate_data.py` does not catch these, because it only errors when an
+  `absent_spawn_rooms` id *does* exist in `rooms.json` (the check exists to catch
+  a room being re-added without promoting it to `spawn_rooms`). So the mistake is
+  silent in both directions.
+
+  They appear to be **area** ids, not room ids — `safehouse`, `crate_tunnel` and
+  `precipice` are all area nodes in `areas.json`. But `reservoir` matches nothing
+  even there, since the graph splits it into `reservoir_north` and
+  `reservoir_south`. Resolve this when PR2 wires areas into the engine and the
+  distinction between a room id and an area id becomes real; until then the
+  entries are inert.
+
+- **2026-07-27, Cloister frequency boosts**: model **all three** — the Terrace
+  (makes the Cloister free while on the estate) and the Southern Cross / Greenhouse
+  boosts. These are the only unmodelled levers that touch Cloister's 5.87% per-day
+  offer rate, which is the actual bottleneck on observing an Orinda decision. This
+  is Phase 3 of [`upgrade-value-measurement.md`](upgrade-value-measurement.md) and
+  is independent of task 4; it does not block the Phase 1 A/B, which needs no offer
+  and no rare draw.
 
 ## 5. Throttle the training terminal output — DONE
 
