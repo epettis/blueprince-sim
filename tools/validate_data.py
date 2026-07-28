@@ -185,6 +185,10 @@ def main() -> int:
     # "die" is a resource token allowed in lost_and_found pool and fabrication
     si_resolvable = set(si_by_id) | {"die"}
 
+    # (where, area id) pairs from meta.absent_spawn_areas, checked against the area
+    # graph further down — areas.json is not loaded until the areas section below.
+    absent_area_refs: list[tuple[str, str]] = []
+
     for item in si_items:
         where = f"special_items/{item['id']}"
         if item.get("kind") not in VALID_ITEM_KINDS:
@@ -206,11 +210,18 @@ def main() -> int:
         for rid in item.get("guaranteed_in", []):
             if rid not in by_id:
                 errors.append(f"{where}: guaranteed_in references unknown room {rid!r}")
-        for rid in item.get("meta", {}).get("absent_spawn_rooms", []):
-            if rid in by_id:
+        # absent_spawn_areas names OFF-GRID areas an item comes from — places the
+        # sim models as area-graph nodes rather than draftable rooms.  Both
+        # directions are errors: a room id here belongs in spawn_rooms, and an id
+        # that is neither a room nor an area node is simply a typo.
+        for aid in item.get("meta", {}).get("absent_spawn_areas", []):
+            if aid in by_id:
                 errors.append(
-                    f"{where}: absent_spawn_rooms {rid!r} exists in rooms.json — move to spawn_rooms"
+                    f"{where}: absent_spawn_areas {aid!r} is a room in rooms.json "
+                    f"— move it to spawn_rooms"
                 )
+            else:
+                absent_area_refs.append((where, aid))
         if not item.get("implemented", True):
             if not item.get("meta", {}).get("blocked_on"):
                 errors.append(f"{where}: implemented=false requires meta.blocked_on")
@@ -679,6 +690,17 @@ def main() -> int:
         dupes = {i for i in a_node_ids if a_node_ids.count(i) > 1}
         errors.append(f"areas: duplicate node ids: {dupes}")
     a_node_id_set = set(a_node_ids)
+
+    # Deferred from the special-items loop: every absent_spawn_areas id must name a
+    # real area-graph node.  Before areas.json existed these ids were unvalidated in
+    # both directions, which is how 'reservoir' (the graph splits it north/south) and
+    # 'precipice' (the Key of Aries clock is in the Unknown) went unnoticed.
+    for where, aid in absent_area_refs:
+        if aid not in a_node_id_set:
+            errors.append(
+                f"{where}: absent_spawn_areas {aid!r} is neither a room in rooms.json "
+                f"nor a node in areas.json"
+            )
 
     for n in a_nodes:
         where = f"areas/nodes/{n['id']}"

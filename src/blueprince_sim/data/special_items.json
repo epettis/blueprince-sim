@@ -5,7 +5,7 @@
   "Jack hammer: partial wiki data; table is confidence=inferred. No junk entries. Gems (2) = 39/176 = 22.159%; Wind-up Key = 3/176 = 1.705%; remaining coins fill to 100%.",
   "Treasure map cells: A5\u219220, B6\u219226, B8\u219236, C8\u219237, D6\u219228, D9\u219243, E5\u219224, E8\u219239 (flat = (rank-1)*5 + col, letter A-E = col 0-4).",
   "Car keys spawn rooms: digest only names Garage (wiki lists 15 rooms; full list absent from digest).",
-  "Sanctum key: Reservoir and Safehouse absent from rooms.json \u2192 in absent_spawn_rooms.",
+  "Sanctum key: Reservoir (north) and Safehouse are areas, not rooms \u2192 in absent_spawn_areas.",
   "master_key: classified kind=special_key; also guaranteed_in=[showroom].",
   "lock_pick_kit: darkroom/furnace/closed_exhibit/toolshed all exist in rooms.json \u2192 in spawn_rooms."
  ],
@@ -39,7 +39,7 @@
    "meta": {
     "source": "https://blueprince.wiki.gg/wiki/Battery_Pack",
     "confidence": "wiki",
-    "absent_spawn_rooms": [],
+    "absent_spawn_areas": [],
     "blocked_on": "component_only"
    }
   },
@@ -73,7 +73,7 @@
    "meta": {
     "source": "https://blueprince.wiki.gg/wiki/Broken_Lever",
     "confidence": "wiki",
-    "absent_spawn_rooms": [],
+    "absent_spawn_areas": [],
     "blocked_on": null
    }
   },
@@ -111,7 +111,7 @@
    "meta": {
     "source": "https://blueprince.wiki.gg/wiki/Coin_Purse",
     "confidence": "wiki",
-    "absent_spawn_rooms": [],
+    "absent_spawn_areas": [],
     "blocked_on": null
    }
   },
@@ -145,7 +145,7 @@
    "meta": {
     "source": "https://blueprince.wiki.gg/wiki/Compass",
     "confidence": "wiki",
-    "absent_spawn_rooms": [],
+    "absent_spawn_areas": [],
     "blocked_on": null
    }
   },
@@ -184,7 +184,7 @@
    "meta": {
     "source": "https://blueprince.wiki.gg/wiki/Coupon_Book",
     "confidence": "wiki",
-    "absent_spawn_rooms": [],
+    "absent_spawn_areas": [],
     "blocked_on": "shop_purchases_not_modeled"
    }
   },
@@ -209,7 +209,7 @@
    "meta": {
     "source": "https://blueprince.wiki.gg/wiki/Gear_Wrench",
     "confidence": "wiki",
-    "absent_spawn_rooms": [],
+    "absent_spawn_areas": [],
     "blocked_on": "mechanical_room_rarity_not_modeled"
    }
   },
@@ -235,7 +235,7 @@
    "meta": {
     "source": "https://blueprince.wiki.gg/wiki/Hall_Pass",
     "confidence": "wiki",
-    "absent_spawn_rooms": [],
+    "absent_spawn_areas": [],
     "blocked_on": null
    }
   },
@@ -279,7 +279,7 @@
    "meta": {
     "source": "https://blueprince.wiki.gg/wiki/Lock_Pick_Kit",
     "confidence": "datamined",
-    "absent_spawn_rooms": [],
+    "absent_spawn_areas": [],
     "blocked_on": null
    }
   },
@@ -317,7 +317,7 @@
    "meta": {
     "source": "https://blueprince.wiki.gg/wiki/Lucky_Rabbit%27s_Foot",
     "confidence": "wiki",
-    "absent_spawn_rooms": [],
+    "absent_spawn_areas": [],
     "blocked_on": null
    }
   },
@@ -353,7 +353,7 @@
    "meta": {
     "source": "https://blueprince.wiki.gg/wiki/Magnifying_Glass",
     "confidence": "wiki",
-    "absent_spawn_rooms": [],
+    "absent_spawn_areas": [],
     "blocked_on": "lore_documents_not_modeled"
    }
   },
@@ -392,7 +392,7 @@
    "meta": {
     "source": "https://blueprince.wiki.gg/wiki/Metal_Detector",
     "confidence": "inferred",
-    "absent_spawn_rooms": [],
+    "absent_spawn_areas": [],
     "blocked_on": null
    }
   },
@@ -417,7 +417,7 @@
    "meta": {
     "source": "https://blueprince.wiki.gg/wiki/Repellent",
     "confidence": "wiki",
-    "absent_spawn_rooms": [],
+    "absent_spawn_areas": [],
     "blocked_on": null
    }
   },
@@ -453,7 +453,7 @@
    "meta": {
     "source": "https://blueprince.wiki.gg/wiki/Running_Shoes",
     "confidence": "inferred",
-    "absent_spawn_rooms": [],
+    "absent_spawn_areas": [],
     "blocked_on": null
    }
   },
@@ -486,7 +486,7 @@
    "meta": {
     "source": "https://blueprince.wiki.gg/wiki/Salt_Shaker",
     "confidence": "wiki",
-    "absent_spawn_rooms": [],
+    "absent_spawn_areas": [],
     "blocked_on": null
    }
   },
@@ -522,7 +522,7 @@
    "meta": {
     "source": "https://blueprince.wiki.gg/wiki/Shovel",
     "confidence": "datamined",
-    "absent_spawn_rooms": [],
+    "absent_spawn_areas": [],
     "blocked_on": null
    }
   },
@@ -556,7 +556,7 @@
    "meta": {
     "source": "https://blueprince.wiki.gg/wiki/Sledge_Hammer",
     "confidence": "wiki",
-    "absent_spawn_rooms": [],
+    "absent_spawn_areas": [],
     "blocked_on": null
    }
   },
@@ -590,7 +590,7 @@
    "meta": {
     "source": "https://blueprince.wiki.gg/wiki/Sleeping_Mask",
     "confidence": "wiki",
-    "absent_spawn_rooms": [],
+    "absent_spawn_areas": [],
     "blocked_on": null
    }
   },
@@ -616,7 +616,7 @@
    "meta": {
     "source": "https://blueprince.wiki.gg/wiki/Stopwatch",
     "confidence": "inferred",
-    "absent_spawn_rooms": [],
+    "absent_spawn_areas": [],
     "blocked_on": null
    }
   },
@@ -640,7 +640,7 @@
    "meta": {
     "source": "https://blueprince.wiki.gg/wiki/Telescope",
     "confidence": "wiki",
-    "absent_spawn_rooms": [],
+    "absent_spawn_areas": [],
     "blocked_on": "planetarium_not_modeled"
    }
   },
@@ -676,7 +676,7 @@
    "meta": {
     "source": "https://blueprince.wiki.gg/wiki/Treasure_Map",
     "confidence": "wiki",
-    "absent_spawn_rooms": [],
+    "absent_spawn_areas": [],
     "blocked_on": null
    }
   },
@@ -704,7 +704,7 @@
    "meta": {
     "source": "https://blueprince.wiki.gg/wiki/Watering_Can",
     "confidence": "wiki",
-    "absent_spawn_rooms": [],
+    "absent_spawn_areas": [],
     "blocked_on": null
    }
   },
@@ -727,7 +727,7 @@
    "meta": {
     "source": "https://blueprince.wiki.gg/wiki/Vault_Key",
     "confidence": "wiki",
-    "absent_spawn_rooms": [],
+    "absent_spawn_areas": [],
     "blocked_on": null
    }
   },
@@ -750,7 +750,7 @@
    "meta": {
     "source": "https://blueprince.wiki.gg/wiki/Vault_Key",
     "confidence": "wiki",
-    "absent_spawn_rooms": [],
+    "absent_spawn_areas": [],
     "blocked_on": null
    }
   },
@@ -773,7 +773,7 @@
    "meta": {
     "source": "https://blueprince.wiki.gg/wiki/Vault_Key",
     "confidence": "wiki",
-    "absent_spawn_rooms": [],
+    "absent_spawn_areas": [],
     "blocked_on": null
    }
   },
@@ -792,7 +792,7 @@
    "meta": {
     "source": "https://blueprince.wiki.gg/wiki/Vault_Key",
     "confidence": "wiki",
-    "absent_spawn_rooms": [],
+    "absent_spawn_areas": [],
     "blocked_on": null
    }
   },
@@ -813,7 +813,7 @@
    "meta": {
     "source": "https://blueprince.wiki.gg/wiki/Basement_Key",
     "confidence": "wiki",
-    "absent_spawn_rooms": [],
+    "absent_spawn_areas": [],
     "blocked_on": "basement_not_modeled"
    }
   },
@@ -834,7 +834,7 @@
    "meta": {
     "source": "https://blueprince.wiki.gg/wiki/Car_Keys",
     "confidence": "wiki",
-    "absent_spawn_rooms": [],
+    "absent_spawn_areas": [],
     "blocked_on": null
    }
   },
@@ -855,7 +855,7 @@
    "meta": {
     "source": "https://blueprince.wiki.gg/wiki/Key_8",
     "confidence": "wiki",
-    "absent_spawn_rooms": [],
+    "absent_spawn_areas": [],
     "blocked_on": null,
     "notes": "Unlocking Key 8 (the Gallery art-naming puzzle) makes it appear in the Gallery every day rather than staying in the inventory. The sim assumes the player solves the puzzles of any room they enter, so the unlock and the find collapse into one guaranteed Gallery spawn - behaviourally the same check-in/check-out shape as the Coat Check."
    }
@@ -875,7 +875,7 @@
    "meta": {
     "source": "https://blueprince.wiki.gg/wiki/Keycard",
     "confidence": "wiki",
-    "absent_spawn_rooms": [],
+    "absent_spawn_areas": [],
     "blocked_on": null,
     "notes": "Spawning and state are owned by engine/locks.py (locks.json keycard.source_rooms); excluded from the generic spawn pipeline to avoid double-spawning, and the Lost & Found cannot steal it."
    }
@@ -899,7 +899,7 @@
    "meta": {
     "source": "https://blueprince.wiki.gg/wiki/Master_Key",
     "confidence": "wiki",
-    "absent_spawn_rooms": [],
+    "absent_spawn_areas": [],
     "blocked_on": null,
     "notes": "Purchase-only (Showroom/Armory); obtainable when PR2 adds shop actions."
    }
@@ -921,7 +921,7 @@
    "meta": {
     "source": "https://blueprince.wiki.gg/wiki/Prism_Key",
     "confidence": "wiki",
-    "absent_spawn_rooms": [],
+    "absent_spawn_areas": [],
     "blocked_on": "color_biased_drafting_not_modeled"
    }
   },
@@ -947,8 +947,8 @@
    "meta": {
     "source": "https://blueprince.wiki.gg/wiki/Sanctum_Key",
     "confidence": "wiki",
-    "absent_spawn_rooms": [
-     "reservoir",
+    "absent_spawn_areas": [
+     "reservoir_north",
      "safehouse"
     ],
     "blocked_on": "sanctum_not_modeled"
@@ -972,7 +972,7 @@
    "meta": {
     "source": "https://blueprince.wiki.gg/wiki/Secret_Garden_Key",
     "confidence": "wiki",
-    "absent_spawn_rooms": [],
+    "absent_spawn_areas": [],
     "blocked_on": null
    }
   },
@@ -999,7 +999,7 @@
    "meta": {
     "source": "https://blueprince.wiki.gg/wiki/Silver_Key",
     "confidence": "wiki",
-    "absent_spawn_rooms": [],
+    "absent_spawn_areas": [],
     "blocked_on": null
    }
   },
@@ -1022,7 +1022,7 @@
    "meta": {
     "source": "https://blueprince.wiki.gg/wiki/Burning_Glass",
     "confidence": "wiki",
-    "absent_spawn_rooms": [],
+    "absent_spawn_areas": [],
     "blocked_on": null
    }
   },
@@ -1051,7 +1051,7 @@
    "meta": {
     "source": "https://blueprince.wiki.gg/wiki/Detector_Shovel",
     "confidence": "datamined",
-    "absent_spawn_rooms": [],
+    "absent_spawn_areas": [],
     "blocked_on": null
    }
   },
@@ -1074,7 +1074,7 @@
    "meta": {
     "source": "https://blueprince.wiki.gg/wiki/Dowsing_Rod",
     "confidence": "wiki",
-    "absent_spawn_rooms": [],
+    "absent_spawn_areas": [],
     "blocked_on": "color_biased_drafting_not_modeled"
    }
   },
@@ -1098,7 +1098,7 @@
    "meta": {
     "source": "https://blueprince.wiki.gg/wiki/Jack_Hammer",
     "confidence": "inferred",
-    "absent_spawn_rooms": [],
+    "absent_spawn_areas": [],
     "blocked_on": null
    }
   },
@@ -1125,7 +1125,7 @@
    "meta": {
     "source": "https://blueprince.wiki.gg/wiki/Lucky_Purse",
     "confidence": "wiki",
-    "absent_spawn_rooms": [],
+    "absent_spawn_areas": [],
     "blocked_on": null
    }
   },
@@ -1156,7 +1156,7 @@
    "meta": {
     "source": "https://blueprince.wiki.gg/wiki/Pick_Sound_Amplifier",
     "confidence": "datamined",
-    "absent_spawn_rooms": [],
+    "absent_spawn_areas": [],
     "blocked_on": null
    }
   },
@@ -1179,7 +1179,7 @@
    "meta": {
     "source": "https://blueprince.wiki.gg/wiki/Power_Hammer",
     "confidence": "wiki",
-    "absent_spawn_rooms": [],
+    "absent_spawn_areas": [],
     "blocked_on": null
    }
   },
@@ -1209,7 +1209,7 @@
    "meta": {
     "source": "https://blueprince.wiki.gg/wiki/Powered_Electromagnet",
     "confidence": "wiki",
-    "absent_spawn_rooms": [],
+    "absent_spawn_areas": [],
     "blocked_on": null,
     "notes": "Robs the Locksmith on approach: auto-collects the 24 basic wall keys (four racks of 6; occasionally fewer) and disables both key purchase options for the rest of the day. The special key is NOT collected (special keys are never auto-collected). PR2 shop behavior."
    }
@@ -1233,7 +1233,7 @@
    "meta": {
     "source": "https://blueprince.wiki.gg/wiki/Showroom",
     "confidence": "wiki",
-    "absent_spawn_rooms": [],
+    "absent_spawn_areas": [],
     "notes": "Purchase-only (Showroom/Armory); obtainable when PR2 adds shop actions.",
     "blocked_on": null
    }
@@ -1257,7 +1257,7 @@
    "meta": {
     "source": "https://blueprince.wiki.gg/wiki/Showroom",
     "confidence": "wiki",
-    "absent_spawn_rooms": [],
+    "absent_spawn_areas": [],
     "blocked_on": "redraw_rewind_not_modeled",
     "notes": "Purchase-only (Showroom/Armory); obtainable when PR2 adds shop actions."
    }
@@ -1281,7 +1281,7 @@
    "meta": {
     "source": "https://blueprince.wiki.gg/wiki/Showroom",
     "confidence": "wiki",
-    "absent_spawn_rooms": [],
+    "absent_spawn_areas": [],
     "blocked_on": null,
     "notes": "Purchase-only (Showroom/Armory); obtainable when PR2 adds shop actions."
    }
@@ -1305,7 +1305,7 @@
    "meta": {
     "source": "https://blueprince.wiki.gg/wiki/Showroom",
     "confidence": "wiki",
-    "absent_spawn_rooms": [],
+    "absent_spawn_areas": [],
     "blocked_on": null,
     "notes": "Purchase-only (Showroom/Armory); obtainable when PR2 adds shop actions."
    }
@@ -1329,7 +1329,7 @@
    "meta": {
     "source": "https://blueprince.wiki.gg/wiki/Showroom",
     "confidence": "wiki",
-    "absent_spawn_rooms": [],
+    "absent_spawn_areas": [],
     "blocked_on": null,
     "notes": "Purchase-only (Showroom/Armory); obtainable when PR2 adds shop actions."
    }
@@ -1349,7 +1349,7 @@
    "meta": {
     "source": "https://blueprince.wiki.gg/wiki/Showroom",
     "confidence": "wiki",
-    "absent_spawn_rooms": [],
+    "absent_spawn_areas": [],
     "blocked_on": "showroom_completion_not_modeled",
     "notes": "Purchase-only (Showroom/Armory); obtainable when PR2 adds shop actions."
    }
@@ -1376,7 +1376,7 @@
    "meta": {
     "source": "https://blueprince.wiki.gg/wiki/Armory",
     "confidence": "wiki",
-    "absent_spawn_rooms": [],
+    "absent_spawn_areas": [],
     "blocked_on": null,
     "notes": "Purchase-only (Showroom/Armory); obtainable when PR2 adds shop actions."
    }
@@ -1400,7 +1400,7 @@
    "meta": {
     "source": "https://blueprince.wiki.gg/wiki/Armory",
     "confidence": "wiki",
-    "absent_spawn_rooms": [],
+    "absent_spawn_areas": [],
     "blocked_on": null,
     "notes": "Purchase-only (Showroom/Armory); obtainable when PR2 adds shop actions."
    }
@@ -1420,7 +1420,7 @@
    "meta": {
     "source": "https://blueprince.wiki.gg/wiki/Armory",
     "confidence": "wiki",
-    "absent_spawn_rooms": [],
+    "absent_spawn_areas": [],
     "blocked_on": "room_gem_cost_override_not_modeled",
     "notes": "Purchase-only (Showroom/Armory); obtainable when PR2 adds shop actions."
    }
@@ -1444,7 +1444,7 @@
    "meta": {
     "source": "https://blueprince.wiki.gg/wiki/Armory",
     "confidence": "wiki",
-    "absent_spawn_rooms": [],
+    "absent_spawn_areas": [],
     "blocked_on": null,
     "notes": "Purchase-only (Showroom/Armory); obtainable when PR2 adds shop actions."
    }
@@ -1464,7 +1464,7 @@
    "meta": {
     "source": "https://blueprince.wiki.gg/wiki/Allowance_Token",
     "confidence": "wiki",
-    "absent_spawn_rooms": [],
+    "absent_spawn_areas": [],
     "blocked_on": "allowance_not_modeled"
    }
   },
@@ -1489,7 +1489,7 @@
    "meta": {
     "source": "https://blueprince.wiki.gg/wiki/Crown_of_the_Blueprints",
     "confidence": "wiki",
-    "absent_spawn_rooms": [],
+    "absent_spawn_areas": [],
     "blocked_on": "color_biased_drafting_not_modeled"
    }
   },
@@ -1516,7 +1516,7 @@
    "meta": {
     "source": "https://blueprince.wiki.gg/wiki/Cursed_Effigy",
     "confidence": "wiki",
-    "absent_spawn_rooms": [],
+    "absent_spawn_areas": [],
     "blocked_on": null
    }
   },
@@ -1537,7 +1537,7 @@
    "meta": {
     "source": "https://blueprince.wiki.gg/wiki/Diary_Key",
     "confidence": "wiki",
-    "absent_spawn_rooms": [],
+    "absent_spawn_areas": [],
     "blocked_on": "lore_documents_not_modeled"
    }
   },
@@ -1558,7 +1558,7 @@
    "meta": {
     "source": "https://blueprince.wiki.gg/wiki/File_Cabinet_Key",
     "confidence": "wiki",
-    "absent_spawn_rooms": [
+    "absent_spawn_areas": [
      "crate_tunnel"
     ],
     "blocked_on": "file_cabinet_not_modeled"
@@ -1579,8 +1579,8 @@
    "meta": {
     "source": "https://blueprince.wiki.gg/wiki/Key_of_Aries",
     "confidence": "wiki",
-    "absent_spawn_rooms": [
-     "precipice"
+    "absent_spawn_areas": [
+     "unknown_underground"
     ],
     "blocked_on": "precipice_not_modeled"
    }
@@ -1608,7 +1608,7 @@
    "meta": {
     "source": "https://blueprince.wiki.gg/wiki/Lunch_Box",
     "confidence": "wiki",
-    "absent_spawn_rooms": [],
+    "absent_spawn_areas": [],
     "blocked_on": null
    }
   },
@@ -1627,7 +1627,7 @@
    "meta": {
     "source": "https://blueprince.wiki.gg/wiki/Microchip",
     "confidence": "wiki",
-    "absent_spawn_rooms": [],
+    "absent_spawn_areas": [],
     "blocked_on": "outer_areas_not_modeled"
    }
   },
@@ -1652,7 +1652,7 @@
    "meta": {
     "source": "https://blueprince.wiki.gg/wiki/Paper_Crown",
     "confidence": "wiki",
-    "absent_spawn_rooms": [],
+    "absent_spawn_areas": [],
     "blocked_on": null,
     "notes": "Guaranteed pickup simplifies the Closed Exhibit security-timer puzzle."
    }
@@ -1678,7 +1678,7 @@
    "meta": {
     "source": "https://blueprince.wiki.gg/wiki/Royal_Scepter",
     "confidence": "wiki",
-    "absent_spawn_rooms": [],
+    "absent_spawn_areas": [],
     "blocked_on": null,
     "notes": "Obtainable in-run only via the unmodeled Treasure Trove / Key of Aries puzzle; with royal_scepter_found carry-over flag it is granted at day start instead. Activation (color bias) and scepter_<color> category biases are modeled in PR2."
    }
@@ -1698,7 +1698,7 @@
    "meta": {
     "source": "https://blueprince.wiki.gg/wiki/Upgrade_Disk",
     "confidence": "wiki",
-    "absent_spawn_rooms": [],
+    "absent_spawn_areas": [],
     "blocked_on": null,
     "notes": "One unique disk per source so each is inherently one-time use. Granted by opening Vault box 304. Box stays open permanently (vault_key_304 stays in used_vault_keys); the disk returns daily to the open box until spent. Draw mechanism implemented (chunk 2); individual upgrade effects deferred (task 9)."
    }
@@ -1718,7 +1718,7 @@
    "meta": {
     "source": "https://blueprince.wiki.gg/wiki/Upgrade_Disk",
     "confidence": "wiki",
-    "absent_spawn_rooms": [],
+    "absent_spawn_areas": [],
     "blocked_on": null,
     "notes": "Reserve stock item in the Commissary, restocked every day: an unspent disk drops overnight and is offered again, and the player pays the 15 gold each time (the cost is the throttle, making hoarding wasteful). Once spent it leaves the reserve stock permanently via collected_disks. Draw mechanism implemented (chunk 2); individual upgrade effects deferred (task 9)."
    }
@@ -1738,7 +1738,7 @@
    "meta": {
     "source": "https://blueprince.wiki.gg/wiki/Upgrade_Disk",
     "confidence": "wiki",
-    "absent_spawn_rooms": [],
+    "absent_spawn_areas": [],
     "blocked_on": null,
     "notes": "One unique disk per source so each is inherently one-time use. Found in the Garage car trunk. The trunk re-locks every night (unlike the Vault boxes), so Car Keys are required on every open, not just the first; the disk inside returns daily until spent. Once spent, later trunk uses draw from the later_pool. Draw mechanism implemented (chunk 2); individual upgrade effects deferred (task 9)."
    }
@@ -1758,7 +1758,7 @@
    "meta": {
     "source": "https://blueprince.wiki.gg/wiki/Trading_Post",
     "confidence": "wiki",
-    "absent_spawn_rooms": [],
+    "absent_spawn_areas": [],
     "blocked_on": null,
     "notes": "One unique disk per source so each is inherently one-time use. Granted by lighting the Trading Post dynamite chamber. Chamber stays open (trading_post in lit_targets); the disk returns daily until spent. Draw mechanism implemented (chunk 2); individual upgrade effects deferred (task 9)."
    }
@@ -1778,7 +1778,7 @@
    "meta": {
     "source": "https://blueprince.wiki.gg/wiki/Trading_Post",
     "confidence": "wiki",
-    "absent_spawn_rooms": [],
+    "absent_spawn_areas": [],
     "blocked_on": null,
     "notes": "The 16th and only repeatably-OFFERED disk: 15 fixed locations plus this one exhaust the game's supply of 16. The wiki says 'Unlike the other Upgrade Disks, this disk can appear repeatedly' - the OFFER recurs, but the disk is unique, so once held the tier-5 trade falls through to its other outcomes."
    }
@@ -1798,7 +1798,7 @@
    "meta": {
     "source": "https://blueprince.wiki.gg/wiki/Upgrade_Disk",
     "confidence": "wiki",
-    "absent_spawn_rooms": [],
+    "absent_spawn_areas": [],
     "blocked_on": null,
     "notes": "Awarded by the Lost and Found. Stays in the draw pool while unspent, so an unspent disk drops overnight and can be drawn again on a later day; once spent it leaves the pool permanently (the pool draw filters on _is_available, which reads gated_out/collected_disks). Draw mechanism implemented (chunk 2); individual upgrade effects deferred (task 9)."
    }
@@ -1818,7 +1818,7 @@
    "meta": {
     "source": "https://blueprince.wiki.gg/wiki/Tomb",
     "confidence": "wiki",
-    "absent_spawn_rooms": [],
+    "absent_spawn_areas": [],
     "blocked_on": null,
     "notes": "One unique disk per source so each is inherently one-time use. Granted by lighting the candles in the Tomb. Candles stay lit (tomb in lit_targets); the disk returns daily until spent. Draw mechanism implemented (chunk 2); individual upgrade effects deferred (task 9)."
    }
@@ -1840,7 +1840,7 @@
    "meta": {
     "source": "https://blueprince.wiki.gg/wiki/Upgrade_Disk",
     "confidence": "wiki",
-    "absent_spawn_rooms": [],
+    "absent_spawn_areas": [],
     "blocked_on": null,
     "notes": "One unique disk per source so each is inherently one-time use. Found in the Office desk on first entry (no real-game gate). Draw mechanism implemented; individual upgrade effects deferred (task 9).",
     "simplification": "none - no gate in the real game"
@@ -1863,7 +1863,7 @@
    "meta": {
     "source": "https://blueprince.wiki.gg/wiki/Upgrade_Disk",
     "confidence": "wiki",
-    "absent_spawn_rooms": [],
+    "absent_spawn_areas": [],
     "blocked_on": null,
     "notes": "One unique disk per source so each is inherently one-time use. Found on the Morning Room table on first entry (no real-game gate). Draw mechanism implemented; individual upgrade effects deferred (task 9).",
     "simplification": "none - no gate in the real game"
@@ -1886,7 +1886,7 @@
    "meta": {
     "source": "https://blueprince.wiki.gg/wiki/Upgrade_Disk",
     "confidence": "wiki",
-    "absent_spawn_rooms": [],
+    "absent_spawn_areas": [],
     "blocked_on": null,
     "notes": "One unique disk per source so each is inherently one-time use. Found on the far table in Her Ladyship's Chamber on first entry (no real-game gate). Draw mechanism implemented; individual upgrade effects deferred (task 9).",
     "simplification": "none - no gate in the real game"
@@ -1909,7 +1909,7 @@
    "meta": {
     "source": "https://blueprince.wiki.gg/wiki/Upgrade_Disk",
     "confidence": "wiki",
-    "absent_spawn_rooms": [],
+    "absent_spawn_areas": [],
     "blocked_on": null,
     "notes": "One unique disk per source so each is inherently one-time use. Found behind the prize door in the Great Hall. Real-game gate (prize door) is not modeled; disk granted on first entry per the sim's 'player solves every puzzle' doctrine. Draw mechanism implemented; individual upgrade effects deferred (task 9).",
     "simplification": "prize door not modeled - disk granted on first entry instead"
@@ -1932,7 +1932,7 @@
    "meta": {
     "source": "https://blueprince.wiki.gg/wiki/Upgrade_Disk",
     "confidence": "wiki",
-    "absent_spawn_rooms": [],
+    "absent_spawn_areas": [],
     "blocked_on": null,
     "notes": "One unique disk per source so each is inherently one-time use. Found behind the ice wall in the Freezer. Real-game gate (Power Hammer breaks ice wall; wall regrows daily) is not modeled as a container/wall mechanic in the sim; disk granted on first entry per the 'player solves every puzzle' doctrine. Draw mechanism implemented; individual upgrade effects deferred (task 9).",
     "simplification": "ice wall / Power Hammer mechanic not modeled - disk granted on first entry instead"
@@ -1955,7 +1955,7 @@
    "meta": {
     "source": "https://blueprince.wiki.gg/wiki/Upgrade_Disk",
     "confidence": "wiki",
-    "absent_spawn_rooms": [],
+    "absent_spawn_areas": [],
     "blocked_on": null,
     "notes": "One unique disk per source so each is inherently one-time use. Found in the Archives filing cabinet; real game requires a File Cabinet Key. file_cabinet_key is implemented=false (blocked_on: file_cabinet_not_modeled); disk granted on first entry per the 'player solves every puzzle' doctrine. Draw mechanism implemented; individual upgrade effects deferred (task 9).",
     "simplification": "File Cabinet Key gate not modeled - disk granted on first entry instead"
@@ -1978,7 +1978,7 @@
    "meta": {
     "source": "https://blueprince.wiki.gg/wiki/Upgrade_Disk",
     "confidence": "wiki",
-    "absent_spawn_rooms": [],
+    "absent_spawn_areas": [],
     "blocked_on": null,
     "notes": "One unique disk per source so each is inherently one-time use. Found behind the 3rd diagonal door in the Mechanarium. Real-game gate (gated mechanical arms) is not modeled per CLAUDE.md; disk granted on first entry per the 'player solves every puzzle' doctrine. Draw mechanism implemented; individual upgrade effects deferred (task 9).",
     "simplification": "gated mechanical arms not modeled - disk granted on first entry instead"
