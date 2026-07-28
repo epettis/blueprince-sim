@@ -418,6 +418,16 @@ def on_enter(game, room, cell: int) -> None:
     # until spent (inserted at a terminal, which puts it in collected_disks).
     # Only targets whose disk has persistence="day" qualify; the grant check
     # in _is_available blocks it if it is already in collected_disks (spent).
+    #
+    # This path is ONLY for disks that are themselves an ignition reward — the
+    # Tomb and Trading Post disks sit behind the flame. A disk that merely shares
+    # a room with candles does NOT belong here: the Abandoned Mine (South) disk
+    # sits openly on a table and is obtainable without ever lighting anything,
+    # while its eight candlesticks independently open the stairway to the
+    # Precipice. When that area lands (task 4), model the disk as a plain
+    # guaranteed_in pickup and the candles as an ignition target granting a graph
+    # edge, not an item. Coupling them would make the disk unreachable without an
+    # ignition tool, which is wrong.
     targets = registry.special.ignition.get("targets", {})
     if room.id in targets and room.id in state.special.lit_targets:
         for reward in targets[room.id].get("grants", []):

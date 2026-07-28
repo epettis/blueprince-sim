@@ -105,37 +105,9 @@ def _two_day_game(disk_id: str, spent: bool, *, day1_seed: int = 0,
     return g2, carry
 
 
-# ---------------------------------------------------------------------------
-# persistence="day" marker
-# ---------------------------------------------------------------------------
-
-def test_bespoke_disks_have_day_persistence():
-    """The four bespoke disks all carry persistence='day', enabling the drop-and-respawn rule.
-
-    This is the data property the engine dispatches on; changing persistence
-    would silently break the supply cap for those disks.
-    """
-    reg = _reg()
-    for disk_id in ("upgrade_disk_garage", "upgrade_disk_vault_304",
-                    "upgrade_disk_tomb", "upgrade_disk_trading_post"):
-        item = reg.special.by_id[disk_id]
-        assert item.persistence == "day", (
-            f"{disk_id} must have persistence='day' for respawn to work; got {item.persistence!r}"
-        )
-
-
-def test_upgrade_disk_trade_is_not_day_persistence():
-    """upgrade_disk_trade keeps persistence='permanent'; it must never enter collected_disks.
-
-    Changing it to 'day' would break the repeatable tier-5 trade mechanic by
-    permanently gating the disk after its first spend.
-    """
-    reg = _reg()
-    item = reg.special.by_id["upgrade_disk_trade"]
-    assert item.persistence == "permanent", (
-        f"upgrade_disk_trade must stay 'permanent' (repeatable); got {item.persistence!r}"
-    )
-
+# The persistence values themselves are a data property and are checked in
+# tools/validate_data.py, not here. Every disk's respawn behaviour is proven
+# below through the engine instead.
 
 # ---------------------------------------------------------------------------
 # garage car trunk
@@ -572,18 +544,8 @@ def test_lost_and_found_disk_leaves_pool_once_spent():
     )
 
 
-def test_only_trade_disk_is_exempt_from_day_persistence():
-    """The respawn rule has exactly one exemption, and it is upgrade_disk_trade.
-
-    This pins the *membership of the exemption set*, not the persistence values
-    themselves. A disk marked 'permanent' by mistake never enters collected_disks
-    and so is silently never retired; a future disk added to the exemption set
-    deliberately should force a conscious edit here rather than passing quietly.
-    """
-    reg = _reg()
-    permanent = sorted(i.id for i in reg.special.items
-                       if i.id.startswith("upgrade_disk_")
-                       and i.persistence == "permanent")
-    assert permanent == ["upgrade_disk_trade"], (
-        f"only upgrade_disk_trade may be 'permanent'; got {permanent}"
-    )
+# The exemption set (only upgrade_disk_trade is 'permanent') is a data property
+# and is checked in tools/validate_data.py. Its behavioural consequence — the
+# trade disk staying obtainable after a spend while every other disk retires —
+# is pinned by test_upgrade_disk_trade_still_offered_after_spend_via_daychain
+# above, together with the per-source "not regranted once spent" tests.
