@@ -27,7 +27,7 @@ graph replaces that.
 - **Every edge is directed.** The gate that admits you to an area is usually not
   the gate that lets you out, and one passage is strictly one-way. Reverse trips
   are separate edges with their own conditions.
-- **One "travel to area" action per node** (~31 actions), masked to reachable
+- **One "travel to area" action per node** (~36 actions), masked to reachable
   destinations. The engine pathfinds and charges the cost, mirroring how
   `MOVE_TO_BASE` already works for grid cells. This is the action-space change
   that makes task 4 worth bundling with a retrain.
@@ -51,7 +51,7 @@ both routes.
 
 **On-grid / drafted anchors** — not area nodes; shown only because outside edges
 attach to them: `house`, `garage`, `the_foundation`, `tomb`, `schoolhouse`,
-`hovel`.
+`hovel`, `toolshed`, `root_cellar`, `shelter`, `shrine`, `trading_post`.
 
 **Surface**
 
@@ -175,7 +175,7 @@ PR1 ships graph traversal only. The mechanisms above are not modelled, so the
 edges that depend on them are gated by **stubs that pass unconditionally**
 (owner decision, 2026-07-27).
 
-The alternative — closing them — was rejected because it strands **8 of the 31
+The alternative — closing them — was rejected because it strands **8 of the 36
 nodes**: Blackbridge Grotto (POWER), Orindian Ruins (behind the Grotto), the
 Safehouse and the Well (water level), and Underpass / Inner Sanctum / Sigil
 Chambers / Upper Rotating Gear (Rotating Gear position). That would delete
@@ -198,20 +198,18 @@ rather than repeating it, so the two cannot drift.
 | `foundation_elevator_down` | PR-foundation-elevator | The Foundation -> Basement: crank revealed AND car at the top |
 | `foundation_elevator_up` | PR-foundation-elevator | Basement -> The Foundation: keycard to SUMMON if the car is not already down |
 | `boiler_room_steam` | PR-power-system | Underpass -> Upper Rotating Gear: red door powered by Boiler Room steam |
-| `garage_door_breaker` | PR-power-system | Garage door requires the breaker to be on |
 | `lab_steam_and_power` | PR-power-system | Private Drive -> Blackbridge Grotto: Laboratory steam/lever puzzle AND POWER |
 | `pump_water_lte8` | PR-pump-room | Grounds -> Well: water level <= 8 |
 | `rowboat_water_6` | PR-pump-room | Reservoir South <-> Safehouse: rowboat, water level exactly 6 |
 | `cliffside_elevator_down` | PR-torches-elevator | Grounds -> Precipice: 4 torches lit AND car at the top |
 | `cliffside_elevator_up` | PR-torches-elevator | Precipice -> Grounds: only if the car was ridden down |
-| `basement_sealed_entrance_return` | PR2-engine-adoption | Basement -> Sealed Entrance: regrows daily unless the Grounds planks are also broken |
-| `outer_room_drawn` | PR2-engine-adoption | West Path -> outer room: must be the room drawn as today's outer room (1 of 8) |
 
 Gates that are **not** stubs are already live: item gates (Power Hammer, Basement
-Key, ignition tools, microchips, Sanctum Keys), the `west_gate_unlatched` and
-`mine_south_visited` flags, the `tomb_catacombs` room gate, and the six
-`puzzle` gates that pass under the sim's standing "the player solves every puzzle
-in a room they enter" doctrine.
+Key, ignition tools, microchips, Sanctum Keys), the `west_gate_unlatched`,
+`mine_south_visited`, `garage_door_breaker`, and `basement_sealed_entrance_return`
+flags, the `outer_room_drawn` outer_room gate, the `tomb_catacombs` room gate,
+and the six `puzzle` gates that pass under the sim's standing "the player solves
+every puzzle in a room they enter" doctrine.
 
 ## Systems the sim lacks entirely
 

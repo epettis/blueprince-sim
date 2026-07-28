@@ -21,6 +21,7 @@ from blueprince_sim.engine.areas import (
     path,
     reachable,
 )
+from blueprince_sim.engine.model import Registry
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -36,21 +37,40 @@ def graph() -> AreaGraph:
     return load_areas(raw)
 
 
+@pytest.fixture(scope="module")
+def outer_room_ids() -> list[str]:
+    """Derive the list of outer-pool room ids from the live rooms registry.
+
+    Using the registry (not a hardcoded list) ensures this fixture automatically
+    picks up any new outer rooms added to rooms.json without changing test code.
+    """
+    registry = Registry.load()
+    return [rm.id for rm in registry.rooms if rm.pool == "outer"]
+
+
 def _ctx(
     held_items: dict[str, int] | None = None,
     flags: frozenset[str] = frozenset(),
     rooms_entered: frozenset[str] = frozenset(),
+    outer_room_id: str | None = None,
 ) -> GateContext:
     """Convenience constructor for GateContext."""
     return GateContext(
         held_items=held_items if held_items is not None else {},
         flags=flags,
         rooms_entered=rooms_entered,
+        outer_room_id=outer_room_id,
     )
 
 
-def _all_open_ctx() -> GateContext:
-    """A context with every item, flag, and room that any gate in the graph checks."""
+def _all_open_ctx(outer_room_id: str | None = "tomb") -> GateContext:
+    """A context with every item, flag, and room that any gate in the graph checks.
+
+    outer_room_id controls which outer-room anchor is reachable from west_path;
+    defaults to "tomb" so the existing 1-step distance tests remain valid.
+    garage_door_breaker is now a real flag gate (not a stub) so it must be included.
+    basement_sealed_entrance_return is a real flag gate — include it too.
+    """
     return GateContext(
         held_items={
             "microchip": 3,
@@ -59,8 +79,14 @@ def _all_open_ctx() -> GateContext:
             "basement_key": 1,
             "sanctum_key": 1,
         },
-        flags=frozenset({"west_gate_unlatched", "mine_south_visited"}),
+        flags=frozenset({
+            "west_gate_unlatched",
+            "mine_south_visited",
+            "garage_door_breaker",
+            "basement_sealed_entrance_return",
+        }),
         rooms_entered=frozenset({"tomb"}),
+        outer_room_id=outer_room_id,
     )
 
 
@@ -86,8 +112,9 @@ def test_1step_rule_entrance_hall_to_doorstep(graph: AreaGraph) -> None:
 def test_1step_rule_garage_to_doorstep(graph: AreaGraph) -> None:
     """BFS distance garage->west_path equals GameConfig.outer_path_garage_cost.
 
-    The garage door gate is currently a stub (passes), so the direct edge is
-    traversable. The verified play constant is 1 step.
+    The garage_door_breaker gate is now a real flag gate; the all-open context
+    includes the flag so the direct edge is traversable. The verified play constant
+    is 1 step.
     """
     ctx = _all_open_ctx()
     dist = reachable(graph, "garage", ctx)
@@ -99,9 +126,10 @@ def test_1step_rule_doorstep_to_outer_room(graph: AreaGraph) -> None:
     """BFS distance west_path->tomb equals GameConfig.outer_enter_cost.
 
     West Path is the outer-room doorstep AND drafting cave in one node; the
-    1-step edge into any outer-room anchor reproduces the outer_enter_cost.
+    1-step edge into the drawn outer-room anchor reproduces the outer_enter_cost.
+    The all-open context sets outer_room_id='tomb', making the tomb the drawn room.
     """
-    ctx = _all_open_ctx()
+    ctx = _all_open_ctx(outer_room_id="tomb")
     dist = reachable(graph, "west_path", ctx)
     expected = GameConfig().outer_enter_cost  # 1 by default
     assert dist["tomb"] == expected
@@ -169,18 +197,37 @@ def test_mine_north_south_route_via_reservoir_north(graph: AreaGraph) -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_no_dead_nodes_all_items_and_flags(graph: AreaGraph) -> None:
-    """All 31 nodes are reachable from 'house' when every item and flag is satisfied.
+def test_no_dead_nodes_all_items_and_flags(
+    graph: AreaGraph, outer_room_ids: list[str]
+) -> None:
+    """Every node is reachable from 'house' across the set of all valid outer-room contexts.
 
-    This is the test that enforces the owner's stub-open decision: deferred
-    mechanisms default to OPEN so that no node measures exactly zero reachability.
-    A node that is unreachable in an all-items/all-flags context is a design error.
+    Outer-room anchor nodes are only reachable one at a time (the outer_room gate is
+    destination-specific), so we cannot reach all 8 in a single BFS. Instead: each
+    outer-room anchor must be reachable when it is the drawn room; every non-outer
+    node must be reachable with tomb as the drawn room (tomb is also required for the
+    catacombs gate). A node unreachable in any of these contexts is a design error.
     """
-    ctx = _all_open_ctx()
-    dist = reachable(graph, "house", ctx)
-    all_node_ids = set(graph.nodes)
-    unreachable = all_node_ids - set(dist)
-    assert unreachable == set(), f"Unreachable nodes with all gates open: {sorted(unreachable)}"
+    outer_ids = set(outer_room_ids)
+
+    # Compute reachable set with tomb drawn (covers all non-outer-room nodes and tomb itself)
+    ctx_tomb = _all_open_ctx(outer_room_id="tomb")
+    dist_tomb = reachable(graph, "house", ctx_tomb)
+
+    # Every non-outer-room node must be reachable via the tomb context
+    non_outer_nodes = {nid for nid in graph.nodes if nid not in outer_ids}
+    unreachable_non_outer = non_outer_nodes - set(dist_tomb)
+    assert unreachable_non_outer == set(), (
+        f"Non-outer nodes unreachable with all gates open: {sorted(unreachable_non_outer)}"
+    )
+
+    # Each outer-room anchor must be reachable when it is the drawn outer room
+    for oid in outer_ids:
+        ctx_oid = _all_open_ctx(outer_room_id=oid)
+        dist_oid = reachable(graph, "house", ctx_oid)
+        assert oid in dist_oid, (
+            f"Outer room {oid!r} not reachable from 'house' when it is the drawn outer room"
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -222,14 +269,15 @@ def test_puzzle_gate_always_passes(graph: AreaGraph) -> None:
 def test_unmodelled_stub_gate_always_passes(graph: AreaGraph) -> None:
     """A stub gate (stub=True) always returns True regardless of context or kind.
 
-    Uses garage_door_breaker (kind=unmodelled, stub=True) as the canonical example.
+    Uses foundation_elevator_down (kind=unmodelled, stub=True) as the canonical example.
     This is the mechanism that keeps deferred-mechanism nodes reachable.
+    (garage_door_breaker was retired as a stub in PR2 — it is now a real flag gate.)
     """
     ctx_empty = _ctx()
-    g = graph.gates["garage_door_breaker"]
+    g = graph.gates["foundation_elevator_down"]
     assert g.kind == "unmodelled"
     assert g.stub is True
-    assert gate_open(graph, "garage_door_breaker", ctx_empty) is True
+    assert gate_open(graph, "foundation_elevator_down", ctx_empty) is True
 
 
 def test_flag_gate_blocks_without_flag(graph: AreaGraph) -> None:
@@ -278,17 +326,23 @@ def test_west_gate_not_traversable_without_unlatch_flag(graph: AreaGraph) -> Non
 
     areas.md: 'The first-ever West Path visit MUST come through the Garage,
     because the west gate only unlatches from the inside.' With the flag unset,
-    the only route to West Path from Grounds is blocked; the Garage->West Path
-    edge uses a stub gate and is always open.
+    the Grounds -> West Path edge is blocked. The Garage -> West Path route requires
+    the garage_door_breaker flag (real gate since PR2), so both routes are blocked
+    when neither flag is set.
     """
     ctx_no_flag = _ctx()  # no flags, no items
-    # From grounds: west_path should be unreachable (flag gate blocks)
+    # From grounds: west_path unreachable (west_gate_unlatched blocks)
     dist = reachable(graph, "grounds", ctx_no_flag)
     assert "west_path" not in dist
 
-    # But from garage the stub gate passes, so West Path IS reachable
+    # From garage: west_path also unreachable without garage_door_breaker flag
     dist_garage = reachable(graph, "garage", ctx_no_flag)
-    assert "west_path" in dist_garage
+    assert "west_path" not in dist_garage
+
+    # With garage_door_breaker flag set, garage -> west_path becomes traversable
+    ctx_breaker = _ctx(flags=frozenset({"garage_door_breaker"}))
+    dist_breaker = reachable(graph, "garage", ctx_breaker)
+    assert "west_path" in dist_breaker
 
 
 # ---------------------------------------------------------------------------
@@ -452,3 +506,103 @@ def test_single_flag_unlocks_both_mine_north_and_underpass(graph: AreaGraph) -> 
     # From rotating_gear: underpass reachable
     dist_rg = reachable(graph, "rotating_gear", ctx)
     assert "underpass" in dist_rg
+
+
+# ---------------------------------------------------------------------------
+# F: outer_room gate — destination-specific daily access (Task 2)
+# ---------------------------------------------------------------------------
+
+
+def test_each_outer_room_reachable_when_drawn(
+    graph: AreaGraph, outer_room_ids: list[str]
+) -> None:
+    """Every outer room is reachable from west_path when it is the drawn outer room.
+
+    The outer_room gate is destination-specific: gate_open returns True only when
+    the edge's to_id equals GateContext.outer_room_id. This parametrises over the
+    full outer pool from the rooms registry, so new outer rooms are automatically covered.
+    """
+    for oid in outer_room_ids:
+        ctx = _ctx(outer_room_id=oid)
+        dist = reachable(graph, "west_path", ctx)
+        assert oid in dist, (
+            f"Outer room {oid!r} not reachable from west_path when it is the drawn room"
+        )
+
+
+def test_outer_room_not_reachable_when_different_room_drawn(
+    graph: AreaGraph, outer_room_ids: list[str]
+) -> None:
+    """An outer room is NOT reachable from west_path when a different room is drawn.
+
+    This is the behaviour that would have been broken by leaving outer_room_drawn as a stub.
+    The gate is destination-specific, so drawing room A must not open the door to room B.
+    """
+    for oid in outer_room_ids:
+        # Pick a different outer room id to draw
+        other = next(other for other in outer_room_ids if other != oid)
+        ctx = _ctx(outer_room_id=other)
+        dist = reachable(graph, "west_path", ctx)
+        assert oid not in dist, (
+            f"Outer room {oid!r} was reachable from west_path when {other!r} was drawn"
+        )
+
+
+def test_no_outer_room_reachable_without_outer_room_id(
+    graph: AreaGraph, outer_room_ids: list[str]
+) -> None:
+    """With outer_room_id=None, no outer-room anchor is reachable from west_path.
+
+    When no outer room has been drafted today (outer_room_id is None), the
+    outer_room gate must block every west_path -> outer_room edge.
+    """
+    ctx = _ctx(outer_room_id=None)
+    dist = reachable(graph, "west_path", ctx)
+    for oid in outer_room_ids:
+        assert oid not in dist, (
+            f"Outer room {oid!r} was reachable from west_path with outer_room_id=None"
+        )
+
+
+def test_outer_room_return_always_passable(
+    graph: AreaGraph, outer_room_ids: list[str]
+) -> None:
+    """The return edge outer_room -> west_path is passable regardless of outer_room_id.
+
+    Leaving an outer room back to the doorstep has no gate; you can always walk out.
+    This holds even when outer_room_id is None (the player is already inside the room).
+    """
+    ctx_none = _ctx(outer_room_id=None)
+    for oid in outer_room_ids:
+        dist = reachable(graph, oid, ctx_none)
+        assert "west_path" in dist, (
+            f"west_path not reachable from {oid!r} (return edge should be ungated)"
+        )
+
+
+# ---------------------------------------------------------------------------
+# G: garage_door_breaker — now a real flag gate (Task 3)
+# ---------------------------------------------------------------------------
+
+
+def test_garage_to_west_path_blocked_without_breaker_flag(graph: AreaGraph) -> None:
+    """garage->west_path is blocked when the garage_door_breaker flag is not set.
+
+    garage_door_breaker is now a real flag gate (not a stub), so the Utility Closet
+    must have been placed and entered for the garage route to be open.
+    """
+    ctx = _ctx()  # no flags
+    dist = reachable(graph, "garage", ctx)
+    assert "west_path" not in dist
+
+
+def test_garage_to_west_path_open_with_breaker_flag(graph: AreaGraph) -> None:
+    """garage->west_path is open in 1 step when the garage_door_breaker flag is set.
+
+    Once the breaker is on (Utility Closet placed and entered), the garage door
+    opens and the Garage becomes a 1-step route to the West Path doorstep.
+    """
+    ctx = _ctx(flags=frozenset({"garage_door_breaker"}))
+    dist = reachable(graph, "garage", ctx)
+    assert "west_path" in dist
+    assert dist["west_path"] == 1

@@ -42,6 +42,36 @@
    "meta": {"source": "docs/areas.md", "confidence": "wiki"}
   },
   {
+   "id": "toolshed",
+   "name": "Toolshed (outer room)",
+   "kind": "anchor",
+   "meta": {"source": "docs/areas.md", "confidence": "inferred"}
+  },
+  {
+   "id": "root_cellar",
+   "name": "Root Cellar (outer room)",
+   "kind": "anchor",
+   "meta": {"source": "docs/areas.md", "confidence": "inferred"}
+  },
+  {
+   "id": "shelter",
+   "name": "Shelter (outer room)",
+   "kind": "anchor",
+   "meta": {"source": "docs/areas.md", "confidence": "inferred"}
+  },
+  {
+   "id": "shrine",
+   "name": "Shrine (outer room)",
+   "kind": "anchor",
+   "meta": {"source": "docs/areas.md", "confidence": "inferred"}
+  },
+  {
+   "id": "trading_post",
+   "name": "Trading Post (outer room)",
+   "kind": "anchor",
+   "meta": {"source": "docs/areas.md", "confidence": "inferred"}
+  },
+  {
    "id": "grounds",
    "name": "The Grounds",
    "kind": "area",
@@ -220,11 +250,10 @@
  "gates": [
   {
    "id": "garage_door_breaker",
-   "kind": "unmodelled",
+   "kind": "flag",
    "permanence": "daily",
-   "stub": true,
-   "detail": "Garage door requires the breaker to be on. Deferred: Power system not modelled. Passes (stub open) so Garage <-> West Path is reachable.",
-   "retire_in": "PR-power-system",
+   "stub": false,
+   "detail": "Garage door opens when the breaker is on: the Utility Closet has been placed on the grid AND the player has entered it at least once today. The engine sets the 'garage_door_breaker' flag in GateContext when both conditions hold.",
    "meta": {"source": "docs/areas.md", "confidence": "wiki"}
   },
   {
@@ -237,11 +266,10 @@
   },
   {
    "id": "outer_room_drawn",
-   "kind": "unmodelled",
+   "kind": "outer_room",
    "permanence": "daily",
-   "stub": true,
-   "detail": "West Path -> outer room: the outer room must be drawn as today's outer room (1 of 8). Deferred: outer-room selection mechanism not wired to areas yet. Passes so all anchored outer rooms are reachable.",
-   "retire_in": "PR2-engine-adoption",
+   "stub": false,
+   "detail": "West Path -> outer room anchor: the destination node id must equal GateContext.outer_room_id (the room drawn as today's outer room). gate_open receives the edge's to_id as dest and compares it to ctx.outer_room_id.",
    "meta": {"source": "docs/areas.md", "confidence": "wiki"}
   },
   {
@@ -356,11 +384,10 @@
   },
   {
    "id": "basement_sealed_entrance_return",
-   "kind": "unmodelled",
-   "permanence": "daily",
-   "stub": true,
-   "detail": "Basement -> Sealed Entrance: regrows daily unless the Grounds planks are also broken. Deferred: cross-gate dependency (planks state) not modelled. Passes (stub open).",
-   "retire_in": "PR2-engine-adoption",
+   "kind": "flag",
+   "permanence": "permanent",
+   "stub": false,
+   "detail": "Basement -> Sealed Entrance: blocked daily by regrowth unless the Grounds planks were broken by the Power Hammer (power_hammer_planks gate on grounds->sealed_entrance). The engine sets this flag once the player has traversed the grounds->sealed_entrance edge.",
    "meta": {"source": "docs/areas.md", "confidence": "wiki"}
   },
   {
@@ -474,6 +501,16 @@
   {"from": "tomb", "to": "west_path", "requires": [], "meta": {"source": "docs/areas.md", "confidence": "wiki"}},
   {"from": "schoolhouse", "to": "west_path", "requires": [], "meta": {"source": "docs/areas.md", "confidence": "wiki"}},
   {"from": "hovel", "to": "west_path", "requires": [], "meta": {"source": "docs/areas.md", "confidence": "wiki"}},
+  {"from": "west_path", "to": "toolshed", "requires": ["outer_room_drawn"], "meta": {"source": "docs/areas.md", "confidence": "inferred"}},
+  {"from": "west_path", "to": "root_cellar", "requires": ["outer_room_drawn"], "meta": {"source": "docs/areas.md", "confidence": "inferred"}},
+  {"from": "west_path", "to": "shelter", "requires": ["outer_room_drawn"], "meta": {"source": "docs/areas.md", "confidence": "inferred"}},
+  {"from": "west_path", "to": "shrine", "requires": ["outer_room_drawn"], "meta": {"source": "docs/areas.md", "confidence": "inferred"}},
+  {"from": "west_path", "to": "trading_post", "requires": ["outer_room_drawn"], "meta": {"source": "docs/areas.md", "confidence": "inferred"}},
+  {"from": "toolshed", "to": "west_path", "requires": [], "meta": {"source": "docs/areas.md", "confidence": "inferred"}},
+  {"from": "root_cellar", "to": "west_path", "requires": [], "meta": {"source": "docs/areas.md", "confidence": "inferred"}},
+  {"from": "shelter", "to": "west_path", "requires": [], "meta": {"source": "docs/areas.md", "confidence": "inferred"}},
+  {"from": "shrine", "to": "west_path", "requires": [], "meta": {"source": "docs/areas.md", "confidence": "inferred"}},
+  {"from": "trading_post", "to": "west_path", "requires": [], "meta": {"source": "docs/areas.md", "confidence": "inferred"}},
   {"from": "grounds", "to": "private_drive", "requires": [], "meta": {"source": "docs/areas.md", "confidence": "wiki"}},
   {"from": "private_drive", "to": "grounds", "requires": [], "meta": {"source": "docs/areas.md", "confidence": "wiki"}},
   {"from": "private_drive", "to": "blackbridge_grotto", "requires": ["lab_steam_and_power"], "meta": {"source": "docs/areas.md", "confidence": "wiki"}},
