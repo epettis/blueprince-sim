@@ -412,6 +412,33 @@ def on_enter(game, room, cell: int) -> None:
         if _is_available(state, item_id, registry):
             grant(state, registry, item_id, source="guaranteed")
 
+    # Re-grant day-persistence disk from a previously-lit ignition target.
+    # Candles/fuse stay lit permanently (room.id in cfg.lit_targets) so the
+    # player never re-lights the room — but the disk returns to the chamber
+    # until spent (inserted at a terminal, which puts it in collected_disks).
+    # Only targets whose disk has persistence="day" qualify; the grant check
+    # in _is_available blocks it if it is already in collected_disks (spent).
+    #
+    # This path is ONLY for disks that are themselves an ignition reward — the
+    # Tomb and Trading Post disks sit behind the flame. A disk that merely shares
+    # a room with candles does NOT belong here: the Abandoned Mine (South) disk
+    # sits openly on a table and is obtainable without ever lighting anything,
+    # while its eight candlesticks independently open the stairway to the
+    # Precipice. When that area lands (task 4), model the disk as a plain
+    # guaranteed_in pickup and the candles as an ignition target granting a graph
+    # edge, not an item. Coupling them would make the disk unreachable without an
+    # ignition tool, which is wrong.
+    targets = registry.special.ignition.get("targets", {})
+    if room.id in targets and room.id in state.special.lit_targets:
+        for reward in targets[room.id].get("grants", []):
+            if reward.get("kind") == "item":
+                item_id = reward["id"]
+                item = registry.special.by_id.get(item_id)
+                if (item is not None and item.persistence == "day"
+                        and item_id.startswith("upgrade_disk_")):
+                    if _is_available(state, item_id, registry):
+                        grant(state, registry, item_id, source="ignition_reentry")
+
     # Dining Room main course (rank-8 gated; also checked on every arrival so
     # a return visit after reaching Rank 8 serves it).
     _maybe_serve_main_course(state, registry)
@@ -854,25 +881,30 @@ def inventory_value(state, registry) -> float:
 
 
 def fixed_disks_spent_today(state, registry) -> set[str]:
-    """Fixed-location Upgrade Disk ids spent today, for the collected_disks carryover.
+    """Upgrade Disk ids spent today (inserted at a terminal), for the collected_disks carryover.
 
-    Only disks with a ``guaranteed_in`` room qualify: those sit at one spot in the
-    house and are permanently gone once inserted at a terminal. The original disks
-    (Vault, Garage, Tomb, ...) are excluded because each already carries its own
-    source mechanic, and excluding them keeps the repeatable Trading Post trade
-    disk repeatable.
+    Qualifies any ``upgrade_disk_*`` item whose ``persistence`` is ``"day"``:
+    these disks drop overnight when unspent and return to their source on
+    re-entry/re-open, so only consuming one (``remove(..., consumed=True)``,
+    which appends to ``state.special.removed``) makes the removal permanent.
 
-    A disk collected but not spent drops overnight and returns to its room — only
-    inserting it (which calls remove(..., consumed=True), appending to
-    state.special.removed) makes the removal permanent.
+    ``persistence: "day"`` covers every Upgrade Disk except one:
+    - the seven in-grid guaranteed_in room disks (office, morning_room, etc.)
+    - the four bespoke-source disks: garage, vault_304, tomb, trading_post
+    - commissary (restocked daily, re-charging 15 gold each time) and
+      lost_and_found (stays in the draw pool while unspent)
+
+    Excluded by design (``persistence: "permanent"``):
+    - ``upgrade_disk_trade`` — the repeatable tier-5 trade outcome; must stay
+      repeatable even after an earlier instance was spent. It is now the only
+      exception, so the regression guard on it carries all the weight.
     """
-    guaranteed = {
-        item_id
-        for ids in registry.special.guaranteed_by_room.values()
-        for item_id in ids
-        if item_id.startswith("upgrade_disk_")
+    respawning = {
+        item.id
+        for item in registry.special.items
+        if item.id.startswith("upgrade_disk_") and item.persistence == "day"
     }
-    return guaranteed & set(state.special.removed)
+    return respawning & set(state.special.removed)
 
 
 def luck_bonus(state, registry) -> int:
@@ -1383,6 +1415,11 @@ def can_open_car_trunk(game) -> bool:
     """True when: special items enabled, Car Keys held, standing in the Garage,
     and the car trunk has not yet been opened today.
 
+    The trunk re-locks every night, unlike the Vault deposit boxes: Car Keys are
+    required on every open, not just the first. The disk inside still returns
+    until spent — see ``open_car_trunk`` — so a later day costs fresh Car Keys
+    but yields the same unspent disk.
+
     The garage car trunk is a one-per-day mechanic separate from regular containers.
     """
     state = game.state
@@ -1406,12 +1443,20 @@ def can_open_car_trunk(game) -> bool:
 def open_car_trunk(game) -> list[str]:
     """Use the Car Keys on the Garage car trunk; return list of granted item ids.
 
-    First use ever (cfg.garage_car_used_before is False):
-      grants the Upgrade Disk (from garage_car.first_loot).
-    Later uses (cfg.garage_car_used_before is True):
-      draws later_draws (2) items at random from later_pool + grants later_gold coins.
+    The trunk re-locks every night, so reaching this function always costs Car
+    Keys (see ``can_open_car_trunk``). What varies is only what is inside, which
+    turns on whether the disk has been spent:
 
-    One use per day; sets state.special.garage_car_opened=True.
+    - Disk NOT yet spent (not in ``cfg.collected_disks``):
+        grant the Upgrade Disk from ``garage_car.first_loot``. It returns to the
+        trunk overnight, so this path fires on every open until the player
+        actually inserts the disk at a terminal.
+
+    - Disk already spent (in ``cfg.collected_disks``):
+        the disk is gone for good; draw ``later_draws`` items from ``later_pool``
+        and grant ``later_gold`` coins instead.
+
+    One use per day (``state.special.garage_car_opened`` is the within-day guard).
     """
     state = game.state
     registry = game.registry
@@ -1421,9 +1466,11 @@ def open_car_trunk(game) -> list[str]:
     state.special.garage_car_opened = True
     granted: list[str] = []
 
-    # First-ever use: grant items from first_loot
     first_loot = car_cfg.get("first_loot", [])
-    if not getattr(cfg, "garage_car_used_before", False) and first_loot:
+
+    # Disk not yet spent: grant it (first time ever, or re-grant from open trunk)
+    disk_spent = "upgrade_disk_garage" in getattr(cfg, "collected_disks", frozenset())
+    if not disk_spent and first_loot:
         for entry in first_loot:
             if entry.get("kind") == "item":
                 iid = entry["id"]
@@ -1432,7 +1479,7 @@ def open_car_trunk(game) -> list[str]:
                     granted.append(iid)
         return granted
 
-    # Later uses: draw from later_pool + grant later_gold coins
+    # Disk already spent: draw from later_pool + grant later_gold coins
     later_pool = list(car_cfg.get("later_pool", []))
     later_draws = car_cfg.get("later_draws", 2)
     later_gold = car_cfg.get("later_gold", 5)
@@ -1463,10 +1510,26 @@ def open_car_trunk(game) -> list[str]:
 # --------------------------------------------------------- vault deposit boxes
 
 def can_open_vault_box(game) -> str | None:
-    """Return the vault key id usable right now, or None.
+    """Return the vault key id whose box is actionable right now, or None.
 
-    Requires: standing in the Vault, holding a vault key whose box has not
-    been opened today and is not in cfg.used_vault_keys (permanently removed).
+    Two access paths per key / box pair:
+
+    - **Key held, box never opened**: the player holds the key, the box has not
+      been opened today, and it was never opened before (key not in
+      ``cfg.used_vault_keys``).  Normal first-time access; key stays in inventory
+      but is recorded in ``used_vault_keys`` permanently (the box is now open).
+
+    - **Box previously opened (key in used_vault_keys), disk not yet spent**:
+      the box stays open permanently; no key is needed to re-enter it.  This path
+      fires every day for ``vault_key_304`` until ``upgrade_disk_vault_304``
+      is spent (inserted at a terminal), at which point ``collected_disks``
+      blocks the disk and there is nothing left to grant — the box becomes inert.
+
+    Boxes for keys 149, 233, and 370 grant non-disk items (allowance_token,
+    sanctum_key); they do not re-grant under the ``used_vault_keys`` path since
+    those items are permanent-persistence and ``_is_available`` blocks re-grants.
+
+    Requires: standing in the Vault, special items enabled.
     Priority order: 149, 233, 304, 370.
     """
     state = game.state
@@ -1484,22 +1547,44 @@ def can_open_vault_box(game) -> str | None:
     for key_id in ("vault_key_149", "vault_key_233", "vault_key_304", "vault_key_370"):
         if key_id not in boxes:
             continue
-        if key_id in used_keys:
-            continue
         if key_id in state.special.vault_boxes_opened:
-            continue
+            continue  # already opened this day
+        if key_id in used_keys:
+            # Box was previously opened; the only thing worth re-entering for is a
+            # day-persistence disk (which returns to the open box until spent).
+            # Boxes 149/233/370 grant permanent items (allowance_token, sanctum_key)
+            # that do not respawn — they stay permanently blocked once given.
+            box_grants = boxes[key_id].get("grants", [])
+            has_respawning_disk = any(
+                (item := registry.special.by_id.get(item_id)) is not None
+                and item.id.startswith("upgrade_disk_")
+                and item.persistence == "day"
+                and _is_available(state, item_id, registry)
+                for item_id in box_grants
+            )
+            if has_respawning_disk:
+                return key_id
+            continue  # nothing left to grant; skip
         if state.inventory.get(key_id, 0) > 0:
             return key_id
     return None
 
 
 def open_vault_box(game) -> list[str]:
-    """Open the vault deposit box for the matching held vault key.
+    """Open (or re-enter) the vault deposit box for the matching key; return granted ids.
 
-    The key STAYS in inventory (not consumed) but is added to state.special.removed
-    so it can never spawn again this run. The used_vault_keys carryover records it
-    permanently across days. Grants: allowance_token (149/233), upgrade_disk (304),
-    sanctum_key (370). Returns the list of granted item ids.
+    First opening (key not yet in ``cfg.used_vault_keys``):
+        The key stays in inventory but is added to ``state.special.removed``
+        (so it cannot re-spawn this day) and to ``used_vault_keys`` carry-over
+        (box is permanently open; key never needed again).
+
+    Re-entry on a later day (key already in ``cfg.used_vault_keys``):
+        Box is already open — no key interaction.  Only the disk grant is
+        attempted; ``_is_available`` blocks it if it is in ``collected_disks``
+        (i.e. already spent), so this is a no-op once the disk is gone.
+
+    Grants: allowance_token (149/233), upgrade_disk_vault_304 (304),
+    sanctum_key (370).  Returns the list of granted item ids.
     """
     state = game.state
     registry = game.registry
@@ -1511,9 +1596,13 @@ def open_vault_box(game) -> list[str]:
     box_data = boxes.get(key_id, {})
 
     state.special.vault_boxes_opened.append(key_id)
-    # Key is not consumed from inventory; only barred from spawning again.
-    if key_id not in state.special.removed:
-        state.special.removed.append(key_id)
+
+    used_keys = getattr(game.cfg, "used_vault_keys", frozenset())
+    if key_id not in used_keys:
+        # First opening: bar the key from spawning again (it stays in inventory).
+        if key_id not in state.special.removed:
+            state.special.removed.append(key_id)
+    # Re-entry (key in used_vault_keys): box already open, no key action needed.
 
     granted = []
     for item_id in box_data.get("grants", []):

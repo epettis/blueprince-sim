@@ -29,50 +29,57 @@ can currently move.
 
 ## Why preference is not measurable today
 
-Measured on `main` at adb7a15:
+**Measured under real multi-day play** with `greedy_rank`, ~83,000 upgrade events
+per arm (2026-07-27):
 
-- The sim models **7** Upgrade Disks, so an attempt reaches roughly 7 upgrades.
-- At 5–8 slots upgraded, the roll selects Cloister **0.30%–1.26%** of the time.
-- Orinda is among the three offered on **37.16%** of Cloister rolls.
-
-So an Orinda decision arises in about **0.07% of upgrade events** — on the order
-of one per several hundred attempts. `replays.jsonl` samples 0.5% of episodes, so
-it would essentially never capture one.
-
-Two structural causes, both of which are our modelling choices rather than the
-game's design:
-
-- **The only early path to Cloister is dead.** Non-veteran line 7 is
-  `(Unlocked Catacombs) > [1] Cloister > ...` — the one line where Cloister sits
-  at position 1. We model `catacombs_unlocked` as permanently false because
-  there is no `catacombs` record. Everywhere else Cloister sits at position 3–10
-  and is reachable only once most earlier slots are already upgraded.
-- **Disk supply is 7 of the real 16.** The nine unmodelled sources are exactly
-  what would push an attempt into the 12+ upgrade range where Cloister starts
-  appearing.
-
-### What unlocking the Catacombs would do
-
-Simulated by forcing the `catacombs_unlocked` check true, with realistic
-per-attempt draft counts:
-
-| Slots already upgraded | Catacombs locked (today) | Catacombs unlocked |
+| Arm | Orinda offer rate | 95% CI (Wilson) |
 |---|---|---|
-| 0 | 0.00% | 0.00% |
-| 2 | 0.00% | 8.82% |
-| 5 | 0.30% | 9.16% |
-| 7 | 0.78% | 9.84% |
-| 10 | 2.92% | 13.04% |
-| 12 | 6.98% | 19.22% |
+| A — Catacombs locked (pre-#35) | 0.3705% | [0.3315%, 0.4141%] |
+| B — as shipped, same-day Tomb gate | 0.4005% | [0.3499%, 0.4585%] |
+| C — Catacombs always unlocked (ceiling) | 0.7094% | [0.6546%, 0.7688%] |
 
-Averaged over a realistic 0–7 upgrades per attempt, the share of upgrade events
-that would **offer** Orinda goes from **0.070% to 2.955%** — a 42x improvement,
-and the difference between "unmeasurable" and "measurable". Zero at the top of
-the table is correct: the first upgrade of an attempt uses the weighted table,
-not the chain walk, and Cloister is not in it.
+Paired A vs B lift is **1.11x at z = 1.06 — not significant**. Even the
+always-unlocked ceiling is only **1.91x**.
 
-This is the single strongest argument for landing the outside-area graph
-(task 4) before retraining on upgrades.
+### The bottleneck is Cloister's rarity
+
+Not the Catacombs gate, and not the `min_drafts` bracket. Measured:
+
+- P(Cloister offered, per day) = **5.87%**
+- P(drafted | offered) under `greedy_rank` = **21.0%**
+- P(`draft_counts['cloister'] >= 1`) at disk insert = **11.28%**
+
+So 88.7% of upgrade events have never drafted a Cloister, which fails line 7's
+`min_drafts` bracket before the Catacombs check is even consulted. But the bracket
+is a *symptom*: the same rarity also starves lines 1 and 11.
+
+**The decisive evidence is the policy contrast.** If `greedy_rank` were rejecting
+the Cloister, a random policy would do better. It is **6x worse** (0.062%) — it
+reaches fewer disk readers and accepts Cloister only 6.5% of the time versus
+greedy's 21%. A purpose-built Cloister-seeking policy gains **1.03x**, inside the
+noise. Policy is not the lever.
+
+**This is not a modelling bug.** The wiki confirms Unusual rarity, 3 gems, and
+placement restricted to the centre 21 tiles; `deck_copies=1` and the cross layout
+match. Two frequency boosts are *not* modelled and are the only levers that touch
+the real bottleneck: the **Terrace** making Cloister free while on the estate, and
+the **Southern Cross / Greenhouse** boosts.
+
+One structural detail: a failed bracket abandons the **entire** chain line, so
+when Cloister's `min_drafts` fails on line 7, the parlor / aquarium / mail_room
+entries behind it are never reached either.
+
+### Consequence
+
+Observing an Orinda decision naturally needs ~25,000 upgrade events (~73,000 days).
+That figure is dominated by `--record-sample-rate`, which defaults to 0.005 — the
+offers *do* occur (123 real ones in a 90,000-day run) and are simply discarded.
+Event-triggered `upgrades.jsonl` logging now captures every upgrade decision
+unsampled, which is a 200x gain in captured events per simulated day.
+
+Even so, preference measurement should be **abandoned in favour of the
+forced-upgrade A/B** below: it presets the variant and needs no offer, no bracket,
+no Catacombs check, and no rare draw.
 
 ## Phase 0 — Uniformity check
 
@@ -218,12 +225,15 @@ belongs on the existing eval-worker subprocess path.
 ## Phase 3 — Make preference learnable (conditional)
 
 Only worth doing if preference should become a real tracked signal rather than a
-diagnostic. Two levers, both quantified above:
+diagnostic. The levers, in measured order of effect:
 
-- Land the outside-area graph so `catacombs_unlocked` can be true (42x on
-  Orinda's offer rate).
-- Raise disk supply toward the real 16, which reaches the upgrade counts where
-  Cloister appears at all.
+- **Model the Terrace and Southern Cross / Greenhouse frequency boosts.** These
+  are the only levers that touch the actual bottleneck (Cloister's 5.87% per-day
+  offer rate). Currently listed as known simplifications.
+- **Raise disk supply**, which multiplies upgrade events per attempt and so the
+  absolute count of Orinda observations, without changing the rate.
+- Unlocking the Catacombs is worth at most **1.91x** and, under the shipped
+  same-day Tomb gate, a statistically insignificant **1.11x**. It is not a lever.
 
 With either or both, Phase 0 stops being an instrument check and becomes a
 metric worth plotting over training.
@@ -269,10 +279,12 @@ Archives, Mechanarium. Only **The Foundation** (record exists, `pool=none`) and
 the **Abandoned Mine** (no record) are genuinely off-grid. Both levers named
 above are reachable without task 4.
 
-**The 42x figure is an upper bound, not a prediction.** It was computed by forcing
-the check true. Gating on same-day Tomb entry scales it by P(Tomb drawn as the
-outer room AND entered) — a 1-in-8 draw, times the chance the policy spends the
-steps to walk the West Path. Measure the realized offer rate; do not quote 42x.
+**The Catacombs gate was measured and does not deliver.** It was landed on the
+strength of a projected 42x lift computed from synthetic contexts. Under real
+play the realized paired lift is **1.11x (z = 1.06, not significant)** and the
+always-unlocked ceiling is **1.91x** — see the measured table above. The gate is
+correct modelling that does not move the number, because Cloister's rarity, not
+the gate, is the constraint.
 
 ## Open decisions
 

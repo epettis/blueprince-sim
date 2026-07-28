@@ -57,7 +57,6 @@ class GameConfig:
     # Default True: the unlock puzzle (Key of Aries -> Treasure Trove) is unmodeled, so
     # defaulting on is the only way the scepter is ever exercised.  Set False to disable.
     royal_scepter_found: bool = True
-    garage_car_used_before: bool = False  # Car Keys first-use taken: later uses draw from pool instead of Upgrade Disk
     # Vault Key ids whose deposit box has been opened (ever, across all days).
     # These keys are never grantable again — permanently removed from spawn pool.
     used_vault_keys: frozenset[str] = frozenset()
@@ -77,15 +76,15 @@ class GameConfig:
     # later day within the same attempt.  Carried by DayChain as a frozenset and
     # merged as a union — a lit target never un-lights.
     lit_targets: frozenset[str] = frozenset()
-    # Upgrade Disk ids already spent (inserted at a terminal) from their fixed room
-    # location (the `guaranteed_in` disks: Office, Morning Room, Her Ladyship's
-    # Chamber, Great Hall, Freezer, Archives, Mechanarium).  An unspent disk drops
-    # at end of day and returns to its room on re-entry; only spending it (which
-    # calls remove(..., consumed=True)) makes removal permanent.  `guaranteed_in`
-    # re-fires on first entry every day, so without this set re-drafting the room
-    # after spending a disk would re-mint it.  Carried by DayChain as a frozenset
-    # and merged as a union; seeded into gated_out at day start so _is_available
-    # refuses them.
+    # Upgrade Disk ids already spent (inserted at a terminal).  Covers all
+    # persistence="day" disks: the seven in-grid guaranteed_in room disks (Office,
+    # Morning Room, Her Ladyship's Chamber, Great Hall, Freezer, Archives,
+    # Mechanarium) plus the four bespoke-source disks (garage, vault_304, tomb,
+    # trading_post).  An unspent disk drops at end of day and returns to its
+    # source on re-entry/re-open; only spending it (remove(..., consumed=True))
+    # makes removal permanent.  upgrade_disk_trade is excluded (repeatable).
+    # Carried by DayChain as a frozenset and merged as a union; seeded into
+    # gated_out at day start so _is_available refuses them.
     collected_disks: frozenset[str] = frozenset()
     # Accumulated Keeper of Tithes coins: every time the Chapel's entry -1 coin
     # penalty actually fires (player has at least 1 coin when entering the Chapel),

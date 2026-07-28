@@ -136,40 +136,32 @@ def on_enter_shop(game, room) -> None:
 
 
 def _roll_commissary(game, table: dict) -> None:
-    """Build the Commissary's daily stock: slots distinct available entries."""
+    """Build the Commissary's daily stock: slots distinct available entries.
+
+    Every entry competes for the same ``slots`` places. ``kind: "item"`` entries
+    are filtered through ``_is_available`` first, so a unique already held — or an
+    Upgrade Disk already spent, and hence in collected_disks/gated_out — is never
+    displayed. ``kind: "resource"`` entries (gem, key, banana, ...) are unlimited
+    and always eligible.
+    """
     state = game.state
     registry = game.registry
     slots = table.get("slots", 4)
     raw_stock = table.get("stock", [])
 
-    # Partition entries into primary and reserve
-    primary = []
-    reserve = []
+    candidates = []
     for raw in raw_stock:
         entry = dict(raw)
         entry.setdefault("sold", 0)
-        if raw.get("reserve"):
-            reserve.append(entry)
-            continue
-        # Check availability for item entries
         if raw.get("kind") == "item":
             if not si._is_available(state, raw["id"], registry):
                 continue
-        primary.append(entry)
+        candidates.append(entry)
 
-    # Shuffle primary indices for deterministic random selection
-    indices = list(range(len(primary)))
+    # Shuffle indices for deterministic random selection
+    indices = list(range(len(candidates)))
     game.rng.shuffle("shop_stock", indices)
-    chosen = [primary[i] for i in indices[:slots]]
-
-    # Fill remaining slots with reserve entries (in data order) if needed
-    if len(chosen) < slots:
-        for r_entry in reserve:
-            if len(chosen) >= slots:
-                break
-            chosen.append(r_entry)
-
-    state.shops.stock["commissary"] = chosen
+    state.shops.stock["commissary"] = [candidates[i] for i in indices[:slots]]
 
 
 def _roll_locksmith(game, table: dict) -> None:
@@ -1069,8 +1061,6 @@ def carryover(game) -> dict:
         "entrance_vase_broken": cfg.entrance_vase_broken or state.shops.vase_smashed,
         "outer_chip_dug": cfg.outer_chip_dug or state.shops.chip_dug,
         "royal_scepter_found": cfg.royal_scepter_found,
-        # The Garage car's Upgrade Disk is a one-time find for the whole save.
-        "garage_car_used_before": cfg.garage_car_used_before or state.special.garage_car_opened,
         # Vault keys permanently used: accumulated union across all days.
         "used_vault_keys": sorted(
             set(getattr(cfg, "used_vault_keys", frozenset()))
@@ -1082,9 +1072,12 @@ def carryover(game) -> dict:
             set(getattr(cfg, "lit_targets", frozenset()))
             | set(state.special.lit_targets)
         ),
-        # Fixed-location Upgrade Disks spent (inserted at a terminal) today: accumulated
-        # union across all days. Only spent disks are permanently gone; an unspent disk
-        # drops overnight and returns to its room (see config.collected_disks).
+        # Upgrade Disks spent (inserted at a terminal) today: accumulated union
+        # across all days. Covers all persistence="day" disks: the seven in-grid
+        # guaranteed_in room disks plus the four bespoke-source disks (garage,
+        # vault_304, tomb, trading_post). Only spending (consumed=True) makes
+        # removal permanent; an unspent disk drops overnight and returns to its
+        # source. upgrade_disk_trade (persistence="permanent") is excluded.
         "collected_disks": sorted(
             set(getattr(cfg, "collected_disks", frozenset()))
             | si_mod.fixed_disks_spent_today(state, game.registry)

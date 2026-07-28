@@ -60,16 +60,42 @@ Wiki research (https://blueprince.wiki.gg/wiki/Upgrade_Disk):
   `_archives`, `_mechanarium`). Only **The Foundation** and the **Abandoned Mine**
   remain; both are off-grid and wait on task 4.
 
-  **Uniqueness alone does NOT enforce the supply cap.** A unique item is only
-  blocked while it is *held* — `special_items.remove(consumed=True)` records it in
-  `state.special.removed`, which is per-day state. Spend a disk and the next day's
-  `guaranteed_in` grant mints another, which measured at 7 duplicates per day. What
-  actually enforces the cap is the `GameConfig.collected_disks` carryover: seeded
-  into `gated_out` at day start, accumulated as a union by `DayChain`, and cleared
-  on attempt wrap — the same shape as `used_vault_keys` and `lit_targets`. It
-  deliberately covers only the `guaranteed_in` disks; the six bespoke sources carry
-  their own permanence flags, and excluding them is also what keeps the repeatable
-  trade disk repeatable.
+  **Disks respawn; only SPENDING is permanent** (owner, 2026-07-27): "The disks
+  reappear in their location every day. The safe remains open permanently." So an
+  unspent disk drops from inventory overnight and returns to its source; inserting
+  one at a terminal is the only thing that removes it from the world.
+
+  Every disk therefore carries `persistence: "day"` except `upgrade_disk_trade`,
+  which is genuinely repeatable. The permanence is enforced by the
+  `GameConfig.collected_disks` carryover — populated from *spent* disks only,
+  seeded into `gated_out` at day start, accumulated as a union by `DayChain`, and
+  cleared on attempt wrap, the same shape as `used_vault_keys` and `lit_targets`.
+  `fixed_disks_spent_today` keys off `persistence == "day"`, which makes the
+  trade-disk exemption data-driven rather than a hardcoded id list.
+
+  **Uniqueness alone does NOT enforce this.** A unique item is only blocked while
+  *held*; `remove(consumed=True)` records it in `state.special.removed`, which is
+  per-day state. Without `collected_disks` a spent disk is re-minted the next day —
+  measured at 7 duplicates per day before the fix.
+
+  Re-collection cost differs by source, and this is deliberate, not an oversight:
+
+  - **Vault box 304** — the box stays open permanently; no key needed again.
+  - **Garage car trunk** — re-locks *every night*; Car Keys are required on every
+    single open (owner-confirmed). The most expensive disk to re-collect.
+  - **Tomb / Trading Post** — candles stay lit; the disk returns on re-entry with
+    no ignition tool.
+  - **Commissary** — ordinary stock at 15g, offered on ~31% of days.
+  - **Lost & Found** — stays in the random pool until spent.
+
+  **Pre-existing bug found 2026-07-27: the Commissary disk was never obtainable.**
+  It was flagged `reserve: true`, and the reserve branch only fired when available
+  primary entries fell below `slots`. Four of the thirteen entries are
+  `kind: resource`, which the availability filter never inspects, so primary was
+  permanently >= 4 with `slots = 4` and reserve was unreachable dead code. Measured
+  0/400 daily rolls. The sim was documented as modelling 7 disks but only **6** were
+  ever reachable. Fixed by making it ordinary stock and deleting the dead reserve
+  machinery, so a stray `reserve` key can no longer silently hide an item.
 - **Upgradable rooms**: **15 rooms carrying 16 upgrade slots**, because Spare Room
   is upgraded twice — the first pick turns it into Spare Bedroom / Greenroom / Hall,
   and the second upgrades whichever of those was chosen into one of *its* own three
@@ -118,14 +144,21 @@ the safe gem is truly daily and per-room-instance.
 
 ## 4. Connectivity graph for the outside areas
 
-**Now a prerequisite for measuring upgrades — schedule it before the upgrade
-retrain.** This task supplies the `catacombs` record, and the Catacombs check
-gates non-veteran chain line 7, the only line where Cloister sits first. Held
-permanently false, Cloister of Orinda is offered on 0.07% of upgrade events;
-unlocked, 2.96% — a 42x difference, and the difference between measurable and
-not. It also supplies Blackbridge Grotto, the fifth disk-reader terminal. See
-[`upgrade-value-measurement.md`](upgrade-value-measurement.md) for the numbers
-and the sequencing argument.
+**No longer a prerequisite for measuring upgrades.** It was scheduled ahead of the
+retrain on the strength of a projected 42x lift to Cloister of Orinda's offer rate
+from unlocking the Catacombs. That projection came from synthetic contexts and did
+not survive measurement: under real play the realized lift is **1.11x (z = 1.06,
+not significant)** and the always-unlocked ceiling is **1.91x**. The Catacombs gate
+also turned out to need only the Tomb, not this graph.
+
+What task 4 still uniquely supplies: **Blackbridge Grotto**, the fifth disk-reader
+terminal and the one modelled terminal with no room record; the two off-grid
+Upgrade Disks (The Foundation, Abandoned Mine); and the currently inert
+`microchip`, `sanctum_key` and `key_of_aries` items. It also changes the action
+space, so it is still worth bundling with a retrain rather than paying for two.
+
+See [`upgrade-value-measurement.md`](upgrade-value-measurement.md) for the measured
+numbers and why Cloister's Unusual rarity — not the gate — is the real bottleneck.
 
 Everything beyond the 5×9 grid — West Path / Outer Rooms, the Grounds, Blackbridge
 Grotto, Orindian Ruins, the Precipice, the Abandoned Mine, Crate Tunnel, the Inner
@@ -162,11 +195,15 @@ it: microchips, Power Hammer wall breaks, the Sanctum keys.
   rather than a hardcoded room id, so the rule is a data edit.
 
   This also settles the "Catacombs unlock condition" open decision in
-  [`upgrade-value-measurement.md`](upgrade-value-measurement.md). Consequence: the
-  42x lift quoted there assumed the check simply being true, so the realized gain is
-  that figure scaled by P(Tomb drafted and entered) — roughly a 1-in-8 outer-room
-  draw, times the chance the agent spends the steps to walk the West Path. The real
-  offer rate must be **measured**, not assumed.
+  [`upgrade-value-measurement.md`](upgrade-value-measurement.md).
+
+  **Measured afterwards, and it does not deliver.** Real multi-day play with
+  `greedy_rank` (~83k upgrade events per arm) gives a paired lift of **1.11x at
+  z = 1.06 — not significant**; the always-unlocked ceiling is **1.91x**. Diagnosis:
+  `P(catacombs_unlocked at insert)` is 8.24%, but line 7 also requires
+  `min_drafts['cloister'] >= 1`, which fails on 88.7% of upgrade events because the
+  Cloister is offered on only 5.87% of days. The gate is correct modelling that
+  does not move the number.
 
 - **2026-07-27, area-graph scope**: task 4 is NOT a prerequisite for making Cloister
   of Orinda measurable. The Catacombs gate needs only the Tomb (already modelled),

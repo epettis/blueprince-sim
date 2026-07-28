@@ -551,6 +551,31 @@ def main() -> int:
         if val is not None and not isinstance(val, bool):
             errors.append(f"room {r['id']!r}: flags.unlocks_catacombs must be bool, got {val!r}")
 
+    # ── Upgrade Disk persistence ──────────────────────────────────────────────
+    # Every Upgrade Disk respawns at its source until spent, so each must carry
+    # persistence "day" — that is the value fixed_disks_spent_today dispatches on
+    # to decide which disks the collected_disks carryover retires. The sole
+    # exemption is the repeatable tier-5 trade disk, which stays "permanent" so it
+    # can be traded for again after being spent.
+    #
+    # This lives here rather than in tests because it is a data-content check:
+    # the behaviour it protects (each disk returning until spent, the trade disk
+    # staying obtainable afterwards) is pinned per-source in tests/test_disk_respawn.py.
+    DISK_PERSISTENCE_EXEMPT = {"upgrade_disk_trade"}
+    for item in si_items:
+        iid = item["id"]
+        if not iid.startswith("upgrade_disk_"):
+            continue
+        expected = "permanent" if iid in DISK_PERSISTENCE_EXEMPT else "day"
+        actual = item.get("persistence")
+        if actual != expected:
+            errors.append(
+                f"special_items/{iid}: Upgrade Disks must have persistence "
+                f"{expected!r} (respawn until spent"
+                f"{'; exempt as repeatable' if iid in DISK_PERSISTENCE_EXEMPT else ''}"
+                f"), got {actual!r}"
+            )
+
     # ── upgrade_selection.json ─────────────────────────────────────────────────
     KNOWN_CHECKS = {"room_drafts", "catacombs_unlocked", "always_false"}
     us_doc = json.loads((DATA / "upgrade_selection.json").read_text())

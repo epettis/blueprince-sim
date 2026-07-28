@@ -172,6 +172,38 @@ class EpisodeRecorder:
             f.write(json.dumps(rec) + "\n")
 
 
+class UpgradeLogger:
+    """Writes one JSON record per upgrade decision to ``<ckpt_dir>/upgrades.jsonl``.
+
+    Not sampled: every upgrade decision is recorded.  At ~0.35 decisions/day
+    this is far cheaper than global episode sampling while capturing rare events
+    (e.g. Cloister-of-Orinda offers that appear ~once per 730 days) reliably.
+
+    File conventions mirror EpisodeRecorder: parent dir is created on first
+    write, lines are appended directly (no buffering needed at this rate).
+    Neither writer rotates; the file grows for the life of the run.
+
+    Disable with ``--no-upgrade-log``.
+    """
+
+    def __init__(self, path: Path) -> None:
+        self.path = path  # upgrades.jsonl path under the checkpoint dir
+
+    def on_step(self, infos: list[dict]) -> None:
+        """Check each env's info for an ``"upgrade_decision"`` record and write it."""
+        for info in infos:
+            rec = info.get("upgrade_decision")
+            if rec is None:
+                continue
+            self._write(rec)
+
+    def _write(self, record: dict) -> None:
+        """Append one upgrade-decision record as a JSON line."""
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        with self.path.open("a") as f:
+            f.write(json.dumps(record) + "\n")
+
+
 class DraftStatsWriter:
     """Aggregates each episode's drafted-room names into fixed episode buckets.
 
@@ -237,6 +269,7 @@ class CheckpointAndStopCallback:
                          episodes_done: int, snapshot_every: int,
                          recorder: EpisodeRecorder | None = None,
                          draft_stats: DraftStatsWriter | None = None,
+                         upgrade_logger: UpgradeLogger | None = None,
                          multi_day: int = 0,
                          note_fraction: float = 0.05) -> None:
                 super().__init__()
@@ -247,6 +280,7 @@ class CheckpointAndStopCallback:
                 self.snapshot_every = snapshot_every
                 self.recorder = recorder
                 self.draft_stats = draft_stats
+                self.upgrade_logger = upgrade_logger  # None = disabled via --no-upgrade-log
                 self.recent = deque(maxlen=1000)
                 self.recent_exploit = deque(maxlen=1000)
                 self.recent_explore = deque(maxlen=1000)
@@ -272,6 +306,8 @@ class CheckpointAndStopCallback:
                 if self.recorder is not None:
                     self.recorder.on_step(self.locals.get("actions"),
                                           getattr(policy, "last_modes", None))
+                if self.upgrade_logger is not None:
+                    self.upgrade_logger.on_step(list(infos))
                 done_indices = []
                 for i, (done, info) in enumerate(
                         zip(self.locals.get("dones", ()), infos)):
@@ -520,6 +556,12 @@ def main(argv: list[str] | None = None) -> int:
                              "rooms placed) of every such window (0 = off)")
     parser.add_argument("--no-record", action="store_true",
                         help="disable episode recording entirely")
+    # --- upgrade decision log ---
+    parser.add_argument("--no-upgrade-log", action="store_true",
+                        help="disable upgrade-decision logging to "
+                             "<checkpoint-dir>/upgrades.jsonl "
+                             "(default: enabled; writes one record per upgrade "
+                             "decision, ~0.35/day, regardless of sample rate)")
     # --- multi-day loop ---
     parser.add_argument("--multi-day", type=int, default=0, metavar="N",
                         help="enable the multi-day loop: each env worker runs a "
@@ -639,11 +681,17 @@ def main(argv: list[str] | None = None) -> int:
              f"(sample rate {args.record_sample_rate:.2%}, "
              f"top-of-{args.record_top_every} windows)")
 
+    upgrade_logger = None
+    if not args.no_upgrade_log:
+        upgrade_logger = UpgradeLogger(ckpt_dir / "upgrades.jsonl")
+        emit(f"[train] upgrade decisions -> {upgrade_logger.path} "
+             "(every decision, not sampled; disable with --no-upgrade-log)")
+
     draft_stats = DraftStatsWriter(ckpt_dir / "draft_stats.jsonl", episodes_done)
     callback = CheckpointAndStopCallback(
         ckpt_dir, args.checkpoint_every, episodes_done, args.snapshot_every,
-        recorder=recorder, draft_stats=draft_stats, multi_day=args.multi_day,
-        note_fraction=args.dashboard_every)
+        recorder=recorder, draft_stats=draft_stats, upgrade_logger=upgrade_logger,
+        multi_day=args.multi_day, note_fraction=args.dashboard_every)
     _install_signal_handlers()
     emit(f"[train] pid {os.getpid()} - stop with: kill {os.getpid()} (or Ctrl-C)")
 

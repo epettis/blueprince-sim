@@ -97,19 +97,26 @@ def test_commissary_excludes_already_owned_unique_item():
         assert "shovel" not in ids, f"seed={seed}: shovel appeared in stock despite being held"
 
 
-def test_commissary_reserve_not_in_primary_draw():
-    """The upgrade_disk_commissary (reserve=true) is excluded from the 4-slot primary draw.
+def test_commissary_disk_is_offered_on_a_reasonable_share_of_days():
+    """upgrade_disk_commissary competes for the 4 slots, so it shows up sometimes.
 
-    Reserve entries only fill remaining slots when fewer than 4 primary entries
-    are available; with all primary entries available it must never appear.
+    It is one of 13 entries drawn 4 at a time, so it should appear on roughly 31%
+    of days. The assertion is a wide band, not the exact rate: the point is that
+    the disk is reachable at all. It previously carried a reserve flag that made
+    it unobtainable in every roll, and a rate near zero would mean that regressed.
     """
-    for seed in range(50):
+    hits = 0
+    trials = 400
+    for seed in range(trials):
         g = _game(seed=seed)
         _enter_shop(g, "commissary")
         ids = [e["id"] for e in g.state.shops.stock["commissary"]]
-        assert "upgrade_disk_commissary" not in ids, (
-            f"seed={seed}: reserve entry upgrade_disk_commissary appeared"
-        )
+        if "upgrade_disk_commissary" in ids:
+            hits += 1
+    rate = hits / trials
+    assert 0.20 < rate < 0.45, (
+        f"expected the disk on roughly 31% of days, measured {rate:.1%}"
+    )
 
 
 def test_commissary_stock_not_rerolled_on_second_entry():

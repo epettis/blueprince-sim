@@ -1689,7 +1689,7 @@
    "kind": "unique",
    "tier": null,
    "unique": true,
-   "persistence": "permanent",
+   "persistence": "day",
    "spawn_rooms": [],
    "spawn_rooms_high_luck": [],
    "guaranteed_in": [],
@@ -1700,7 +1700,7 @@
     "confidence": "wiki",
     "absent_spawn_rooms": [],
     "blocked_on": null,
-    "notes": "One unique disk per source so each is inherently one-time use. Granted by opening Vault box 304. Draw mechanism implemented (chunk 2); individual upgrade effects deferred (task 9)."
+    "notes": "One unique disk per source so each is inherently one-time use. Granted by opening Vault box 304. Box stays open permanently (vault_key_304 stays in used_vault_keys); the disk returns daily to the open box until spent. Draw mechanism implemented (chunk 2); individual upgrade effects deferred (task 9)."
    }
   },
   {
@@ -1709,7 +1709,7 @@
    "kind": "unique",
    "tier": null,
    "unique": true,
-   "persistence": "permanent",
+   "persistence": "day",
    "spawn_rooms": [],
    "spawn_rooms_high_luck": [],
    "guaranteed_in": [],
@@ -1720,7 +1720,7 @@
     "confidence": "wiki",
     "absent_spawn_rooms": [],
     "blocked_on": null,
-    "notes": "One unique disk per source so each is inherently one-time use. Reserve stock item in the Commissary. Draw mechanism implemented (chunk 2); individual upgrade effects deferred (task 9)."
+    "notes": "Reserve stock item in the Commissary, restocked every day: an unspent disk drops overnight and is offered again, and the player pays the 15 gold each time (the cost is the throttle, making hoarding wasteful). Once spent it leaves the reserve stock permanently via collected_disks. Draw mechanism implemented (chunk 2); individual upgrade effects deferred (task 9)."
    }
   },
   {
@@ -1729,7 +1729,7 @@
    "kind": "unique",
    "tier": null,
    "unique": true,
-   "persistence": "permanent",
+   "persistence": "day",
    "spawn_rooms": [],
    "spawn_rooms_high_luck": [],
    "guaranteed_in": [],
@@ -1740,7 +1740,7 @@
     "confidence": "wiki",
     "absent_spawn_rooms": [],
     "blocked_on": null,
-    "notes": "One unique disk per source so each is inherently one-time use. First use of the Garage car trunk. Draw mechanism implemented (chunk 2); individual upgrade effects deferred (task 9)."
+    "notes": "One unique disk per source so each is inherently one-time use. Found in the Garage car trunk. The trunk re-locks every night (unlike the Vault boxes), so Car Keys are required on every open, not just the first; the disk inside returns daily until spent. Once spent, later trunk uses draw from the later_pool. Draw mechanism implemented (chunk 2); individual upgrade effects deferred (task 9)."
    }
   },
   {
@@ -1749,7 +1749,7 @@
    "kind": "unique",
    "tier": null,
    "unique": true,
-   "persistence": "permanent",
+   "persistence": "day",
    "spawn_rooms": [],
    "spawn_rooms_high_luck": [],
    "guaranteed_in": [],
@@ -1760,7 +1760,7 @@
     "confidence": "wiki",
     "absent_spawn_rooms": [],
     "blocked_on": null,
-    "notes": "One unique disk per source so each is inherently one-time use. Granted by lighting the Trading Post fuse. Draw mechanism implemented (chunk 2); individual upgrade effects deferred (task 9)."
+    "notes": "One unique disk per source so each is inherently one-time use. Granted by lighting the Trading Post dynamite chamber. Chamber stays open (trading_post in lit_targets); the disk returns daily until spent. Draw mechanism implemented (chunk 2); individual upgrade effects deferred (task 9)."
    }
   },
   {
@@ -1789,7 +1789,7 @@
    "kind": "unique",
    "tier": null,
    "unique": true,
-   "persistence": "permanent",
+   "persistence": "day",
    "spawn_rooms": [],
    "spawn_rooms_high_luck": [],
    "guaranteed_in": [],
@@ -1800,7 +1800,7 @@
     "confidence": "wiki",
     "absent_spawn_rooms": [],
     "blocked_on": null,
-    "notes": "One unique disk per source so each is inherently one-time use. Awarded by the Lost and Found. Draw mechanism implemented (chunk 2); individual upgrade effects deferred (task 9)."
+    "notes": "Awarded by the Lost and Found. Stays in the draw pool while unspent, so an unspent disk drops overnight and can be drawn again on a later day; once spent it leaves the pool permanently (the pool draw filters on _is_available, which reads gated_out/collected_disks). Draw mechanism implemented (chunk 2); individual upgrade effects deferred (task 9)."
    }
   },
   {
@@ -1809,7 +1809,7 @@
    "kind": "unique",
    "tier": null,
    "unique": true,
-   "persistence": "permanent",
+   "persistence": "day",
    "spawn_rooms": [],
    "spawn_rooms_high_luck": [],
    "guaranteed_in": [],
@@ -1820,7 +1820,7 @@
     "confidence": "wiki",
     "absent_spawn_rooms": [],
     "blocked_on": null,
-    "notes": "One unique disk per source so each is inherently one-time use. Granted by lighting the near candles in the Tomb. Draw mechanism implemented (chunk 2); individual upgrade effects deferred (task 9)."
+    "notes": "One unique disk per source so each is inherently one-time use. Granted by lighting the candles in the Tomb. Candles stay lit (tomb in lit_targets); the disk returns daily until spent. Draw mechanism implemented (chunk 2); individual upgrade effects deferred (task 9)."
    }
   },
   {
