@@ -1,0 +1,249 @@
+// Blue Prince — connectivity graph of the areas outside the 5x9 house grid.
+//
+// v3, 2026-07-27. Owner-corrected (interview) — supersedes the wiki-only draft.
+// Destination: docs/areas.dot, with data/areas.json generated to match.
+//
+// Replaces the `outer_loc` 0/1/2 doorstep abstraction (engine/state.py:181) and
+// the hard-coded RETURN_EH_ACTION=194 / RETURN_GARAGE_ACTION=195.
+//
+// EVERY EDGE COSTS EXACTLY 1 STEP (owner-confirmed). This reproduces the three
+// existing user-verified constants rather than contradicting them, which is the
+// main evidence the rule is right:
+//   House -> Grounds -> West Path        = 2  == outer_path_entrance_cost
+//   Garage -> West Path                  = 1  == outer_path_garage_cost
+//   West Path -> inside the outer room   = 1  == outer_enter_cost
+// This only works because the Outer Room drafting cave IS the West Path's south
+// section, not a separate node. v2 drew them apart and was off by one on both.
+//
+// EVERY EDGE IS DIRECTED. The gate admitting you to an area is usually not the
+// gate letting you out, and two elevators are position-tracked (see below).
+//
+// STATEFUL MECHANISMS THIS GRAPH IMPLIES (none exist in the sim today)
+//   * Cliffside elevator position (Grounds <-> Precipice). Appears at the top
+//     once all four torches are lit. It moves ONLY by being ridden — it cannot
+//     be called from the far side. So arriving at the Precipice overland via the
+//     Abandoned Mine strands you there unless the car was already ridden down.
+//   * Foundation elevator position (The Foundation <-> Basement). The keycard
+//     SUMMONS the car; it is not a ride toll. Enter the Basement via the Sealed
+//     Entrance and the car is still up top, so it must be summoned.
+//   * Four torches: Apple Orchard (on entry), Gemstone Cavern (on entry),
+//     Schoolhouse and Hovel (on DRAFT). All four lit summons the cliffside
+//     elevator. Schoolhouse and Hovel are both outer rooms and only one outer
+//     room exists per day, so the torches MUST persist across days or the fourth
+//     could never be lit. (Confirm.)
+//   * Water level, set from the Pump Room: <= 8 opens the Well descent, exactly
+//     6 enables the Safehouse rowboat. No raise/lower action exists today.
+//   * Power: required to open Blackbridge Grotto and to run the Laundry Room's
+//     special functions. A keycard/power notion exists for security doors but
+//     does not cover this.
+//   * Rotating Gear position — stays where it was left.
+//   * Mine cart: blocks Reservoir (North) -> Abandoned Mine (North) until moved
+//     from the SOUTH side. Simulator simplification (owner): visiting Abandoned
+//     Mine (South) unlocks BOTH that pathway AND Rotating Gear -> Underpass.
+//
+// ENCODING
+//   node fill   pale yellow = on-grid / drafted anchor (not an area node)
+//               pale green  = surface        pale blue = underground
+//               gold border = holds an Upgrade Disk
+//   edge style  solid = no gate   bold = permanent once satisfied
+//               dashed = conditional / resets       red = position-tracked or one-way
+//   edge label  = condition to traverse IN THAT DIRECTION
+
+digraph blueprince_outside {
+	rankdir=TB;
+	compound=true;
+	splines=spline;
+	nodesep=0.35;
+	ranksep=1.0;
+
+	node [shape=box, style="rounded,filled", fontname="Helvetica", fontsize=11,
+	      fillcolor="#e8f5e9", color="#555555", penwidth=1.2];
+	edge [fontname="Helvetica", fontsize=9, color="#333333", dir=forward, arrowsize=0.8];
+
+	subgraph cluster_anchors {
+		label="ON-GRID / DRAFTED (not area nodes)";
+		fontname="Helvetica-Bold"; fontsize=13;
+		style="rounded,dashed"; color="#9e9d24"; bgcolor="#fffef5";
+
+		node [fillcolor="#fffde7", color="#9e9d24"];
+		house          [label="House\n(Entrance Hall, 5x9 grid)"];
+		garage         [label="Garage\n(in-grid room)"];
+		the_foundation [label="The Foundation\n(in-grid room)", color="#c9a227", penwidth=2.5];
+		tomb           [label="Tomb\n(outer room, 1 of 8)", color="#c9a227", penwidth=2.5];
+		schoolhouse    [label="Schoolhouse\n(outer room) — torch on DRAFT"];
+		hovel          [label="Hovel\n(outer room) — torch on DRAFT"];
+	}
+
+	subgraph cluster_surface {
+		label="SURFACE";
+		fontname="Helvetica-Bold"; fontsize=13;
+		style="rounded"; color="#66bb6a"; bgcolor="#f6fbf6";
+
+		grounds            [label="The Grounds"];
+		west_path          [label="West Path\n(= the outer-room doorstep)"];
+		private_drive      [label="Private Drive"];
+		blackbridge_grotto [label="Blackbridge Grotto\n(5th disk terminal)"];
+		orindian_ruins     [label="Orindian Ruins\n(Throne Room floorplan)"];
+		campsite           [label="Campsite"];
+		apple_orchard      [label="Apple Orchard\n+20 steps/day — torch on ENTRY"];
+		gemstone_cavern    [label="Gemstone Cavern\n2 gems/day — torch on ENTRY"];
+		crate_tunnel       [label="Crate Tunnel (entrance only)\nignite torches -> Tunnel floorplan"];
+		sealed_entrance    [label="Sealed Entrance"];
+	}
+
+	subgraph cluster_underground {
+		label="UNDERGROUND";
+		fontname="Helvetica-Bold"; fontsize=13;
+		style="rounded"; color="#5c6bc0"; bgcolor="#f5f6fc";
+
+		node [fillcolor="#e8eaf6"];
+
+		basement            [label="Basement"];
+		well                [label="Well"];
+		reservoir_south     [label="Reservoir (South)"];
+		reservoir_north     [label="Reservoir (North)"];
+		safehouse           [label="Safehouse\n(Sanctum Key)"];
+		catacombs           [label="Catacombs"];
+		// The disk here sits openly on a table and is obtainable WITHOUT lighting
+		// the candlesticks; the candles independently open the Precipice stairway.
+		// Two unrelated things — see engine/special_items.py::on_enter.
+		mine_south          [label="Abandoned Mine (South)\ndisk on a table — no flame needed\nmove the mine cart from here", color="#c9a227", penwidth=2.5];
+		mine_north          [label="Abandoned Mine (North)"];
+		rotating_gear       [label="Rotating Gear\n(stays where left)"];
+		upper_rotating_gear [label="Upper Rotating Gear"];
+		underpass           [label="The Underpass"];
+		inner_sanctum       [label="Inner Sanctum\n(Antechamber N lever)"];
+		sigil_chambers      [label="8 Sigil Chambers\neach: 1 Sanctum Key, permanent,\n+2 allowance from its Mora Jai box"];
+		precipice           [label="The Precipice"];
+		unknown_underground [label="Unknown (Underground)\n(Key of Aries clock)"];
+	}
+
+	// ===================== SURFACE =====================
+
+	house   -> grounds [];
+	grounds -> house   [];
+
+	// First-ever West Path visit MUST come via the Garage: the gate unlatches
+	// only from the inside (owner-confirmed).
+	garage    -> west_path [label="garage door\n(breaker on)", style=dashed];
+	west_path -> garage    [label="garage door\n(breaker on)", style=dashed];
+
+	grounds   -> west_path [label="west gate — only once\nunlatched from inside", style=bold];
+	west_path -> grounds   [label="unlatch gate from inside\n(permanent, first time)", style=bold];
+
+	west_path -> tomb        [label="drawn as today's\nouter room (1 of 8)", style=dashed];
+	west_path -> schoolhouse [label="drawn as today's\nouter room", style=dashed];
+	west_path -> hovel       [label="drawn as today's\nouter room", style=dashed];
+	tomb        -> west_path [];
+	schoolhouse -> west_path [];
+	hovel       -> west_path [];
+
+	grounds       -> private_drive [];
+	private_drive -> grounds       [];
+
+	private_drive      -> blackbridge_grotto [label="Laboratory steam/lever\npuzzle + POWER", style=bold];
+	blackbridge_grotto -> private_drive       [];
+
+	// No soft-lock: the microchips live in the Grotto (owner-corrected).
+	blackbridge_grotto -> orindian_ruins     [label="all 3 microchips\nin the pedestal", style=dashed];
+	orindian_ruins     -> blackbridge_grotto [];
+
+	private_drive -> campsite      [];
+	campsite      -> private_drive [];
+
+	campsite      -> apple_orchard [label="padlock code 1128", style=bold];
+	apple_orchard -> campsite      [];
+
+	campsite        -> gemstone_cavern [label="V.A.C. puzzle\n(Utility Closet) + lever", style=bold];
+	gemstone_cavern -> campsite        [];
+
+	grounds         -> sealed_entrance [label="Power Hammer\nbreaks the planks", style=bold];
+	sealed_entrance -> grounds         [];
+
+	grounds -> well [label="Pump Room:\nwater level <= 8", style=dashed];
+	well    -> grounds [];
+
+	// Modelled to the entrance only — everything deeper is story, not progression.
+	grounds      -> crate_tunnel [label="ignition tool lights torches\n-> grants Tunnel floorplan", style=dashed];
+	crate_tunnel -> grounds      [];
+
+	// Position-tracked. Lighting all four torches summons the car to the TOP.
+	grounds   -> precipice [label="cliffside elevator: 4 torches lit\nAND car at the top", style=dashed, color="#c62828"];
+	precipice -> grounds   [label="elevator — ONLY if the car was\nridden down; cannot be called up", style=dashed, color="#c62828"];
+
+	// ===================== UNDERGROUND =====================
+
+	// Position-tracked. The keycard SUMMONS the car; it is not a ride toll.
+	the_foundation -> basement       [label="elevator: crank revealed\nAND car at the top", style=bold, color="#c62828"];
+	basement       -> the_foundation [label="elevator: keycard to SUMMON\nif the car is not already down", style=dashed, color="#c62828"];
+
+	sealed_entrance -> basement        [label="Power Hammer\nbreaks the wall", style=bold];
+	basement        -> sealed_entrance [label="regrows daily unless the\nGrounds planks are also broken", style=dashed, color="#c62828"];
+
+	basement        -> reservoir_north [label="pallet-jack puzzle", style=bold];
+	reservoir_north -> basement        [];
+
+	well            -> reservoir_south [label="Basement Key\n(not consumed)", style=bold];
+	reservoir_south -> well            [];
+
+	reservoir_south -> mine_south      [];
+	mine_south      -> reservoir_south [];
+
+	// The mine cart blocks this until it is shifted from the SOUTH side.
+	reservoir_north -> mine_north      [label="mine cart moved\n(requires Mine South visited)", style=bold];
+	mine_north      -> reservoir_north [];
+
+	// Rowboat is two-way once the level is set (owner-corrected).
+	reservoir_south -> safehouse       [label="rowboat; water level\nexactly 6", style=dashed];
+	safehouse       -> reservoir_south [label="rowboat; water level\nexactly 6", style=dashed];
+
+	tomb      -> catacombs [label="seven-angel puzzle (wall permanent;\nTomb must be drafted that day)", style=bold];
+	catacombs -> tomb      [];
+
+	catacombs -> mine_south [label="lower Draxus's scythe\nONE-WAY, shuts at day end", style=dashed, color="#c62828"];
+
+	mine_south -> precipice [label="ignition tool lights all 8\ncandlesticks -> permanent stairway", style=bold];
+	precipice  -> mine_south [];
+
+	precipice           -> unknown_underground [label="Castling Puzzle", style=bold];
+	unknown_underground -> precipice           [];
+
+	mine_north    -> rotating_gear [];
+	rotating_gear -> mine_north    [];
+
+	// Owner simplification: visiting Mine South unlocks this too.
+	rotating_gear -> underpass     [label="gear positioned\n(requires Mine South visited)", style=bold];
+	underpass     -> rotating_gear [];
+
+	underpass           -> upper_rotating_gear [label="red door, powered by\nBoiler Room steam", style=bold];
+	upper_rotating_gear -> underpass           [];
+
+	underpass     -> inner_sanctum [label="mid-tunnel metal door\n(resets daily, no key)", style=dashed];
+	inner_sanctum -> underpass     [];
+
+	inner_sanctum  -> sigil_chambers [label="1 Sanctum Key per chamber\n(consumed); door then permanent", style=bold];
+	sigil_chambers -> inner_sanctum  [];
+
+	// ===================== LEGEND =====================
+	subgraph cluster_legend {
+		label="LEGEND";
+		fontname="Helvetica-Bold"; fontsize=12;
+		style="rounded"; color="#999999"; bgcolor="#fafafa";
+
+		node [shape=plaintext, style="", fillcolor="none", fontsize=10];
+		legend [label=<
+			<table border="0" cellborder="0" cellspacing="3">
+			<tr><td align="left" colspan="2"><b>every edge costs 1 step</b></td></tr>
+			<tr><td bgcolor="#fffde7">&#160;&#160;&#160;</td><td align="left">on-grid / drafted anchor</td></tr>
+			<tr><td bgcolor="#e8f5e9">&#160;&#160;&#160;</td><td align="left">surface</td></tr>
+			<tr><td bgcolor="#e8eaf6">&#160;&#160;&#160;</td><td align="left">underground</td></tr>
+			<tr><td align="left"><font color="#c9a227"><b>gold border</b></font></td><td align="left">holds an Upgrade Disk</td></tr>
+			<tr><td align="left">solid</td><td align="left">no gate</td></tr>
+			<tr><td align="left"><b>bold</b></td><td align="left">permanent once satisfied</td></tr>
+			<tr><td align="left">dashed</td><td align="left">conditional / resets</td></tr>
+			<tr><td align="left"><font color="#c62828"><b>red</b></font></td><td align="left">position-tracked or one-way</td></tr>
+			<tr><td align="left" colspan="2"><i>reverse trips are separate edges</i></td></tr>
+			</table>
+		>];
+	}
+}
