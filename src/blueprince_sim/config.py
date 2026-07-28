@@ -77,7 +77,7 @@ class GameConfig:
     # merged as a union — a lit target never un-lights.
     lit_targets: frozenset[str] = frozenset()
     # Upgrade Disk ids already spent (inserted at a terminal).  Covers all
-    # persistence="day" disks: the seven Ingrid guaranteed_in room disks (Office,
+    # persistence="day" disks: the seven in-grid guaranteed_in room disks (Office,
     # Morning Room, Her Ladyship's Chamber, Great Hall, Freezer, Archives,
     # Mechanarium) plus the four bespoke-source disks (garage, vault_304, tomb,
     # trading_post).  An unspent disk drops at end of day and returns to its

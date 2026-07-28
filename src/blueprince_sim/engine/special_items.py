@@ -879,7 +879,7 @@ def fixed_disks_spent_today(state, registry) -> set[str]:
     which appends to ``state.special.removed``) makes the removal permanent.
 
     ``persistence: "day"`` covers every Upgrade Disk except one:
-    - the seven Ingrid guaranteed_in room disks (office, morning_room, etc.)
+    - the seven in-grid guaranteed_in room disks (office, morning_room, etc.)
     - the four bespoke-source disks: garage, vault_304, tomb, trading_post
     - commissary (restocked daily, re-charging 15 gold each time) and
       lost_and_found (stays in the draw pool while unspent)

@@ -1,4 +1,7 @@
-"""Upgrade Disk respawn semantics for the non-Ingrid disk sources.
+"""Upgrade Disk respawn semantics for the bespoke-source disks.
+
+These are the disks that do NOT come from an in-grid room's `guaranteed_in`
+pickup — each has its own container or shop mechanic instead.
 
 Every disk marked persistence="day" drops overnight when unspent and returns to
 its source the next day; spending it (inserting at a terminal) makes removal

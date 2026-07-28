@@ -1073,7 +1073,7 @@ def carryover(game) -> dict:
             | set(state.special.lit_targets)
         ),
         # Upgrade Disks spent (inserted at a terminal) today: accumulated union
-        # across all days. Covers all persistence="day" disks: the seven Ingrid
+        # across all days. Covers all persistence="day" disks: the seven in-grid
         # guaranteed_in room disks plus the four bespoke-source disks (garage,
         # vault_304, tomb, trading_post). Only spending (consumed=True) makes
         # removal permanent; an unspent disk drops overnight and returns to its
