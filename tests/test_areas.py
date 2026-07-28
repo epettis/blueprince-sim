@@ -12,7 +12,6 @@ from pathlib import Path
 
 import pytest
 
-from blueprince_sim.config import GameConfig
 from blueprince_sim.engine.areas import (
     AreaGraph,
     GateContext,
@@ -21,6 +20,9 @@ from blueprince_sim.engine.areas import (
     path,
     reachable,
 )
+from blueprince_sim.config import GameConfig
+from blueprince_sim.engine.game import Game
+from blueprince_sim.engine.grid import E, N, S, W
 from blueprince_sim.engine.model import Registry
 
 # ---------------------------------------------------------------------------
@@ -91,48 +93,80 @@ def _all_open_ctx(outer_room_id: str | None = "tomb") -> GateContext:
 
 
 # ---------------------------------------------------------------------------
-# 1-step rule reproduces GameConfig constants (the main evidence the graph is right)
+# 1-step rule — observable step deduction (the main evidence the graph is right)
 # ---------------------------------------------------------------------------
 
 
-def test_1step_rule_entrance_hall_to_doorstep(graph: AreaGraph) -> None:
-    """BFS distance house->grounds->west_path equals GameConfig.outer_path_entrance_cost.
+def test_1step_rule_entrance_hall_to_doorstep() -> None:
+    """Opening the outer draft from the Entrance Hall deducts exactly 2 steps.
 
-    These three GameConfig values were independently play-verified and must equal
-    the BFS distances derived from the graph. This is the primary evidence the
-    1-step-per-edge rule and node choices are correct (areas.md, 'The 1-step rule
-    reproduces the existing constants').
+    house->grounds->west_path is 2 edges in the graph; with the player already
+    at the Entrance Hall (0 walk), the observable step budget must drop by 2.
+    This was independently play-verified and is the primary evidence the
+    1-step-per-edge rule and node choices are correct.
     """
-    ctx = _all_open_ctx()
-    dist = reachable(graph, "house", ctx)
-    expected = GameConfig().outer_path_entrance_cost  # 2 by default
-    assert dist["west_path"] == expected
+    cfg = GameConfig(outer_rooms_unlocked=True)
+    g = Game(cfg, seed=9)
+    g.state.steps = 10
+    g.open_outer_draft()
+    assert g.state.steps == 8  # 10 - 2
 
 
-def test_1step_rule_garage_to_doorstep(graph: AreaGraph) -> None:
-    """BFS distance garage->west_path equals GameConfig.outer_path_garage_cost.
+def _game_standing_in_garage(breaker_on: bool) -> Game:
+    """A game with the player standing in a placed Garage, breaker optionally on.
 
-    The garage_door_breaker gate is now a real flag gate; the all-open context
-    includes the flag so the direct edge is traversable. The verified play constant
-    is 1 step.
+    The Utility Closet is placed away from the Garage so that ``breaker_on``
+    is the only thing that differs between the two arms of the test below.
     """
-    ctx = _all_open_ctx()
-    dist = reachable(graph, "garage", ctx)
-    expected = GameConfig().outer_path_garage_cost  # 1 by default
-    assert dist["west_path"] == expected
+    cfg = GameConfig(outer_rooms_unlocked=True)
+    g = Game(cfg, seed=9)
+    g._place_room(g.registry.by_id["garage"], 1, E | W)
+    g._place_room(g.registry.by_id["utility_closet"], 7, N | S)
+    if breaker_on:
+        g.state.entered[g._utility_closet_cell()] = True
+    g.state.pos = g._garage_cell()
+    g.state.entered[g._garage_cell()] = True
+    g.state.steps = 10
+    return g
 
 
-def test_1step_rule_doorstep_to_outer_room(graph: AreaGraph) -> None:
-    """BFS distance west_path->tomb equals GameConfig.outer_enter_cost.
+def test_1step_rule_garage_to_doorstep() -> None:
+    """Reaching the doorstep from inside the Garage costs exactly 1 step.
 
-    West Path is the outer-room doorstep AND drafting cave in one node; the
-    1-step edge into the drawn outer-room anchor reproduces the outer_enter_cost.
-    The all-open context sets outer_room_id='tomb', making the tomb the drawn room.
+    garage->west_path is a single edge, so with no grid walk to pay the budget
+    must drop by exactly 1 -- one of the three play-verified constants the graph
+    has to reproduce rather than contradict.
     """
-    ctx = _all_open_ctx(outer_room_id="tomb")
-    dist = reachable(graph, "west_path", ctx)
-    expected = GameConfig().outer_enter_cost  # 1 by default
-    assert dist["tomb"] == expected
+    g = _game_standing_in_garage(breaker_on=True)
+    g.open_outer_draft()
+    assert g.state.steps == 9  # 10 - 1, and no walk
+
+
+def test_garage_route_not_taken_when_breaker_off() -> None:
+    """With the breaker off the Garage route is closed, so the pricier house route is used.
+
+    The garage_door_breaker gate is real, so the only way out is back through the
+    Entrance Hall: 1 step to walk there plus 2 area hops, versus 1 step via the
+    Garage. Pins that the gate actually costs the player something.
+    """
+    g = _game_standing_in_garage(breaker_on=False)
+    g.open_outer_draft()
+    assert g.state.steps == 7  # 10 - (1 walk to the Entrance Hall + 2 area hops)
+
+
+def test_1step_rule_doorstep_to_outer_room() -> None:
+    """Entering the outer room from the doorstep deducts exactly 1 step.
+
+    west_path->outer_room is 1 edge in the graph; after arriving at west_path
+    and choosing an outer room, entering it must cost exactly 1 step.
+    """
+    cfg = GameConfig(outer_rooms_unlocked=True)
+    g = Game(cfg, seed=9)
+    g.open_outer_draft()
+    g.choose(0)
+    steps_before = g.state.steps
+    g.enter_outer_room()
+    assert g.state.steps == steps_before - 1
 
 
 # ---------------------------------------------------------------------------
@@ -606,3 +640,37 @@ def test_garage_to_west_path_open_with_breaker_flag(graph: AreaGraph) -> None:
     dist = reachable(graph, "garage", ctx)
     assert "west_path" in dist
     assert dist["west_path"] == 1
+
+
+# ---------------------------------------------------------------------------
+# H: state.area round-trip — game-level integration
+# ---------------------------------------------------------------------------
+
+
+def test_area_round_trip_full_outer_room_lifecycle() -> None:
+    """state.area tracks the full outer-room lifecycle: None -> west_path -> room id -> None.
+
+    After open_outer_draft, area is "west_path".
+    After enter_outer_room, area is the drafted room's id.
+    After return_from_outer, area is None and pos is the destination cell.
+    """
+    from blueprince_sim.engine.grid import ENTRANCE_CELL
+    cfg = GameConfig(outer_rooms_unlocked=True)
+    g = Game(cfg, seed=9)
+    assert g.state.area is None  # starts on the grid
+
+    g.open_outer_draft()
+    assert g.state.area == "west_path"
+
+    g.choose(0)
+    assert g.state.area == "west_path"  # still at doorstep after choosing
+    outer_room_id = next(r.id for r in g.outer_rooms if r.id in g.placed_ids)
+
+    g.enter_outer_room()
+    assert g.state.area == outer_room_id  # now inside the outer room
+
+    g.return_from_outer("entrance_hall")
+    assert g.state.area is None  # back on the grid
+    assert g.state.pos == ENTRANCE_CELL
+
+

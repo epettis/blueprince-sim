@@ -35,7 +35,7 @@ Layout (Discrete(279)):
            with a torch or burning_glass held, and a machine room (greenhouse/casino)
            with a broken_lever held.
   241..246 buy current shop display entry 0..5 (NAVIGATE; on-grid shop or
-           inside outer shop, outer_loc == 2)
+           inside outer shop (inside_outer_room))
   247..254 trade offer 0..7 (inside the Trading Post; offer index matches
            trade_offers() order)
   255..262 fabricate recipe 0..7 (standing in the Workshop; recipe order
@@ -221,7 +221,7 @@ def _cell_has_machine(game: Game, cell: int) -> bool:
 def action_mask(game: Game, prev_action: int | None = None) -> list[bool]:
     """Legality mask over the flat action space for the current phase.
 
-    NAVIGATE off-grid (``outer_loc > 0``) permits only outer-area actions.
+    NAVIGATE off-grid (``game.off_grid``) permits only outer-area actions.
     On-grid NAVIGATE permits frontier drafts that arrive with a step (and,
     behind locked doors, a key) to spare, walks to unentered rooms and the
     control rooms, and the outer-draft/switch actions. DRAFTING permits
@@ -243,23 +243,27 @@ def action_mask(game: Game, prev_action: int | None = None) -> list[bool]:
         # resolves both cases. Putting it in either branch strands the other.
         if game.can_insert_disk():
             mask[INSERT_DISK_ACTION] = True
-        if st.outer_loc > 0:
+        if game.off_grid:
             # Off-grid: only outer-area actions are legal
-            inside_penalty = 1 if st.outer_loc == 2 else 0
-            # Enter outer room (only from doorstep, if drafted but not entered)
-            if (st.outer_loc == 1 and st.outer_room_drafted and not st.outer_room_entered
-                    and st.steps >= game.cfg.outer_enter_cost):
-                mask[ENTER_OUTER_ACTION] = True
+            # Enter outer room (only from doorstep "west_path", if drafted but not entered)
+            if (st.area == "west_path" and st.outer_room_drafted and not st.outer_room_entered):
+                outer_room = next(
+                    (r for r in game.outer_rooms if r.id in game.placed_ids), None)
+                if outer_room is not None:
+                    result = game.area_route_cost(outer_room.id)
+                    if result is not None and st.steps >= result[0]:
+                        mask[ENTER_OUTER_ACTION] = True
             # Return to EH
-            if st.steps >= game.cfg.outer_path_entrance_cost + inside_penalty:
+            result_eh = game.area_route_cost("house")
+            if result_eh is not None and st.steps >= result_eh[0]:
                 mask[RETURN_EH_ACTION] = True
             # Return via garage
-            garage_cell = game._garage_cell()
-            if (garage_cell >= 0 and game._breaker_on()
-                    and st.steps >= game.cfg.outer_path_garage_cost + inside_penalty):
-                mask[RETURN_GARAGE_ACTION] = True
-            # Buy actions are valid inside any outer shop (outer_loc == 2)
-            if st.outer_loc == 2:
+            if game._garage_cell() >= 0 and game._breaker_on():
+                result_g = game.area_route_cost("garage")
+                if result_g is not None and st.steps >= result_g[0]:
+                    mask[RETURN_GARAGE_ACTION] = True
+            # Buy actions are valid inside any outer shop (inside_outer_room)
+            if game.inside_outer_room:
                 stock = game.shop_stock()
                 if stock is not None:
                     for i, entry in enumerate(stock):
@@ -267,7 +271,7 @@ def action_mask(game: Game, prev_action: int | None = None) -> list[bool]:
                             break
                         if not entry["sold_out"] and entry["affordable"] and not entry["blocked"]:
                             mask[BUY_BASE + i] = True
-            # Trade offers inside the Trading Post (outer_loc == 2)
+            # Trade offers inside the Trading Post (inside_outer_room)
             offers = game.trade_offers()
             for i in range(min(len(offers), 8)):
                 mask[TRADE_BASE + i] = True

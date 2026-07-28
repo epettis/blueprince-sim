@@ -29,26 +29,34 @@ def play(cfg: GameConfig, seed: int) -> None:
         if game.phase is Phase.NAVIGATE:
             st = game.state
             # Off-grid: outer-area actions only
-            if st.outer_loc > 0:
-                loc_name = "inside the outer room" if st.outer_loc == 2 else "at the doorstep"
+            if game.off_grid:
+                loc_name = "inside the outer room" if game.inside_outer_room else "at the doorstep"
                 print(f"You are {loc_name}.")
                 garage_cell = game._garage_cell()
-                inside_penalty = 1 if st.outer_loc == 2 else 0
-                if (st.outer_loc == 1 and st.outer_room_drafted and not st.outer_room_entered
-                        and st.steps >= game.cfg.outer_enter_cost):
-                    print("  [e] enter the outer room")
-                print(f"  [h] return to Entrance Hall "
-                      f"({game.cfg.outer_path_entrance_cost + inside_penalty} steps)")
+                can_enter = (
+                    st.area == "west_path" and st.outer_room_drafted and not st.outer_room_entered)
+                if can_enter:
+                    outer_room = next(
+                        (r for r in game.outer_rooms if r.id in game.placed_ids), None)
+                    enter_ok = False
+                    if outer_room is not None:
+                        result = game.area_route_cost(outer_room.id)
+                        enter_ok = result is not None and st.steps >= result[0]
+                    if enter_ok:
+                        print("  [e] enter the outer room")
+                result_eh = game.area_route_cost("house")
+                eh_cost = result_eh[0] if result_eh is not None else "?"
+                print(f"  [h] return to Entrance Hall ({eh_cost} steps)")
                 if garage_cell >= 0 and game._breaker_on():
-                    print(f"  [g] return via garage "
-                          f"({game.cfg.outer_path_garage_cost + inside_penalty} steps)")
+                    result_g = game.area_route_cost("garage")
+                    g_cost = result_g[0] if result_g is not None else "?"
+                    print(f"  [g] return via garage ({g_cost} steps)")
                 cmd = input("outer> ").strip().lower()
                 match cmd:
                     case "q":
                         return
-                    case "e" if (st.outer_loc == 1 and st.outer_room_drafted
-                                 and not st.outer_room_entered
-                                 and st.steps >= game.cfg.outer_enter_cost):
+                    case "e" if (st.area == "west_path" and st.outer_room_drafted
+                                 and not st.outer_room_entered):
                         game.enter_outer_room()
                     case "h":
                         game.return_from_outer("entrance_hall")

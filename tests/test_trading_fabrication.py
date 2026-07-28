@@ -39,11 +39,11 @@ def _enter_workshop(game: Game, cell: int = 7) -> object:
 def _set_trading_post_inner(game: Game) -> None:
     """Fake the player being inside the Trading Post outer room.
 
-    Sets outer_loc=2 and adds trading_post to placed_ids, replicating what
-    open_outer_draft + enter_outer_room would do without driving the full
+    Sets area='trading_post' and adds trading_post to placed_ids, replicating
+    what open_outer_draft + enter_outer_room would do without driving the full
     outer-area machinery.
     """
-    game.state.outer_loc = 2
+    game.state.area = "trading_post"
     game.placed_ids.add("trading_post")
 
 
@@ -61,7 +61,7 @@ def _give_items(game: Game, *item_ids: str) -> None:
 def test_trade_offers_empty_outside_trading_post():
     """trade_offers returns [] when the player is not inside the Trading Post.
 
-    The offers list is only active at outer_loc==2 with trading_post placed;
+    The offers list is only active inside a placed trading_post;
     querying from any other position must return empty.
     """
     game = _game(seed=0)

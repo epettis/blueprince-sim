@@ -314,10 +314,10 @@ def test_entrance_vase_broken_disables_can_smash_vase():
 # ============================================================ WEST PATH CHIP (doorstep)
 
 def _reach_doorstep(game: Game) -> None:
-    """Drive open_outer_draft to advance outer_loc to 1 and trigger on_doorstep.
+    """Drive open_outer_draft to put the player on the doorstep and trigger on_doorstep.
 
-    open_outer_draft moves the player to the Entrance Hall, deducts the offgrid
-    cost, sets outer_loc=1, and calls shops.on_doorstep internally.
+    open_outer_draft walks to the cheapest departure anchor, pays the area-graph
+    hops, sets state.area to "west_path", and calls shops.on_doorstep internally.
     """
     game.state.steps = 999  # prevent step exhaustion en route
     game.open_outer_draft()

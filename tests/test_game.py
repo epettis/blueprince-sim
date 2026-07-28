@@ -300,19 +300,26 @@ def test_outer_draft_once_per_day(registry):
 
 
 def test_outer_draft_cost_from_entrance_hall():
-    """Draft from EH = exactly 2 steps (0 walk + 2 EH path cost)."""
+    """Drafting from the Entrance Hall deducts exactly 2 steps (house->grounds->west_path).
+
+    The player starts at the Entrance Hall (0 walk) and the area graph charges 2
+    steps to reach west_path from the house anchor; the step budget must reflect that.
+    """
     cfg = GameConfig(outer_rooms_unlocked=True)
     g = Game(cfg, seed=9)
     g.state.steps = 10
     steps_before = g.state.steps
     g.open_outer_draft()
-    # cost = dist[EH] + outer_path_entrance_cost = 0 + 2 = 2
     assert g.state.steps == steps_before - 2
-    assert g.state.outer_loc == 1
+    assert g.state.area == "west_path"
 
 
 def test_outer_draft_cost_includes_walk():
-    """If player walked from EH, total cost = walk_dist + 2."""
+    """When the player is one step away from the Entrance Hall, total cost is 3 steps (1 walk + 2).
+
+    The area graph charges 2 steps from the house anchor to west_path; walking to EH first
+    costs 1 more, so the budget must drop by exactly 3 and the player ends at west_path.
+    """
     cfg = GameConfig(outer_rooms_unlocked=True)
     g = Game(cfg, seed=9)
     # Place a room north of entrance and move there (1 step walk)
@@ -327,11 +334,15 @@ def test_outer_draft_cost_includes_walk():
     g.open_outer_draft()
     assert g.state.steps == steps_before - 3
     assert g.state.pos == 2  # walked back to EH
-    assert g.state.outer_loc == 1
+    assert g.state.area == "west_path"
 
 
 def test_garage_route_unavailable_without_breaker(registry):
-    """Garage route requires utility_closet placed AND entered."""
+    """Garage route to west_path is only taken when the breaker is on; without it only EH works.
+
+    With the breaker off the garage_door_breaker flag is absent, so the graph cannot
+    route garage->west_path. The cheapest affordable route must be the EH route (cost 2).
+    """
     cfg = GameConfig(outer_rooms_unlocked=True)
     g = Game(cfg, seed=9)
     uc = registry.by_id.get("utility_closet")
@@ -343,9 +354,9 @@ def test_garage_route_unavailable_without_breaker(registry):
     g._place_room(uc, 7, N | S)
     g._place_room(garage, 3, N | S)  # garage placed, also not entered
     assert not g._breaker_on()
-    # Route cost should only include EH path (dist=0 + 2)
+    # Route cost should only include EH path (house anchor: 2 area steps to west_path)
     cost = g._outer_route_cost()
-    assert cost == g.cfg.outer_path_entrance_cost  # 2
+    assert cost == 2
 
 
 def test_garage_route_available_with_breaker(registry):
@@ -368,28 +379,37 @@ def test_garage_route_available_with_breaker(registry):
 
 
 def test_choose_outer_does_not_enter():
-    """Choosing an outer room places it but does NOT fire ON_ENTER."""
+    """Choosing an outer room places it but does NOT fire ON_ENTER.
+
+    After choosing, the player stays at the doorstep (area == "west_path"), not inside;
+    ON_ENTER fires only when enter_outer_room() is explicitly called.
+    """
     cfg = GameConfig(outer_rooms_unlocked=True)
     g = Game(cfg, seed=9)
     g.open_outer_draft()
     g.choose(0)
-    assert g.state.outer_loc == 1  # still at doorstep
+    assert g.state.area == "west_path"  # still at doorstep
     assert not g.state.outer_room_entered
     assert g.phase is Phase.NAVIGATE
 
 
 def test_enter_outer_room_fires_once():
-    """enter_outer_room deducts 1 step, moves to inside, and can't be called again."""
+    """enter_outer_room deducts 1 step, moves inside the room, and cannot be called again.
+
+    The graph charges 1 step for west_path->outer_room; area must become the room id and
+    outer_room_entered must be set so a second call is refused.
+    """
     cfg = GameConfig(outer_rooms_unlocked=True)
     g = Game(cfg, seed=9)
     g.open_outer_draft()
     g.choose(0)
-    assert g.state.outer_loc == 1
+    assert g.state.area == "west_path"
     steps_before = g.state.steps
+    outer_room = next(r for r in g.outer_rooms if r.id in g.placed_ids)
     g.enter_outer_room()
-    assert g.state.outer_loc == 2
+    assert g.state.area == outer_room.id  # inside the drafted outer room
     assert g.state.outer_room_entered
-    assert g.state.steps == steps_before - cfg.outer_enter_cost
+    assert g.state.steps == steps_before - 1  # graph: west_path->outer_room = 1 step
     # Entering again raises AssertionError
     import pytest
     with pytest.raises(AssertionError):
@@ -397,20 +417,27 @@ def test_enter_outer_room_fires_once():
 
 
 def test_return_costs_doorstep_to_eh():
-    """Return from doorstep to EH costs outer_path_entrance_cost (2)."""
+    """Returning from the doorstep to the Entrance Hall costs 2 steps (west_path->grounds->house).
+
+    The graph derives this: west_path -> grounds (1) -> house (1) = 2 steps total.
+    After returning, area is None (on-grid) and pos is the Entrance Hall cell.
+    """
     cfg = GameConfig(outer_rooms_unlocked=True)
     g = Game(cfg, seed=9)
     g.open_outer_draft()
     g.choose(0)
     steps_before = g.state.steps
     g.return_from_outer("entrance_hall")
-    assert g.state.outer_loc == 0
+    assert g.state.area is None  # back on the grid
     assert g.state.pos == 2  # ENTRANCE_CELL
-    assert g.state.steps == steps_before - cfg.outer_path_entrance_cost
+    assert g.state.steps == steps_before - 2
 
 
 def test_return_costs_inside_to_eh():
-    """Return from inside the outer room to EH costs 3 (1 inside->doorstep + 2 EH path)."""
+    """Returning from inside the outer room to EH costs 3 steps (room->west_path->grounds->house).
+
+    The graph: outer_room -> west_path (1) -> grounds (1) -> house (1) = 3 steps.
+    """
     cfg = GameConfig(outer_rooms_unlocked=True)
     g = Game(cfg, seed=9)
     g.open_outer_draft()
@@ -418,18 +445,22 @@ def test_return_costs_inside_to_eh():
     g.enter_outer_room()
     steps_before = g.state.steps
     g.return_from_outer("entrance_hall")
-    assert g.state.outer_loc == 0
-    assert g.state.steps == steps_before - (cfg.outer_path_entrance_cost + 1)
+    assert g.state.area is None  # back on the grid
+    assert g.state.steps == steps_before - 3
 
 
 def test_action_mask_off_grid():
-    """When outer_loc > 0, only outer-area actions (187/194) are legal; grid actions masked."""
+    """When off-grid (area != None), only outer-area actions are legal; all grid actions masked.
+
+    After choosing an outer room from the doorstep, area is "west_path". Grid draft/move
+    actions must be masked out; enter-outer and return-to-EH must be offered.
+    """
     from blueprince_sim.env import actions as A
     cfg = GameConfig(outer_rooms_unlocked=True)
     g = Game(cfg, seed=9)
     g.open_outer_draft()
     g.choose(0)
-    assert g.state.outer_loc == 1
+    assert g.state.area == "west_path"
     mask = A.action_mask(g)
     # No grid draft or move actions should be legal
     assert not any(mask[A.OPEN_BASE:A.CHOOSE_BASE])
@@ -460,9 +491,9 @@ def test_return_from_outer_into_unentered_garage_fires_entry(registry):
     # Go to outer area and come back via garage
     g.open_outer_draft()
     g.choose(0)
-    assert g.state.outer_loc == 1
+    assert g.state.area == "west_path"
     g.return_from_outer("garage")
-    assert g.state.outer_loc == 0
+    assert g.state.area is None  # back on the grid
     assert g.state.pos == garage_cell
     # Garage should now be marked entered
     assert g.state.entered[garage_cell]

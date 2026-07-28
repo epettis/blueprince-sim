@@ -84,7 +84,7 @@ def observation_space(n_rooms: int, n_items: int, n_recipes: int) -> spaces.Dict
         "stage": spaces.Discrete(3),
         "house_flags": spaces.Box(0, 999, shape=(HOUSE_FLAGS,), dtype=np.int16),
         # deepest_rank, optimistic player->Antechamber distance (-1 if walled
-        # off), Antechamber connected+walkable right now (0/1), outer_loc (0/1/2).
+        # off), Antechamber connected+walkable right now (0/1), area phase (0/1/2).
         "progress": spaces.Box(-1, 999, shape=(4,), dtype=np.int16),
         # Special-item observation keys (PR3 additions).
         # count per special item (registry order, 0 = not held)
@@ -271,7 +271,9 @@ def encode(game: Game) -> dict:
         game.deepest_rank,
         int(ante_flat[st.pos]),
         int(grid_dist[ANTECHAMBER_CELL // 5, ANTECHAMBER_CELL % 5] > 0),
-        st.outer_loc,
+        # Encode area as the old outer_loc int for observation-space compatibility:
+        # None -> 0 (on grid), "west_path" -> 1 (doorstep), other -> 2 (inside outer room)
+        (0 if st.area is None else (1 if st.area == "west_path" else 2)),
     ], dtype=np.int16)
 
     # --- Special-item observation keys (PR3) ---
