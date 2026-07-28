@@ -144,6 +144,13 @@ the safe gem is truly daily and per-room-instance.
 
 ## 4. Connectivity graph for the outside areas
 
+**The graph is specified and owner-reviewed: [`areas.md`](areas.md), with the
+Graphviz source in [`areas.dot`](areas.dot).** 31 nodes, 63 directed edges, one
+step per edge, plus the stateful mechanisms it implies — two position-tracked
+elevators, four persistent torches, Pump Room water level, Rotating Gear
+position. What remains is implementation: `data/areas.json`, the per-area travel
+action set, and the observation change.
+
 **No longer a prerequisite for measuring upgrades.** It was scheduled ahead of the
 retrain on the strength of a projected 42x lift to Cloister of Orinda's offer rate
 from unlocking the Catacombs. That projection came from synthetic contexts and did
