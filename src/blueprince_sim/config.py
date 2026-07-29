@@ -126,19 +126,36 @@ class GameConfig:
     def from_dict(cls, raw: dict) -> "GameConfig":
         """Build a config from plain values (YAML / --set overrides).
 
-        Unknown keys raise KeyError; list-valued unlock fields are coerced to
+        Unknown keys raise KeyError; set-valued unlock fields are coerced to
         frozensets and data_dir to a Path.
+
+        A set-valued field given as a STRING is a comma-separated id list, NOT an
+        iterable of characters.  ``--set upgrade_disks=cloister_of_orinda__ix35``
+        used to reach ``frozenset(str)``, which silently produced a set of single
+        letters: the ids matched nothing, so the override did nothing and said
+        nothing.  A measurement configured that way silently measures its own
+        control arm.
         """
         kwargs = {}
         valid = {f.name for f in fields(cls)}
         for k, v in raw.items():
             if k not in valid:
                 raise KeyError(f"Unknown config key: {k}")
-            if k in ("studio_additions", "upgrade_disks", "satisfied_conditions",
-                     "starting_items", "banned_rooms", "used_vault_keys", "lit_targets",
-                     "collected_disks"):
-                v = frozenset(v)
+            if k in _SET_VALUED_FIELDS:
+                if isinstance(v, str):
+                    v = frozenset(part.strip() for part in v.split(",") if part.strip())
+                else:
+                    v = frozenset(v)
             elif k == "data_dir" and v is not None:
                 v = Path(v)
             kwargs[k] = v
         return cls(**kwargs)
+
+
+# Config fields that hold a set of ids.  DERIVED from the annotations, not hand-listed:
+# the previous hand-written tuple was one edit away from silently omitting a new
+# frozenset field, and an omitted field would pass its raw value straight through.
+# `from __future__ import annotations` makes f.type a string, hence the substring test.
+_SET_VALUED_FIELDS: frozenset[str] = frozenset(
+    f.name for f in fields(GameConfig) if "frozenset" in f.type
+)
