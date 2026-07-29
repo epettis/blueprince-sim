@@ -78,3 +78,70 @@ Shared by all greedy navigators, one switch-flip per decision:
 all-unlocks config before door locks; ≈1.8% with door locks on — see the
 lock PR notes). `random` exists to floor the comparison; it drafts and
 walks uniformly among legal actions.
+
+## The owner's playbook (the human strategy the policies aspire to)
+
+How the project owner actually plays, recorded 2026-07-28. The scripted
+policies implement only parts of it. Each rule is annotated with what the
+engine can express **today**, because several rules are currently
+inexpressible and encoding them anyway would make a policy worse, not better.
+
+1. **Prioritise permanent upgrades over winning today.** Unlock the Orchard,
+   the Gemstone Cavern, the West Gate. Losing today is acceptable if it buys
+   future wins. Insert any Upgrade Disk at a terminal immediately.
+   → **Mostly not expressible.** `orchard_unlocked` and `mine_unlocked` are read
+   at exactly two lines (`game.py`, day-start `+20` steps and `+2` gems) and have
+   **no in-run setter** — they are pure config. `west_gate_unlatched` *is*
+   earnable in-run (PR #41). Disk insertion is fully modelled. See the reward
+   horizon problem below, which is what really blocks this rule.
+2. **The Power Hammer is the single best upgrade.** Build it, leave the house,
+   break the Sealed Entrance — the fastest route to Reservoir North.
+   → **Not modelled.** The `grounds -> sealed_entrance` and
+   `sealed_entrance -> basement` edges exist, but those nodes are
+   `modelled: false` with no contents, so travelling there is a pure step sink.
+   If this is genuinely the strongest line in the real game, the sim is missing
+   the owner's highest-value play entirely — a modelling priority, not a
+   tuning one.
+3. **Move the mine cart (Abandoned Mine South); light the four torches for
+   Precipice access.**
+   → **Not modelled.** `mine_south_visited` appears once in the codebase, in a
+   comment reading "NOT modelled; never added here". The torch gates are stubs
+   that pass unconditionally.
+4. **Draft Security, Laboratory or Office until every Upgrade Disk is
+   collected.**
+   → **Expressible and unimplemented — the best available lever.** The disk
+   terminals are exactly `laboratory`, `office`, `security`, `shelter`
+   (`disk_reader` in `rooms.json`; Blackbridge Grotto is the fifth in the real
+   game but has no room record). No scripted policy scores them at all.
+   `Game.insert_disk()` / `choose_upgrade()` are callable directly, so unlike the
+   RL-only action path a **scripted** policy can implement "insert immediately".
+5. **Always pick up items in the room.**
+   → **Mostly automatic.** First entry fires `roll_room_items()`. Some pickups
+   are action-gated (digging, containers, shops) and are not attempted.
+6. **Open every door of a room before moving on.**
+   → **Expressible, but not free.** Drafting costs no step, but there is **no
+   decline**: opening a doorway forces you to place one of three rooms. Opening
+   everything burns deck draws and commits rooms into cells you may not want,
+   which fights rule 7 directly.
+7. **Keep at least two paths open.**
+   → **Already in the reward, absent from the policies.** `_phi_paths` in
+   `env/rewards.py` encodes exactly this doctrine (`PATHS_ONE_PENALTY = -0.15`,
+   `PATHS_ZERO_PENALTY = -1.0`). The RL agent is shaped toward it; the scripted
+   policies ignore it. Cheap, high-value addition.
+8. **Draft heavily in ranks 1–4 to bank resources for the push north.**
+   → **Expressible, and in tension with `greedy_rank`.** Its weights carry no
+   `items` term at all; `economy` (`items 0.8`) is the closer baseline. Benchmarks
+   of "the owner's strategy" against `greedy_rank` are measuring the wrong policy.
+
+### The reward horizon is what actually blocks rule 1
+
+An episode is **one day** and the return is **one day's reward** — the env
+terminates at `Phase.TERMINAL` with `+1.0` for reaching the Antechamber *that
+day*. `DayChain` carries discoveries across days; nothing carries *return*
+across days.
+
+So "it may cost me a win today, but it will increase my wins in the future" is
+not merely unimplemented, it is **unrewardable**: an agent that invests scores
+strictly worse and gradient descent removes the behaviour. Rules 1–4 cannot be
+trained until the horizon spans the attempt. This is a reward-design problem,
+not a policy problem, and it gates the rest.
