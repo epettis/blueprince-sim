@@ -317,6 +317,55 @@ class DraftStatsWriter:
         self._seeds_with.clear()
 
 
+class AreaStatsWriter:
+    """Aggregates each episode's visited area ids into fixed episode buckets.
+
+    Mirrors DraftStatsWriter exactly, writing area_stats.jsonl: per bucket,
+    ``visits`` (total visits per area id) and ``seeds_with`` (episodes that
+    visited the area at least once), plus the same ``bucket_start`` / ``seeds``
+    fields and partial-bucket behaviour. Readers merge rows by ``bucket_start``.
+    """
+
+    def __init__(self, path: Path, episodes_done: int, bucket: int = 10_000) -> None:
+        self.path = path
+        self.bucket = bucket
+        self._idx = episodes_done // bucket
+        self._seeds = 0
+        self._visits: Counter[str] = Counter()
+        self._seeds_with: Counter[str] = Counter()
+
+    def on_episode_end(self, episode: int, info: dict) -> None:
+        """Fold one finished episode's ``visited_areas`` into the current bucket."""
+        areas = info.get("visited_areas")
+        if areas is None:
+            return
+        idx = (episode - 1) // self.bucket
+        if idx != self._idx:
+            self.flush()
+            self._idx = idx
+        self._seeds += 1
+        self._visits.update(areas)
+        self._seeds_with.update(set(areas))
+
+    def flush(self) -> None:
+        """Write the current bucket's counts, if any (also called at shutdown)."""
+        if self._seeds:
+            rec = {
+                "bucket_start": self._idx * self.bucket,
+                "bucket_end": (self._idx + 1) * self.bucket,
+                "seeds": self._seeds,
+                "visits": dict(self._visits),
+                "seeds_with": dict(self._seeds_with),
+                "saved_at": time.strftime("%Y-%m-%dT%H:%M:%S"),
+            }
+            self.path.parent.mkdir(parents=True, exist_ok=True)
+            with self.path.open("a") as f:
+                f.write(json.dumps(rec) + "\n")
+        self._seeds = 0
+        self._visits.clear()
+        self._seeds_with.clear()
+
+
 class CheckpointAndStopCallback:
     """Counts finished episodes, checkpoints every N, stops on signal.
 
@@ -332,6 +381,7 @@ class CheckpointAndStopCallback:
                          episodes_done: int, snapshot_every: int,
                          recorder: EpisodeRecorder | None = None,
                          draft_stats: DraftStatsWriter | None = None,
+                         area_stats: AreaStatsWriter | None = None,
                          upgrade_logger: UpgradeLogger | None = None,
                          multi_day: int = 0,
                          note_fraction: float = 0.05) -> None:
@@ -343,6 +393,7 @@ class CheckpointAndStopCallback:
                 self.snapshot_every = snapshot_every
                 self.recorder = recorder
                 self.draft_stats = draft_stats
+                self.area_stats = area_stats
                 self.upgrade_logger = upgrade_logger  # None = disabled via --no-upgrade-log
                 self.recent = deque(maxlen=1000)
                 self.recent_exploit = deque(maxlen=1000)
@@ -383,6 +434,8 @@ class CheckpointAndStopCallback:
                         self.recorder.on_episode_end(i, self.episodes, info)
                     if self.draft_stats is not None:
                         self.draft_stats.on_episode_end(self.episodes, info)
+                    if self.area_stats is not None:
+                        self.area_stats.on_episode_end(self.episodes, info)
                     if mixed and not policy.per_decision:
                         # Attribute the win to the mode the episode ran under
                         # (read BEFORE resampling).
@@ -756,9 +809,11 @@ def main(argv: list[str] | None = None) -> int:
              "(every decision, not sampled; disable with --no-upgrade-log)")
 
     draft_stats = DraftStatsWriter(ckpt_dir / "draft_stats.jsonl", episodes_done)
+    area_stats = AreaStatsWriter(ckpt_dir / "area_stats.jsonl", episodes_done)
     callback = CheckpointAndStopCallback(
         ckpt_dir, args.checkpoint_every, episodes_done, args.snapshot_every,
-        recorder=recorder, draft_stats=draft_stats, upgrade_logger=upgrade_logger,
+        recorder=recorder, draft_stats=draft_stats, area_stats=area_stats,
+        upgrade_logger=upgrade_logger,
         multi_day=args.multi_day, note_fraction=args.dashboard_every)
     _install_signal_handlers()
     emit(f"[train] pid {os.getpid()} - stop with: kill {os.getpid()} (or Ctrl-C)")
@@ -772,6 +827,7 @@ def main(argv: list[str] | None = None) -> int:
         if recorder is not None:
             recorder.flush_top()
         draft_stats.flush()
+        area_stats.flush()
         vec_env.close()
         emit(f"[train] done: {callback.episodes} episodes total; "
              f"checkpoint at {latest}")

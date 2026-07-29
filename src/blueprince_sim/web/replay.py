@@ -79,6 +79,8 @@ def _frame(game: Game, action: dict | None, facing: str | None) -> dict:
     initial frame); ``facing`` is the client-side sprite direction.
     ``scepter_color`` is the Royal Scepter category bias active this episode
     (one of blueprint/green/red/bedroom/hallway/shop), or null when none.
+    ``area`` is the area-graph node id the player is currently at, or null
+    when the player is on the 5x9 grid (``pos`` is authoritative in that case).
     """
     st = game.state
     return {
@@ -86,6 +88,7 @@ def _frame(game: Game, action: dict | None, facing: str | None) -> dict:
         "grid": list(st.grid),
         "doors": list(st.placed_doors),
         "pos": st.pos,
+        "area": st.area,
         "facing": facing,
         "resources": {
             "steps": st.steps, "gems": st.gems, "keys": st.keys,

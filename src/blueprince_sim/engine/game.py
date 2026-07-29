@@ -748,12 +748,14 @@ class Game:
         if dest in anchors:
             # Destination is a grid anchor, so the player lands back on the grid.
             dest_cell = anchors[dest]
+            st.areas_visited.add(dest)  # grid anchors are area nodes too
             st.area = None
             st.pos = dest_cell
             if not st.entered[dest_cell]:
                 self._enter(dest_cell)  # returning into a never-entered room fires ON_ENTER
         else:
             st.area = dest
+            st.areas_visited.add(dest)
             # The west gate unlatches from the inside on the player's FIRST arrival
             # at west_path — which must come via the Garage route on a fresh save.
             # Afterwards the 2-step Grounds shortcut is permanently open; DayChain
