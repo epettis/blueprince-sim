@@ -77,3 +77,55 @@ reward reads deltas against it after the action resolves.
 The env owns calling it — reward functions are pure and stateless, so new
 shapes can be added by writing one function and registering it in
 `REWARDS`.
+
+## The proposed investment bonus for permanent upgrades
+
+Owner's proposal (2026-07-28): pay **+0.5** for acquiring a permanent upgrade —
+inserting an Upgrade Disk, and the equivalent unlocks — reasoning that it is
+"not enough to win, but enough to overpower most other options". The intent is
+sound: the per-day horizon cannot see cross-day value (see
+[`greedy-strategy.md`](greedy-strategy.md), "The reward horizon"), so a proxy is
+needed. Three measurements argue against this particular shape.
+
+**1. +0.5 does not sit below the win — it dwarfs it.** The premise assumes wins
+are common. They are not. Measured over 20,000 paired episodes of `greedy_rank`
+on the all-unlocks day-20 config, `P(reach Antechamber) = 3.405%`, so the entire
+expected return from playing for the objective is **≈ 0.034**. A guaranteed
+`+0.5` is roughly **15x** that. It is not a thumb on the scale; it replaces the
+objective. The rational policy becomes "collect disks, ignore the Antechamber",
+which is the opposite of the intent — the owner's rule is *invest so you win
+more later*, not *stop winning*.
+
+**2. It would pay for a no-op.** Of the 18 upgrade-variant groups, **13 are
+engine-identical**: every variant carries the same effects and guaranteed items,
+so nothing downstream can tell them apart. And the one upgrade measured
+end-to-end, Cloister of Orinda, has **no detectable causal value** pre-lock
+(3.045% vs 3.405% control, deepest rank 5.51 vs 5.53 — see
+[`upgrade-value-measurement.md`](upgrade-value-measurement.md)), exactly as
+predicted while the Antechamber has no locks. Shaping toward upgrades today
+teaches a preference for pressing a button that does nothing, which then has to
+be unlearned once Task 9 and the upgrade effects land.
+
+**3. Potential-based shaping cannot express it.** The existing shaping terms
+(`_phi_paths`) are potential-based, which is *why* they are safe: a potential
+difference provably leaves the optimal policy unchanged. That guarantee is
+exactly what makes it unable to create a lasting preference for disks. So a flat
+`+0.5` is not shaping in the sense the rest of this file uses — it is a **second
+objective competing with winning**, and should be understood and reviewed as one.
+
+### What to do instead, in order
+
+1. **Extend the horizon.** Let the return span the attempt rather than the day.
+   Then cross-day investment is *real* value the agent can discover, instead of
+   a number we guessed. This is the principled fix and it gates rules 1–4 of the
+   owner's playbook.
+2. **Make upgrades matter first.** Write the variant effects and land the
+   Antechamber lever (Task 9). There is no point rewarding the acquisition of an
+   upgrade that changes nothing; fix the thing being measured before paying for
+   it.
+3. **Only then, if a proxy is still wanted**, calibrate it against the measured
+   marginal win probability rather than against 1.0 — order `+0.02` to `+0.05`,
+   not `+0.5` — cap it to once per upgrade slot per attempt so a repeatable
+   source cannot farm it (`upgrade_disk_trade` is `persistence: permanent` and
+   re-obtainable), and treat it as temporary scaffolding to delete once the
+   horizon spans days.
