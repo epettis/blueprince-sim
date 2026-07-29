@@ -142,6 +142,12 @@ def make_single_env(reward: str, seed: int, multi_day: int = 0, unlocks: str = "
     return _thunk
 
 
+def _n_actions() -> int:
+    """Current flat action-space size, imported lazily to keep startup light."""
+    from ..env import actions as A
+    return A.N_ACTIONS
+
+
 class EpisodeRecorder:
     """Samples finished episodes to ``<ckpt_dir>/replays.jsonl`` for the web replay UI.
 
@@ -203,6 +209,11 @@ class EpisodeRecorder:
             "rooms_placed": int(info.get("rooms_placed", 0)),
             "reason": info.get("termination_reason"),
             "saved_at": time.strftime("%Y-%m-%dT%H:%M:%S"),
+            # Action ids are positional, so a record is only replayable against
+            # the action space it was written for.  Stamped so the replay UI can
+            # say "recorded against a different action space" instead of calling
+            # a renumbering an unexplained bug.
+            "n_actions": _n_actions(),
         }
         # Only include day_config when present (multi-day mode); omit the key
         # entirely for single-day records so their format stays byte-identical.

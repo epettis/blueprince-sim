@@ -385,3 +385,62 @@ def test_upgrade_stats_absent_file_returns_empty_structure(tmp_path: Path):
     obs = Observatory(tmp_path, "shaped")
     result = obs.upgrade_stats()
     assert result == {"variants": [], "economy": [], "gates": {}}
+
+
+def test_day_config_with_a_removed_config_field_still_replays() -> None:
+    """A replay record naming a config field that no longer exists must not raise.
+
+    Records are historical artifacts written against whatever GameConfig looked
+    like at the time, and fields do get renamed and deleted. Passing an unknown
+    key to dataclasses.replace raises TypeError, which surfaced as a 500 and made
+    every older multi-day run in runs/ un-viewable.
+    """
+    from blueprince_sim.config import GameConfig
+    from blueprince_sim.web.replay import _apply_day_config
+
+    cfg = _apply_day_config(
+        GameConfig(day=1),
+        {"day": 7, "garage_car_used_before": True, "lit_targets": ["chapel"]},
+    )
+    assert cfg.day == 7, "known keys must still be applied"
+    assert cfg.lit_targets == frozenset({"chapel"}), "frozenset coercion must survive"
+    # the unknown key is simply absent — no attribute, no crash
+    assert not hasattr(cfg, "garage_car_used_before")
+
+
+def test_divergence_reports_the_action_space_it_was_recorded_against() -> None:
+    """A diverging replay says which action space the record used, and which stale keys it had.
+
+    Action ids are positional, so a record written before PR #40 renumbered the
+    space (279 -> 312) replays as nonsense. Without this the UI called that an
+    unexplained bug for every archived run.
+    """
+    from blueprince_sim.web.replay import build_frames
+
+    # Deliberately invalid action ids for the CURRENT space, so it must diverge.
+    record = {
+        "episode": 1, "seed": 5, "reward": "shaped",
+        "actions": [999, 998, 997], "modes": "111",
+        "day_config": {"day": 2, "garage_car_used_before": True},
+    }
+    _frames, div = build_frames(record)
+    assert div is not None, "invalid action ids must be reported as a divergence"
+    assert div["recorded_n_actions"] is None, "this record predates the stamp"
+    assert div["current_n_actions"] > 0
+    assert "garage_car_used_before" in div["stale_config_keys"]
+
+
+def test_stale_config_keys_do_not_leak_between_records() -> None:
+    """One record's dropped keys must not appear in the next record's divergence.
+
+    The accumulator is module-level, so without a per-record reset every replay
+    after a legacy one would inherit its stale keys and misreport them.
+    """
+    from blueprince_sim.web.replay import build_frames
+
+    build_frames({"episode": 1, "seed": 5, "reward": "shaped", "actions": [999],
+                  "modes": "1", "day_config": {"garage_car_used_before": True}})
+    _frames, div = build_frames({"episode": 2, "seed": 6, "reward": "shaped",
+                                 "actions": [999], "modes": "1", "day_config": {"day": 3}})
+    assert div is not None
+    assert div["stale_config_keys"] == [], "stale keys leaked from the previous record"

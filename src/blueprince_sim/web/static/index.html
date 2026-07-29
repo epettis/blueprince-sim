@@ -79,6 +79,10 @@
     <h2>Latest checkpoints</h2>
     <div id="ckpt-table"></div>
   </section>
+  <section class="card">
+    <h2>Upgrade statistics</h2>
+    <div id="upgrade-stats"></div>
+  </section>
 </main>
 
 <main id="view-runs" class="hidden">
@@ -95,6 +99,18 @@
 
   <section id="house-panel">
     <div id="house"></div>
+  </section>
+
+  <section id="area-panel">
+    <div class="area-panel-head">
+      <span class="panel-head" style="margin:0">Outside areas</span>
+      <div class="area-toggle-group">
+        <button id="area-mode-replay" class="area-mode-btn active">Replay</button>
+        <button id="area-mode-agg" class="area-mode-btn">Aggregate</button>
+      </div>
+    </div>
+    <div id="area-graph"></div>
+    <div id="area-legend" class="area-legend"></div>
   </section>
 
   <aside id="detail-panel">

@@ -24,6 +24,10 @@ const state = {
   frameIdx: 0,
   playing: false,
   speedIdx: 0,        // index into SPEEDS
+  areaGraph: null,    // cached /api/areas response
+  areaStats: null,    // cached /api/area_stats response
+  areaMode: "replay", // "replay" or "agg"
+  upgradeStats: null, // cached /api/upgrade_stats response
 };
 const SPEEDS = [{ label: "1×", ms: 400 }, { label: "4×", ms: 110 }, { label: "16×", ms: 30 }];
 let playTimer = null;
@@ -65,8 +69,12 @@ function setTab(tab) {
   $("#tab-runs").classList.toggle("active", tab === "runs");
   $("#view-dashboard").classList.toggle("hidden", tab !== "dashboard");
   $("#view-runs").classList.toggle("hidden", tab !== "runs");
-  if (tab === "runs") refreshRuns();
-  else refreshDashboard();
+  if (tab === "runs") {
+    refreshRuns();
+    ensureAreaGraph().then(() => renderAreaPanel());
+  } else {
+    refreshDashboard();
+  }
 }
 $("#tab-dashboard").onclick = () => setTab("dashboard");
 $("#tab-runs").onclick = () => setTab("runs");
@@ -75,17 +83,20 @@ $("#tab-runs").onclick = () => setTab("runs");
 
 async function refreshDashboard() {
   try {
-    const [summary, metrics, draftStats] = await Promise.all([
+    const [summary, metrics, draftStats, upgradeStats] = await Promise.all([
       getJSON("/api/summary"), getJSON("/api/metrics"),
       // Tolerate a server predating this endpoint (static files reload on
       // refresh, but routes need a server restart).
-      getJSON("/api/draft_stats").catch(() => ({ train: [], eval: [] }))]);
+      getJSON("/api/draft_stats").catch(() => ({ train: [], eval: [] })),
+      getJSON("/api/upgrade_stats").catch(() => ({ variants: [], economy: [], gates: {} }))]);
     state.draftStats = draftStats;
+    state.upgradeStats = upgradeStats;
     renderTiles(summary, metrics);
     renderChart(metrics);
     renderDraftBars(draftStats);
     renderDraftTs(draftStats);
     renderCkptTable(metrics);
+    renderUpgradeStats();
     $("#conn").textContent = `run: ${summary.run}`;
   } catch (err) {
     $("#conn").textContent = "server unreachable";
@@ -543,6 +554,7 @@ function renderFrame() {
   const idx = state.frameIdx;
   const frame = run.frames[idx];
   renderHouse(frame);
+  if (state.areaGraph) renderAreaPanel();
 
   const outcome = run.win ? "WIN" : `r${run.deepest_rank} (${run.reason || "?"})`;
   $("#run-title").innerHTML =
@@ -658,6 +670,455 @@ document.addEventListener("keydown", (e) => {
   else if (e.key === "ArrowRight") { stopPlayback(); seek(state.frameIdx + 1); }
   else if (e.key === " ") { e.preventDefault(); state.playing ? stopPlayback() : startPlayback(); }
 });
+
+/* ============================================================ area graph */
+
+// Band y-positions: surface on top, anchor in the middle, underground below.
+// Values are normalised fractions of the chart height (0 = top, 1 = bottom).
+const BAND_Y_CENTRE = { surface: 0.18, anchor: 0.50, underground: 0.82 };
+// Area graph lives side-by-side with the house panel.  The house is portrait
+// (5-wide × 9-tall), so it needs ~56% of its height as width; the graph gets
+// the remaining horizontal space.  We design the viewBox at 600×520 so it
+// renders comfortably in a ~45% share of a 700 px centre column without a
+// scrollbar.  The taller viewBox (520 vs 420) gives the anchor band more
+// vertical room to spread 8 nodes without overlap.
+const AG_W = 600, AG_H = 520;
+// Left padding is generous (72 px) so labels on depth-0 nodes can sit to the
+// right of their node without being clipped by the SVG edge.  Right padding
+// reserves 20 px; the null-depth strip takes an additional 40 px at the far
+// right, so xUsable = 600 − 72 − 20 − 40 = 468.
+const AG_PAD_L = 72, AG_PAD_R = 20, AG_PAD_T = 14, AG_PAD_B = 14;
+const AG_NODE_R = 9;       // circle radius for modelled nodes
+const AG_NODE_R_UNMOD = 7; // smaller radius for unmodelled nodes
+// Maximum label characters before we elide with "…" and show full name as
+// a tooltip title.  Each character at 8.5 px ≈ 6 px average-width → cap
+// at 14 chars so labels stay within a ~84 px slot beside the node.
+const AG_LABEL_MAX = 14;
+
+// Shorten a node name for the SVG label: take only the text before the first
+// '(' (the parenthetical is always context, not identity), then elide to
+// AG_LABEL_MAX with "…".  The full name still lives in the SVG <title>.
+function areaShortName(name) {
+  const base = name.split("(")[0].trimEnd();
+  return base.length <= AG_LABEL_MAX ? base : base.slice(0, AG_LABEL_MAX - 1) + "…";
+}
+
+// Derive pixel positions for every node from depth and band.  depth:null nodes
+// go into a separate "unreachable" strip at the right edge of the chart.
+function areaLayout(nodes) {
+  // Group nodes by (depth, band) so we can spread them evenly.
+  const byDepthBand = {};  // key: "depth:band" -> [node, ...]
+  const nullDepth = [];
+  for (const n of nodes) {
+    if (n.depth == null) { nullDepth.push(n); continue; }
+    const key = `${n.depth}:${n.band}`;
+    (byDepthBand[key] = byDepthBand[key] || []).push(n);
+  }
+
+  // x from depth: map 0..maxDepth onto [AG_PAD_L, AG_W - AG_PAD_R - 40]
+  // (subtract 40 to leave room for the null-depth strip).
+  const maxDepth = Math.max(0, ...nodes.filter((n) => n.depth != null).map((n) => n.depth));
+  const xUsable = AG_W - AG_PAD_L - AG_PAD_R - 40;
+  const X = (d) => AG_PAD_L + (d / Math.max(maxDepth, 1)) * xUsable;
+
+  // y from band, then spread within a (depth, band) group.
+  const yUsable = AG_H - AG_PAD_T - AG_PAD_B;
+  const Y_BAND = (band) => AG_PAD_T + (BAND_Y_CENTRE[band] || 0.5) * yUsable;
+  // SPREAD: pixels between node centres when multiple share a (depth, band) slot.
+  // The worst case is 9 anchor nodes at depth=3 (garage + 8 outer rooms):
+  // at SPREAD=34 the group spans ±136 px around the band centre (y≈260).
+  // The taller viewBox (AG_H=520) keeps them inside the anchor band's
+  // ~43% zone (≈ 214 px) and clear of the surface (y≈103) and
+  // underground (y≈417) band centres.
+  const SPREAD = 34;
+
+  const pos = {};
+  for (const [key, group] of Object.entries(byDepthBand)) {
+    const [depthStr, band] = key.split(":");
+    const depth = Number(depthStr);
+    const cx = X(depth);
+    const cy = Y_BAND(band);
+    // Centre the group around cy; odd n means middle node is at cy.
+    // Alternate label side: even-index nodes get label on the right, odd on
+    // the left (see label pass below).  Store side in pos so the label pass
+    // can read it without recomputing group membership.
+    group.forEach((n, i) => {
+      const offset = (i - (group.length - 1) / 2) * SPREAD;
+      pos[n.id] = { x: cx, y: cy + offset, labelSide: i % 2 === 0 ? "right" : "left" };
+    });
+  }
+  // Null-depth nodes: park in the rightmost strip.
+  nullDepth.forEach((n, i) => {
+    pos[n.id] = {
+      x: AG_W - AG_PAD_R - 20,
+      y: AG_PAD_T + (i + 0.5) * (yUsable / Math.max(nullDepth.length, 1)),
+      labelSide: "right",
+    };
+  });
+  return pos;
+}
+
+// Colours for the three bands.
+const BAND_COLOR = { surface: "#2a9d8f", anchor: "#8a919c", underground: "#7a50a0" };
+
+function renderAreaSvg(graphData, visitTotals, visitedSet, currentAreaId, mode) {
+  const { nodes, edges } = graphData;
+  const pos = areaLayout(nodes);
+
+  // --- edge pass ---
+  let edgeSvg = "";
+  for (const e of edges) {
+    const p1 = pos[e.from], p2 = pos[e.to];
+    if (!p1 || !p2) continue;
+    // Small offset to give directed pairs a visible gap.
+    const dx = p2.x - p1.x, dy = p2.y - p1.y;
+    const len = Math.sqrt(dx * dx + dy * dy) || 1;
+    const ox = (dy / len) * 2.5, oy = -(dx / len) * 2.5;
+    const x1 = p1.x + ox, y1 = p1.y + oy;
+    const x2 = p2.x + ox, y2 = p2.y + oy;
+    const dash = e.stub ? "stroke-dasharray='5 3'" : "";
+    edgeSvg += `<line x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}"
+      x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}"
+      class="ag-edge${e.stub ? " ag-stub" : ""}" ${dash}/>`;
+  }
+
+  // --- node pass ---
+  let nodeSvg = "";
+  // Compute aggregate visit scale for colour mapping.
+  let maxVisits = 1;
+  if (mode === "agg") {
+    for (const v of Object.values(visitTotals)) if (v > maxVisits) maxVisits = v;
+  }
+
+  for (const n of nodes) {
+    const p = pos[n.id];
+    if (!p) continue;
+    const r = n.modelled ? AG_NODE_R : AG_NODE_R_UNMOD;
+
+    let fill, stroke, opacity = 1;
+    if (mode === "replay") {
+      if (n.id === currentAreaId) {
+        fill = "#e8c34a"; stroke = "#14161a"; // current — bright gold
+      } else if (visitedSet.has(n.id)) {
+        fill = BAND_COLOR[n.band] || "#8a919c"; stroke = "rgba(0,0,0,.4)"; // visited
+      } else {
+        fill = "#2a2e35"; stroke = "#44484f"; // not yet reached this episode
+        opacity = 0.55;
+      }
+    } else {
+      // Aggregate mode: use a single accent colour (#2a9d8f) for all nodes so
+      // opacity alone encodes visit rate.  Using per-band colours here was the
+      // root cause of defect 3: the anchor band's grey (#8a919c) looked dim
+      // even at full opacity (house, ~32k visits) while the surface band's
+      // vivid teal (#2a9d8f) looked brighter even at ~30% opacity (west_path,
+      // ~10k visits), inverting the intended "more visits = more prominent"
+      // encoding.  A uniform hue lets opacity carry the full signal.
+      const frac = Math.min((visitTotals[n.id] || 0) / maxVisits, 1);
+      fill = frac > 0 ? "#2a9d8f" : "#2a2e35";
+      opacity = frac > 0 ? 0.25 + 0.75 * frac : 0.25;
+      stroke = "#44484f";
+    }
+
+    // Unmodelled nodes get a dashed ring instead of a filled disc.
+    if (!n.modelled) {
+      nodeSvg += `<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="${r}"
+        fill="none" stroke="${stroke}" stroke-width="1.5" stroke-dasharray="3 2"
+        opacity="${opacity}">
+        <title>${esc(n.name)} (unmodelled)</title></circle>`;
+    } else {
+      nodeSvg += `<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="${r}"
+        fill="${fill}" stroke="${stroke}" stroke-width="${n.id === currentAreaId ? 2.5 : 1.5}"
+        opacity="${opacity}">
+        <title>${esc(n.name)}${mode === "agg" ? " — " + fmtInt(visitTotals[n.id] || 0) + " visits" : ""}</title></circle>`;
+    }
+    // Label — short name beside the node, full name in the SVG <title> tooltip.
+    // Only drawn for modelled nodes (unmodelled already show a title on hover).
+    // For nodes in a crowded column (anchor band at depth=3 has 9 modelled
+    // nodes: garage + 8 outer rooms) labels alternate left/right so adjacent
+    // labels don't collide.  For the depth-0 node (house) the label is anchored
+    // "start" to the right so it does not extend left of the SVG edge.
+    if (n.modelled) {
+      const labelOpacity = opacity < 0.5 ? 0.5 : opacity;
+      const short = areaShortName(n.name);
+      const side = p.labelSide || "right";
+      let lx, ly, anchor;
+      if (n.depth === 0) {
+        // Leftmost column: label to the right so it doesn't clip the SVG edge.
+        lx = p.x + r + 4;
+        ly = p.y + 3;  // vertically centred on node
+        anchor = "start";
+      } else if (side === "left") {
+        lx = p.x - r - 4;
+        ly = p.y + 3;
+        anchor = "end";
+      } else {
+        lx = p.x + r + 4;
+        ly = p.y + 3;
+        anchor = "start";
+      }
+      nodeSvg += `<text x="${lx.toFixed(1)}" y="${ly.toFixed(1)}"
+        class="ag-label" opacity="${labelOpacity}"
+        text-anchor="${anchor}"><title>${esc(n.name)}</title>${esc(short)}</text>`;
+    }
+  }
+
+  // Null-depth separator line (if any).
+  const hasNull = nodes.some((n) => n.depth == null);
+  const sepX = AG_W - AG_PAD_R - 40;
+  const sepLine = hasNull
+    ? `<line x1="${sepX}" y1="${AG_PAD_T}" x2="${sepX}" y2="${AG_H - AG_PAD_B}"
+        stroke="#33373f" stroke-width="1" stroke-dasharray="4 4"/>
+       <text x="${sepX + 4}" y="${AG_PAD_T + 8}" class="ag-label" fill="#44484f">unreachable</text>`
+    : "";
+
+  return `<svg viewBox="0 0 ${AG_W} ${AG_H}" xmlns="http://www.w3.org/2000/svg">
+    <style>
+      .ag-edge { stroke: #33373f; stroke-width: 1.2; }
+      .ag-stub { stroke: #4a5060; stroke-width: 1.2; }
+      .ag-label { fill: #c8ccd4; font-size: 8px; font-family: -apple-system, sans-serif; pointer-events: none; }
+    </style>
+    ${sepLine}${edgeSvg}${nodeSvg}
+  </svg>`;
+}
+
+function renderAreaLegend(mode, hasData) {
+  const parts = [
+    // Modelled vs unmodelled is always visible.
+    `<span><span style="display:inline-block;width:10px;height:10px;border-radius:50%;
+      background:#2a9d8f;vertical-align:middle;margin-right:4px"></span>modelled area</span>`,
+    `<span><span style="display:inline-block;width:10px;height:10px;border-radius:50%;
+      border:1.5px dashed #8a919c;background:none;vertical-align:middle;margin-right:4px"></span>unmodelled (no engine contents)</span>`,
+    `<span><svg width="22" height="4" style="vertical-align:middle;margin-right:4px">
+      <line x1="0" y1="2" x2="22" y2="2" stroke="#4a5060" stroke-width="1.5" stroke-dasharray="4 3"/></svg>stub gate (passes unconditionally — upper bound)</span>`,
+  ];
+  if (mode === "replay") {
+    parts.push(
+      `<span><span style="display:inline-block;width:10px;height:10px;border-radius:50%;
+        background:#e8c34a;vertical-align:middle;margin-right:4px"></span>current</span>`,
+      `<span><span style="display:inline-block;width:10px;height:10px;border-radius:50%;
+        background:#2a9d8f;vertical-align:middle;margin-right:4px"></span>visited this episode</span>`,
+    );
+  } else if (!hasData) {
+    parts.push(`<span style="color:var(--dim)">no off-grid travel recorded yet</span>`);
+  } else {
+    parts.push(
+      `<span>opacity = relative visit rate (all seeds, all areas on one scale)</span>`,
+    );
+  }
+  $("#area-legend").innerHTML = parts.join("");
+}
+
+// Sum visit counts across all buckets for each area.
+function areaVisitTotals(areaStats) {
+  const totals = {};
+  for (const b of (areaStats && areaStats.train) || []) {
+    for (const [id, n] of Object.entries(b.visits || {})) {
+      totals[id] = (totals[id] || 0) + n;
+    }
+  }
+  return totals;
+}
+
+// Collect the set of area ids visited up to frameIdx.
+function visitedAreasUpTo(frames, upTo) {
+  const visited = new Set();
+  for (let i = 0; i <= upTo; i++) {
+    const area = frames[i] && frames[i].area;
+    if (area) visited.add(area);
+  }
+  return visited;
+}
+
+async function ensureAreaGraph() {
+  if (!state.areaGraph) {
+    state.areaGraph = await getJSON("/api/areas").catch(() => null);
+  }
+  if (!state.areaStats) {
+    state.areaStats = await getJSON("/api/area_stats").catch(() => ({ train: [] }));
+  }
+}
+
+function renderAreaPanel() {
+  const graphData = state.areaGraph;
+  if (!graphData) {
+    $("#area-graph").innerHTML = '<p class="dim" style="padding:4px 0">area graph unavailable</p>';
+    $("#area-legend").innerHTML = "";
+    return;
+  }
+
+  const mode = state.areaMode;
+  const visitTotals = areaVisitTotals(state.areaStats);
+  const hasAggData = Object.keys(visitTotals).length > 0;
+
+  let currentAreaId = "house"; // default when player is on the grid
+  let visitedSet = new Set(["house"]);
+
+  if (mode === "replay" && state.run && state.run.frames) {
+    const frame = state.run.frames[state.frameIdx];
+    currentAreaId = frame.area || "house";
+    visitedSet = visitedAreasUpTo(state.run.frames, state.frameIdx);
+    visitedSet.add("house"); // house is always considered visited
+  }
+
+  $("#area-graph").innerHTML = renderAreaSvg(graphData, visitTotals, visitedSet, currentAreaId, mode);
+  renderAreaLegend(mode, hasAggData);
+}
+
+// Wire up the mode toggle buttons.
+$("#area-mode-replay").onclick = () => {
+  state.areaMode = "replay";
+  $("#area-mode-replay").classList.add("active");
+  $("#area-mode-agg").classList.remove("active");
+  renderAreaPanel();
+};
+$("#area-mode-agg").onclick = () => {
+  state.areaMode = "agg";
+  $("#area-mode-agg").classList.add("active");
+  $("#area-mode-replay").classList.remove("active");
+  renderAreaPanel();
+};
+
+/* ========================================================= upgrade stats */
+
+function renderUpgradeStats() {
+  const el = $("#upgrade-stats");
+  const us = state.upgradeStats || { variants: [], economy: [], gates: {} };
+
+  let html = "";
+
+  // --- block 1: chosen vs offered per variant ---
+  html += `<div class="panel-head" style="margin-top:0">Upgrade variants</div>`;
+  const variants = us.variants || [];
+  if (!variants.length) {
+    html += `<p class="dim">no upgrade decisions recorded yet</p>`;
+  } else {
+    const maxOffered = variants[0].offered;  // already sorted descending by offered
+    html += `<div id="upgrade-variants">`;
+    for (const v of variants) {
+      const pct = fmtPct(v.selection_rate);
+      const chosenW = (v.offered > 0 ? v.chosen / maxOffered * 100 : 0).toFixed(2);
+      const offeredW = (v.offered / maxOffered * 100).toFixed(2);
+      html += `<div class="ubar">
+        <span class="uname" title="${esc(v.variant)}">${esc(v.variant)}</span>
+        <div class="utrack">
+          <div class="ufill-offered" style="width:${offeredW}%"></div>
+          <div class="ufill-chosen" style="width:${chosenW}%"></div>
+        </div>
+        <span class="upct" title="${fmtInt(v.chosen)} chosen / ${fmtInt(v.offered)} offered">${pct}</span>
+      </div>`;
+    }
+    html += `</div>`;
+    html += `<div style="font-size:11px;color:var(--dim);margin-top:2px;margin-bottom:10px">
+      dark = offered, bright = chosen; percentage = selection rate</div>`;
+  }
+
+  // --- block 2: disk economy over time (dual y-axis) ---
+  // mean_disks_held (~0–3) and mean_slots_upgraded (~0–14) differ by ~10×,
+  // so a shared axis squashes the disks-held line to invisibility.  Each
+  // series gets its own scale: left axis (blue) for disks_held, right axis
+  // (gold) for slots_upgraded.  Decision-count bars sit behind both lines.
+  const economy = us.economy || [];
+  const axis = us.economy_axis || "day";
+  html += `<div class="panel-head">Disk economy over time</div>`;
+  html += `<div id="upgrade-econ-legend">
+    <span><span class="sw" style="background:#5b9dd9"></span>mean disks held <span class="dim">(left axis)</span></span>
+    <span><span class="sw" style="background:#e8c34a"></span>mean slots upgraded <span class="dim">(right axis)</span></span>
+    <span class="dim">x-axis: ${axis}</span>
+  </div>`;
+  if (!economy.length) {
+    html += `<p class="dim">no economy data yet</p>`;
+  } else {
+    // Left = 44 to fit y-axis tick labels; Right = 44 for the right-axis ticks.
+    const SW = 900, SH = 160, L = 44, R = 44, T = 10, B = 24;
+    const xs = economy.map((b) => b.bucket_start);
+    const xmin = xs[0], xmax = xs[xs.length - 1] || xs[0];
+    const xrange = xmax - xmin || 1;
+    const X = (v) => L + ((v - xmin) / xrange) * (SW - L - R);
+
+    // Left axis: mean_disks_held
+    const ymaxL = Math.max(...economy.map((b) => b.mean_disks_held || 0), 0.1) * 1.2;
+    const YL = (v) => T + (1 - v / ymaxL) * (SH - T - B);
+    // Right axis: mean_slots_upgraded
+    const ymaxR = Math.max(...economy.map((b) => b.mean_slots_upgraded || 0), 0.1) * 1.2;
+    const YR = (v) => T + (1 - v / ymaxR) * (SH - T - B);
+
+    let g = "", s = "";
+    // Grid lines from left axis.
+    const ystepL = niceStep(ymaxL / 3);
+    for (let v = 0; v <= ymaxL; v += ystepL) {
+      g += `<line x1="${L}" y1="${YL(v).toFixed(1)}" x2="${SW - R}" y2="${YL(v).toFixed(1)}" class="grid"/>` +
+           `<text x="${L - 5}" y="${(YL(v) + 4).toFixed(1)}" class="tick ec-tick-l" text-anchor="end">${v % 1 ? v.toFixed(1) : v}</text>`;
+    }
+    // Right-axis ticks (no grid line to avoid double-gridding).
+    const ystepR = niceStep(ymaxR / 3);
+    for (let v = 0; v <= ymaxR; v += ystepR) {
+      g += `<text x="${SW - R + 5}" y="${(YR(v) + 4).toFixed(1)}" class="tick ec-tick-r" text-anchor="start">${v % 1 ? v.toFixed(1) : v}</text>`;
+    }
+    // x-axis labels — up to 8 ticks.
+    const xstep = niceStep(xrange / 6);
+    for (let v = xmin; v <= xmax + 1; v += xstep) {
+      g += `<text x="${X(v).toFixed(1)}" y="${SH - B + 14}" class="tick" text-anchor="middle">${Math.round(v)}</text>`;
+    }
+
+    // Decision-count bars (background, 25% height) — drawn first so lines sit above.
+    const maxDec = Math.max(...economy.map((b) => b.decisions), 1);
+    const bw = Math.max(2, (SW - L - R) / economy.length - 1);
+    for (const b of economy) {
+      const bh = ((b.decisions / maxDec) * (SH - T - B) * 0.25).toFixed(1);
+      const bx = (X(b.bucket_start) - bw / 2).toFixed(1);
+      s += `<rect x="${bx}" y="${(SH - B - Number(bh)).toFixed(1)}" width="${bw.toFixed(1)}"
+        height="${bh}" fill="#33373f">
+        <title>${fmtInt(b.decisions)} decisions @ ${axis} ${b.bucket_start}</title></rect>`;
+    }
+
+    // Line: mean_disks_held on the LEFT scale.
+    const diskPts = economy.filter((b) => b.mean_disks_held != null)
+      .map((b) => `${X(b.bucket_start).toFixed(1)},${YL(b.mean_disks_held).toFixed(1)}`);
+    if (diskPts.length > 1)
+      s += `<polyline points="${diskPts.join(" ")}" fill="none" stroke="#5b9dd9" stroke-width="2"/>`;
+    // Line: mean_slots_upgraded on the RIGHT scale.
+    const slotPts = economy.filter((b) => b.mean_slots_upgraded != null)
+      .map((b) => `${X(b.bucket_start).toFixed(1)},${YR(b.mean_slots_upgraded).toFixed(1)}`);
+    if (slotPts.length > 1)
+      s += `<polyline points="${slotPts.join(" ")}" fill="none" stroke="#e8c34a" stroke-width="2"/>`;
+
+    html += `<div class="chart"><svg viewBox="0 0 ${SW} ${SH}" xmlns="http://www.w3.org/2000/svg">
+      <style>
+        .grid { stroke: #2a2e35; stroke-width: 1; }
+        .tick { fill: #8a919c; font-size: 10px; }
+        .ec-tick-l { fill: #5b9dd9; }
+        .ec-tick-r { fill: #e8c34a; }
+      </style>${g}${s}</svg></div>`;
+  }
+
+  // --- block 3: gate context ---
+  const gates = us.gates || {};
+  html += `<div class="panel-head">Gate context</div>`;
+  if (!gates.decisions) {
+    html += `<p class="dim">no gate data yet</p>`;
+  } else {
+    const { decisions, catacombs_unlocked, slot_draft_count_zero } = gates;
+    const d = decisions || 1;  // guard against zero division
+    const tiles = [
+      ["Upgrade decisions", fmtInt(decisions), null],
+      ["Catacombs unlocked", fmtInt(catacombs_unlocked),
+        fmtPct(catacombs_unlocked / d) + " of decisions"],
+      ["Zero-draft decisions", fmtInt(slot_draft_count_zero),
+        fmtPct(slot_draft_count_zero / d) + " of decisions"],
+    ];
+    html += `<div id="upgrade-gates">`;
+    for (const [k, v, sub] of tiles) {
+      html += `<div class="upgrade-gate-tile">
+        <div class="gv">${v}</div>
+        <div class="gk">${esc(k)}</div>
+        ${sub ? `<div style="font-size:10px;color:var(--dim)">${esc(sub)}</div>` : ""}
+      </div>`;
+    }
+    html += `</div>`;
+  }
+
+  el.innerHTML = html;
+}
 
 /* ---------------------------------------------------------------- init */
 

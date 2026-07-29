@@ -323,3 +323,70 @@ Recorded so they are not re-litigated:
   Tunnel?
 - Step costs are a flat 1 per edge. If any long haul (Grounds -> Reservoir, or
   the Underpass run) should cost more, it has not been identified.
+
+## Observatory panels
+
+The Training Observatory (`blueprince-dash`) renders two panels that consume the
+area graph.
+
+### Outside-areas panel (Runs tab)
+
+Appears below the 5x9 house grid.  Displays all 36 area nodes as an inline SVG.
+Layout is derived from the API response — x from `depth` (BFS hops from
+`house`, house at the left), y from `band` (surface near the top, anchor on the
+centre line, underground near the bottom).  Nodes that share a depth within a
+band are spread evenly.  Any node with `depth: null` is parked in a separate
+"unreachable" strip at the right edge rather than stacked at x=0.
+
+**Visual encodings:**
+
+- **Filled circle** — modelled area (engine has contents; the agent can travel
+  there).
+- **Dashed-ring circle** — unmodelled area (`modelled: false`).  The engine
+  never offers travel to these; they appear to make the graph navigable but are
+  visually distinguished so a viewer does not read them as reachable destinations.
+  A legend entry reads "unmodelled (no engine contents)".
+- **Dashed edge** — `stub: true`.  The gate on this edge passes unconditionally
+  in the current sim; the real game requires a mechanism not yet modelled.  Any
+  visit count measured while stubs are open is an upper bound.  A legend entry
+  reads "stub gate (passes unconditionally — upper bound)".
+
+**Two modes, toggled by buttons in the panel header:**
+
+- **Replay mode (default):** driven by the scrubber.  The node matching the
+  current frame's `area` field is highlighted gold; nodes visited earlier in
+  the episode are shown in their band colour; unvisited nodes are dim.  When
+  `area` is null the player is on the 5x9 grid — the `house` node is
+  highlighted so the panel is never blank.
+- **Aggregate mode:** shades each node by total visit count summed across all
+  buckets in `/api/area_stats`.  Opacity encodes relative frequency (0.25 at
+  any nonzero visit to the full band colour at the maximum).  Nodes with zero
+  visits are drawn at low opacity in a dark fill.  When no area-stats data has
+  been recorded yet, a "no off-grid travel recorded yet" note appears in the
+  legend instead of 36 identically-shaded nodes.
+
+Band colours: surface = `#2a9d8f` (teal, matching the existing `outer` palette
+entry), underground = `#7a50a0` (purple), anchor = `#8a919c` (grey).
+
+### Upgrade statistics panel (Dashboard tab)
+
+Appears below the "Latest checkpoints" card.  Populated from `/api/upgrade_stats`.
+All three blocks show an explicit empty state when `upgrades.jsonl` is absent.
+
+**Block 1 — Chosen vs offered per variant.**  One horizontal bar per upgrade
+variant.  A dark background fill spans the offered width; a bright accent fill
+spans the chosen width within it.  The right label shows `selection_rate` as a
+percentage.  Variants offered but never chosen render with 0% and an empty
+bright fill — they do not disappear.  Sorted by `offered` descending (the
+server pre-sorts; the client does not reorder).
+
+**Block 2 — Disk economy over time.**  Line chart of `mean_disks_held` (blue)
+and `mean_slots_upgraded` (gold) against `bucket_start`.  A low grey bar behind
+the lines shows relative decision count per bucket.  The x-axis label is taken
+from `economy_axis` in the response (`"day"` for multi-day runs, `"decision"`
+for single-day runs) so the label is never hardcoded.
+
+**Block 3 — Gate context.**  Three tiles showing raw counts and percentages of
+`decisions`: total decisions, decisions where `catacombs_unlocked` was true, and
+decisions where every slot's draft count was zero (`slot_draft_count_zero`).
+Percentages are guarded against `decisions == 0`.
