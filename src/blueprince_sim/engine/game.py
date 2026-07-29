@@ -614,15 +614,15 @@ class Game:
         """Build the GateContext for area-graph traversal from current game state.
 
         Flags:
-          "west_gate_unlatched" -- cfg.outer_rooms_unlocked; this config field IS the
-              west gate (permanent across the whole save once unlatched).
+          "west_gate_unlatched" -- carried in from cfg, OR earned today the moment the
+              player first reaches west_path (via the Garage route on a fresh save).
           "garage_door_breaker" -- Utility Closet placed and entered today (breaker on).
           "mine_south_visited" -- NOT modelled; never added here.
           "basement_sealed_entrance_return" -- NOT modelled; never added here.
         """
         st = self.state
         flags: set[str] = set()
-        if self.cfg.outer_rooms_unlocked:
+        if self.cfg.west_gate_unlatched or st.west_gate_unlatched:
             flags.add("west_gate_unlatched")
         if self._breaker_on():
             flags.add("garage_door_breaker")
@@ -754,6 +754,14 @@ class Game:
                 self._enter(dest_cell)  # returning into a never-entered room fires ON_ENTER
         else:
             st.area = dest
+            # The west gate unlatches from the inside on the player's FIRST arrival
+            # at west_path — which must come via the Garage route on a fresh save.
+            # Afterwards the 2-step Grounds shortcut is permanently open; DayChain
+            # carries it across days.  Recorded on STATE, never written back to cfg:
+            # one config object is shared by every episode of a worker, so mutating
+            # it would leak the unlock into later "fresh save" episodes.
+            if dest == "west_path":
+                st.west_gate_unlatched = True
             # Fire ON_ENTER the first time the player enters the drafted outer room.
             outer_room = next((r for r in self.outer_rooms if r.id in self.placed_ids), None)
             if (outer_room is not None and dest == outer_room.id
@@ -784,12 +792,14 @@ class Game:
     def outer_draft_available(self) -> bool:
         """Can the once-per-day outer-room draft be started right now?
 
-        Requires the unlock, no outer room drafted yet today, NAVIGATE phase
-        on the grid, and an affordable route to the doorstep
-        (see :meth:`_outer_route_cost`).
+        Requires no outer room drafted yet today, NAVIGATE phase on the grid,
+        and an affordable route to the doorstep (see :meth:`_outer_route_cost`).
+
+        No config flag is checked: on a fresh save the Garage + breaker route
+        to west_path is open from day 1 without any unlock. The west_gate_unlatched
+        config field only opens the Grounds<->West Path shortcut, it does not gate
+        the draft itself.
         """
-        if not self.cfg.outer_rooms_unlocked:
-            return False
         if self.state.outer_room_drafted:
             return False
         if self.phase is not Phase.NAVIGATE:

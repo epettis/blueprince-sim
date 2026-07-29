@@ -17,9 +17,13 @@ class GameConfig:
     starting_steps: int = 50
     # --- permanent unlocks (the "enable various unlocks" toggles) ---
     studio_additions: frozenset[str] = frozenset()   # subset of the 8 studio-addition room ids
-    # True when the West Gate has been permanently unlatched (maps to the "west_gate_unlatched"
-    # flag in GateContext; this config field IS the gate — it is permanent across the whole save).
-    outer_rooms_unlocked: bool = False
+    # True when the West Gate has been permanently unlatched (Grounds <-> West Path shortcut
+    # is open). Maps to the "west_gate_unlatched" flag in GateContext. Earned the first time
+    # the player reaches west_path via the Garage route; afterwards, the 2-step Grounds route
+    # is open for all future days. Does NOT gate outer-room drafting — on a fresh save the
+    # Garage route works from day 1 (no flag needed), so the draft is available whenever the
+    # route cost is affordable and no outer room has been drafted today.
+    west_gate_unlatched: bool = False
     orchard_unlocked: bool = False                   # Apple Orchard: +20 starting steps (wiki)
     mine_unlocked: bool = False                      # Gemstone Cavern: +2 gems at day start (wiki)
     upgrade_disks: frozenset[str] = frozenset()      # applied variant room ids (e.g. "pool_hall__ix12")

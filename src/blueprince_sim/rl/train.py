@@ -43,24 +43,87 @@ STOP = threading.Event()
 
 
 def all_unlocks_config(reward: str = "shaped") -> GameConfig:
-    """All permanent unlocks enabled; no upgrade disks applied."""
+    """All permanent unlocks enabled; no upgrade disks applied.
+
+    day=20: late-game weight tables (week2 stage, gem gates active at day>=16).
+    This is the training baseline; results are NOT comparable to fresh_save_config
+    because the day index changes the rarity tables and step/gem bonuses.
+    """
     return GameConfig(
-        day=20,                       # late-game weight tables
-        orchard_unlocked=True,        # +20 starting steps
-        mine_unlocked=True,           # +2 gems at day start
-        outer_rooms_unlocked=True,    # 1/day West Path outer-room draft
+        day=20,                        # late-game weight tables
+        orchard_unlocked=True,         # +20 starting steps
+        mine_unlocked=True,            # +2 gems at day start
+        west_gate_unlatched=True,      # Grounds<->West Path shortcut open
         studio_additions=ALL_STUDIO_ADDITIONS,
-        upgrade_disks=frozenset(),    # explicitly: no room upgrades
+        upgrade_disks=frozenset(),     # explicitly: no room upgrades
         reward=reward,
     )
 
 
-def make_single_env(reward: str, seed: int, multi_day: int = 0):
+def fresh_save_config(reward: str = "shaped") -> GameConfig:
+    """Brand-new save with nothing earned — the counterpart to all_unlocks_config.
+
+    day=1: stage="auto" resolves to "week1" rarity tables (<=7 days), and
+    gem_gate_active() is off (triggers at day>=16). Results are NOT comparable
+    to the day=20 baseline; use this only to study fresh-save behaviour.
+
+    All fields are set explicitly so this reads as a complete statement of a
+    fresh save and a future default change cannot silently alter it.
+
+    ONE deliberate exception: royal_scepter_found=True. The Key of Aries ->
+    Treasure Trove unlock chain is unmodelled, so leaving it False means the
+    scepter is never exercised at all. The owner wants it on because the scepter's
+    colour prioritisation (green) is what makes Cloisters appear. Everything else
+    is exactly what a player sees on day 1 of a new file.
+    """
+    return GameConfig(
+        day=1,                         # week1 rarity tables; gem gates off
+        stage="auto",                  # resolves to "week1" at day 1
+        starting_steps=50,             # base budget; no orchard bonus
+        studio_additions=frozenset(),  # no studio rooms unlocked
+        west_gate_unlatched=False,     # Grounds shortcut not yet open
+        orchard_unlocked=False,        # no +20 steps
+        mine_unlocked=False,           # no +2 gems
+        upgrade_disks=frozenset(),     # no room upgrades
+        veteran_mode=False,            # no gem deck-size gates
+        room46_reached=False,          # no gem gate from reaching Room 46
+        satisfied_conditions=frozenset(),  # no item/unlock-dependent conditions
+        door_locks=True,               # locked/security doors active (default)
+        strict_door_matching=False,    # permissive placement (default)
+        orientation_choice=False,      # random orientation (default)
+        compass=False,                 # no compass held
+        ornate_compass=False,          # no ornate compass held
+        special_items=True,            # item system active (default)
+        starting_items=frozenset(),    # no items at day start
+        lunch_box_unlocked=False,      # Gift Shop lunch box not bought
+        cursed_effigy_unlocked=False,  # Shrine effigy not unlocked
+        # Deliberate exception: the Key of Aries -> Treasure Trove unlock chain
+        # is unmodelled. Leaving False means the scepter is never exercised and
+        # its green-colour bias (which makes Cloisters appear) is absent from
+        # all measurements. Set True to keep scepter mechanics live.
+        royal_scepter_found=True,
+        used_vault_keys=frozenset(),   # no vault deposit boxes opened
+        draft_counts={},               # no cumulative draft history
+        entrance_vase_broken=False,    # west vase intact
+        outer_chip_dug=False,          # West Path chip not yet dug
+        banned_rooms=frozenset(),      # no Repellent bans active
+        lit_targets=frozenset(),       # no ignition targets lit
+        collected_disks=frozenset(),   # no upgrade disks spent
+        chapel_tithes=0,               # no Keeper of Tithes coins banked
+        reward=reward,
+        data_dir=None,
+    )
+
+
+def make_single_env(reward: str, seed: int, multi_day: int = 0, unlocks: str = "all"):
     """Module-level factory (picklable for SubprocVecEnv spawn).
 
     When ``multi_day`` > 0, each worker builds its own ``DayChain`` of that
     many days and passes it to BluePrinceEnv; chains are per-worker so episodes
     in different envs advance independently.
+
+    ``unlocks`` selects the config preset: "all" uses all_unlocks_config (the
+    day=20 training baseline), "none" uses fresh_save_config (day=1, nothing earned).
     """
     from sb3_contrib.common.wrappers import ActionMasker
     from stable_baselines3.common.monitor import Monitor
@@ -69,7 +132,7 @@ def make_single_env(reward: str, seed: int, multi_day: int = 0):
     from ..env.multiday import DayChain
 
     def _thunk():
-        cfg = all_unlocks_config(reward)
+        cfg = fresh_save_config(reward) if unlocks == "none" else all_unlocks_config(reward)
         chain = DayChain(cfg, n_days=multi_day) if multi_day > 0 else None
         env = BluePrinceEnv(cfg=cfg, day_chain=chain)
         env.reset(seed=seed)
@@ -501,8 +564,8 @@ def main(argv: list[str] | None = None) -> int:
     """
     parser = argparse.ArgumentParser(
         prog="blueprince-train",
-        description="Continuously train a MaskablePPO drafting policy "
-                    "(all unlocks, no room upgrades).")
+        description="Continuously train a MaskablePPO drafting policy. "
+                    "No room upgrades are applied; --unlocks picks the config preset.")
     parser.add_argument("--checkpoint-dir", default="runs/blueprince-ppo",
                         help="where checkpoints + logs live")
     parser.add_argument("--checkpoint-every", type=int, default=10_000,
@@ -514,6 +577,11 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--n-steps", type=int, default=512,
                         help="PPO rollout length per env (progress at risk on stop)")
     parser.add_argument("--reward", choices=["shaped", "sparse", "phased"], default="shaped")
+    parser.add_argument("--unlocks", choices=["all", "none"], default="all",
+                        help="config preset: 'all' = all_unlocks_config (day=20 baseline, "
+                             "default); 'none' = fresh_save_config (day=1, nothing earned). "
+                             "Results from 'none' are NOT comparable to 'all' — the rarity "
+                             "tables and step/gem bonuses differ.")
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--resume", choices=["auto", "never"], default="auto",
                         help="auto: continue from latest.zip if present")
@@ -616,7 +684,7 @@ def main(argv: list[str] | None = None) -> int:
             "blueprince-train",
             f"{ckpt_dir} · reward={args.reward} · pid {os.getpid()}")
 
-    fns = [make_single_env(args.reward, args.seed + i, args.multi_day)
+    fns = [make_single_env(args.reward, args.seed + i, args.multi_day, args.unlocks)
            for i in range(args.n_envs)]
     vec_env = SubprocVecEnv(fns) if args.n_envs > 1 else DummyVecEnv(fns)
 

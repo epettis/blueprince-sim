@@ -27,7 +27,7 @@ blueprince-sim batch --episodes 5000 --policy greedy_rank
 
 # Toggle unlocks (any GameConfig field)
 blueprince-sim batch --episodes 2000 --policy economy \
-    --set orchard_unlocked=true mine_unlocked=true outer_rooms_unlocked=true \
+    --set orchard_unlocked=true mine_unlocked=true west_gate_unlatched=true \
           studio_additions=solarium,classroom day=25
 
 # RL environment
@@ -87,7 +87,7 @@ functions in [docs/rewards.md](docs/rewards.md).
 |---|---|
 | `orchard_unlocked` | +20 starting steps (50 -> 70) |
 | `mine_unlocked` | +2 gems at day start (Gemstone Cavern) |
-| `outer_rooms_unlocked` | 1/day West Path draft: pick 1 of 3 from the 8 outer rooms |
+| `west_gate_unlatched` | Grounds<->West Path shortcut open (earned in-run; not outer-draft gate) |
 | `studio_additions` | set of the 8 Drafting Studio rooms added to the pool (incl. `solarium`, `classroom`) |
 | `upgrade_disks` | upgrade-variant room ids that replace their base room |
 | `veteran_mode`, `day`, `room46_reached` | stage selection + gem deck-size gates |

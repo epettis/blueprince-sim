@@ -576,7 +576,7 @@ def test_no_offer_list_exceeds_eight_rows():
                   if it.tier is not None and it.id != "keycard"]
     sample = tradeables[:24]
     g = _game(GameConfig(starting_items=frozenset(sample),
-                         outer_rooms_unlocked=True), seed=3)
+                         west_gate_unlatched=True), seed=3)
     # Place the trading_post outer room in placed_ids and stand inside it
     reg = g.registry
     tp_room = reg.by_id.get("trading_post")
