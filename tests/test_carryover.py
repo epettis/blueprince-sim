@@ -328,7 +328,7 @@ def test_doorstep_chip_granted_with_outer_chip_dug_flag():
 
     The chip already dug carry-over: on_doorstep grants a microchip immediately.
     """
-    g = _game(GameConfig(outer_rooms_unlocked=True, outer_chip_dug=True))
+    g = _game(GameConfig(west_gate_unlatched=True, outer_chip_dug=True))
     chips_before = si.count(g.state, "microchip")
     _reach_doorstep(g)
     assert si.count(g.state, "microchip") == chips_before + 1
@@ -340,7 +340,7 @@ def test_doorstep_first_time_dig_with_shovel_sets_chip_dug():
     chip_dug is the in-run discovery flag that carryover() reads to set
     outer_chip_dug for the next day.
     """
-    g = _game(GameConfig(outer_rooms_unlocked=True,
+    g = _game(GameConfig(west_gate_unlatched=True,
                          starting_items=frozenset({"shovel"})))
     _reach_doorstep(g)
     assert g.state.shops.chip_dug is True
@@ -348,7 +348,7 @@ def test_doorstep_first_time_dig_with_shovel_sets_chip_dug():
 
 def test_doorstep_first_time_dig_grants_microchip():
     """First-time dig at the doorstep also grants a microchip to inventory."""
-    g = _game(GameConfig(outer_rooms_unlocked=True,
+    g = _game(GameConfig(west_gate_unlatched=True,
                          starting_items=frozenset({"shovel"})))
     chips_before = si.count(g.state, "microchip")
     _reach_doorstep(g)
@@ -361,7 +361,7 @@ def test_doorstep_no_chip_without_dig_tool_or_flag():
     The chip requires either the discovered flag or a digging tool; neither present
     means the player walks past empty-handed.
     """
-    g = _game(GameConfig(outer_rooms_unlocked=True))  # no shovel, no flag
+    g = _game(GameConfig(west_gate_unlatched=True))  # no shovel, no flag
     chips_before = si.count(g.state, "microchip")
     _reach_doorstep(g)
     assert si.count(g.state, "microchip") == chips_before
@@ -388,6 +388,7 @@ def test_carryover_all_false_defaults():
         "entrance_vase_broken",
         "outer_chip_dug",
         "royal_scepter_found",
+        "west_gate_unlatched",
     }
     assert bool_keys <= set(report.keys())
     assert all(not report[k] for k in bool_keys), f"expected all False, got {report}"
@@ -409,7 +410,7 @@ def test_carryover_entrance_vase_broken_from_config():
 
 def test_carryover_outer_chip_dug_from_in_run_dig():
     """carryover()['outer_chip_dug'] is True after the first-time dig at the doorstep."""
-    g = _game(GameConfig(outer_rooms_unlocked=True,
+    g = _game(GameConfig(west_gate_unlatched=True,
                          starting_items=frozenset({"shovel"})))
     _reach_doorstep(g)
     assert shops.carryover(g)["outer_chip_dug"] is True
@@ -445,9 +446,10 @@ def test_carryover_lunch_box_from_gift_shop():
 def test_carryover_shape_is_complete():
     """carryover() dict always contains all carry-over keys regardless of state.
 
-    The five bool keys must always be present; the non-bool keys
-    (starting_items, banned_rooms, used_vault_keys, lit_targets, collected_disks,
-    chapel_tithes) are also always included.
+    The six bool keys must always be present (including west_gate_unlatched added
+    in the flag-split PR); the non-bool keys (starting_items, banned_rooms,
+    used_vault_keys, lit_targets, collected_disks, chapel_tithes) are also always
+    included.
     """
     bool_keys = {
         "lunch_box_unlocked",
@@ -455,6 +457,7 @@ def test_carryover_shape_is_complete():
         "entrance_vase_broken",
         "outer_chip_dug",
         "royal_scepter_found",
+        "west_gate_unlatched",
     }
     expected_keys = bool_keys | {
         "starting_items", "banned_rooms", "used_vault_keys",

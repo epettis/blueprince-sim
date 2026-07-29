@@ -50,10 +50,10 @@ def test_invalid_action_penalized_not_crashing():
 def test_outer_action_masked_by_unlock():
     """The outer-draft action is only legal when outer rooms are unlocked in
     the GameConfig."""
-    env = make_env(GameConfig(outer_rooms_unlocked=False))
+    env = make_env(GameConfig(west_gate_unlatched=False))
     env.reset(seed=0)
     assert not env.action_masks()[A.OUTER_DRAFT_ACTION]
-    env2 = make_env(GameConfig(outer_rooms_unlocked=True))
+    env2 = make_env(GameConfig(west_gate_unlatched=True))
     env2.reset(seed=0)
     assert env2.action_masks()[A.OUTER_DRAFT_ACTION]
 

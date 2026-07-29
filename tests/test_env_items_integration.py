@@ -79,7 +79,7 @@ def test_env_observation_space_contains_live_obs_all_phases():
     New keys must never leave their declared bounds mid-episode (the space is
     what SB3 validates against at train time).
     """
-    env = BluePrinceEnv(GameConfig(outer_rooms_unlocked=True))
+    env = BluePrinceEnv(GameConfig(west_gate_unlatched=True))
     obs, _ = env.reset(seed=11)
     rng = np.random.default_rng(0)
     assert env.observation_space.contains(obs)

@@ -288,7 +288,7 @@ def test_nursery_grants_on_bedroom_draft(registry, cfg):
 def test_outer_draft_once_per_day(registry):
     """The outer draft deals 3 options, all from the outer pool, and is
     available at most once per day."""
-    cfg = GameConfig(outer_rooms_unlocked=True)
+    cfg = GameConfig(west_gate_unlatched=True)
     g = Game(cfg, seed=9)
     assert g.outer_draft_available()
     p = g.open_outer_draft()
@@ -305,7 +305,7 @@ def test_outer_draft_cost_from_entrance_hall():
     The player starts at the Entrance Hall (0 walk) and the area graph charges 2
     steps to reach west_path from the house anchor; the step budget must reflect that.
     """
-    cfg = GameConfig(outer_rooms_unlocked=True)
+    cfg = GameConfig(west_gate_unlatched=True)
     g = Game(cfg, seed=9)
     g.state.steps = 10
     steps_before = g.state.steps
@@ -320,7 +320,7 @@ def test_outer_draft_cost_includes_walk():
     The area graph charges 2 steps from the house anchor to west_path; walking to EH first
     costs 1 more, so the budget must drop by exactly 3 and the player ends at west_path.
     """
-    cfg = GameConfig(outer_rooms_unlocked=True)
+    cfg = GameConfig(west_gate_unlatched=True)
     g = Game(cfg, seed=9)
     # Place a room north of entrance and move there (1 step walk)
     from blueprince_sim.engine.grid import N, S
@@ -343,7 +343,7 @@ def test_garage_route_unavailable_without_breaker(registry):
     With the breaker off the garage_door_breaker flag is absent, so the graph cannot
     route garage->west_path. The cheapest affordable route must be the EH route (cost 2).
     """
-    cfg = GameConfig(outer_rooms_unlocked=True)
+    cfg = GameConfig(west_gate_unlatched=True)
     g = Game(cfg, seed=9)
     uc = registry.by_id.get("utility_closet")
     garage = next((r for r in registry.rooms if r.id.startswith("garage")), None)
@@ -361,7 +361,7 @@ def test_garage_route_unavailable_without_breaker(registry):
 
 def test_garage_route_available_with_breaker(registry):
     """Garage route is available when utility_closet is placed AND entered."""
-    cfg = GameConfig(outer_rooms_unlocked=True)
+    cfg = GameConfig(west_gate_unlatched=True)
     g = Game(cfg, seed=9)
     uc = registry.by_id.get("utility_closet")
     garage = next((r for r in registry.rooms if r.id.startswith("garage")), None)
@@ -384,7 +384,7 @@ def test_choose_outer_does_not_enter():
     After choosing, the player stays at the doorstep (area == "west_path"), not inside;
     ON_ENTER fires only when enter_outer_room() is explicitly called.
     """
-    cfg = GameConfig(outer_rooms_unlocked=True)
+    cfg = GameConfig(west_gate_unlatched=True)
     g = Game(cfg, seed=9)
     g.open_outer_draft()
     g.choose(0)
@@ -400,7 +400,7 @@ def test_travel_to_outer_room_fires_once():
     room id and outer_room_entered must be set so a second travel is a no-op
     (outer_room_entered stays True; steps are still deducted by travel_to).
     """
-    cfg = GameConfig(outer_rooms_unlocked=True)
+    cfg = GameConfig(west_gate_unlatched=True)
     g = Game(cfg, seed=9)
     g.open_outer_draft()
     g.choose(0)
@@ -419,7 +419,7 @@ def test_return_costs_doorstep_to_eh():
     The graph derives this: west_path -> grounds (1) -> house (1) = 2 steps total.
     After returning, area is None (on-grid) and pos is the Entrance Hall cell.
     """
-    cfg = GameConfig(outer_rooms_unlocked=True)
+    cfg = GameConfig(west_gate_unlatched=True)
     g = Game(cfg, seed=9)
     g.open_outer_draft()
     g.choose(0)
@@ -435,7 +435,7 @@ def test_return_costs_inside_to_eh():
 
     The graph: outer_room -> west_path (1) -> grounds (1) -> house (1) = 3 steps.
     """
-    cfg = GameConfig(outer_rooms_unlocked=True)
+    cfg = GameConfig(west_gate_unlatched=True)
     g = Game(cfg, seed=9)
     g.open_outer_draft()
     g.choose(0)
@@ -455,7 +455,7 @@ def test_action_mask_off_grid():
     back to house must be offered as TRAVEL_BASE actions.
     """
     from blueprince_sim.env import actions as A
-    cfg = GameConfig(outer_rooms_unlocked=True)
+    cfg = GameConfig(west_gate_unlatched=True)
     g = Game(cfg, seed=9)
     g.open_outer_draft()
     g.choose(0)
@@ -476,7 +476,7 @@ def test_action_mask_off_grid():
 
 def test_travel_via_garage_from_outer_fires_entry(registry):
     """Returning to garage that was never entered fires its ON_ENTER effects."""
-    cfg = GameConfig(outer_rooms_unlocked=True)
+    cfg = GameConfig(west_gate_unlatched=True)
     g = Game(cfg, seed=9)
     garage = next((r for r in registry.rooms if r.id.startswith("garage")), None)
     uc = registry.by_id.get("utility_closet")

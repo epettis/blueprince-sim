@@ -288,11 +288,16 @@ of "useful" areas.
   edge check that an `outer_room`-gated edge must end at an anchor whose room
   has `pool == "outer"`.
 
-**The west gate is `GameConfig.outer_rooms_unlocked`**, not a per-attempt flag.
-Unlatching it is permanent across the whole save (owner-confirmed), so the
-existing config field IS the gate and maps straight onto `west_gate_unlatched`.
-Modelling it a second time as in-run state would have been the same fact stored
-twice.
+**The west gate is `GameConfig.west_gate_unlatched`**. It controls only the
+`grounds <-> west_path` shortcut. It does **not** gate outer-room drafting: on
+a fresh save, the Garage + breaker route (`garage -> west_path`) is available
+from day 1 without any unlock. The gate unlatches the first time the player
+arrives at `west_path` (necessarily via the Garage on a fresh save). That is
+recorded on `GameState`, **never written back to the config** — one `GameConfig`
+is shared by every episode of a training worker, so mutating it would leak the
+unlock into later "fresh save" episodes. `carryover()` ORs state with config and
+`DayChain` carries the result, so the 2-step Grounds route stays open for the
+rest of the attempt. Same shape as `entrance_vase_broken` / `outer_chip_dug`.
 
 ## Corrections already applied
 

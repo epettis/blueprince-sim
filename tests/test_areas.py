@@ -105,7 +105,7 @@ def test_1step_rule_entrance_hall_to_doorstep() -> None:
     This was independently play-verified and is the primary evidence the
     1-step-per-edge rule and node choices are correct.
     """
-    cfg = GameConfig(outer_rooms_unlocked=True)
+    cfg = GameConfig(west_gate_unlatched=True)
     g = Game(cfg, seed=9)
     g.state.steps = 10
     g.open_outer_draft()
@@ -118,7 +118,7 @@ def _game_standing_in_garage(breaker_on: bool) -> Game:
     The Utility Closet is placed away from the Garage so that ``breaker_on``
     is the only thing that differs between the two arms of the test below.
     """
-    cfg = GameConfig(outer_rooms_unlocked=True)
+    cfg = GameConfig(west_gate_unlatched=True)
     g = Game(cfg, seed=9)
     g._place_room(g.registry.by_id["garage"], 1, E | W)
     g._place_room(g.registry.by_id["utility_closet"], 7, N | S)
@@ -160,7 +160,7 @@ def test_1step_rule_doorstep_to_outer_room() -> None:
     west_path->outer_room is 1 edge in the graph; after arriving at west_path
     and choosing an outer room, travelling to it must cost exactly 1 step.
     """
-    cfg = GameConfig(outer_rooms_unlocked=True)
+    cfg = GameConfig(west_gate_unlatched=True)
     g = Game(cfg, seed=9)
     g.open_outer_draft()
     g.choose(0)
@@ -656,7 +656,7 @@ def test_area_round_trip_full_outer_room_lifecycle() -> None:
     After travel_to("house"), area is None and pos is the Entrance Hall cell.
     """
     from blueprince_sim.engine.grid import ENTRANCE_CELL
-    cfg = GameConfig(outer_rooms_unlocked=True)
+    cfg = GameConfig(west_gate_unlatched=True)
     g = Game(cfg, seed=9)
     assert g.state.area is None  # starts on the grid
 

@@ -99,7 +99,7 @@ def test_can_insert_disk_true() -> None:
 
 def test_disk_reader_in_outer_room(registry: Registry) -> None:
     """disk_reader_here is True when the player is inside the Shelter outer room."""
-    g = Game(GameConfig(outer_rooms_unlocked=True, special_items=True), seed=0)
+    g = Game(GameConfig(west_gate_unlatched=True, special_items=True), seed=0)
     # Simulate the player being inside the outer room (area == "shelter")
     g.placed_ids.add("shelter")
     g.state.area = "shelter"
@@ -562,7 +562,7 @@ def _game_with_outer_room_placed(
     and outer_room_entered exactly as the real draft + enter flow would,
     without triggering ON_PLACE / ON_ENTER effects.
     """
-    g = Game(GameConfig(outer_rooms_unlocked=True, special_items=False), seed=0)
+    g = Game(GameConfig(west_gate_unlatched=True, special_items=False), seed=0)
     g.placed_ids.add(room_id)
     g.state.outer_room_drafted = True
     g.state.area = room_id if entered else "west_path"

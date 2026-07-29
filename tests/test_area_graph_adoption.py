@@ -22,8 +22,8 @@ from blueprince_sim.env.actions import _build_area_node_ids
 # ---------------------------------------------------------------------------
 
 def _make_game_with_outer_room_unlocked(seed: int = 9) -> Game:
-    """Return a fresh game with outer_rooms_unlocked and enough steps."""
-    cfg = GameConfig(outer_rooms_unlocked=True, starting_steps=50)
+    """Return a fresh game with west_gate_unlatched and enough steps."""
+    cfg = GameConfig(west_gate_unlatched=True, starting_steps=50)
     return Game(cfg, seed=seed)
 
 
@@ -40,11 +40,11 @@ def _travel_idx(game: Game, node_id: str) -> int:
 def test_unreachable_area_masked_out():
     """An area node unreachable from the current position is masked out.
 
-    "west_path" requires the west_gate_unlatched flag (outer_rooms_unlocked).
-    With outer_rooms_unlocked=False, "west_path" cannot be reached, and its
-    travel action must be masked False.
+    "west_path" via Grounds requires the west_gate_unlatched config flag.
+    With west_gate_unlatched=False and no Garage placed, "west_path" is
+    unreachable, and its travel action must be masked False.
     """
-    cfg_locked = GameConfig(outer_rooms_unlocked=False)
+    cfg_locked = GameConfig(west_gate_unlatched=False)
     g = Game(cfg_locked, seed=0)
     mask = A.action_mask(g)
     node_ids = _build_area_node_ids(g.registry)
@@ -57,7 +57,7 @@ def test_unreachable_area_masked_out():
 def test_reachable_area_not_masked():
     """An affordable reachable area destination is not masked out.
 
-    With outer_rooms_unlocked=True and enough steps, west_path is reachable
+    With west_gate_unlatched=True and enough steps, west_path is reachable
     from the grid and must appear as a legal travel action.
     """
     g = _make_game_with_outer_room_unlocked()
@@ -129,7 +129,7 @@ def test_self_travel_masked_out_off_grid():
 def test_travel_legal_on_grid():
     """Travel to a reachable area is legal while the player is on the grid.
 
-    With outer_rooms_unlocked=True, west_path is reachable from the grid. The
+    With west_gate_unlatched=True, west_path is reachable from the grid. The
     mask must permit travel to it even before going off-grid.
     """
     g = _make_game_with_outer_room_unlocked()
@@ -222,7 +222,7 @@ def test_unaffordable_travel_masked_out():
     With exactly 3 steps the player cannot arrive with a step to spare, so
     the travel action must be masked False.
     """
-    cfg = GameConfig(outer_rooms_unlocked=True, starting_steps=3)
+    cfg = GameConfig(west_gate_unlatched=True, starting_steps=3)
     g = Game(cfg, seed=0)
     # Route cost to west_path from EH should be >= 3; with steps == 3 the
     # strict inequality (steps > cost) should fail for west_path.
@@ -244,7 +244,7 @@ def test_affordable_travel_enabled():
     With steps == cost + 1, the strict affordability check (steps > cost) passes
     and the action must be unmasked.
     """
-    cfg = GameConfig(outer_rooms_unlocked=True, starting_steps=50)
+    cfg = GameConfig(west_gate_unlatched=True, starting_steps=50)
     g = Game(cfg, seed=0)
     result = g.area_route_cost("west_path")
     if result is None:

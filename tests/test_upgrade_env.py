@@ -397,7 +397,7 @@ def test_insert_disk_is_offered_inside_the_shelter() -> None:
     than on the 5x9 grid, so a mask that only handles on-grid rooms silently
     strands it and the agent can never spend a disk there.
     """
-    g = Game(GameConfig(outer_rooms_unlocked=True, special_items=True), seed=0)
+    g = Game(GameConfig(west_gate_unlatched=True, special_items=True), seed=0)
     g.placed_ids.add("shelter")
     g.state.area = "shelter"  # standing inside the Shelter outer room
     si.grant(g.state, g.registry, "upgrade_disk_vault_304", source="test")

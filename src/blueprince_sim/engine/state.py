@@ -182,6 +182,12 @@ class GameState:
     # Equivalences with the old outer_loc int: None=0, "west_path"=1, <outer_room_id>=2
     area: str | None = None
     outer_room_entered: bool = False  # True once ON_ENTER has fired for today's outer room
+    # Set the first time the player reaches west_path today (only possible via the Garage
+    # while the gate is still latched).  An IN-RUN discovery, deliberately NOT written back
+    # to GameConfig: one config object is shared across every episode of a worker, so
+    # mutating it would leak the unlock into later "fresh save" episodes.  carryover() ORs
+    # this with cfg.west_gate_unlatched, the same shape as vase_smashed / chip_dug.
+    west_gate_unlatched: bool = False
     # chronological (item id, count) pickups this run, for CLI/replay reporting
     items_found_log: list[tuple[str, int]] = field(default_factory=list)
 

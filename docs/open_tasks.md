@@ -298,18 +298,15 @@ breaks, the Sanctum keys.
   (an `outer_loc`-shaped observation re-encoded from `state.area` purely to keep
   the old space alive for one commit).
 
-- **2026-07-27, the West Gate IS `GameConfig.outer_rooms_unlocked`**: unlatching
-  it is permanent across the whole save, not per attempt (owner-confirmed), so the
-  existing config field already models the gate and maps directly onto the
-  `west_gate_unlatched` graph flag. No new per-attempt flag and no `DayChain`
-  carryover entry — modelling it again as in-run state would have stored one fact
-  twice.
+- **2026-07-27, the West Gate is a save-level unlock, not a per-attempt one**:
+  unlatching it is permanent across the whole save (owner-confirmed), so a
+  `GameConfig` field models it and maps onto the `west_gate_unlatched` graph flag.
 
   This also retracts an earlier worry: honouring the gate does **not** shift the
-  measurement baseline. Day-1 outer-room access is unchanged. The "first West Path
-  visit must come through the Garage" rule is the one-time act that sets
-  `outer_rooms_unlocked` in the first place, which happens before any simulated
-  day begins.
+  measurement baseline — day-1 outer-room access is unchanged.
+
+  Refined 2026-07-28 (next-but-one entry): the field was also gating outer-room
+  drafting, which is a different fact, and the gate CAN now be earned in-run.
 
 - **2026-07-27, `absent_spawn_rooms` resolved**: the field named off-grid AREAS,
   never rooms, and the check was silent in both directions. Renamed to
@@ -350,6 +347,36 @@ breaks, the Sanctum keys.
   Note `greedy_rank` is unaffected — it never uses travel actions, and batch
   results are byte-identical to before this PR, so the Phase 1 A/B instrument is
   unchanged.
+
+- **2026-07-28, `outer_rooms_unlocked` split into `west_gate_unlatched` and
+  route-based outer-draft gating**: `GameConfig.outer_rooms_unlocked` was doing
+  two jobs — gating the Grounds<->West Path shortcut AND gating outer-room
+  drafting entirely. These are different facts (owner-confirmed 2026-07-28):
+  on a brand-new save you CAN reach the West Path and draft an outer room from
+  day 1 by going through the Garage (whose `garage <-> west_path` edge is gated
+  only by `garage_door_breaker`, i.e. the Utility Closet placed and entered).
+
+  **What changed:**
+  - `outer_rooms_unlocked` renamed to `west_gate_unlatched`. The new name means
+    exactly one thing: the Grounds<->West Path shortcut is open. It does NOT gate
+    outer-room drafting.
+  - `outer_draft_available()` no longer checks any config flag. It requires only
+    an affordable route to `west_path` (via `_outer_route_cost()`) plus the
+    existing once-per-day and phase conditions.
+  - `west_gate_unlatched` is now earned in-run: `travel_to("west_path")` sets it
+    on first arrival (necessarily via the Garage on a fresh save). `shops.carryover()`
+    surfaces it; `DayChain._CARRYOVER_KEYS` carries it across days.
+  - `fresh_save_config()` added to `rl/train.py` as the day=1 counterpart to
+    `all_unlocks_config()`. `configs/fresh_save.yaml` provides the same preset for
+    the `--config` CLI path.
+  - `blueprince-train --unlocks {all,none}` selects between presets (default `all`).
+
+  **The in-run discovery is recorded on `GameState`, never written back to the
+  config.** The first implementation mutated `game.cfg` directly; the trainer builds
+  ONE `GameConfig` per worker and reuses it for every episode, so that leaked the
+  unlock into every later "fresh save" episode — measured: a second episode with no
+  Garage placed at all inherited the 2-step Grounds route. `carryover()` ORs state
+  with config, the same shape as `entrance_vase_broken` / `outer_chip_dug`.
 
 ## 5. Throttle the training terminal output — DONE
 

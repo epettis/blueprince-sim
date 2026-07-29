@@ -1060,6 +1060,10 @@ def carryover(game) -> dict:
         "entrance_vase_broken": cfg.entrance_vase_broken or state.shops.vase_smashed,
         "outer_chip_dug": cfg.outer_chip_dug or state.shops.chip_dug,
         "royal_scepter_found": cfg.royal_scepter_found,
+        # west_gate_unlatched: earned the first time the player reaches west_path, which on
+        # a fresh save must be via the Garage; afterwards the 2-step Grounds shortcut is
+        # open for all future days.  ORed from state so the config is never mutated.
+        "west_gate_unlatched": cfg.west_gate_unlatched or state.west_gate_unlatched,
         # Vault keys permanently used: accumulated union across all days.
         "used_vault_keys": sorted(
             set(getattr(cfg, "used_vault_keys", frozenset()))
