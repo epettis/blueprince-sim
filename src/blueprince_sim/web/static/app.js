@@ -416,6 +416,9 @@ async function loadRun(episode) {
     $("#run-title").textContent = `failed to load run #${fmtInt(episode)}`;
     return;
   }
+  // Reset zoom on both SVGs when a different run is loaded.
+  resetPanZoom("house-svg");
+  resetPanZoom("area-graph-svg");
   state.frameIdx = 0;
   $("#controls").classList.remove("hidden");
   const slider = $("#pb-slider");
@@ -515,7 +518,8 @@ function renderHouse(frame) {
     <polygon points="0,-26 -8,-13 8,-13" class="player-arrow" transform="rotate(${ang})"/>
   </g>`;
 
-  $("#house").innerHTML =
+  const houseEl = $("#house");
+  houseEl.innerHTML =
     `<svg viewBox="0 0 ${2 * MARG + 5 * CELL} ${2 * MARG + 9 * CELL}"
           preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg">
       <style>
@@ -534,6 +538,9 @@ function renderHouse(frame) {
         .player { fill: #fff; stroke: #14161a; stroke-width: 3; }
         .player-arrow { fill: #fff; stroke: #14161a; stroke-width: 2; }
       </style>${svg}</svg>`;
+  // Attach pan/zoom to the freshly rendered house SVG.
+  const houseSvgEl = houseEl.querySelector("svg");
+  if (houseSvgEl) attachPanZoom(houseSvgEl, "house-svg");
 }
 
 /* -------------------------------------------------------- detail panel */
@@ -671,6 +678,140 @@ document.addEventListener("keydown", (e) => {
   else if (e.key === " ") { e.preventDefault(); state.playing ? stopPlayback() : startPlayback(); }
 });
 
+/* =========================================================== pan / zoom */
+
+// Pan/zoom state keyed by a stable string id.  Zoom state survives re-renders
+// (frame changes) but is reset when a different run is selected (see loadRun).
+const PZ_STATE = {};    // { x, y, w, h } — current viewBox window
+const PZ_ORIGIN = {};   // { ox, oy, ow, oh } — original design viewBox
+const PZ_MIN_SCALE = 1, PZ_MAX_SCALE = 8;
+
+// Attach wheel-to-zoom and drag-to-pan behaviour to an SVG element.
+// stateKey is a stable string so the zoom level persists across innerHTML
+// replacements that create a new SVG element.
+//
+// IMPORTANT: the wheel handler is registered with { passive: false } so that
+// calling preventDefault() actually suppresses the page scroll.  Omitting
+// that option (or using addEventListener without it) causes browsers to ignore
+// preventDefault on wheel events, and the page scrolls behind the zoom.
+//
+// The implementation manipulates the SVG viewBox, not CSS transforms, so
+// strokes, text, and dashed patterns scale correctly and stay crisp.
+function attachPanZoom(svgEl, stateKey) {
+  // Parse the original (design) viewBox.  We always read it fresh from the
+  // element attribute so that a reset-then-reattach correctly picks up the
+  // design dimensions rather than whatever the zoomed state left behind.
+  // The origin is stored separately (PZ_ORIGIN) so reset can restore it
+  // even after a re-render replaces the SVG element.
+  const vbAttr = svgEl.getAttribute("viewBox") || "0 0 100 100";
+  const [ox, oy, ow, oh] = vbAttr.split(" ").map(Number);
+
+  // On first attach (or after a reset) store the design dimensions.
+  if (!PZ_ORIGIN[stateKey]) {
+    PZ_ORIGIN[stateKey] = { ox, oy, ow, oh };
+  }
+  // Use the stored origin (not the potentially-modified attribute) so that
+  // re-attaching after a reset sees the correct design bounds.
+  const { ox: origX, oy: origY, ow: origW, oh: origH } = PZ_ORIGIN[stateKey];
+
+  // Initialise pan/zoom state on first call for this key; preserve on
+  // subsequent calls (frame changes must not reset the zoom level).
+  if (!PZ_STATE[stateKey]) {
+    PZ_STATE[stateKey] = { x: origX, y: origY, w: origW, h: origH };
+  }
+
+  // Apply the current (possibly pre-existing) zoom state to the new element.
+  function applyViewBox() {
+    const s = PZ_STATE[stateKey];
+    svgEl.setAttribute("viewBox", `${s.x} ${s.y} ${s.w} ${s.h}`);
+  }
+  applyViewBox();
+
+  // Convert a mouse event's client-space position to SVG viewBox coordinates.
+  function clientToSVG(e) {
+    const rect = svgEl.getBoundingClientRect();
+    const s = PZ_STATE[stateKey];
+    return {
+      svgX: s.x + (e.clientX - rect.left) / rect.width  * s.w,
+      svgY: s.y + (e.clientY - rect.top)  / rect.height * s.h,
+    };
+  }
+
+  // Clamp pan so the content can't be dragged entirely out of view.
+  // We require at least 20% of each dimension to remain visible.
+  function clampPan(s) {
+    const margin = 0.20;
+    s.x = Math.min(s.x, origX + origW - s.w * margin);
+    s.x = Math.max(s.x, origX + origW * margin - s.w);
+    s.y = Math.min(s.y, origY + origH - s.h * margin);
+    s.y = Math.max(s.y, origY + origH * margin - s.h);
+  }
+
+  // --- wheel: zoom about the cursor ---
+  svgEl.addEventListener("wheel", (e) => {
+    e.preventDefault();  // must prevent page scroll; requires {passive:false}
+    const s = PZ_STATE[stateKey];
+    const { svgX, svgY } = clientToSVG(e);
+    // Normalise delta: positive = zoom in (reduce viewBox size).
+    const delta = e.deltaMode === 1 ? e.deltaY * 20 : e.deltaY;  // line vs pixel mode
+    const factor = Math.pow(1.0015, delta);  // ~1.0015^100 ≈ 1.16 per typical notch
+    const newW = Math.max(origW / PZ_MAX_SCALE, Math.min(origW / PZ_MIN_SCALE, s.w * factor));
+    const newH = Math.max(origH / PZ_MAX_SCALE, Math.min(origH / PZ_MIN_SCALE, s.h * factor));
+    // Keep the point under the cursor stationary.
+    s.x = svgX - (svgX - s.x) * (newW / s.w);
+    s.y = svgY - (svgY - s.y) * (newH / s.h);
+    s.w = newW;
+    s.h = newH;
+    clampPan(s);
+    applyViewBox();
+  }, { passive: false });
+
+  // --- drag: pan while zoomed ---
+  // Track in screen pixels to avoid the drift that occurs when converting to
+  // SVG space using an origin (s.x/s.y) that changes with each mousemove.
+  let drag = null;
+  svgEl.addEventListener("mousedown", (e) => {
+    if (e.button !== 0) return;
+    const s = PZ_STATE[stateKey];
+    drag = {
+      startClientX: e.clientX, startClientY: e.clientY,
+      startVbX: s.x, startVbY: s.y,
+      vbW: s.w, vbH: s.h,   // snapshot so wheel during drag doesn't corrupt
+    };
+    svgEl.style.cursor = "grabbing";
+    e.preventDefault();
+  });
+  window.addEventListener("mousemove", (e) => {
+    if (!drag) return;
+    const s = PZ_STATE[stateKey];
+    const rect = svgEl.getBoundingClientRect();
+    // Pixel delta → SVG-space delta (using the snapshot viewBox dims).
+    const dsvgX = (e.clientX - drag.startClientX) / rect.width  * drag.vbW;
+    const dsvgY = (e.clientY - drag.startClientY) / rect.height * drag.vbH;
+    s.x = drag.startVbX - dsvgX;
+    s.y = drag.startVbY - dsvgY;
+    clampPan(s);
+    applyViewBox();
+  });
+  const endDrag = () => { drag = null; svgEl.style.cursor = ""; };
+  window.addEventListener("mouseup", endDrag);
+  svgEl.addEventListener("mouseleave", () => { if (drag) { drag = null; svgEl.style.cursor = ""; } });
+
+  // --- double-click: reset view ---
+  svgEl.addEventListener("dblclick", () => {
+    PZ_STATE[stateKey] = { x: origX, y: origY, w: origW, h: origH };
+    applyViewBox();
+  });
+}
+
+// Reset zoom state for a given key (called when a new run is selected so the
+// new run starts at 1× zoom).  Clears both the current window and the origin
+// record so the next attachPanZoom call re-reads the design viewBox.
+function resetPanZoom(stateKey) {
+  delete PZ_STATE[stateKey];
+  delete PZ_ORIGIN[stateKey];
+}
+
 /* ============================================================ area graph */
 
 // Band y-positions: surface on top, anchor in the middle, underground below.
@@ -695,12 +836,119 @@ const AG_NODE_R_UNMOD = 7; // smaller radius for unmodelled nodes
 // at 14 chars so labels stay within a ~84 px slot beside the node.
 const AG_LABEL_MAX = 14;
 
+// The synthetic node id used to represent the collapsed outer-room slot.
+const OUTER_NODE_ID = "__outer_room__";
+
 // Shorten a node name for the SVG label: take only the text before the first
 // '(' (the parenthetical is always context, not identity), then elide to
 // AG_LABEL_MAX with "…".  The full name still lives in the SVG <title>.
 function areaShortName(name) {
   const base = name.split("(")[0].trimEnd();
   return base.length <= AG_LABEL_MAX ? base : base.slice(0, AG_LABEL_MAX - 1) + "…";
+}
+
+// Return the set of outer-room node ids: exactly the 'to' targets of edges
+// whose 'from' is 'west_path' AND whose 'requires' list contains
+// 'outer_room_drawn'.  This is the canonical way to find them without
+// hardcoding names — garage has a bidirectional edge with west_path but does
+// not carry the 'outer_room_drawn' requirement, so it is correctly excluded.
+function deriveOuterRoomIds(edges) {
+  const ids = new Set();
+  for (const e of edges) {
+    if (e.from === "west_path" && Array.isArray(e.requires) && e.requires.includes("outer_room_drawn")) {
+      ids.add(e.to);
+    }
+  }
+  return ids;
+}
+
+// Build a transformed view of {nodes, edges} where the eight outer-room nodes
+// are collapsed into a single synthetic OUTER_NODE_ID node.  The caller
+// provides:
+//   outerRoomIds  — Set of ids to collapse
+//   drafteId      — the id of the drafted outer room (or null)
+//   mode          — "replay" or "agg"
+// Returns { nodes, edges, outerPos } where outerPos is the position object
+// for the synthetic node (same depth/band as the real ones so toggling modes
+// does not reflow the graph).
+function collapseOuterRooms(graphData, outerRoomIds, mode) {
+  const { nodes, edges } = graphData;
+
+  // A representative outer room node (for depth/band — they all share them).
+  const sampleOuter = nodes.find((n) => outerRoomIds.has(n.id));
+  if (!sampleOuter) return { nodes, edges };  // nothing to collapse
+
+  // Build the synthetic node.
+  const synNode = {
+    id: OUTER_NODE_ID,
+    name: "outer room",       // overwritten by the caller for labels
+    kind: "anchor",
+    modelled: true,
+    depth: sampleOuter.depth,
+    band: sampleOuter.band,
+    _isOuterSlot: true,       // flag for rendering logic
+  };
+
+  // Filter out the eight individual outer-room nodes; keep everything else.
+  const newNodes = nodes.filter((n) => !outerRoomIds.has(n.id)).concat([synNode]);
+
+  // Rewrite edges: any edge whose 'from' or 'to' is an outer-room id becomes
+  // an edge from/to OUTER_NODE_ID instead, then deduplicate.
+  // In replay mode we only keep edges originating FROM the drafted room (or
+  // the west_path → synthetic edge).  In agg mode we keep the union of all
+  // onward edges from all outer rooms.
+  const seenEdges = new Set();
+  const newEdges = [];
+
+  for (const e of edges) {
+    const fromIsOuter = outerRoomIds.has(e.from);
+    const toIsOuter   = outerRoomIds.has(e.to);
+
+    if (!fromIsOuter && !toIsOuter) {
+      // Unrelated edge — pass through unchanged.
+      newEdges.push(e);
+      continue;
+    }
+
+    // In replay mode: only include onward edges from the drafted room.
+    // "Onward" means from an outer room to somewhere that is NOT west_path
+    // (the west_path → outer edges are implicit; keep the synthetic inbound
+    // edge only).
+    if (mode === "replay") {
+      // west_path → outer_room: rewrite as west_path → OUTER_NODE_ID.
+      if (e.from === "west_path" && toIsOuter) {
+        const key = `west_path->${OUTER_NODE_ID}`;
+        if (!seenEdges.has(key)) { seenEdges.add(key); newEdges.push({ ...e, to: OUTER_NODE_ID }); }
+        continue;
+      }
+      // outer_room → west_path: skip (the return edge is implied by the inbound one).
+      if (fromIsOuter && e.to === "west_path") continue;
+      // outer_room → elsewhere: only if this room is the drafted outer room.
+      if (fromIsOuter && e.to !== "west_path") {
+        // We leave 'from' as the real id so the caller can filter by draftedId.
+        // The caller replaces this with OUTER_NODE_ID only if fromIsOuter AND
+        // the room matches.  Handled by the _outerFrom flag below.
+        newEdges.push({ ...e, _outerFrom: true });
+        continue;
+      }
+      // Fallthrough (e.g. something → outer_room other than west_path): drop.
+      continue;
+    }
+
+    // Aggregate mode: keep all edges, rewriting outer ids.
+    const rewrittenFrom = fromIsOuter ? OUTER_NODE_ID : e.from;
+    const rewrittenTo   = toIsOuter   ? OUTER_NODE_ID : e.to;
+    if (rewrittenFrom === rewrittenTo) continue;  // self-loop after collapse
+    // Skip outer→west_path return edges — they would duplicate west_path→outer.
+    if (rewrittenFrom === OUTER_NODE_ID && rewrittenTo === "west_path") continue;
+    const key = `${rewrittenFrom}->${rewrittenTo}`;
+    if (!seenEdges.has(key)) {
+      seenEdges.add(key);
+      newEdges.push({ ...e, from: rewrittenFrom, to: rewrittenTo, _aggOuter: fromIsOuter });
+    }
+  }
+
+  return { nodes: newNodes, edges: newEdges };
 }
 
 // Derive pixel positions for every node from depth and band.  depth:null nodes
@@ -725,11 +973,9 @@ function areaLayout(nodes) {
   const yUsable = AG_H - AG_PAD_T - AG_PAD_B;
   const Y_BAND = (band) => AG_PAD_T + (BAND_Y_CENTRE[band] || 0.5) * yUsable;
   // SPREAD: pixels between node centres when multiple share a (depth, band) slot.
-  // The worst case is 9 anchor nodes at depth=3 (garage + 8 outer rooms):
-  // at SPREAD=34 the group spans ±136 px around the band centre (y≈260).
-  // The taller viewBox (AG_H=520) keeps them inside the anchor band's
-  // ~43% zone (≈ 214 px) and clear of the surface (y≈103) and
-  // underground (y≈417) band centres.
+  // With the outer rooms collapsed to one node the worst-case anchor column at
+  // depth=3 is now just: garage + outer_room_slot = 2 nodes, so SPREAD only
+  // matters for other columns.  Keep 34 px so any future expansion is safe.
   const SPREAD = 34;
 
   const pos = {};
@@ -761,13 +1007,29 @@ function areaLayout(nodes) {
 // Colours for the three bands.
 const BAND_COLOR = { surface: "#2a9d8f", anchor: "#8a919c", underground: "#7a50a0" };
 
-function renderAreaSvg(graphData, visitTotals, visitedSet, currentAreaId, mode) {
-  const { nodes, edges } = graphData;
-  const pos = areaLayout(nodes);
+function renderAreaSvg(graphData, visitTotals, visitedSet, currentAreaId, mode, outerRoomIds, draftedOuterRoomId) {
+  // Collapse the eight outer-room nodes into one synthetic slot before layout.
+  const { nodes: collNodes, edges: collEdges } = collapseOuterRooms(graphData, outerRoomIds, mode);
+  const pos = areaLayout(collNodes);
+
+  // In replay mode, determine which onward edges to show based on the drafted room.
+  // The draftedOuterRoomId is the actual outer room id (e.g. "tomb"), or null.
+  // _outerFrom edges have 'from' == the real outer-room id; we rewrite to OUTER_NODE_ID
+  // only for the drafted room, and drop the rest.
+  const finalEdges = collEdges.map((e) => {
+    if (!e._outerFrom) return e;
+    if (mode === "replay") {
+      // Only show onward edges for the drafted room; drop edges from other outer rooms.
+      if (e.from !== draftedOuterRoomId) return null;
+      return { ...e, from: OUTER_NODE_ID };
+    }
+    // Aggregate: _outerFrom edges were already rewritten by collapseOuterRooms.
+    return e;
+  }).filter(Boolean);
 
   // --- edge pass ---
   let edgeSvg = "";
-  for (const e of edges) {
+  for (const e of finalEdges) {
     const p1 = pos[e.from], p2 = pos[e.to];
     if (!p1 || !p2) continue;
     // Small offset to give directed pairs a visible gap.
@@ -777,25 +1039,112 @@ function renderAreaSvg(graphData, visitTotals, visitedSet, currentAreaId, mode) 
     const x1 = p1.x + ox, y1 = p1.y + oy;
     const x2 = p2.x + ox, y2 = p2.y + oy;
     const dash = e.stub ? "stroke-dasharray='5 3'" : "";
+    // In aggregate mode, onward edges that originate from the outer-room slot
+    // are rendered faintly (the union of all rooms' possibilities, not one day's
+    // specific topology).
+    const faint = mode === "agg" && e._aggOuter ? " ag-edge-faint" : "";
     edgeSvg += `<line x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}"
       x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}"
-      class="ag-edge${e.stub ? " ag-stub" : ""}" ${dash}/>`;
+      class="ag-edge${e.stub ? " ag-stub" : ""}${faint}" ${dash}/>`;
   }
 
   // --- node pass ---
   let nodeSvg = "";
   // Compute aggregate visit scale for colour mapping.
+  // For the synthetic outer-room slot, the visit total is the SUM across all 8 rooms.
   let maxVisits = 1;
+  const effectiveVisits = { ...visitTotals };
+  if (outerRoomIds.size > 0) {
+    let outerTotal = 0;
+    for (const id of outerRoomIds) outerTotal += (visitTotals[id] || 0);
+    effectiveVisits[OUTER_NODE_ID] = outerTotal;
+  }
   if (mode === "agg") {
-    for (const v of Object.values(visitTotals)) if (v > maxVisits) maxVisits = v;
+    for (const v of Object.values(effectiveVisits)) if (v > maxVisits) maxVisits = v;
   }
 
-  for (const n of nodes) {
+  // Build hover tooltip for the outer-room slot in aggregate mode:
+  // per-room breakdown, descending by visit count, omitting zeros.
+  function outerAggTooltip() {
+    const breakdown = [];
+    for (const id of outerRoomIds) {
+      const n = graphData.nodes.find((x) => x.id === id);
+      const cnt = visitTotals[id] || 0;
+      if (cnt > 0 && n) breakdown.push([areaShortName(n.name), cnt]);
+    }
+    breakdown.sort((a, b) => b[1] - a[1]);
+    if (!breakdown.length) return "outer room slot — 0 visits";
+    const total = breakdown.reduce((s, [, c]) => s + c, 0);
+    return `outer room slot — ${fmtInt(total)} visits total\n` +
+      breakdown.map(([name, cnt]) => `  ${name}: ${fmtInt(cnt)}`).join("\n");
+  }
+
+  for (const n of collNodes) {
     const p = pos[n.id];
     if (!p) continue;
     const r = n.modelled ? AG_NODE_R : AG_NODE_R_UNMOD;
 
     let fill, stroke, opacity = 1;
+
+    if (n.id === OUTER_NODE_ID) {
+      // --- synthetic outer-room slot ---
+      if (mode === "replay") {
+        const isDrafted = draftedOuterRoomId != null;
+        const isCurrentOuter = isDrafted && (currentAreaId === draftedOuterRoomId);
+        if (isCurrentOuter) {
+          fill = "#e8c34a"; stroke = "#14161a"; // current — bright gold
+        } else if (isDrafted) {
+          fill = BAND_COLOR[n.band] || "#8a919c"; stroke = "rgba(0,0,0,.4)";
+        } else {
+          // Not yet drafted this day.
+          fill = "#2a2e35"; stroke = "#44484f";
+          opacity = 0.55;
+        }
+        // The label is the drafted room's short name, or a placeholder.
+        const labelText = isDrafted
+          ? (() => {
+              const rNode = graphData.nodes.find((x) => x.id === draftedOuterRoomId);
+              return rNode ? areaShortName(rNode.name) : draftedOuterRoomId;
+            })()
+          : "outer room";
+        const titleText = isDrafted
+          ? (() => {
+              const rNode = graphData.nodes.find((x) => x.id === draftedOuterRoomId);
+              return rNode ? rNode.name : draftedOuterRoomId;
+            })()
+          : "outer room (not drafted yet)";
+        const strokeW = isCurrentOuter ? 2.5 : 1.5;
+        nodeSvg += `<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="${r}"
+          fill="${fill}" stroke="${stroke}" stroke-width="${strokeW}" opacity="${opacity}">
+          <title>${esc(titleText)}</title></circle>`;
+        // Label
+        const labelOpacity = isDrafted ? Math.max(opacity, 0.5) : 0.5;
+        const short = isDrafted ? labelText : "outer room\n(not drafted)";
+        const lx = (p.labelSide || "right") === "left" ? p.x - r - 4 : p.x + r + 4;
+        const anchor = (p.labelSide || "right") === "left" ? "end" : "start";
+        nodeSvg += `<text x="${lx.toFixed(1)}" y="${(p.y + 3).toFixed(1)}"
+          class="ag-label${isDrafted ? "" : " ag-label-dim"}" opacity="${labelOpacity}"
+          text-anchor="${anchor}"><title>${esc(titleText)}</title>${esc(short)}</text>`;
+      } else {
+        // Aggregate mode: shade by sum of all outer-room visits.
+        const frac = Math.min((effectiveVisits[OUTER_NODE_ID] || 0) / maxVisits, 1);
+        fill = frac > 0 ? "#2a9d8f" : "#2a2e35";
+        opacity = frac > 0 ? 0.25 + 0.75 * frac : 0.25;
+        stroke = "#44484f";
+        const tooltip = outerAggTooltip();
+        nodeSvg += `<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="${r}"
+          fill="${fill}" stroke="${stroke}" stroke-width="1.5" opacity="${opacity}">
+          <title>${esc(tooltip)}</title></circle>`;
+        // Label
+        const lx = (p.labelSide || "right") === "left" ? p.x - r - 4 : p.x + r + 4;
+        const anchor = (p.labelSide || "right") === "left" ? "end" : "start";
+        nodeSvg += `<text x="${lx.toFixed(1)}" y="${(p.y + 3).toFixed(1)}"
+          class="ag-label" opacity="${Math.max(opacity, 0.5)}"
+          text-anchor="${anchor}"><title>${esc(tooltip)}</title>${esc("outer room")}</text>`;
+      }
+      continue;
+    }
+
     if (mode === "replay") {
       if (n.id === currentAreaId) {
         fill = "#e8c34a"; stroke = "#14161a"; // current — bright gold
@@ -813,7 +1162,7 @@ function renderAreaSvg(graphData, visitTotals, visitedSet, currentAreaId, mode) 
       // vivid teal (#2a9d8f) looked brighter even at ~30% opacity (west_path,
       // ~10k visits), inverting the intended "more visits = more prominent"
       // encoding.  A uniform hue lets opacity carry the full signal.
-      const frac = Math.min((visitTotals[n.id] || 0) / maxVisits, 1);
+      const frac = Math.min((effectiveVisits[n.id] || 0) / maxVisits, 1);
       fill = frac > 0 ? "#2a9d8f" : "#2a2e35";
       opacity = frac > 0 ? 0.25 + 0.75 * frac : 0.25;
       stroke = "#44484f";
@@ -829,14 +1178,14 @@ function renderAreaSvg(graphData, visitTotals, visitedSet, currentAreaId, mode) 
       nodeSvg += `<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="${r}"
         fill="${fill}" stroke="${stroke}" stroke-width="${n.id === currentAreaId ? 2.5 : 1.5}"
         opacity="${opacity}">
-        <title>${esc(n.name)}${mode === "agg" ? " — " + fmtInt(visitTotals[n.id] || 0) + " visits" : ""}</title></circle>`;
+        <title>${esc(n.name)}${mode === "agg" ? " — " + fmtInt(effectiveVisits[n.id] || 0) + " visits" : ""}</title></circle>`;
     }
     // Label — short name beside the node, full name in the SVG <title> tooltip.
     // Only drawn for modelled nodes (unmodelled already show a title on hover).
-    // For nodes in a crowded column (anchor band at depth=3 has 9 modelled
-    // nodes: garage + 8 outer rooms) labels alternate left/right so adjacent
-    // labels don't collide.  For the depth-0 node (house) the label is anchored
-    // "start" to the right so it does not extend left of the SVG edge.
+    // The alternating-side label logic is preserved for other columns even
+    // though the outer-room collapse makes the depth-3 anchor column much less
+    // crowded.  For the depth-0 node (house) the label is anchored "start" to
+    // the right so it does not extend left of the SVG edge.
     if (n.modelled) {
       const labelOpacity = opacity < 0.5 ? 0.5 : opacity;
       const short = areaShortName(n.name);
@@ -863,7 +1212,7 @@ function renderAreaSvg(graphData, visitTotals, visitedSet, currentAreaId, mode) 
   }
 
   // Null-depth separator line (if any).
-  const hasNull = nodes.some((n) => n.depth == null);
+  const hasNull = collNodes.some((n) => n.depth == null);
   const sepX = AG_W - AG_PAD_R - 40;
   const sepLine = hasNull
     ? `<line x1="${sepX}" y1="${AG_PAD_T}" x2="${sepX}" y2="${AG_H - AG_PAD_B}"
@@ -875,7 +1224,9 @@ function renderAreaSvg(graphData, visitTotals, visitedSet, currentAreaId, mode) 
     <style>
       .ag-edge { stroke: #33373f; stroke-width: 1.2; }
       .ag-stub { stroke: #4a5060; stroke-width: 1.2; }
+      .ag-edge-faint { stroke: #2a2e35; stroke-width: 1; opacity: 0.45; }
       .ag-label { fill: #c8ccd4; font-size: 8px; font-family: -apple-system, sans-serif; pointer-events: none; }
+      .ag-label-dim { fill: #6a7180; }
     </style>
     ${sepLine}${edgeSvg}${nodeSvg}
   </svg>`;
@@ -950,19 +1301,50 @@ function renderAreaPanel() {
   const visitTotals = areaVisitTotals(state.areaStats);
   const hasAggData = Object.keys(visitTotals).length > 0;
 
+  // Derive the outer-room id set once from the live graph data.
+  const outerRoomIds = deriveOuterRoomIds(graphData.edges);
+
   let currentAreaId = "house"; // default when player is on the grid
   let visitedSet = new Set(["house"]);
+  let draftedOuterRoomId = null;  // frame.outer_room (or null before the draft)
 
   if (mode === "replay" && state.run && state.run.frames) {
     const frame = state.run.frames[state.frameIdx];
     currentAreaId = frame.area || "house";
     visitedSet = visitedAreasUpTo(state.run.frames, state.frameIdx);
     visitedSet.add("house"); // house is always considered visited
+    draftedOuterRoomId = frame.outer_room || null;
   }
 
-  $("#area-graph").innerHTML = renderAreaSvg(graphData, visitTotals, visitedSet, currentAreaId, mode);
+  const svgHtml = renderAreaSvg(
+    graphData, visitTotals, visitedSet, currentAreaId, mode,
+    outerRoomIds, draftedOuterRoomId,
+  );
+  const graphEl = $("#area-graph");
+  graphEl.innerHTML = svgHtml;
+  // Attach pan/zoom to the freshly rendered SVG (zoom state persists across
+  // frame changes because attachPanZoom is idempotent on the same element id).
+  const svgEl = graphEl.querySelector("svg");
+  if (svgEl) attachPanZoom(svgEl, "area-graph-svg");
   renderAreaLegend(mode, hasAggData);
 }
+
+// Reset-view buttons: restore the stored origin viewBox without deleting the
+// origin record (so subsequent interactions still use the correct design dims).
+$("#house-reset-zoom").onclick = () => {
+  const orig = PZ_ORIGIN["house-svg"];
+  if (orig) PZ_STATE["house-svg"] = { x: orig.ox, y: orig.oy, w: orig.ow, h: orig.oh };
+  else delete PZ_STATE["house-svg"];  // no origin yet — force re-init on next attach
+  const svgEl = $("#house svg");
+  if (svgEl) attachPanZoom(svgEl, "house-svg");
+};
+$("#area-reset-zoom").onclick = () => {
+  const orig = PZ_ORIGIN["area-graph-svg"];
+  if (orig) PZ_STATE["area-graph-svg"] = { x: orig.ox, y: orig.oy, w: orig.ow, h: orig.oh };
+  else delete PZ_STATE["area-graph-svg"];
+  const svgEl = $("#area-graph svg");
+  if (svgEl) attachPanZoom(svgEl, "area-graph-svg");
+};
 
 // Wire up the mode toggle buttons.
 $("#area-mode-replay").onclick = () => {

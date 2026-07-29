@@ -444,3 +444,39 @@ def test_stale_config_keys_do_not_leak_between_records() -> None:
                                  "actions": [999], "modes": "1", "day_config": {"day": 3}})
     assert div is not None
     assert div["stale_config_keys"] == [], "stale keys leaked from the previous record"
+
+
+def test_frame_names_the_drafted_outer_room() -> None:
+    """A frame carries today's outer room id, and null before the outer draft.
+
+    Exactly one outer room exists per day, so the Observatory collapses the eight
+    outer-room anchors into a single slot named after this one. Drawing all eight
+    implies a choice the player never has.
+    """
+    from blueprince_sim.config import GameConfig
+    from blueprince_sim.engine.game import Game
+    from blueprince_sim.web.replay import _frame
+
+    game = Game(GameConfig(west_gate_unlatched=True), seed=9)
+    assert _frame(game, None, None)["outer_room"] is None, "nothing drafted yet"
+
+    game.open_outer_draft()
+    game.choose(0)
+    drafted = game.drafted_outer_room
+    assert drafted is not None, "choosing an outer-room option must place one"
+    assert _frame(game, None, None)["outer_room"] == drafted.id
+
+
+def test_only_one_outer_room_exists_per_day() -> None:
+    """At most one outer room is ever placed, which is what justifies one slot.
+
+    If a day could hold two, collapsing the anchors would hide a real choice.
+    """
+    from blueprince_sim.config import GameConfig
+    from blueprince_sim.engine.game import Game
+
+    game = Game(GameConfig(west_gate_unlatched=True), seed=4)
+    game.open_outer_draft()
+    game.choose(0)
+    placed = [r.id for r in game.outer_rooms if r.id in game.placed_ids]
+    assert len(placed) == 1, f"expected exactly one outer room, got {placed}"

@@ -590,9 +590,18 @@ class Game:
         return self.state.area is not None
 
     @property
+    def drafted_outer_room(self) -> "Room | None":
+        """Today's drafted outer room, or None before the outer draft happens.
+
+        Exactly one outer room exists per day, which is why this is a single
+        value rather than a set.
+        """
+        return next((r for r in self.outer_rooms if r.id in self.placed_ids), None)
+
+    @property
     def inside_outer_room(self) -> bool:
         """True when the player is physically inside today's drafted outer room."""
-        outer_room = next((r for r in self.outer_rooms if r.id in self.placed_ids), None)
+        outer_room = self.drafted_outer_room
         return outer_room is not None and self.state.area == outer_room.id
 
     def _garage_cell(self) -> int:
@@ -632,13 +641,13 @@ class Game:
             if was_entered and st.grid[cell] >= 0:
                 entered_room_ids.add(self.registry.rooms[st.grid[cell]].id)
         if st.outer_room_entered:
-            outer_room = next((r for r in self.outer_rooms if r.id in self.placed_ids), None)
+            outer_room = self.drafted_outer_room
             if outer_room is not None:
                 entered_room_ids.add(outer_room.id)
         # outer_room_id: the drafted outer room id (None if not drafted yet today)
         outer_room_id: str | None = None
         if st.outer_room_drafted:
-            outer_room = next((r for r in self.outer_rooms if r.id in self.placed_ids), None)
+            outer_room = self.drafted_outer_room
             if outer_room is not None:
                 outer_room_id = outer_room.id
         return GateContext(
@@ -765,7 +774,7 @@ class Game:
             if dest == "west_path":
                 st.west_gate_unlatched = True
             # Fire ON_ENTER the first time the player enters the drafted outer room.
-            outer_room = next((r for r in self.outer_rooms if r.id in self.placed_ids), None)
+            outer_room = self.drafted_outer_room
             if (outer_room is not None and dest == outer_room.id
                     and not st.outer_room_entered):
                 st.outer_room_entered = True
@@ -1202,7 +1211,7 @@ class Game:
         the Tomb solves the angel-statue puzzle. Same-day physical access is still required
         (owner decision 2026-07-27). The flag is NOT a permanent carry-over.
         """
-        outer_room = next((r for r in self.outer_rooms if r.id in self.placed_ids), None)
+        outer_room = self.drafted_outer_room
         return (
             outer_room is not None
             and outer_room.unlocks_catacombs
@@ -1216,7 +1225,7 @@ class Game:
         (inside_outer_room is True), since Shelter is an outer room with a terminal.
         """
         if self.inside_outer_room:
-            outer_room = next((r for r in self.outer_rooms if r.id in self.placed_ids), None)
+            outer_room = self.drafted_outer_room
             return outer_room is not None and outer_room.disk_reader
         st = self.state
         if 0 <= st.pos < len(st.grid) and st.grid[st.pos] >= 0:

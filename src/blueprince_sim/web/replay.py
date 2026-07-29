@@ -89,6 +89,11 @@ def _frame(game: Game, action: dict | None, facing: str | None) -> dict:
         "doors": list(st.placed_doors),
         "pos": st.pos,
         "area": st.area,
+        # Today's drafted outer room id, or null before the outer draft.  Exactly
+        # one exists per day, so the Observatory collapses the eight outer-room
+        # anchors into a single slot named after this one.
+        "outer_room": (game.drafted_outer_room.id
+                       if game.drafted_outer_room is not None else None),
         "facing": facing,
         "resources": {
             "steps": st.steps, "gems": st.gems, "keys": st.keys,
