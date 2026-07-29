@@ -55,8 +55,8 @@ def _give_items(game: Game, *item_ids: str) -> None:
 
 
 def _set_trading_post_inner(game: Game) -> None:
-    """Fake the player being inside the Trading Post outer room (outer_loc=2)."""
-    game.state.outer_loc = 2
+    """Fake the player being inside the Trading Post outer room (area='trading_post')."""
+    game.state.area = "trading_post"
     game.placed_ids.add("trading_post")
 
 
@@ -202,7 +202,7 @@ def test_buy_sold_out_entry_masked_false():
 def test_trade_mask_empty_outside_trading_post():
     """Trade slots are all False when the player is not inside the Trading Post.
 
-    Trades are only offered at outer_loc==2 with trading_post placed.
+    Trades are only offered while standing inside a placed trading_post.
     """
     game = _game(GameConfig(starting_items=frozenset({"shovel"})), seed=0)
     mask = _mask(game)

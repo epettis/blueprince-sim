@@ -399,7 +399,7 @@ def test_insert_disk_is_offered_inside_the_shelter() -> None:
     """
     g = Game(GameConfig(outer_rooms_unlocked=True, special_items=True), seed=0)
     g.placed_ids.add("shelter")
-    g.state.outer_loc = 2  # standing inside the outer room
+    g.state.area = "shelter"  # standing inside the Shelter outer room
     si.grant(g.state, g.registry, "upgrade_disk_vault_304", source="test")
 
     assert g.can_insert_disk(), "engine must consider the Shelter a disk reader"

@@ -100,9 +100,9 @@ def test_can_insert_disk_true() -> None:
 def test_disk_reader_in_outer_room(registry: Registry) -> None:
     """disk_reader_here is True when the player is inside the Shelter outer room."""
     g = Game(GameConfig(outer_rooms_unlocked=True, special_items=True), seed=0)
-    # Simulate the player being inside the outer room
+    # Simulate the player being inside the outer room (area == "shelter")
     g.placed_ids.add("shelter")
-    g.state.outer_loc = 2
+    g.state.area = "shelter"
     assert g.disk_reader_here()
 
 
@@ -565,7 +565,7 @@ def _game_with_outer_room_placed(
     g = Game(GameConfig(outer_rooms_unlocked=True, special_items=False), seed=0)
     g.placed_ids.add(room_id)
     g.state.outer_room_drafted = True
-    g.state.outer_loc = 2 if entered else 1
+    g.state.area = room_id if entered else "west_path"
     g.state.outer_room_entered = entered
     return g
 

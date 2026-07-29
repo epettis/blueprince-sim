@@ -577,13 +577,13 @@ def test_no_offer_list_exceeds_eight_rows():
     sample = tradeables[:24]
     g = _game(GameConfig(starting_items=frozenset(sample),
                          outer_rooms_unlocked=True), seed=3)
-    # Place the trading_post outer room in placed_ids and set outer_loc == 2
+    # Place the trading_post outer room in placed_ids and stand inside it
     reg = g.registry
     tp_room = reg.by_id.get("trading_post")
     if tp_room is None:
         pytest.skip("trading_post room not in registry for this config")
     g.placed_ids.add("trading_post")
-    g.state.outer_loc = 2
+    g.state.area = "trading_post"  # simulate being inside the Trading Post outer room
     # phase is already NAVIGATE at this point (game starts in NAVIGATE)
     offers = g.trade_offers()
     assert len(offers) <= O.TRADE_OFFER_ROWS, (

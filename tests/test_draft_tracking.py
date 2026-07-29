@@ -53,9 +53,24 @@ def test_drafted_rooms_match_placements():
 
 
 def test_reset_clears_drafted_rooms():
-    """A new day starts with an empty drafted list even after a played episode."""
-    env, info = _rollout(seed=8)
-    assert info["drafted_rooms"]
+    """A new day starts with an empty drafted list even after a played episode.
+
+    Forces one draft via the greedy policy to guarantee a non-empty list before
+    the reset, rather than relying on the random rollout's action choice.
+    """
+    from blueprince_sim.cli.policies import POLICIES
+    from blueprince_sim.engine.game import Phase
+    import random
+    policy = POLICIES["frontier_greedy"]
+    env = make_env(GameConfig())
+    env.reset(seed=5)
+    rng = random.Random(5)
+    for _ in range(200):
+        if env.game.phase is Phase.TERMINAL:
+            break
+        policy(env.game, rng)
+    info = env.unwrapped._info()
+    assert info["drafted_rooms"], "greedy policy should draft at least one room"
     _, info = env.reset(seed=9)
     assert info["drafted_rooms"] == []
 

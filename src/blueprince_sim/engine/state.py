@@ -178,7 +178,9 @@ class GameState:
 
     pending: PendingDraft | None = None  # in-flight draft hand; None outside the drafting phase
     outer_room_drafted: bool = False  # today's single outer-room draft has been used
-    outer_loc: int = 0           # 0=on grid, 1=at doorstep, 2=inside outer room
+    # area-graph node id the player stands on, or None when on the 5x9 grid (pos is authoritative)
+    # Equivalences with the old outer_loc int: None=0, "west_path"=1, <outer_room_id>=2
+    area: str | None = None
     outer_room_entered: bool = False  # True once ON_ENTER has fired for today's outer room
     # chronological (item id, count) pickups this run, for CLI/replay reporting
     items_found_log: list[tuple[str, int]] = field(default_factory=list)

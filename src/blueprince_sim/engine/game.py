@@ -8,6 +8,7 @@ from heapq import heappop, heappush
 
 from ..config import GameConfig
 from . import effects, shops, special_items
+from .areas import GateContext, reachable
 from .decks import apply_upgrade, build_decks, inject_rooms
 from .draft import deal_draft, redeal
 from .effects import Hook
@@ -136,7 +137,7 @@ class Game:
         Cached values are shared between callers and must not be mutated.
         """
         st = self.state
-        fp = (st.pos, st.outer_loc, tuple(st.grid), tuple(st.placed_doors),
+        fp = (st.pos, st.area, tuple(st.grid), tuple(st.placed_doors),
               st.door_version, st.keys, self.security_openable())
         cached_fp, maps = self._map_cache
         if fp != cached_fp:
@@ -289,7 +290,7 @@ class Game:
         st = self.state
         if self.phase is not Phase.NAVIGATE:
             return []
-        if st.outer_loc > 0:
+        if self.off_grid:
             return []
         cell = st.pos
         if st.grid[cell] < 0 or cell == ANTECHAMBER_CELL:
@@ -307,7 +308,7 @@ class Game:
         Returns a cached list; treat it as read-only.
         """
         st = self.state
-        if st.outer_loc > 0:
+        if self.off_grid:
             return []
         maps = self._maps()
         cached = maps.get("frontier")
@@ -392,7 +393,7 @@ class Game:
     def can_toggle_keycard_power(self) -> bool:
         """Standing at the Utility Closet breaker box, on the grid, mid-day."""
         return (self.phase is Phase.NAVIGATE and self.cfg.door_locks
-                and self.state.outer_loc == 0
+                and not self.off_grid
                 and self.state.pos == self._utility_closet_cell() >= 0)
 
     def set_keycard_power(self, on: bool) -> None:
@@ -403,7 +404,7 @@ class Game:
     def can_set_security_level(self) -> bool:
         """Standing at the Security terminal, on the grid, mid-day."""
         return (self.phase is Phase.NAVIGATE and self.cfg.door_locks
-                and self.state.outer_loc == 0
+                and not self.off_grid
                 and self.state.pos == self.room_cells.get("security", -1) >= 0)
 
     def set_security_level(self, level: str) -> None:
@@ -583,6 +584,17 @@ class Game:
 
     # --------------------------------------------------------- outer rooms
 
+    @property
+    def off_grid(self) -> bool:
+        """True when the player is off the 5x9 grid (at the doorstep or inside an outer room)."""
+        return self.state.area is not None
+
+    @property
+    def inside_outer_room(self) -> bool:
+        """True when the player is physically inside today's drafted outer room."""
+        outer_room = next((r for r in self.outer_rooms if r.id in self.placed_ids), None)
+        return outer_room is not None and self.state.area == outer_room.id
+
     def _garage_cell(self) -> int:
         """Cell where the garage room (or a garage variant) is placed, or -1."""
         cells = [self.room_cells[rid] for rid in self._garage_ids
@@ -598,29 +610,176 @@ class Game:
         cell = self._utility_closet_cell()
         return cell >= 0 and self.state.entered[cell]
 
+    def _gate_ctx(self) -> GateContext:
+        """Build the GateContext for area-graph traversal from current game state.
+
+        Flags:
+          "west_gate_unlatched" -- cfg.outer_rooms_unlocked; this config field IS the
+              west gate (permanent across the whole save once unlatched).
+          "garage_door_breaker" -- Utility Closet placed and entered today (breaker on).
+          "mine_south_visited" -- NOT modelled; never added here.
+          "basement_sealed_entrance_return" -- NOT modelled; never added here.
+        """
+        st = self.state
+        flags: set[str] = set()
+        if self.cfg.outer_rooms_unlocked:
+            flags.add("west_gate_unlatched")
+        if self._breaker_on():
+            flags.add("garage_door_breaker")
+        # rooms_entered: grid cells entered today, plus the outer room if entered
+        entered_room_ids: set[str] = set()
+        for cell, was_entered in enumerate(st.entered):
+            if was_entered and st.grid[cell] >= 0:
+                entered_room_ids.add(self.registry.rooms[st.grid[cell]].id)
+        if st.outer_room_entered:
+            outer_room = next((r for r in self.outer_rooms if r.id in self.placed_ids), None)
+            if outer_room is not None:
+                entered_room_ids.add(outer_room.id)
+        # outer_room_id: the drafted outer room id (None if not drafted yet today)
+        outer_room_id: str | None = None
+        if st.outer_room_drafted:
+            outer_room = next((r for r in self.outer_rooms if r.id in self.placed_ids), None)
+            if outer_room is not None:
+                outer_room_id = outer_room.id
+        return GateContext(
+            held_items=st.inventory,
+            flags=frozenset(flags),
+            rooms_entered=frozenset(entered_room_ids),
+            outer_room_id=outer_room_id,
+        )
+
+    def _grid_anchors(self) -> dict[str, int]:
+        """Area node id -> grid cell for anchors currently reachable on the grid.
+
+        "house" maps to ENTRANCE_CELL always.
+        "garage" maps to the lowest garage cell only when the garage is placed.
+        "the_foundation" has pool="none" and is never placed — excluded.
+        """
+        anchors: dict[str, int] = {"house": ENTRANCE_CELL}
+        garage_cell = self._garage_cell()
+        if garage_cell >= 0:
+            anchors["garage"] = garage_cell
+        return anchors
+
+    def area_route_cost(self, dest: str) -> tuple[int, str] | None:
+        """Cheapest total step cost to reach area node ``dest``, and the departure anchor id.
+
+        On grid: runs BFS from each available anchor and picks the minimum of
+        ``grid_distance[anchor_cell] + area_steps[dest]``, skipping anchors
+        whose grid distance is -1 (unreachable). Tie-break: "house" first.
+        Off grid: BFS from ``state.area`` in the area graph.
+        Returns None when ``dest`` is unreachable.
+        The departure anchor id is "" when the player is already off-grid.
+        """
+        graph = self.registry.area_graph
+        ctx = self._gate_ctx()
+        if self.off_grid:
+            assert self.state.area is not None
+            dist = reachable(graph, self.state.area, ctx)
+            steps = dist.get(dest)
+            if steps is None:
+                return None
+            return (steps, "")
+        dist_grid = self.distance_map()
+        best_cost: int | None = None
+        best_anchor = ""
+        # Try "house" first so ties break to Entrance Hall
+        for anchor_id, anchor_cell in self._grid_anchors().items():
+            g_dist = dist_grid[anchor_cell]
+            if g_dist < 0:
+                continue
+            area_dist = reachable(graph, anchor_id, ctx)
+            a_dist = area_dist.get(dest)
+            if a_dist is None:
+                continue
+            cost = g_dist + a_dist
+            if best_cost is None or cost < best_cost:
+                best_cost = cost
+                best_anchor = anchor_id
+        if best_cost is None:
+            return None
+        return (best_cost, best_anchor)
+
+    def travel_to(self, dest: str) -> None:
+        """Pay steps and move the player to area-graph node ``dest``.
+
+        On grid: walk to the departure anchor cell first (using existing move_to
+        bookkeeping), then deduct the area-hop steps and set state.area.
+        If the walk ends the day, aborts without setting area (caller must check).
+        Off grid: deduct area-hop steps only.
+
+        Special case — grid anchors ("house", "garage"):
+        sets area=None and pos=<anchor cell>, then fires _enter() when the cell
+        has not been entered yet (preserves ON_ENTER effects for the Garage).
+
+        Special case — drafted outer room:
+        when arriving at the today's outer room for the first time, marks it
+        entered, fires ON_ENTER effects, rolls items, and runs special-item
+        on_enter hooks (mirrors what the old enter_outer_room wrapper did).
+        """
+        result = self.area_route_cost(dest)
+        assert result is not None, f"area node {dest!r} is not reachable"
+        _cost, anchor_id = result
+        st = self.state
+
+        if self.off_grid:
+            origin = st.area
+        else:
+            # Walk to the departure anchor first, on the grid and on the grid's budget.
+            anchor_cell = self._grid_anchors()[anchor_id]
+            if anchor_cell != st.pos:
+                self.move_to(anchor_cell)
+            if self.phase is not Phase.NAVIGATE:
+                return  # walk ended the day; caller must check phase
+            origin = anchor_id
+
+        # Recomputed after the walk, because move_to may have entered rooms and so
+        # changed the gate context.  Gates only ever OPEN as a day progresses (entering
+        # a room adds flags and rooms_entered, never removes them), so dest cannot have
+        # become unreachable in the meantime.  Assert instead of defaulting the distance
+        # to 0, which would silently make an impossible move free.
+        assert origin is not None
+        area_dist = reachable(self.registry.area_graph, origin, self._gate_ctx())
+        area_hop = area_dist.get(dest)
+        assert area_hop is not None, f"area node {dest!r} unreachable from {origin!r}"
+        st.steps -= area_hop
+
+        anchors = self._grid_anchors()
+        if dest in anchors:
+            # Destination is a grid anchor, so the player lands back on the grid.
+            dest_cell = anchors[dest]
+            st.area = None
+            st.pos = dest_cell
+            if not st.entered[dest_cell]:
+                self._enter(dest_cell)  # returning into a never-entered room fires ON_ENTER
+        else:
+            st.area = dest
+            # Fire ON_ENTER the first time the player enters the drafted outer room.
+            outer_room = next((r for r in self.outer_rooms if r.id in self.placed_ids), None)
+            if (outer_room is not None and dest == outer_room.id
+                    and not st.outer_room_entered):
+                st.outer_room_entered = True
+                effects.fire(self, outer_room, Hook.ON_ENTER)
+                roll_room_items(st, self.registry, outer_room, self.rng)
+                if self.cfg.special_items:
+                    # Outer rooms spawn special items too (Toolshed's Gear Wrench,
+                    # the Trading Post pool); -1 = off-grid, no cell hooks apply.
+                    special_items.on_enter(self, outer_room, -1)
+                    if outer_room.category == "shop":
+                        shops.on_enter_shop(self, outer_room)
+        self._check_termination()
+
     def _outer_route_cost(self) -> int | None:
-        """Cheapest available route cost to reach the outer-area doorstep.
+        """Cheapest available route cost to the outer-area doorstep ("west_path").
 
         Returns the step cost or None if no affordable route exists.
         Requires steps > cost (strict) so at least 1 step remains after arriving.
         """
-        st = self.state
-        dist = self.distance_map()
-        costs = []
-        # Entrance Hall route: always available if reachable
-        eh_dist = dist[ENTRANCE_CELL]
-        if eh_dist >= 0:
-            costs.append(eh_dist + self.cfg.outer_path_entrance_cost)
-        # Garage route: only if breaker on and garage placed and reachable
-        garage_cell = self._garage_cell()
-        if garage_cell >= 0 and self._breaker_on():
-            g_dist = dist[garage_cell]
-            if g_dist >= 0:
-                costs.append(g_dist + self.cfg.outer_path_garage_cost)
-        if not costs:
+        result = self.area_route_cost("west_path")
+        if result is None:
             return None
-        best = min(costs)
-        return best if st.steps > best else None
+        cost, _ = result
+        return cost if self.state.steps > cost else None
 
     def outer_draft_available(self) -> bool:
         """Can the once-per-day outer-room draft be started right now?
@@ -635,7 +794,7 @@ class Game:
             return False
         if self.phase is not Phase.NAVIGATE:
             return False
-        if self.state.outer_loc != 0:
+        if self.off_grid:
             return False
         return self._outer_route_cost() is not None
 
@@ -646,33 +805,10 @@ class Game:
         is shuffled and 3 are offered (wiki-documented mechanic).
         """
         assert self.outer_draft_available()
+        self.travel_to("west_path")
         st = self.state
-        dist = self.distance_map()
-
-        # Pick cheapest route (ties broken: EH first)
-        eh_cost = (dist[ENTRANCE_CELL] + self.cfg.outer_path_entrance_cost
-                   if dist[ENTRANCE_CELL] >= 0 else None)
-        garage_cell = self._garage_cell()
-        garage_cost = None
-        if garage_cell >= 0 and self._breaker_on() and dist[garage_cell] >= 0:
-            garage_cost = dist[garage_cell] + self.cfg.outer_path_garage_cost
-
-        if garage_cost is not None and (eh_cost is None or garage_cost < eh_cost):
-            access_cell = garage_cell
-            offgrid_cost = self.cfg.outer_path_garage_cost
-        else:
-            access_cell = ENTRANCE_CELL
-            offgrid_cost = self.cfg.outer_path_entrance_cost
-
-        # Walk to the access cell (same bookkeeping as draft_from / move_to)
-        if access_cell != st.pos:
-            self.move_to(access_cell)
         if self.phase is not Phase.NAVIGATE:
             return None  # walk ended the day
-
-        # Deduct the off-grid path cost (EH->doorstep or garage->doorstep)
-        st.steps -= offgrid_cost
-        st.outer_loc = 1
         if self.cfg.special_items:
             # The West Path chip sits at the doorstep (same walking cost as
             # the Outer Room door): carry-over grant or first-time dig.
@@ -709,61 +845,7 @@ class Game:
         st.pending = None
         self.phase = Phase.NAVIGATE
         effects.fire(self, room, Hook.ON_PLACE)
-        # Player stays at doorstep (outer_loc == 1); ON_ENTER fires when they enter.
-        self._check_termination()
-
-    def enter_outer_room(self) -> None:
-        """Enter the outer room from the doorstep (costs 1 step, fires ON_ENTER once)."""
-        st = self.state
-        assert self.phase is Phase.NAVIGATE
-        assert st.outer_loc == 1, "must be at doorstep to enter"
-        assert st.outer_room_drafted, "no outer room drafted today"
-        assert not st.outer_room_entered, "outer room already entered today"
-        assert st.steps >= self.cfg.outer_enter_cost, "not enough steps"
-        st.steps -= self.cfg.outer_enter_cost
-        st.outer_loc = 2
-        st.outer_room_entered = True
-        outer_room = next((r for r in self.outer_rooms if r.id in self.placed_ids), None)
-        if outer_room is not None:
-            effects.fire(self, outer_room, Hook.ON_ENTER)
-            roll_room_items(st, self.registry, outer_room, self.rng)
-            if self.cfg.special_items:
-                # Outer rooms spawn special items too (Toolshed's Gear Wrench,
-                # the Trading Post pool); -1 = off-grid, no cell hooks apply.
-                special_items.on_enter(self, outer_room, -1)
-                if outer_room.category == "shop":
-                    shops.on_enter_shop(self, outer_room)
-        self._check_termination()
-
-    def return_from_outer(self, dest: str) -> None:
-        """Walk back from the outer area to the grid.
-
-        dest: "entrance_hall" or "garage"
-        """
-        st = self.state
-        assert self.phase is Phase.NAVIGATE
-        assert st.outer_loc > 0, "not in outer area"
-        inside_penalty = 1 if st.outer_loc == 2 else 0
-
-        match dest:
-            case "entrance_hall":
-                cost = self.cfg.outer_path_entrance_cost + inside_penalty
-                dest_cell = ENTRANCE_CELL
-            case "garage":
-                assert self._breaker_on(), "garage route requires breaker"
-                cost = self.cfg.outer_path_garage_cost + inside_penalty
-                dest_cell = self._garage_cell()
-                assert dest_cell >= 0, "garage not placed"
-            case _:
-                raise ValueError(f"unknown dest: {dest}")
-
-        assert st.steps >= cost, "not enough steps"
-        st.steps -= cost
-        st.pos = dest_cell
-        st.outer_loc = 0
-        # If returning into a never-entered room, fire its first-entry effects
-        if not st.entered[dest_cell]:
-            self._enter(dest_cell)
+        # Player stays at the doorstep (area == "west_path"); ON_ENTER fires when they enter.
         self._check_termination()
 
     def choose(self, slot: int) -> None:
@@ -938,7 +1020,7 @@ class Game:
         st = self.state
         if self.phase is not Phase.NAVIGATE:
             return []
-        if st.outer_loc > 0:
+        if self.off_grid:
             return []
         out = []
         for d in DIRS:
@@ -1118,13 +1200,13 @@ class Game:
     def disk_reader_here(self) -> bool:
         """True when the player's current location has an Upgrade Disk terminal.
 
-        Checks both the grid room at the player's cell and the outer room when
-        the player is inside it (outer_loc == 2), since Shelter is an outer room.
+        Checks the grid room at the player's cell, or the outer room when inside it
+        (inside_outer_room is True), since Shelter is an outer room with a terminal.
         """
-        st = self.state
-        if st.outer_loc == 2:
+        if self.inside_outer_room:
             outer_room = next((r for r in self.outer_rooms if r.id in self.placed_ids), None)
             return outer_room is not None and outer_room.disk_reader
+        st = self.state
         if 0 <= st.pos < len(st.grid) and st.grid[st.pos] >= 0:
             return self.registry.rooms[st.grid[st.pos]].disk_reader
         return False
@@ -1214,7 +1296,7 @@ class Game:
             self._terminate("antechamber")
         elif st.steps <= 0:
             self._terminate("out_of_steps")
-        elif st.outer_loc > 0:
+        elif self.off_grid:
             # Off-grid: check if any outer-area action is affordable
             if not self._outer_action_in_budget():
                 self._terminate("out_of_steps")
@@ -1228,20 +1310,19 @@ class Game:
             self._terminate("out_of_steps")
 
     def _outer_action_in_budget(self) -> bool:
-        """True if any action is affordable while the player is off-grid."""
+        """True if any action is affordable while the player is off-grid.
+
+        Checks whether the player can travel to any reachable destination with
+        at least one step to spare on arrival (strict: steps > cost), using the
+        same affordability contract as the travel action mask.
+        """
         st = self.state
-        inside_penalty = 1 if st.outer_loc == 2 else 0
-        # Can enter (if at doorstep and outer room drafted but not entered)?
-        if st.outer_loc == 1 and st.outer_room_drafted and not st.outer_room_entered:
-            if st.steps >= self.cfg.outer_enter_cost:
-                return True
-        # Can return to EH?
-        if st.steps >= self.cfg.outer_path_entrance_cost + inside_penalty:
-            return True
-        # Can return via garage?
-        garage_cell = self._garage_cell()
-        if garage_cell >= 0 and self._breaker_on():
-            if st.steps >= self.cfg.outer_path_garage_cost + inside_penalty:
+        graph = self.registry.area_graph
+        for node_id in graph.nodes:
+            if node_id == st.area:
+                continue  # no self-travel
+            result = self.area_route_cost(node_id)
+            if result is not None and st.steps > result[0]:
                 return True
         return False
 

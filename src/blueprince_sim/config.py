@@ -17,11 +17,9 @@ class GameConfig:
     starting_steps: int = 50
     # --- permanent unlocks (the "enable various unlocks" toggles) ---
     studio_additions: frozenset[str] = frozenset()   # subset of the 8 studio-addition room ids
-    outer_rooms_unlocked: bool = False               # West Gate open: outer-room draft available
-    outer_path_entrance_cost: int = 2             # steps, user-verified: Entrance Hall <-> doorstep
-    # steps, user-verified: garage door <-> doorstep (breaker-gated)
-    outer_path_garage_cost: int = 1
-    outer_enter_cost: int = 1                 # steps, user-verified: doorstep <-> inside Outer Room
+    # True when the West Gate has been permanently unlatched (maps to the "west_gate_unlatched"
+    # flag in GateContext; this config field IS the gate — it is permanent across the whole save).
+    outer_rooms_unlocked: bool = False
     orchard_unlocked: bool = False                   # Apple Orchard: +20 starting steps (wiki)
     mine_unlocked: bool = False                      # Gemstone Cavern: +2 gems at day start (wiki)
     upgrade_disks: frozenset[str] = frozenset()      # applied variant room ids (e.g. "pool_hall__ix12")

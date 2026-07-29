@@ -504,7 +504,7 @@ def _maybe_serve_main_course(state, registry) -> None:
     from .grid import rank_of
     if not state.special.enabled or state.special.dining_room_served:
         return
-    if state.outer_loc != 0:
+    if state.area is not None:
         return
     room_idx = state.grid[state.pos]
     if room_idx < 0:

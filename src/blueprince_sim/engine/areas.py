@@ -24,6 +24,11 @@ class Area:
     name: str         # human-readable display name
     kind: str         # "area" (graph node) or "anchor" (on-grid/drafted room)
     surface: bool | None  # True = surface area; False = underground; None for anchors
+    # True once this area's contents are modelled and travelling there can pay off.
+    # Only modelled areas are offered as travel actions; the rest are still routed
+    # THROUGH by the pathfinder.  Flipping this to True is how a later PR switches an
+    # area on, and it is mask-only — the action space does not change, so no retrain.
+    modelled: bool
 
 
 @dataclass(frozen=True, slots=True)
@@ -57,14 +62,15 @@ class AreaGraph:
 
 @dataclass(frozen=True, slots=True)
 class GateContext:
-    """Everything gate_open needs to evaluate a gate.  Kept minimal for PR1.
+    """Everything gate_open needs to evaluate a gate.
 
-    PR2 will widen this as engine state becomes available; for now only flags
-    and held items are plumbed, which is enough to exercise the graph.
+    PR2 widens this with outer_room_id; flags and held items were added in PR1.
     """
     held_items: Mapping[str, int]    # special-item id -> count held by the player right now
     flags: frozenset[str]            # persistent boolean flags set during this run
     rooms_entered: frozenset[str]    # room ids entered today (e.g. "tomb" for catacombs gate)
+    # room id drawn as today's outer room; None until an outer-room draft happens
+    outer_room_id: str | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -94,6 +100,7 @@ def load_areas(raw: dict) -> AreaGraph:
             name=n["name"],
             kind=n["kind"],
             surface=n.get("surface", None),
+            modelled=n["modelled"],
         )
 
     gates: dict[str, Gate] = {}
@@ -134,11 +141,16 @@ def load_areas(raw: dict) -> AreaGraph:
 # ---------------------------------------------------------------------------
 
 
-def gate_open(graph: AreaGraph, gate_id: str, ctx: GateContext) -> bool:
+def gate_open(
+    graph: AreaGraph, gate_id: str, ctx: GateContext, *, dest: str | None = None
+) -> bool:
     """Return True if the named gate is passable in the given context.
 
     Dispatches on Gate.kind using match/case (repo convention for 4+ arm dispatch).
     Stub gates always pass — they represent deferred mechanisms; see stub_gates().
+
+    dest -- the destination node id of the edge being tested; required only for
+            kind="outer_room" gates (passed by _edge_passable from the adjacency entry).
     """
     gate = graph.gates[gate_id]
 
@@ -166,6 +178,11 @@ def gate_open(graph: AreaGraph, gate_id: str, ctx: GateContext) -> bool:
             # puzzle gate: sim doctrine — player solves every puzzle they enter
             return True
 
+        case "outer_room":
+            # outer_room gate: the edge's destination must be the room drawn as today's
+            # outer room.  dest is the to_id of the edge; outer_room_id is from context.
+            return dest is not None and ctx.outer_room_id is not None and dest == ctx.outer_room_id
+
         case "unmodelled":
             # unmodelled gate: mechanism deferred; stub=False shouldn't occur
             # (stub=True already returns True above), but be explicit.
@@ -180,9 +197,14 @@ def gate_open(graph: AreaGraph, gate_id: str, ctx: GateContext) -> bool:
 # ---------------------------------------------------------------------------
 
 
-def _edge_passable(graph: AreaGraph, requires: tuple[str, ...], ctx: GateContext) -> bool:
-    """Return True if all gates on this edge are open."""
-    return all(gate_open(graph, gid, ctx) for gid in requires)
+def _edge_passable(
+    graph: AreaGraph, requires: tuple[str, ...], ctx: GateContext, dest: str
+) -> bool:
+    """Return True if all gates on this edge are open.
+
+    dest -- the destination node id; forwarded to gate_open for outer_room gates.
+    """
+    return all(gate_open(graph, gid, ctx, dest=dest) for gid in requires)
 
 
 def reachable(graph: AreaGraph, origin: str, ctx: GateContext) -> dict[str, int]:
@@ -196,7 +218,7 @@ def reachable(graph: AreaGraph, origin: str, ctx: GateContext) -> dict[str, int]
     while queue:
         current = queue.popleft()
         for neighbour, requires in graph.adjacency.get(current, []):
-            if neighbour not in dist and _edge_passable(graph, requires, ctx):
+            if neighbour not in dist and _edge_passable(graph, requires, ctx, neighbour):
                 dist[neighbour] = dist[current] + 1
                 queue.append(neighbour)
     return dist
@@ -215,7 +237,7 @@ def path(graph: AreaGraph, origin: str, dest: str, ctx: GateContext) -> tuple[st
     while queue:
         current = queue.popleft()
         for neighbour, requires in graph.adjacency.get(current, []):
-            if neighbour not in parent and _edge_passable(graph, requires, ctx):
+            if neighbour not in parent and _edge_passable(graph, requires, ctx, neighbour):
                 parent[neighbour] = current
                 if neighbour == dest:
                     # Reconstruct path from dest back to origin.

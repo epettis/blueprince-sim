@@ -10,6 +10,7 @@ from ..engine.grid import DIRS, OPPOSITE, neighbor
 from ..engine.locks import DOOR_LOCKED, DOOR_SECURITY, SECURITY_LEVELS
 from ..engine.model import LAYOUTS
 from ..engine.shops import SCEPTER_COLORS, current_shop_id
+from .actions import _build_area_node_ids
 
 CATEGORIES = ("blueprint", "bedroom", "hallway", "green", "shop", "red",
               "blackprint", "studio_addition", "outer", "objective")
@@ -46,7 +47,8 @@ MAX_DISKS_HELD = 14
 SCEPTER_COLOR_INDEX = {c: i for i, c in enumerate(SCEPTER_COLORS)}
 
 
-def observation_space(n_rooms: int, n_items: int, n_recipes: int) -> spaces.Dict:
+def observation_space(n_rooms: int, n_items: int, n_recipes: int,
+                      n_area_nodes: int = 36) -> spaces.Dict:
     """Dict observation space over the 9x5 (rank-major) grid; see :func:`encode`.
 
     Room ids are shifted by +1 so 0 means "empty cell"; -1 is the sentinel for
@@ -54,6 +56,8 @@ def observation_space(n_rooms: int, n_items: int, n_recipes: int) -> spaces.Dict
 
     ``n_items`` is the number of special items in registry order (inventory
     vector length); ``n_recipes`` is the number of fabrication recipes.
+    ``n_area_nodes`` is the number of area-graph nodes (default 36); the actual
+    count is passed in from the registry so the space cannot drift from areas.json.
     """
     return spaces.Dict({
         "grid_room": spaces.Box(0, n_rooms, shape=(9, 5), dtype=np.int16),
@@ -70,6 +74,9 @@ def observation_space(n_rooms: int, n_items: int, n_recipes: int) -> spaces.Dict
         "grid_locked": spaces.Box(0, 15, shape=(9, 5), dtype=np.uint8),
         "grid_security": spaces.Box(0, 15, shape=(9, 5), dtype=np.uint8),
         "grid_entered": spaces.Box(0, 1, shape=(9, 5), dtype=np.uint8),
+        # player_pos: flat cell index on the 5x9 grid. Only meaningful when
+        # player_area == 0 (the player is on the grid). When player_area > 0
+        # the player is off-grid; player_pos holds the last grid cell visited.
         "player_pos": spaces.Discrete(45),
         "resources": spaces.Box(-1, 999, shape=(7,), dtype=np.int16),
         "options": spaces.Box(-1, max(n_rooms, 999), shape=(3, OPTION_FEATURES), dtype=np.int16),
@@ -84,8 +91,12 @@ def observation_space(n_rooms: int, n_items: int, n_recipes: int) -> spaces.Dict
         "stage": spaces.Discrete(3),
         "house_flags": spaces.Box(0, 999, shape=(HOUSE_FLAGS,), dtype=np.int16),
         # deepest_rank, optimistic player->Antechamber distance (-1 if walled
-        # off), Antechamber connected+walkable right now (0/1), outer_loc (0/1/2).
-        "progress": spaces.Box(-1, 999, shape=(4,), dtype=np.int16),
+        # off), Antechamber connected+walkable right now (0/1).
+        "progress": spaces.Box(-1, 999, shape=(3,), dtype=np.int16),
+        # player_area: 0 = on the 5x9 grid; 1 + area_index = off-grid at that
+        # node. The area_index uses the same sorted-by-id ordering as TRAVEL_BASE.
+        # When player_area == 0, player_pos is authoritative for location.
+        "player_area": spaces.Discrete(n_area_nodes + 1),
         # Special-item observation keys (PR3 additions).
         # count per special item (registry order, 0 = not held)
         "inventory": spaces.Box(0, 99, shape=(n_items,), dtype=np.int16),
@@ -271,8 +282,17 @@ def encode(game: Game) -> dict:
         game.deepest_rank,
         int(ante_flat[st.pos]),
         int(grid_dist[ANTECHAMBER_CELL // 5, ANTECHAMBER_CELL % 5] > 0),
-        st.outer_loc,
     ], dtype=np.int16)
+
+    # player_area: 0 = on the grid; 1 + area_index = off-grid at that node.
+    # Uses the same sorted ordering as TRAVEL_BASE so the agent can correlate
+    # the observation with the action family without a separate lookup.
+    node_ids = _build_area_node_ids(game.registry)
+    if st.area is None:
+        player_area = 0
+    else:
+        idx = node_ids.index(st.area) if st.area in node_ids else -1
+        player_area = (1 + idx) if idx >= 0 else 0
 
     # --- Special-item observation keys (PR3) ---
     registry = game.registry
@@ -375,6 +395,7 @@ def encode(game: Game) -> dict:
         "stage": STAGE_INDEX.get(st.stage, 2),
         "house_flags": house_flags,
         "progress": progress,
+        "player_area": player_area,
         "inventory": inventory,
         "item_state": item_state,
         "grid_dig": grid_dig,

@@ -335,12 +335,12 @@ def current_shop_id(game) -> str | None:
     """The shop room the player can currently buy from, or None.
 
     Standing in a grid shop room (NAVIGATE phase), or inside the drafted
-    outer shop (Trading Post/Toolshed etc., ``outer_loc == 2``). Task B."""
+    outer shop (Trading Post/Toolshed etc., ``game.inside_outer_room``). Task B."""
     from .game import Phase
     state = game.state
     if game.phase is not Phase.NAVIGATE:
         return None
-    if state.outer_loc == 0:
+    if not game.off_grid:
         # On-grid: check current cell
         cell = state.pos
         if state.grid[cell] < 0:
@@ -349,7 +349,7 @@ def current_shop_id(game) -> str | None:
         if room.category == "shop":
             return room.id
         return None
-    elif state.outer_loc == 2:
+    elif game.inside_outer_room:
         # Inside outer room
         outer_room = next(
             (r for r in game.outer_rooms if r.id in game.placed_ids), None
@@ -576,10 +576,9 @@ def buy(game, index: int) -> None:
 def _inside_trading_post(game) -> bool:
     """True when the player is currently inside the Trading Post outer room."""
     from .game import Phase
-    state = game.state
     if game.phase is not Phase.NAVIGATE:
         return False
-    if state.outer_loc != 2:
+    if not game.inside_outer_room:
         return False
     outer_room = next((r for r in game.outer_rooms if r.id in game.placed_ids), None)
     return outer_room is not None and outer_room.id == "trading_post"
@@ -809,7 +808,7 @@ def _inside_workshop(game) -> bool:
     state = game.state
     if game.phase is not Phase.NAVIGATE:
         return False
-    if state.outer_loc != 0:
+    if game.off_grid:
         return False
     cell = state.pos
     if state.grid[cell] < 0:
@@ -952,7 +951,7 @@ def can_smash_vase(game) -> bool:
         return False
     if game.state.shops.vase_smashed:
         return False
-    if game.state.outer_loc != 0:
+    if game.off_grid:
         return False
     # Must be standing in the Entrance Hall
     cell = game.state.pos
@@ -995,7 +994,7 @@ def can_use_repellent(game) -> bool:
     from .game import Phase
     return (
         game.phase is Phase.NAVIGATE
-        and game.state.outer_loc == 0
+        and not game.off_grid
         and si.has(game.state, "repellent")
     )
 

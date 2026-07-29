@@ -185,6 +185,10 @@ def main() -> int:
     # "die" is a resource token allowed in lost_and_found pool and fabrication
     si_resolvable = set(si_by_id) | {"die"}
 
+    # (where, area id) pairs from meta.absent_spawn_areas, checked against the area
+    # graph further down — areas.json is not loaded until the areas section below.
+    absent_area_refs: list[tuple[str, str]] = []
+
     for item in si_items:
         where = f"special_items/{item['id']}"
         if item.get("kind") not in VALID_ITEM_KINDS:
@@ -206,11 +210,18 @@ def main() -> int:
         for rid in item.get("guaranteed_in", []):
             if rid not in by_id:
                 errors.append(f"{where}: guaranteed_in references unknown room {rid!r}")
-        for rid in item.get("meta", {}).get("absent_spawn_rooms", []):
-            if rid in by_id:
+        # absent_spawn_areas names OFF-GRID areas an item comes from — places the
+        # sim models as area-graph nodes rather than draftable rooms.  Both
+        # directions are errors: a room id here belongs in spawn_rooms, and an id
+        # that is neither a room nor an area node is simply a typo.
+        for aid in item.get("meta", {}).get("absent_spawn_areas", []):
+            if aid in by_id:
                 errors.append(
-                    f"{where}: absent_spawn_rooms {rid!r} exists in rooms.json — move to spawn_rooms"
+                    f"{where}: absent_spawn_areas {aid!r} is a room in rooms.json "
+                    f"— move it to spawn_rooms"
                 )
+            else:
+                absent_area_refs.append((where, aid))
         if not item.get("implemented", True):
             if not item.get("meta", {}).get("blocked_on"):
                 errors.append(f"{where}: implemented=false requires meta.blocked_on")
@@ -670,7 +681,7 @@ def main() -> int:
     a_gates = areas_doc.get("gates", [])
 
     VALID_AREA_NODE_KINDS = {"area", "anchor"}
-    VALID_GATE_KINDS = {"item", "flag", "room", "puzzle", "unmodelled"}
+    VALID_GATE_KINDS = {"item", "flag", "room", "puzzle", "unmodelled", "outer_room"}
     VALID_PERMANENCE = {"permanent", "daily", "none"}
 
     # Node uniqueness
@@ -680,10 +691,26 @@ def main() -> int:
         errors.append(f"areas: duplicate node ids: {dupes}")
     a_node_id_set = set(a_node_ids)
 
+    # Deferred from the special-items loop: every absent_spawn_areas id must name a
+    # real area-graph node.  Before areas.json existed these ids were unvalidated in
+    # both directions, which is how 'reservoir' (the graph splits it north/south) and
+    # 'precipice' (the Key of Aries clock is in the Unknown) went unnoticed.
+    for where, aid in absent_area_refs:
+        if aid not in a_node_id_set:
+            errors.append(
+                f"{where}: absent_spawn_areas {aid!r} is neither a room in rooms.json "
+                f"nor a node in areas.json"
+            )
+
     for n in a_nodes:
         where = f"areas/nodes/{n['id']}"
         if n.get("kind") not in VALID_AREA_NODE_KINDS:
             errors.append(f"{where}: invalid kind {n.get('kind')!r}")
+        # Required, not defaulted: a new node must state whether its contents are
+        # modelled, because that decides whether the env offers a travel action to it.
+        # Silently defaulting would let an empty area be advertised as a destination.
+        if not isinstance(n.get("modelled"), bool):
+            errors.append(f"{where}: 'modelled' must be present and boolean")
         conf = n.get("meta", {}).get("confidence")
         if conf not in VALID_CONFIDENCE:
             errors.append(f"{where}: invalid meta.confidence {conf!r}")
@@ -731,8 +758,11 @@ def main() -> int:
         # stub invariants:
         # 1. A stub gate must carry retire_in (the only record of what retires it).
         # 2. kind=unmodelled implies stub=True; otherwise the edge goes dead silently.
+        # 3. retire_in must NOT be present on non-stub gates.
         if g.get("stub") is True and not g.get("retire_in"):
             errors.append(f"{where}: stub=true gate missing retire_in field")
+        if g.get("stub") is False and g.get("retire_in"):
+            errors.append(f"{where}: stub=false gate must not have retire_in field")
         if g.get("kind") == "unmodelled" and g.get("stub") is not True:
             errors.append(f"{where}: kind=unmodelled gate must have stub=true")
 
@@ -741,6 +771,13 @@ def main() -> int:
     if len(a_edge_pairs) != len(set(a_edge_pairs)):
         dupes = {p for p in a_edge_pairs if a_edge_pairs.count(p) > 1}
         errors.append(f"areas: duplicate edges: {dupes}")
+
+    # Build a lookup: node id -> node dict (for kind and outer-pool checks below)
+    a_node_by_id = {n["id"]: n for n in a_nodes}
+    # Set of room ids with pool == "outer" from rooms.json (used for outer_room gate check)
+    outer_room_ids = {r["id"] for r in rooms if r.get("pool") == "outer"}
+    # Gate kind lookup for edge-level checks
+    a_gate_by_id = {g["id"]: g for g in a_gates}
 
     gates_used: set[str] = set()
     for e in a_edges:
@@ -755,6 +792,20 @@ def main() -> int:
         for gid in e.get("requires", []):
             if gid not in a_gate_id_set:
                 errors.append(f"{where}: requires unknown gate {gid!r}")
+            else:
+                # outer_room gates: the destination node must be an anchor with pool=="outer"
+                if a_gate_by_id[gid].get("kind") == "outer_room":
+                    to_node = a_node_by_id.get(e["to"], {})
+                    if to_node.get("kind") != "anchor":
+                        errors.append(
+                            f"{where}: outer_room gate requires destination to be an anchor node "
+                            f"(got kind={to_node.get('kind')!r})"
+                        )
+                    elif e["to"] not in outer_room_ids:
+                        errors.append(
+                            f"{where}: outer_room gate destination {e['to']!r} "
+                            f"is not a room with pool='outer' in rooms.json"
+                        )
             gates_used.add(gid)
 
     # Warn on declared gates that no edge references (likely a stale or orphaned gate).
@@ -762,16 +813,16 @@ def main() -> int:
         if gid not in gates_used:
             warnings.append(f"areas/gates/{gid}: gate declared but not referenced by any edge")
 
-    # Node and edge count consistency: docs/areas.md specifies 31 nodes (25 area + 6 anchors)
-    # and 63 directed edges. A mismatch means the data and spec have drifted.
-    SPEC_NODE_COUNT = 31
-    SPEC_EDGE_COUNT = 63
+    # Node and edge count consistency: docs/areas.md specifies 36 nodes (25 area + 11 anchors)
+    # and 73 directed edges. A mismatch means the data and spec have drifted.
+    SPEC_NODE_COUNT = 36
+    SPEC_EDGE_COUNT = 73
     actual_node_count = len(a_node_ids)
     actual_edge_count = len(a_edges)
     if actual_node_count != SPEC_NODE_COUNT:
         errors.append(
             f"areas: node count is {actual_node_count}, spec says {SPEC_NODE_COUNT} "
-            f"(25 area nodes + 6 anchors); update docs/areas.md if the graph has changed"
+            f"(25 area nodes + 11 anchors); update docs/areas.md if the graph has changed"
         )
     if actual_edge_count != SPEC_EDGE_COUNT:
         errors.append(
