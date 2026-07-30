@@ -912,9 +912,8 @@ def on_doorstep(game) -> None:
         return
 
     # First-time discovery: auto-dig if holding any digging tool.
-    # Reuse dig_all's tool detection logic (same _DIG_PRIORITY as dig_all).
-    _DIG_PRIORITY = ("jack_hammer", "detector_shovel", "shovel")
-    has_dig_tool = any(si.has(state, tool_id) for tool_id in _DIG_PRIORITY)
+    # Reuse dig_all's tool detection logic (same priority order as dig_all).
+    has_dig_tool = any(si.has(state, tool_id) for tool_id in si.DIG_PRIORITY)
     if has_dig_tool and not state.shops.chip_dug:
         si.grant(state, registry, "microchip", source="doorstep_dig")
         state.shops.chip_dug = True
@@ -979,7 +978,7 @@ def smash_vase(game) -> None:
 _REPELLENT_ILLEGAL_TARGETS = frozenset({"entrance_hall", "antechamber", "room_46"})
 
 # Maximum number of simultaneously active Repellent bans (wiki: max 3).
-_REPELLENT_MAX_BANS = 3
+REPELLENT_MAX_BANS = 3
 
 # Days a Repellent ban lasts (wiki: 7 days).
 _REPELLENT_BAN_DAYS = 7

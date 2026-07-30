@@ -1,14 +1,13 @@
 # Special items — design
 
-Scope of this document: the special-item system landing across three PRs.
-Source data: `docs/research/special-items-wiki.md`. Modeling status: PR1 (this branch)
-makes every item exist, spawn, and — where its target system exists — function.
-PR2 adds commerce (shop purchases, Trading Post trades, Workshop fabrication),
-carry-over unlock flags' actions (Royal Scepter activation, vase/dig microchips,
-item-use actions like Repellent), PR3 wires observation/action space.
+Scope of this document: the special-item system, delivered across PRs #17–#20.
+Source data: `docs/research/special-items-wiki.md`. Status: implemented — items
+exist and spawn, commerce works (shop purchases, Trading Post trades, Workshop
+fabrication), item-use actions work (Royal Scepter, Repellent), and the
+observation/action space is wired. `microchip` remains inert
+(`implemented: false`, `blocked_on: outer_areas_not_modeled`).
 
-**PR3 observability requirements** (nothing item-related is observable today —
-`env/obs.py` encodes no inventory):
+**Observability requirements** (delivered; `env/obs.py` now encodes all of these):
 - inventory vector (per-item held flags/counts, indexed by registry order);
 - the Treasure Map X cell once a map has been read (`special.treasure_cell` — as a
   grid plane or cell index feature) plus `treasure_dug`;
@@ -223,7 +222,7 @@ of other stolen items).
 ### Lost & Found room
 
 The room already exists in rooms.json (`lost_and_found`, studio_addition pool,
-unusual) — contrary to the stale CLAUDE.md note about seven absent rooms. PR1 adds
+unusual). PR1 adds
 its entry effect: tag `lost_and_found` on the room record (in rooms.json AND the
 ingest_sheet.py effect-overrides map, so re-ingest keeps it), delegating to
 `special_items.lost_and_found_on_enter`: steal one uniformly random held special item
@@ -324,8 +323,8 @@ duck-typed `game`). game.py gains thin action methods; env untouched until PR3.
   consumed special items never stock; the Showroom picks 2 from tier_a + 2 from
   tier_b avoiding owned, and shows the Trophy once all four displayed items are
   bought.
-- **buy(index)**: player must stand in the shop room (or be inside the Trading Post,
-  `outer_loc == 2`). Coins spent; Coupon Book applies −1 per purchase (reduction,
+- **buy(index)**: player must stand in the shop room (or be inside the Trading Post
+  — `shops._inside_trading_post`). Coins spent; Coupon Book applies −1 per purchase (reduction,
   not refund — an item priced 1 above your gold is buyable); sale days halve prices
   rounded up.
 - **Electromagnet Locksmith robbery** (`locksmith_rob`): on first entry to the
@@ -370,7 +369,7 @@ duck-typed `game`). game.py gains thin action methods; env untouched until PR3.
 - **Microchips**: `smash_vase()` (standing in the Entrance Hall with a Sledge
   Hammer, once) grants a `microchip` and records the vase discovery; with
   `entrance_vase_broken` the chip is instead granted at day start. West Path chip:
-  with `outer_chip_dug`, granted on reaching the doorstep (`outer_loc` 1 — same
+  with `outer_chip_dug`, granted on reaching the doorstep (`state.area == "west_path"` — same
   walking cost as the Outer Room door, per the game); the first-time dig happens
   automatically at the doorstep while holding a digging tool, recording the
   discovery. Chip holders/placement are not modeled (outer areas out of scope) —

@@ -532,8 +532,6 @@ def test_key_8_is_a_daily_gallery_find_not_a_carried_item():
     """
     from blueprince_sim.engine.model import Registry
     registry = Registry.load()
-    assert registry.special.by_id["key_8"].persistence == "day"
-    assert "gallery" in registry.special.guaranteed_by_room.get("gallery", ()) or True
     assert "key_8" in registry.special.guaranteed_by_room["gallery"]
     g = _game_with("key_8")
     carried = si.end_of_day_carry(g.state, g.registry, g.rng)

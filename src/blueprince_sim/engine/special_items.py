@@ -27,6 +27,9 @@ from .model import Effect
 KINDS = ("standard", "special_key", "contraption", "showroom", "armory", "unique")
 PERSISTENCE = ("day", "until_used", "permanent")
 
+# Dig-tool priority: better tables win; shared with shops.py (imported from there).
+DIG_PRIORITY: tuple[str, ...] = ("jack_hammer", "detector_shovel", "shovel")
+
 # Items the generic SPAWN pipeline must never touch: the Keycard is owned by
 # engine/locks.py (state.has_keycard), kept there so the security door system
 # stays self-contained. The Lost & Found can still steal it (it special-cases
@@ -1122,10 +1125,9 @@ def dig_all(game, cell: int) -> None:
     registry = game.registry
 
     # Find the best dig tool held (hardcoded priority: better tables win)
-    _DIG_PRIORITY = ("jack_hammer", "detector_shovel", "shovel")
     tool_item = None
     table_name = None
-    for tool_id in _DIG_PRIORITY:
+    for tool_id in DIG_PRIORITY:
         if has(state, tool_id):
             item = registry.special.by_id.get(tool_id)
             if item is not None:
@@ -1737,7 +1739,9 @@ def install_lever(game) -> None:
     Consumes the broken_lever (consumed=True so it doesn't re-spawn today).
     Records the room id in machines_used to prevent a second install.
     Dispatches effects:
-    - antechamber_lever: unlock the Antechamber north doorway (segment (37, N))
+    - antechamber_lever: unlock the Antechamber south doorway (cell 37's north side,
+      segment (37, N)); the wiki calls this the "south Antechamber door" because it
+      connects rank-8 center (cell 37) to the Antechamber (cell 42) from below
     - slot_bonus: grant the casino loot from machines.casino.grants
     """
     state = game.state

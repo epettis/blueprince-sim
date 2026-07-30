@@ -309,9 +309,9 @@ nodes, so **pick a different name** (`disk_reader`, say) to avoid collision.
 Suggest a room `flags` entry alongside `no_library_draft` / `powered` / `duct`,
 mirrored into `tools/ingest_sheet.py` so a re-ingest does not revert it.
 
-Note `shelter` has `pool: outer` — it sits in the outer-room abstraction rather
-than on the 5x9 grid, so "standing in it" needs checking against `outer_loc`
-rather than a cell. Verify before implementing.
+Note `shelter` has `pool: outer` — it sits off the 5x9 grid, so "standing in it"
+is checked via `game.inside_outer_room` / `game.disk_reader_here()` rather than
+by cell.
 
 ## Resolved calls
 

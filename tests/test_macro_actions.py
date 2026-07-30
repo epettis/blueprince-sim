@@ -143,18 +143,26 @@ def test_draft_from_aborts_when_walk_ends_the_day():
 
 def test_stranded_when_frontier_out_of_budget():
     """The day ends out_of_steps once no frontier doorway fits the remaining
-    step budget (walk there plus one step to spare)."""
-    g = _fresh_game(seed=5)
-    cell, d = _first_frontier(g)
-    _draft_and_place(g, cell, d)
-    g.move(d)  # enter the new room: nothing unentered remains behind us
-    if g.phase is Phase.TERMINAL:
-        return
-    # Any remaining frontier doors need at least a one-step walk plus one
-    # spare; with a single step nothing purposeful fits the budget.
+    step budget (walk there plus one step to spare).
+
+    State is constructed deterministically: the player moves into a dead-end room
+    (Closet, slot 1) adjacent to the Entrance Hall, leaving all other frontier doors
+    at distance >= 1 from the current position.  With steps=1, no frontier cell is
+    reachable within budget (dist[cell] <= steps - 1 == 0 requires cell == pos,
+    but the Closet has no undrafted doors), so _check_termination must fire.
+    """
+    g = _fresh_game(seed=0)
+    pos = g.state.pos
+    # Draft the Closet (slot 1) northward; it is a dead-end with no frontier doors.
+    g.draft_from(pos, N)
+    g.choose(1)  # slot 1 = Closet (confirmed by test setup: seed=0)
+    g.move(N)
+    # Verify the invariant the test relies on: no frontier door at current pos.
+    assert not any(c == g.state.pos for c, _ in g.frontier_doorways()), (
+        "setup error: Closet should have no undrafted doors"
+    )
+    # With 1 step left, all frontier doors (at distance >= 1) are out of budget.
     g.state.steps = 1
-    if any(c == g.state.pos for c, _ in g.frontier_doorways()):
-        return  # current room still has a door: drafting here is in budget
     g._check_termination()
     assert g.phase is Phase.TERMINAL
     assert g.termination_reason == "out_of_steps"

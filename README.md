@@ -106,6 +106,10 @@ functions in [docs/rewards.md](docs/rewards.md).
 | `data/priority_draws.json` | sheet constants block + wiki.gg Drafting/Advanced | datamined / wiki |
 | `data/items.json` | wiki.gg Luck page; extra-item distribution is an estimate | wiki / inferred |
 | `data/locks.json` | TFMurphy's lock/security datamine (reddit `1lfxyex`) via wiki.gg Doors; keycard find chance is an estimate | datamined / inferred |
+| `data/special_items.json` | wiki.gg item pages, collated in `docs/research/special-items-wiki.md`; some spawn rates are estimates | wiki / inferred |
+| `data/shops.json` | wiki.gg shop pages (stock tables, prices) and the Trading Post trade tiers | wiki |
+| `data/upgrade_selection.json` | wiki.gg Upgrade Disk page, Patch-1.7 selection tables — see [docs/upgrade-disks-design.md](docs/upgrade-disks-design.md) | wiki |
+| `data/areas.json` | owner-reviewed off-grid map (36 nodes, 73 edges) — see [docs/areas.md](docs/areas.md); deferred gates are open stubs flagged `stub: true` | wiki / inferred |
 
 Every record carries `meta.source` and `meta.confidence`
 (`datamined > wiki > inferred > placeholder`). To correct a value, edit the
@@ -142,14 +146,16 @@ data JSON (or regenerate: `python tools/ingest_sheet.py`, which rebuilds
 - **Orientation weights and redraws**: the unpublished North/Compass weight
   columns and the whole-hand redraw approximation are noted in
   [docs/drafting.md](docs/drafting.md). The Compass and Ornate Compass are
-  modeled as per-run flags rather than held items.
+  activated either by a per-run config flag (`cfg.compass` / `cfg.ornate_compass`)
+  or by holding the item in-run (`special_items.compass_active`).
 - **Luck curve** between 10 and 29 is linear (shape not documented); the
   extra-item type distribution is an estimate — see
   [docs/luck.md](docs/luck.md).
-- Rooms whose systems are out of scope (shop menus, dig spots/tools, Vault
-  contents, cross-day "Tomorrow" effects, dartboard/parlor puzzles) have
-  their draft presence and costs modeled but their effects reduced or
-  no-op'd; see `meta.effect_text` in `rooms.json` for what the real room does.
+- Rooms whose systems are out of scope (cross-day "Tomorrow" effects,
+  dartboard/parlor puzzles, the Casino minigames) have their draft presence and
+  costs modeled but their effects reduced or no-op'd; see `meta.effect_text` in
+  `rooms.json` for what the real room does. Shop menus, dig spots/tools and
+  Vault deposit boxes were once on this list and are now modeled.
 - Red-room rarities/layouts and a few studio-addition costs are estimates
   (their wiki table is bot-blocked); marked `inferred` in data.
 - **Upgrade Disks**: the selection tables are post-Patch-1.7 while the draft

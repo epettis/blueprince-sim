@@ -20,6 +20,7 @@ draft options, and the game phase - with invalid actions masked.
 from __future__ import annotations
 
 import argparse
+import functools
 import json
 import os
 import random
@@ -31,13 +32,52 @@ from collections import Counter, deque
 from pathlib import Path
 
 from ..config import GameConfig
+from ..engine.model import Registry
 from . import dashboard
 from .dashboard import emit
 
-ALL_STUDIO_ADDITIONS = frozenset({
-    "solarium", "classroom", "dovecote", "the_kennel",
-    "clock_tower", "dormitory", "vestibule", "casino",
+# Studio-addition rooms whose special behaviour is NOT yet modelled in the engine;
+# excluded from training so the agent never sees rooms that do nothing meaningful.
+# Promote a room from this set once its behaviour is implemented.
+# Each entry carries the open-task reference that blocked it.
+_STUDIO_ADDITION_EXCLUSIONS: frozenset[str] = frozenset({
+    # Mechanarium: gated arms mechanic unmodelled (open task: Mechanarium gated arms).
+    "mechanarium",
+    # Planetarium: Telescope planet mechanic unmodelled (open task: Planetarium planets).
+    "planetarium",
+    # Treasure Trove: black-box reward mechanic unmodelled (open task: Treasure Trove black box).
+    "treasure_trove",
+    # Closed Exhibit: security puzzle (Paper Crown pickup simplified to guaranteed) — excluded
+    # because the intended locked-puzzle behaviour is unmodelled (open task: Closed Exhibit puzzle).
+    "closed_exhibit",
+    # Throne Room: no special behaviour implemented; open task: Throne Room.
+    "throne_room",
+    # NOTE: casino IS included below even though its slot-machine games are unmodelled.
+    # Removing it would change training behaviour beyond this fix's intent; the inconsistency
+    # is acknowledged here.  Promote this note once Casino games are implemented.
 })
+
+@functools.cache
+def all_studio_additions() -> frozenset[str]:
+    """Studio-addition room ids whose behaviour is modelled, derived from the registry.
+
+    Derived rather than hand-listed so a newly-added ``studio_addition`` room is
+    either picked up automatically or flagged by
+    ``test_studio_additions_all_accounted_for``. It can then never be silently
+    dropped from training, which is exactly how ``lost_and_found`` ended up
+    implemented but disabled.
+
+    Two inclusions worth naming: ``lost_and_found`` (steal/gift behaviour in
+    ``special_items.py``) and ``tunnel`` (chain-draft mechanic in ``draft.py``)
+    are both implemented despite having been absent from the old hand-written set.
+
+    Lazy and cached deliberately: deriving this at import time would make merely
+    importing this module read the data files, and ``web/replay.py`` imports it.
+    """
+    return frozenset(
+        r.id for r in Registry.load().rooms
+        if r.pool == "studio_addition"
+    ) - _STUDIO_ADDITION_EXCLUSIONS
 
 STOP = threading.Event()
 
@@ -54,7 +94,7 @@ def all_unlocks_config(reward: str = "shaped") -> GameConfig:
         orchard_unlocked=True,         # +20 starting steps
         mine_unlocked=True,            # +2 gems at day start
         west_gate_unlatched=True,      # Grounds<->West Path shortcut open
-        studio_additions=ALL_STUDIO_ADDITIONS,
+        studio_additions=all_studio_additions(),
         upgrade_disks=frozenset(),     # explicitly: no room upgrades
         reward=reward,
     )
@@ -278,27 +318,44 @@ class UpgradeLogger:
             f.write(json.dumps(record) + "\n")
 
 
-class DraftStatsWriter:
-    """Aggregates each episode's drafted-room names into fixed episode buckets.
+class BucketStatsWriter:
+    """Aggregates per-episode counters into fixed episode buckets and writes JSONL.
 
-    Appends one JSON line per bucket to ``draft_stats.jsonl``: total drafts
-    per room name (``drafts``) and the number of episodes - seeds - that
-    drafted the room at least once (``seeds_with``). A partial bucket
-    (graceful stop, or the remainder after a resume) is written with its true
-    ``seeds`` count; readers merge rows by ``bucket_start``.
+    Each bucket writes one JSON line with these keys (in order):
+    ``bucket_start``, ``bucket_end``, ``seeds``, ``<count_key>``, ``seeds_with``,
+    ``saved_at``.  A partial bucket (graceful stop or resume remainder) is written
+    with its true ``seeds`` count; readers merge rows by ``bucket_start``.
+
+    Parameters
+    ----------
+    path:
+        Output ``.jsonl`` file path.
+    info_key:
+        Key in the episode ``info`` dict that carries the per-episode list of names
+        (e.g. ``"drafted_rooms"`` or ``"visited_areas"``).
+    count_key:
+        Key used for the aggregated Counter in the JSONL record
+        (e.g. ``"drafts"`` or ``"visits"``).
+    episodes_done:
+        Completed-episode count at construction (for resume support).
+    bucket:
+        Episodes per bucket (default 10 000).
     """
 
-    def __init__(self, path: Path, episodes_done: int, bucket: int = 10_000) -> None:
+    def __init__(self, path: Path, info_key: str, count_key: str,
+                 episodes_done: int, bucket: int = 10_000) -> None:
         self.path = path
+        self._info_key = info_key
+        self._count_key = count_key
         self.bucket = bucket
         self._idx = episodes_done // bucket
         self._seeds = 0
-        self._drafts: Counter[str] = Counter()
+        self._counts: Counter[str] = Counter()
         self._seeds_with: Counter[str] = Counter()
 
     def on_episode_end(self, episode: int, info: dict) -> None:
-        """Fold one finished episode's ``drafted_rooms`` into the current bucket."""
-        names = info.get("drafted_rooms")
+        """Fold one finished episode's names into the current bucket."""
+        names = info.get(self._info_key)
         if names is None:
             return
         idx = (episode - 1) // self.bucket
@@ -306,7 +363,7 @@ class DraftStatsWriter:
             self.flush()
             self._idx = idx
         self._seeds += 1
-        self._drafts.update(names)
+        self._counts.update(names)
         self._seeds_with.update(set(names))
 
     def flush(self) -> None:
@@ -316,7 +373,7 @@ class DraftStatsWriter:
                 "bucket_start": self._idx * self.bucket,
                 "bucket_end": (self._idx + 1) * self.bucket,
                 "seeds": self._seeds,
-                "drafts": dict(self._drafts),
+                self._count_key: dict(self._counts),
                 "seeds_with": dict(self._seeds_with),
                 "saved_at": time.strftime("%Y-%m-%dT%H:%M:%S"),
             }
@@ -324,57 +381,20 @@ class DraftStatsWriter:
             with self.path.open("a") as f:
                 f.write(json.dumps(rec) + "\n")
         self._seeds = 0
-        self._drafts.clear()
+        self._counts.clear()
         self._seeds_with.clear()
 
 
-class AreaStatsWriter:
-    """Aggregates each episode's visited area ids into fixed episode buckets.
+def DraftStatsWriter(path: Path, episodes_done: int, bucket: int = 10_000) -> BucketStatsWriter:
+    """Construct a BucketStatsWriter for drafted-room stats (draft_stats.jsonl)."""
+    return BucketStatsWriter(path, info_key="drafted_rooms", count_key="drafts",
+                             episodes_done=episodes_done, bucket=bucket)
 
-    Mirrors DraftStatsWriter exactly, writing area_stats.jsonl: per bucket,
-    ``visits`` (total visits per area id) and ``seeds_with`` (episodes that
-    visited the area at least once), plus the same ``bucket_start`` / ``seeds``
-    fields and partial-bucket behaviour. Readers merge rows by ``bucket_start``.
-    """
 
-    def __init__(self, path: Path, episodes_done: int, bucket: int = 10_000) -> None:
-        self.path = path
-        self.bucket = bucket
-        self._idx = episodes_done // bucket
-        self._seeds = 0
-        self._visits: Counter[str] = Counter()
-        self._seeds_with: Counter[str] = Counter()
-
-    def on_episode_end(self, episode: int, info: dict) -> None:
-        """Fold one finished episode's ``visited_areas`` into the current bucket."""
-        areas = info.get("visited_areas")
-        if areas is None:
-            return
-        idx = (episode - 1) // self.bucket
-        if idx != self._idx:
-            self.flush()
-            self._idx = idx
-        self._seeds += 1
-        self._visits.update(areas)
-        self._seeds_with.update(set(areas))
-
-    def flush(self) -> None:
-        """Write the current bucket's counts, if any (also called at shutdown)."""
-        if self._seeds:
-            rec = {
-                "bucket_start": self._idx * self.bucket,
-                "bucket_end": (self._idx + 1) * self.bucket,
-                "seeds": self._seeds,
-                "visits": dict(self._visits),
-                "seeds_with": dict(self._seeds_with),
-                "saved_at": time.strftime("%Y-%m-%dT%H:%M:%S"),
-            }
-            self.path.parent.mkdir(parents=True, exist_ok=True)
-            with self.path.open("a") as f:
-                f.write(json.dumps(rec) + "\n")
-        self._seeds = 0
-        self._visits.clear()
-        self._seeds_with.clear()
+def AreaStatsWriter(path: Path, episodes_done: int, bucket: int = 10_000) -> BucketStatsWriter:
+    """Construct a BucketStatsWriter for visited-area stats (area_stats.jsonl)."""
+    return BucketStatsWriter(path, info_key="visited_areas", count_key="visits",
+                             episodes_done=episodes_done, bucket=bucket)
 
 
 class CheckpointAndStopCallback:

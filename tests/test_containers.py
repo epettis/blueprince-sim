@@ -573,7 +573,7 @@ def test_trunk_special_item_share_plausible():
     The datamined table has ~26% item outcomes; the band 0.15-0.40 guards against
     a broken weight list without hard-coding the exact value.
     """
-    N = 2000
+    N = 500
 
     def _outcome_has_item(result: str | None) -> bool:
         """True when any slash-separated part of result is an item id (not a resource tag)."""

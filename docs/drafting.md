@@ -60,10 +60,10 @@ A candidate room must be placeable behind the opened doorway
 A floorplan with several legal orientations is rolled with datamined,
 south-door-biased weights that drift by day — e.g. a T needing a south door
 rolls 70/15/15 early, 60/20/20 late (`engine/rotation.py`). The **Compass**
-(`cfg.compass`) flips the bias toward north doors. Free rotation to any
-legal orientation is granted by the **Ornate Compass** (`cfg.ornate_compass`,
-every draft), the **Rotunda** (while placed), and the **Dovecote** (while
-drawn).
+(`cfg.compass`, or the held Compass item — see `special_items.compass_active`)
+flips the bias toward north doors. Free rotation to any legal orientation is
+granted by the **Ornate Compass** (`cfg.ornate_compass` or the held item, every
+draft), the **Rotunda** (while placed), and the **Dovecote** (while drawn).
 
 Known gap: orientation weights are datamined for the South, West and East
 connecting-door cases; the North case uses the published near-uniform

@@ -22,6 +22,7 @@ from __future__ import annotations
 import dataclasses
 
 from ..config import GameConfig
+from ..engine.shops import REPELLENT_MAX_BANS  # single authoritative definition
 
 # Keys that ``Game.carryover()`` can return and that map 1-to-1 onto
 # ``GameConfig`` bool fields.  Keeping this list explicit (rather than
@@ -34,9 +35,6 @@ _CARRYOVER_KEYS: frozenset[str] = frozenset({
     "royal_scepter_found",
     "west_gate_unlatched",   # set on first west_path arrival; opens Grounds shortcut
 })
-
-# Maximum active Repellent bans allowed simultaneously (wiki: 3).
-_REPELLENT_MAX_BANS = 3
 
 
 class DayChain:
@@ -217,7 +215,7 @@ class DayChain:
 
         # Enforce the 3-ban cap: evict oldest bans until at most 3 active
         active = [rid for rid in self._ban_order if rid in self.repellent_bans]
-        while len(active) > _REPELLENT_MAX_BANS:
+        while len(active) > REPELLENT_MAX_BANS:
             oldest = active.pop(0)
             del self.repellent_bans[oldest]
         self._ban_order = active

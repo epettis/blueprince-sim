@@ -288,7 +288,7 @@ the gate, is the constraint.
 
 ## Open decisions
 
-- **Disk supply** — leave at 7, or model more of the 16? Seven of the nine gaps
-  are in already-dealing rooms, so this is mostly a data change.
+- **Disk supply** — RESOLVED: 14 of the 16 are modelled. The two that remain,
+  The Foundation and the Abandoned Mine, are off-grid.
 - **A/B scope** — all 16 upgrades per eval, or a watchlist of Orinda plus
   controls with an occasional full sweep? The watchlist is recommended.

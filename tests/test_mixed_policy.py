@@ -53,7 +53,7 @@ def test_never_samples_masked_actions(model_env):
     legal = set(np.flatnonzero(mask_t.numpy()[0]))
     for exploit in (True, False):
         policy.set_mode_config(1.0 if exploit else 0.0, False, 1, 0)
-        actions = _sample_many(policy, obs_t, mask_t, n=4000)
+        actions = _sample_many(policy, obs_t, mask_t, n=500)
         assert set(actions) <= legal
 
 

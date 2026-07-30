@@ -405,11 +405,7 @@ def test_smash_vase_mask_false_without_smash_item():
     can_smash_vase() checks for the 'smash' effect tag (sledge_hammer etc.).
     """
     game = _game(seed=0)
-    # Stand in the Entrance Hall (it's cell 22 in the default layout... but
-    # we can fake it more directly via can_smash_vase checking pos room id)
-    room = game.registry.by_id["entrance_hall"]
-    cell = game.state.pos  # already in the Entrance Hall at reset
-    assert game.state.grid[cell] == room.idx or True  # just ensure pos is right
+    # Player starts in the Entrance Hall; can_smash_vase checks the pos room id.
     mask = _mask(game)
     assert not mask[A.SMASH_VASE_ACTION], (
         "smash vase should be False without a smash-capable item"

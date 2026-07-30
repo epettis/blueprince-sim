@@ -100,7 +100,8 @@ delete again.
 - Style rules now in CLAUDE.md: comment every dataclass member; bulleted or
   commented-code-block data structures in docs; match/case over long if/elif
   value dispatch.
-- Suite size at last green: 692 tests.
+- The suite grows with every PR, so any count written in this file is historical.
+  Get the current one from `pytest tests/ -q`.
 
 ## Maintenance sharp edges
 
