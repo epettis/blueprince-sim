@@ -157,6 +157,10 @@ class BluePrinceEnv(gymnasium.Env):
         still populated.
         """
         assert self.game.phase is not Phase.TERMINAL, "episode is over; call reset()"
+        # SB3 hands us a numpy integer. Coerce at the boundary so nothing downstream
+        # inherits a type json.dumps rejects: the upgrade log's chosen_index is
+        # derived straight from this value, and a numpy int64 there killed a run.
+        action = int(action)
         prev = snapshot(self.game)
         mask = A.action_mask(self.game, self._prev_action)
 
