@@ -191,6 +191,9 @@ class GameState:
     # chronological (item id, count) pickups this run, for CLI/replay reporting
     items_found_log: list[tuple[str, int]] = field(default_factory=list)
 
+    # areas entered today, for the Observatory's aggregate heat; reset per day like GameState
+    areas_visited: set[str] = field(default_factory=set)
+
     # --- upgrade disks (engine/upgrades.py) ---
     draft_counts: dict[str, int] = field(default_factory=dict)  # cumulative attempt-wide draft counts by root base room id; seeded from cfg.draft_counts, incremented on placement
     applied_upgrades: set[str] = field(default_factory=set)     # variant ids applied so far this attempt; seeded from cfg.upgrade_disks

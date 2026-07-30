@@ -23,16 +23,22 @@ import subprocess
 import sys
 import threading
 import time
-from collections import OrderedDict
+from collections import OrderedDict, deque
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
 from . import replay
+from ..engine import areas as _areas_mod
 
 STATIC_DIR = Path(__file__).resolve().parent / "static"
 MAX_CHART_POINTS = 2000
 FRAMES_CACHE_SIZE = 8
+
+
+# Upgrade-economy bucket width in IN-GAME DAYS.  Attempts are 200 days, so this
+# gives ~20 points across an attempt; the 10k episode bucket would give one.
+_ECONOMY_DAY_BUCKET = 10
 
 
 def _read_jsonl(path: Path) -> list[dict]:
@@ -69,6 +75,8 @@ class Observatory:
         self.metrics_path = ckpt_dir / "metrics.jsonl"
         self.eval_path = ckpt_dir / "eval.jsonl"
         self.draft_stats_path = ckpt_dir / "draft_stats.jsonl"
+        self.area_stats_path = ckpt_dir / "area_stats.jsonl"
+        self.upgrades_path = ckpt_dir / "upgrades.jsonl"
         self.latest_json = ckpt_dir / "latest.json"
         self.latest_zip = ckpt_dir / "latest.zip"
         self._lock = threading.Lock()
@@ -255,6 +263,184 @@ class Observatory:
             self._registry = Registry.load()
         return replay.rooms_meta(self._registry)
 
+    def areas(self) -> dict:
+        """Area graph plus a derived BFS layout for the front end.
+
+        Returns nodes annotated with ``depth`` (undirected BFS hops from
+        ``house``, ignoring all gates) and ``band`` (surface/underground/anchor),
+        all edges annotated with ``stub`` (True when any required gate is a stub),
+        and a ``stub_gates`` mapping.  Nodes unreachable from ``house`` even
+        undirected get ``depth: null``.
+        """
+        if self._registry is None:
+            from ..engine.model import Registry
+            self._registry = Registry.load()
+        graph = self._registry.area_graph
+
+        # BFS from "house" over the UNDIRECTED graph with ALL gates ignored.
+        # Walk graph.adjacency for the forward direction and also the reverse,
+        # so every edge is traversable in both directions.
+        reverse: dict[str, list[str]] = {nid: [] for nid in graph.nodes}
+        for edge in graph.edges:
+            reverse[edge.to_id].append(edge.from_id)
+
+        depth: dict[str, int | None] = {nid: None for nid in graph.nodes}
+        if "house" in graph.nodes:
+            depth["house"] = 0
+            q = deque(["house"])
+            while q:
+                cur = q.popleft()
+                next_cost = depth[cur] + 1  # type: ignore[operator]
+                # forward neighbours (ignoring gate requirements)
+                for nb, _ in graph.adjacency.get(cur, []):
+                    if depth[nb] is None:
+                        depth[nb] = next_cost
+                        q.append(nb)
+                # reverse neighbours
+                for nb in reverse.get(cur, []):
+                    if depth[nb] is None:
+                        depth[nb] = next_cost
+                        q.append(nb)
+
+        def _band(area) -> str:
+            if area.surface is None:
+                return "anchor"
+            return "surface" if area.surface else "underground"
+
+        nodes_out = [
+            {
+                "id": area.id, "name": area.name, "kind": area.kind,
+                "surface": area.surface, "modelled": area.modelled,
+                "depth": depth[area.id], "band": _band(area),
+            }
+            for area in graph.nodes.values()
+        ]
+
+        stub_gate_ids = {gid for gid, g in graph.gates.items() if g.stub}
+        edges_out = [
+            {
+                "from": e.from_id, "to": e.to_id,
+                "requires": list(e.requires),
+                "stub": any(gid in stub_gate_ids for gid in e.requires),
+            }
+            for e in graph.edges
+        ]
+
+        return {
+            "nodes": nodes_out,
+            "edges": edges_out,
+            "stub_gates": _areas_mod.stub_gates(graph),
+        }
+
+    def area_stats(self) -> dict:
+        """Area-visit series from area_stats.jsonl, merged by bucket_start.
+
+        Same response shape and merge semantics as draft_stats().
+        Returns empty structure (not a 500) when the file is absent.
+        """
+        merged: dict[int, dict] = {}
+        for row in _read_jsonl(self.area_stats_path):
+            start = row.get("bucket_start")
+            if start is None:
+                continue
+            b = merged.setdefault(start, {
+                "bucket_start": start, "bucket_end": row.get("bucket_end"),
+                "seeds": 0, "visits": {}, "seeds_with": {}})
+            b["seeds"] += row.get("seeds", 0)
+            for key in ("visits", "seeds_with"):
+                for area_id, n in (row.get(key) or {}).items():
+                    b[key][area_id] = b[key].get(area_id, 0) + n
+        return {"train": [merged[k] for k in sorted(merged)]}
+
+    def upgrade_stats(self) -> dict:
+        """Aggregated upgrade-decision statistics from upgrades.jsonl.
+
+        Returns three sections:
+        - ``variants``: per-variant offer/chosen counts and selection rate.
+        - ``economy``: decisions bucketed by day (or arrival order), with
+          means of disks_held and slots_upgraded.
+        - ``gates``: total decisions, catacombs_unlocked count, and
+          slot_draft_count_zero (decisions where every draft count was 0).
+
+        Absent file -> empty structure, not a 500.
+        """
+        rows = _read_jsonl(self.upgrades_path)
+        if not rows:
+            return {"variants": [], "economy": [], "gates": {}}
+
+        # --- variants ---
+        offered_counts: dict[str, int] = {}
+        chosen_counts: dict[str, int] = {}
+        for row in rows:
+            for vid in (row.get("offered") or []):
+                offered_counts[vid] = offered_counts.get(vid, 0) + 1
+            cv = row.get("chosen_variant") or ""
+            if cv:
+                chosen_counts[cv] = chosen_counts.get(cv, 0) + 1
+        variants = sorted(
+            [
+                {
+                    "variant": vid,
+                    "offered": offered_counts[vid],
+                    "chosen": chosen_counts.get(vid, 0),
+                    "selection_rate": (chosen_counts.get(vid, 0) / offered_counts[vid]
+                                       if offered_counts[vid] else 0.0),
+                }
+                for vid in offered_counts
+            ],
+            key=lambda v: v["offered"],
+            reverse=True,
+        )
+
+        # --- economy ---
+        # Bucketed by IN-GAME DAY when multi-day, because the question this answers
+        # is "how far into the 16-slot supply does an attempt get" — a within-attempt
+        # progression.  Days run 1..n_days (200 by default), so the 10k bucket used
+        # for episode counts would collapse every decision into one point.
+        # Single-day runs have no day, so they fall back to arrival order at 10k.
+        has_days = any(r.get("day") is not None for r in rows)
+        bucket_size = _ECONOMY_DAY_BUCKET if has_days else 10_000
+        econ_buckets: dict[int, dict] = {}
+        for idx, row in enumerate(rows):
+            day = row.get("day")
+            bucket_key = (int(day) - 1) // bucket_size if day is not None else idx // bucket_size
+            b = econ_buckets.setdefault(bucket_key, {
+                "bucket_start": bucket_key * bucket_size,
+                "decisions": 0,
+                "_disks_sum": 0.0,
+                "_slots_sum": 0.0,
+            })
+            b["decisions"] += 1
+            b["_disks_sum"] += row.get("disks_held", 0) or 0
+            b["_slots_sum"] += row.get("slots_upgraded", 0) or 0
+        economy = []
+        for bk in sorted(econ_buckets):
+            b = econ_buckets[bk]
+            n = b["decisions"]
+            economy.append({
+                "bucket_start": b["bucket_start"],
+                "decisions": n,
+                "mean_disks_held": round(b["_disks_sum"] / n, 4) if n else 0.0,
+                "mean_slots_upgraded": round(b["_slots_sum"] / n, 4) if n else 0.0,
+            })
+
+        # --- gates ---
+        total = len(rows)
+        catacombs_count = sum(1 for r in rows if r.get("catacombs_unlocked"))
+        slot_zero_count = 0
+        for row in rows:
+            dc = row.get("draft_counts") or {}
+            if not dc or all(v == 0 for v in dc.values()):
+                slot_zero_count += 1
+        gates = {
+            "decisions": total,
+            "catacombs_unlocked": catacombs_count,
+            "slot_draft_count_zero": slot_zero_count,
+        }
+
+        return {"variants": variants, "economy": economy, "gates": gates,
+                "economy_axis": "day" if has_days else "decision"}
+
 
 # ----------------------------------------------------------- background work
 
@@ -351,6 +537,12 @@ class Handler(BaseHTTPRequestHandler):
                     self._send_json(self.obs.rooms())
                 case "/api/draft_stats":
                     self._send_json(self.obs.draft_stats())
+                case "/api/areas":
+                    self._send_json(self.obs.areas())
+                case "/api/area_stats":
+                    self._send_json(self.obs.area_stats())
+                case "/api/upgrade_stats":
+                    self._send_json(self.obs.upgrade_stats())
                 case "/api/runs":
                     sort = parse_qs(parsed.query).get("sort", ["episode"])[0]
                     self._send_json(self.obs.runs_index(sort))

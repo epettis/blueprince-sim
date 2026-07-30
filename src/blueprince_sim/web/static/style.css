@@ -86,14 +86,22 @@ th { color: var(--dim); font-weight: 500; }
 td:first-child, th:first-child { text-align: left; }
 
 /* --------------------------------------------------------------- runs */
+/* The house is portrait (5×9); the area graph is landscape.  They share
+   one row side-by-side so neither wastes the other's natural axis.
+   Column split: list | house (portrait → narrower) | areas (landscape) | detail.
+   House gets 240px fixed; areas takes 1fr; detail stays 340px.
+   The combined house+areas centre is functionally the old "1fr" centre. */
 #view-runs {
   flex: 1; display: grid; min-height: 0;
-  grid-template-columns: 230px 1fr 340px;
+  grid-template-columns: 230px 240px 1fr 340px;
   grid-template-rows: 1fr auto;
-  grid-template-areas: "list house detail" "controls controls controls";
+  grid-template-areas:
+    "list  house  areas    detail"
+    "controls controls controls controls";
 }
 #runs-panel {
-  grid-area: list; border-right: 1px solid var(--line); overflow-y: auto;
+  grid-area: list;
+  border-right: 1px solid var(--line); overflow-y: auto;
   background: var(--panel);
 }
 .runs-head { display: flex; gap: 8px; align-items: center; padding: 10px 12px; border-bottom: 1px solid var(--line); }
@@ -115,12 +123,75 @@ td:first-child, th:first-child { text-align: left; }
 .badge.win { background: rgba(87,196,106,.15); color: var(--win); }
 .badge.rank { background: var(--panel2); color: var(--dim); }
 
-#house-panel { grid-area: house; min-width: 0; min-height: 0; display: flex; padding: 10px; }
+#house-panel { grid-area: house; min-width: 0; min-height: 0; display: flex; flex-direction: column; padding: 6px 10px 10px; border-right: 1px solid var(--line); }
 #house { flex: 1; display: flex; justify-content: center; min-height: 0; }
-#house svg { height: 100%; max-width: 100%; }
+#house svg { height: 100%; max-width: 100%; cursor: grab; }
+#house svg:active { cursor: grabbing; }
+
+/* Zoom affordance bar shown above each zoomable SVG. */
+.zoom-bar { display: flex; justify-content: flex-end; margin-bottom: 2px; min-height: 20px; }
+.zoom-reset-btn {
+  background: none; border: 1px solid var(--line); color: var(--dim);
+  border-radius: 4px; padding: 1px 7px; font-size: 11px; cursor: pointer;
+  line-height: 1.4;
+}
+.zoom-reset-btn:hover { color: var(--fg); border-color: var(--dim); }
+
+/* ------------------------------------------------- outside-area panel */
+#area-panel {
+  grid-area: areas; min-width: 0; border-left: 0;
+  background: var(--panel); padding: 8px 12px 10px;
+  /* Column, not a single scroll box: the graph scrolls, the legend stays put.
+     The legend is what makes dim-vs-solid and dashed-vs-solid readable, so it
+     scrolling off the bottom left the graph uninterpretable. */
+  display: flex; flex-direction: column; min-height: 0; overflow: hidden;
+}
+#area-graph { flex: 1 1 auto; min-height: 0; overflow: auto; }
+.area-panel-head {
+  display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;
+}
+.area-toggle-group { display: flex; gap: 4px; }
+.area-mode-btn {
+  background: var(--panel2); color: var(--dim); border: 1px solid var(--line);
+  border-radius: 5px; padding: 3px 10px; font-size: 12px; cursor: pointer;
+}
+.area-mode-btn.active { color: var(--fg); border-color: var(--accent); }
+#area-graph svg { width: 100%; height: auto; display: block; cursor: grab; }
+#area-graph svg:active { cursor: grabbing; }
+.area-legend {
+  display: flex; gap: 14px; font-size: 11px; color: var(--dim);
+  flex-wrap: wrap; margin-top: 6px;
+  flex: 0 0 auto;  /* never shrink or scroll away -- see #area-panel */
+}
+.area-legend .sw { display: inline-block; width: 14px; height: 3px; vertical-align: middle; margin-right: 4px; }
+.area-legend .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; vertical-align: middle; margin-right: 4px; }
+
+/* ------------------------------------------------ upgrade stats panel */
+#upgrade-stats { margin-top: 4px; }
+#upgrade-variants { max-height: 280px; overflow-y: auto; margin-bottom: 12px; }
+.ubar { display: flex; align-items: center; gap: 8px; font-size: 12px; padding: 2px 0; }
+.ubar .uname {
+  flex: 0 0 200px; text-align: right; white-space: nowrap;
+  overflow: hidden; text-overflow: ellipsis; color: var(--dim);
+}
+.ubar .utrack { flex: 1; height: 12px; background: var(--bg); border-radius: 3px; position: relative; }
+.ubar .ufill-offered { height: 100%; background: #3a5070; border-radius: 3px; }
+.ubar .ufill-chosen { position: absolute; top: 0; left: 0; height: 100%; background: var(--accent); border-radius: 3px; }
+.ubar .upct { flex: 0 0 42px; text-align: right; font-variant-numeric: tabular-nums; font-size: 11px; }
+.ubar.total { border-top: 1px solid var(--line); margin-top: 4px; padding-top: 5px; }
+#upgrade-econ-legend { display: flex; gap: 14px; font-size: 11px; color: var(--dim); margin-bottom: 4px; flex-wrap: wrap; }
+#upgrade-econ-legend .sw { display: inline-block; width: 14px; height: 3px; vertical-align: middle; margin-right: 4px; }
+#upgrade-gates { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 10px; }
+.upgrade-gate-tile {
+  background: var(--panel2); border: 1px solid var(--line); border-radius: 6px;
+  padding: 6px 12px; font-size: 12px;
+}
+.upgrade-gate-tile .gv { font-size: 17px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.upgrade-gate-tile .gk { font-size: 10px; color: var(--dim); text-transform: uppercase; letter-spacing: .04em; }
 
 #detail-panel {
-  grid-area: detail; border-left: 1px solid var(--line); overflow-y: hidden;
+  grid-area: detail; grid-row: 1 / 2;
+  border-left: 1px solid var(--line); overflow-y: hidden;
   background: var(--panel); padding: 12px 14px; font-size: 13px;
   display: flex; flex-direction: column;
 }
@@ -174,12 +245,18 @@ td:first-child, th:first-child { text-align: left; }
 #pb-pos { min-width: 90px; text-align: right; font-variant-numeric: tabular-nums; }
 
 /* ------------------------------------------- replay divergence banner */
-/* Banner sits inside #house-panel (a flex row). It is absolutely positioned
-   so it floats over the SVG grid without displacing the house layout. */
-#house-panel { position: relative; }
+/* The banner is a child of #house-panel but is anchored to #view-runs so it can
+   span the house AND area columns.  House is only 240px wide now, and confining
+   the warning to it wrapped two lines into eight. Offsets clear the run list
+   (230px) on the left and the detail panel (340px) on the right. */
+#view-runs { position: relative; }
+/* The banner floats, so reserve room for it ONLY while it is shown -- otherwise
+   it covers the "outside areas" heading and the Replay/Aggregate toggle. */
+#view-runs:has(.divergence-banner:not(.hidden)) #house-panel,
+#view-runs:has(.divergence-banner:not(.hidden)) #area-panel { padding-top: 66px; }
 .divergence-banner {
   position: absolute;
-  top: 10px; left: 10px; right: 10px;
+  top: 8px; left: 238px; right: 348px;
   padding: 8px 14px;
   background: rgba(217, 83, 79, 0.18);
   border: 1px solid rgba(217, 83, 79, 0.65);

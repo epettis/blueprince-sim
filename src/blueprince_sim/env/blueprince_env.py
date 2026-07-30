@@ -226,6 +226,7 @@ class BluePrinceEnv(gymnasium.Env):
             "termination_reason": self.game.termination_reason,
             "episode_seed": self._episode_seed,
             "drafted_rooms": list(self.game.drafted_rooms),
+            "visited_areas": sorted(self.game.state.areas_visited),
             "action_mask": np.array(mask, dtype=bool),
         }
         if self.day_chain is not None:
