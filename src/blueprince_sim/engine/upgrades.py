@@ -557,3 +557,18 @@ def upgraded_slots(applied_variants: frozenset[str], registry: Registry) -> froz
         else:
             slots.add(room.variant_of)
     return frozenset(slots)
+
+
+def all_slot_ids(registry: Registry) -> tuple[str, ...]:
+    """Every upgrade slot id, sorted — the canonical order for the observation vector.
+
+    Derived by running ``upgraded_slots`` over every variant in the registry, so the
+    slot vocabulary can never drift from the mapping that fills it — in particular the
+    Spare Room's two-level chain stays defined in exactly one place.
+
+    Sorted rather than set-ordered on purpose: Python randomises string hashing per
+    process, so an unsorted order would differ between training runs and silently
+    invalidate a checkpoint's learned slot positions.
+    """
+    every_variant = frozenset(r.id for r in registry.rooms if r.variant_of is not None)
+    return tuple(sorted(upgraded_slots(every_variant, registry)))

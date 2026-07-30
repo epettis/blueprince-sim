@@ -720,6 +720,11 @@ def main(argv: list[str] | None = None) -> int:
                              "DayChain of N days before wrapping back to day 1 "
                              "(carry-over flags accumulate across the chain). "
                              "0 = off (default, each episode is independent).")
+    parser.add_argument("--gamma", type=float, default=0.999,
+                        help="discount factor for MaskablePPO (default: 0.999; "
+                             "at ~31 steps/day this is ~32 days of lookahead). "
+                             "Only takes effect for fresh runs; resumed "
+                             "checkpoints load gamma from the saved model.")
     # --- explore/exploit mixing ---
     parser.add_argument("--exploit-prob", type=float, default=0.9,
                         help="probability EACH DECISION is taken in EXPLOIT mode "
@@ -799,7 +804,7 @@ def main(argv: list[str] | None = None) -> int:
         model = MaskablePPO(
             MixedExplorationPolicy, vec_env,
             n_steps=args.n_steps, batch_size=1024, learning_rate=3e-4,
-            gamma=0.999, ent_coef=0.01, seed=args.seed, verbose=1,
+            gamma=args.gamma, ent_coef=0.01, seed=args.seed, verbose=1,
             tensorboard_log=str(ckpt_dir / "tb") if args.tensorboard else None,
             device=args.device, policy_kwargs=policy_kwargs,
         )

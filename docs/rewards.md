@@ -113,12 +113,19 @@ exactly what makes it unable to create a lasting preference for disks. So a flat
 `+0.5` is not shaping in the sense the rest of this file uses — it is a **second
 objective competing with winning**, and should be understood and reviewed as one.
 
-### What to do instead, in order
+### What was done, in order
 
-1. **Extend the horizon.** Let the return span the attempt rather than the day.
-   Then cross-day investment is *real* value the agent can discover, instead of
-   a number we guessed. This is the principled fix and it gates rules 1–4 of the
-   owner's playbook.
+1. **Extended the horizon (done, 2026-07-29).** Day endings in multi-day
+   (chain) mode are now reported as `terminated=False, truncated=True` rather
+   than `terminated=True`. SB3's DummyVecEnv converts that into
+   `info["TimeLimit.truncated"]=True`, which makes
+   `OnPolicyAlgorithm.collect_rollouts` bootstrap `V(terminal_observation)`
+   so cross-day value flows back through the value function. The final day of
+   an attempt is still a true terminal. Two new observation keys (`day` and
+   `carryover`) expose the day index and carried flags so `V(s)` can tell
+   day 2 from day 190. Per-day episode telemetry is unchanged
+   (`done = terminated | truncated` is still True at day end, so SB3's
+   episode counter fires as before).
 2. **Make upgrades matter first.** Write the variant effects and land the
    Antechamber lever (Task 9). There is no point rewarding the acquisition of an
    upgrade that changes nothing; fix the thing being measured before paying for

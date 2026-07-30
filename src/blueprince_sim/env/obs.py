@@ -10,7 +10,9 @@ from ..engine.grid import DIRS, OPPOSITE, neighbor
 from ..engine.locks import DOOR_LOCKED, DOOR_SECURITY, SECURITY_LEVELS
 from ..engine.model import LAYOUTS
 from ..engine.shops import SCEPTER_COLORS, current_shop_id
+from ..engine.upgrades import all_slot_ids, upgraded_slots
 from .actions import _build_area_node_ids
+from .multiday import DayChain
 
 CATEGORIES = ("blueprint", "bedroom", "hallway", "green", "shop", "red",
               "blackprint", "studio_addition", "outer", "objective")
@@ -48,7 +50,9 @@ SCEPTER_COLOR_INDEX = {c: i for i, c in enumerate(SCEPTER_COLORS)}
 
 
 def observation_space(n_rooms: int, n_items: int, n_recipes: int,
-                      n_area_nodes: int = 36) -> spaces.Dict:
+                      n_area_nodes: int = 36,
+                      n_carryover: int = len(DayChain._CARRYOVER_KEYS),
+                      n_slots: int = 16) -> spaces.Dict:
     """Dict observation space over the 9x5 (rank-major) grid; see :func:`encode`.
 
     Room ids are shifted by +1 so 0 means "empty cell"; -1 is the sentinel for
@@ -58,6 +62,8 @@ def observation_space(n_rooms: int, n_items: int, n_recipes: int,
     vector length); ``n_recipes`` is the number of fabrication recipes.
     ``n_area_nodes`` is the number of area-graph nodes (default 36); the actual
     count is passed in from the registry so the space cannot drift from areas.json.
+    ``n_carryover`` is the number of carry-over bool flags (``len(DayChain._CARRYOVER_KEYS)``),
+    always passed from ``BluePrinceEnv`` so the space and encoder stay in sync.
     """
     return spaces.Dict({
         "grid_room": spaces.Box(0, n_rooms, shape=(9, 5), dtype=np.int16),
@@ -118,6 +124,20 @@ def observation_space(n_rooms: int, n_items: int, n_recipes: int,
         "fabricate": spaces.Box(0, 1, shape=(n_recipes,), dtype=np.uint8),
         # unopened containers per cell (placed rooms only; 0 = empty or fully opened)
         "grid_containers": spaces.Box(0, 9, shape=(9, 5), dtype=np.uint8),
+        # day: [current_day, days_remaining]. Single-day mode: [1, 0] (day 1 of 1, no tomorrow).
+        # With a chain: current_day from DayChain.current_day;
+        # days_remaining = max(0, n_days - current_day).
+        "day": spaces.Box(0, 9999, shape=(2,), dtype=np.int16),
+        # carryover: one int16 per DayChain._CARRYOVER_KEYS entry (sorted order), 0 or 1.
+        # Length is always len(_CARRYOVER_KEYS); single-day mode encodes all zeros.
+        "carryover": spaces.Box(0, 999, shape=(n_carryover,), dtype=np.int16),
+        # upgrade_slots: 1 per upgrade slot in upgrades.all_slot_ids() order, 1 = upgraded.
+        # Read from state.applied_upgrades, so carried-over and same-day upgrades both show.
+        # This is the permanent cross-day investment the day-boundary bootstrap has to value.
+        "upgrade_slots": spaces.Box(0, 1, shape=(n_slots,), dtype=np.uint8),
+        # disks_spent: how many one-time disk sources are permanently used up
+        # (len(cfg.collected_disks)) — i.e. how much of the finite supply is gone.
+        "disks_spent": spaces.Box(0, 99, shape=(1,), dtype=np.int16),
     })
 
 
@@ -197,13 +217,18 @@ def _encode_trade_offers(game: Game) -> np.ndarray:
     return arr
 
 
-def encode(game: Game) -> dict:
+def encode(game: Game, day_chain: DayChain | None = None) -> dict:
     """Encode the live game into the Dict observation for the current phase.
 
     Grid planes are 9x5 rank-major. Locked/security bits are painted on BOTH
     cells of a doorway segment (and drop out once the door is opened). Option
     rows are -1 outside DRAFTING or for absent slots; a hidden (Archives
     mystery) option exposes only cost and affordability, not identity.
+
+    ``day_chain`` is threaded in from ``BluePrinceEnv`` when running in
+    multi-day mode; it is ``None`` in single-day mode.  The ``day`` and
+    ``carryover`` observation keys are populated from the chain when present,
+    or set to sentinel values ([1, 0] and all-zeros) in single-day mode.
     """
     st = game.state
     grid_room = np.array(st.grid, dtype=np.int16).reshape(9, 5)
@@ -377,6 +402,41 @@ def encode(game: Game) -> dict:
         dtype=np.uint8,
     )
 
+    # day: [current_day, days_remaining]
+    # With a chain: read directly from the chain (after advance() if day just ended).
+    # Single-day mode: [1, 0] — day 1 of 1, no tomorrow.
+    if day_chain is not None:
+        _cur_day = day_chain.current_day
+        _days_rem = max(0, day_chain.n_days - _cur_day)
+    else:
+        _cur_day = 1
+        _days_rem = 0
+    day_obs = np.array([_cur_day, _days_rem], dtype=np.int16)
+
+    # carryover: one int16 per _CARRYOVER_KEYS entry (sorted for stable ordering).
+    # All values are bools; encode as 0/1. Single-day mode: all zeros.
+    _carryover_keys = sorted(DayChain._CARRYOVER_KEYS)
+    if day_chain is not None:
+        carryover_obs = np.array(
+            [int(day_chain.carried_flags.get(k, False)) for k in _carryover_keys],
+            dtype=np.int16,
+        )
+    else:
+        carryover_obs = np.zeros(len(_carryover_keys), dtype=np.int16)
+
+    # upgrade_slots: which permanent upgrade slots are filled, in all_slot_ids() order.
+    # Read from state.applied_upgrades (not the chain) because it is seeded from
+    # cfg.upgrade_disks at day start AND updated when an upgrade is applied mid-day,
+    # so carried-over and same-day upgrades are covered by the same read.
+    _slot_ids = all_slot_ids(game.registry)
+    _filled = upgraded_slots(frozenset(st.applied_upgrades), game.registry)
+    upgrade_slots_obs = np.array(
+        [1 if s in _filled else 0 for s in _slot_ids], dtype=np.uint8
+    )
+
+    # disks_spent: one-time disk sources permanently used up across the attempt.
+    disks_spent_obs = np.array([len(game.cfg.collected_disks)], dtype=np.int16)
+
     return {
         "grid_room": grid_room,
         "grid_doors": grid_doors,
@@ -403,4 +463,8 @@ def encode(game: Game) -> dict:
         "shop_stock": shop_stock_arr,
         "trade_offers": trade_offers_arr,
         "fabricate": fabricate,
+        "day": day_obs,
+        "carryover": carryover_obs,
+        "upgrade_slots": upgrade_slots_obs,
+        "disks_spent": disks_spent_obs,
     }

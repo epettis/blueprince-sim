@@ -10,6 +10,7 @@ from gymnasium import spaces
 
 from ..config import GameConfig
 from ..engine.game import Game, Phase
+from ..engine.upgrades import all_slot_ids
 from . import actions as A
 from . import obs as O
 from .multiday import DayChain
@@ -85,6 +86,8 @@ class BluePrinceEnv(gymnasium.Env):
             len(self.game.registry.special.items),
             len(self.game.registry.special.fabrication),
             len(self.game.registry.area_graph.nodes),
+            n_carryover=len(DayChain._CARRYOVER_KEYS),
+            n_slots=len(all_slot_ids(self.game.registry)),
         )
         self._env_steps = 0
         self.max_env_steps = 1000
@@ -137,7 +140,7 @@ class BluePrinceEnv(gymnasium.Env):
         self._env_steps = 0
         self._episode_seed = game_seed
         self._prev_action = None
-        return O.encode(self.game), self._info()
+        return O.encode(self.game, self.day_chain), self._info()
 
     def step(self, action: int):
         """Apply one flat action; returns the usual Gymnasium 5-tuple.
@@ -146,9 +149,26 @@ class BluePrinceEnv(gymnasium.Env):
         A post-step NAVIGATE state with no legal action terminates the episode
         as a dead end, and episodes truncate after ``max_env_steps`` decisions.
 
-        When a ``day_chain`` is active, terminal or truncated episodes call
-        ``day_chain.advance(game.carryover())`` so cross-day discoveries are
-        carried forward before the next ``reset()``.
+        When a ``day_chain`` is active:
+
+        - A day ending mid-attempt (not the final day) is reported as
+          ``terminated=False, truncated=True``. SB3's DummyVecEnv converts
+          that into ``info["TimeLimit.truncated"]=True``, which makes
+          ``OnPolicyAlgorithm.collect_rollouts`` bootstrap ``V(terminal_obs)``
+          so cross-day value flows back through the value function.
+        - The final day of an attempt (``current_day >= n_days``) is the only
+          true terminal: ``terminated=True, truncated=False``.
+        - ``day_chain.advance()`` runs BEFORE ``O.encode()`` at the end of
+          this method. The observation returned at day end therefore describes
+          the state the agent *resumes from tomorrow* (post-advance day index,
+          post-advance carried flags). That is exactly the state to bootstrap
+          from — a future reader should NOT read this ordering as a bug.
+          On an attempt wrap, ``advance()`` resets day to 1 and clears flags,
+          but that step is a true terminal so the observation is never
+          bootstrapped from.
+
+        When ``day_chain`` is None (single-day mode), behaviour is unchanged:
+        ``terminated=True`` at game end.
 
         Upgrade decisions: when action falls in the CHOOSE_UPGRADE range (276-278)
         and the action is legal, an ``"upgrade_decision"`` key is included in the
@@ -193,12 +213,24 @@ class BluePrinceEnv(gymnasium.Env):
         if not terminated and not any(post_mask):
             self.game._terminate("dead_end")
             terminated = True
+        # Day-chain horizon: mid-attempt day ends are truncations, not terminations.
+        # Evaluate is_last_day BEFORE advance() because advance() increments current_day
+        # (and wraps it to 1 on an attempt boundary). After this block, advance() runs
+        # unconditionally when done, so the observation returned describes the
+        # post-advance state — exactly what the agent wakes up to tomorrow.
+        # An attempt wrap IS a true terminal (is_last_day=True) so it is never
+        # bootstrapped from; advance() resets day to 1 and clears flags for it.
+        if terminated and self.day_chain is not None:
+            is_last_day = self.day_chain.current_day >= self.day_chain.n_days
+            if not is_last_day:
+                truncated = True
+                terminated = False
         if (terminated or truncated) and self.day_chain is not None:
             self.day_chain.advance(self.game.carryover())
         info = self._info(post_mask)
         if upgrade_record is not None:
             info["upgrade_decision"] = upgrade_record
-        return (O.encode(self.game), reward, terminated, truncated, info)
+        return (O.encode(self.game, self.day_chain), reward, terminated, truncated, info)
 
     def action_masks(self) -> np.ndarray:
         """Boolean legality mask; the hook MaskablePPO reads via ActionMasker."""

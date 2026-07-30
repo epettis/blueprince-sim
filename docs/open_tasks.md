@@ -375,6 +375,48 @@ breaks, the Sanctum keys.
   Garage placed at all inherited the 2-step Grounds route. `carryover()` ORs state
   with config, the same shape as `entrance_vase_broken` / `outer_chip_dug`.
 
+- **2026-07-29, reward horizon — bootstrap across the day boundary**: a mid-attempt
+  day ending is now `truncated=True` rather than `terminated=True`. SB3 bootstraps on
+  `TimeLimit.truncated`, so `V(day N end)` picks up the value of day N+1 and cross-day
+  investment becomes real value the agent can discover. Only the final day of an
+  attempt (`current_day >= n_days`) is a true terminal.
+
+  Chosen over making the episode span the whole attempt because the day boundary is
+  genuinely non-absorbing, so this is the correct model rather than merely the cheap
+  one — and every per-day telemetry consumer (`EpisodeRecorder`, `DraftStats`,
+  `AreaStats`, win-rate) fires on `done = terminated | truncated`, which is still true
+  at day end, so none of them changed.
+
+  **Tradeoff, stated honestly**: credit propagates by one-step TD through the value
+  function rather than by GAE across all within-attempt steps. The TD target is
+  unbiased, but it is slower to propagate than multi-step returns; a within-attempt
+  rollout would expose every cross-day transition to GAE at once. This is a
+  convergence-speed cost, not a correctness one.
+
+  `gamma` stayed at 0.999 and became a `--gamma` flag. An earlier claim that it
+  "barely spans one day" was wrong: it was reasoned from `max_env_steps = 1000`, which
+  is a safety cap, not a typical day. A day measures ~31 env steps, so 0.999 already
+  gives ~32 days of lookahead. The discount was never the bottleneck.
+
+  **Observability is half the fix, and the first cut got it wrong.** Bootstrapping is
+  useless if the agent cannot see what it accumulated: `V(s)` has to be able to tell a
+  heavily-upgraded attempt from a fresh one. The first implementation exposed only
+  `DayChain._CARRYOVER_KEYS` — 6 booleans — while the chain also carries
+  `applied_upgrades` and `collected_disks`, which are the actual "spend today to win
+  later" investments. Four observation keys now cover it:
+
+  - `day` — `[current_day, days_remaining]`; single-day mode is `[1, 0]`.
+  - `carryover` — the 6 carry-over bools, sorted for stable field order.
+  - `upgrade_slots` — one bit per upgrade slot, in `upgrades.all_slot_ids()` order.
+  - `disks_spent` — how many of the finite one-time disk sources are used up.
+
+  `all_slot_ids()` is derived by running `upgraded_slots()` over every registry
+  variant, so the Spare Room's two-level chain stays defined in one place; it yields
+  16 slots, matching the documented "15 rooms carrying 16 upgrade slots". Both it and
+  the `carryover` vector are **sorted, never set-ordered**: Python randomises string
+  hashing per process, so a set-ordered vector would permute between training runs and
+  silently invalidate a checkpoint's learned field positions.
+
 ## 5. Throttle the training terminal output — DONE
 
 The trainer currently refreshes the dashboard after every completed seed, which
