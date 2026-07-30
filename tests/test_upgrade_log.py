@@ -17,6 +17,8 @@ import sys
 import tempfile
 from pathlib import Path
 
+import numpy as np
+
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
 from blueprince_sim.config import GameConfig
@@ -218,6 +220,37 @@ def test_env_step_emits_upgrade_decision_in_info():
         assert key in info["upgrade_decision"], (
             f"upgrade_decision missing required key '{key}'"
         )
+
+
+def test_upgrade_decision_is_writable_when_action_is_a_numpy_int():
+    """A record captured from a numpy action still writes as JSON.
+
+    SB3 passes actions as numpy integers, so chosen_index inherited numpy.int64
+    and json.dumps aborted the whole training run from inside the logger. Every
+    value in the record must survive UpgradeLogger's write, not just this field.
+    """
+    env = BluePrinceEnv(cfg=GameConfig(special_items=True))
+    env.reset(seed=42)
+    g = env.game
+    si.grant(g.state, g.registry, "upgrade_disk_vault_304", source="test")
+    sec = g.registry.by_id["security"]
+    g._place_room(sec, 7, 14)
+    g.state.pos = 7
+    g.state.entered[7] = True
+    g.insert_disk()
+    assert g.phase is Phase.UPGRADE_PENDING
+
+    # The exact type SB3 hands to step(), not the Python int the other tests use.
+    _, _, _, _, info = env.step(np.int64(A.CHOOSE_UPGRADE_BASE))
+    record = info["upgrade_decision"]
+
+    with tempfile.TemporaryDirectory() as td:
+        path = Path(td) / "upgrades.jsonl"
+        UpgradeLogger(path).on_step([info])
+        written = json.loads(path.read_text().strip())
+
+    assert written == record, "the written line must round-trip the captured record"
+    assert written["chosen_index"] == 0, "chosen_index must decode to 0 for the base action"
 
 
 def test_env_step_no_upgrade_decision_outside_upgrade_phase():
