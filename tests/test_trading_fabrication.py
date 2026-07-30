@@ -593,11 +593,8 @@ def test_fabricate_options_visible_outside_workshop_but_action_gated():
     # Player is in the Entrance Hall (not the Workshop): the option shows...
     assert shops.fabricate_options(game) == ["detector_shovel"]
     # ...but building it here is refused.
-    try:
+    with pytest.raises(AssertionError, match="Workshop"):
         shops.fabricate(game, "detector_shovel")
-        raise AssertionError("fabricate outside the Workshop should be refused")
-    except AssertionError as e:
-        assert "Workshop" in str(e)
 
 
 def test_fabricate_options_empty_without_full_inputs():

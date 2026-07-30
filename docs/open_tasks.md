@@ -145,11 +145,12 @@ the safe gem is truly daily and per-room-instance.
 ## 4. Connectivity graph for the outside areas
 
 **The graph is specified and owner-reviewed: [`areas.md`](areas.md), with the
-Graphviz source in [`areas.dot`](areas.dot).** 31 nodes, 63 directed edges, one
+Graphviz source in [`areas.dot`](areas.dot).** 36 nodes, 73 directed edges, one
 step per edge, plus the stateful mechanisms it implies — two position-tracked
 elevators, four persistent torches, Pump Room water level, Rotating Gear
-position. What remains is implementation: `data/areas.json`, the per-area travel
-action set, and the observation change.
+position. `data/areas.json`, the per-area travel action set and the observation
+change are all delivered; the stateful mechanisms are not (see the stub-gate
+decision below).
 
 **No longer a prerequisite for measuring upgrades.** It was scheduled ahead of the
 retrain on the strength of a projected 42x lift to Cloister of Orinda's offer rate
@@ -166,11 +167,6 @@ space, so it is still worth bundling with a retrain rather than paying for two.
 
 See [`upgrade-value-measurement.md`](upgrade-value-measurement.md) for the measured
 numbers and why Cloister's Unusual rarity — not the gate — is the real bottleneck.
-
-Everything beyond the 5×9 grid — West Path / Outer Rooms, the Grounds, Blackbridge
-Grotto, Orindian Ruins, the Precipice, the Abandoned Mine, Crate Tunnel, the Inner
-Sanctum — is modeled today only as the single "outer room" doorstep abstraction
-(`outer_loc` 0/1/2 plus fixed step costs in `GameConfig`).
 
 ### Implementation plan (2026-07-27)
 
@@ -252,7 +248,8 @@ breaks, the Sanctum keys.
   mechanism gets a named stub that currently passes, carried in the data as
   `stub: true` and listed in a table so later PRs know exactly what to tighten.
 
-  The alternative — closing them — was rejected because it kills **8 of 31 nodes**:
+  The alternative — closing them — was rejected because it kills **8 of the 36
+  nodes**:
   Blackbridge Grotto needs POWER, Orindian Ruins sits behind the Grotto, the
   Safehouse needs water level exactly 6, the Well needs water ≤ 8, and Underpass /
   Inner Sanctum / Sigil Chambers / Upper Rotating Gear all sit behind the Rotating

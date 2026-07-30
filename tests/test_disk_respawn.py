@@ -497,17 +497,35 @@ def test_commissary_disk_leaves_stock_once_spent():
 
 
 def test_commissary_disk_costs_gold_on_every_restock():
-    """The restocked disk still carries its 15 gold price on a later day.
+    """The restocked disk carries a positive gold price; a player with no coins
+    cannot afford it, while one with the full displayed price can.
 
     The gold cost is the throttle for the daily restock; a free repeat would
-    remove the incentive to insert the disk promptly.
+    remove the incentive to insert the disk promptly.  We assert price > 0
+    (the exact value is a data concern for validate_data.py) and that
+    stock_display()'s ``affordable`` flag is False at 0 coins and True when the
+    player holds the displayed price.  The displayed price already incorporates
+    any sale-day or coupon-book discount, so this test is stable across all days.
     """
     g2, _ = _two_day_game("upgrade_disk_commissary", spent=False)
     _commissary_stock_ids(g2)
-    entry = next(e for e in g2.state.shops.stock["commissary"]
-                 if e.get("id") == "upgrade_disk_commissary")
-    assert entry["price"] == 15, (
-        f"restocked Commissary disk must still cost 15 gold; got {entry['price']}"
+    # Inspect the displayed price (post-discount) rather than the raw stored price.
+    g2.state.coins = 0
+    display_broke = shops.stock_display(g2, "commissary")
+    disk_broke = next(e for e in display_broke if e.get("id") == "upgrade_disk_commissary")
+    displayed_price = disk_broke["price"]
+    assert displayed_price > 0, (
+        f"restocked Commissary disk must cost gold (> 0); got {displayed_price}"
+    )
+    assert not disk_broke["affordable"], (
+        "a player with 0 coins must not be able to afford the restocked disk"
+    )
+    # At exactly the displayed price the player can afford it.
+    g2.state.coins = displayed_price
+    display_full = shops.stock_display(g2, "commissary")
+    disk_full = next(e for e in display_full if e.get("id") == "upgrade_disk_commissary")
+    assert disk_full["affordable"], (
+        f"a player holding exactly {displayed_price} coins must afford the restocked disk"
     )
 
 

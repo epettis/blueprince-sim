@@ -192,7 +192,7 @@ def play(cfg: GameConfig, seed: int) -> None:
                     game.redraw(RedrawKind.FREE)
                 elif game.state.dice > 0:
                     game.redraw(RedrawKind.DIE)
-                elif game.state.study_placed and game.state.gems >= 1:
+                elif game.state.study_placed and game.state.gems >= 1 and p.study_redraws_used < 8:
                     game.redraw(RedrawKind.STUDY)
                 else:
                     print("  no redraw available")

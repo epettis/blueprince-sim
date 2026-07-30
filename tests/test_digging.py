@@ -68,34 +68,45 @@ def test_dig_junk_nothing_grants_nothing():
     """Digging outcomes of 'junk' or 'nothing' grant no resources.
 
     These are explicit waste outcomes; the player gets nothing from them.
+    A deterministic all-junk dig is forced by a subclass of Rng whose
+    roll_weighted always returns 0 (index 0 = the 'junk' entry in the shovel
+    table).  A no-op dig_all would leave state.special.dug[cell] unset, so we
+    also assert the dug counter advances — proving a real dig was attempted.
     """
+    from blueprince_sim.engine.rng import Rng
+
+    class _AlwaysFirstRng(Rng):
+        """Rng that always returns index 0 from roll_weighted (forces junk)."""
+        def roll_weighted(self, label: str, weights: tuple) -> int:  # noqa: ARG002
+            return 0
+
     st, reg = _state_with_registry()
     si.grant(st, reg, "shovel", source="test")
 
-    # Find a seed where tomb's spots both come up junk/nothing (scan seeds)
     tomb = reg.by_id["tomb"]
     cell = 10
+    st.grid[cell] = tomb.idx
 
-    for seed in range(500):
-        st2 = GameState()
-        st2.special.enabled = True
-        si.grant(st2, reg, "shovel", source="test")
-        st2.grid[cell] = tomb.idx
-        game = _fake_game(st2, reg, seed=seed)
-        coins_before = st2.coins
-        keys_before = st2.keys
-        gems_before = st2.gems
-        si.dig_all(game, cell)
-        # Check if nothing was granted (all junk/nothing outcomes)
-        if (st2.coins == coins_before and st2.keys == keys_before
-                and st2.gems == gems_before
-                and not any(e[0] in ("food",) for e in st2.items_found_log)):
-            # Found a seed where all spots were junk/nothing
-            return
-    # If we couldn't find a seed (very unlikely), skip gracefully
-    # (the shovel table has 37% junk+nothing; two spots both junk = ~14%)
-    import pytest
-    pytest.skip("could not find a seed with all-junk outcomes in 500 tries")
+    game = _fake_game(st, reg, seed=0)
+    game.rng = _AlwaysFirstRng(0)  # replace: Rng subclass, not an attribute patch
+
+    coins_before = st.coins
+    keys_before = st.keys
+    gems_before = st.gems
+
+    si.dig_all(game, cell)
+
+    # A real dig was attempted: dug counter must record all spots.
+    assert st.special.dug.get(cell, 0) == tomb.items.dig_spots, (
+        "dig_all must advance the dug counter even for junk outcomes"
+    )
+    # No resources were granted.
+    assert st.coins == coins_before, "junk outcome must not grant coins"
+    assert st.keys == keys_before, "junk outcome must not grant keys"
+    assert st.gems == gems_before, "junk outcome must not grant gems"
+    assert not any(e[0] == "food" for e in st.items_found_log), (
+        "junk outcome must not grant food/steps"
+    )
 
 
 def test_dig_shovel_determinism_per_seed():
