@@ -61,7 +61,7 @@ from __future__ import annotations
 
 from ..engine.game import Game, Phase, RedrawKind
 from ..engine.grid import DIR_NAMES, DIRS, N_CELLS, rank_of
-from ..engine.locks import DOOR_LOCKED, DOOR_SECURITY, SECURITY_LEVELS
+from ..engine.locks import DOOR_LOCKED, DOOR_SEALED, DOOR_SECURITY, SECURITY_LEVELS
 from ..engine import shops as _shops
 from ..engine import special_items as _si
 from ..engine.model import Registry
@@ -337,6 +337,8 @@ def action_mask(game: Game, prev_action: int | None = None) -> list[bool]:
                 if not 0 <= dist[cell] <= st.steps - 1:
                     continue
                 seg = game.door_state_of(cell, d)
+                if seg == DOOR_SEALED:
+                    continue  # sealed: no action can open it
                 if seg == DOOR_LOCKED and st.keys < key_cost[cell] + 1:
                     continue
                 if seg == DOOR_SECURITY and not game.security_openable():

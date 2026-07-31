@@ -34,6 +34,7 @@ _CARRYOVER_KEYS: frozenset[str] = frozenset({
     "outer_chip_dug",
     "royal_scepter_found",
     "west_gate_unlatched",   # set on first west_path arrival; opens Grounds shortcut
+    "weight_room_wall_broken",  # Power Hammer wall break: permanent on future days
 })
 
 

@@ -12,10 +12,10 @@ from .areas import GateContext, reachable
 from .decks import apply_upgrade, build_decks, inject_rooms
 from .draft import deal_draft, redeal
 from .effects import Hook
-from .grid import (ADJACENT, DIRS, ENTRANCE_CELL, N_CELLS, OPPOSITE, neighbor,
-                   rank_of, rotate_mask)
+from .grid import (ADJACENT, DIRS, E, ENTRANCE_CELL, N, N_CELLS, OPPOSITE, W,
+                   neighbor, rank_of, rotate_mask)
 from .items import roll_room_items
-from .locks import (DOOR_LOCKED, DOOR_OPEN, DOOR_SECURITY, SECURITY_LEVELS,
+from .locks import (DOOR_LOCKED, DOOR_OPEN, DOOR_SEALED, DOOR_SECURITY, SECURITY_LEVELS,
                     roll_segment, segment_key)
 from .locks import security_openable as _security_openable
 from .model import Registry, Room
@@ -108,8 +108,10 @@ class Game:
         st.pos = ENTRANCE_CELL
 
         # The Antechamber is fixed at rank 9 center from the start of every
-        # day (sealed until a drafted room connects a door to it). Modeled
-        # with all four doors available; see README open questions.
+        # day (sealed until a drafted room connects a door to it). With
+        # antechamber_levers=True its West/South/East doorways start SEALED
+        # (impassable until the matching lever room is entered that day);
+        # False reproduces the old open-door model for baseline comparisons.
         ante = self.registry.by_id["antechamber"]
         st.grid[ANTECHAMBER_CELL] = ante.idx
         st.placed_doors[ANTECHAMBER_CELL] = 0xF
@@ -119,6 +121,16 @@ class Game:
         # 130% base chance, so at bias 1 they start locked): walking in
         # normally costs a key, mirroring the real game's locked Antechamber.
         self._roll_new_segments(ante, ANTECHAMBER_CELL, 0xF)
+        # Lever gate: West (41,E), South (37,N), East (43,W) start SEALED.
+        # The sealed state overrides any lock roll on those segments.
+        if cfg.antechamber_levers:
+            for seg in (
+                segment_key(41, E),  # West: Antechamber's W door, via col 1
+                segment_key(37, N),  # South: Antechamber's S door, via rank 8 center
+                segment_key(43, W),  # East: Antechamber's E door, via col 3
+            ):
+                st.door_state[seg] = DOOR_SEALED
+                st.door_version += 1
         self._map_cache: tuple[tuple, dict] = ((), {})
 
     # ------------------------------------------------------------ connectivity
@@ -191,6 +203,8 @@ class Game:
                     continue
                 seg = door_state.get(segment_key(cell, d), DOOR_OPEN)
                 nspent = spent
+                if seg == DOOR_SEALED:
+                    continue  # sealed: impassable regardless of keys
                 if seg == DOOR_LOCKED:
                     if not special_items.can_open_locked_free(self):
                         nspent = spent + 1
@@ -252,6 +266,15 @@ class Game:
         placed rooms still only pass through their existing doors (a solid
         wall stays a wall no matter what gets drafted later). -1 marks cells
         walled off from the Antechamber even under this assumption.
+
+        Door STATE is deliberately ignored here — locked, security and sealed
+        segments are all treated as passable. This map answers "could a route
+        exist at best?", which is what the navigation signal and the shaped
+        reward's potential need; the costs of actually opening a door belong to
+        the real traversal in ``_nav_bfs`` / ``doorway_passable``. Honouring the
+        Antechamber's sealed doors here made it read as unreachable from day
+        one, which flattened the reward gradient toward rank 9 and dropped the
+        measured win rate to exactly zero.
 
         Returns a cached list; treat it as read-only.
         """
@@ -342,6 +365,8 @@ class Game:
         open/unlocked door. Path key costs are the caller's concern (see
         :meth:`key_cost_map`)."""
         state = self.door_state_of(cell, direction)
+        if state == DOOR_SEALED:
+            return False  # sealed: impassable, no item or key can open it
         if state == DOOR_LOCKED:
             return self.state.keys >= 1 or special_items.can_open_locked_free(self)
         if state == DOOR_SECURITY:
@@ -1126,7 +1151,10 @@ class Game:
             seg = segment_key(cell, d)
             existing = st.door_state.get(seg)
             if existing is not None:
-                if existing != DOOR_OPEN:
+                # Sealed segments belong to the lever gate, not the lock system;
+                # in-drafting (placing a room that faces the door) does NOT open
+                # them. Only the lever room's ON_ENTER event can unseal.
+                if existing not in (DOOR_OPEN, DOOR_SEALED):
                     st.door_state[seg] = DOOR_OPEN
                     st.door_version += 1
                 continue
@@ -1197,6 +1225,56 @@ class Game:
                     and self.rng.chance("keycard", kc["chance"] / 100.0)):
                 st.has_keycard = True
                 st.items_found_log.append(("keycard", 1))
+        # Antechamber lever gate: entering a lever room opens its sealed segment.
+        # Per the sim's "player solves the puzzle of any room they enter" doctrine,
+        # entering the room pulls its lever subject to the access cost below.
+        # Only fires when antechamber_levers is True (config gate).
+        if self.cfg.antechamber_levers:
+            self._enter_lever_room(room, cell)
+
+    def _enter_lever_room(self, room, cell: int) -> None:
+        """Open the sealed Antechamber segment for a lever room, if eligible.
+
+        Lever rooms and their segments (design doc antechamber-lever-design.md):
+        - Weight Room -> South (37, N): requires power_hammer held OR the
+          wall already broken (weight_room_wall_broken carry-over).
+        - Secret Garden -> West (41, E): no extra cost beyond entering.
+        - Great Hall -> East (43, W): costs 1 key (the prize-room side door);
+          if no key in hand, the lever is not pulled.
+        The Greenhouse -> South path is handled by special_items.install_lever.
+        Only rooms whose sealed segment is still DOOR_SEALED are acted on.
+        """
+        st = self.state
+        match room.id:
+            case "weight_room":
+                seg = segment_key(37, N)  # South: cell 37 north face -> antechamber
+                if st.door_state.get(seg) != DOOR_SEALED:
+                    return
+                can_break = (
+                    self.cfg.weight_room_wall_broken
+                    or st.shops.weight_room_wall_broken
+                    or (self.cfg.special_items
+                        and special_items.has(st, "power_hammer"))
+                )
+                if not can_break:
+                    return
+                # Record the wall break for carryover (permanent on future days).
+                st.shops.weight_room_wall_broken = True
+                self._open_segment(37, N)
+            case "secret_garden":
+                seg = segment_key(41, E)  # West: cell 41 east face -> antechamber
+                if st.door_state.get(seg) != DOOR_SEALED:
+                    return
+                self._open_segment(41, E)
+            case "great_hall":
+                seg = segment_key(43, W)  # East: cell 43 west face -> antechamber
+                if st.door_state.get(seg) != DOOR_SEALED:
+                    return
+                # Lever sits behind a locked side door: costs 1 key.
+                if st.keys < 1:
+                    return
+                st.keys -= 1
+                self._open_segment(43, W)
 
     def inject_rooms(self, room_ids: list[str]) -> None:
         inject_rooms(self.state, self.registry, room_ids, self.rng)
@@ -1366,6 +1444,8 @@ class Game:
             if not 0 <= dist[cell] <= st.steps - 1:
                 continue
             seg = self.door_state_of(cell, d)
+            if seg == DOOR_SEALED:
+                continue  # sealed: no key can open it; not a valid action
             if seg == DOOR_LOCKED and st.keys < key_cost[cell] + 1:
                 continue
             if seg == DOOR_SECURITY and not self.security_openable():

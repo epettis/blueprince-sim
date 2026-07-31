@@ -389,6 +389,7 @@ def test_carryover_all_false_defaults():
         "outer_chip_dug",
         "royal_scepter_found",
         "west_gate_unlatched",
+        "weight_room_wall_broken",
     }
     assert bool_keys <= set(report.keys())
     assert all(not report[k] for k in bool_keys), f"expected all False, got {report}"
@@ -446,10 +447,10 @@ def test_carryover_lunch_box_from_gift_shop():
 def test_carryover_shape_is_complete():
     """carryover() dict always contains all carry-over keys regardless of state.
 
-    The six bool keys must always be present (including west_gate_unlatched added
-    in the flag-split PR); the non-bool keys (starting_items, banned_rooms,
-    used_vault_keys, lit_targets, collected_disks, chapel_tithes) are also always
-    included.
+    The seven bool keys must always be present (west_gate_unlatched was added in
+    the flag-split PR, weight_room_wall_broken in the antechamber-levers PR); the
+    non-bool keys (starting_items, banned_rooms, used_vault_keys, lit_targets,
+    collected_disks, chapel_tithes) are also always included.
     """
     bool_keys = {
         "lunch_box_unlocked",
@@ -458,6 +459,7 @@ def test_carryover_shape_is_complete():
         "outer_chip_dug",
         "royal_scepter_found",
         "west_gate_unlatched",
+        "weight_room_wall_broken",
     }
     expected_keys = bool_keys | {
         "starting_items", "banned_rooms", "used_vault_keys",

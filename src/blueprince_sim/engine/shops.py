@@ -68,6 +68,8 @@ class ShopsState:
     scepter_color: str | None = None  # activated color (category); None = not yet activated
     vase_smashed: bool = False  # Entrance Hall vase smashed today (discovery)
     chip_dug: bool = False  # West Path chip dug today (discovery)
+    # Power Hammer wall broken today (discovery; permanent across days)
+    weight_room_wall_broken: bool = False
     gift_unlocks: list[str] = field(default_factory=list)  # one-time Gift Shop buys today
     # Repellent bans added this day: room_id -> days remaining (always 7 when first added).
     # Merged into DayChain.repellent_bans on advance(); DayChain enforces the 3-ban cap
@@ -1058,6 +1060,9 @@ def carryover(game) -> dict:
         ),
         "entrance_vase_broken": cfg.entrance_vase_broken or state.shops.vase_smashed,
         "outer_chip_dug": cfg.outer_chip_dug or state.shops.chip_dug,
+        "weight_room_wall_broken": (
+            cfg.weight_room_wall_broken or state.shops.weight_room_wall_broken
+        ),
         "royal_scepter_found": cfg.royal_scepter_found,
         # west_gate_unlatched: earned the first time the player reaches west_path, which on
         # a fresh save must be via the Garage; afterwards the 2-step Grounds shortcut is
