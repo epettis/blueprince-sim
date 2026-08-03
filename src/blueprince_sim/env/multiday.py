@@ -62,6 +62,12 @@ class DayChain:
       added first (for the oldest-evict rule when the 3-ban cap is hit).
     """
 
+    # Carry-over bool flag keys: the set of GameConfig fields that persist across
+    # days within an attempt.  Exposed as a class attribute so obs.py can derive
+    # the ``carryover`` observation vector length from it without a parallel list --
+    # adding a key here automatically extends the observation space.
+    _CARRYOVER_KEYS: frozenset[str] = _CARRYOVER_KEYS
+
     def __init__(self, base_cfg: GameConfig, n_days: int = 200) -> None:
         self.base_cfg: GameConfig = base_cfg          # baseline; day/flags overridden each episode
         self.n_days: int = n_days                     # days per attempt before wrapping
