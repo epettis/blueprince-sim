@@ -211,7 +211,7 @@ def play(cfg: GameConfig, seed: int) -> None:
     print(render_grid(game))
     print(render_status(game))
     if game.success():
-        print(f"*** You reached the Antechamber! ({game.rooms_placed} rooms, "
+        print(f"*** You reached Room 46! ({game.rooms_placed} rooms, "
               f"{game.state.steps} steps left) ***")
     else:
         print(f"Day over: {game.termination_reason} "

@@ -16,6 +16,8 @@ from ..engine.special_items import inventory_value
 # negatively, dwarfing any dead-end room's resource payout.
 PATHS_ONE_PENALTY: float = -0.15   # potential when exactly 1 route survives
 PATHS_ZERO_PENALTY: float = -1.0   # potential when all routes are sealed
+ANTECHAMBER_REWARD: float = 0.25   # first Antechamber arrival each day (milestone)
+ROOM46_REWARD: float = 1.0         # first Room 46 arrival each day (win)
 
 
 class RewardFn(Protocol):
@@ -46,17 +48,25 @@ def _phi_keys(game: Game) -> float:
 def _ante_paths(game: Game) -> int:
     """Number of live routes toward the Antechamber.
 
-    If the Antechamber is already reachable on foot (distance > 0), returns a
-    large constant (99) so the potential is 0 and the +1.0 win bonus is
-    undiluted on the winning step.
+    If the Antechamber is already reachable on foot or underfoot (distance >= 0),
+    returns a large constant (99) so the potential is 0 and the arrival bonuses
+    are undiluted on the step that earns them.
 
     Otherwise counts frontier doorways whose TARGET cell has a non-(-1)
     optimistic distance to the Antechamber: drafting through that doorway could
     still lead there.  Doorways into ante-walled-off pockets (target's optimistic
     distance is -1) do not count, so dead-end islands are correctly excluded.
     """
-    if game.distance_map()[ANTECHAMBER_CELL] > 0:
-        return 99  # goal already open on foot — no path penalty applies
+    if game.state.room46_reached:
+        return 99  # already reached Room 46; win secured, no path penalty applies
+    # >= 0 covers "standing in it" (distance 0) as well as "can walk there".
+    # With > 0, a player inside the Antechamber scored as paths=0, the all-routes-
+    # sealed penalty — the best state on the board rated as the worst. It never
+    # showed before B2 because arriving there ended the day; now the player lingers
+    # to continue north, and the -1.0 -> 0.0 potential snap on the Room 46 step
+    # silently doubled the win to +2.0.
+    if game.distance_map()[ANTECHAMBER_CELL] >= 0:
+        return 99  # Antechamber reachable on foot, or underfoot — no path penalty
     od = game.optimistic_distances()
     return sum(
         1 for cell, d in game.frontier_doorways()
@@ -109,12 +119,19 @@ def snapshot(game: Game) -> dict:
         "phi_keys": _phi_keys(game), "phi_frontier": _phi_frontier(game),
         "phi_paths": _phi_paths(_ante_paths(game)),
         "inv_value": inventory_value(st, game.registry),
+        "antechamber_reached": st.antechamber_reached,
+        "room46_reached": st.room46_reached,
     }
 
 
 def sparse(game: Game, prev: dict, terminated: bool) -> float:
-    """Win-only signal: 1.0 when the episode ends in the Antechamber, else 0.0."""
-    return 1.0 if terminated and game.success() else 0.0
+    """Milestone signal: +0.25 on first Antechamber arrival, +1.0 on first Room 46 arrival."""
+    r = 0.0
+    if game.state.antechamber_reached and not prev["antechamber_reached"]:
+        r += ANTECHAMBER_REWARD
+    if game.state.room46_reached and not prev["room46_reached"]:
+        r += ROOM46_REWARD
+    return r
 
 
 def shaped(game: Game, prev: dict, terminated: bool) -> float:
@@ -146,8 +163,10 @@ def shaped(game: Game, prev: dict, terminated: bool) -> float:
     r += 0.01 * d_res
     r += _phi_paths(_ante_paths(game)) - prev["phi_paths"]
     r -= 0.001  # per-decision time pressure
-    if terminated and game.success():
-        r += 1.0
+    if game.state.antechamber_reached and not prev["antechamber_reached"]:
+        r += ANTECHAMBER_REWARD
+    if game.state.room46_reached and not prev["room46_reached"]:
+        r += ROOM46_REWARD
     return r
 
 
@@ -190,8 +209,10 @@ def phased(game: Game, prev: dict, terminated: bool) -> float:
     r += _phi_frontier(game) - prev["phi_frontier"]
     r += _phi_paths(_ante_paths(game)) - prev["phi_paths"]
     r -= 0.001  # per-decision time pressure
-    if terminated and game.success():
-        r += 1.0
+    if game.state.antechamber_reached and not prev["antechamber_reached"]:
+        r += ANTECHAMBER_REWARD
+    if game.state.room46_reached and not prev["room46_reached"]:
+        r += ROOM46_REWARD
     return r
 
 

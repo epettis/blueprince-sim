@@ -184,11 +184,12 @@ def test_observation_player_area_off_grid():
 
 
 def test_observation_progress_shape():
-    """progress has shape (3,) with deepest_rank, ante_dist, and ante_connected."""
+    """progress has shape (5,): deepest_rank, ante_dist, ante_connected,
+    antechamber_reached, room46_reached."""
     g = _make_game_with_outer_room_unlocked()
     enc = O.encode(g)
     shape = enc["progress"].shape
-    assert shape == (3,), f"progress should have shape (3,), got {shape}"
+    assert shape == (5,), f"progress should have shape (5,), got {shape}"
 
 
 def test_observation_player_area_encoding_consistent_with_travel():

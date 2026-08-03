@@ -1068,6 +1068,8 @@ def carryover(game) -> dict:
         # a fresh save must be via the Garage; afterwards the 2-step Grounds shortcut is
         # open for all future days.  ORed from state so the config is never mutated.
         "west_gate_unlatched": cfg.west_gate_unlatched or state.west_gate_unlatched,
+        # Room 46 first reached: permanent gem-deck gate; carries once True, forever.
+        "room46_reached": cfg.room46_reached or state.room46_reached,
         # Vault keys permanently used: accumulated union across all days.
         "used_vault_keys": sorted(
             set(getattr(cfg, "used_vault_keys", frozenset()))

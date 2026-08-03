@@ -128,6 +128,7 @@ class Game:
                 segment_key(41, E),  # West: Antechamber's W door, via col 1
                 segment_key(37, N),  # South: Antechamber's S door, via rank 8 center
                 segment_key(43, W),  # East: Antechamber's E door, via col 3
+                segment_key(ANTECHAMBER_CELL, N),  # North: off-grid door to Room 46
             ):
                 st.door_state[seg] = DOOR_SEALED
                 st.door_version += 1
@@ -660,6 +661,10 @@ class Game:
             flags.add("west_gate_unlatched")
         if self._breaker_on():
             flags.add("garage_door_breaker")
+        # North door open: Inner Sanctum or Throne Room lever pulled this day.
+        north_seg = segment_key(ANTECHAMBER_CELL, N)
+        if self.state.door_state.get(north_seg) != DOOR_SEALED:
+            flags.add("antechamber_north_door_open")
         # rooms_entered: grid cells entered today, plus the outer room if entered
         entered_room_ids: set[str] = set()
         for cell, was_entered in enumerate(st.entered):
@@ -687,9 +692,10 @@ class Game:
 
         "house" maps to ENTRANCE_CELL always.
         "garage" maps to the lowest garage cell only when the garage is placed.
+        "antechamber" maps to ANTECHAMBER_CELL always (it's pre-placed each day).
         "the_foundation" has pool="none" and is never placed — excluded.
         """
-        anchors: dict[str, int] = {"house": ENTRANCE_CELL}
+        anchors: dict[str, int] = {"house": ENTRANCE_CELL, "antechamber": ANTECHAMBER_CELL}
         garage_cell = self._garage_cell()
         if garage_cell >= 0:
             anchors["garage"] = garage_cell
@@ -798,6 +804,14 @@ class Game:
             # it would leak the unlock into later "fresh save" episodes.
             if dest == "west_path":
                 st.west_gate_unlatched = True
+            # Inner Sanctum main lever: opens the Antechamber's north door.
+            if dest == "inner_sanctum":
+                north_seg = segment_key(ANTECHAMBER_CELL, N)
+                if st.door_state.get(north_seg) == DOOR_SEALED:
+                    self._open_segment(ANTECHAMBER_CELL, N)
+            # Room 46: record first arrival (permanent via carryover; see shops.carryover).
+            if dest == "room_46" and not st.room46_reached:
+                st.room46_reached = True
             # Fire ON_ENTER the first time the player enters the drafted outer room.
             outer_room = self.drafted_outer_room
             if (outer_room is not None and dest == outer_room.id
@@ -1204,6 +1218,8 @@ class Game:
         and keycard source rooms roll their chance to hand over the Keycard.
         """
         st = self.state
+        if cell == ANTECHAMBER_CELL:
+            st.antechamber_reached = True  # milestone: first arrival at rank 9 center
         if st.entered[cell]:
             return
         st.entered[cell] = True
@@ -1275,6 +1291,13 @@ class Game:
                     return
                 st.keys -= 1
                 self._open_segment(43, W)
+            case "throne_room":
+                # Backup north-door lever (studio addition). Entering the Throne Room
+                # pulls the north lever; no extra cost beyond entering.
+                seg = segment_key(ANTECHAMBER_CELL, N)
+                if st.door_state.get(seg) != DOOR_SEALED:
+                    return
+                self._open_segment(ANTECHAMBER_CELL, N)
 
     def inject_rooms(self, room_ids: list[str]) -> None:
         inject_rooms(self.state, self.registry, room_ids, self.rng)
@@ -1380,20 +1403,16 @@ class Game:
         self.termination_reason = reason
 
     def _check_termination(self) -> None:
-        """End the day when won, out of steps, or no purposeful action remains.
+        """End the day when out of steps or no purposeful action remains.
 
-        Called after every state-changing action. Winning requires standing
-        IN the Antechamber (which may cost the last step); "dead_end" means no
-        frontier doorway exists and the Antechamber is unreachable;
-        "out_of_steps" also covers having steps left but nothing useful
-        within the budget (see :meth:`_action_in_budget`).
+        Called after every state-changing action. The day does NOT end when the
+        player reaches the Antechamber — Room 46 is the objective. "dead_end"
+        means no frontier doorway exists and the Antechamber is unreachable;
+        "out_of_steps" also covers having steps left but nothing useful within
+        the budget (see :meth:`_action_in_budget`).
         """
         st = self.state
-        # You win only by walking INTO the Antechamber, not by connecting a
-        # door to it. Reaching it may cost the last step you have.
-        if st.pos == ANTECHAMBER_CELL:
-            self._terminate("antechamber")
-        elif st.steps <= 0:
+        if st.steps <= 0:
             self._terminate("out_of_steps")
         elif self.off_grid:
             # Off-grid: check if any outer-area action is affordable
@@ -1455,6 +1474,11 @@ class Game:
         for cell in range(N_CELLS):
             if 0 < dist[cell] <= st.steps and not st.entered[cell]:
                 return True
+        # Area travel to Room 46 (off-grid objective): counts as a purposeful action.
+        if not self.off_grid:
+            result = self.area_route_cost("room_46")
+            if result is not None and st.steps >= result[0]:
+                return True
         return self.outer_draft_available()
 
     def _antechamber_reachable(self) -> bool:
@@ -1467,5 +1491,5 @@ class Game:
         return self.phase is Phase.TERMINAL, self.termination_reason
 
     def success(self) -> bool:
-        """Did the day end by walking into the Antechamber?"""
-        return self.termination_reason == "antechamber"
+        """Did the player reach Room 46 today?"""
+        return self.state.room46_reached

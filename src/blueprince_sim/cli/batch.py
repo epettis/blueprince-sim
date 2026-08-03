@@ -58,6 +58,7 @@ def run_episode(cfg: GameConfig, policy, seed: int, max_decisions: int = 800) ->
     st = game.state
     return {
         "success": game.success(),
+        "antechamber_reached": game.state.antechamber_reached,
         "reason": game.termination_reason,
         "deepest_rank": game.deepest_rank,
         "rooms_placed": game.rooms_placed,
@@ -76,13 +77,16 @@ def run_batch(cfg: GameConfig, policy_name: str, episodes: int, seed0: int = 0,
     policy = POLICIES[policy_name]
     results = [run_episode(cfg, policy, seed0 + i) for i in range(episodes)]
     wins = sum(r["success"] for r in results)
+    ante = sum(r["antechamber_reached"] for r in results)
     lo, hi = wilson_ci(wins, episodes)
+    lo_a, hi_a = wilson_ci(ante, episodes)
     reasons = Counter(r["reason"] for r in results)
     ranks = Counter(r["deepest_rank"] for r in results)
     summary = {
         "policy": policy_name,
         "episodes": episodes,
-        "p_antechamber": wins / episodes,
+        "p_room46": wins / episodes,
+        "p_antechamber": ante / episodes,
         "ci95": (lo, hi),
         "mean_deepest_rank": sum(r["deepest_rank"] for r in results) / episodes,
         "mean_rooms_placed": sum(r["rooms_placed"] for r in results) / episodes,
@@ -92,6 +96,8 @@ def run_batch(cfg: GameConfig, policy_name: str, episodes: int, seed0: int = 0,
     if not quiet:
         print(f"policy={policy_name}  episodes={episodes}")
         print(f"P(reach Antechamber) = {summary['p_antechamber']:.3%}  "
+              f"(95% CI {lo_a:.3%} - {hi_a:.3%})")
+        print(f"P(reach Room 46) = {summary['p_room46']:.3%}  "
               f"(95% CI {lo:.3%} - {hi:.3%})")
         print(f"mean deepest rank = {summary['mean_deepest_rank']:.2f}   "
               f"mean rooms placed = {summary['mean_rooms_placed']:.1f}")

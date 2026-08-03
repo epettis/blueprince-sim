@@ -50,8 +50,6 @@ _STUDIO_ADDITION_EXCLUSIONS: frozenset[str] = frozenset({
     # Closed Exhibit: security puzzle (Paper Crown pickup simplified to guaranteed) — excluded
     # because the intended locked-puzzle behaviour is unmodelled (open task: Closed Exhibit puzzle).
     "closed_exhibit",
-    # Throne Room: no special behaviour implemented; open task: Throne Room.
-    "throne_room",
     # NOTE: casino IS included below even though its slot-machine games are unmodelled.
     # Removing it would change training behaviour beyond this fix's intent; the inconsistency
     # is acknowledged here.  Promote this note once Casino games are implemented.
@@ -237,7 +235,7 @@ class EpisodeRecorder:
         seed = info.get("episode_seed")
         if not buf or seed is None:
             return
-        win = info.get("termination_reason") == "antechamber"
+        win = bool(info.get("room46_reached"))
         record = {
             "episode": episode,
             "seed": int(seed),
@@ -459,7 +457,7 @@ class CheckpointAndStopCallback:
                     if not done:
                         continue
                     self.episodes += 1
-                    win = 1.0 if info.get("termination_reason") == "antechamber" else 0.0
+                    win = 1.0 if info.get("room46_reached") else 0.0
                     self.recent.append(win)
                     if self.recorder is not None:
                         self.recorder.on_episode_end(i, self.episodes, info)
@@ -604,13 +602,13 @@ def evaluate(ckpt_dir: Path, episodes: int, reward: str, seed: int,
             action, _ = model.predict(obs, action_masks=mask, deterministic=True)
             obs, r, term, trunc, info = env.step(int(action))
             done = term or trunc
-        wins += info.get("termination_reason") == "antechamber"
+        wins += bool(info.get("room46_reached"))
         ranks.append(info.get("deepest_rank", 0))
         names = info.get("drafted_rooms") or []
         drafts.update(names)
         seeds_with.update(set(names))
     lo, hi = wilson_ci(wins, episodes)
-    print(f"evaluated {ckpt}: P(Antechamber) = {wins / episodes:.3%} "
+    print(f"evaluated {ckpt}: P(Room 46) = {wins / episodes:.3%} "
           f"(95% CI {lo:.3%} - {hi:.3%}), mean deepest rank "
           f"{sum(ranks) / len(ranks):.2f} over {episodes} episodes")
     if eval_json is not None:
@@ -623,7 +621,7 @@ def evaluate(ckpt_dir: Path, episodes: int, reward: str, seed: int,
                 pass
         rec = {
             "episodes": trained_episodes,
-            "p_antechamber": wins / episodes,
+            "p_room46": wins / episodes,
             "ci95": [lo, hi],
             "mean_deepest_rank": sum(ranks) / len(ranks),
             "eval_episodes": episodes,

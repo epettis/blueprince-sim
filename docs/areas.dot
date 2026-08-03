@@ -67,6 +67,7 @@ digraph blueprince_outside {
 
 		node [fillcolor="#fffde7", color="#9e9d24"];
 		house          [label="House\n(Entrance Hall, 5x9 grid)"];
+		antechamber    [label="Antechamber\n(rank 9 center cell)"];
 		garage         [label="Garage\n(in-grid room)"];
 		the_foundation [label="The Foundation\n(in-grid room)", color="#c9a227", penwidth=2.5];
 		tomb           [label="Tomb\n(outer room, 1 of 8)", color="#c9a227", penwidth=2.5];
@@ -114,6 +115,7 @@ digraph blueprince_outside {
 		underpass           [label="The Underpass"];
 		inner_sanctum       [label="Inner Sanctum\n(Antechamber N lever)"];
 		sigil_chambers      [label="8 Sigil Chambers\neach: 1 Sanctum Key, permanent,\n+2 allowance from its Mora Jai box"];
+		room_46             [label="Room 46\n(the day's objective)", color="#c9a227", penwidth=2.5];
 		precipice           [label="The Precipice"];
 		unknown_underground [label="Unknown (Underground)\n(Key of Aries clock)"];
 	}
@@ -223,6 +225,14 @@ digraph blueprince_outside {
 
 	inner_sanctum  -> sigil_chambers [label="1 Sanctum Key per chamber\n(consumed); door then permanent", style=bold];
 	sigil_chambers -> inner_sanctum  [];
+
+	// Room 46 — the day's objective. The Antechamber is walked to on the grid;
+	// its north door is sealed each morning until one of the two levers is pulled
+	// (Inner Sanctum, above, or the Throne Room on the grid).
+	house       -> antechamber [];
+	antechamber -> house       [];
+	antechamber -> room_46     [label="north door\n(sealed until a lever\nis pulled; resets daily)", style=dashed];
+	room_46     -> antechamber [];
 
 	// ===================== LEGEND =====================
 	subgraph cluster_legend {
