@@ -7,7 +7,7 @@ from gymnasium import spaces
 
 from ..engine.game import ANTECHAMBER_CELL, Game, Phase
 from ..engine.grid import DIRS, OPPOSITE, neighbor
-from ..engine.locks import DOOR_LOCKED, DOOR_SECURITY, SECURITY_LEVELS
+from ..engine.locks import DOOR_LOCKED, DOOR_SEALED, DOOR_SECURITY, SECURITY_LEVELS
 from ..engine.model import LAYOUTS
 from ..engine.shops import SCEPTER_COLORS, current_shop_id
 from ..engine.upgrades import all_slot_ids, upgraded_slots
@@ -75,10 +75,14 @@ def observation_space(n_rooms: int, n_items: int, n_recipes: int,
         "grid_ante_dist": spaces.Box(-1, 99, shape=(9, 5), dtype=np.int16),
         # 4-bit mask of frontier doorways (draftable doors) per cell.
         "grid_frontier": spaces.Box(0, 15, shape=(9, 5), dtype=np.uint8),
-        # 4-bit masks of locked / security doorway segments per cell (both
-        # sides of a segment carry the bit; opened doors drop out).
+        # 4-bit masks of locked / security / sealed doorway segments per cell
+        # (both sides carry the bit; opened/unsealed doors drop out).
         "grid_locked": spaces.Box(0, 15, shape=(9, 5), dtype=np.uint8),
         "grid_security": spaces.Box(0, 15, shape=(9, 5), dtype=np.uint8),
+        # Sealed Antechamber doorway segments: impassable until a lever is pulled.
+        # Non-zero only on the three sealed cells and the Antechamber when the
+        # antechamber_levers flag is on; zero on every cell otherwise.
+        "grid_sealed": spaces.Box(0, 15, shape=(9, 5), dtype=np.uint8),
         "grid_entered": spaces.Box(0, 1, shape=(9, 5), dtype=np.uint8),
         # player_pos: flat cell index on the 5x9 grid. Only meaningful when
         # player_area == 0 (the player is on the grid). When player_area > 0
@@ -245,11 +249,14 @@ def encode(game: Game, day_chain: DayChain | None = None) -> dict:
 
     grid_locked = np.zeros((9, 5), dtype=np.uint8)
     grid_security = np.zeros((9, 5), dtype=np.uint8)
+    grid_sealed = np.zeros((9, 5), dtype=np.uint8)
     for (cell, d), seg in st.door_state.items():
         if seg == DOOR_LOCKED:
             plane = grid_locked
         elif seg == DOOR_SECURITY:
             plane = grid_security
+        elif seg == DOOR_SEALED:
+            plane = grid_sealed
         else:
             continue
         plane[cell // 5, cell % 5] |= d
@@ -445,6 +452,7 @@ def encode(game: Game, day_chain: DayChain | None = None) -> dict:
         "grid_frontier": grid_frontier,
         "grid_locked": grid_locked,
         "grid_security": grid_security,
+        "grid_sealed": grid_sealed,
         "grid_entered": grid_entered,
         "player_pos": st.pos,
         "resources": resources,

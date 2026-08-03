@@ -24,6 +24,7 @@ from .state import GameState
 DOOR_OPEN = 0      # rolled unlocked, or unlocked/opened by the player
 DOOR_LOCKED = 1    # opening consumes one key
 DOOR_SECURITY = 2  # opening needs the keycard system (see security_openable)
+DOOR_SEALED = 3    # Antechamber lever gate: impassable until its lever is pulled
 
 SECURITY_LEVELS = ("low", "normal", "high")
 

@@ -234,8 +234,13 @@ def test_losing_an_item_costs_reward(registry):
 def _sealed_game(registry):
     """Helper: fresh game with Entrance Hall cleared (grid[2] reset) so tests
     can place custom rooms without inheriting the default door locks and
-    layout of the pre-placed Entrance Hall."""
-    g = _game(registry)
+    layout of the pre-placed Entrance Hall.
+
+    Uses the DEFAULT config, lever gate included: optimistic_distances ignores
+    door state, so the Antechamber's sealed doors cannot hide cell 37 from the
+    shaped reward's potential.
+    """
+    g = Game(GameConfig(), seed=1, registry=registry)
     st = g.state
     st.grid[2] = -1
     st.placed_doors[2] = 0

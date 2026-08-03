@@ -50,11 +50,16 @@ def test_low_ranks_never_locked_by_chance(registry):
 
 
 def test_antechamber_doorways_start_locked(registry):
-    """Every Antechamber doorway starts locked (rank 8<->9 has 100% base
-    chance), and a guaranteed lock leaves the daily bias untouched."""
+    """With antechamber_levers=False, the three doorways start DOOR_LOCKED
+    (rank 8<->9 has 100% base chance), and a guaranteed lock leaves the
+    daily bias untouched.
+
+    antechamber_levers=False is used here to test the lock system in isolation;
+    with levers=True the segments start DOOR_SEALED (see test_antechamber_levers.py).
+    """
     # Rank 8<->9 sits over 100% base chance: at day-start bias 1 every
     # Antechamber doorway rolls locked (until a connecting room in-drafts).
-    g = Game(GameConfig(), seed=3, registry=registry)
+    g = Game(GameConfig(antechamber_levers=False), seed=3, registry=registry)
     for d in (S, E, W):
         assert g.door_state_of(ANTECHAMBER_CELL, d) == DOOR_LOCKED
     # Guaranteed-by-chance locks skip the bias update (second-roll rule).
@@ -78,8 +83,13 @@ def test_corridor_and_corriyard_doors_are_never_locked(registry):
 
 def test_door_locks_flag_disables_everything(registry):
     """door_locks=False turns the whole system off: no door state is rolled,
-    the Antechamber is passable, and the keycard machinery is inert."""
-    g = Game(GameConfig(door_locks=False), seed=3, registry=registry)
+    the Antechamber is passable, and the keycard machinery is inert.
+
+    antechamber_levers=False is set alongside door_locks=False so that the
+    sealed-lever state does not appear in door_state (sealed is a separate system).
+    """
+    g = Game(GameConfig(door_locks=False, antechamber_levers=False), seed=3,
+             registry=registry)
     assert g.state.door_state == {}
     assert g.doorway_passable(ANTECHAMBER_CELL, S)
     assert not g.can_toggle_keycard_power()
@@ -115,9 +125,14 @@ def test_drafting_a_room_on_the_far_side_opens_a_security_door(registry):
 
 
 def test_connecting_room_opens_the_antechamber_doorway(registry):
-    """Drafting a room whose door faces the Antechamber opens its locked
-    doorway, so reaching the Antechamber never requires a key."""
-    g = _game(registry)
+    """Drafting a room facing the Antechamber opens its locked doorway
+    (in-drafting mechanic), so reaching the Antechamber never requires a key.
+
+    antechamber_levers=False is used to isolate the in-drafting / lock mechanic;
+    with levers=True the segment starts DOOR_SEALED and in-drafting does NOT open
+    it (only the lever room does).
+    """
+    g = Game(GameConfig(antechamber_levers=False), seed=1, registry=registry)
     straight = next(r for r in registry.rooms
                     if r.layout == "straight" and r.rarity is not None)
     assert g.door_state_of(ANTECHAMBER_CELL, S) == DOOR_LOCKED

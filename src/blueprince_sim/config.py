@@ -37,6 +37,11 @@ class GameConfig:
     # roll locked (opening costs a key) or spawn as security doors (opened by
     # the keycard system: Security terminal + Utility Closet breaker).
     door_locks: bool = True
+    # True (default): the three non-north Antechamber doorways start each day SEALED
+    # and require a lever room to be entered before the Antechamber can be reached.
+    # False: all four Antechamber doors open unconditionally, reproducing the old
+    # open-door model so existing baselines remain reproducible.
+    antechamber_levers: bool = True
     # --- rule flags for documented-but-ambiguous behavior ---
     strict_door_matching: bool = False  # True: forbid doors facing occupied blank walls
     orientation_choice: bool = False    # True: player picks orientation; False: dealt orientation
@@ -66,6 +71,10 @@ class GameConfig:
     # from previous days.  Plain dict — NOT in the frozenset-coercion list.
     draft_counts: dict[str, int] = field(default_factory=dict)
     entrance_vase_broken: bool = False  # west vase smashed before: its microchip granted at day start
+    # Weight Room wall broken before with the Power Hammer: the wall stays broken on
+    # future days, so entering the Weight Room opens the south Antechamber door
+    # without needing to hold the Power Hammer again. Carried by DayChain.
+    weight_room_wall_broken: bool = False
     outer_chip_dug: bool = False        # West Path chip dug up before: granted on reaching the doorstep
     # Room ids banned from the draft pool by the Repellent item.  Each
     # repellent use records a ban for 7 days; DayChain decrements the counters
