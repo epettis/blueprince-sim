@@ -106,7 +106,7 @@ def test_recorder_sampling_and_top_window(tmp_path: Path):
         rec.on_step([episode % 7], [True])
         rec.on_episode_end(0, episode, {
             "episode_seed": episode, "deepest_rank": rank, "rooms_placed": rank,
-            "termination_reason": "antechamber" if win else "out_of_steps"})
+            "termination_reason": "out_of_steps", "room46_reached": win})
 
     for ep in range(1, 10):
         finish(ep, rank=ep % 5 + 1, win=(ep == 4))

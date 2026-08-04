@@ -132,15 +132,91 @@ listed so they can be revisited rather than rediscovered:
 - **The Great Hall prize door is charged as a flat key cost**, not modelled as one of
   the two specific prize rooms.
 
-## B2 seam (not this PR)
+## B2 — Room 46, the north door, and the two-tier objective
 
-Room 46 is the real objective; the Antechamber is a waypoint. B2 adds: an
-`areas.json` node for `room_46` reached through the Antechamber's north door, the
-north lever from the Throne Room (backup) and the Inner Sanctum (the main one, and
-the common first win), and the two-tier reward where the Antechamber scores and Room
-46 wins. Reaching Room 46 pays the win reward but does **not** end the day — the
-player keeps collecting to fund tomorrow.
+**Room 46 is the objective; the Antechamber is a prerequisite, not a victory**
+(owner, 2026-08-02). This is the part of task 9 that changes what "winning" means.
 
-The Inner Sanctum route runs through area-graph nodes whose gates are still open
-stubs, so any Room 46 rate measured before those mechanisms land is an **upper
-bound**.
+### The Antechamber stops ending the day
+
+`game.py` terminates the day the moment the player stands on cell 42
+(`_terminate("antechamber")`). Room 46 lies *through* the Antechamber, so that
+termination makes the real objective unreachable by construction — it has to go.
+
+It was always a simplification: the README lists "Antechamber entry model" among
+the known ones, and the wiki says the day continues (a pillar presents the Basement
+Key: *"To continue up, you must go down."*). Removing it is a fidelity fix that B2
+forces rather than a new liberty.
+
+Consequences, all of which must be handled together:
+
+- `Game.success()` means **reached Room 46**, not reached the Antechamber.
+- `termination_reason` loses the value `"antechamber"`. Days end on `out_of_steps`
+  or `dead_end` as they already do.
+- `GameState` records `antechamber_reached` and `room46_reached` as separate
+  per-day facts, so both remain measurable.
+- **Six code sites currently key the win off `termination_reason == "antechamber"`**
+  — `game.py::success`, three in `env/rewards.py`, three in `rl/train.py`, plus
+  `cli/batch.py` and `cli/play.py`. All must move to the Room 46 flag together, or
+  the reward and the reported win rate will silently disagree.
+
+`P(reach Antechamber)` stops being the headline metric. It stays reported as a
+milestone rate; `P(reach Room 46)` becomes the victory rate. **Numbers from before
+this change are not comparable to numbers after it.**
+
+### The north door and Room 46
+
+Room 46 sits beyond the Antechamber's north door, which faces the outer wall — so
+Room 46 is an **area node**, not a grid cell, reached by travelling north from
+cell 42. It joins `areas.json` like any other node and reuses the travel machinery.
+
+The north door has two levers, and neither is on the grid:
+
+- **Inner Sanctum** — the main lever, and the common first win. The lever is in the
+  sanctum's *main area*: *"In the main area of the room, there is a lever to open the
+  north door of the Antechamber."* It does **not** require the 8 Sanctum Keys —
+  those open the sigil chambers, which are side content. Reaching `inner_sanctum` is
+  sufficient.
+- **Throne Room** — the backup. A `studio_addition` room, so it needs that unlock;
+  the wiki notes it cannot be used on day one because the room enters the pool a day
+  late.
+
+The measured route is **8 area hops**: `house -> grounds -> sealed_entrance ->
+basement -> reservoir_north -> mine_north -> rotating_gear -> underpass ->
+inner_sanctum`, at one step per edge. Round trip is ~16 steps against a 50–70 step
+budget, *plus* reaching rank 9, *plus* a side lever room. A winning day is therefore
+demanding, which is correct — but it makes the Throne Room backup load-bearing for
+any policy that cannot afford the walk.
+
+### Everything resets overnight
+
+The north door is an Antechamber door and resets with the rest: *"The Antechamber
+resets at the end of each day, closing all doors and resetting all levers to their
+initial states."* `room46_reached` is the exception — it is a permanent save-level
+fact (`GameConfig.room46_reached` already exists as a gem-deck gate) and must be set
+on first arrival.
+
+### Reaching Room 46 does not end the day
+
+Owner's decision, and it interacts well with the reward horizon: the win reward is
+paid on arrival and **play continues** — the agent keeps collecting disks and
+permanent upgrades to fund tomorrow, until steps run out or no legal action remains.
+The cross-day bootstrap is what lets the value function see that continued
+collection as worth something.
+
+### Reward split
+
+- Antechamber, first arrival of the day: **+0.25**, once.
+- Room 46, first arrival of the day: **+1.0**, once.
+
+4:1 keeps Room 46 dominant while the Antechamber stays a dense enough milestone to
+train against, and a 1.25 ceiling stays close to today's scale so the existing
+shaping constants remain roughly calibrated. Both are single constants, easy to
+retune once there is real run data.
+
+### Upper bound, stated plainly
+
+The Sanctum route runs through `rotating_gear`, `underpass` and `reservoir_north`,
+whose gates are still **open stubs** — the Rotating Gear position and the Pump Room
+water level are not modelled, and there is no notion of POWER. So any Room 46 rate
+measured now is an **UPPER BOUND**, and that caveat belongs next to every number.

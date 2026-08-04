@@ -813,16 +813,20 @@ def main() -> int:
         if gid not in gates_used:
             warnings.append(f"areas/gates/{gid}: gate declared but not referenced by any edge")
 
-    # Node and edge count consistency: docs/areas.md specifies 36 nodes (25 area + 11 anchors)
-    # and 73 directed edges. A mismatch means the data and spec have drifted.
-    SPEC_NODE_COUNT = 36
-    SPEC_EDGE_COUNT = 73
+    # Node and edge count consistency: 38 nodes (26 area + 12 anchors) and 75 directed
+    # edges. A mismatch means the data and spec have drifted.
+    #
+    # 75, not 77: the antechamber anchor deliberately has NO area edges to the house.
+    # Reaching rank 9 center is a GRID walk through a lever-opened door, and an area
+    # edge would let travel_to() hop there for ~0 steps straight past the seal.
+    SPEC_NODE_COUNT = 38
+    SPEC_EDGE_COUNT = 75
     actual_node_count = len(a_node_ids)
     actual_edge_count = len(a_edges)
     if actual_node_count != SPEC_NODE_COUNT:
         errors.append(
             f"areas: node count is {actual_node_count}, spec says {SPEC_NODE_COUNT} "
-            f"(25 area nodes + 11 anchors); update docs/areas.md if the graph has changed"
+            f"(26 area nodes + 12 anchors); update docs/areas.md if the graph has changed"
         )
     if actual_edge_count != SPEC_EDGE_COUNT:
         errors.append(

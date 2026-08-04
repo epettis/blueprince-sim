@@ -281,6 +281,21 @@
    "modelled": false,
    "surface": false,
    "meta": {"source": "docs/areas.md", "confidence": "wiki"}
+  },
+  {
+   "id": "antechamber",
+   "name": "Antechamber (rank 9 center grid cell)",
+   "kind": "anchor",
+   "modelled": false,
+   "meta": {"source": "docs/antechamber-lever-design.md", "confidence": "wiki"}
+  },
+  {
+   "id": "room_46",
+   "name": "Room 46 (through Antechamber north door)",
+   "kind": "area",
+   "surface": false,
+   "modelled": true,
+   "meta": {"source": "docs/antechamber-lever-design.md", "confidence": "wiki"}
   }
  ],
  "gates": [
@@ -549,6 +564,14 @@
    "item_ids": ["sanctum_key"],
    "count": 1,
    "meta": {"source": "docs/areas.md", "confidence": "wiki"}
+  },
+  {
+   "id": "antechamber_north_door_open",
+   "kind": "flag",
+   "permanence": "daily",
+   "stub": false,
+   "detail": "Antechamber north door: sealed until the Inner Sanctum lever or Throne Room lever is pulled. The engine sets this flag in GateContext when the north-door segment is not DOOR_SEALED.",
+   "meta": {"source": "docs/antechamber-lever-design.md", "confidence": "wiki"}
   }
  ],
  "edges": [
@@ -624,6 +647,8 @@
   {"from": "underpass", "to": "inner_sanctum", "requires": ["tunnel_metal_door"], "meta": {"source": "docs/areas.md", "confidence": "wiki"}},
   {"from": "inner_sanctum", "to": "underpass", "requires": [], "meta": {"source": "docs/areas.md", "confidence": "wiki"}},
   {"from": "inner_sanctum", "to": "sigil_chambers", "requires": ["sanctum_key_chamber"], "meta": {"source": "docs/areas.md", "confidence": "wiki"}},
-  {"from": "sigil_chambers", "to": "inner_sanctum", "requires": [], "meta": {"source": "docs/areas.md", "confidence": "wiki"}}
+  {"from": "sigil_chambers", "to": "inner_sanctum", "requires": [], "meta": {"source": "docs/areas.md", "confidence": "wiki"}},
+  {"from": "antechamber", "to": "room_46", "requires": ["antechamber_north_door_open"], "meta": {"source": "docs/antechamber-lever-design.md", "confidence": "wiki"}},
+  {"from": "room_46", "to": "antechamber", "requires": [], "meta": {"source": "docs/antechamber-lever-design.md", "confidence": "wiki"}}
  ]
 }

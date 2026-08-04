@@ -5,7 +5,7 @@ to draft, or a room to enter) and the engine walks the shortest connected
 path, paying the normal one-step-per-room cost. Re-entering rooms grants
 nothing, so free-form single-tile moves were retired.
 
-Layout (Discrete(312)):
+Layout (Discrete(314)):
   0..179   draft at doorway: cell (45) x direction (4: N,E,S,W) ->
            cell*4 + dir_index. Walks to the room first if needed. Legal for
            every frontier doorway reachable with at least one step to spare
@@ -103,15 +103,15 @@ LIGHT_ACTION = 270           # light ignition target (torch or burning_glass)
 INSTALL_LEVER_ACTION = 271   # install broken_lever in a machine room
 INSERT_DISK_ACTION = 272     # insert an Upgrade Disk at a disk reader (NAVIGATE)
 CHOOSE_UPGRADE_BASE = 273    # 273..275: choose upgrade variant slot 0/1/2 (UPGRADE_PENDING)
-TRAVEL_BASE = 276            # 276..311: travel to area-graph node (36 nodes)
+TRAVEL_BASE = 276            # 276..313: travel to area-graph node (38 nodes)
 
-# N_ACTIONS = first slot after TRAVEL_BASE + one slot per area node (36)
+# N_ACTIONS = first slot after TRAVEL_BASE + one slot per area node (38)
 # Derived so that adding a node to areas.json expands the space automatically.
 # The literal 36 is intentional: the test suite pins mask-length == N_ACTIONS,
 # not a bare count, so the only invariant that matters is that this equals
 # TRAVEL_BASE + len(area_node_ids) for the committed graph.
-_N_AREA_NODES = 36  # asserted by tests via mask length, not literal comparison
-N_ACTIONS = TRAVEL_BASE + _N_AREA_NODES  # 276 + 36 = 312
+_N_AREA_NODES = 38  # asserted by tests via mask length, not literal comparison
+N_ACTIONS = TRAVEL_BASE + _N_AREA_NODES  # 276 + 38 = 314
 
 DIR_INDEX = {d: i for i, d in enumerate(DIRS)}
 

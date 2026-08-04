@@ -50,7 +50,7 @@ SCEPTER_COLOR_INDEX = {c: i for i, c in enumerate(SCEPTER_COLORS)}
 
 
 def observation_space(n_rooms: int, n_items: int, n_recipes: int,
-                      n_area_nodes: int = 36,
+                      n_area_nodes: int = 38,
                       n_carryover: int = len(DayChain._CARRYOVER_KEYS),
                       n_slots: int = 16) -> spaces.Dict:
     """Dict observation space over the 9x5 (rank-major) grid; see :func:`encode`.
@@ -100,9 +100,10 @@ def observation_space(n_rooms: int, n_items: int, n_recipes: int,
         "disks_held": spaces.Discrete(MAX_DISKS_HELD + 1),
         "stage": spaces.Discrete(3),
         "house_flags": spaces.Box(0, 999, shape=(HOUSE_FLAGS,), dtype=np.int16),
-        # deepest_rank, optimistic player->Antechamber distance (-1 if walled
-        # off), Antechamber connected+walkable right now (0/1).
-        "progress": spaces.Box(-1, 999, shape=(3,), dtype=np.int16),
+        # deepest_rank, optimistic player->Antechamber distance (-1 if walled off),
+        # Antechamber connected+walkable right now (0/1),
+        # antechamber_reached this day (0/1), room46_reached this day (0/1).
+        "progress": spaces.Box(-1, 999, shape=(5,), dtype=np.int16),
         # player_area: 0 = on the 5x9 grid; 1 + area_index = off-grid at that
         # node. The area_index uses the same sorted-by-id ordering as TRAVEL_BASE.
         # When player_area == 0, player_pos is authoritative for location.
@@ -314,6 +315,8 @@ def encode(game: Game, day_chain: DayChain | None = None) -> dict:
         game.deepest_rank,
         int(ante_flat[st.pos]),
         int(grid_dist[ANTECHAMBER_CELL // 5, ANTECHAMBER_CELL % 5] > 0),
+        int(st.antechamber_reached),
+        int(st.room46_reached),
     ], dtype=np.int16)
 
     # player_area: 0 = on the grid; 1 + area_index = off-grid at that node.

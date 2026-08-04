@@ -72,6 +72,7 @@ def _all_open_ctx(outer_room_id: str | None = "tomb") -> GateContext:
     defaults to "tomb" so the existing 1-step distance tests remain valid.
     garage_door_breaker is now a real flag gate (not a stub) so it must be included.
     basement_sealed_entrance_return is a real flag gate — include it too.
+    antechamber_north_door_open is a flag gate set when the north door lever is pulled.
     """
     return GateContext(
         held_items={
@@ -86,6 +87,7 @@ def _all_open_ctx(outer_room_id: str | None = "tomb") -> GateContext:
             "mine_south_visited",
             "garage_door_breaker",
             "basement_sealed_entrance_return",
+            "antechamber_north_door_open",
         }),
         rooms_entered=frozenset({"tomb"}),
         outer_room_id=outer_room_id,
@@ -235,19 +237,26 @@ def test_mine_north_south_route_via_reservoir_north(graph: AreaGraph) -> None:
 def test_no_dead_nodes_all_items_and_flags(
     graph: AreaGraph, outer_room_ids: list[str]
 ) -> None:
-    """Every node is reachable from 'house' across the set of all valid outer-room contexts.
+    """Every node is reachable from a grid anchor across all valid outer-room contexts.
 
     Outer-room anchor nodes are only reachable one at a time (the outer_room gate is
     destination-specific), so we cannot reach all 8 in a single BFS. Instead: each
     outer-room anchor must be reachable when it is the drawn room; every non-outer
     node must be reachable with tomb as the drawn room (tomb is also required for the
     catacombs gate). A node unreachable in any of these contexts is a design error.
+
+    The BFS is seeded from BOTH grid anchors the player can stand on, 'house' and
+    'antechamber'. The antechamber deliberately has no area edge to the house:
+    reaching rank 9 center is a GRID walk through a lever-opened door, and giving it
+    one would let travel_to() hop there for ~0 steps straight past the seal. So it is
+    a BFS root here rather than a reachable destination.
     """
     outer_ids = set(outer_room_ids)
 
     # Compute reachable set with tomb drawn (covers all non-outer-room nodes and tomb itself)
     ctx_tomb = _all_open_ctx(outer_room_id="tomb")
-    dist_tomb = reachable(graph, "house", ctx_tomb)
+    dist_tomb = dict(reachable(graph, "house", ctx_tomb))
+    dist_tomb.update(reachable(graph, "antechamber", ctx_tomb))
 
     # Every non-outer-room node must be reachable via the tomb context
     non_outer_nodes = {nid for nid in graph.nodes if nid not in outer_ids}

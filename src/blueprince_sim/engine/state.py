@@ -194,6 +194,9 @@ class GameState:
     # areas entered today, for the Observatory's aggregate heat; reset per day like GameState
     areas_visited: set[str] = field(default_factory=set)
 
+    antechamber_reached: bool = False  # True the first time the player steps onto cell 42 this day
+    room46_reached: bool = False       # True the first time the player enters Room 46 this day
+
     # --- upgrade disks (engine/upgrades.py) ---
     draft_counts: dict[str, int] = field(default_factory=dict)  # cumulative attempt-wide draft counts by root base room id; seeded from cfg.draft_counts, incremented on placement
     applied_upgrades: set[str] = field(default_factory=set)     # variant ids applied so far this attempt; seeded from cfg.upgrade_disks

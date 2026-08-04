@@ -145,7 +145,7 @@ the safe gem is truly daily and per-room-instance.
 ## 4. Connectivity graph for the outside areas
 
 **The graph is specified and owner-reviewed: [`areas.md`](areas.md), with the
-Graphviz source in [`areas.dot`](areas.dot).** 36 nodes, 73 directed edges, one
+Graphviz source in [`areas.dot`](areas.dot).** 38 nodes, 75 directed edges, one
 step per edge, plus the stateful mechanisms it implies — two position-tracked
 elevators, four persistent torches, Pump Room water level, Rotating Gear
 position. `data/areas.json`, the per-area travel action set and the observation
