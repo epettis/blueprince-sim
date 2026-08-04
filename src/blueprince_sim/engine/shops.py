@@ -1068,6 +1068,11 @@ def carryover(game) -> dict:
         # a fresh save must be via the Garage; afterwards the 2-step Grounds shortcut is
         # open for all future days.  ORed from state so the config is never mutated.
         "west_gate_unlatched": cfg.west_gate_unlatched or state.west_gate_unlatched,
+        # mine_south_visited: earned the first time the player reaches mine_south.
+        # ORed from state so the config is never mutated, same shape as
+        # west_gate_unlatched. Permanently opens reservoir_north -> mine_north and
+        # rotating_gear -> underpass (the mine-cart simplification, docs/areas.md).
+        "mine_south_visited": cfg.mine_south_visited or state.mine_south_visited,
         # Room 46 first reached: permanent gem-deck gate; carries once True, forever.
         "room46_reached": cfg.room46_reached or state.room46_reached,
         # Vault keys permanently used: accumulated union across all days.

@@ -52,13 +52,19 @@ Wiki research (https://blueprince.wiki.gg/wiki/Upgrade_Disk):
   prize door, Vault box 304, Trading Post dynamite chamber, Freezer ice wall, Tomb
   candles, The Foundation, Abandoned Mine, Lost & Found pool, Mechanarium, Archives
   cabinet) plus **one repeatable Trading Post trade** — "Unlike the other Upgrade
-  Disks, this disk can appear repeatedly" — which is the 16th. The sim models
-  **14 of the 16**: six bespoke sources (`upgrade_disk_vault_304`, `_commissary`,
-  `_garage`, `_trading_post`, `_lost_and_found`, `_tomb`), the repeatable
-  `upgrade_disk_trade`, and seven fixed room pickups added via `guaranteed_in`
-  (`_office`, `_morning_room`, `_her_ladyships_chamber`, `_great_hall`, `_freezer`,
-  `_archives`, `_mechanarium`). Only **The Foundation** and the **Abandoned Mine**
-  remain; both are off-grid and wait on task 4.
+  Disks, this disk can appear repeatedly" — which is the 16th. The sim now models
+  **16 of the 16**: seven bespoke sources (`upgrade_disk_vault_304`, `_commissary`,
+  `_garage`, `_trading_post`, `_lost_and_found`, `_tomb`, `_mine_south`), the
+  repeatable `upgrade_disk_trade`, and eight fixed room pickups added via
+  `guaranteed_in` (`_office`, `_morning_room`, `_her_ladyships_chamber`,
+  `_great_hall`, `_freezer`, `_archives`, `_mechanarium`, `_the_foundation`).
+  **The Foundation** and the **Abandoned Mine** were the last two, off-grid until
+  the Sanctum-route PR made `the_foundation`/`basement`/`mine_south`/`inner_sanctum`
+  reachable (see [`areas.md`](areas.md) and [`foundation-design.md`](foundation-design.md)).
+  The Foundation's disk is an ordinary `guaranteed_in` pickup now that the room is
+  on the grid; the Abandoned Mine's is a bespoke arrival grant
+  (`special_items.py::on_area_arrival`, called from `Game.travel_to` on arrival at
+  `mine_south`, since it is a pure area node with no `rooms.json` record).
 
   **Disks respawn; only SPENDING is permanent** (owner, 2026-07-27): "The disks
   reappear in their location every day. The safe remains open permanently." So an
@@ -160,10 +166,12 @@ not significant)** and the always-unlocked ceiling is **1.91x**. The Catacombs g
 also turned out to need only the Tomb, not this graph.
 
 What task 4 still uniquely supplies: **Blackbridge Grotto**, the fifth disk-reader
-terminal and the one modelled terminal with no room record; the two off-grid
-Upgrade Disks (The Foundation, Abandoned Mine); and the currently inert
-`microchip`, `sanctum_key` and `key_of_aries` items. It also changes the action
-space, so it is still worth bundling with a retrain rather than paying for two.
+terminal and the one modelled terminal with no room record; and the currently
+inert `microchip`, `sanctum_key` and `key_of_aries` items. (The two off-grid
+Upgrade Disks it used to list, The Foundation and the Abandoned Mine, are no
+longer unique to this task — the Sanctum-route PR reached both.) It also
+changes the action space, so it is still worth bundling with a retrain rather
+than paying for two.
 
 See [`upgrade-value-measurement.md`](upgrade-value-measurement.md) for the measured
 numbers and why Cloister's Unusual rarity — not the gate — is the real bottleneck.
@@ -416,6 +424,82 @@ breaks, the Sanctum keys.
   the `carryover` vector are **sorted, never set-ordered**: Python randomises string
   hashing per process, so a set-ordered vector would permute between training runs and
   silently invalidate a checkpoint's learned field positions.
+
+- **2026-08-04, The Foundation's 17 placement positions are ranks 3-8, not
+  sourced**: the wiki states three placement rules (center 3 columns; never Rank
+  2; never the Rank-8 cell directly under the Antechamber) plus a headline count
+  of "17 positions", but the three rules alone leave 21 candidate cells once the
+  Entrance Hall and Antechamber are excluded (23 before excluding them), not 17.
+  The only way to land on exactly 17 is to also drop Ranks 1 and 9:
+  `cols 1-3 x ranks 3-8 = 18, minus the Rank-8-under-Antechamber cell = 17`.
+  Owner decision, on interview: **match the 17** — ranks 3-8 is now the coded
+  rule (`the_foundation` draft condition, `placement.py`), understood as an
+  inference from the stated count rather than a directly sourced rule. Act on
+  this cold as: if a future wiki edit clarifies Rank 1 or Rank 9 explicitly,
+  revisit the count derivation before trusting this rule further.
+
+- **2026-08-04, only three area nodes plus the Foundation anchor go `modelled:
+  true`**: of everything the Foundation's elevator opens up, only `basement`,
+  `mine_south`, and `inner_sanctum` (plus the `the_foundation` grid anchor
+  itself) are advertised as travel destinations. Owner decision, on interview,
+  after measuring: everything else underground (`well`, `reservoir_south`,
+  `reservoir_north`, `mine_north`, `rotating_gear`, `upper_rotating_gear`,
+  `underpass`, `sigil_chambers`, `safehouse`, `catacombs`, `precipice`,
+  `unknown_underground`) stays routed-through-but-unadvertised, so the step tax
+  that motivated the original `modelled` flag (see the 2026-07-27 entry above)
+  stays contained. `mine_south` earns its place specifically because it holds an
+  Upgrade Disk, not because it is merely on the path. Act on this cold as: do
+  not flip additional underground nodes to `modelled: true` without a similar
+  "holds something worth walking to" justification and a fresh off-grid
+  step-share measurement — the Sanctum route alone measured moving the off-grid
+  step share from 29.93% to 41.88% under uniform-random play (see `areas.md`).
+
+- **2026-08-04, the Foundation and Basement elevator gates stay open stubs**:
+  `foundation_elevator_down` / `foundation_elevator_up` are not modelled this
+  round — the wiki's elevator crank reveal (requires a room drafted so a door
+  faces the Foundation's back wall) and nightly car-reset-to-the-top mechanic
+  are real but deferred. Owner decision, on interview: leave them as the
+  existing PR1 stub-gate convention (`stub: true`, passes unconditionally,
+  `retire_in: PR-foundation-elevator`), consistent with every other deferred
+  mechanism in this file. Consequence stated plainly: `the_foundation ->
+  basement` is free once the room is drafted and grid-reachable, so any number
+  measured through it (including the batch/reachability numbers in the PR that
+  landed this) is an upper bound, exactly like the other open stub gates.
+
+- **2026-08-04, Rank-3 draft removal implemented; Rank-4 dynamic rarity left
+  open**: the wiki's "90% chance the Foundation is removed from the draft pool"
+  when drafting on Rank 3 is implemented as a single per-hand roll (not
+  per-card, to keep the RNG-draw count independent of deck order — see
+  `foundation-design.md`). The wiki's separate claim that the Foundation's
+  rarity "adjusts dynamically after reaching Rank 4" is explicitly NOT
+  implemented — no curve is invented for it. Act on this cold as: if this
+  becomes load-bearing later, it needs its own wiki research pass before any
+  code is written; do not infer a curve from the Rank-3 number, they are
+  different mechanics.
+
+- **2026-08-04, the north-door reward is +0.5, paid by either lever, once per
+  day**: the objective becomes three-tier — Antechamber first arrival (+0.25,
+  existing), the Antechamber's north door opening (+0.5, new), Room 46 first
+  arrival (+1.0, existing, the win). Owner decision, on interview: both levers
+  (Inner Sanctum's main lever, Throne Room's backup) pay the same +0.5, because
+  they accomplish the identical thing and the reward should stay neutral about
+  which route a policy learns. Implemented as a per-day EVENT flag
+  (`GameState.north_door_opened`) set only at the two lever call sites (unified
+  through one `Game._open_north_door()` helper so they cannot drift), **never**
+  derived from the north segment's own door state — with
+  `antechamber_levers=False` the segment is never sealed to begin with, so a
+  state-derived reward would pay +0.5 for free on every day of that arm and
+  silently corrupt the pre-lever baseline that config exists to reproduce (this
+  is guarded by a dedicated test in `test_sanctum_route.py`). Two consequences
+  worth acting on: the per-day reward ceiling rises from 1.25 to 1.75 (the
+  earlier 1.25 note argued for staying close to today's scale; a 40% rise puts
+  that back in play, and shaping constants are not rescaled here — check
+  whether dense terms get drowned out in the first retrain); and the Throne
+  Room (one room, +0.5) is now priced higher than the whole rank-9 grind to the
+  Antechamber (+0.25), which is an honest consequence of pricing the door
+  rather than the walk, but is watchable as a farming incentive — compare
+  `P(north door opened)` against `P(reach Room 46)` in the first retrain; a wide
+  gap is the signature.
 
 ## 5. Throttle the training terminal output — DONE
 

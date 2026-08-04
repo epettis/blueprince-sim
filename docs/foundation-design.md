@@ -12,7 +12,7 @@ with it.
 
 `the_foundation` already has a room record (`pool: "none"`, so it never deals)
 and an area-graph anchor node (`modelled: false`). Turning the room on does
-**not**, by itself, make the Basement or the Inner Sanctum reachable. Three
+**not**, by itself, make the Basement or the Inner Sanctum reachable. Two
 separate things blocked the route, measured before this change:
 
 - `game.py::_gate_ctx` never set `mine_south_visited`. That flag gates
@@ -20,10 +20,15 @@ separate things blocked the route, measured before this change:
   (`upper_rotating_gear -> underpass` is only reachable *from* the Underpass).
   So `inner_sanctum` was unreachable **by construction**, in every config, on
   every day.
-- `basement_key` was `implemented: false`, so it never spawned. It gates
-  `well -> reservoir_south`, which is the route to `mine_south`.
 - `basement`, `mine_south` and `inner_sanctum` were all `modelled: false`, and
   `env/actions.py` only offers travel to modelled nodes.
+
+`basement_key`'s `implemented: false` was **not** a third blocker, though it
+looked like one. Nothing reads that field — `special_items.py` parses it into a
+dataclass and never consults it again — so the key was already being granted from
+the Antechamber pillar every day. The flag is documentation, and it misled a
+reading of this very design. It is corrected to `true` here because the statement
+is now accurate, not because the change does anything.
 
 Measured over 300 seeds of uniform-random masked play under `all_unlocks`:
 `area_route_cost("inner_sanctum")` was finite **0.00%** of the time, travel to
@@ -101,12 +106,33 @@ about attempt boundaries; this follows repo convention rather than a source.
   out of the deck, but a Foundation already on the grid is not removed by it.
 - **The Basement Key opens one graph edge, not "basement doors".** The wiki says
   it *"permanently unlocks that door"* for basement doors generally;
-  `areas.json` models the single edge `well -> reservoir_south`. That edge is
-  what puts the key on the critical path to `mine_south`, and so to the Sanctum.
+  `areas.json` models the single edge `well -> reservoir_south`.
+
+### The Basement Key is not on the critical path, and that is a stub artefact
+
+Measured on the graph with an empty inventory and no flags, `mine_south` is
+**3 hops** from the house: `house -> grounds -> precipice -> mine_south`. The
+`grounds -> precipice` edge stands behind `cliffside_elevator_down`, one of the
+PR1 stubs that pass unconditionally, and `precipice -> mine_south` is ungated. So
+the mine — and through it `reservoir_south` — is reachable with no key, no
+Power Hammer and no torches.
+
+The Basement Key therefore gates a shortcut, not the route. **The real bottleneck
+is `basement`**, which is unreachable with an empty inventory: it needs either the
+Foundation's elevator or a Power Hammer through `sealed_entrance`, and every path
+to `reservoir_north -> rotating_gear -> underpass -> inner_sanctum` runs through
+it. That is what makes the Foundation, rather than the key, the thing that opens
+the Sanctum.
+
+This is a pre-existing consequence of the open stub, not something this change
+introduced — but making `mine_south` a travel destination is what made it
+*exploitable*, so it belongs on the record here. It retires with
+`PR-torches-elevator`, and until then the free mine is one more reason every
+number measured through this route is an upper bound.
 
 ## The route changes shipping with the room
 
-Owner decisions, 2026-08-04, after measuring the three blockers above:
+Owner decisions, 2026-08-04, after measuring the blockers above:
 
 1. **Three nodes become `modelled: true`**: `basement`, `mine_south`,
    `inner_sanctum` — plus the `the_foundation` anchor itself. Everything else in
@@ -115,8 +141,9 @@ Owner decisions, 2026-08-04, after measuring the three blockers above:
    place by holding an Upgrade Disk rather than being a pure step sink.
 2. **`mine_south_visited` becomes real**: set on arrival at `mine_south`, and
    carried across days, because `areas.md` marks the mine-cart move permanent.
-3. **`basement_key` becomes implemented**: guaranteed on the Antechamber's
-   central pillar on first entry, not consumed, permanent.
+3. **`basement_key` is marked implemented**, which it already was in behaviour —
+   guaranteed on the Antechamber's central pillar on first entry, not consumed,
+   permanent. See the correction above: the flag was never read.
 
 ### The Basement Key is on a pillar, not a pedestal
 
@@ -152,7 +179,7 @@ Owner decision, 2026-08-04. The objective becomes three-tier:
 
 | Milestone | Reward | Why |
 |---|---|---|
-| Antechamber, first arrival of the day | +0.25 | prerequisite, and the source of the Basement Key |
+| Antechamber, first arrival of the day | +0.25 | prerequisite; where the day has to end up anyway |
 | Antechamber north door opened | **+0.5** | the thing standing between the estate and Room 46 |
 | Room 46, first arrival of the day | +1.0 | the win |
 
@@ -162,11 +189,10 @@ accomplish the same thing, so they score the same, and the reward stays neutral
 about which route a policy learns.
 
 The ordering tracks a real dependency chain rather than being merely numeric.
-The Basement Key spawns on the Antechamber's central pillar, and it is what opens
-`well -> reservoir_south` and so the route to `mine_south`, whose visit is what
-opens `rotating_gear -> underpass`. So the Sanctum route runs
-**Antechamber -> Sanctum -> back to the Antechamber -> Room 46**, and 0.25 < 0.5
-< 1.0 pays each step of it in order.
+Visiting `mine_south` is what opens `rotating_gear -> underpass`, and the
+Underpass is the only way into the Sanctum; the Antechamber is where the day has
+to end up anyway. So the Sanctum route runs **Antechamber -> Sanctum -> back to
+the Antechamber -> Room 46**, and 0.25 < 0.5 < 1.0 pays each step of it in order.
 
 It fires once per day, on the first opening, and is recorded as a per-day event
 flag set at the two lever sites — *not* derived from the north segment's door

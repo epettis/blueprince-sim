@@ -809,12 +809,13 @@
     "antechamber"
    ],
    "effects": [],
-   "implemented": false,
+   "implemented": true,
    "meta": {
     "source": "https://blueprince.wiki.gg/wiki/Basement_Key",
     "confidence": "wiki",
     "absent_spawn_areas": [],
-    "blocked_on": "basement_not_modeled"
+    "blocked_on": null,
+    "notes": "Granted from the pillar that emerges the first time the Antechamber is entered each day (guaranteed_in). Gates the well -> reservoir_south edge (basement_key_well, areas.json); not consumed on use, so it opens every basement door for the rest of the day and every later day."
    }
   },
   {
@@ -2005,6 +2006,26 @@
     "blocked_on": null,
     "notes": "One unique disk per source so each is inherently one-time use. Found on a pile of boxes near the back of the room; disk granted on first entry per the 'player solves every puzzle' doctrine. Draw mechanism implemented; individual upgrade effects deferred (task 9). Sourcing caveat: The Foundation's own wiki page does not mention this disk - only the Upgrade_Disk article does, which is the same source the other in-grid disks are drawn from (docs/foundation-design.md).",
     "simplification": "none - no gate in the real game"
+   }
+  },
+  {
+   "id": "upgrade_disk_mine_south",
+   "name": "Upgrade Disk (Abandoned Mine)",
+   "kind": "unique",
+   "tier": null,
+   "unique": true,
+   "persistence": "day",
+   "spawn_rooms": [],
+   "spawn_rooms_high_luck": [],
+   "guaranteed_in": [],
+   "effects": [],
+   "implemented": true,
+   "meta": {
+    "source": "https://blueprince.wiki.gg/wiki/Upgrade_Disk",
+    "confidence": "wiki",
+    "absent_spawn_areas": [],
+    "blocked_on": null,
+    "notes": "Sits openly on a table in the Abandoned Mine (South), obtainable without lighting the eight candlesticks (those independently open the Mine -> Precipice stairway, candlestick_stairway gate in areas.json). mine_south is a pure area node with no rooms.json record, so guaranteed_in cannot key off it; granted instead by engine/special_items.py::on_area_arrival, called from Game.travel_to on arrival. Draw mechanism implemented; individual upgrade effects deferred (task 9)."
    }
   }
  ],

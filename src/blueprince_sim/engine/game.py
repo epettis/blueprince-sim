@@ -414,6 +414,19 @@ class Game:
         self.state.door_state[segment_key(cell, direction)] = DOOR_OPEN
         self.state.door_version += 1
 
+    def _open_north_door(self) -> None:
+        """Open the Antechamber's north segment and record the per-day reward event.
+
+        The single call site for both north-door levers (Inner Sanctum in
+        :meth:`travel_to`, Throne Room in :meth:`_enter_lever_room`), so they cannot
+        drift.  Sets ``state.north_door_opened`` here — at the lever, not derived
+        from the segment's door state — so env/rewards.py can pay NORTH_DOOR_REWARD
+        exactly once without paying it "for free" under antechamber_levers=False,
+        where the segment is never sealed to begin with.
+        """
+        self._open_segment(ANTECHAMBER_CELL, N)
+        self.state.north_door_opened = True
+
     def _unlock_for_passage(self, cell: int, direction: int,
                             for_draft: bool = False) -> None:
         """Open the segment the player is about to pass, spending a key if locked.
@@ -687,13 +700,17 @@ class Game:
           "west_gate_unlatched" -- carried in from cfg, OR earned today the moment the
               player first reaches west_path (via the Garage route on a fresh save).
           "garage_door_breaker" -- Utility Closet placed and entered today (breaker on).
-          "mine_south_visited" -- NOT modelled; never added here.
+          "mine_south_visited" -- carried in from cfg, OR earned today the moment the
+              player reaches mine_south.  Permanently opens reservoir_north -> mine_north
+              and rotating_gear -> underpass (the mine-cart simplification, docs/areas.md).
           "basement_sealed_entrance_return" -- NOT modelled; never added here.
         """
         st = self.state
         flags: set[str] = set()
         if self.cfg.west_gate_unlatched or st.west_gate_unlatched:
             flags.add("west_gate_unlatched")
+        if self.cfg.mine_south_visited or st.mine_south_visited:
+            flags.add("mine_south_visited")
         if self._breaker_on():
             flags.add("garage_door_breaker")
         # North door open: Inner Sanctum or Throne Room lever pulled this day.
@@ -728,12 +745,16 @@ class Game:
         "house" maps to ENTRANCE_CELL always.
         "garage" maps to the lowest garage cell only when the garage is placed.
         "antechamber" maps to ANTECHAMBER_CELL always (it's pre-placed each day).
-        "the_foundation" has pool="none" and is never placed — excluded.
+        "the_foundation" maps to its grid cell only once it has been drafted (it does
+        not reset day-to-day; see GameConfig.foundation_cell).
         """
         anchors: dict[str, int] = {"house": ENTRANCE_CELL, "antechamber": ANTECHAMBER_CELL}
         garage_cell = self._garage_cell()
         if garage_cell >= 0:
             anchors["garage"] = garage_cell
+        foundation_cell = self.room_cells.get("the_foundation", -1)
+        if foundation_cell >= 0:
+            anchors["the_foundation"] = foundation_cell
         return anchors
 
     def area_route_cost(self, dest: str) -> tuple[int, str] | None:
@@ -839,11 +860,18 @@ class Game:
             # it would leak the unlock into later "fresh save" episodes.
             if dest == "west_path":
                 st.west_gate_unlatched = True
+            # Mine South visited: permanently opens reservoir_north -> mine_north and
+            # rotating_gear -> underpass (mine-cart simplification, docs/areas.md).
+            # Same shape as west_gate_unlatched: recorded on STATE, never on cfg.
+            if dest == "mine_south":
+                st.mine_south_visited = True
+                if self.cfg.special_items:
+                    special_items.on_area_arrival(self, dest)
             # Inner Sanctum main lever: opens the Antechamber's north door.
             if dest == "inner_sanctum":
                 north_seg = segment_key(ANTECHAMBER_CELL, N)
                 if st.door_state.get(north_seg) == DOOR_SEALED:
-                    self._open_segment(ANTECHAMBER_CELL, N)
+                    self._open_north_door()
             # Room 46: record first arrival (permanent via carryover; see shops.carryover).
             if dest == "room_46" and not st.room46_reached:
                 st.room46_reached = True
@@ -1339,7 +1367,7 @@ class Game:
                 seg = segment_key(ANTECHAMBER_CELL, N)
                 if st.door_state.get(seg) != DOOR_SEALED:
                     return
-                self._open_segment(ANTECHAMBER_CELL, N)
+                self._open_north_door()
 
     def lever_key_cost(self, cell: int) -> int:
         """Keys that pulling ``cell``'s Antechamber lever would spend right now.

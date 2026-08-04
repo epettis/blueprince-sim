@@ -24,6 +24,9 @@ class GameConfig:
     # Garage route works from day 1 (no flag needed), so the draft is available whenever the
     # route cost is affordable and no outer room has been drafted today.
     west_gate_unlatched: bool = False
+    # The mine cart has been shifted from the south side, permanently opening
+    # reservoir_north -> mine_north and rotating_gear -> underpass.
+    mine_south_visited: bool = False
     orchard_unlocked: bool = False                   # Apple Orchard: +20 starting steps (wiki)
     mine_unlocked: bool = False                      # Gemstone Cavern: +2 gems at day start (wiki)
     upgrade_disks: frozenset[str] = frozenset()      # applied variant room ids (e.g. "pool_hall__ix12")

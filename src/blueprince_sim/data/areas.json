@@ -23,7 +23,7 @@
    "id": "the_foundation",
    "name": "The Foundation (in-grid room)",
    "kind": "anchor",
-   "modelled": false,
+   "modelled": true,
    "meta": {"source": "docs/areas.md", "confidence": "wiki"}
   },
   {
@@ -166,7 +166,7 @@
    "id": "basement",
    "name": "Basement",
    "kind": "area",
-   "modelled": false,
+   "modelled": true,
    "surface": false,
    "meta": {"source": "docs/areas.md", "confidence": "wiki"}
   },
@@ -214,7 +214,7 @@
    "id": "mine_south",
    "name": "Abandoned Mine (South)",
    "kind": "area",
-   "modelled": false,
+   "modelled": true,
    "surface": false,
    "meta": {"source": "docs/areas.md", "confidence": "wiki", "notes": "Upgrade Disk sits openly on a table; obtainable WITHOUT lighting candlesticks. Candles independently open the Precipice stairway."}
   },
@@ -254,7 +254,7 @@
    "id": "inner_sanctum",
    "name": "Inner Sanctum (Antechamber N lever)",
    "kind": "area",
-   "modelled": false,
+   "modelled": true,
    "surface": false,
    "meta": {"source": "docs/areas.md", "confidence": "wiki"}
   },
