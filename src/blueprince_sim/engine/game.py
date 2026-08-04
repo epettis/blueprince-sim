@@ -145,13 +145,15 @@ class Game:
         """Memo dict for the BFS map functions, valid for the current layout.
 
         Keyed on a fingerprint of everything those functions read (player
-        position, outer-area location, grid, door masks), so any state change
-        - including tests poking ``state`` directly - starts a fresh dict.
+        position, outer-area location, grid, door masks, keys, security
+        access, and which cells have been entered - the last because a lever
+        room's key drain only fires on first entry), so any state change -
+        including tests poking ``state`` directly - starts a fresh dict.
         Cached values are shared between callers and must not be mutated.
         """
         st = self.state
         fp = (st.pos, st.area, tuple(st.grid), tuple(st.placed_doors),
-              st.door_version, st.keys, self.security_openable())
+              st.door_version, st.keys, self.security_openable(), tuple(st.entered))
         cached_fp, maps = self._map_cache
         if fp != cached_fp:
             maps = {}
@@ -165,15 +167,19 @@ class Game:
         cross, a security segment passes only while :meth:`security_openable`,
         open segments are free. A locked door en route is therefore keyed
         through or walked around, whichever fits the step budget - and with
-        no keys the detour distance is what counts against the budget.
+        no keys the detour distance is what counts against the budget. Walking
+        into an unentered lever room (see :meth:`lever_key_cost`) also drains
+        a key on arrival, before any locked door further along the path, so
+        that drain is charged to the route too.
         In-drafting keeps every naturally formed placed-room door pair open
         today, but honest distances here are groundwork for rooms that
         re-lock their own doors (Vestibule, not yet modeled).
 
         Returns (dist, key_cost, prev): per-cell walking distance (-1 empty
         or unreachable within the key budget), keys spent along the recorded
-        shortest path, and the predecessor map used by :meth:`_path_dirs` -
-        so a path promised here is always affordable in keys when walked.
+        shortest path (locked doors plus any lever-room drains), and the
+        predecessor map used by :meth:`_path_dirs` - so a path promised here
+        is always affordable in keys when walked.
 
         Results are cached; treat them as read-only.
         """
@@ -183,8 +189,11 @@ class Game:
             return cached
         st = self.state
         grid, doors, door_state = st.grid, st.placed_doors, st.door_state
-        keys_cap = min(st.keys,
-                       sum(1 for v in door_state.values() if v == DOOR_LOCKED))
+        locked_and_drains = (
+            sum(1 for v in door_state.values() if v == DOOR_LOCKED)
+            + sum(1 for c in range(N_CELLS) if not st.entered[c] and self.lever_key_cost(c))
+        )
+        keys_cap = min(st.keys, locked_and_drains)
         sec_ok = self.security_openable()
         dist = [-1] * N_CELLS
         key_cost = [0] * N_CELLS
@@ -213,6 +222,14 @@ class Game:
                             continue
                 elif seg == DOOR_SECURITY and not sec_ok:
                     continue
+                # Walking into a lever room drains a key on arrival (the Great Hall's
+                # prize door). It never blocks passage - with nothing left to spend the
+                # lever simply is not pulled - but it is spent BEFORE any locked door
+                # further along the path, so the walk has to carry it.
+                if not st.entered[nb]:
+                    drain = self.lever_key_cost(nb)
+                    if drain:
+                        nspent = min(nspent + drain, keys_cap)
                 # Keep only Pareto-optimal states: a later arrival is worth
                 # exploring iff it spends strictly fewer keys (a longer but
                 # cheaper path may unlock cells beyond a further locked door).
@@ -255,6 +272,9 @@ class Game:
     def key_cost_map(self) -> list[int]:
         """Keys spent along the shortest path :meth:`move_to` would walk.
 
+        Covers both locked segments crossed and any unentered lever room's
+        on-arrival key drain (see :meth:`lever_key_cost`), so the number here
+        is exactly what :meth:`move_to` would deduct from ``st.keys``.
         Meaningful only where :meth:`distance_map` is >= 0.
         Returns a cached list; treat it as read-only.
         """
@@ -1286,10 +1306,11 @@ class Game:
                 seg = segment_key(43, W)  # East: cell 43 west face -> antechamber
                 if st.door_state.get(seg) != DOOR_SEALED:
                     return
-                # Lever sits behind a locked side door: costs 1 key.
-                if st.keys < 1:
+                # Lever sits behind a locked side door; no key means no pull.
+                cost = self.lever_key_cost(cell)
+                if st.keys < cost:
                     return
-                st.keys -= 1
+                st.keys -= cost
                 self._open_segment(43, W)
             case "throne_room":
                 # Backup north-door lever (studio addition). Entering the Throne Room
@@ -1298,6 +1319,26 @@ class Game:
                 if st.door_state.get(seg) != DOOR_SEALED:
                     return
                 self._open_segment(ANTECHAMBER_CELL, N)
+
+    def lever_key_cost(self, cell: int) -> int:
+        """Keys that pulling ``cell``'s Antechamber lever would spend right now.
+
+        Only the Great Hall's locked prize-room side door costs a key; every
+        other lever room is free (0). Deliberately ignores
+        ``state.entered[cell]`` - the lever only fires on first entry, so a
+        caller reasoning about a *future* walk must check ``state.entered``
+        itself.
+        """
+        st = self.state
+        if not self.cfg.antechamber_levers:
+            return 0
+        if st.grid[cell] < 0:
+            return 0
+        if self.registry.rooms[st.grid[cell]].id != "great_hall":
+            return 0
+        if st.door_state.get(segment_key(43, W)) != DOOR_SEALED:
+            return 0
+        return 1
 
     def inject_rooms(self, room_ids: list[str]) -> None:
         inject_rooms(self.state, self.registry, room_ids, self.rng)

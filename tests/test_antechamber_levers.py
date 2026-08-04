@@ -4,17 +4,25 @@ Covers: sealed segments start sealed and block traversal; entering lever rooms
 (Weight Room, Secret Garden, Great Hall) opens the correct segment; the Weight
 Room power_hammer requirement and carry-over wall break; Great Hall key cost;
 sealed-vs-locked distinction; overnight reset; antechamber_levers=False
-regression guard; termination with a sealed antechamber; and Greenhouse
-broken_lever path regression.
+regression guard; termination with a sealed antechamber; Greenhouse
+broken_lever path regression; and that the Great Hall's on-arrival lever key
+spend is charged to the walk itself, not just to the door being opened
+(key_cost_map, the action mask's key budget, and end-to-end masked play all
+agree with what move_to actually deducts).
 """
 
 from __future__ import annotations
 
+import random
+
 from blueprince_sim.config import GameConfig
 from blueprince_sim.engine.game import ANTECHAMBER_CELL, Game
 from blueprince_sim.engine.grid import E, N, S, W
-from blueprince_sim.engine.locks import DOOR_OPEN, DOOR_SEALED, segment_key
+from blueprince_sim.engine.locks import DOOR_LOCKED, DOOR_OPEN, DOOR_SEALED, segment_key
+from blueprince_sim.env import actions as A
+from blueprince_sim.env.blueprince_env import BluePrinceEnv
 from blueprince_sim.env.multiday import DayChain
+from blueprince_sim.rl.train import fresh_save_config
 
 
 # ---------------------------------------------------------------------------
@@ -282,3 +290,103 @@ def test_greenhouse_lever_still_opens_south(registry):
     special_items.install_lever(g)
 
     assert g.door_state_of(ANTECHAMBER_CELL, S) == DOOR_OPEN
+
+
+# Test 11: the Great Hall's lever key is charged to the route, not just the door
+
+def test_walking_into_the_great_hall_is_charged_to_the_route(registry):
+    """key_cost_map() prices in the Great Hall's on-arrival lever key spend
+    before the caller ever walks - and move_to actually deducts exactly that
+    many keys - so a caller budgeting off key_cost_map is never surprised."""
+    g = Game(GameConfig(door_locks=True, antechamber_levers=True), seed=1, registry=registry)
+    hall = registry.by_id["great_hall"]
+    g._place_room(hall, 7, hall.door_mask)
+    # Force the entrance -> Great Hall segment open so the only key spend on
+    # this walk is the lever, not a locked door on the way in.
+    g.state.door_state[segment_key(2, N)] = DOOR_OPEN
+    g.state.door_version += 1
+    g.state.keys = 1
+
+    # Setup assertion: the lever has not been pulled yet, so the test can't
+    # silently stop testing anything.
+    assert g.door_state_of(ANTECHAMBER_CELL, E) == DOOR_SEALED
+
+    assert g.key_cost_map()[7] == 1  # the route to the Great Hall spends the lever key
+
+    g.move_to(7)
+    assert g.state.keys == 0  # the map matched what the walk actually spent
+
+
+def test_the_nav_cache_notices_a_lever_room_that_has_already_been_entered(registry):
+    """The nav memo must key on state.entered: an already-entered Great Hall
+    charges nothing, because its lever only ever fires on first entry, and a
+    map cached from before that entry would over-charge the route and could
+    strand the player behind a road it wrongly reads as unaffordable."""
+    g = Game(GameConfig(door_locks=True, antechamber_levers=True), seed=1, registry=registry)
+    hall = registry.by_id["great_hall"]
+    g._place_room(hall, 7, hall.door_mask)
+    g.state.door_state[segment_key(2, N)] = DOOR_OPEN
+    g.state.door_version += 1
+    g.state.keys = 1
+
+    assert g.door_state_of(ANTECHAMBER_CELL, E) == DOOR_SEALED  # setup: lever unpulled
+    assert g.key_cost_map()[7] == 1  # unentered: walking in will pull the lever
+
+    # Entry is the only thing that changes here, and the lever cannot fire twice.
+    g.state.entered[7] = True
+    assert g.key_cost_map()[7] == 0
+
+
+# Test 12: the mask budgets the lever key AND the locked door behind it
+
+def test_the_mask_never_offers_a_draft_the_lever_key_has_already_paid_for(registry):
+    """A locked frontier doorway past the Great Hall needs two keys: one the
+    walk itself spends pulling the lever, one for the door. The mask must
+    not let the lever spend ride free on the door's own key budget."""
+    g = Game(GameConfig(door_locks=True, antechamber_levers=True), seed=1, registry=registry)
+    hall = registry.by_id["great_hall"]
+    g._place_room(hall, 7, hall.door_mask)
+    g.state.door_state[segment_key(2, N)] = DOOR_OPEN
+    # Lock one of the Great Hall's own frontier doorways.
+    g.state.door_state[segment_key(7, E)] = DOOR_LOCKED
+    g.state.door_version += 1
+
+    assert g.door_state_of(ANTECHAMBER_CELL, E) == DOOR_SEALED  # setup: lever unpulled
+
+    action = A.OPEN_BASE + 7 * 4 + A.DIR_INDEX[E]
+
+    g.state.keys = 1
+    mask = A.action_mask(g)
+    assert not mask[action], "1 key covers only the lever pull, not the locked door too"
+
+    g.state.keys = 2
+    mask = A.action_mask(g)  # _maps() fingerprints on st.keys, so this recomputes
+    assert mask[action], "2 keys cover both the lever pull and the locked door"
+
+
+# Test 13: end-to-end - masked random play never hits an engine assertion
+
+def test_random_masked_play_never_hits_an_engine_assertion():
+    """Uniform-random play restricted to action_masks() must never trip an
+    engine assertion (e.g. 'door is locked and you have no key'): the mask
+    must only ever offer actions the engine can actually carry out, across
+    many seeds including the known-bad seed 27 (fresh_save_config, step 33,
+    action 72 at base commit f2cad2e)."""
+    for seed in range(200):
+        env = BluePrinceEnv(cfg=fresh_save_config())
+        env.reset(seed=seed)
+        rng = random.Random(seed)
+        for step in range(5000):
+            mask = env.action_masks()
+            legal = [i for i, ok in enumerate(mask) if ok]
+            if not legal:
+                break
+            action = rng.choice(legal)
+            try:
+                _, _, terminated, truncated, _ = env.step(action)
+            except AssertionError as exc:
+                raise AssertionError(
+                    f"seed={seed} step={step} action={action} raised: {exc}"
+                ) from exc
+            if terminated or truncated:
+                break

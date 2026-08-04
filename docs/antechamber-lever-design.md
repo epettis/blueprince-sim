@@ -132,6 +132,18 @@ listed so they can be revisited rather than rediscovered:
 - **The Great Hall prize door is charged as a flat key cost**, not modelled as one of
   the two specific prize rooms.
 
+### The lever key is part of the route cost
+
+The Great Hall's lever key is spent by *walking in* — on first entry, before any
+locked door the route was planned around. A caller that only budgets keys for the
+locked doors it will open (e.g. the action mask, or anything reading
+`key_cost_map`) can therefore be handed a route that looks affordable and then run
+out of keys mid-walk. `_nav_bfs` charges the lever's key drain to the route the same
+way it charges a locked segment, so `key_cost_map` (and everything built on it — the
+action mask, `move_to`) already accounts for it. As with the door-level cost, it
+never blocks passage: with no key left to spend, the lever simply is not pulled and
+the walk continues.
+
 ## B2 — Room 46, the north door, and the two-tier objective
 
 **Room 46 is the objective; the Antechamber is a prerequisite, not a victory**
