@@ -447,9 +447,10 @@ def test_carryover_lunch_box_from_gift_shop():
 def test_carryover_shape_is_complete():
     """carryover() dict always contains all carry-over keys regardless of state.
 
-    The eight bool keys must always be present (west_gate_unlatched was added in
+    The nine bool keys must always be present (west_gate_unlatched was added in
     the flag-split PR, weight_room_wall_broken in the antechamber-levers PR,
-    room46_reached in the room46 PR); the non-bool keys are also always included.
+    room46_reached in the room46 PR, mine_south_visited in the Sanctum-route PR);
+    the non-bool keys are also always included.
     """
     bool_keys = {
         "lunch_box_unlocked",
@@ -460,11 +461,13 @@ def test_carryover_shape_is_complete():
         "west_gate_unlatched",
         "weight_room_wall_broken",
         "room46_reached",
+        "mine_south_visited",
     }
     expected_keys = bool_keys | {
         "starting_items", "banned_rooms", "used_vault_keys",
         "lit_targets", "collected_disks", "chapel_tithes",
         "upgrade_disks", "draft_counts",
+        "foundation_cell", "foundation_doors",
     }
     # Test a variety of configs
     for cfg in [

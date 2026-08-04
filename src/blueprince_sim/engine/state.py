@@ -188,6 +188,13 @@ class GameState:
     # mutating it would leak the unlock into later "fresh save" episodes.  carryover() ORs
     # this with cfg.west_gate_unlatched, the same shape as vase_smashed / chip_dug.
     west_gate_unlatched: bool = False
+    # Set the first time the player reaches mine_south today.  Same shape as
+    # west_gate_unlatched: an IN-RUN discovery recorded on STATE, never written
+    # back to GameConfig (one config object is shared by every episode of a
+    # worker).  carryover() ORs this with cfg.mine_south_visited; DayChain
+    # carries the result, permanently opening reservoir_north -> mine_north and
+    # rotating_gear -> underpass for the rest of the attempt.
+    mine_south_visited: bool = False
     # chronological (item id, count) pickups this run, for CLI/replay reporting
     items_found_log: list[tuple[str, int]] = field(default_factory=list)
 
@@ -196,12 +203,22 @@ class GameState:
 
     antechamber_reached: bool = False  # True the first time the player steps onto cell 42 this day
     room46_reached: bool = False       # True the first time the player enters Room 46 this day
+    # Per-day EVENT flag (no carry-over): True once the Antechamber's north door has
+    # been opened today by either lever (Inner Sanctum or Throne Room).  Set only at
+    # the lever sites (Game._open_north_door), never derived from the door segment's
+    # own state -- with antechamber_levers=False the segment is never sealed to begin
+    # with, so a state-derived flag would pay the reward for free every such day.
+    north_door_opened: bool = False
 
     # --- upgrade disks (engine/upgrades.py) ---
     draft_counts: dict[str, int] = field(default_factory=dict)  # cumulative attempt-wide draft counts by root base room id; seeded from cfg.draft_counts, incremented on placement
     applied_upgrades: set[str] = field(default_factory=set)     # variant ids applied so far this attempt; seeded from cfg.upgrade_disks
     pending_upgrade_slot: str | None = None                      # slot awaiting the player's upgrade choice; None when not mid-upgrade
     pending_upgrade_options: tuple[str, ...] = ()                # the three offered variant ids; empty when not mid-upgrade
+
+    # --- The Foundation (does not reset day-to-day; see GameConfig.foundation_cell) ---
+    foundation_cell: int = -1     # cell it was placed at today, if drafted today; -1 = not yet
+    foundation_doors: int = 0     # its door mask as drafted today; 0 = not yet drafted
 
     def deck(self, rarity_idx: int, is_gem: bool) -> DeckState:
         return self.decks[rarity_idx * 2 + (1 if is_gem else 0)]

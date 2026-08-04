@@ -350,11 +350,23 @@ def _fill_options(ctx: DraftContext, pending: PendingDraft, from_room: Room | No
             ctx.state.special.silver_key_draft = False
             return  # chain active: skip the normal three-slot deal
 
+    # The Foundation: wiki says drafting on Rank 3 has a 90% chance to remove
+    # it from the draft pool "for that draft" - rolled ONCE per hand (not once
+    # per card, which would make the RNG draw count depend on deck order and
+    # break determinism), and only when the Foundation could otherwise be dealt
+    # at all (not already on the grid), to avoid disturbing the RNG stream on
+    # doorways where it was never a candidate. See docs/foundation-design.md.
+    exclude: set[int] = set()
+    foundation = ctx.registry.by_id.get("the_foundation")
+    if (foundation is not None and foundation.id not in ctx.placed_ids
+            and rank_of(pending.target_cell) == 3
+            and ctx.rng.chance("foundation_rank3", 0.90)):
+        exclude.add(foundation.idx)
+
     # Silver Key: on the initial deal, try cross/t layouts first for each slot,
     # falling back to the normal draw when no cross/t card qualifies.
     # Redraws clear the flag before calling _fill_options via redeal (flag already False).
     silver_key_bias = ctx.state.special.silver_key_draft
-    exclude: set[int] = set()
     for slot in range(3):
         opt = None
         if silver_key_bias:

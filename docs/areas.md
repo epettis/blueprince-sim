@@ -53,6 +53,9 @@ both routes.
 **On-grid / drafted anchors** — not area nodes; shown only because outside edges
 attach to them: `house`, `garage`, `the_foundation`, `tomb`, `schoolhouse`,
 `hovel`, `toolshed`, `root_cellar`, `shelter`, `shrine`, `trading_post`.
+`the_foundation` is only usable as a departure anchor once it has actually
+been drafted that attempt (`GameConfig.foundation_cell >= 0`); before that,
+routes through it are unavailable the way an unplaced Garage is.
 
 **Surface**
 
@@ -73,22 +76,26 @@ attach to them: `house`, `garage`, `the_foundation`, `tomb`, `schoolhouse`,
 
 | Node | Notes |
 |---|---|
-| `basement` | |
+| `basement` | **modelled** — the Foundation's elevator lands here |
 | `well` | |
 | `reservoir_south` / `reservoir_north` | Two halves; joined only through the Mine |
 | `safehouse` | Sanctum Key |
 | `catacombs` | |
-| `mine_south` | **Upgrade Disk**; the mine cart is moved from here |
+| `mine_south` | **modelled, Upgrade Disk**; the mine cart is moved from here |
 | `mine_north` | |
 | `rotating_gear` / `upper_rotating_gear` | |
 | `underpass` | |
-| `inner_sanctum` | Lever opening the Antechamber **north** door |
+| `inner_sanctum` | **modelled** — lever opening the Antechamber **north** door |
 | `sigil_chambers` | 8 chambers, one Sanctum Key each |
 | `precipice` | |
 | `unknown_underground` | Key of Aries clock |
 
-**Upgrade Disks off-grid:** `mine_south` and `the_foundation` — the two of the
-real game's 16 the sim still cannot reach. See `open_tasks.md`.
+Both Upgrade Disks that were off-grid are now reachable: The Foundation's is an
+ordinary `guaranteed_in` room pickup now that the room is on the grid; the
+Abandoned Mine's is a bespoke arrival grant (`special_items.py::on_area_arrival`,
+called from `Game.travel_to` on arrival at `mine_south`, since it is a pure area
+node with no `rooms.json` record for `guaranteed_in` to key off). See
+`open_tasks.md` task 2.
 
 ## Edges
 
@@ -268,14 +275,27 @@ All currently inert with `meta.blocked_on` set:
 ### `modelled`: which areas are offered as destinations
 
 Every node carries a required boolean `modelled`. Only modelled nodes are offered
-as travel actions; the pathfinder still routes *through* the rest. Today 11 are
-modelled — `house`, `garage`, `west_path`, and the 8 outer rooms — which is
-exactly the set that has contents worth walking to.
+as travel actions; the pathfinder still routes *through* the rest. Today 16 are
+modelled — `house`, `garage`, `west_path`, the 8 outer rooms, `room_46`, and the
+four nodes that make the Sanctum route walkable (`the_foundation`, `basement`,
+`mine_south`, `inner_sanctum`) — which is the set that has contents worth
+walking to, or that a player needs to pass through by name to reach them.
 
 This is not tidiness, it is a measured fix. With all 36 exposed, 13 nodes were
 reachable on day 1 through open stub gates, none of them holding anything
 modelled, and a random policy spent **80% of its steps** wandering them; off-grid,
 99.8% of the legal mask was travel. Gating on `modelled` cut that to 30%.
+
+**The Sanctum route's four nodes move that number, and it is worth watching.**
+Measured over 300 seeds of uniform-random masked play under `all_unlocks_config()`:
+off-grid step share rose from **29.93%** (the pre-Sanctum 12-node `modelled`
+set) to **41.88%** with the four new nodes added, and the travel-action share of
+all actions taken rose from 43.90% to 54.03%. The driver is `mine_south`: it sits
+behind the open `cliffside_elevator_down` stub (`grounds -> precipice -> mine_south`,
+free), so it is offered from day 1 in 100% of seeds, and a random policy
+routinely wanders into it and the area graph beyond. Nowhere near the earlier
+80% problem, but a real, measured cost of advertising a destination that a stub
+gate makes look cheaper than it is — see the PR1 stub-gate caveat below.
 
 An action slot exists for **every** node, modelled or not, so switching an area on
 later is a mask-only change: **no action-space change and therefore no retrain.**

@@ -34,6 +34,7 @@ _CARRYOVER_KEYS: frozenset[str] = frozenset({
     "outer_chip_dug",
     "royal_scepter_found",
     "west_gate_unlatched",   # set on first west_path arrival; opens Grounds shortcut
+    "mine_south_visited",    # set on mine_south arrival; opens the underpass route
     "weight_room_wall_broken",  # Power Hammer wall break: permanent on future days
     "room46_reached",             # Room 46 first visited: permanent gem-deck gate
 })
@@ -103,6 +104,11 @@ class DayChain:
         self.applied_upgrades: frozenset[str] = frozenset(base_cfg.upgrade_disks)
         # Draft counts: cumulative by root base room id; replaced from carryover each advance.
         self.draft_counts: dict[str, int] = dict(base_cfg.draft_counts)
+        # The Foundation's permanent placement: once drafted it never moves again this
+        # attempt. -1/0 = not yet drafted. Not bool-valued, so handled explicitly here
+        # (and in advance()/next_config()) rather than through _CARRYOVER_KEYS.
+        self.foundation_cell: int = base_cfg.foundation_cell
+        self.foundation_doors: int = base_cfg.foundation_doors
 
     def next_config(self) -> GameConfig:
         """Return the ``GameConfig`` for the current day.
@@ -128,6 +134,8 @@ class DayChain:
             chapel_tithes=self.chapel_tithes,
             upgrade_disks=self.applied_upgrades,
             draft_counts=dict(self.draft_counts),
+            foundation_cell=self.foundation_cell,
+            foundation_doors=self.foundation_doors,
             **self.carried_flags,          # unpack only the True flags
         )
 
@@ -198,6 +206,16 @@ class DayChain:
         if dc_val is not None:
             self.draft_counts = dict(dc_val)
 
+        # --- foundation_cell / foundation_doors (permanent placement; replace each advance) ---
+        # shops.carryover() already resolves "cfg wins once set", so this is a
+        # straight replace, same shape as chapel_tithes.
+        fc_val = carryover.get("foundation_cell")
+        if fc_val is not None:
+            self.foundation_cell = fc_val
+        fd_val = carryover.get("foundation_doors")
+        if fd_val is not None:
+            self.foundation_doors = fd_val
+
         # --- banned_rooms (Repellent bans from this day) ---
         # Decrement PRE-EXISTING bans first (one day has elapsed for them),
         # then merge the NEW bans from this day.  New bans are not decremented
@@ -243,3 +261,7 @@ class DayChain:
             # base config presets, which is the same baseline day 1 started from.
             self.applied_upgrades = frozenset(self.base_cfg.upgrade_disks)
             self.draft_counts = dict(self.base_cfg.draft_counts)
+            # Fresh attempt: The Foundation goes back to being undrafted, same
+            # baseline as day 1 originally started from.
+            self.foundation_cell = self.base_cfg.foundation_cell
+            self.foundation_doors = self.base_cfg.foundation_doors

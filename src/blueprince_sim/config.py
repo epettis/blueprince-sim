@@ -24,6 +24,9 @@ class GameConfig:
     # Garage route works from day 1 (no flag needed), so the draft is available whenever the
     # route cost is affordable and no outer room has been drafted today.
     west_gate_unlatched: bool = False
+    # The mine cart has been shifted from the south side, permanently opening
+    # reservoir_north -> mine_north and rotating_gear -> underpass.
+    mine_south_visited: bool = False
     orchard_unlocked: bool = False                   # Apple Orchard: +20 starting steps (wiki)
     mine_unlocked: bool = False                      # Gemstone Cavern: +2 gems at day start (wiki)
     upgrade_disks: frozenset[str] = frozenset()      # applied variant room ids (e.g. "pool_hall__ix12")
@@ -104,6 +107,10 @@ class GameConfig:
     # all days until the altar is lit (which is a one-time-ever event by construction,
     # since lit_targets makes the Chapel un-lightable on future days).
     chapel_tithes: int = 0
+    # The Foundation does not reset day-to-day: once drafted it stays at the same
+    # cell/orientation forever.  -1 = not yet drafted this attempt.
+    foundation_cell: int = -1           # grid cell the Foundation permanently occupies
+    foundation_doors: int = 0           # its frozen 4-bit door mask; 0 = not yet drafted
     # --- reward selection for the env ---
     reward: str = "sparse"              # sparse|shaped|phased
     data_dir: Path | None = None        # alternate data/*.json directory (None = packaged data)

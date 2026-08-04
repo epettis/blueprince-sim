@@ -401,6 +401,27 @@ def roll_special_spawn(state, registry, room, rng) -> str | None:
     return item_id
 
 
+def on_area_arrival(game, area_id: str) -> None:
+    """Arrival hooks for off-grid area nodes that have no rooms.json record.
+
+    ``guaranteed_by_room`` only keys off room ids, so area nodes like
+    ``mine_south`` need a bespoke grant site instead — this is that site,
+    called from Game.travel_to on every arrival. ``_is_available``'s
+    uniqueness check makes repeat calls within the same day a no-op, the same
+    way re-entering a guaranteed_in room does.
+
+    Today this is exactly one grant: the Abandoned Mine (South)'s Upgrade
+    Disk, sitting openly on a table (docs/areas.md) — obtainable without an
+    ignition tool, unlike the candlesticks that separately open the Precipice
+    stairway.
+    """
+    if area_id == "mine_south":
+        state = game.state
+        registry = game.registry
+        if _is_available(state, "upgrade_disk_mine_south", registry):
+            grant(state, registry, "upgrade_disk_mine_south", source="mine_south")
+
+
 def on_enter(game, room, cell: int) -> None:
     """First-entry hooks: guaranteed spawns, Lost & Found, Sleeping Mask,
     Watering Can, Dining Room main course. Called from Game._enter after
@@ -427,10 +448,12 @@ def on_enter(game, room, cell: int) -> None:
     # a room with candles does NOT belong here: the Abandoned Mine (South) disk
     # sits openly on a table and is obtainable without ever lighting anything,
     # while its eight candlesticks independently open the stairway to the
-    # Precipice. When that area lands (task 4), model the disk as a plain
-    # guaranteed_in pickup and the candles as an ignition target granting a graph
-    # edge, not an item. Coupling them would make the disk unreachable without an
-    # ignition tool, which is wrong.
+    # Precipice (candlestick_stairway gate, areas.json). mine_south has no
+    # rooms.json record, so its disk cannot use guaranteed_by_room like the
+    # in-grid disks; it is granted instead by on_area_arrival, called from
+    # Game.travel_to on arrival at the mine_south area node. Coupling the disk
+    # to the candles would make it unreachable without an ignition tool, which
+    # is wrong.
     targets = registry.special.ignition.get("targets", {})
     if room.id in targets and room.id in state.special.lit_targets:
         for reward in targets[room.id].get("grants", []):

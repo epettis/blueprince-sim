@@ -17,6 +17,7 @@ from ..engine.special_items import inventory_value
 PATHS_ONE_PENALTY: float = -0.15   # potential when exactly 1 route survives
 PATHS_ZERO_PENALTY: float = -1.0   # potential when all routes are sealed
 ANTECHAMBER_REWARD: float = 0.25   # first Antechamber arrival each day (milestone)
+NORTH_DOOR_REWARD: float = 0.5     # first north-door opening each day (either lever)
 ROOM46_REWARD: float = 1.0         # first Room 46 arrival each day (win)
 
 
@@ -120,15 +121,18 @@ def snapshot(game: Game) -> dict:
         "phi_paths": _phi_paths(_ante_paths(game)),
         "inv_value": inventory_value(st, game.registry),
         "antechamber_reached": st.antechamber_reached,
+        "north_door_opened": st.north_door_opened,
         "room46_reached": st.room46_reached,
     }
 
 
 def sparse(game: Game, prev: dict, terminated: bool) -> float:
-    """Milestone signal: +0.25 on first Antechamber arrival, +1.0 on first Room 46 arrival."""
+    """Milestone signal: +0.25 Antechamber, +0.5 north door opened, +1.0 Room 46 (win)."""
     r = 0.0
     if game.state.antechamber_reached and not prev["antechamber_reached"]:
         r += ANTECHAMBER_REWARD
+    if game.state.north_door_opened and not prev["north_door_opened"]:
+        r += NORTH_DOOR_REWARD
     if game.state.room46_reached and not prev["room46_reached"]:
         r += ROOM46_REWARD
     return r
@@ -165,6 +169,8 @@ def shaped(game: Game, prev: dict, terminated: bool) -> float:
     r -= 0.001  # per-decision time pressure
     if game.state.antechamber_reached and not prev["antechamber_reached"]:
         r += ANTECHAMBER_REWARD
+    if game.state.north_door_opened and not prev["north_door_opened"]:
+        r += NORTH_DOOR_REWARD
     if game.state.room46_reached and not prev["room46_reached"]:
         r += ROOM46_REWARD
     return r
@@ -211,6 +217,8 @@ def phased(game: Game, prev: dict, terminated: bool) -> float:
     r -= 0.001  # per-decision time pressure
     if game.state.antechamber_reached and not prev["antechamber_reached"]:
         r += ANTECHAMBER_REWARD
+    if game.state.north_door_opened and not prev["north_door_opened"]:
+        r += NORTH_DOOR_REWARD
     if game.state.room46_reached and not prev["room46_reached"]:
         r += ROOM46_REWARD
     return r

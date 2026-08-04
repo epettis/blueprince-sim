@@ -10,7 +10,9 @@
    "gem_cost": 0,
    "layout": "t",
    "alt_layouts": [],
-   "draft_conditions": [],
+   "draft_conditions": [
+    "the_foundation"
+   ],
    "flags": {
     "no_library_draft": false,
     "powered": false,
@@ -22,9 +24,9 @@
    "items": {
     "guaranteed": [],
     "additional_max": 1,
-    "dig_spots": 0
+    "dig_spots": 2
    },
-   "pool": "none",
+   "pool": "base",
    "meta": {
     "source": "tfmurphy_sheet_v1.3",
     "confidence": "datamined",

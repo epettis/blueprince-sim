@@ -9,6 +9,11 @@ from .model import Room
 from .special_items import satisfied_condition_items
 from .state import GameState
 
+# Rank 8, center column: directly below the Antechamber. The wiki bars The
+# Foundation from this one tile even though it otherwise satisfies "interior
+# columns, Ranks 3-8" (see docs/foundation-design.md's "17 positions" count).
+FOUNDATION_BANNED_CELL = 37
+
 
 def legal_orientations(room: Room, cell: int, entry_dir: int, state: GameState,
                        cfg: GameConfig) -> list[int]:
@@ -156,6 +161,13 @@ def satisfies_draft_conditions(room: Room, cell: int, entry_dir: int, state: Gam
                     return False
             case "antechamber_north_door":
                 return False  # Room 46; beyond the day-run objective
+            case "the_foundation":
+                # 17 legal tiles: the centre three columns, Ranks 3-8, minus the cell
+                # directly below the Antechamber.  See docs/foundation-design.md for why
+                # Ranks 1/2/9 are all excluded (the wiki's own "17 positions" count).
+                if not (is_center_column(cell) and 3 <= rank_of(cell) <= 8
+                        and cell != FOUNDATION_BANNED_CELL):
+                    return False
             case _ if cond.startswith("rank_gte_"):
                 if rank_of(cell) < int(cond.rsplit("_", 1)[1]):
                     return False
