@@ -25,7 +25,7 @@ KNOWN_CONDITIONS = {"west_wing", "east_wing", "west_or_east_wing", "not_on_wing"
                     "morning_room", "room8_placement", "gift_shop",
                     "no_north_on_wing", "no_horizontal_end_rank", "north_south_only",
                     "pool_drafted", "library_only", "antechamber_north_door", "room8_key",
-                    "knight_chess_piece", "secret_garden_key", "breakfast"}
+                    "knight_chess_piece", "secret_garden_key", "breakfast", "the_foundation"}
 KNOWN_ITEM_EFFECT_TAGS = {
     # PR1 functional set
     "lockpick", "luck_bonus", "coin_interest", "coin_multiplier",

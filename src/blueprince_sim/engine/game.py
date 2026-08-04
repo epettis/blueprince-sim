@@ -132,6 +132,21 @@ class Game:
             ):
                 st.door_state[seg] = DOOR_SEALED
                 st.door_version += 1
+
+        # The Foundation does not reset day-to-day: once drafted (cfg.foundation_cell
+        # set on an earlier day), re-place it at the same cell/orientation before the
+        # day starts, same as the Entrance Hall / Antechamber above. Landing in
+        # placed_ids/room_cells is what keeps it out of today's deck (the existing
+        # one-copy-on-the-grid rule in draft.py::room_draftable) - no second exclusion
+        # mechanism. Not entered: the player still has to walk there to collect
+        # anything, so ON_ENTER must not fire here.
+        if cfg.foundation_cell >= 0:
+            foundation = self.registry.by_id["the_foundation"]
+            st.grid[cfg.foundation_cell] = foundation.idx
+            st.placed_doors[cfg.foundation_cell] = cfg.foundation_doors
+            self._roll_new_segments(foundation, cfg.foundation_cell, cfg.foundation_doors)
+            self.placed_ids.add(foundation.id)
+            self.room_cells[foundation.id] = cfg.foundation_cell
         self._map_cache: tuple[tuple, dict] = ((), {})
 
     # ------------------------------------------------------------ connectivity
@@ -1212,6 +1227,12 @@ class Game:
         st.entered[cell] = entered
         self._roll_new_segments(room, cell, orientation)
         self.placed_ids.add(room.id)
+        if room.id == "the_foundation":
+            # First (and only) time this attempt it is drafted: record where, so
+            # carryover() -> next day's GameConfig.foundation_cell/doors can
+            # re-place it at reset() on every later day (see above).
+            st.foundation_cell = cell
+            st.foundation_doors = orientation
         prev = self.room_cells.get(room.id)
         if prev is None or cell < prev:
             self.room_cells[room.id] = cell

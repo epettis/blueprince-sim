@@ -1095,6 +1095,15 @@ def carryover(game) -> dict:
         # The payout (lighting the altar) clears chapel_tithes to 0 in state;
         # the carryover sum stays 0 after that event, which is correct.
         "chapel_tithes": state.special.chapel_tithes,
+        # The Foundation's permanent placement: once cfg.foundation_cell is set (drafted
+        # on an earlier day) it always wins - the placement never moves. Otherwise report
+        # state's value, which is >= 0 only if it was drafted today.
+        "foundation_cell": (
+            cfg.foundation_cell if cfg.foundation_cell >= 0 else state.foundation_cell
+        ),
+        "foundation_doors": (
+            cfg.foundation_doors if cfg.foundation_cell >= 0 else state.foundation_doors
+        ),
         "starting_items": carried_items,              # list[str]: item ids for next starting_items
         "banned_rooms": dict(state.shops.repellent_bans),  # dict[str, int]: new bans from today
         # Upgrade Disks: variant ids applied this attempt; union-accumulated across days.

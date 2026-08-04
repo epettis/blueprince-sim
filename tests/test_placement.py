@@ -6,7 +6,8 @@ from blueprince_sim.engine.game import Game
 from blueprince_sim.engine.grid import (E, N, S, W, is_center_column, is_corner,
                                         is_east_wing, is_west_wing, neighbor, rank_of,
                                         rotate_mask)
-from blueprince_sim.engine.placement import legal_orientations, satisfies_draft_conditions
+from blueprince_sim.engine.placement import (FOUNDATION_BANNED_CELL, legal_orientations,
+                                             satisfies_draft_conditions)
 from blueprince_sim.engine.state import GameState
 
 
@@ -250,6 +251,46 @@ def test_tunnel_north_south_only(registry, cfg):
     # Rank gates: rank 1 and rank 9 are excluded.
     assert not satisfies_draft_conditions(tunnel, 2, N, st, cfg, set(), False)   # rank 1
     assert not satisfies_draft_conditions(tunnel, 42, S, st, cfg, set(), False)  # rank 9
+
+
+def test_foundation_placement(registry, cfg):
+    """The Foundation's legal cells are exactly the wiki's 17: interior columns,
+    Ranks 3-8, minus the cell directly below the Antechamber -- and the rule
+    doesn't care which direction the doorway was entered from."""
+    st = GameState()
+    foundation = registry.by_id["the_foundation"]
+    legal = [cell for cell in range(45)
+             if satisfies_draft_conditions(foundation, cell, N, st, cfg, set(), False)]
+    assert len(legal) == 17, f"expected exactly 17 legal cells, got {len(legal)}: {legal}"
+
+    # Ranks 3-8 in the centre columns are legal, except the one banned cell.
+    for rank in range(3, 9):
+        for col in (1, 2, 3):
+            cell = (rank - 1) * 5 + col
+            if cell == FOUNDATION_BANNED_CELL:
+                continue
+            assert satisfies_draft_conditions(foundation, cell, N, st, cfg, set(), False), \
+                (rank, col)
+
+    # Ranks 1, 2 and 9 are barred even in the centre columns.
+    for rank in (1, 2, 9):
+        cell = (rank - 1) * 5 + 2
+        assert not satisfies_draft_conditions(foundation, cell, N, st, cfg, set(), False)
+
+    # Both wings are barred at every rank.
+    for rank in range(1, 10):
+        for col in (0, 4):
+            cell = (rank - 1) * 5 + col
+            assert not satisfies_draft_conditions(foundation, cell, S, st, cfg, set(), False)
+
+    # The cell directly below the Antechamber is barred despite matching every
+    # other rule (centre column, Rank 8).
+    assert not satisfies_draft_conditions(foundation, FOUNDATION_BANNED_CELL, N, st, cfg,
+                                          set(), False)
+
+    # The rule is direction-agnostic: a legal cell stays legal from any entry_dir.
+    for d in (N, E, S, W):
+        assert satisfies_draft_conditions(foundation, 22, d, st, cfg, set(), False)  # rank 5, col 2
 
 
 def test_gated_conditions_via_config(registry):

@@ -40,11 +40,12 @@ SHOP_STOCK_ROWS = 6    # showroom with trophy = 5; cap at 6 for one free slot
 TRADE_OFFER_ROWS = 8   # generous; 24 tradeables, real sessions hold far fewer
 
 # Cap on the encoded disks_held count. Disks are unique items, so the true
-# maximum is the number of "upgrade_disk_*" records in the registry (14: the 7
-# original + the 7 in-grid disks). Declared as Discrete(MAX_DISKS_HELD + 1) and
-# used as the encode clamp, so the space bound and the clamp cannot drift apart.
+# maximum is the number of "upgrade_disk_*" records in the registry (15: the 7
+# original + the 8 in-grid disks, The Foundation's added last). Declared as
+# Discrete(MAX_DISKS_HELD + 1) and used as the encode clamp, so the space bound
+# and the clamp cannot drift apart.
 # tests/test_in_grid_disks.py pins this against the registry's actual disk count.
-MAX_DISKS_HELD = 14
+MAX_DISKS_HELD = 15
 
 SCEPTER_COLOR_INDEX = {c: i for i, c in enumerate(SCEPTER_COLORS)}
 

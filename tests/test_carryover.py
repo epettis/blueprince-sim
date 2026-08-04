@@ -465,6 +465,7 @@ def test_carryover_shape_is_complete():
         "starting_items", "banned_rooms", "used_vault_keys",
         "lit_targets", "collected_disks", "chapel_tithes",
         "upgrade_disks", "draft_counts",
+        "foundation_cell", "foundation_doors",
     }
     # Test a variety of configs
     for cfg in [

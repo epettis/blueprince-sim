@@ -104,6 +104,10 @@ class GameConfig:
     # all days until the altar is lit (which is a one-time-ever event by construction,
     # since lit_targets makes the Chapel un-lightable on future days).
     chapel_tithes: int = 0
+    # The Foundation does not reset day-to-day: once drafted it stays at the same
+    # cell/orientation forever.  -1 = not yet drafted this attempt.
+    foundation_cell: int = -1           # grid cell the Foundation permanently occupies
+    foundation_doors: int = 0           # its frozen 4-bit door mask; 0 = not yet drafted
     # --- reward selection for the env ---
     reward: str = "sparse"              # sparse|shaped|phased
     data_dir: Path | None = None        # alternate data/*.json directory (None = packaged data)

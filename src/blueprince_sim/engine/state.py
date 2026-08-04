@@ -203,6 +203,10 @@ class GameState:
     pending_upgrade_slot: str | None = None                      # slot awaiting the player's upgrade choice; None when not mid-upgrade
     pending_upgrade_options: tuple[str, ...] = ()                # the three offered variant ids; empty when not mid-upgrade
 
+    # --- The Foundation (does not reset day-to-day; see GameConfig.foundation_cell) ---
+    foundation_cell: int = -1     # cell it was placed at today, if drafted today; -1 = not yet
+    foundation_doors: int = 0     # its door mask as drafted today; 0 = not yet drafted
+
     def deck(self, rarity_idx: int, is_gem: bool) -> DeckState:
         return self.decks[rarity_idx * 2 + (1 if is_gem else 0)]
 

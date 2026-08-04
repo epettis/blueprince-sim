@@ -54,6 +54,18 @@ LAYOUT_OVERRIDE: dict[str, dict] = {
                            "note": "wiki: 4-way; OPEN: gated arm traversal not modeled"},
 }
 
+# Wiki-sourced draft-condition overrides, keyed by room id, for rooms whose raw
+# sheet "conditions" column is blank/"-" but whose real placement rule is known
+# from the wiki (docs/foundation-design.md). Applied AFTER CONDITION_MAP, so it
+# always wins for the listed ids. This is a NEW map: unlike the wing/rank/
+# direction refinements on Garage/Boiler Room/etc (which the CONDITION_MAP
+# pipeline doesn't encode and which live only as hand edits in the committed
+# rooms.json, per CLAUDE.md), The Foundation's condition has no raw-sheet
+# source text to derive from at all, so it is hard-coded here to survive re-ingest.
+CONDITION_OVERRIDE: dict[str, list[str]] = {
+    "the_foundation": ["the_foundation"],
+}
+
 CONDITION_MAP = {
     "West Wing": ["west_wing"],
     "East Wing": ["east_wing"],
@@ -209,6 +221,10 @@ EFFECT_MAP: dict[str, dict] = {
     # Parlor: box always contains 2 gems on first entry; Wind-up Key is deliberately
     # not modeled (action-space simplification — see docs/special-items-design.md).
     "parlor": {"items": {"guaranteed": [{"item": "gem", "count": 2}]}},
+    # The Foundation: two guaranteed dig spots near the wooden walkways (wiki);
+    # the "up to two additional" spots by the elevator are not modeled (no roll
+    # invented for them) - see docs/foundation-design.md.
+    "the_foundation": {"items": {"dig_spots": 2}},
 }
 
 # Per-variant overrides, keyed by the suffixed id (e.g. "parlor__ix108").
@@ -334,6 +350,8 @@ def build_room(row: dict) -> dict | None:
         category = "objective"
 
     conds = CONDITION_MAP.get(row["conditions"], []) if row["conditions"] not in ("-", "") else []
+    if rid in CONDITION_OVERRIDE:
+        conds = CONDITION_OVERRIDE[rid]
     gem_cost = 0 if row["gem_cost"] in ("-", "") else int(row["gem_cost"])
 
     # Only "Upgrade X" unlock strings are upgrade-disk variants; other unlock
@@ -374,7 +392,10 @@ def build_room(row: dict) -> dict | None:
         entry["meta"]["unlock"] = row["unlock"]
         entry["id"] = rid + "__ix" + row["internal_index"]
         entry["variant_of"] = slugify(row["unlock"].replace("Upgrade ", ""))
-    if name in ("Entrance Hall", "Antechamber", "Room 46", "The Foundation"):
+    # The Foundation deals from the base pool at its rare rarity (rank-3 removal
+    # and the 17-cell placement rule are handled by draft.py / the "the_foundation"
+    # draft condition, not by pool exclusion) - see docs/foundation-design.md.
+    if name in ("Entrance Hall", "Antechamber", "Room 46"):
         entry["pool"] = "none"
     if "pool_drafted" in conds:
         entry["pool"] = "pool_temp"
