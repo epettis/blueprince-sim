@@ -702,15 +702,14 @@ the other stub retirements in this file, it adds to the action space and
 therefore **belongs bundled with a retrain**, the same reasoning that governed
 task 4's sequencing.
 
-## 12. Sealed walls that change a room's layout
+## 12. The Greenhouse's Power Hammer wall changes its layout
 
-Write-up only — not built in this pass. The Sealed Entrance's Power Hammer
-break (task 4's area graph) is the easy case: it only ever changes which
-*edges* are traversable, never a room's own shape. Two other Power Hammer
-walls are harder, because breaking them permanently changes the **layout of
-an in-grid room**, something no carry-over path in the sim does today.
+Write-up only — not built in this pass.
 
-**The Greenhouse**, quoting `https://blueprince.wiki.gg/wiki/Greenhouse`:
+**The Greenhouse is the only room whose doors change when a Power Hammer wall
+comes down** (owner, 2026-08-04). Quoting
+`https://blueprince.wiki.gg/wiki/Greenhouse`:
+
 - *"The Greenhouse, while initially a Dead End, has a hidden passage which
   includes an extra exit door. This hidden section can be permanently opened
   by using the Power Hammer on the brick wall to the left after entering."*
@@ -719,47 +718,44 @@ an in-grid room**, something no carry-over path in the sim does today.
 - *"if the wall was opened on a previous day, it no longer counts towards the
   total number of Dead Ends in the house."*
 
-**The Weight Room** has the same mechanism (a Power Hammer wall that
-permanently adds a door and changes its shape), but today it is modelled only
-as a side effect of the Antechamber-lever system: `Game._enter_lever_room`
-(`engine/game.py`) opens the Weight Room's south segment toward the
-Antechamber once a Power Hammer is held or `weight_room_wall_broken` was
-already carried over (`GameConfig.weight_room_wall_broken`,
-`GameState.shops.weight_room_wall_broken`) — that's a doorway-segment flip
-bolted onto the lever wiring, not a change to the room's own `Room` record or
-`legal_orientations`. It happens to produce the right *doorway*, but the room
-never actually becomes an L-shape in the sim's data model, and (see below)
-never stops counting as a Dead End.
+The sim already carries the destination shape: the `greenhouse` record in
+`rooms.json` is `layout: "dead_end"` with `alt_layouts: ["corner"]`. What is
+missing is anything that switches between them.
 
-**Why this is harder than a doorway flip:**
-- **Layout, not just doors.** `Room.draft_conditions` / `legal_orientations`
-  and the room's shape (`rooms.json`) are decided once, at draft/placement
-  time, from immutable `Room` records (`model.Registry.load()`). There is no
-  existing mechanism for a room already on the grid to swap its shape record
-  mid-run, or for that swap to persist across the day boundary the way
-  `foundation_cell`/`upgrade_disks` do for placement.
-- **Dead End counting.** Both rooms start as Dead Ends; breaking the wall
-  removes them from that count *for the rest of the attempt*, per the wiki's
-  "no longer counts towards the total number of Dead Ends" line. Dead End
-  count feeds two things already in the sim: the Tomb's `coins_per_deadend`
-  effect (`effects/`) and the `dead_end` day-termination path (`game.py`).
-  A layout change that doesn't also update whatever tracks "how many Dead
-  Ends are on the grid right now" would silently corrupt both — the Tomb
-  payout and the termination check would keep treating a broken-open
-  Greenhouse or Weight Room as a Dead End it no longer is.
-- **Retroactive across days.** The wiki is explicit that a wall broken on a
-  *previous* day stays broken and un-counts on all *later* days too — this
-  needs the same carry-over shape as `foundation_cell` (a value that, once
-  set, is authoritative for the rest of the attempt regardless of what a
-  fresh day's draft would otherwise produce), not a same-day-only flag like
-  `garage_door_breaker`.
+**The Weight Room is NOT this mechanism, and must not be folded into it.** Its
+Power Hammer wall reveals *"a lever for the south Antechamber door as well as
+two documents"* (`https://blueprince.wiki.gg/wiki/Weight_Room`), and the space
+*"will always be accessible on future days"*. The room's own doors are
+unchanged — it has no `alt_layouts` entry, and the wiki says nothing about its
+shape. `Game._enter_lever_room` already models it correctly, as a permanent
+lever unlock (`weight_room_wall_broken`) that opens the Antechamber's south
+segment. Nothing about the Weight Room needs to change.
 
-**Suggested shape for a future PR:** a carried room-id -> bool (or per-cell)
-carry-over set, checked at placement/legality time to substitute the L-shape
-variant's door mask and shape for the base Dead End's, PLUS a corresponding
-fix to Dead End counting so the Tomb effect and the `dead_end` termination
-path see the room as no longer a Dead End once broken. Both the Greenhouse
-and the Weight Room should move together, since they're the same mechanism;
-the Weight Room's existing `weight_room_wall_broken` carry-over flag can
-likely be reused as the trigger, but the doorway-only hack in
-`_enter_lever_room` needs to become a real layout change alongside it.
+**Why the Greenhouse is harder than a doorway flip:**
+
+- **Layout, not just doors.** A room's shape comes from an immutable `Room`
+  record (`model.Registry.load()`) and is consumed by `legal_orientations` at
+  draft/placement time. Nothing lets a room already on the grid swap its shape
+  record mid-run, and nothing carries such a swap across the day boundary the
+  way `foundation_cell` carries a placement.
+- **Two distinct cases.** Breaking the wall today mutates a room already
+  standing on the grid; on every later day the Greenhouse must instead be
+  *drafted and placed* in its `corner` layout from the start. The second case
+  is the easy one — it is a carry-over flag consulted at deck/placement time.
+  The first needs live mutation of a placed room.
+- **Dead End counting.** The Greenhouse starts as a Dead End and stops being
+  one once broken, for the rest of the attempt. That count feeds the Tomb's
+  `coins_per_deadend` effect (`effects/tier1.py`, which reads
+  `ctx_room.layout == "dead_end"` at draft time) and the `dead_end`
+  day-termination path (`game.py`). A layout change that does not also move
+  the Dead End count would leave the Tomb paying out for a room that is no
+  longer a Dead End.
+- **Retroactive across days.** A wall broken on an earlier day stays broken
+  and stays un-counted, so this needs the authoritative-once-set carry-over
+  shape of `foundation_cell`, not a same-day flag like `garage_door_breaker`.
+
+**Suggested shape for a future PR:** a `greenhouse_wall_broken` carry-over
+flag, set when the player breaks the wall with a Power Hammer; consulted at
+placement/legality time to substitute the `corner` layout for `dead_end`; plus
+the matching correction to Dead End counting so the Tomb effect and the
+termination path both stop seeing it as a Dead End.
