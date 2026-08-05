@@ -176,8 +176,10 @@ digraph blueprince_outside {
 	// ===================== UNDERGROUND =====================
 
 	// Position-tracked. The keycard SUMMONS the car; it is not a ride toll.
-	the_foundation -> basement       [label="elevator: crank revealed\nAND car at the top", style=bold, color="#c62828"];
-	basement       -> the_foundation [label="elevator: keycard to SUMMON\nif the car is not already down", style=dashed, color="#c62828"];
+	// A Basement door sits at the foot of the shaft and gates BOTH directions:
+	// the wiki unlocks it "from either side using a Basement Key".
+	the_foundation -> basement       [label="elevator: crank revealed AND car at\nthe top; Basement Key opens the door", style=bold, color="#c62828"];
+	basement       -> the_foundation [label="elevator: keycard to SUMMON if the car\nis not already down; Basement Key too", style=dashed, color="#c62828"];
 
 	sealed_entrance -> basement        [label="Power Hammer\nbreaks the wall", style=bold];
 	basement        -> sealed_entrance [label="regrows daily unless the\nGrounds planks are also broken", style=dashed, color="#c62828"];

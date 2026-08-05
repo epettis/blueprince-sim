@@ -501,6 +501,35 @@ breaks, the Sanctum keys.
   `P(north door opened)` against `P(reach Room 46)` in the first retrain; a wide
   gap is the signature.
 
+- **2026-08-04, the three Basement doors are independent, Basement-Key-only
+  locks**: the wiki treats `Basement_door` as a door *type* with three
+  instances — the Grounds side (the drained Fountain's floor, feeding
+  `well -> reservoir_south`), the Foundation's elevator (feeding
+  `the_foundation -> basement`), and the Crate Tunnel (unmodelled). Each
+  unlocks **permanently and independently** the first time a Basement Key is
+  used on it; any other normal or special key, and the Lock Pick Kit, do not
+  fit. Owner decision, on interview: gate the Foundation's own door
+  (`basement_key_foundation`, a second `kind: "item"` gate alongside the
+  existing `basement_key_well`, same shape) rather than reusing the Well's
+  gate id, since the two doors are genuinely separate locks that happen to
+  share one key item. Before this, `the_foundation -> basement` was gated only
+  by the (open, stub) elevator mechanism, so an empty inventory could reach
+  `basement` for free through the Foundation once it was drafted and
+  grid-connected — measured at 5 hops from the house with the Foundation
+  placed. That loophole is closed; holding the Basement Key restores the same
+  5 hops (a Power Hammer via `sealed_entrance` remains a 3-hop alternative that
+  needs no key at all).
+
+  **Held-key modelling simplification, stated explicitly rather than left to
+  look like an oversight**: the real rule is "this door has been unlocked,
+  permanently, by a Basement Key at some point"; the sim instead checks "a
+  Basement Key is currently held right now". The two coincide in practice
+  because `basement_key` is `persistence: "permanent"` and is re-granted from
+  the Antechamber pillar on first entry every day, so once earned it is always
+  held for the rest of the save — there is no path by which the key is used
+  and then given up. See `areas.md` for the full writeup and
+  `foundation-design.md` for the corrected critical-path analysis.
+
 ## 5. Throttle the training terminal output — DONE
 
 The trainer currently refreshes the dashboard after every completed seed, which
@@ -595,3 +624,58 @@ several rooms should carry a standing **+2 allowance**: the **Cloister**, the
 **Trading Post**, and the **Closed Exhibit**. Verify against the wiki whether this
 is allowance (the daily gold packet) or a one-time grant, then encode it the same
 way task 3's safes are.
+
+## 11. Model the Pump Room's water levels
+
+Write-up only (owner decision, 2026-08-04: gate the Basement doors on the
+Basement Key now, take on the Pump Room next) — not built in this pass. Two
+graph edges already carry stub gates waiting on this
+(`pump_water_lte8`, `rowboat_water_6`, both `retire_in: "PR-pump-room"`), and a
+third traversal condition (below) is not modelled at all yet.
+
+**The room.** Six water sources, each with its own independent integer level
+— there is no single estate-wide "water level":
+
+| Source | Initial / max level |
+|---|---|
+| Fountain | 12 / 12 |
+| Reservoir | 14 / 14 |
+| Aquarium | 6 / 6 |
+| Kitchen | 0 / 3 |
+| Greenhouse | 1 / 5 |
+| Pool | 8 / 9 |
+
+Two tanks (capacity 4 each) and four pumps move water between a tank and any
+one of the six sources: *"Switching a pump up causes water to drain from a
+selected water source into a tank. Switching a pump down causes water to fill
+a selected water source from a tank."*
+
+**Persistence rule.** *"Changes to the water levels are permanent, although
+the selected source and position of the pump levers will reset each day."*
+So: the six integer levels need to live in carry-over state (permanent, like
+`collected_disks`), while which source each pump currently targets and each
+lever's position are ordinary per-day `GameState` (reset every `reset()`,
+never carried).
+
+**Gates this retires:**
+- `pump_water_lte8` (`grounds -> well`): Fountain level `<= 8`.
+- `rowboat_water_6` (`reservoir_south <-> safehouse`): Reservoir level
+  `== 6`.
+- Reservoir level `== 13` additionally lets the boat cross the Reservoir
+  side-to-side (not currently represented as a graph edge/gate at all —
+  needs its own gate once this lands, distinct from the Safehouse rowboat
+  gate).
+
+**New traversal condition to add**, not currently modelled even as a stub:
+`well -> reservoir_south` needs Fountain level `== 0`, checked on **every**
+traversal (not just once) — *"this passage is only traversible while the
+fountain water level is 0"* (Well). This is on top of the existing permanent
+Basement Key unlock (`basement_key_well`); the two are independent conditions
+(key unlocks the door permanently, water level gates whether the passage is
+currently passable). See `areas.md` for the full edge-table writeup.
+
+**Action-space consequence.** Setting pump target/direction is a player
+action with no equivalent today — this is not a pure data/gate change like
+the other stub retirements in this file, it adds to the action space and
+therefore **belongs bundled with a retrain**, the same reasoning that governed
+task 4's sequencing.

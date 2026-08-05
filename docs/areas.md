@@ -119,7 +119,7 @@ once satisfied, **D** = resets daily, **-** = ungated.
 | `campsite` -> `apple_orchard` | padlock code 1128 | P |
 | `campsite` -> `gemstone_cavern` | V.A.C. puzzle (Utility Closet) + lever | P |
 | `grounds` -> `sealed_entrance` | Power Hammer breaks the planks | P |
-| `grounds` -> `well` | Pump Room: water level <= 8 | D |
+| `grounds` -> `well` | Pump Room: **Fountain** level <= 8 | D |
 | `grounds` -> `crate_tunnel` | ignition tool lights the torches | D |
 | `grounds` -> `precipice` | cliffside elevator: 4 torches lit AND car at the top | D |
 | `precipice` -> `grounds` | elevator, **only if the car was ridden down** | D |
@@ -128,16 +128,16 @@ once satisfied, **D** = resets daily, **-** = ungated.
 
 | From -> To | Gate | |
 |---|---|---|
-| `the_foundation` -> `basement` | elevator: crank revealed AND car at the top | P |
+| `the_foundation` -> `basement` | elevator (open stub) **AND** the Basement Key (live) | P |
 | `basement` -> `the_foundation` | elevator: **keycard to SUMMON** if the car is not already down | D |
 | `sealed_entrance` -> `basement` | Power Hammer breaks the wall | P |
 | `basement` -> `sealed_entrance` | regrows daily unless the Grounds planks are also broken | D |
 | `basement` -> `reservoir_north` | pallet-jack puzzle | P |
-| `well` -> `reservoir_south` | Basement Key (not consumed) | P |
+| `well` -> `reservoir_south` | Basement Key (not consumed); **+ Fountain==0, not modelled** | P |
 | `reservoir_south` <-> `mine_south` | none | - |
 | `reservoir_north` -> `mine_north` | mine cart moved (**requires Mine South visited**) | P |
 | `reservoir_north` <-> `rotating_gear` | none | - |
-| `reservoir_south` <-> `safehouse` | rowboat; water level exactly 6 (two-way) | D |
+| `reservoir_south` <-> `safehouse` | rowboat; **Reservoir** level exactly 6 (two-way) | D |
 | `tomb` -> `catacombs` | seven-angel puzzle; wall permanent, but the Tomb must be drafted that day | P |
 | `catacombs` -> `mine_south` | lower Draxus's scythe. **ONE-WAY**, shuts at day end | D |
 | `mine_south` -> `precipice` | ignition tool lights all 8 candlesticks -> permanent stairway | P |
@@ -156,6 +156,35 @@ the cart is shifted from the south side to clear the north entrance, which is
 what makes the Rotating Gear puzzle solvable for Underpass access; the sim
 collapses that to a single "South visited" flag.
 
+**Three Basement doors, three independent gates.** The wiki treats
+`Basement_door` as a door *type* with three instances — the Grounds side (the
+drained Fountain's floor), the Foundation's elevator, and the Crate Tunnel —
+each unlocking permanently and independently the first time a Basement Key is
+used on it; any other key, and the Lock Pick Kit, do not fit. The graph
+therefore carries one gate per instance rather than one shared gate: the
+Well's is `basement_key_well` (on `well -> reservoir_south`), the Foundation's
+is `basement_key_foundation` (on `the_foundation -> basement`), and the Crate
+Tunnel's is **not modelled at all** — `crate_tunnel` is truncated to its
+entrance, and everything past it is "story, not progression" (see the Nodes
+table above). All three model the simplification recorded below.
+
+**Modelling simplification, both live gates.** The real rule is "this door has
+been unlocked, permanently, by a Basement Key at some point"; the sim instead
+checks "a Basement Key is currently held". The two coincide because
+`basement_key` is `persistence: "permanent"` and is re-granted from the
+Antechamber pillar every day the player visits it, so once earned it is always
+held — there is no in-game scenario where the key was used and then given up.
+
+**The Well's traversal condition is incomplete.** Per the wiki, `well ->
+reservoir_south` needs the Basement Key unlock (modelled, permanent) **and**
+the Fountain drained to level 0, checked on *every* traversal, not just the
+first (the Well page: *"this passage is only traversible while the fountain
+water level is 0"*). That second condition is **not implemented** — the Pump
+Room's water levels are not modelled at all yet (see "Systems the sim lacks
+entirely" below and the new open_tasks.md task). Until then, `well ->
+reservoir_south` is gated only by the key, which is looser than the real game
+whenever the Fountain sits above 0.
+
 ## Stateful mechanisms this graph requires
 
 None of these exist today.
@@ -165,7 +194,7 @@ None of these exist today.
 | **Cliffside elevator position** | Moves ONLY by being ridden; cannot be called from the far side. Appears at the top once all 4 torches are lit | **No** |
 | **Foundation elevator position** | The keycard **summons** the car; it is not a ride toll | **No** |
 | **Four torches** | Apple Orchard and Gemstone Cavern light on ENTRY; Schoolhouse and Hovel light on **DRAFT**. All four lit summons the cliffside elevator | **Yes** |
-| **Water level** | Set from the Pump Room. `<= 8` opens the Well descent; exactly `6` enables the Safehouse rowboat | **Yes** |
+| **Pump Room water levels** | Six independent per-source levels, moved by two tanks/four pumps. Fountain gates the Well; Reservoir gates the Safehouse rowboat — see above and `open_tasks.md` | **Yes; levers reset daily** |
 | **Rotating Gear position** | Stays where it was left | **Yes** |
 | **Mine cart** | Blocks `reservoir_north -> mine_north` until moved from the south side | (via the South-visited flag) |
 
@@ -185,8 +214,9 @@ edges that depend on them are gated by **stubs that pass unconditionally**
 
 The alternative — closing them — was rejected because it strands **8 of the 36
 nodes**: Blackbridge Grotto (POWER), Orindian Ruins (behind the Grotto), the
-Safehouse and the Well (water level), and Underpass / Inner Sanctum / Sigil
-Chambers / Upper Rotating Gear (Rotating Gear position). That would delete
+Safehouse (Reservoir level) and the Well (Fountain level), and Underpass /
+Inner Sanctum / Sigil Chambers / Upper Rotating Gear (Rotating Gear position).
+That would delete
 Blackbridge Grotto, the one thing task 4 uniquely supplies. An unreachable node
 measures exactly zero, which is a worse and more misleading failure than a
 slightly-too-generous world.
@@ -207,8 +237,8 @@ rather than repeating it, so the two cannot drift.
 | `foundation_elevator_up` | PR-foundation-elevator | Basement -> The Foundation: keycard to SUMMON if the car is not already down |
 | `boiler_room_steam` | PR-power-system | Underpass -> Upper Rotating Gear: red door powered by Boiler Room steam |
 | `lab_steam_and_power` | PR-power-system | Private Drive -> Blackbridge Grotto: Laboratory steam/lever puzzle AND POWER |
-| `pump_water_lte8` | PR-pump-room | Grounds -> Well: water level <= 8 |
-| `rowboat_water_6` | PR-pump-room | Reservoir South <-> Safehouse: rowboat, water level exactly 6 |
+| `pump_water_lte8` | PR-pump-room | Grounds -> Well: **Fountain** level <= 8 |
+| `rowboat_water_6` | PR-pump-room | Reservoir South <-> Safehouse: rowboat, Reservoir level 6 |
 | `cliffside_elevator_down` | PR-torches-elevator | Grounds -> Precipice: 4 torches lit AND car at the top |
 | `cliffside_elevator_up` | PR-torches-elevator | Precipice -> Grounds: only if the car was ridden down |
 
@@ -226,8 +256,12 @@ Surfaced by building this graph:
 - **Power.** Required to open Blackbridge Grotto and to run the Laundry Room's
   special functions. A keycard/power notion exists for security doors but does
   not cover this.
-- **Pump Room water level.** No action exists to raise or lower it, and two
-  edges depend on specific levels.
+- **Pump Room water levels.** No action exists to raise or lower any of the six
+  independent per-source levels, and three edges depend on specific ones: the
+  Fountain gates the Well descent (and a traversal-time `== 0` check on
+  `well -> reservoir_south` that is not modelled at all yet), and the
+  Reservoir gates both the Safehouse rowboat and crossing the Reservoir. See
+  the "Model the Pump Room's water levels" task in `open_tasks.md`.
 
 ## Contents worth modelling
 

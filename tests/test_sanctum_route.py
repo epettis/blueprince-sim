@@ -140,6 +140,94 @@ def test_full_sanctum_route_reachable_end_to_end(registry):
 
 
 # ---------------------------------------------------------------------------
+# 3b. The Foundation's own Basement door is a separate Basement-Key gate
+# ---------------------------------------------------------------------------
+
+def test_foundation_basement_door_blocked_without_basement_key(registry):
+    """The wiki treats the three Basement doors as independent instances, each
+    unlocked only by a Basement Key. Without one held, the_foundation -> basement
+    must not traverse, and basement must be unreachable even though the
+    Foundation is drafted and grid-connected -- pins the gate this PR adds
+    (basement_key_foundation) rather than relying only on the open elevator stub."""
+    g = Game(GameConfig(special_items=True), seed=1, registry=registry)
+    g.state.steps = 200
+    assert g.state.inventory.get("basement_key", 0) == 0
+    _place_foundation_connected(g)
+
+    assert g.area_route_cost("the_foundation") is not None, (
+        "setup: the Foundation must be reachable"
+    )
+    assert g.area_route_cost("basement") is None, (
+        "basement must stay unreachable through the Foundation without a Basement Key"
+    )
+
+    with pytest.raises(AssertionError):
+        g.travel_to("basement")
+
+
+def test_foundation_basement_door_opens_with_basement_key(registry):
+    """The same Foundation setup as the no-key test, but holding a Basement Key:
+    the_foundation -> basement must now traverse. This is the positive half of
+    the gate pin -- together the two tests fail if the gate is reverted in
+    either direction (removed entirely, or added but never satisfiable)."""
+    g = Game(GameConfig(special_items=True), seed=1, registry=registry)
+    g.state.steps = 200
+    g.state.inventory["basement_key"] = 1
+    _place_foundation_connected(g)
+
+    assert g.area_route_cost("basement") is not None, (
+        "basement must be reachable through the Foundation once a Basement Key is held"
+    )
+    g.travel_to("basement")
+    assert g.state.area == "basement"
+
+
+def test_foundation_basement_door_gates_the_inside_direction_too(registry):
+    """The wiki unlocks this door "from either side using a Basement Key", so
+    arriving in the Basement by another route must not let a keyless player walk
+    out through it into the Foundation. A Power Hammer opens the Sealed Entrance
+    wall, which reaches the Basement without ever touching the key."""
+    g = Game(GameConfig(special_items=True), seed=1, registry=registry)
+    g.state.steps = 200
+    g.state.inventory["power_hammer"] = 1
+    g.state.west_gate_unlatched = True
+    assert g.state.inventory.get("basement_key", 0) == 0
+
+    assert g.area_route_cost("basement") is not None, (
+        "setup: the Power Hammer must open the Sealed Entrance route into the Basement"
+    )
+    assert g.area_route_cost("the_foundation") is None, (
+        "a keyless player in the Basement must not walk out through the Basement door"
+    )
+
+    g.state.inventory["basement_key"] = 1
+    assert g.area_route_cost("the_foundation") is not None, (
+        "with the key held the same door opens from the inside"
+    )
+
+
+# ---------------------------------------------------------------------------
+# 3c. This change must not close the pre-existing empty-inventory mine route
+# ---------------------------------------------------------------------------
+
+def test_mine_south_still_reachable_with_empty_inventory(registry):
+    """mine_south is reachable with a completely empty inventory via the open
+    cliffside_elevator_down stub (house -> grounds -> precipice -> mine_south,
+    3 hops) and does not run through the Foundation's Basement door at all --
+    gating the_foundation -> basement on the Basement Key must not accidentally
+    close this unrelated route (docs/foundation-design.md)."""
+    g = Game(GameConfig(), seed=1, registry=registry)
+    g.state.steps = 200
+    assert g.state.inventory.get("basement_key", 0) == 0
+    assert g.state.inventory.get("power_hammer", 0) == 0
+
+    result = g.area_route_cost("mine_south")
+    assert result is not None, "mine_south must still be reachable with an empty inventory"
+    steps, _anchor = result
+    assert steps == 3, "the precipice route is exactly 3 hops from the house"
+
+
+# ---------------------------------------------------------------------------
 # 4. Both levers open the north door, set the event flag, and pay the reward once
 # ---------------------------------------------------------------------------
 
@@ -312,6 +400,7 @@ def test_foundation_and_basement_travel_actions_offered_once_placed_and_visited(
     mine_south, covering the other three nodes flipped modelled by this PR."""
     g = Game(GameConfig(special_items=True, antechamber_levers=True), seed=1, registry=registry)
     g.state.steps = 200
+    g.state.inventory["basement_key"] = 1  # the Foundation's own Basement door needs it too
     _place_foundation_connected(g)
 
     node_ids = A._build_area_node_ids(g.registry)

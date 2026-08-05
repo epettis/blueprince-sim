@@ -428,6 +428,17 @@
    "meta": {"source": "docs/areas.md", "confidence": "wiki"}
   },
   {
+   "id": "basement_key_foundation",
+   "kind": "item",
+   "modelled": false,
+   "permanence": "permanent",
+   "stub": false,
+   "detail": "The Basement door at the foot of the Foundation's elevator, gating BOTH directions: the wiki unlocks it 'from either side using a Basement Key', so arriving in the Basement by another route does not let you through it. Only a Basement Key opens it (permanently); Lock Pick Kit does not work. Separate lock from the well's door and the unmodelled Crate Tunnel one. Models 'unlocked at some point' as 'key currently held' -- they coincide since basement_key is permanent and re-granted daily.",
+   "item_ids": ["basement_key"],
+   "count": 1,
+   "meta": {"source": "docs/areas.md", "confidence": "wiki"}
+  },
+  {
    "id": "foundation_elevator_up",
    "kind": "unmodelled",
    "modelled": false,
@@ -617,8 +628,8 @@
   {"from": "crate_tunnel", "to": "grounds", "requires": [], "meta": {"source": "docs/areas.md", "confidence": "wiki"}},
   {"from": "grounds", "to": "precipice", "requires": ["cliffside_elevator_down"], "meta": {"source": "docs/areas.md", "confidence": "wiki"}},
   {"from": "precipice", "to": "grounds", "requires": ["cliffside_elevator_up"], "meta": {"source": "docs/areas.md", "confidence": "wiki"}},
-  {"from": "the_foundation", "to": "basement", "requires": ["foundation_elevator_down"], "meta": {"source": "docs/areas.md", "confidence": "wiki"}},
-  {"from": "basement", "to": "the_foundation", "requires": ["foundation_elevator_up"], "meta": {"source": "docs/areas.md", "confidence": "wiki"}},
+  {"from": "the_foundation", "to": "basement", "requires": ["foundation_elevator_down", "basement_key_foundation"], "meta": {"source": "docs/areas.md", "confidence": "wiki"}},
+  {"from": "basement", "to": "the_foundation", "requires": ["foundation_elevator_up", "basement_key_foundation"], "meta": {"source": "docs/areas.md", "confidence": "wiki"}},
   {"from": "sealed_entrance", "to": "basement", "requires": ["power_hammer_wall"], "meta": {"source": "docs/areas.md", "confidence": "wiki"}},
   {"from": "basement", "to": "sealed_entrance", "requires": ["basement_sealed_entrance_return"], "meta": {"source": "docs/areas.md", "confidence": "wiki"}},
   {"from": "basement", "to": "reservoir_north", "requires": ["pallet_jack_puzzle"], "meta": {"source": "docs/areas.md", "confidence": "wiki"}},
