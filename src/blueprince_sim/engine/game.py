@@ -742,7 +742,12 @@ class Game:
             if outer_room is not None:
                 outer_room_id = outer_room.id
         return GateContext(
-            held_items=st.inventory,
+            # Snapshot, not alias: st.inventory is a plain mutable dict that tests
+            # and item-granting code poke in place, so a live reference would make
+            # a cached GateContext compare equal to itself forever even after the
+            # inventory changed underneath it (area_route_costs' memo below relies
+            # on GateContext equality catching exactly that).
+            held_items=dict(st.inventory),
             flags=frozenset(flags),
             rooms_entered=frozenset(entered_room_ids),
             outer_room_id=outer_room_id,
@@ -766,6 +771,54 @@ class Game:
             anchors["the_foundation"] = foundation_cell
         return anchors
 
+    def area_route_costs(self) -> dict[str, tuple[int, str]]:
+        """Cheapest total step cost to EVERY reachable area node, in one pass.
+
+        Same semantics as :meth:`area_route_cost`, computed for every destination
+        at once instead of one BFS sweep per call: off grid, a single
+        :func:`reachable` from ``state.area``; on grid, one :func:`reachable`
+        per anchor from :meth:`_grid_anchors`, combined via
+        ``grid_distance[anchor_cell] + area_steps[node]`` with ties broken toward
+        "house" (anchors are tried in :meth:`_grid_anchors` insertion order --
+        "house" first -- with a strict ``<`` so an equal-cost later anchor never
+        displaces an earlier one).
+
+        Returns ``{node_id: (cost, departure_anchor_id)}``, containing only
+        reachable nodes. The departure anchor id is ``""`` when the player is
+        already off-grid.
+
+        Memoized in :meth:`_maps` under ``"area_costs"``, keyed additionally on
+        a freshly built :class:`GateContext` (the ``_maps`` fingerprint alone
+        does not cover inventory, carry-over flags, rooms entered today, or
+        the drafted outer room, all of which gates read).
+        """
+        maps = self._maps()
+        ctx = self._gate_ctx()
+        cached = maps.get("area_costs")
+        if cached is not None and cached[0] == ctx:
+            return cached[1]
+        graph = self.registry.area_graph
+        if self.off_grid:
+            assert self.state.area is not None
+            dist = reachable(graph, self.state.area, ctx)
+            costs = {node_id: (steps, "") for node_id, steps in dist.items()}
+        else:
+            dist_grid = self.distance_map()
+            costs = {}
+            # Try "house" first so ties break to Entrance Hall
+            for anchor_id, anchor_cell in self._grid_anchors().items():
+                g_dist = dist_grid[anchor_cell]
+                if g_dist < 0:
+                    continue
+                area_dist = reachable(graph, anchor_id, ctx)
+                for node_id, a_dist in area_dist.items():
+                    cost = g_dist + a_dist
+                    existing = costs.get(node_id)
+                    if existing is None or cost < existing[0]:
+                        costs[node_id] = (cost, anchor_id)
+        maps["area_costs"] = (ctx, costs)
+        return costs
+
     def area_route_cost(self, dest: str) -> tuple[int, str] | None:
         """Cheapest total step cost to reach area node ``dest``, and the departure anchor id.
 
@@ -776,34 +829,7 @@ class Game:
         Returns None when ``dest`` is unreachable.
         The departure anchor id is "" when the player is already off-grid.
         """
-        graph = self.registry.area_graph
-        ctx = self._gate_ctx()
-        if self.off_grid:
-            assert self.state.area is not None
-            dist = reachable(graph, self.state.area, ctx)
-            steps = dist.get(dest)
-            if steps is None:
-                return None
-            return (steps, "")
-        dist_grid = self.distance_map()
-        best_cost: int | None = None
-        best_anchor = ""
-        # Try "house" first so ties break to Entrance Hall
-        for anchor_id, anchor_cell in self._grid_anchors().items():
-            g_dist = dist_grid[anchor_cell]
-            if g_dist < 0:
-                continue
-            area_dist = reachable(graph, anchor_id, ctx)
-            a_dist = area_dist.get(dest)
-            if a_dist is None:
-                continue
-            cost = g_dist + a_dist
-            if best_cost is None or cost < best_cost:
-                best_cost = cost
-                best_anchor = anchor_id
-        if best_cost is None:
-            return None
-        return (best_cost, best_anchor)
+        return self.area_route_costs().get(dest)
 
     def travel_to(self, dest: str) -> None:
         """Pay steps and move the player to area-graph node ``dest``.
@@ -1543,12 +1569,11 @@ class Game:
         same affordability contract as the travel action mask.
         """
         st = self.state
-        graph = self.registry.area_graph
-        for node_id in graph.nodes:
+        costs = self.area_route_costs()
+        for node_id, result in costs.items():
             if node_id == st.area:
                 continue  # no self-travel
-            result = self.area_route_cost(node_id)
-            if result is not None and st.steps > result[0]:
+            if st.steps > result[0]:
                 return True
         return False
 

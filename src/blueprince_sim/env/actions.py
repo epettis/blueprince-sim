@@ -289,6 +289,7 @@ def action_mask(game: Game, prev_action: int | None = None) -> list[bool]:
         #     self-travel so the agent does not pay 0 steps to stay put.
         node_ids = _build_area_node_ids(game.registry)
         graph_nodes = game.registry.area_graph.nodes
+        route_costs = game.area_route_costs()
         for i, node_id in enumerate(node_ids):
             # Unmodelled areas have no contents to collect, so offering travel to
             # them is a pure step sink.  They stay in the graph and the pathfinder
@@ -300,7 +301,7 @@ def action_mask(game: Game, prev_action: int | None = None) -> list[bool]:
             # Off-grid self-travel: already at this node.
             if st.area is not None and st.area == node_id:
                 continue
-            result = game.area_route_cost(node_id)
+            result = route_costs.get(node_id)
             if result is None:
                 continue
             cost, _anchor = result
