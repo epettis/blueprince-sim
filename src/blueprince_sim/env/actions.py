@@ -54,7 +54,11 @@ Layout (Discrete(314)):
            1 remains on arrival), and not the player's current position.
            Both on-grid and off-grid travel are permitted — returning to the
            grid is travel to "house" or "garage"; entering an outer room is
-           travel to that room's node id.
+           travel to that room's node id. On-grid travel to a grid anchor
+           (house/garage/the_foundation) is a walk to that anchor's cell, so
+           it is additionally gated on that cell being worth entering (see
+           _cell_worth_entering) -- unconditional off-grid, since that is the
+           only way back onto the grid.
 """
 
 from __future__ import annotations
@@ -248,6 +252,40 @@ def _cell_has_machine(game: Game, cell: int) -> bool:
     return _si.has(st, "broken_lever")
 
 
+def _cell_worth_entering(game: Game, cell: int) -> bool:
+    """True when walking into ``cell`` accomplishes something (purposefulness gate).
+
+    An unentered cell is always worth entering (first-entry pickups). An
+    already-entered cell is worth entering only when it is a control room
+    (Utility Closet / Security -- gated on ``game.cfg.door_locks``, since
+    their switches only matter with door locking enabled) or one of the
+    re-entry extensions: a buyable shop/Workshop, a Dining Room with a
+    pending main course, an openable container, an openable vault deposit
+    box, an unlit ignition target with a tool in hand, or a machine room
+    with a broken_lever in hand.
+
+    Self-contained: computes the control-room cells itself so callers (the
+    MOVE_TO loop and the travel-to-grid-anchor filter) need not thread any
+    extra state through.
+    """
+    st = game.state
+    if not st.entered[cell]:
+        return True
+    control_cells: set[int] = set()
+    if game.cfg.door_locks:
+        control_cells = {c for c in (game.room_cells.get("utility_closet", -1),
+                                     game.room_cells.get("security", -1))
+                         if c >= 0}
+    if cell in control_cells:
+        return True
+    return (_cell_is_shop_re_enterable(game, cell)
+            or _dining_room_re_enterable(game, cell)
+            or _cell_has_openable_container(game, cell)
+            or _cell_has_vault_box(game, cell)
+            or _cell_has_ignition_target(game, cell)
+            or _cell_has_machine(game, cell))
+
+
 def action_mask(game: Game, prev_action: int | None = None) -> list[bool]:
     """Legality mask over the flat action space for the current phase.
 
@@ -261,7 +299,12 @@ def action_mask(game: Game, prev_action: int | None = None) -> list[bool]:
     Travel actions (TRAVEL_BASE + i) are legal when ALL of: the destination is
     reachable via area_route_cost, the player can strictly afford it (steps >
     cost), and the destination is not the player's current node. Travel is
-    permitted both on-grid and off-grid.
+    permitted both on-grid and off-grid. On-grid travel to a grid anchor
+    (house/garage/the_foundation) is additionally gated on
+    _cell_worth_entering(anchor_cell): it is just a walk to that cell, so it
+    must clear the same purposefulness bar MOVE_TO enforces. This gate does
+    NOT apply off-grid, where travel to a grid anchor is the only way back
+    onto the grid.
 
     ``prev_action`` enables the security-setpoint repeat guard: when the
     previous *applied* action was a set-security-level id (SET_LEVEL_BASE
@@ -287,9 +330,18 @@ def action_mask(game: Game, prev_action: int | None = None) -> list[bool]:
         #   - On-grid: a grid anchor (house/garage) whose route cost is 0
         #     means the player is already at that anchor cell — treat as
         #     self-travel so the agent does not pay 0 steps to stay put.
+        # On-grid travel to a grid anchor (house/garage/the_foundation) is
+        # ALSO just a walk to that anchor's cell, so it is subject to the same
+        # purposefulness gate as MOVE_TO (_cell_worth_entering) -- otherwise it
+        # is a back door around the move mask's own re-entry rule (e.g.
+        # travelling to "house" to walk right back into an already-entered,
+        # non-re-enterable Entrance Hall). This gate does NOT apply off-grid:
+        # travel to a grid anchor off-grid is how the player gets back onto
+        # the grid at all, so it must stay unconditional there.
         node_ids = _build_area_node_ids(game.registry)
         graph_nodes = game.registry.area_graph.nodes
         route_costs = game.area_route_costs()
+        grid_anchors = None if game.off_grid else game._grid_anchors()
         for i, node_id in enumerate(node_ids):
             # Unmodelled areas have no contents to collect, so offering travel to
             # them is a pure step sink.  They stay in the graph and the pathfinder
@@ -309,6 +361,11 @@ def action_mask(game: Game, prev_action: int | None = None) -> list[bool]:
             # player is already standing at that anchor cell.
             if cost == 0:
                 continue
+            # On-grid only: travelling to a grid anchor is a walk to its cell,
+            # so it must clear the same purposefulness bar as MOVE_TO.
+            if grid_anchors is not None and node_id in grid_anchors:
+                if not _cell_worth_entering(game, grid_anchors[node_id]):
+                    continue
             # Strict affordability: steps > cost so at least 1 remains.
             if st.steps > cost:
                 mask[TRAVEL_BASE + i] = True
@@ -350,26 +407,12 @@ def action_mask(game: Game, prev_action: int | None = None) -> list[bool]:
             # control room (Utility Closet / Security) to work its switches.
             # Also re-enter shop cells with a buyable entry, the Workshop when
             # fabricate options exist, and a Dining Room with pending main course.
-            control_cells = set()
-            if game.cfg.door_locks:
-                control_cells = {c for c in (game.room_cells.get("utility_closet", -1),
-                                             game.room_cells.get("security", -1))
-                                 if c >= 0}
+            # See _cell_worth_entering for the exact purposefulness rule.
             for cell in range(N_CELLS):
                 if not (0 < dist[cell] <= st.steps):
                     continue
-                if not st.entered[cell] or cell in control_cells:
+                if _cell_worth_entering(game, cell):
                     mask[MOVE_TO_BASE + cell] = True
-                elif st.entered[cell]:
-                    # Re-entry extensions for shops / Workshop / Dining Room / containers
-                    # / vault deposit boxes
-                    if (_cell_is_shop_re_enterable(game, cell)
-                            or _dining_room_re_enterable(game, cell)
-                            or _cell_has_openable_container(game, cell)
-                            or _cell_has_vault_box(game, cell)
-                            or _cell_has_ignition_target(game, cell)
-                            or _cell_has_machine(game, cell)):
-                        mask[MOVE_TO_BASE + cell] = True
             # Buy actions from an on-grid shop (current cell)
             stock = game.shop_stock()
             if stock is not None:
