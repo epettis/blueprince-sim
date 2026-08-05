@@ -159,7 +159,7 @@ digraph blueprince_outside {
 	campsite        -> gemstone_cavern [label="V.A.C. puzzle\n(Utility Closet) + lever", style=bold];
 	gemstone_cavern -> campsite        [];
 
-	grounds         -> sealed_entrance [label="Power Hammer\nbreaks the planks", style=bold];
+	grounds         -> sealed_entrance [label="Power Hammer breaks\nthrough, permanently", style=bold];
 	sealed_entrance -> grounds         [];
 
 	grounds -> well [label="Pump Room:\nwater level <= 8", style=dashed];
@@ -181,8 +181,8 @@ digraph blueprince_outside {
 	the_foundation -> basement       [label="elevator: crank revealed AND car at\nthe top; Basement Key opens the door", style=bold, color="#c62828"];
 	basement       -> the_foundation [label="elevator: keycard to SUMMON if the car\nis not already down; Basement Key too", style=dashed, color="#c62828"];
 
-	sealed_entrance -> basement        [label="Power Hammer\nbreaks the wall", style=bold];
-	basement        -> sealed_entrance [label="regrows daily unless the\nGrounds planks are also broken", style=dashed, color="#c62828"];
+	sealed_entrance -> basement        [label="Power Hammer breaks\nthrough, permanently", style=bold];
+	basement        -> sealed_entrance [label="same permanent break\n(sealed_entrance_broken)", style=bold];
 
 	basement        -> reservoir_north [label="pallet-jack puzzle", style=bold];
 	reservoir_north -> basement        [];

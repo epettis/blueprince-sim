@@ -27,6 +27,9 @@ class GameConfig:
     # The mine cart has been shifted from the south side, permanently opening
     # reservoir_north -> mine_north and rotating_gear -> underpass.
     mine_south_visited: bool = False
+    # The Sealed Entrance barrier has been broken by the Power Hammer, permanently
+    # opening grounds<->sealed_entrance<->basement for the rest of the attempt.
+    sealed_entrance_broken: bool = False
     orchard_unlocked: bool = False                   # Apple Orchard: +20 starting steps (wiki)
     mine_unlocked: bool = False                      # Gemstone Cavern: +2 gems at day start (wiki)
     upgrade_disks: frozenset[str] = frozenset()      # applied variant room ids (e.g. "pool_hall__ix12")

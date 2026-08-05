@@ -530,6 +530,28 @@ breaks, the Sanctum keys.
   and then given up. See `areas.md` for the full writeup and
   `foundation-design.md` for the corrected critical-path analysis.
 
+- **2026-08-04, the Sealed Entrance break is unconditionally permanent**: the
+  three area-graph gates that used to model this (`power_hammer_planks` on
+  `grounds -> sealed_entrance`, `power_hammer_wall` on `sealed_entrance ->
+  basement`, and `basement_sealed_entrance_return` on `basement ->
+  sealed_entrance`) were all item/flag gates checked fresh every day, so
+  despite their own `detail` text claiming "permanent once broken" nothing
+  ever latched that — and `basement_sealed_entrance_return` was never even
+  added to `_gate_ctx`'s flag set, per the docstring's own admission ("NOT
+  modelled; never added here"). Replaced with one `sealed_entrance_broken`
+  flag gate shared by all three edges, set permanently in `state` the first
+  time the player arrives at `sealed_entrance` (`Game.travel_to`), carried
+  across days the same way as `west_gate_unlatched`/`mine_south_visited`.
+
+  The wiki's `Sealed_Entrance` page states a conditional the owner was shown
+  and explicitly overrode: *"If just the Basement wall is destroyed, it will
+  respawn on the next day, whereas if just the planks are destroyed, neither
+  side will respawn."* Owner decision, on interview, having played the game:
+  there is no such distinction — breaking either barrier is permanent. That
+  plank-vs-wall conditional is deliberately **not** modelled; this is an
+  unresolved discrepancy between the sim and the wiki's stated mechanic,
+  recorded here to be re-tested in game rather than re-derived from memory.
+
 ## 5. Throttle the training terminal output — DONE
 
 The trainer currently refreshes the dashboard after every completed seed, which
@@ -679,3 +701,65 @@ action with no equivalent today — this is not a pure data/gate change like
 the other stub retirements in this file, it adds to the action space and
 therefore **belongs bundled with a retrain**, the same reasoning that governed
 task 4's sequencing.
+
+## 12. Sealed walls that change a room's layout
+
+Write-up only — not built in this pass. The Sealed Entrance's Power Hammer
+break (task 4's area graph) is the easy case: it only ever changes which
+*edges* are traversable, never a room's own shape. Two other Power Hammer
+walls are harder, because breaking them permanently changes the **layout of
+an in-grid room**, something no carry-over path in the sim does today.
+
+**The Greenhouse**, quoting `https://blueprince.wiki.gg/wiki/Greenhouse`:
+- *"The Greenhouse, while initially a Dead End, has a hidden passage which
+  includes an extra exit door. This hidden section can be permanently opened
+  by using the Power Hammer on the brick wall to the left after entering."*
+- *"After the wall is removed, the floorplan is updated to reveal the new
+  door and the room permanently changes to an L-shape room."*
+- *"if the wall was opened on a previous day, it no longer counts towards the
+  total number of Dead Ends in the house."*
+
+**The Weight Room** has the same mechanism (a Power Hammer wall that
+permanently adds a door and changes its shape), but today it is modelled only
+as a side effect of the Antechamber-lever system: `Game._enter_lever_room`
+(`engine/game.py`) opens the Weight Room's south segment toward the
+Antechamber once a Power Hammer is held or `weight_room_wall_broken` was
+already carried over (`GameConfig.weight_room_wall_broken`,
+`GameState.shops.weight_room_wall_broken`) — that's a doorway-segment flip
+bolted onto the lever wiring, not a change to the room's own `Room` record or
+`legal_orientations`. It happens to produce the right *doorway*, but the room
+never actually becomes an L-shape in the sim's data model, and (see below)
+never stops counting as a Dead End.
+
+**Why this is harder than a doorway flip:**
+- **Layout, not just doors.** `Room.draft_conditions` / `legal_orientations`
+  and the room's shape (`rooms.json`) are decided once, at draft/placement
+  time, from immutable `Room` records (`model.Registry.load()`). There is no
+  existing mechanism for a room already on the grid to swap its shape record
+  mid-run, or for that swap to persist across the day boundary the way
+  `foundation_cell`/`upgrade_disks` do for placement.
+- **Dead End counting.** Both rooms start as Dead Ends; breaking the wall
+  removes them from that count *for the rest of the attempt*, per the wiki's
+  "no longer counts towards the total number of Dead Ends" line. Dead End
+  count feeds two things already in the sim: the Tomb's `coins_per_deadend`
+  effect (`effects/`) and the `dead_end` day-termination path (`game.py`).
+  A layout change that doesn't also update whatever tracks "how many Dead
+  Ends are on the grid right now" would silently corrupt both — the Tomb
+  payout and the termination check would keep treating a broken-open
+  Greenhouse or Weight Room as a Dead End it no longer is.
+- **Retroactive across days.** The wiki is explicit that a wall broken on a
+  *previous* day stays broken and un-counts on all *later* days too — this
+  needs the same carry-over shape as `foundation_cell` (a value that, once
+  set, is authoritative for the rest of the attempt regardless of what a
+  fresh day's draft would otherwise produce), not a same-day-only flag like
+  `garage_door_breaker`.
+
+**Suggested shape for a future PR:** a carried room-id -> bool (or per-cell)
+carry-over set, checked at placement/legality time to substitute the L-shape
+variant's door mask and shape for the base Dead End's, PLUS a corresponding
+fix to Dead End counting so the Tomb effect and the `dead_end` termination
+path see the room as no longer a Dead End once broken. Both the Greenhouse
+and the Weight Room should move together, since they're the same mechanism;
+the Weight Room's existing `weight_room_wall_broken` carry-over flag can
+likely be reused as the trigger, but the doorway-only hack in
+`_enter_lever_room` needs to become a real layout change alongside it.

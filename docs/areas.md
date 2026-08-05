@@ -118,7 +118,7 @@ once satisfied, **D** = resets daily, **-** = ungated.
 | `private_drive` <-> `campsite` | none | - |
 | `campsite` -> `apple_orchard` | padlock code 1128 | P |
 | `campsite` -> `gemstone_cavern` | V.A.C. puzzle (Utility Closet) + lever | P |
-| `grounds` -> `sealed_entrance` | Power Hammer breaks the planks | P |
+| `grounds` -> `sealed_entrance` | Power Hammer breaks through, permanently | P |
 | `grounds` -> `well` | Pump Room: **Fountain** level <= 8 | D |
 | `grounds` -> `crate_tunnel` | ignition tool lights the torches | D |
 | `grounds` -> `precipice` | cliffside elevator: 4 torches lit AND car at the top | D |
@@ -130,8 +130,8 @@ once satisfied, **D** = resets daily, **-** = ungated.
 |---|---|---|
 | `the_foundation` -> `basement` | elevator (open stub) **AND** the Basement Key (live) | P |
 | `basement` -> `the_foundation` | elevator: **keycard to SUMMON** if the car is not already down | D |
-| `sealed_entrance` -> `basement` | Power Hammer breaks the wall | P |
-| `basement` -> `sealed_entrance` | regrows daily unless the Grounds planks are also broken | D |
+| `sealed_entrance` -> `basement` | Power Hammer breaks through, permanently | P |
+| `basement` -> `sealed_entrance` | same permanent break (`sealed_entrance_broken`) | P |
 | `basement` -> `reservoir_north` | pallet-jack puzzle | P |
 | `well` -> `reservoir_south` | Basement Key (not consumed); **+ Fountain==0, not modelled** | P |
 | `reservoir_south` <-> `mine_south` | none | - |
@@ -242,12 +242,26 @@ rather than repeating it, so the two cannot drift.
 | `cliffside_elevator_down` | PR-torches-elevator | Grounds -> Precipice: 4 torches lit AND car at the top |
 | `cliffside_elevator_up` | PR-torches-elevator | Precipice -> Grounds: only if the car was ridden down |
 
-Gates that are **not** stubs are already live: item gates (Power Hammer, Basement
-Key, ignition tools, microchips, Sanctum Keys), the `west_gate_unlatched`,
-`mine_south_visited`, `garage_door_breaker`, and `basement_sealed_entrance_return`
-flags, the `outer_room_drawn` outer_room gate, the `tomb_catacombs` room gate,
-and the six `puzzle` gates that pass under the sim's standing "the player solves
-every puzzle in a room they enter" doctrine.
+Gates that are **not** stubs are already live: item gates (Basement Key, ignition
+tools, microchips, Sanctum Keys), the `west_gate_unlatched`, `mine_south_visited`,
+`garage_door_breaker`, and `sealed_entrance_broken` flags, the `outer_room_drawn`
+outer_room gate, the `tomb_catacombs` room gate, and the six `puzzle` gates that
+pass under the sim's standing "the player solves every puzzle in a room they
+enter" doctrine.
+
+**Sealed Entrance permanence (owner decision).** The wiki distinguishes which
+barrier breaks: *"If just the Basement wall is destroyed, it will respawn on the
+next day, whereas if just the planks are destroyed, neither side will
+respawn"* (`Sealed_Entrance` wiki page). The owner, who plays the game, says
+there is no such distinction — breaking either barrier permanently opens the
+whole route. The sim models the owner's version: one `sealed_entrance_broken`
+flag gates all three of `grounds -> sealed_entrance`, `sealed_entrance ->
+basement`, and `basement -> sealed_entrance` (the reverse `sealed_entrance ->
+grounds` trip was always ungated). The flag is set permanently the first time
+the player arrives at `sealed_entrance`, and is also satisfied on the spot by
+currently holding a Power Hammer. The wiki's
+plank-versus-wall conditional is deliberately not modelled; see the decisions
+log in `open_tasks.md` (2026-08-04) for the unresolved discrepancy to re-test.
 
 ## Systems the sim lacks entirely
 

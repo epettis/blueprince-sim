@@ -409,3 +409,74 @@ def test_foundation_and_basement_travel_actions_offered_once_placed_and_visited(
         i = node_ids.index(dest)
         assert g.area_route_cost(dest) is not None, f"setup: {dest} must be reachable"
         assert mask[A.TRAVEL_BASE + i], f"{dest} must be offered as a travel destination"
+
+
+# ---------------------------------------------------------------------------
+# 9. The Sealed Entrance breaks once and stays broken
+# ---------------------------------------------------------------------------
+
+def test_sealed_entrance_unreachable_without_hammer_or_flag(registry):
+    """With no Power Hammer held and the break not yet earned, the Sealed
+    Entrance and the route it gives into the Basement are both shut -- the
+    negative half of the sealed_entrance_broken gate."""
+    g = Game(GameConfig(special_items=True), seed=1, registry=registry)
+    g.state.steps = 200
+    assert g.state.inventory.get("power_hammer", 0) == 0
+    assert "sealed_entrance_broken" not in g._gate_ctx().flags
+
+    assert g.area_route_cost("sealed_entrance") is None
+    assert g.area_route_cost("basement") is None
+
+
+def test_power_hammer_opens_sealed_entrance_route(registry):
+    """Holding a Power Hammer satisfies the gate, which is what lets the FIRST
+    break happen; the Basement then opens through the Sealed Entrance without
+    any Basement Key."""
+    g = Game(GameConfig(special_items=True), seed=1, registry=registry)
+    g.state.steps = 200
+    g.state.inventory["power_hammer"] = 1
+    assert g.state.inventory.get("basement_key", 0) == 0
+
+    assert g.area_route_cost("sealed_entrance") is not None
+    assert g.area_route_cost("basement") is not None
+
+
+def test_sealed_entrance_stays_open_with_hammer_removed(registry):
+    """The whole point of the owner's correction: once broken it does not grow
+    back. After one trip through, the route survives the Power Hammer leaving
+    the inventory -- in both directions, since the return trip crosses the same
+    barrier."""
+    g = Game(GameConfig(special_items=True), seed=1, registry=registry)
+    g.state.steps = 200
+    g.state.inventory["power_hammer"] = 1
+    g.travel_to("sealed_entrance")
+    assert g.state.sealed_entrance_broken is True
+
+    del g.state.inventory["power_hammer"]
+    assert g.area_route_cost("basement") is not None, "the break must outlast the hammer"
+
+    g.travel_to("basement")
+    g.travel_to("sealed_entrance")  # the return trip crosses the same broken barrier
+    assert g.state.area == "sealed_entrance"
+
+
+def test_sealed_entrance_break_is_state_only_and_carries_across_days(registry):
+    """The break is recorded on GameState, never written back to GameConfig --
+    one config object is shared by every episode of a training worker, so a cfg
+    write would leak the unlock into later fresh-save episodes. carryover() and
+    DayChain are what make it permanent, and a chain wrap clears it."""
+    chain = DayChain(GameConfig(special_items=True), n_days=3)
+    g = Game(chain.next_config(), seed=1, registry=registry)
+    g.state.steps = 200
+    g.state.inventory["power_hammer"] = 1
+    g.travel_to("sealed_entrance")
+
+    assert g.state.sealed_entrance_broken is True
+    assert g.cfg.sealed_entrance_broken is False, "the config must never be mutated in-run"
+
+    chain.advance(carryover(g))
+    assert chain.next_config().sealed_entrance_broken is True
+
+    chain.advance({})
+    chain.advance({})  # day 3 -> wrap: a fresh attempt starts unbroken again
+    assert chain.next_config().sealed_entrance_broken is False
