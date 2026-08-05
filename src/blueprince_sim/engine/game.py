@@ -703,7 +703,13 @@ class Game:
           "mine_south_visited" -- carried in from cfg, OR earned today the moment the
               player reaches mine_south.  Permanently opens reservoir_north -> mine_north
               and rotating_gear -> underpass (the mine-cart simplification, docs/areas.md).
-          "basement_sealed_entrance_return" -- NOT modelled; never added here.
+          "sealed_entrance_broken" -- carried in from cfg, OR earned today the moment the
+              player first reaches sealed_entrance, OR live for today only while a Power
+              Hammer is held.  The held-item term is what lets the FIRST break happen; the
+              cfg/state terms are what make it permanent on this and later days.  Gates
+              grounds<->sealed_entrance<->basement (docs/areas.md).  Owner decision: broken
+              is broken, unconditionally -- the wiki's plank-vs-wall permanence distinction
+              is deliberately not modelled (see docs/open_tasks.md decisions log).
         """
         st = self.state
         flags: set[str] = set()
@@ -711,6 +717,9 @@ class Game:
             flags.add("west_gate_unlatched")
         if self.cfg.mine_south_visited or st.mine_south_visited:
             flags.add("mine_south_visited")
+        if (self.cfg.sealed_entrance_broken or st.sealed_entrance_broken
+                or (self.cfg.special_items and special_items.has(st, "power_hammer"))):
+            flags.add("sealed_entrance_broken")
         if self._breaker_on():
             flags.add("garage_door_breaker")
         # North door open: Inner Sanctum or Throne Room lever pulled this day.
@@ -867,6 +876,15 @@ class Game:
                 st.mine_south_visited = True
                 if self.cfg.special_items:
                     special_items.on_area_arrival(self, dest)
+            # Sealed Entrance: the Power Hammer break is permanent once it happens.
+            # Arriving here at all means the grounds->sealed_entrance edge already
+            # passed (via the flag or a held Power Hammer), so this is the one
+            # place that needs to latch it for the rest of the attempt. Owner
+            # decision: unconditionally permanent, no plank-vs-wall distinction
+            # (docs/open_tasks.md decisions log, 2026-08-04). Recorded on STATE,
+            # never on cfg -- same shape as west_gate_unlatched/mine_south_visited.
+            if dest == "sealed_entrance":
+                st.sealed_entrance_broken = True
             # Inner Sanctum main lever: opens the Antechamber's north door.
             if dest == "inner_sanctum":
                 north_seg = segment_key(ANTECHAMBER_CELL, N)

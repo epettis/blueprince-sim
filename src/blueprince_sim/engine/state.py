@@ -195,6 +195,12 @@ class GameState:
     # carries the result, permanently opening reservoir_north -> mine_north and
     # rotating_gear -> underpass for the rest of the attempt.
     mine_south_visited: bool = False
+    # Set the first time the player reaches sealed_entrance today (whether via the
+    # Power Hammer or an already-broken barrier from a prior day). Same shape as
+    # west_gate_unlatched: an IN-RUN discovery recorded on STATE, never written back
+    # to GameConfig. carryover() ORs this with cfg.sealed_entrance_broken; DayChain
+    # carries the result, permanently opening grounds<->sealed_entrance<->basement.
+    sealed_entrance_broken: bool = False
     # chronological (item id, count) pickups this run, for CLI/replay reporting
     items_found_log: list[tuple[str, int]] = field(default_factory=list)
 

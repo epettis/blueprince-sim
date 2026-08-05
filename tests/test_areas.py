@@ -71,7 +71,7 @@ def _all_open_ctx(outer_room_id: str | None = "tomb") -> GateContext:
     outer_room_id controls which outer-room anchor is reachable from west_path;
     defaults to "tomb" so the existing 1-step distance tests remain valid.
     garage_door_breaker is now a real flag gate (not a stub) so it must be included.
-    basement_sealed_entrance_return is a real flag gate — include it too.
+    sealed_entrance_broken is a real flag gate — include it too.
     antechamber_north_door_open is a flag gate set when the north door lever is pulled.
     """
     return GateContext(
@@ -86,7 +86,7 @@ def _all_open_ctx(outer_room_id: str | None = "tomb") -> GateContext:
             "west_gate_unlatched",
             "mine_south_visited",
             "garage_door_breaker",
-            "basement_sealed_entrance_return",
+            "sealed_entrance_broken",
             "antechamber_north_door_open",
         }),
         rooms_entered=frozenset({"tomb"}),

@@ -366,14 +366,12 @@
    "meta": {"source": "docs/areas.md", "confidence": "wiki"}
   },
   {
-   "id": "power_hammer_planks",
-   "kind": "item",
+   "id": "sealed_entrance_broken",
+   "kind": "flag",
    "modelled": false,
    "permanence": "permanent",
    "stub": false,
-   "detail": "Grounds -> Sealed Entrance: Power Hammer breaks the planks (permanent once broken).",
-   "item_ids": ["power_hammer"],
-   "count": 1,
+   "detail": "Grounds <-> Sealed Entrance <-> Basement: the Power Hammer breaks the barrier once and the route stays open for the rest of the attempt; all three edges (grounds->sealed_entrance, sealed_entrance->basement, basement->sealed_entrance) share this one gate. The wiki distinguishes plank-vs-wall permanence (breaking only the Basement wall regrows overnight; breaking the planks does not) -- the owner's ruling, recorded in docs/open_tasks.md's decisions log (2026-08-04), is that any break here is unconditionally permanent, so that distinction is deliberately NOT modelled. Satisfied either by having already broken through (the sealed_entrance_broken flag, set on first arrival at sealed_entrance and carried across days) or by currently holding a Power Hammer.",
    "meta": {"source": "docs/areas.md", "confidence": "wiki"}
   },
   {
@@ -428,6 +426,17 @@
    "meta": {"source": "docs/areas.md", "confidence": "wiki"}
   },
   {
+   "id": "basement_key_foundation",
+   "kind": "item",
+   "modelled": false,
+   "permanence": "permanent",
+   "stub": false,
+   "detail": "The Basement door at the foot of the Foundation's elevator, gating BOTH directions: the wiki unlocks it 'from either side using a Basement Key', so arriving in the Basement by another route does not let you through it. Only a Basement Key opens it (permanently); Lock Pick Kit does not work. Separate lock from the well's door and the unmodelled Crate Tunnel one. Models 'unlocked at some point' as 'key currently held' -- they coincide since basement_key is permanent and re-granted daily.",
+   "item_ids": ["basement_key"],
+   "count": 1,
+   "meta": {"source": "docs/areas.md", "confidence": "wiki"}
+  },
+  {
    "id": "foundation_elevator_up",
    "kind": "unmodelled",
    "modelled": false,
@@ -435,26 +444,6 @@
    "stub": true,
    "detail": "Basement -> The Foundation: elevator; keycard to SUMMON if the car is not already down. Deferred: elevator position not modelled. Passes (stub open).",
    "retire_in": "PR-foundation-elevator",
-   "meta": {"source": "docs/areas.md", "confidence": "wiki"}
-  },
-  {
-   "id": "power_hammer_wall",
-   "kind": "item",
-   "modelled": false,
-   "permanence": "permanent",
-   "stub": false,
-   "detail": "Sealed Entrance -> Basement: Power Hammer breaks the wall (permanent once broken).",
-   "item_ids": ["power_hammer"],
-   "count": 1,
-   "meta": {"source": "docs/areas.md", "confidence": "wiki"}
-  },
-  {
-   "id": "basement_sealed_entrance_return",
-   "kind": "flag",
-   "modelled": false,
-   "permanence": "permanent",
-   "stub": false,
-   "detail": "Basement -> Sealed Entrance: blocked daily by regrowth unless the Grounds planks were broken by the Power Hammer (power_hammer_planks gate on grounds->sealed_entrance). The engine sets this flag once the player has traversed the grounds->sealed_entrance edge.",
    "meta": {"source": "docs/areas.md", "confidence": "wiki"}
   },
   {
@@ -609,7 +598,7 @@
   {"from": "apple_orchard", "to": "campsite", "requires": [], "meta": {"source": "docs/areas.md", "confidence": "wiki"}},
   {"from": "campsite", "to": "gemstone_cavern", "requires": ["vac_puzzle_lever"], "meta": {"source": "docs/areas.md", "confidence": "wiki"}},
   {"from": "gemstone_cavern", "to": "campsite", "requires": [], "meta": {"source": "docs/areas.md", "confidence": "wiki"}},
-  {"from": "grounds", "to": "sealed_entrance", "requires": ["power_hammer_planks"], "meta": {"source": "docs/areas.md", "confidence": "wiki"}},
+  {"from": "grounds", "to": "sealed_entrance", "requires": ["sealed_entrance_broken"], "meta": {"source": "docs/areas.md", "confidence": "wiki"}},
   {"from": "sealed_entrance", "to": "grounds", "requires": [], "meta": {"source": "docs/areas.md", "confidence": "wiki"}},
   {"from": "grounds", "to": "well", "requires": ["pump_water_lte8"], "meta": {"source": "docs/areas.md", "confidence": "wiki"}},
   {"from": "well", "to": "grounds", "requires": [], "meta": {"source": "docs/areas.md", "confidence": "wiki"}},
@@ -617,10 +606,10 @@
   {"from": "crate_tunnel", "to": "grounds", "requires": [], "meta": {"source": "docs/areas.md", "confidence": "wiki"}},
   {"from": "grounds", "to": "precipice", "requires": ["cliffside_elevator_down"], "meta": {"source": "docs/areas.md", "confidence": "wiki"}},
   {"from": "precipice", "to": "grounds", "requires": ["cliffside_elevator_up"], "meta": {"source": "docs/areas.md", "confidence": "wiki"}},
-  {"from": "the_foundation", "to": "basement", "requires": ["foundation_elevator_down"], "meta": {"source": "docs/areas.md", "confidence": "wiki"}},
-  {"from": "basement", "to": "the_foundation", "requires": ["foundation_elevator_up"], "meta": {"source": "docs/areas.md", "confidence": "wiki"}},
-  {"from": "sealed_entrance", "to": "basement", "requires": ["power_hammer_wall"], "meta": {"source": "docs/areas.md", "confidence": "wiki"}},
-  {"from": "basement", "to": "sealed_entrance", "requires": ["basement_sealed_entrance_return"], "meta": {"source": "docs/areas.md", "confidence": "wiki"}},
+  {"from": "the_foundation", "to": "basement", "requires": ["foundation_elevator_down", "basement_key_foundation"], "meta": {"source": "docs/areas.md", "confidence": "wiki"}},
+  {"from": "basement", "to": "the_foundation", "requires": ["foundation_elevator_up", "basement_key_foundation"], "meta": {"source": "docs/areas.md", "confidence": "wiki"}},
+  {"from": "sealed_entrance", "to": "basement", "requires": ["sealed_entrance_broken"], "meta": {"source": "docs/areas.md", "confidence": "wiki"}},
+  {"from": "basement", "to": "sealed_entrance", "requires": ["sealed_entrance_broken"], "meta": {"source": "docs/areas.md", "confidence": "wiki"}},
   {"from": "basement", "to": "reservoir_north", "requires": ["pallet_jack_puzzle"], "meta": {"source": "docs/areas.md", "confidence": "wiki"}},
   {"from": "reservoir_north", "to": "basement", "requires": [], "meta": {"source": "docs/areas.md", "confidence": "wiki"}},
   {"from": "well", "to": "reservoir_south", "requires": ["basement_key_well"], "meta": {"source": "docs/areas.md", "confidence": "wiki"}},

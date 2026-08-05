@@ -35,6 +35,7 @@ _CARRYOVER_KEYS: frozenset[str] = frozenset({
     "royal_scepter_found",
     "west_gate_unlatched",   # set on first west_path arrival; opens Grounds shortcut
     "mine_south_visited",    # set on mine_south arrival; opens the underpass route
+    "sealed_entrance_broken",  # set on sealed_entrance arrival; opens the Basement route
     "weight_room_wall_broken",  # Power Hammer wall break: permanent on future days
     "room46_reached",             # Room 46 first visited: permanent gem-deck gate
 })

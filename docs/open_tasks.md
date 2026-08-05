@@ -501,6 +501,57 @@ breaks, the Sanctum keys.
   `P(north door opened)` against `P(reach Room 46)` in the first retrain; a wide
   gap is the signature.
 
+- **2026-08-04, the three Basement doors are independent, Basement-Key-only
+  locks**: the wiki treats `Basement_door` as a door *type* with three
+  instances — the Grounds side (the drained Fountain's floor, feeding
+  `well -> reservoir_south`), the Foundation's elevator (feeding
+  `the_foundation -> basement`), and the Crate Tunnel (unmodelled). Each
+  unlocks **permanently and independently** the first time a Basement Key is
+  used on it; any other normal or special key, and the Lock Pick Kit, do not
+  fit. Owner decision, on interview: gate the Foundation's own door
+  (`basement_key_foundation`, a second `kind: "item"` gate alongside the
+  existing `basement_key_well`, same shape) rather than reusing the Well's
+  gate id, since the two doors are genuinely separate locks that happen to
+  share one key item. Before this, `the_foundation -> basement` was gated only
+  by the (open, stub) elevator mechanism, so an empty inventory could reach
+  `basement` for free through the Foundation once it was drafted and
+  grid-connected — measured at 5 hops from the house with the Foundation
+  placed. That loophole is closed; holding the Basement Key restores the same
+  5 hops (a Power Hammer via `sealed_entrance` remains a 3-hop alternative that
+  needs no key at all).
+
+  **Held-key modelling simplification, stated explicitly rather than left to
+  look like an oversight**: the real rule is "this door has been unlocked,
+  permanently, by a Basement Key at some point"; the sim instead checks "a
+  Basement Key is currently held right now". The two coincide in practice
+  because `basement_key` is `persistence: "permanent"` and is re-granted from
+  the Antechamber pillar on first entry every day, so once earned it is always
+  held for the rest of the save — there is no path by which the key is used
+  and then given up. See `areas.md` for the full writeup and
+  `foundation-design.md` for the corrected critical-path analysis.
+
+- **2026-08-04, the Sealed Entrance break is unconditionally permanent**: the
+  three area-graph gates that used to model this (`power_hammer_planks` on
+  `grounds -> sealed_entrance`, `power_hammer_wall` on `sealed_entrance ->
+  basement`, and `basement_sealed_entrance_return` on `basement ->
+  sealed_entrance`) were all item/flag gates checked fresh every day, so
+  despite their own `detail` text claiming "permanent once broken" nothing
+  ever latched that — and `basement_sealed_entrance_return` was never even
+  added to `_gate_ctx`'s flag set, per the docstring's own admission ("NOT
+  modelled; never added here"). Replaced with one `sealed_entrance_broken`
+  flag gate shared by all three edges, set permanently in `state` the first
+  time the player arrives at `sealed_entrance` (`Game.travel_to`), carried
+  across days the same way as `west_gate_unlatched`/`mine_south_visited`.
+
+  The wiki's `Sealed_Entrance` page states a conditional the owner was shown
+  and explicitly overrode: *"If just the Basement wall is destroyed, it will
+  respawn on the next day, whereas if just the planks are destroyed, neither
+  side will respawn."* Owner decision, on interview, having played the game:
+  there is no such distinction — breaking either barrier is permanent. That
+  plank-vs-wall conditional is deliberately **not** modelled; this is an
+  unresolved discrepancy between the sim and the wiki's stated mechanic,
+  recorded here to be re-tested in game rather than re-derived from memory.
+
 ## 5. Throttle the training terminal output — DONE
 
 The trainer currently refreshes the dashboard after every completed seed, which
@@ -595,3 +646,116 @@ several rooms should carry a standing **+2 allowance**: the **Cloister**, the
 **Trading Post**, and the **Closed Exhibit**. Verify against the wiki whether this
 is allowance (the daily gold packet) or a one-time grant, then encode it the same
 way task 3's safes are.
+
+## 11. Model the Pump Room's water levels
+
+Write-up only (owner decision, 2026-08-04: gate the Basement doors on the
+Basement Key now, take on the Pump Room next) — not built in this pass. Two
+graph edges already carry stub gates waiting on this
+(`pump_water_lte8`, `rowboat_water_6`, both `retire_in: "PR-pump-room"`), and a
+third traversal condition (below) is not modelled at all yet.
+
+**The room.** Six water sources, each with its own independent integer level
+— there is no single estate-wide "water level":
+
+| Source | Initial / max level |
+|---|---|
+| Fountain | 12 / 12 |
+| Reservoir | 14 / 14 |
+| Aquarium | 6 / 6 |
+| Kitchen | 0 / 3 |
+| Greenhouse | 1 / 5 |
+| Pool | 8 / 9 |
+
+Two tanks (capacity 4 each) and four pumps move water between a tank and any
+one of the six sources: *"Switching a pump up causes water to drain from a
+selected water source into a tank. Switching a pump down causes water to fill
+a selected water source from a tank."*
+
+**Persistence rule.** *"Changes to the water levels are permanent, although
+the selected source and position of the pump levers will reset each day."*
+So: the six integer levels need to live in carry-over state (permanent, like
+`collected_disks`), while which source each pump currently targets and each
+lever's position are ordinary per-day `GameState` (reset every `reset()`,
+never carried).
+
+**Gates this retires:**
+- `pump_water_lte8` (`grounds -> well`): Fountain level `<= 8`.
+- `rowboat_water_6` (`reservoir_south <-> safehouse`): Reservoir level
+  `== 6`.
+- Reservoir level `== 13` additionally lets the boat cross the Reservoir
+  side-to-side (not currently represented as a graph edge/gate at all —
+  needs its own gate once this lands, distinct from the Safehouse rowboat
+  gate).
+
+**New traversal condition to add**, not currently modelled even as a stub:
+`well -> reservoir_south` needs Fountain level `== 0`, checked on **every**
+traversal (not just once) — *"this passage is only traversible while the
+fountain water level is 0"* (Well). This is on top of the existing permanent
+Basement Key unlock (`basement_key_well`); the two are independent conditions
+(key unlocks the door permanently, water level gates whether the passage is
+currently passable). See `areas.md` for the full edge-table writeup.
+
+**Action-space consequence.** Setting pump target/direction is a player
+action with no equivalent today — this is not a pure data/gate change like
+the other stub retirements in this file, it adds to the action space and
+therefore **belongs bundled with a retrain**, the same reasoning that governed
+task 4's sequencing.
+
+## 12. The Greenhouse's Power Hammer wall changes its layout
+
+Write-up only — not built in this pass.
+
+**The Greenhouse is the only room whose doors change when a Power Hammer wall
+comes down** (owner, 2026-08-04). Quoting
+`https://blueprince.wiki.gg/wiki/Greenhouse`:
+
+- *"The Greenhouse, while initially a Dead End, has a hidden passage which
+  includes an extra exit door. This hidden section can be permanently opened
+  by using the Power Hammer on the brick wall to the left after entering."*
+- *"After the wall is removed, the floorplan is updated to reveal the new
+  door and the room permanently changes to an L-shape room."*
+- *"if the wall was opened on a previous day, it no longer counts towards the
+  total number of Dead Ends in the house."*
+
+The sim already carries the destination shape: the `greenhouse` record in
+`rooms.json` is `layout: "dead_end"` with `alt_layouts: ["corner"]`. What is
+missing is anything that switches between them.
+
+**The Weight Room is NOT this mechanism, and must not be folded into it.** Its
+Power Hammer wall reveals *"a lever for the south Antechamber door as well as
+two documents"* (`https://blueprince.wiki.gg/wiki/Weight_Room`), and the space
+*"will always be accessible on future days"*. The room's own doors are
+unchanged — it has no `alt_layouts` entry, and the wiki says nothing about its
+shape. `Game._enter_lever_room` already models it correctly, as a permanent
+lever unlock (`weight_room_wall_broken`) that opens the Antechamber's south
+segment. Nothing about the Weight Room needs to change.
+
+**Why the Greenhouse is harder than a doorway flip:**
+
+- **Layout, not just doors.** A room's shape comes from an immutable `Room`
+  record (`model.Registry.load()`) and is consumed by `legal_orientations` at
+  draft/placement time. Nothing lets a room already on the grid swap its shape
+  record mid-run, and nothing carries such a swap across the day boundary the
+  way `foundation_cell` carries a placement.
+- **Two distinct cases.** Breaking the wall today mutates a room already
+  standing on the grid; on every later day the Greenhouse must instead be
+  *drafted and placed* in its `corner` layout from the start. The second case
+  is the easy one — it is a carry-over flag consulted at deck/placement time.
+  The first needs live mutation of a placed room.
+- **Dead End counting.** The Greenhouse starts as a Dead End and stops being
+  one once broken, for the rest of the attempt. That count feeds the Tomb's
+  `coins_per_deadend` effect (`effects/tier1.py`, which reads
+  `ctx_room.layout == "dead_end"` at draft time) and the `dead_end`
+  day-termination path (`game.py`). A layout change that does not also move
+  the Dead End count would leave the Tomb paying out for a room that is no
+  longer a Dead End.
+- **Retroactive across days.** A wall broken on an earlier day stays broken
+  and stays un-counted, so this needs the authoritative-once-set carry-over
+  shape of `foundation_cell`, not a same-day flag like `garage_door_breaker`.
+
+**Suggested shape for a future PR:** a `greenhouse_wall_broken` carry-over
+flag, set when the player breaks the wall with a Power Hammer; consulted at
+placement/legality time to substitute the `corner` layout for `dead_end`; plus
+the matching correction to Dead End counting so the Tomb effect and the
+termination path both stop seeing it as a Dead End.

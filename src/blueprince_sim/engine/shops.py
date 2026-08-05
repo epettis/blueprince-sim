@@ -1073,6 +1073,11 @@ def carryover(game) -> dict:
         # west_gate_unlatched. Permanently opens reservoir_north -> mine_north and
         # rotating_gear -> underpass (the mine-cart simplification, docs/areas.md).
         "mine_south_visited": cfg.mine_south_visited or state.mine_south_visited,
+        # sealed_entrance_broken: earned the first time the player reaches
+        # sealed_entrance (the Power Hammer break is permanent). ORed from state
+        # so the config is never mutated, same shape as west_gate_unlatched.
+        # Permanently opens grounds<->sealed_entrance<->basement.
+        "sealed_entrance_broken": cfg.sealed_entrance_broken or state.sealed_entrance_broken,
         # Room 46 first reached: permanent gem-deck gate; carries once True, forever.
         "room46_reached": cfg.room46_reached or state.room46_reached,
         # Vault keys permanently used: accumulated union across all days.

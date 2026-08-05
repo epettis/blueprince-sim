@@ -462,6 +462,7 @@ def test_carryover_shape_is_complete():
         "weight_room_wall_broken",
         "room46_reached",
         "mine_south_visited",
+        "sealed_entrance_broken",
     }
     expected_keys = bool_keys | {
         "starting_items", "banned_rooms", "used_vault_keys",

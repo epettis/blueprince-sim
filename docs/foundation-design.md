@@ -104,31 +104,42 @@ about attempt boundaries; this follows repo convention rather than a source.
   Anything measured through it is an upper bound.
 - **Repellent on a placed Foundation is not modelled.** `banned_rooms` keeps it
   out of the deck, but a Foundation already on the grid is not removed by it.
-- **The Basement Key opens one graph edge, not "basement doors".** The wiki says
-  it *"permanently unlocks that door"* for basement doors generally;
-  `areas.json` models the single edge `well -> reservoir_south`.
+- **The Basement Key gates two graph edges, one per door instance.** The wiki
+  says it *"permanently unlocks that door"* for each Basement door
+  independently; `areas.json` models two of the three instances the wiki
+  documents — `well -> reservoir_south` (`basement_key_well`) and
+  `the_foundation -> basement` (`basement_key_foundation`, added by a later
+  change once the Foundation route made the second door reachable). The Crate
+  Tunnel's is not modelled at all (see `areas.md`).
 
-### The Basement Key is not on the critical path, and that is a stub artefact
+### The Basement Key is on the critical path to the Sanctum via the Foundation
 
 Measured on the graph with an empty inventory and no flags, `mine_south` is
-**3 hops** from the house: `house -> grounds -> precipice -> mine_south`. The
-`grounds -> precipice` edge stands behind `cliffside_elevator_down`, one of the
-PR1 stubs that pass unconditionally, and `precipice -> mine_south` is ungated. So
-the mine — and through it `reservoir_south` — is reachable with no key, no
-Power Hammer and no torches.
+still **3 hops** from the house: `house -> grounds -> precipice -> mine_south`.
+The `grounds -> precipice` edge stands behind `cliffside_elevator_down`, one of
+the PR1 stubs that pass unconditionally, and `precipice -> mine_south` is
+ungated. So the mine — and through it `reservoir_south` — stays reachable with
+no key, no Power Hammer and no torches; nothing in this change touches that.
 
-The Basement Key therefore gates a shortcut, not the route. **The real bottleneck
-is `basement`**, which is unreachable with an empty inventory: it needs either the
-Foundation's elevator or a Power Hammer through `sealed_entrance`, and every path
-to `reservoir_north -> rotating_gear -> underpass -> inner_sanctum` runs through
-it. That is what makes the Foundation, rather than the key, the thing that opens
-the Sanctum.
+`basement` is a different story. Before `basement_key_foundation` existed, an
+empty inventory could still reach it in 5 hops purely through the Foundation's
+elevator stub (`house -> grounds -> ... -> the_foundation -> basement`), which
+made the earlier claim on this page — "the Basement Key gates a shortcut, not
+the route" — true only by that loophole. With the gate now in place, `basement`
+needs **either** the Basement Key (via the Foundation's own door) **or** a
+Power Hammer (via `sealed_entrance`), and every path to `reservoir_north ->
+rotating_gear -> underpass -> inner_sanctum` runs through `basement`. So the
+key **is** on the critical path to the Sanctum for a player travelling via the
+Foundation — measured: with an empty inventory and the Foundation placed and
+grid-connected, `basement` is UNREACHABLE; holding the Basement Key alone
+restores it to the same 5 hops as before. (A Power Hammer alone also opens it,
+at 3 hops via `sealed_entrance` — the two routes are alternatives, not both
+required.)
 
-This is a pre-existing consequence of the open stub, not something this change
-introduced — but making `mine_south` a travel destination is what made it
-*exploitable*, so it belongs on the record here. It retires with
-`PR-torches-elevator`, and until then the free mine is one more reason every
-number measured through this route is an upper bound.
+`mine_south_visited` still gates `rotating_gear -> underpass`, so
+`inner_sanctum` stays unreachable in all three of these contexts regardless —
+that flag, not the key, is the remaining step. See the mine-visit tests in
+`test_sanctum_route.py` for the flag actually being set.
 
 ## The route changes shipping with the room
 
