@@ -1962,7 +1962,13 @@
     "disk_reader": true
    },
    "deck_copies": 1,
-   "effects": [],
+   "effects": [
+    {
+     "tag": "grant",
+     "resource": "gems",
+     "amount": 1
+    }
+   ],
    "items": {
     "guaranteed": [],
     "additional_max": 1,
@@ -2002,6 +2008,11 @@
    "effects": [
     {
      "tag": "counts_as_drafting_room"
+    },
+    {
+     "tag": "grant",
+     "resource": "gems",
+     "amount": 1
     }
    ],
    "items": {
@@ -2037,6 +2048,11 @@
    "effects": [
     {
      "tag": "study_redraws"
+    },
+    {
+     "tag": "grant",
+     "resource": "gems",
+     "amount": 1
     }
    ],
    "items": {
@@ -2991,7 +3007,13 @@
     "disk_reader": false
    },
    "deck_copies": 1,
-   "effects": [],
+   "effects": [
+    {
+     "tag": "grant",
+     "resource": "gems",
+     "amount": 1
+    }
+   ],
    "items": {
     "guaranteed": [],
     "additional_max": 1,
@@ -3022,7 +3044,13 @@
     "disk_reader": false
    },
    "deck_copies": 1,
-   "effects": [],
+   "effects": [
+    {
+     "tag": "grant",
+     "resource": "gems",
+     "amount": 1
+    }
+   ],
    "items": {
     "guaranteed": [],
     "additional_max": 1,
@@ -3061,7 +3089,13 @@
     "disk_reader": false
    },
    "deck_copies": 1,
-   "effects": [],
+   "effects": [
+    {
+     "tag": "grant",
+     "resource": "gems",
+     "amount": 1
+    }
+   ],
    "items": {
     "guaranteed": [],
     "additional_max": 1,
@@ -3100,7 +3134,13 @@
     "disk_reader": false
    },
    "deck_copies": 1,
-   "effects": [],
+   "effects": [
+    {
+     "tag": "grant",
+     "resource": "gems",
+     "amount": 1
+    }
+   ],
    "items": {
     "guaranteed": [],
     "additional_max": 1,
@@ -5698,6 +5738,11 @@
     {
      "tag": "negate_red_rooms",
      "amount": 3
+    },
+    {
+     "tag": "grant",
+     "resource": "gems",
+     "amount": 1
     }
    ],
    "items": {
