@@ -188,8 +188,13 @@ EFFECT_MAP: dict[str, dict] = {
     "nursery": {"effects": [
         {"tag": "grant_on_draft_category", "resource": "steps", "amount": 5, "category": "bedroom"}]},
     "ballroom": {"effects": [{"tag": "set_resource_on_enter", "resource": "gems", "value": 2}]},
-    "study": {"effects": [{"tag": "study_redraws"}]},
-    "drawing_room": {"effects": [{"tag": "counts_as_drafting_room"}]},
+    "study": {"effects": [
+        {"tag": "study_redraws"},
+        {"tag": "grant", "resource": "gems", "amount": 1}]},
+    "drawing_room": {"effects": [
+        {"tag": "counts_as_drafting_room"},
+        {"tag": "grant", "resource": "gems", "amount": 1}]},
+    "office": {"effects": [{"tag": "grant", "resource": "gems", "amount": 1}]},
     "library": {"effects": [{"tag": "counts_as_drafting_room"}]},
     "drafting_studio": {"effects": [{"tag": "counts_as_drafting_room"}]},
     "chamber_of_mirrors": {"effects": [{"tag": "allow_duplicates"}]},
