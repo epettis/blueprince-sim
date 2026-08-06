@@ -134,9 +134,14 @@ def test_area_route_costs_matches_oracle_after_mine_south_visited(registry):
     cfg), the underpass route opens and the batch result must track it."""
     g = Game(GameConfig(special_items=True), seed=1, registry=registry)
     g.state.steps = 200
+    # mine_south is gated behind the (unlit) candlestick_stairway_lit flag, so a
+    # bare Game cannot travel straight there from the house; place the player at
+    # Catacombs first (one of the mine's real entrances, draxus_scythe always
+    # passes) so the arrival at mine_south below is a genuine travel_to() call.
+    g.state.area = "catacombs"
     g.travel_to("mine_south")
     assert g.state.mine_south_visited is True
-    g.travel_to("house")
+    g.travel_to("reservoir_south")
     _assert_matches_oracle(g, "mine_south_visited")
 
 

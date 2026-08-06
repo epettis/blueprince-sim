@@ -2025,7 +2025,7 @@
     "confidence": "wiki",
     "absent_spawn_areas": [],
     "blocked_on": null,
-    "notes": "Sits openly on a table in the Abandoned Mine (South), obtainable without lighting the eight candlesticks (those independently open the Mine -> Precipice stairway, candlestick_stairway gate in areas.json). mine_south is a pure area node with no rooms.json record, so guaranteed_in cannot key off it; granted instead by engine/special_items.py::on_area_arrival, called from Game.travel_to on arrival. Draw mechanism implemented; individual upgrade effects deferred (task 9)."
+    "notes": "Sits openly on a table in the Abandoned Mine (South), obtainable without lighting the eight candlesticks (those independently open the Mine -> Precipice stairway; mine_south is itself an ignition target in this file's ignition.targets, and lighting it sets the \"candlestick_stairway_lit\" flag gating both mine_south<->precipice edges in areas.json). mine_south is a pure area node with no rooms.json record, so guaranteed_in cannot key off it; granted instead by engine/special_items.py::on_area_arrival, called from Game.travel_to on arrival. Draw mechanism implemented; individual upgrade effects deferred (task 9)."
    }
   }
  ],
@@ -2888,16 +2888,20 @@
       "amount": 40
      }
     ]
+   },
+   "mine_south": {
+    "area": true,
+    "candles": 8,
+    "grants": []
    }
   },
   "meta": {
-   "source": "https://blueprince.wiki.gg",
+   "source": "https://blueprince.wiki.gg/wiki/Abandoned_Mine",
    "confidence": "wiki",
    "absent_targets": [
-    "abandoned_mine",
     "crate_tunnel"
    ],
-   "notes": "Tomb: near candles grant upgrade_disk_tomb + 4 dice; far candles reveal Diary Key \u2014 both pairs modeled as one ignition event granting all three (simplification: two-step reveal collapsed to one). Diary Key is a REWARD of lighting the Tomb, not a prerequisite. Chapel: lighting the altar grants accumulated Keeper of Tithes coins (chapel_tithes counter, incremented each time the entry -1 coin penalty actually fires); the payout is resolved in engine/special_items.py light(). Trading Post fuse grants (Upgrade Disk + 40 coins) are wiki-documented; the secret room is collapsed to an immediate grant since it is not modeled. Freezer thaw is temporary/daily and not modeled. absent_targets lists rooms the wiki mentions but that are absent from rooms.json. requires_item is supported by the engine but no target uses it (the Diary Key is a reward of the Tomb, not a prerequisite)."
+   "notes": "Tomb: near candles grant upgrade_disk_tomb + 4 dice; far candles reveal Diary Key \u2014 both pairs modeled as one ignition event granting all three (simplification: two-step reveal collapsed to one). Diary Key is a REWARD of lighting the Tomb, not a prerequisite. Chapel: lighting the altar grants accumulated Keeper of Tithes coins (chapel_tithes counter, incremented each time the entry -1 coin penalty actually fires); the payout is resolved in engine/special_items.py light(). Trading Post fuse grants (Upgrade Disk + 40 coins) are wiki-documented; the secret room is collapsed to an immediate grant since it is not modeled. Freezer thaw is temporary/daily and not modeled. Mine South (\"area\": true): lighting the eight candlesticks inside the Abandoned Mine (South) permanently lowers the stairway to the Precipice (engine/game.py::_gate_ctx sets the \"candlestick_stairway_lit\" flag from state.special.lit_targets, gating both mine_south<->precipice edges in areas.json); it has no grants here because the Upgrade Disk sitting in the mine is a separate, ungated pickup already granted on arrival by engine/special_items.py::on_area_arrival \u2014 granting it again here would double-pay. mine_south has no rooms.json record (it is an area-graph node, not a draftable room), so it is the one target keyed by an area id instead of a room id; \"area\": true marks that. absent_targets lists rooms/areas the wiki mentions that are absent from both rooms.json and this targets table (mine_south graduated out of it once the area graph modeled the node). requires_item is supported by the engine but no target uses it (the Diary Key is a reward of the Tomb, not a prerequisite)."
   }
  },
  "machines": {

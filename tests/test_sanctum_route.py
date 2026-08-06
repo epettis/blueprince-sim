@@ -74,6 +74,11 @@ def test_mine_south_visit_persists_across_days(registry):
     g1 = Game(chain.next_config(), seed=1, registry=registry)
     g1.state.steps = 50
     assert g1.state.mine_south_visited is False
+    # mine_south is gated behind the (unlit) candlestick_stairway_lit flag, so a
+    # bare Game cannot travel straight there from the house; place the player at
+    # Catacombs first (one of the mine's real entrances, draxus_scythe always
+    # passes) so the arrival below is a genuine travel_to() call.
+    g1.state.area = "catacombs"
     g1.travel_to("mine_south")
     assert g1.state.mine_south_visited is True
 
@@ -210,21 +215,31 @@ def test_foundation_basement_door_gates_the_inside_direction_too(registry):
 # 3c. This change must not close the pre-existing empty-inventory mine route
 # ---------------------------------------------------------------------------
 
-def test_mine_south_still_reachable_with_empty_inventory(registry):
-    """mine_south is reachable with a completely empty inventory via the open
-    cliffside_elevator_down stub (house -> grounds -> precipice -> mine_south,
-    3 hops) and does not run through the Foundation's Basement door at all --
-    gating the_foundation -> basement on the Basement Key must not accidentally
-    close this unrelated route (docs/foundation-design.md)."""
+def test_precipice_still_reachable_with_empty_inventory(registry):
+    """precipice is reachable with a completely empty inventory via the open
+    cliffside_elevator_down stub (house -> grounds -> precipice, 2 hops) and
+    does not run through the Foundation's Basement door at all -- gating
+    the_foundation -> basement on the Basement Key must not accidentally
+    close this unrelated route (docs/foundation-design.md).
+
+    mine_south is deliberately NOT reached through precipice here: the
+    candlestick_stairway_lit fix (docs/areas.md correction, 2026-08-05) closed
+    the free precipice -> mine_south backdoor this test used to exercise --
+    see test_candlestick_stairway.py for that property.
+    """
     g = Game(GameConfig(), seed=1, registry=registry)
     g.state.steps = 200
     assert g.state.inventory.get("basement_key", 0) == 0
     assert g.state.inventory.get("power_hammer", 0) == 0
 
-    result = g.area_route_cost("mine_south")
-    assert result is not None, "mine_south must still be reachable with an empty inventory"
+    result = g.area_route_cost("precipice")
+    assert result is not None, "precipice must still be reachable with an empty inventory"
     steps, _anchor = result
-    assert steps == 3, "the precipice route is exactly 3 hops from the house"
+    assert steps == 2, "the elevator route is exactly 2 hops from the house"
+
+    assert g.area_route_cost("mine_south") is None, (
+        "mine_south must not be reachable through the (now closed) precipice backdoor"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -338,6 +353,10 @@ def test_mine_south_disk_granted_on_first_arrival_not_on_second(registry):
     g.state.steps = 50
     assert g.state.inventory.get("upgrade_disk_mine_south", 0) == 0
 
+    # mine_south is gated behind the (unlit) candlestick_stairway_lit flag, so
+    # stage the player at Catacombs first (a real entrance, draxus_scythe
+    # always passes) for a genuine first travel_to() arrival.
+    g.state.area = "catacombs"
     g.travel_to("mine_south")
     assert g.state.inventory.get("upgrade_disk_mine_south", 0) == 1
 
@@ -381,14 +400,31 @@ def test_basement_key_spawns_on_antechamber_entry_and_is_not_consumed(registry):
 # ---------------------------------------------------------------------------
 
 def test_mine_south_travel_action_offered_once_reachable(registry):
-    """mine_south's "modelled" flag is what makes the action mask offer travel
-    to it once a route exists -- unmodelled nodes are routed through but never
-    advertised (env/actions.py). A reachable-but-unmodelled node would leave
-    the mask False even though area_route_cost reports a route."""
+    """mine_south is gated shut behind the candlestick_stairway_lit flag on a
+    bare day 1 (the mine is not a front door reachable from the Precipice) --
+    but once the stairway is lit from inside the mine, "modelled" is what then
+    makes the action mask offer travel to it (env/actions.py); a
+    reachable-but-unmodelled node would leave the mask False even though
+    area_route_cost reports a route."""
     g = Game(GameConfig(), seed=1, registry=registry)
+    g.state.steps = 200
+    assert g.area_route_cost("mine_south") is None, "setup: gated shut before lighting"
+
+    # Simulate having reached the mine some other way (Catacombs, drained
+    # Fountain, or the lowered Reservoir crossing) and lighting the eight
+    # candlesticks from inside.
+    g.state.area = "mine_south"
+    g.state.inventory["torch"] = 1
+    assert g.can_light()
+    g.light()
+    assert "mine_south" in g.state.special.lit_targets
+
+    # Step to another node and confirm the mine is now a legal, offered
+    # travel destination.
+    g.state.area = "precipice"
     node_ids = A._build_area_node_ids(g.registry)
     i = node_ids.index("mine_south")
-    assert g.area_route_cost("mine_south") is not None, "setup: must be reachable at all"
+    assert g.area_route_cost("mine_south") is not None, "stairway should now be open"
     mask = A.action_mask(g)
     assert mask[A.TRAVEL_BASE + i], "mine_south must be offered as a travel destination"
 

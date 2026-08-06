@@ -337,15 +337,22 @@ def main() -> int:
                 if grant_id not in si_resolvable:
                     errors.append(f"{where}: grant id {grant_id!r} not in special_items")
 
-    # ignition section: tools and targets exist
+    # ignition section: tools and targets exist. A target is either a rooms.json
+    # room id (default) or, when marked "area": true, an areas.json node id
+    # (e.g. mine_south, which has no rooms.json record) -- checked against
+    # a_node_id_set once areas.json is loaded further down, same deferred
+    # pattern as absent_area_refs above.
     ignition_doc = si_doc.get("ignition", {})
+    ignition_area_refs: list[tuple[str, str]] = []
     for tool_id in ignition_doc.get("tools", []):
         if tool_id not in si_by_id:
             errors.append(f"special_items/ignition/tools: unknown item id {tool_id!r}")
-    for room_id, target_cfg in ignition_doc.get("targets", {}).items():
-        where = f"special_items/ignition/targets/{room_id}"
-        if room_id not in by_id:
-            errors.append(f"{where}: target room {room_id!r} not in rooms.json")
+    for target_id, target_cfg in ignition_doc.get("targets", {}).items():
+        where = f"special_items/ignition/targets/{target_id}"
+        if target_cfg.get("area"):
+            ignition_area_refs.append((where, target_id))
+        elif target_id not in by_id:
+            errors.append(f"{where}: target room {target_id!r} not in rooms.json")
         req = target_cfg.get("requires_item")
         if req is not None and req not in si_by_id:
             errors.append(f"{where}: requires_item {req!r} not in special_items")
@@ -701,6 +708,12 @@ def main() -> int:
                 f"{where}: absent_spawn_areas {aid!r} is neither a room in rooms.json "
                 f"nor a node in areas.json"
             )
+
+    # Deferred from the ignition-targets loop: every "area": true target id must
+    # name a real area-graph node (e.g. mine_south, which has no rooms.json record).
+    for where, tid in ignition_area_refs:
+        if tid not in a_node_id_set:
+            errors.append(f"{where}: area ignition target {tid!r} not a node in areas.json")
 
     for n in a_nodes:
         where = f"areas/nodes/{n['id']}"

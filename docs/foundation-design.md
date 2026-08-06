@@ -115,11 +115,14 @@ about attempt boundaries; this follows repo convention rather than a source.
 ### The Basement Key is on the critical path to the Sanctum via the Foundation
 
 Measured on the graph with an empty inventory and no flags, `mine_south` is
-still **3 hops** from the house: `house -> grounds -> precipice -> mine_south`.
-The `grounds -> precipice` edge stands behind `cliffside_elevator_down`, one of
-the PR1 stubs that pass unconditionally, and `precipice -> mine_south` is
-ungated. So the mine — and through it `reservoir_south` — stays reachable with
-no key, no Power Hammer and no torches; nothing in this change touches that.
+**unreachable**, and through it so are `reservoir_south` and the `safehouse`.
+Both `mine_south <-> precipice` directions share the `candlestick_stairway_lit`
+flag, which is only set by lighting the candles while standing *inside* the
+mine, so the Precipice is an exit the player creates from below rather than a
+way in. The mine is reached from the house side — the Catacombs via the Tomb,
+the drained Fountain plus the Basement Key, or the lowered Reservoir crossing
+from the north. Holding the Basement Key restores `reservoir_south` at 3 hops
+and `mine_south` at 4.
 
 `basement` is a different story. Before `basement_key_foundation` existed, an
 empty inventory could still reach it in 5 hops purely through the Foundation's

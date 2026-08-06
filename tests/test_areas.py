@@ -475,16 +475,6 @@ def test_torch_still_opens_crate_tunnel_gate(graph: AreaGraph) -> None:
     assert gate_open(graph, "ignition_torches_crate", ctx_torch) is True
 
 
-def test_burning_glass_opens_candlestick_stairway_gate(graph: AreaGraph) -> None:
-    """A Burning Glass alone satisfies the candlestick_stairway gate (mine_south->precipice).
-
-    candlestick_stairway lists both torch and burning_glass in item_ids (count=1).
-    Previously it hardcoded item_id='torch', wrongly blocking Burning Glass holders.
-    """
-    ctx_bg = _ctx(held_items={"burning_glass": 1})
-    assert gate_open(graph, "candlestick_stairway", ctx_bg) is True
-
-
 def test_no_ignition_tool_blocks_crate_tunnel(graph: AreaGraph) -> None:
     """Without any ignition tool, the ignition_torches_crate gate is closed."""
     ctx_empty = _ctx(held_items={})

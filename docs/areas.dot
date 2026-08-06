@@ -206,8 +206,10 @@ digraph blueprince_outside {
 
 	catacombs -> mine_south [label="lower Draxus's scythe\nONE-WAY, shuts at day end", style=dashed, color="#c62828"];
 
-	mine_south -> precipice [label="ignition tool lights all 8\ncandlesticks -> permanent stairway", style=bold];
-	precipice  -> mine_south [];
+	// One physical stairway, lowered from INSIDE the mine only (never from the
+	// Precipice side); the candlestick_stairway_lit flag gates both directions.
+	mine_south -> precipice [label="lit from inside: all 8\ncandlesticks -> permanent stairway", style=bold];
+	precipice  -> mine_south [label="only after being lit\nfrom inside the mine", style=bold];
 
 	precipice           -> unknown_underground [label="Castling Puzzle", style=bold];
 	unknown_underground -> precipice           [];
