@@ -559,6 +559,100 @@ breaks, the Sanctum keys.
   unresolved discrepancy between the sim and the wiki's stated mechanic,
   recorded here to be re-tested in game rather than re-derived from memory.
 
+- **2026-08-06, the Precipice is an EXIT from the Abandoned Mine, not an
+  entrance.** Owner correction, from play: the mine is reached from the house
+  side — the Catacombs via the Tomb, the drained Fountain plus the Basement
+  Key, or the lowered Reservoir crossing from the north — and only then are the
+  8 candlesticks lit to *lower* the stairway to the Precipice. The graph had one
+  physical stairway as two edges with different rules (`mine_south -> precipice`
+  behind an item gate, `precipice -> mine_south` ungated), making the Precipice
+  a free front door.
+
+  This was not only a free Upgrade Disk. The route
+  `house -> grounds -> precipice -> mine_south -> reservoir_south` walked
+  **around the `basement_key_well` door**, so a day-1 empty inventory reached
+  `reservoir_south` (4 hops) and the `safehouse` (5) — a **Sanctum Key source**.
+  All three are now unreachable without the key; holding it restores
+  `reservoir_south` at 3 and `mine_south` at 4, so the legitimate routes are
+  untouched.
+
+  An item gate was the wrong instrument regardless: measured, gating the reverse
+  edge on the old `candlestick_stairway` item gate left the mine unreachable
+  with an empty inventory but reachable again in 3 steps while **merely carrying
+  a torch**. Both directions now share a `candlestick_stairway_lit` **flag**
+  gate, set through the existing ignition system (`mine_south` became an
+  `"area": true` ignition target; `lit_targets` already persists across days).
+  Act on this cold as: the held-item simplification that is fine for
+  `basement_key` (holding ≈ having used) **breaks** whenever reaching the place
+  to use the item is itself the difficulty.
+
+- **2026-08-06, the Shelter and the Boudoir both grant the safe gem.** The
+  assumed-solved doctrine covers the Shelter's real-time timed safe and the
+  Boudoir's 1225 code exactly as it covers the Office/Study/Drawing Room codes.
+  This **overrides** the earlier hold-back that excluded both pending a call.
+  Because a safe is a fixture of the room it survives every upgrade, and room
+  effects are NOT inherited through `variant_of`, so `boudoir__ix16/17/18` each
+  carry the grant in their own right — without that, upgrading the Boudoir would
+  silently delete its safe. The Shelter is an OUTER room: its grant rides
+  `Game.travel_to`'s `Hook.ON_ENTER`, which was verified to fire before the edit
+  was made rather than after.
+
+- **2026-08-06, "Underground" in task 3 is Rotating Gear (upstairs).** Owner
+  clarification of a name that matched no room id. It is a room off a hallway
+  from the **Underpass**, opened by Boiler Room steam; **assume the player
+  unlocks it permanently after entering the Boiler Room**. One step from the
+  Underpass, holding **a gem** and the **Treasure Trove blackprint**, with a
+  return step back down. It is **not** reachable from the existing
+  `rotating_gear` node.
+
+  This maps onto the existing `upper_rotating_gear` node and its
+  `boiler_room_steam` gate (an open stub), so the work is making that gate real,
+  not adding a node — and it settles the reverse-edge audit's open question:
+  `boiler_room_steam` **is** permanent.
+
+- **2026-08-06, the Treasure Trove permanently gains +5 coins every time it is
+  drafted**, making it a very valuable room. The Key of Aries / black-chest
+  mechanics are **explicitly deferred** — do not model them with this.
+
+- **2026-08-06, `reservoir_south <-> mine_south` has a real Reservoir
+  water-level requirement.** Owner. Model it as a stub gate folded into the
+  deferred `PR-pump-room` set (task 11); **invent no number**. Until then that
+  crossing is ungated and anything measured through it is an upper bound.
+
+- **2026-08-06, `king` splits into per-colour tags.** The Banner of the King
+  picks ONE colour per day, identical to the Royal Scepter, so emitting a bare
+  `king` tag would fire all five category biases at once. The five entries
+  become `king_blueprint` / `king_hallway` / `king_bedroom` / `king_shop` /
+  `king_blackprint`, mirroring the `scepter_<colour>` shape. **The Banner item
+  itself is deliberately not wired** — no source for how it is obtained exists
+  in our data, so the tags are correctly shaped and stay inert.
+
+- **2026-08-06, our datamined bias magnitudes win over the wiki.** Our data says
+  blueprint 50% and shop 25%; the wiki says 40% and 30%. The decompiled sheet
+  has beaten the wiki before on exact tables, so no numbers change; the
+  disagreement is recorded in the affected entries' `meta.notes` to be
+  re-tested rather than silently resolved.
+
+- **2026-08-06, task 6 is audit-only, and its premise partly does not hold.**
+  The audit's two removal candidates, `diary_key` and `file_cabinet_key`, are
+  **both already `implemented: false` with zero Python references** — so
+  removing them is pure decluttering (one id each in the 76-slot item
+  observation vector), not the action-id-and-inventory-slot saving the task
+  assumes. `file_cabinet_key` is additionally stranded: its one real payoff, the
+  Archives Upgrade Disk, is already granted directly on entry
+  (`upgrade_disk_archives`, `guaranteed_in: ["archives"]`) under this same
+  doctrine.
+
+  **`basement_key` is the verified counterexample and a KEEP**: it gates
+  `basement_key_well` on `well -> reservoir_south` and `basement_key_foundation`
+  on BOTH directions of `the_foundation <-> basement`, so holding it is the
+  literal difference between those areas being reachable or not.
+  `key_of_aries` and `sanctum_key` are **deferred** — the first because the
+  Treasure Trove mechanic above is about to make its target real, the second
+  because its destination (`sigil_chambers`) is `modelled: false` with no
+  further edges, which is an unbuilt-destination problem rather than a
+  puzzle-only-item one.
+
 ## 5. Throttle the training terminal output — DONE
 
 The trainer currently refreshes the dashboard after every completed seed, which
