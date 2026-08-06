@@ -195,6 +195,7 @@ EFFECT_MAP: dict[str, dict] = {
         {"tag": "counts_as_drafting_room"},
         {"tag": "grant", "resource": "gems", "amount": 1}]},
     "office": {"effects": [{"tag": "grant", "resource": "gems", "amount": 1}]},
+    "boudoir": {"effects": [{"tag": "grant", "resource": "gems", "amount": 1}]},
     "library": {"effects": [{"tag": "counts_as_drafting_room"}]},
     "drafting_studio": {"effects": [{"tag": "counts_as_drafting_room"}]},
     "chamber_of_mirrors": {"effects": [{"tag": "allow_duplicates"}]},
@@ -237,6 +238,13 @@ EFFECT_MAP: dict[str, dict] = {
 VARIANT_EFFECT_MAP: dict[str, dict] = {
     # ix108: "3ð Prize" — the upgrade variant that increases the Parlor box to 3 gems.
     "parlor__ix108": {"items": {"guaranteed": [{"item": "gem", "count": 3}]}},
+    # Boudoir's safe is a fixture of the room, so it survives every upgrade. Room
+    # effects are NOT inherited through variant_of (each record is an independent
+    # frozen Room), so the grant has to be repeated per variant rather than left
+    # to the base entry.
+    "boudoir__ix16": {"effects": [{"tag": "grant", "resource": "gems", "amount": 1}]},
+    "boudoir__ix17": {"effects": [{"tag": "grant", "resource": "gems", "amount": 1}]},
+    "boudoir__ix18": {"effects": [{"tag": "grant", "resource": "gems", "amount": 1}]},
 }
 
 # Per-category default for luck-scaled extra items (Item Spawns table is

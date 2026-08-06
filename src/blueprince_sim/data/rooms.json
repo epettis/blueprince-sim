@@ -3007,7 +3007,13 @@
     "disk_reader": false
    },
    "deck_copies": 1,
-   "effects": [],
+   "effects": [
+    {
+     "tag": "grant",
+     "resource": "gems",
+     "amount": 1
+    }
+   ],
    "items": {
     "guaranteed": [],
     "additional_max": 1,
@@ -3038,7 +3044,13 @@
     "disk_reader": false
    },
    "deck_copies": 1,
-   "effects": [],
+   "effects": [
+    {
+     "tag": "grant",
+     "resource": "gems",
+     "amount": 1
+    }
+   ],
    "items": {
     "guaranteed": [],
     "additional_max": 1,
@@ -3077,7 +3089,13 @@
     "disk_reader": false
    },
    "deck_copies": 1,
-   "effects": [],
+   "effects": [
+    {
+     "tag": "grant",
+     "resource": "gems",
+     "amount": 1
+    }
+   ],
    "items": {
     "guaranteed": [],
     "additional_max": 1,
@@ -3116,7 +3134,13 @@
     "disk_reader": false
    },
    "deck_copies": 1,
-   "effects": [],
+   "effects": [
+    {
+     "tag": "grant",
+     "resource": "gems",
+     "amount": 1
+    }
+   ],
    "items": {
     "guaranteed": [],
     "additional_max": 1,
@@ -5714,6 +5738,11 @@
     {
      "tag": "negate_red_rooms",
      "amount": 3
+    },
+    {
+     "tag": "grant",
+     "resource": "gems",
+     "amount": 1
     }
    ],
    "items": {
