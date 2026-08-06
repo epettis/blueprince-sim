@@ -214,9 +214,9 @@
    "id": "mine_south",
    "name": "Abandoned Mine (South)",
    "kind": "area",
-   "modelled": true,
+   "modelled": false,
    "surface": false,
-   "meta": {"source": "docs/areas.md", "confidence": "wiki", "notes": "Upgrade Disk sits openly on a table; obtainable WITHOUT lighting candlesticks. Candles independently open the Precipice stairway."}
+   "meta": {"source": "docs/areas.md", "confidence": "wiki", "notes": "Upgrade Disk sits openly on a table; obtainable WITHOUT lighting candlesticks. Candles independently open the Precipice stairway. NOT advertised as a travel destination: the only day-1 route here runs through the open cliffside_elevator_down stub, which puts a free respawning disk 3 steps from the front door. Re-advertise when PR-torches-elevator closes that gate."}
   },
   {
    "id": "mine_north",

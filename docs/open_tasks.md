@@ -461,6 +461,48 @@ breaks, the Sanctum keys.
   step-share measurement — the Sanctum route alone measured moving the off-grid
   step share from 29.93% to 41.88% under uniform-random play (see `areas.md`).
 
+  **Reversed for `mine_south` on 2026-08-05, on measurement.** The justification
+  above — "`mine_south` earns its place specifically because it holds an Upgrade
+  Disk" — did not survive contact with a trained policy. The disk is only
+  reachable through the **open `cliffside_elevator_down` stub** (whose real
+  requirement is "4 torches lit AND car at the top"), and the route is
+  `house -> grounds -> precipice -> mine_south`, bypassing the Basement and the
+  Foundation entirely. Measured on turn 1 of a **brand-new save with an empty
+  inventory**: `mine_south` is **3 steps** from the house and is the **only**
+  travel destination the mask offers, while `basement`, `the_foundation` and
+  `sealed_entrance` are all unreachable. Arrival grants a `persistence: "day"`
+  Upgrade Disk, so the round trip nets **+0.058 shaped reward for 7 of 50
+  steps**, deterministically, every day — 23% of the entire Antechamber
+  milestone (+0.25) for 14% of the step budget.
+
+  A completed 1.42M-episode run (`runs/foundation-v2`, 48.7M timesteps) visited
+  `mine_south` on **6,874 of 6,875 eval seeds** with `mean_deepest_rank` 2.24 and
+  `p_room46` 0.0. Ablation on that same checkpoint, 300 paired episodes per arm,
+  mask-only change, no retraining:
+
+  | metric | today | mine unadvertised | delta |
+  |---|---|---|---|
+  | mean rooms placed | 3.06 | 6.13 | **+3.07 (2.0x)** |
+  | mean deepest rank | 2.25 | 3.11 | +0.87 (+39%) |
+  | `dead_end` terminations | 37/300 | 3/300 | -34 |
+  | P(antechamber) | 0.000 | 0.000 | 0 |
+  | P(Room 46) | 0.000 | 0.000 | 0 |
+
+  So `mine_south` is now `modelled: false`. Two things this does NOT claim:
+  removing the farm does not get the policy near the objective (both arms reach
+  the Antechamber on 0.000 of episodes — that problem is independent), and no
+  formal significance test was run, though the design is paired on seeds and the
+  effect is large.
+
+  **Act on this cold as:** re-advertise `mine_south` when `PR-torches-elevator`
+  closes the cliffside gate and the disk has to be earned. Until then the
+  Abandoned Mine's disk is unobtainable, so **15 of the 16 disks are reachable,
+  not 16** — correct task 2's count when that PR lands. Also note
+  `mine_south_visited` gates `reservoir_north -> mine_north` and
+  `rotating_gear -> underpass`; with travel unadvertised a policy can no longer
+  set that flag, so those two edges stay shut in practice. Both destinations are
+  themselves unmodelled, so nothing advertised is lost.
+
 - **2026-08-04, the Foundation and Basement elevator gates stay open stubs**:
   `foundation_elevator_down` / `foundation_elevator_up` are not modelled this
   round — the wiki's elevator crank reveal (requires a room drafted so a door

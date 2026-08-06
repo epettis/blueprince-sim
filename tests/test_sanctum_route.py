@@ -377,27 +377,28 @@ def test_basement_key_spawns_on_antechamber_entry_and_is_not_consumed(registry):
 
 
 # ---------------------------------------------------------------------------
-# 8. modelled: the four new nodes are offered as travel destinations
+# 8. modelled: which nodes are offered as travel destinations
 # ---------------------------------------------------------------------------
 
-def test_mine_south_travel_action_offered_once_reachable(registry):
-    """mine_south's "modelled" flag is what makes the action mask offer travel
-    to it once a route exists -- unmodelled nodes are routed through but never
-    advertised (env/actions.py). A reachable-but-unmodelled node would leave
-    the mask False even though area_route_cost reports a route."""
+def test_mine_south_is_routed_through_but_never_offered(registry):
+    """mine_south is reachable yet deliberately unadvertised, and both halves
+    matter. The only day-1 route to it runs through the open
+    cliffside_elevator_down stub, which put a free respawning Upgrade Disk 3
+    steps from the front door; but the pathfinder must still route THROUGH the
+    node, so un-advertising it cannot silently disconnect the graph."""
     g = Game(GameConfig(), seed=1, registry=registry)
     node_ids = A._build_area_node_ids(g.registry)
     i = node_ids.index("mine_south")
-    assert g.area_route_cost("mine_south") is not None, "setup: must be reachable at all"
+    assert g.area_route_cost("mine_south") is not None, "must stay routable through"
     mask = A.action_mask(g)
-    assert mask[A.TRAVEL_BASE + i], "mine_south must be offered as a travel destination"
+    assert not mask[A.TRAVEL_BASE + i], "mine_south must not be offered as a destination"
 
 
 def test_foundation_and_basement_travel_actions_offered_once_placed_and_visited(registry):
     """Once the Foundation is drafted and grid-connected, its own "modelled"
     flag (and basement's) make the action mask offer travel to both -- the
-    same wiring test_mine_south_travel_action_offered_once_reachable pins for
-    mine_south, covering the other three nodes flipped modelled by this PR."""
+    positive half of the wiring that
+    test_mine_south_is_routed_through_but_never_offered pins negatively."""
     g = Game(GameConfig(special_items=True, antechamber_levers=True), seed=1, registry=registry)
     g.state.steps = 200
     g.state.inventory["basement_key"] = 1  # the Foundation's own Basement door needs it too
