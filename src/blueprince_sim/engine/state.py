@@ -152,6 +152,24 @@ class GameState:
     solarium_placed: bool = False  # Solarium: swaps in the special slot-2/3 rarity table
     greenhouse_placed: bool = False  # Greenhouse: green-room bias, boosts some priority draws
     furnace_placed: bool = False  # Furnace: red-room category bias on draws
+    # Schoolhouse: Classroom category bias on draws (priority_draws.json "schoolhouse").
+    # Emitted by draft.py's _active_conditions but nothing sets it yet: the Hook.ON_PLACE
+    # effect tag that would flip this on Schoolhouse placement (mirroring greenhouse_bias/
+    # furnace_bias in effects/tier1.py) is a follow-up PR. Deliberately unreachable in play
+    # until then; reachable directly in tests.
+    schoolhouse_placed: bool = False
+    # Southern Cross constellation active tonight: 4-way (layout: cross) room bias on draws
+    # (priority_draws.json "southern_cross_constellation"). Day-scoped stub: no star-count /
+    # night-sky / Observatory-eyepiece subsystem is modeled anywhere in the engine, so nothing
+    # sets this flag during play. Exists so the bias is testable/reachable (set it directly)
+    # rather than dead code; real activation is out of scope here.
+    southern_cross_active: bool = False
+    # Draxus constellation active tonight: Dead End (layout: dead_end) room bias on draws
+    # (priority_draws.json "draxus_constellation"). Same day-scoped stub as
+    # southern_cross_active — no activation source is modeled; set only by tests/research
+    # callers. Not to be confused with cloister_of_draxus__ix36's own, unrelated, deterministic
+    # "only Dead Ends draftable from this room" rule.
+    draxus_active: bool = False
     drafting_room_count: int = 0  # grants that many free redraws when drafting from the Classroom
     study_placed: bool = False  # Study: pay 1 gem to redraw (max 8 per hand)
     library_placed: bool = False  # Library in the house (obs flag; Library draws key off position)

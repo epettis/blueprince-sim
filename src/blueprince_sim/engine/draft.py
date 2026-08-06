@@ -44,16 +44,17 @@ def _hidden_count(from_room: Room | None) -> int:
 class DraftContext:
     """Bundles the per-draft references so helpers stay signature-light."""
 
-    __slots__ = ("state", "registry", "cfg", "rng", "placed_ids", "from_library")
+    __slots__ = ("state", "registry", "cfg", "rng", "placed_ids", "from_room", "from_library")
 
     def __init__(self, state: GameState, registry: Registry, cfg: GameConfig, rng: Rng,
-                 placed_ids: set[str], from_library: bool) -> None:
+                 placed_ids: set[str], from_room: Room | None) -> None:
         self.state = state
         self.registry = registry
         self.cfg = cfg
         self.rng = rng
         self.placed_ids = placed_ids
-        self.from_library = from_library
+        self.from_room = from_room  # room being drafted FROM, or None (positional condition source)
+        self.from_library = from_room is not None and from_room.id == "library"
 
 
 def room_draftable(ctx: DraftContext, room: Room, cell: int, entry_dir: int,
@@ -125,8 +126,14 @@ def _priority_draw(ctx: DraftContext, cell: int, entry_dir: int,
     return None
 
 
-def _active_conditions(state) -> set[str]:
-    """Return the category-bias condition tags that are currently satisfied."""
+def _active_conditions(ctx: DraftContext) -> set[str]:
+    """Return the category-bias condition tags that are currently satisfied.
+
+    Most conditions are global (read off ``GameState``); a few are positional,
+    keyed on the room being drafted FROM (``ctx.from_room``), which is why this
+    takes the whole context rather than just ``state``.
+    """
+    state = ctx.state
     conds: set[str] = set()
     if state.furnace_placed:
         conds.add("furnace_or_king")
@@ -136,6 +143,18 @@ def _active_conditions(state) -> set[str]:
     # so _apply_category_bias picks up the corresponding priority_draws.json entry.
     if state.shops.scepter_color is not None:
         conds.add(f"scepter_{state.shops.scepter_color}")
+    if state.schoolhouse_placed:
+        conds.add("schoolhouse")
+    if state.southern_cross_active:
+        conds.add("southern_cross_constellation")
+    if state.draxus_active:
+        conds.add("draxus_constellation")
+    # King's Chess Piece (Banner of the King) is deliberately NOT emitted here: no
+    # source models how the Banner is obtained or a per-day color pick, and the five
+    # king_* tags must fire one at a time (mirroring scepter_<color>), never all at
+    # once. See priority_draws.json's king_* entries for the shaped-but-inert tags.
+    if ctx.from_library:
+        conds.add("drafting_from_library")
     return conds
 
 
@@ -191,7 +210,7 @@ def _apply_category_bias(ctx: DraftContext, room: Room, slot: int, cell: int,
     original draw (the original stays consumed from its deck).  If no match is
     available the original draw is kept unchanged.
     """
-    active = _active_conditions(ctx.state)
+    active = _active_conditions(ctx)
     if not active:
         return room
 
@@ -401,8 +420,7 @@ def deal_draft(state: GameState, registry: Registry, cfg: GameConfig, rng: Rng,
     chain all key off the room being drafted FROM.
     """
     from_room = registry.rooms[state.grid[from_cell]] if state.grid[from_cell] >= 0 else None
-    from_library = from_room is not None and from_room.id == "library"
-    ctx = DraftContext(state, registry, cfg, rng, placed_ids, from_library)
+    ctx = DraftContext(state, registry, cfg, rng, placed_ids, from_room)
     pending = PendingDraft(from_cell=from_cell, direction=direction, target_cell=target_cell)
     _fill_options(ctx, pending, from_room)
     return pending
@@ -413,8 +431,7 @@ def redeal(state: GameState, registry: Registry, cfg: GameConfig, rng: Rng,
     """Redraw all three options in place (Study / Classroom / dice redraw)."""
     from_room = registry.rooms[state.grid[pending.from_cell]] \
         if state.grid[pending.from_cell] >= 0 else None
-    from_library = from_room is not None and from_room.id == "library"
-    ctx = DraftContext(state, registry, cfg, rng, placed_ids, from_library)
+    ctx = DraftContext(state, registry, cfg, rng, placed_ids, from_room)
     pending.options.clear()
     pending.rotations_used = 0  # fresh hand, fresh rotation budget
     _fill_options(ctx, pending, from_room)
