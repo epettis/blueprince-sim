@@ -322,6 +322,14 @@ def action_mask(game: Game, prev_action: int | None = None) -> list[bool]:
         if game.can_insert_disk():
             mask[INSERT_DISK_ACTION] = True
 
+        # Also outside the split: most ignition targets (chapel, tomb,
+        # trading_post) sit on the grid, but mine_south is an off-grid area
+        # node -- can_light() already resolves both. Leaving this in the
+        # on-grid-only branch below would strand the mine_south candlesticks
+        # forever (soft-lock: the stairway could never be lit).
+        if game.can_light():
+            mask[LIGHT_ACTION] = True
+
         # Travel actions: legal on-grid AND off-grid. A destination is legal when
         # reachable, the player can strictly afford it (steps > cost, so at
         # least 1 step remains on arrival), and it is not the current location.
@@ -442,8 +450,6 @@ def action_mask(game: Game, prev_action: int | None = None) -> list[bool]:
                 mask[OPEN_CAR_TRUNK_ACTION] = True
             if game.can_open_vault_box():
                 mask[OPEN_VAULT_BOX_ACTION] = True
-            if game.can_light():
-                mask[LIGHT_ACTION] = True
             if game.can_install_lever():
                 mask[INSTALL_LEVER_ACTION] = True
             if game.outer_draft_available():

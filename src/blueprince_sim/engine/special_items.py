@@ -175,7 +175,9 @@ class SpecialItemsState:
     garage_car_opened: bool = False  # Car Keys garage car trunk used today (once per day)
     # Vault Key ids whose deposit box was opened today (at most once per key per day).
     vault_boxes_opened: list[str] = field(default_factory=list)
-    lit_targets: list[str] = field(default_factory=list)  # room ids lit this day (ignition mechanic)
+    # ids lit this day (ignition mechanic): room ids for on-grid targets (chapel,
+    # tomb, trading_post), plus area-graph node ids for off-grid ones (mine_south).
+    lit_targets: list[str] = field(default_factory=list)
     machines_used: list[str] = field(default_factory=list)  # machine room ids used today (lever install)
     # Keeper of Tithes: coins actually banked (incremented each time the Chapel's -1
     # coin entry penalty fires and the player had at least 1 coin to lose).  Paid out
@@ -448,9 +450,10 @@ def on_enter(game, room, cell: int) -> None:
     # a room with candles does NOT belong here: the Abandoned Mine (South) disk
     # sits openly on a table and is obtainable without ever lighting anything,
     # while its eight candlesticks independently open the stairway to the
-    # Precipice (candlestick_stairway gate, areas.json). mine_south has no
-    # rooms.json record, so its disk cannot use guaranteed_by_room like the
-    # in-grid disks; it is granted instead by on_area_arrival, called from
+    # Precipice (the "candlestick_stairway_lit" flag game.py::_gate_ctx derives
+    # from state.special.lit_targets, areas.json). mine_south has no rooms.json
+    # record and is off-grid, so this on-grid re-grant path never runs for it
+    # anyway; its disk is granted instead by on_area_arrival, called from
     # Game.travel_to on arrival at the mine_south area node. Coupling the disk
     # to the candles would make it unreachable without an ignition tool, which
     # is wrong.
@@ -1643,33 +1646,57 @@ def _ignition_tools(registry) -> frozenset:
     return frozenset(registry.special.ignition.get("tools", []))
 
 
-def can_light(game) -> bool:
-    """True when: special items enabled, standing in an ignition target room,
-    holding a torch or burning_glass, target not yet lit today, and any
-    requires_item satisfied.
+def _current_ignition_target_id(game) -> str | None:
+    """Id of the ignition target the player currently stands at, or None.
 
-    Only rooms listed in ignition.targets that are present in the current
-    grid are actionable; absent-room targets (abandoned_mine, crate_tunnel)
-    are listed in ignition.meta.absent_targets and never appear here.
+    On-grid, this is the room id under state.pos, matched against a target
+    entry that is NOT flagged "area". Off-grid (state.area is not None), it is
+    the area-graph node id in state.area, matched against a target entry that
+    IS flagged "area" (e.g. mine_south — an off-grid node with no rooms.json
+    record). Either way, a location that isn't itself a listed target (or is
+    listed under the wrong shape) returns None, same as an ordinary room.
+    """
+    state = game.state
+    registry = game.registry
+    targets = registry.special.ignition.get("targets", {})
+    if state.area is not None:
+        target_id = state.area
+        if target_id in targets and targets[target_id].get("area", False):
+            return target_id
+        return None
+    if state.grid[state.pos] < 0:
+        return None
+    room = registry.rooms[state.grid[state.pos]]
+    if room.id in targets and not targets[room.id].get("area", False):
+        return room.id
+    return None
+
+
+def can_light(game) -> bool:
+    """True when: special items enabled, standing at an ignition target (a
+    room on the grid, or an off-grid area node flagged "area" in
+    ignition.targets), holding a torch or burning_glass, target not yet lit
+    today, and any requires_item satisfied.
+
+    Only targets listed in ignition.targets are actionable; targets absent
+    from both rooms.json and areas.json (crate_tunnel) are listed in
+    ignition.meta.absent_targets and never appear here.
     """
     state = game.state
     registry = game.registry
     if not state.special.enabled:
         return False
-    if state.grid[state.pos] < 0:
+    target_id = _current_ignition_target_id(game)
+    if target_id is None:
         return False
-    room = registry.rooms[state.grid[state.pos]]
-    targets = registry.special.ignition.get("targets", {})
-    if room.id not in targets:
-        return False
-    if room.id in state.special.lit_targets:
+    if target_id in state.special.lit_targets:
         return False
     # Check tool held
     tools = _ignition_tools(registry)
     if not any(state.inventory.get(t, 0) > 0 for t in tools):
         return False
     # Check requires_item
-    target_cfg = targets[room.id]
+    target_cfg = registry.special.ignition["targets"][target_id]
     req = target_cfg.get("requires_item")
     if req is not None and state.inventory.get(req, 0) <= 0:
         return False
@@ -1677,14 +1704,16 @@ def can_light(game) -> bool:
 
 
 def light(game) -> None:
-    """Light the ignition target in the current room; grant its rewards.
+    """Light the ignition target at the current room/area; grant its rewards.
 
-    Marks the room as lit (one-shot per room; persists across days via
+    Marks the target as lit (one-shot per target; persists across days via
     carryover/configure). Grants all entries from the target's 'grants' list:
     - coins/gems/dice: granted directly.
     - item: granted via grant() (no-op if unavailable).
     - chapel_tithe_payout: pays out state.special.chapel_tithes coins (the
       Keeper of Tithes accumulated total) as a one-time reward.
+    mine_south's grants list is empty — its Upgrade Disk is a separate,
+    ungated pickup granted by on_area_arrival, not an ignition reward.
     Does not consume the tool (torch/burning_glass are reusable).
     """
     from . import items as items_mod  # deferred to avoid cycles
@@ -1692,10 +1721,9 @@ def light(game) -> None:
     registry = game.registry
     if not can_light(game):
         return
-    room = registry.rooms[state.grid[state.pos]]
-    targets = registry.special.ignition.get("targets", {})
-    target_cfg = targets[room.id]
-    state.special.lit_targets.append(room.id)
+    target_id = _current_ignition_target_id(game)
+    target_cfg = registry.special.ignition["targets"][target_id]
+    state.special.lit_targets.append(target_id)
     for reward in target_cfg.get("grants", []):
         kind = reward.get("kind")
         match kind:

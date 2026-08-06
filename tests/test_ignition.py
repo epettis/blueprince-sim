@@ -247,11 +247,16 @@ def test_lighting_grants_exactly_what_the_data_declares():
     _, reg = _state_with_registry()
     targets = reg.special.ignition["targets"]
     assert targets, "no ignition targets configured"
-    for room_id, target in targets.items():
+    for target_id, target in targets.items():
         st, reg = _state_with_registry()
         si.grant(st, reg, "torch", source="test")
-        _place_room(st, reg, room_id, 5)
-        st.pos = 5
+        if target.get("area"):
+            # Off-grid target (mine_south): no rooms.json record to place --
+            # stand on the area node directly, same field can_light/light read.
+            st.area = target_id
+        else:
+            _place_room(st, reg, target_id, 5)
+            st.pos = 5
         game = _fake_game(st, reg)
         before = {"coins": st.coins, "gems": st.gems, "dice": st.dice}
         si.light(game)
@@ -260,17 +265,17 @@ def test_lighting_grants_exactly_what_the_data_declares():
             match kind:
                 case "item":
                     assert st.inventory.get(grant["id"], 0) > 0, (
-                        f"{room_id} must grant item {grant['id']}"
+                        f"{target_id} must grant item {grant['id']}"
                     )
                 case "coins" | "gems":
                     got = (st.coins if kind == "coins" else st.gems) - before[kind]
                     assert got == grant["amount"], (
-                        f"{room_id} must grant {grant['amount']} {kind}, granted {got}"
+                        f"{target_id} must grant {grant['amount']} {kind}, granted {got}"
                     )
                 case "dice":
                     got = sum(n for k, n in st.items_found_log if k == "die")
                     assert got == grant["amount"], (
-                        f"{room_id} must grant {grant['amount']} dice, granted {got}"
+                        f"{target_id} must grant {grant['amount']} dice, granted {got}"
                     )
                 case "chapel_tithe_payout":
                     pass  # dynamic: covered by the tithe-bank tests above

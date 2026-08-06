@@ -140,7 +140,7 @@ once satisfied, **D** = resets daily, **-** = ungated.
 | `reservoir_south` <-> `safehouse` | rowboat; **Reservoir** level exactly 6 (two-way) | D |
 | `tomb` -> `catacombs` | seven-angel puzzle; wall permanent, but the Tomb must be drafted that day | P |
 | `catacombs` -> `mine_south` | lower Draxus's scythe. **ONE-WAY**, shuts at day end | D |
-| `mine_south` -> `precipice` | ignition tool lights all 8 candlesticks -> permanent stairway | P |
+| `mine_south` <-> `precipice` | stairway lit from **INSIDE** the mine only; permanent | P |
 | `precipice` -> `unknown_underground` | Castling Puzzle | P |
 | `rotating_gear` -> `underpass` | gear positioned (**requires Mine South visited**) | P |
 | `underpass` -> `upper_rotating_gear` | red door, powered by Boiler Room steam | P |
@@ -287,9 +287,11 @@ Surfaced by building this graph:
 - **Inner Sanctum**: the lever opening the Antechamber's **north** door. Task 9.
 - **Abandoned Mine (South)**: an Upgrade Disk **sitting openly on a table**. It
   is obtainable **without** lighting the candlesticks — the candles independently
-  open the Precipice stairway. Model the disk as a plain `guaranteed_in` pickup
-  and the candles as an ignition target granting a graph edge, not an item.
-  Coupling them would make the disk unreachable without an ignition tool. See the
+  open the Precipice stairway. Modeled as a plain area-arrival pickup
+  (`on_area_arrival`) with the candles as an ignition target (`mine_south`,
+  `"area": true` in `special_items.json`) gating the `mine_south <-> precipice`
+  edges via the `candlestick_stairway_lit` flag, not an item gate. Coupling the
+  disk to the candles would make it unreachable without an ignition tool. See the
   note in `engine/special_items.py::on_enter`.
 
 ## Items this unblocks
@@ -338,12 +340,20 @@ modelled, and a random policy spent **80% of its steps** wandering them; off-gri
 Measured over 300 seeds of uniform-random masked play under `all_unlocks_config()`:
 off-grid step share rose from **29.93%** (the pre-Sanctum 12-node `modelled`
 set) to **41.88%** with the four new nodes added, and the travel-action share of
-all actions taken rose from 43.90% to 54.03%. The driver is `mine_south`: it sits
+all actions taken rose from 43.90% to 54.03%. The driver was `mine_south`: it sat
 behind the open `cliffside_elevator_down` stub (`grounds -> precipice -> mine_south`,
-free), so it is offered from day 1 in 100% of seeds, and a random policy
-routinely wanders into it and the area graph beyond. Nowhere near the earlier
+free), so it was offered from day 1 in 100% of seeds, and a random policy
+routinely wandered into it and the area graph beyond. Nowhere near the earlier
 80% problem, but a real, measured cost of advertising a destination that a stub
 gate makes look cheaper than it is — see the PR1 stub-gate caveat below.
+
+These figures were measured against the pre-fix graph, where the free
+`precipice -> mine_south` leg was the item-gate bug described in "Corrections
+already applied". `mine_south` is unreachable on a fresh day 1 now that both
+directions require `candlestick_stairway_lit`, so the off-grid share is lower
+than 41.88% by an unmeasured amount — the 300-seed harness has not been re-run.
+The numbers are kept because they are what justified the `modelled` flag, and
+that decision still stands.
 
 An action slot exists for **every** node, modelled or not, so switching an area on
 later is a mask-only change: **no action-space change and therefore no retrain.**
@@ -379,6 +389,15 @@ Recorded so they are not re-litigated:
   is the one that stays open permanently.
 - The first-ever West Path visit **must** come through the Garage, because the
   west gate only unlatches from the inside.
+- The `precipice -> mine_south` edge was briefly ungated (`requires: []`) while
+  the other direction carried an item gate (`candlestick_stairway`, torch/burning
+  glass held). That made the Precipice a free front door into the mine — holding
+  a torch opened the stairway without ever lighting it. Owner correction
+  (2026-08-05): the Abandoned Mine is reached from the **house side**
+  (Catacombs/Tomb, drained Fountain + Basement Key, or the lowered Reservoir
+  crossing), and the stairway is something the player **creates from inside the
+  mine**, not an entrance. Both directions now share one `candlestick_stairway_lit`
+  flag gate, set only once the candles are actually lit standing in `mine_south`.
 
 ## Open questions
 

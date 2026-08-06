@@ -505,15 +505,12 @@
    "meta": {"source": "docs/areas.md", "confidence": "wiki"}
   },
   {
-   "id": "candlestick_stairway",
-   "kind": "item",
-   "modelled": false,
+   "id": "candlestick_stairway_lit",
+   "kind": "flag",
    "permanence": "permanent",
    "stub": false,
-   "detail": "Mine South -> Precipice: ignition tool lights all 8 candlesticks, opening a permanent stairway. Note: the Upgrade Disk in Mine South is obtainable WITHOUT this; the candles independently open the stairway.",
-   "item_ids": ["torch", "burning_glass"],
-   "count": 1,
-   "meta": {"source": "docs/areas.md", "confidence": "wiki"}
+   "detail": "Mine South <-> Precipice: one physical stairway, lowered by lighting all 8 candlesticks from INSIDE the mine (reached via the Catacombs/Tomb puzzle, the drained Fountain + Basement Key, or the lowered Reservoir crossing from the north -- never from the Precipice side). Before it is lit, neither direction passes; the Precipice is not a front door into the mine. Once lit the stairway stays down permanently and both directions open. The engine sets this flag from state.special.lit_targets (the \"mine_south\" ignition target, special_items.json) in game.py::_gate_ctx. Note: the Upgrade Disk sitting in Mine South is obtainable WITHOUT this; it is a separate, ungated pickup on arrival.",
+   "meta": {"source": "https://blueprince.wiki.gg/wiki/Abandoned_Mine", "confidence": "wiki"}
   },
   {
    "id": "castling_puzzle",
@@ -623,8 +620,8 @@
   {"from": "tomb", "to": "catacombs", "requires": ["tomb_catacombs"], "meta": {"source": "docs/areas.md", "confidence": "wiki"}},
   {"from": "catacombs", "to": "tomb", "requires": [], "meta": {"source": "docs/areas.md", "confidence": "wiki"}},
   {"from": "catacombs", "to": "mine_south", "requires": ["draxus_scythe"], "meta": {"source": "docs/areas.md", "confidence": "wiki", "notes": "ONE-WAY; no reverse edge. Shuts at day end."}},
-  {"from": "mine_south", "to": "precipice", "requires": ["candlestick_stairway"], "meta": {"source": "docs/areas.md", "confidence": "wiki"}},
-  {"from": "precipice", "to": "mine_south", "requires": [], "meta": {"source": "docs/areas.md", "confidence": "wiki"}},
+  {"from": "mine_south", "to": "precipice", "requires": ["candlestick_stairway_lit"], "meta": {"source": "docs/areas.md", "confidence": "wiki"}},
+  {"from": "precipice", "to": "mine_south", "requires": ["candlestick_stairway_lit"], "meta": {"source": "docs/areas.md", "confidence": "wiki"}},
   {"from": "precipice", "to": "unknown_underground", "requires": ["castling_puzzle"], "meta": {"source": "docs/areas.md", "confidence": "wiki"}},
   {"from": "unknown_underground", "to": "precipice", "requires": [], "meta": {"source": "docs/areas.md", "confidence": "wiki"}},
   {"from": "mine_north", "to": "rotating_gear", "requires": [], "meta": {"source": "docs/areas.md", "confidence": "wiki"}},

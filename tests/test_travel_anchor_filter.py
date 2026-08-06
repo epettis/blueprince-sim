@@ -104,16 +104,19 @@ def test_travel_to_garage_suppressed_once_drained(registry):
 
 
 def test_non_anchor_destination_unaffected(registry):
-    """A non-anchor area destination (mine_south) is never gated on
+    """A non-anchor area destination (west_path) is never gated on
     _cell_worth_entering -- it has no grid cell of its own, so the filter
-    must only ever touch the three modelled grid anchors.
+    must only ever touch the three modelled grid anchors. Also pins that
+    west_path really is a non-anchor node, so a future change to
+    _grid_anchors() can't make this assertion vacuous.
     """
-    g = Game(GameConfig(), seed=1, registry=registry)
+    g = Game(GameConfig(west_gate_unlatched=True), seed=1, registry=registry)
+    assert "west_path" not in g._grid_anchors(), "setup: west_path must be a non-anchor node"
     node_ids = A._build_area_node_ids(g.registry)
-    i = node_ids.index("mine_south")
-    assert g.area_route_cost("mine_south") is not None, "setup: must be reachable"
+    i = node_ids.index("west_path")
+    assert g.area_route_cost("west_path") is not None, "setup: must be reachable"
     mask = A.action_mask(g)
-    assert mask[A.TRAVEL_BASE + i], "mine_south travel must be unaffected by the anchor filter"
+    assert mask[A.TRAVEL_BASE + i], "west_path travel must be unaffected by the anchor filter"
 
 
 def test_anchor_travel_agrees_with_cell_worth_entering_under_random_play(registry):

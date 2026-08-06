@@ -567,11 +567,12 @@ class Game:
         return special_items.open_vault_box(self)
 
     def can_light(self) -> bool:
-        """Holding an ignition tool (Torch/Burning Glass) in a lightable room."""
+        """Holding an ignition tool (Torch/Burning Glass) at a lightable room
+        or off-grid area (e.g. mine_south)."""
         return special_items.can_light(self)
 
     def light(self) -> None:
-        """Light the ignition target in the current room; grant its rewards."""
+        """Light the ignition target at the current room/area; grant its rewards."""
         assert self.cfg.special_items
         special_items.light(self)
 
@@ -710,6 +711,18 @@ class Game:
               grounds<->sealed_entrance<->basement (docs/areas.md).  Owner decision: broken
               is broken, unconditionally -- the wiki's plank-vs-wall permanence distinction
               is deliberately not modelled (see docs/open_tasks.md decisions log).
+          "candlestick_stairway_lit" -- the player has lit the Abandoned Mine (South)'s
+              eight candlesticks (the "mine_south" ignition target in special_items.json,
+              flagged "area": true since mine_south has no rooms.json record).  Permanent
+              once lit: checked against BOTH cfg.lit_targets (carried in) and
+              state.special.lit_targets (earned today), same OR-from-cfg-or-state shape
+              as the other permanent flags below -- state.special.lit_targets alone is
+              NOT enough, because special_items.configure() only seeds it from cfg lazily
+              on the first real room entry (special_items.on_enter), so a mask built
+              before that first entry would otherwise see it as unset.  Gates BOTH
+              mine_south<->precipice edges: the stairway is a single physical structure
+              the player lowers from inside the mine, not a front door (docs/areas.md;
+              owner correction, 2026-08-05).
         """
         st = self.state
         flags: set[str] = set()
@@ -720,6 +733,8 @@ class Game:
         if (self.cfg.sealed_entrance_broken or st.sealed_entrance_broken
                 or (self.cfg.special_items and special_items.has(st, "power_hammer"))):
             flags.add("sealed_entrance_broken")
+        if "mine_south" in st.special.lit_targets or "mine_south" in self.cfg.lit_targets:
+            flags.add("candlestick_stairway_lit")
         if self._breaker_on():
             flags.add("garage_door_breaker")
         # North door open: Inner Sanctum or Throne Room lever pulled this day.
