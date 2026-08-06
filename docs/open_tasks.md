@@ -289,11 +289,18 @@ breaks, the Sanctum keys.
 
 - **2026-07-27, Cloister frequency boosts**: model **all three** — the Terrace
   (makes the Cloister free while on the estate) and the Southern Cross / Greenhouse
-  boosts. These are the only unmodelled levers that touch Cloister's 5.87% per-day
-  offer rate, which is the actual bottleneck on observing an Orinda decision. This
-  is Phase 3 of [`upgrade-value-measurement.md`](upgrade-value-measurement.md) and
-  is independent of task 4; it does not block the Phase 1 A/B, which needs no offer
-  and no rare draw.
+  boosts. These touch Cloister's 5.87% per-day offer rate, which is the actual
+  bottleneck on observing an Orinda decision. This is Phase 3 of
+  [`upgrade-value-measurement.md`](upgrade-value-measurement.md) and is independent
+  of task 4; it does not block the Phase 1 A/B, which needs no offer and no rare draw.
+
+  **Audited 2026-08-05: two of the three were already implemented when this was
+  written.** The Terrace boost works (`free_green_drafts`, `effects/tier1.py`, adds
+  `"green"` to `free_categories`; Cloister is `category: "green"`), and so does the
+  Greenhouse boost (`priority_draws.json` carries `category: green, chance: 0.4,
+  condition: greenhouse_or_king`, and `draft.py::_active_conditions` emits
+  `greenhouse_or_king` from `state.greenhouse_placed`). Only **Southern Cross** is
+  genuinely missing, and it is the one that matters most here — see task 14.
 
 - **2026-07-27, task 4 PR2 and PR3 merged into one PR**: the split existed to keep
   the action space frozen until the env PR, protecting live checkpoints. That
@@ -759,3 +766,78 @@ flag, set when the player breaks the wall with a Power Hammer; consulted at
 placement/legality time to substitute the `corner` layout for `dead_end`; plus
 the matching correction to Dead End counting so the Tomb effect and the
 termination path both stop seeing it as a Dead End.
+
+## 13. Bound the Observatory's in-memory replay index — DONE
+
+`web/server.py`'s `Observatory._records` was a `dict[episode -> full replay
+record]`, ingested from `replays.jsonl` and never bounded. Measured against a
+real run (`runs/foundation-v2/replays.jsonl`, 7,940 episodes, 4.68 MB on disk):
+**3,089 bytes per episode — 5.24x the on-disk size**, i.e. ~31 GB at 10M
+episodes. RAM, not disk, was the blocker on raising `--record-sample-rate`
+toward 1.0.
+
+Replaced with a two-part index, per owner decision (interview, 2026-08-05):
+
+- **Offset index.** A `_RunMeta` NamedTuple holds the record's `(offset,
+  length)` in `replays.jsonl` plus only the metadata `runs_index()` returns;
+  `run_frames()` seeks and parses the single line on demand. The bulk — the
+  `actions` list and `modes` string — is no longer resident. `reason` and
+  `saved_at` are `sys.intern`ed, which is a large part of the win because
+  timestamps and reasons repeat heavily across episodes.
+- **Hard cap.** Ordinary records live in an `OrderedDict` capped at
+  `--max-runs` (default 20000), evicted oldest-ingested-first; best-of-window
+  (`why: "top_window"`) records are held in a separate dict and never evicted.
+
+**Residual, stated rather than glossed:** the top-record dict is NOT capped. It
+grows at one record per `--record-top-every` episodes (trainer default 1000),
+so ~10k entries / a few MB at 10M episodes. `--record-top-every 1` would defeat
+the cap.
+
+**Known and deliberately not fixed here:** `/api/runs` returns one row per
+retained episode with no pagination, and `refreshRuns()` in `app.js` builds the
+whole list into `innerHTML`. The cap bounds that payload as a side effect, but
+if `--max-runs` is raised far above the default the browser becomes the next
+limit, not the server.
+
+## 14. Category biases that nothing ever activates
+
+Found while auditing the Cloister boosts (2026-08-05). `data/priority_draws.json`
+declares **22 `category_biases` entries; only 8 can ever fire.**
+`draft.py::_active_conditions` emits exactly three condition families —
+`furnace_or_king` (from `state.furnace_placed`), `greenhouse_or_king` (from
+`state.greenhouse_placed`), and `scepter_<color>` (from
+`state.shops.scepter_color`). Verified by grep over all of `src/`: no other code
+path produces any of the remaining tags.
+
+The **14 inert entries**, spanning **9 distinct condition names**:
+
+| Condition | Entries | Biases toward |
+|---|---|---|
+| `king` | 5 | blueprint, hallway, bedroom, shop, blackprint categories |
+| `southern_cross_constellation` | 1 | `layout: cross`, 40% |
+| `draxus_constellation` | 1 | `layout: dead_end`, 30% |
+| `drafting_from_library` | 2 | the Bookshop (50%) and `rarity: rare` (100%) |
+| `schoolhouse` | 1 | the Classroom, 35% |
+| `electromagnet` | 1 | mechanical/rotunda, 40% |
+| `chronograph` | 1 | tomorrow rooms, 40% |
+| `adjacent_duct` | 1 | `flag: powered`, 40% |
+| `adjacent_powered` | 1 | `flag: duct`, 40% |
+
+**Owner decision (interview, 2026-08-05): fold the whole set into the Southern
+Cross work** — build the activation plumbing once and light up every condition
+that has a modelled source, leaving the rest documented as still-unsourced.
+
+**Why Southern Cross is the one that matters for the upgrade study.** The two
+Cloister boosts that already work bias by **category** (`green`); Southern Cross
+biases by **layout** (`cross`). Every Cloister variant is `layout: cross`, but
+`cloister_of_orinda__ix35` is `category: blackprint` and
+`cloister_of_draxus__ix36` is `category: red` — so the two working boosts stop
+applying to exactly the two variants the Orinda measurement cares about.
+Southern Cross is the only one that does not.
+
+**Research needed before any code**: what activates a constellation in the real
+game (Observatory / Telescope?), whether it is per-day or permanent, and whether
+`king` is the Banner of the King (`scepter_*` already cites the Royal Scepter as
+having "the same effect as Banner of the King", which suggests the `king` tag and
+the scepter tags may be the same mechanism entered from two directions). Do not
+infer any of this from the existing table.

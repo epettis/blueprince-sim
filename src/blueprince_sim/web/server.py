@@ -26,6 +26,7 @@ import time
 from collections import OrderedDict, deque
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from typing import NamedTuple
 from urllib.parse import parse_qs, urlparse
 
 from . import replay
@@ -34,6 +35,9 @@ from ..engine import areas as _areas_mod
 STATIC_DIR = Path(__file__).resolve().parent / "static"
 MAX_CHART_POINTS = 2000
 FRAMES_CACHE_SIZE = 8
+# Caps the number of ordinary (non-top) replay records held in memory by an
+# Observatory; best-of-window ("top") records are exempt from this cap.
+DEFAULT_MAX_RUNS = 20000
 
 
 # Upgrade-economy bucket width in IN-GAME DAYS.  Attempts are 200 days, so this
@@ -65,10 +69,40 @@ def _downsample(rows: list, limit: int = MAX_CHART_POINTS) -> list:
     return picked
 
 
-class Observatory:
-    """All run-dir state behind the HTTP API."""
+class _RunMeta(NamedTuple):
+    """Lightweight per-episode replay index entry (no actions/modes payload).
 
-    def __init__(self, ckpt_dir: Path, reward: str) -> None:
+    Enough to answer the run-list API and to seek+parse the one JSONL line
+    needed for a frame rebuild, without holding every episode's full record
+    (actions list + modes string) in memory.
+    """
+
+    offset: int          # byte offset of this record's line start within replays.jsonl
+    length: int           # length of that line in bytes, EXCLUDING the trailing newline
+    win: bool             # from rec["win"]
+    deepest_rank: int     # deepest grid rank (1-9) the episode reached
+    rooms_placed: int     # count of rooms drafted+placed during the episode
+    moves: int            # len(rec["actions"]) at ingest time; the list itself is dropped
+    top: bool             # sticky best-of-window flag (see _refresh_replays docstring)
+    reason: str | None    # termination reason string, interned when not None
+    saved_at: str | None  # ISO timestamp string the recorder wrote, interned when not None
+
+
+class Observatory:
+    """All run-dir state behind the HTTP API.
+
+    Replay records are held as a byte-offset index (``_RunMeta``) rather than
+    the full parsed JSON, and ``_recent`` is capped at ``max_runs`` entries
+    (oldest ingested evicted first) so memory stays bounded even for very
+    long runs. ``_top`` (best-of-window records) is deliberately NOT capped:
+    it grows at roughly one entry per ``--record-top-every`` episodes (the
+    trainer default is 1000), so ~10k entries - a few MB - at 10M episodes.
+    Setting ``--record-top-every 1`` would defeat the cap on ``_top``; that
+    tradeoff is intentional but worth stating plainly rather than implying
+    memory is bounded unconditionally.
+    """
+
+    def __init__(self, ckpt_dir: Path, reward: str, max_runs: int = DEFAULT_MAX_RUNS) -> None:
         self.ckpt_dir = ckpt_dir
         self.reward = reward
         self.replays_path = ckpt_dir / "replays.jsonl"
@@ -80,7 +114,9 @@ class Observatory:
         self.latest_json = ckpt_dir / "latest.json"
         self.latest_zip = ckpt_dir / "latest.zip"
         self._lock = threading.Lock()
-        self._records: dict[int, dict] = {}   # episode -> full replay record
+        self.max_runs = max_runs
+        self._top: dict[int, _RunMeta] = {}  # best-of-window records; never evicted
+        self._recent: OrderedDict[int, _RunMeta] = OrderedDict()  # ordinary; capped at max_runs
         self._replay_offset = 0
         self._frames_cache: OrderedDict[int, list] = OrderedDict()
         self._registry = None
@@ -90,14 +126,38 @@ class Observatory:
     def _refresh_replays(self) -> None:
         """Incrementally ingest new complete lines appended to replays.jsonl.
 
-        Caller must hold ``self._lock``. A later line for the same episode
-        replaces the earlier one, but the ``top`` flag is sticky once set.
+        Caller must hold ``self._lock``. Each ingested line is stored as a
+        ``_RunMeta`` offset index (byte offset + length + summary fields)
+        rather than the full parsed record, so ``run_frames`` seeks back into
+        the file to re-read the JSON line it needs.
+
+        A later line for the same episode replaces the earlier one (its
+        offset/length win), but the ``top`` flag is sticky once set - an
+        episode that was ever ``top_window`` stays top even if a later
+        ``random`` line arrives for it. Top records go into ``self._top``
+        (never evicted); ordinary records go into ``self._recent``, an
+        ``OrderedDict`` capped at ``self.max_runs`` entries, evicting the
+        entries ingested longest ago. Because several parallel envs can
+        finish concurrently, ingestion order (file order) is not always the
+        same as episode-number order - eviction follows ingestion order, the
+        more honest notion of "most recent" here.
+
+        If the file shrinks (truncated or replaced, e.g. a new run reusing
+        the checkpoint dir), all stored offsets are meaningless against the
+        new content, so the whole index is reset and re-ingested from
+        scratch.
         """
         try:
             size = self.replays_path.stat().st_size
         except FileNotFoundError:
             return
-        if size <= self._replay_offset:
+        if size < self._replay_offset:
+            # file truncated or replaced: stored offsets are meaningless, start over
+            self._replay_offset = 0
+            self._top.clear()
+            self._recent.clear()
+            self._frames_cache.clear()
+        elif size == self._replay_offset:
             return
         with self.replays_path.open("rb") as f:
             f.seek(self._replay_offset)
@@ -106,8 +166,14 @@ class Observatory:
         end = chunk.rfind(b"\n")
         if end < 0:
             return
+        base = self._replay_offset
         self._replay_offset += end + 1
-        for line in chunk[:end].splitlines():
+        pos = 0
+        for line in chunk[:end + 1].split(b"\n"):
+            line_offset = base + pos
+            pos += len(line) + 1
+            if not line:
+                continue
             try:
                 rec = json.loads(line)
             except json.JSONDecodeError:
@@ -115,10 +181,27 @@ class Observatory:
             ep = rec.get("episode")
             if ep is None:
                 continue
-            prev = self._records.get(ep)
-            top = rec.get("why") == "top_window" or (prev or {}).get("top", False)
-            rec["top"] = top
-            self._records[ep] = rec
+            prev = self._top.get(ep) or self._recent.get(ep)
+            was_top = prev.top if prev is not None else False
+            top = rec.get("why") == "top_window" or was_top
+            reason = rec.get("reason")
+            saved_at = rec.get("saved_at")
+            meta = _RunMeta(
+                offset=line_offset, length=len(line),
+                win=rec.get("win", False), deepest_rank=rec.get("deepest_rank", 0),
+                rooms_placed=rec.get("rooms_placed", 0), moves=len(rec.get("actions", [])),
+                top=top,
+                reason=sys.intern(reason) if reason is not None else None,
+                saved_at=sys.intern(saved_at) if saved_at is not None else None,
+            )
+            if top:
+                self._top[ep] = meta
+                self._recent.pop(ep, None)
+            else:
+                self._recent[ep] = meta
+                self._recent.move_to_end(ep)
+        while len(self._recent) > self.max_runs:
+            self._recent.popitem(last=False)
 
     def runs_index(self, sort: str) -> list[dict]:
         """Lightweight metadata for every recorded episode, for the run list.
@@ -129,13 +212,11 @@ class Observatory:
         with self._lock:
             self._refresh_replays()
             metas = [
-                {"episode": r["episode"], "win": r.get("win", False),
-                 "deepest_rank": r.get("deepest_rank", 0),
-                 "rooms_placed": r.get("rooms_placed", 0),
-                 "reason": r.get("reason"), "top": r.get("top", False),
-                 "moves": len(r.get("actions", [])),
-                 "saved_at": r.get("saved_at")}
-                for r in self._records.values()
+                {"episode": ep, "win": m.win, "deepest_rank": m.deepest_rank,
+                 "rooms_placed": m.rooms_placed, "reason": m.reason, "top": m.top,
+                 "moves": m.moves, "saved_at": m.saved_at}
+                for store in (self._top, self._recent)
+                for ep, m in store.items()
             ]
         if sort == "progress":
             metas.sort(key=lambda m: (m["win"], m["deepest_rank"], m["episode"]),
@@ -149,17 +230,31 @@ class Observatory:
 
         Frames are rebuilt by re-simulating the recorded actions, which is
         slow, so results live in a small LRU cache; the rebuild itself runs
-        outside the lock.
+        outside the lock. The single JSONL line is re-read via the stored
+        byte offset/length; a stale offset (rotated file, corrupt read) is
+        treated as "unknown episode" rather than raising a 500.
         """
         with self._lock:
             self._refresh_replays()
-            rec = self._records.get(episode)
-            if rec is None:
+            meta = self._top.get(episode)
+            if meta is None:
+                meta = self._recent.get(episode)
+            if meta is None:
                 return None
             cached = self._frames_cache.get(episode)
             if cached is not None:
                 self._frames_cache.move_to_end(episode)
                 return cached
+        try:
+            with self.replays_path.open("rb") as f:
+                f.seek(meta.offset)
+                raw = f.read(meta.length)
+            rec = json.loads(raw)
+        except (OSError, json.JSONDecodeError):
+            return None
+        if rec.get("episode") != episode:
+            return None
+        rec["top"] = meta.top
         frames, divergence = replay.build_frames(rec)
         result = {
             "episode": episode, "seed": rec["seed"], "win": rec.get("win", False),
@@ -220,7 +315,7 @@ class Observatory:
         evals = _read_jsonl(self.eval_path)
         with self._lock:
             self._refresh_replays()
-            n_replays = len(self._records)
+            n_replays = len(self._top) + len(self._recent)
         return {
             "run": self.ckpt_dir.name, "latest": latest,
             "checkpoint_mtime": ckpt_mtime, "now": time.time(),
@@ -609,9 +704,13 @@ def main(argv: list[str] | None = None) -> int:
                         help="seconds between latest.json samples")
     parser.add_argument("--eval-poll", type=float, default=30.0,
                         help="seconds between latest.zip mtime checks")
+    parser.add_argument("--max-runs", type=int, default=DEFAULT_MAX_RUNS,
+                        help="maximum ordinary replay records kept in memory "
+                             "(oldest ingested evicted first); best-of-window "
+                             "records are always kept")
     args = parser.parse_args(argv)
 
-    obs = Observatory(Path(args.checkpoint_dir), args.reward)
+    obs = Observatory(Path(args.checkpoint_dir), args.reward, max_runs=args.max_runs)
     stop = threading.Event()
     threading.Thread(target=metrics_sampler, args=(obs, args.metrics_poll, stop),
                      daemon=True, name="metrics-sampler").start()
