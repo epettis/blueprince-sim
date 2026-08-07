@@ -3,8 +3,11 @@
 Covers the four conditions the wave-1 category-bias task lit up or deliberately
 left inert-but-shaped: the Southern Cross constellation stub (day-scoped flag,
 no in-game setter), the five king_<color> tags (never emitted -- no Banner of
-the King subsystem is modeled), and drafting_from_library (Bookshop half live,
-rare-rarity half deliberately inert under a renamed, never-emitted condition).
+the King subsystem is modeled), and drafting_from_library's Bookshop re-deal
+bias. The Library's rarity-table override (previously a shaped-but-inert
+"Rare Rooms (Library)" category_biases entry under a renamed, never-emitted
+condition) is implemented directly in decks.py::roll_rarity instead -- see
+test_draft_stats.py for its statistical coverage.
 """
 
 from __future__ import annotations
@@ -214,27 +217,11 @@ def test_drafting_from_library_bookshop_bias_applies(registry):
     )
 
 
-def test_drafting_from_library_rare_override_entry_stays_inert(registry):
-    """The rarity-override entry (originally sharing the drafting_from_library
-    condition) was renamed to a never-emitted condition so wiring up the
-    Bookshop bias cannot accidentally also fire it -- its condition string
-    must not appear in what _active_conditions can ever return for any state
-    this module exercises."""
-    entries = [e for e in registry.priority["category_biases"]
-              if e.get("label") == "Rare Rooms (Library)"]
-    assert len(entries) == 1
-    inert_condition = entries[0]["condition"]
-    assert inert_condition != "drafting_from_library"
-
-    cfg = GameConfig()
-    state = GameState()
-    state.furnace_placed = True
-    state.greenhouse_placed = True
-    state.schoolhouse_placed = True
-    state.southern_cross_active = True
-    state.draxus_active = True
-    state.shops.scepter_color = "blueprint"
-    library = registry.by_id["library"]
-    ctx = _bare_ctx(registry, cfg, state, from_room=library)
-
-    assert inert_condition not in _active_conditions(ctx)
+def test_drafting_from_library_rare_override_no_longer_a_category_bias(registry):
+    """The former "Rare Rooms (Library)" category_biases entry was deleted once
+    its mechanism (a full rarity-table override, not a re-deal bias) was
+    implemented directly in decks.py::roll_rarity -- it must not reappear here
+    under any label, so a future edit can't accidentally revive the wrong
+    mechanism alongside the correct one."""
+    labels = {e.get("label") for e in registry.priority["category_biases"]}
+    assert "Rare Rooms (Library)" not in labels

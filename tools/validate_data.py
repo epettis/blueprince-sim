@@ -126,6 +126,16 @@ def main() -> int:
     for rank, row in weights["solarium_slot23"].items():
         if abs(sum(row) - 100.0) > 0.02:
             errors.append(f"solarium row {rank} sums to {sum(row)}")
+    # The Library override is one flat rank-independent row, unlike the tables
+    # above; same shape rules apply. Its VALUES are pinned behaviourally in
+    # tests/test_library_rarity_override.py -- this is the schema/range half.
+    lib_row = weights["library_override"]["weights"]
+    if len(lib_row) != 4:
+        errors.append(f"library_override: not 4 values ({len(lib_row)})")
+    elif abs(sum(lib_row) - 100.0) > 0.02:
+        errors.append(f"library_override sums to {sum(lib_row)}")
+    if any(w < 0 for w in lib_row):
+        errors.append(f"library_override has a negative weight: {lib_row}")
 
     # priority draws reference real rooms
     for entry in priority["priority_draws"]:

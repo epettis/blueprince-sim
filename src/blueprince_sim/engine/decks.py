@@ -112,10 +112,20 @@ def rarity_deck_ok(state: GameState, registry: Registry, cfg: GameConfig,
 
 
 def roll_rarity(state: GameState, registry: Registry, cfg: GameConfig, rng: Rng,
-                slot: int, rank: int) -> int | None:
-    """Pick a rarity index for one option slot, or None if no rarity is legal."""
+                slot: int, rank: int, from_library: bool = False) -> int | None:
+    """Pick a rarity index for one option slot, or None if no rarity is legal.
+
+    ``from_library`` selects the Library's fixed rarity table instead of the
+    normal stage/slot/rank row -- a datamined full override, not a re-deal bias
+    (see priority_draws.json's former "Rare Rooms (Library)" entry). The table
+    itself lives in weights.json alongside every other rarity table; the
+    substitution happens inside ``weight_row`` and therefore lands BEFORE the
+    deck-size-gate zeroing below, so a rarity whose deck is exhausted or
+    unaffordable is still zeroed exactly as it would be for any other draft.
+    """
     slot_class = "slot1" if slot == 0 else "slot23"
-    row = registry.weight_row(state.stage, state.solarium_placed, slot_class, rank)
+    row = registry.weight_row(state.stage, state.solarium_placed, slot_class, rank,
+                              library=from_library)
     weights = [
         w if rarity_deck_ok(state, registry, cfg, i, free_only=(slot == 0)) else 0.0
         for i, w in enumerate(row)

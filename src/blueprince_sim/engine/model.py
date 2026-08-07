@@ -184,12 +184,28 @@ class Registry:
             data_dir=d,
         )
 
-    def weight_row(self, stage: str, solarium: bool, slot_class: str, rank: int) -> tuple[float, ...]:
+    def weight_row(self, stage: str, solarium: bool, slot_class: str, rank: int,
+                   library: bool = False) -> tuple[float, ...]:
         """Rarity weights (C, S, U, R) for one option slot.
 
         slot_class is "slot1" or "slot23". The Solarium override applies to
         slot23 only, regardless of stage.
+
+        Two overrides can replace the base stage/slot/rank row, and they are
+        checked in this order:
+
+        - ``library`` -- drafting through the Library's doorway. A full
+          replacement (datamined), rank-independent, applying to every slot.
+        - ``solarium`` -- slot23 only.
+
+        **Library wins when both apply, and that precedence is inferred rather
+        than sourced.** Nothing states what the Library does in a house that
+        also holds a Solarium; "replaces the rarity table" is read here as
+        beating the Solarium's narrower slot23-only override. Revisit if a
+        source ever settles it.
         """
+        if library:
+            return tuple(self.weights["library_override"]["weights"])
         if solarium and slot_class == "slot23":
             return tuple(self.weights["solarium_slot23"][str(rank)])
         return tuple(self.weights["tables"][stage][slot_class][str(rank)])

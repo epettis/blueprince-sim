@@ -264,7 +264,7 @@ def draw_slot(ctx: DraftContext, slot: int, cell: int, entry_dir: int,
 
     # Attempts 1 & 2 (identical here once the priority filter has run above).
     for _attempt in (1, 2):
-        rarity = roll_rarity(state, registry, cfg, rng, slot, rank)
+        rarity = roll_rarity(state, registry, cfg, rng, slot, rank, ctx.from_library)
         if rarity is not None:
             room = _deal_from_rarity(ctx, rarity, slot, cell, entry_dir, exclude)
             if room is not None:
@@ -274,7 +274,7 @@ def draw_slot(ctx: DraftContext, slot: int, cell: int, entry_dir: int,
     # Attempt 3: reshuffle every deck and retry once.
     for i, deck in enumerate(state.decks):
         deck.reshuffle(lambda lst, i=i: rng.shuffle(f"reshuffle_{i}", lst))
-    rarity = roll_rarity(state, registry, cfg, rng, slot, rank)
+    rarity = roll_rarity(state, registry, cfg, rng, slot, rank, ctx.from_library)
     if rarity is not None:
         room = _deal_from_rarity(ctx, rarity, slot, cell, entry_dir, exclude)
         if room is not None:
