@@ -12,6 +12,7 @@
   <nav>
     <button id="tab-dashboard" class="tab active">Dashboard</button>
     <button id="tab-runs" class="tab">Runs</button>
+    <button id="tab-play" class="tab">Play</button>
   </nav>
   <div id="conn" class="dim"></div>
 </header>
@@ -137,6 +138,62 @@
     <input id="pb-slider" type="range" min="0" max="0" value="0">
     <span id="pb-pos" class="dim"></span>
   </footer>
+</main>
+
+<main id="view-play" class="hidden">
+  <aside id="play-panel">
+    <div id="play-new" class="play-section">
+      <div class="panel-head" style="margin-top:0">New session</div>
+      <label class="play-field">seed <input id="play-seed" type="text" placeholder="random"></label>
+      <label class="play-field">days <input id="play-ndays" type="number" min="1" value="1"></label>
+      <label class="play-field">preset
+        <select id="play-unlocks">
+          <option value="all">all unlocks</option>
+          <option value="fresh">fresh save</option>
+        </select>
+      </label>
+      <label class="play-field">reward
+        <select id="play-reward">
+          <option value="shaped">shaped</option>
+          <option value="sparse">sparse</option>
+          <option value="phased">phased</option>
+        </select>
+      </label>
+      <button id="play-start-btn">Start session</button>
+    </div>
+    <div id="play-status" class="play-section hidden">
+      <div id="play-progress" class="dim"></div>
+      <label class="play-debug-toggle">
+        <input id="play-debug" type="checkbox"> debug overlays
+      </label>
+      <div class="play-btn-row">
+        <button id="play-undo-btn">Undo</button>
+        <button id="play-save-btn">Save session</button>
+      </div>
+      <div id="play-save-status" class="dim"></div>
+    </div>
+    <div class="panel-head">Legal actions</div>
+    <div id="play-actions"></div>
+  </aside>
+
+  <section id="play-house-panel">
+    <div id="play-debug-marker" class="hidden">● DEBUG OVERLAYS ON</div>
+    <div id="play-house"></div>
+  </section>
+
+  <section id="play-area-panel">
+    <div class="panel-head" style="margin:0 0 6px">Outside areas</div>
+    <div id="play-area-graph"></div>
+    <div id="play-area-legend" class="area-legend"></div>
+  </section>
+
+  <aside id="play-detail-panel">
+    <div class="panel-head" style="margin-top:0">Resources</div>
+    <div id="play-resources" class="resources"></div>
+    <div class="panel-head">Action log (today)</div>
+    <div id="play-action-log"></div>
+    <div id="play-debug-panel" class="hidden"></div>
+  </aside>
 </main>
 
 <script src="/static/app.js"></script>

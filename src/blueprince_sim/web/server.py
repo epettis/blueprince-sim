@@ -1,7 +1,8 @@
 """blueprince-dash: local web server for training observability.
 
-Pure stdlib. Serves a two-tab SPA (learning-progress dashboard + run
-inspector) plus a JSON API over the artifacts a training run writes to its
+Pure stdlib. Serves a three-tab SPA (learning-progress dashboard, run
+inspector, and a "Play" tab for recording human demonstrations -- see
+``play.py``) plus a JSON API over the artifacts a training run writes to its
 checkpoint dir (``latest.json``, ``replays.jsonl``), and runs two background
 workers:
 
@@ -29,6 +30,7 @@ from pathlib import Path
 from typing import NamedTuple
 from urllib.parse import parse_qs, urlparse
 
+from . import play as _play
 from . import replay
 from ..engine import areas as _areas_mod
 
@@ -609,6 +611,8 @@ def eval_worker(obs: Observatory, episodes: int, poll_s: float,
 
 class Handler(BaseHTTPRequestHandler):
     obs: Observatory  # set on the server class
+    play_session: _play.PlaySession | None = None  # set/replaced by POST /api/play/new
+    demos_path: Path  # set on the server class from --demos
 
     def do_GET(self) -> None:  # noqa: N802 (BaseHTTPRequestHandler API)
         """Route the SPA, the flat /static files, and the read-only JSON API."""
@@ -638,6 +642,11 @@ class Handler(BaseHTTPRequestHandler):
                     self._send_json(self.obs.area_stats())
                 case "/api/upgrade_stats":
                     self._send_json(self.obs.upgrade_stats())
+                case "/api/play/state":
+                    if self.play_session is None:
+                        self._send_json_error(404, "no active play session")
+                    else:
+                        self._send_json(self.play_session.state())
                 case "/api/runs":
                     sort = parse_qs(parsed.query).get("sort", ["episode"])[0]
                     self._send_json(self.obs.runs_index(sort))
@@ -657,10 +666,128 @@ class Handler(BaseHTTPRequestHandler):
         except BrokenPipeError:
             pass
 
+    def do_POST(self) -> None:  # noqa: N802 (BaseHTTPRequestHandler API)
+        """Route the Play-session write endpoints; everything else is GET-only.
+
+        The request body is read by Content-Length and parsed as JSON; a
+        missing/malformed body is a 400, never an uncaught exception.
+        """
+        parsed = urlparse(self.path)
+        path = parsed.path
+        try:
+            body = self._read_json_body()
+        except ValueError as e:
+            self._send_json_error(400, f"malformed request body: {e}")
+            return
+        try:
+            match path:
+                case "/api/play/new":
+                    self._play_new(body)
+                case "/api/play/act":
+                    self._play_act(body)
+                case "/api/play/undo":
+                    self._play_undo()
+                case "/api/play/save":
+                    self._play_save()
+                case _:
+                    self.send_error(404)
+        except BrokenPipeError:
+            pass
+
+    def _read_json_body(self) -> dict:
+        """Parse the POST body as a JSON object; ``{}`` when there is none.
+
+        Raises ``ValueError`` on anything that is not valid JSON or is valid
+        JSON but not an object, so callers can turn it into a 400 uniformly.
+        """
+        length = int(self.headers.get("Content-Length") or 0)
+        raw = self.rfile.read(length) if length else b""
+        if not raw:
+            return {}
+        data = json.loads(raw)  # raises json.JSONDecodeError (a ValueError) on bad input
+        if not isinstance(data, dict):
+            raise ValueError("body must be a JSON object")
+        return data
+
+    def _play_new(self, body: dict) -> None:
+        """POST /api/play/new: start a fresh session, replacing any existing one."""
+        seed = body.get("seed")
+        if seed is not None:
+            try:
+                seed = int(seed)
+            except (TypeError, ValueError):
+                self._send_json_error(400, "seed must be an integer")
+                return
+        try:
+            n_days = int(body.get("n_days", 1))
+        except (TypeError, ValueError):
+            self._send_json_error(400, "n_days must be an integer")
+            return
+        if n_days < 1:
+            self._send_json_error(400, "n_days must be >= 1")
+            return
+        reward = body.get("reward", "shaped")
+        if reward not in ("shaped", "sparse", "phased"):
+            self._send_json_error(400, "reward must be one of shaped/sparse/phased")
+            return
+        unlocks = body.get("unlocks", "all")
+        if unlocks not in ("all", "fresh"):
+            self._send_json_error(400, "unlocks must be one of all/fresh")
+            return
+        Handler.play_session = _play.PlaySession(seed, n_days, reward, unlocks)
+        self._send_json(Handler.play_session.state())
+
+    def _play_act(self, body: dict) -> None:
+        """POST /api/play/act: apply one action, 400 if the mask rejects it."""
+        if self.play_session is None:
+            self._send_json_error(400, "no active play session; POST /api/play/new first")
+            return
+        try:
+            action = int(body.get("action"))
+        except (TypeError, ValueError):
+            self._send_json_error(400, "action must be an integer")
+            return
+        try:
+            state = self.play_session.act(action)
+        except _play.IllegalActionError as e:
+            self._send_json_error(400, str(e))
+            return
+        self._send_json(state)
+
+    def _play_undo(self) -> None:
+        """POST /api/play/undo: step the current day back one action."""
+        if self.play_session is None:
+            self._send_json_error(400, "no active play session")
+            return
+        self._send_json(self.play_session.undo())
+
+    def _play_save(self) -> None:
+        """POST /api/play/save: append completed days to the demos file."""
+        if self.play_session is None:
+            self._send_json_error(400, "no active play session")
+            return
+        n = self.play_session.save(Handler.demos_path)
+        self._send_json({"written": n, "path": str(Handler.demos_path)})
+
     def _send_json(self, data) -> None:
         """Write ``data`` as a 200 JSON response, marked no-store so polls stay fresh."""
         body = json.dumps(data).encode()
         self.send_response(200)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(body)))
+        self.send_header("Cache-Control", "no-store")
+        self.end_headers()
+        self.wfile.write(body)
+
+    def _send_json_error(self, code: int, message: str) -> None:
+        """Write a JSON ``{"error": message}`` body with the given status code.
+
+        Used instead of ``BaseHTTPRequestHandler.send_error`` (which renders
+        an HTML page) for the Play-session API, so client-side ``fetch`` calls
+        can always parse the response body regardless of status.
+        """
+        body = json.dumps({"error": message}).encode()
+        self.send_response(code)
         self.send_header("Content-Type", "application/json")
         self.send_header("Content-Length", str(len(body)))
         self.send_header("Cache-Control", "no-store")
@@ -708,6 +835,9 @@ def main(argv: list[str] | None = None) -> int:
                         help="maximum ordinary replay records kept in memory "
                              "(oldest ingested evicted first); best-of-window "
                              "records are always kept")
+    parser.add_argument("--demos", default="demos.jsonl",
+                        help="filename (relative to checkpoint dir) that the Play "
+                             "tab's 'save session' button appends to")
     args = parser.parse_args(argv)
 
     obs = Observatory(Path(args.checkpoint_dir), args.reward, max_runs=args.max_runs)
@@ -720,6 +850,8 @@ def main(argv: list[str] | None = None) -> int:
                          daemon=True, name="eval-worker").start()
 
     Handler.obs = obs
+    Handler.play_session = None
+    Handler.demos_path = Path(args.checkpoint_dir) / args.demos
     server = ThreadingHTTPServer((args.host, args.port), Handler)
     print(f"[dash] serving {obs.ckpt_dir} on http://{args.host}:{args.port} "
           f"(LAN: http://<this-mac's-ip>:{args.port})", flush=True)
