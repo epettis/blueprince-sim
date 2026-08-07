@@ -207,9 +207,15 @@ class EpisodeRecorder:
     """
 
     def __init__(self, path: Path, n_envs: int, reward: str, sample_rate: float,
-                 top_every: int, episodes_done: int, seed: int = 0) -> None:
+                 top_every: int, episodes_done: int, seed: int = 0,
+                 unlocks: str = "all") -> None:
         self.path = path
         self.reward = reward
+        # Which config preset the DayChain was built from. day_config is a DIFF
+        # against that base, so replay.build_frames cannot reconstruct it without
+        # knowing which one -- a fresh-save record replayed onto the all-unlocks
+        # base drifts silently.
+        self.unlocks = unlocks
         self.sample_rate = sample_rate
         self.top_every = top_every
         self.buffers: list[list[tuple[int, bool]]] = [[] for _ in range(n_envs)]
@@ -252,6 +258,8 @@ class EpisodeRecorder:
             # say "recorded against a different action space" instead of calling
             # a renumbering an unexplained bug.
             "n_actions": _n_actions(),
+            # See self.unlocks: names the base that day_config diffs against.
+            "unlocks": self.unlocks,
         }
         # Only include day_config when present (multi-day mode); omit the key
         # entirely for single-day records so their format stays byte-identical.
@@ -831,7 +839,7 @@ def main(argv: list[str] | None = None) -> int:
         recorder = EpisodeRecorder(
             ckpt_dir / "replays.jsonl", args.n_envs, args.reward,
             args.record_sample_rate, args.record_top_every, episodes_done,
-            seed=args.seed)
+            seed=args.seed, unlocks=args.unlocks)
         emit(f"[train] recording episodes to {recorder.path} "
              f"(sample rate {args.record_sample_rate:.2%}, "
              f"top-of-{args.record_top_every} windows)")

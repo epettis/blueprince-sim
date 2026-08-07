@@ -175,15 +175,22 @@ def build_frames(record: dict) -> tuple[list[dict], dict | None]:
     from ..env.blueprince_env import BluePrinceEnv
 
     _STALE_DAY_CONFIG_KEYS.clear()  # per-record, not cumulative
-    from ..rl.train import all_unlocks_config
+    from ..rl.train import all_unlocks_config, fresh_save_config
 
     # ``day_config`` is a diff against the DayChain's base config, so it only
-    # reconstructs correctly when replayed onto that same base.  The trainer
-    # builds its chain from ``all_unlocks_config(reward)``
-    # (rl/train.py::make_single_env), which is what we rebuild here.  If the
-    # trainer ever grows a config override, the diff's base must be recorded
-    # alongside it or replays will silently drift again.
-    base_cfg = all_unlocks_config(record.get("reward", "shaped"))
+    # reconstructs correctly when replayed onto that same base.  Both producers
+    # stamp which preset they used in ``"unlocks"``: the trainer's
+    # ``--unlocks {all,none}`` (rl/train.py::make_single_env) and the play UI's
+    # preset selector (web/play.py).  Records without the field predate it and
+    # default to all-unlocks, which is what the trainer's default produced.
+    #
+    # This was a real silent-drift bug, not a hypothetical: before the field
+    # existed, a fresh-save record replayed onto the all-unlocks base and
+    # diverged at the first action whose legality differed.
+    reward = record.get("reward", "shaped")
+    unlocks = record.get("unlocks", "all")
+    base_cfg = fresh_save_config(reward) if unlocks in ("none", "fresh") \
+        else all_unlocks_config(reward)
     day_config = record.get("day_config")
     cfg = _apply_day_config(base_cfg, day_config) if day_config is not None else base_cfg
 

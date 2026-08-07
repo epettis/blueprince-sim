@@ -67,17 +67,22 @@ function setTab(tab) {
   state.tab = tab;
   $("#tab-dashboard").classList.toggle("active", tab === "dashboard");
   $("#tab-runs").classList.toggle("active", tab === "runs");
+  $("#tab-play").classList.toggle("active", tab === "play");
   $("#view-dashboard").classList.toggle("hidden", tab !== "dashboard");
   $("#view-runs").classList.toggle("hidden", tab !== "runs");
+  $("#view-play").classList.toggle("hidden", tab !== "play");
   if (tab === "runs") {
     refreshRuns();
     ensureAreaGraph().then(() => renderAreaPanel());
+  } else if (tab === "play") {
+    ensureAreaGraph().then(() => { if (state.playState) renderPlayArea(); });
   } else {
     refreshDashboard();
   }
 }
 $("#tab-dashboard").onclick = () => setTab("dashboard");
 $("#tab-runs").onclick = () => setTab("runs");
+$("#tab-play").onclick = () => setTab("play");
 
 /* ----------------------------------------------------------- dashboard */
 
@@ -477,7 +482,7 @@ function doorStubs(x, y, mask, fill) {
 
 const FACING_ANGLE = { N: 0, E: 90, S: 180, W: 270 };
 
-function renderHouse(frame) {
+function renderHouse(frame, targetId = "house", svgKey = "house-svg") {
   const rooms = state.rooms;
   let svg = "";
   for (let cell = 0; cell < 45; cell++) {
@@ -518,7 +523,7 @@ function renderHouse(frame) {
     <polygon points="0,-26 -8,-13 8,-13" class="player-arrow" transform="rotate(${ang})"/>
   </g>`;
 
-  const houseEl = $("#house");
+  const houseEl = $("#" + targetId);
   houseEl.innerHTML =
     `<svg viewBox="0 0 ${2 * MARG + 5 * CELL} ${2 * MARG + 9 * CELL}"
           preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg">
@@ -540,7 +545,7 @@ function renderHouse(frame) {
       </style>${svg}</svg>`;
   // Attach pan/zoom to the freshly rendered house SVG.
   const houseSvgEl = houseEl.querySelector("svg");
-  if (houseSvgEl) attachPanZoom(houseSvgEl, "house-svg");
+  if (houseSvgEl) attachPanZoom(houseSvgEl, svgKey);
 }
 
 /* -------------------------------------------------------- detail panel */
@@ -1232,7 +1237,7 @@ function renderAreaSvg(graphData, visitTotals, visitedSet, currentAreaId, mode, 
   </svg>`;
 }
 
-function renderAreaLegend(mode, hasData) {
+function renderAreaLegend(mode, hasData, legendElId = "area-legend") {
   const parts = [
     // Modelled vs unmodelled is always visible.
     `<span><span style="display:inline-block;width:10px;height:10px;border-radius:50%;
@@ -1256,7 +1261,7 @@ function renderAreaLegend(mode, hasData) {
       `<span>opacity = relative visit rate (all seeds, all areas on one scale)</span>`,
     );
   }
-  $("#area-legend").innerHTML = parts.join("");
+  $("#" + legendElId).innerHTML = parts.join("");
 }
 
 // Sum visit counts across all buckets for each area.
@@ -1500,6 +1505,245 @@ function renderUpgradeStats() {
   }
 
   el.innerHTML = html;
+}
+
+/* ===================================================================== play */
+/* The "Play" tab drives a server-side PlaySession (web/play.py) through
+   /api/play/*. It reuses renderHouse() and renderAreaSvg()/renderAreaLegend()
+   unchanged (both already take a frame/target-id rather than reading global
+   `state.run`), so the house grid and the area graph look and behave exactly
+   like the Runs tab's replay view. */
+
+state.playState = null;              // last /api/play/{new,state,act,undo} response
+state.playVisited = new Set(["house"]);  // area ids seen so far (client-side, best-effort)
+state.playDebug = false;             // debug-overlay toggle; OFF by default (observation parity)
+state.playLog = [];                  // running per-day action log (client-side only)
+
+async function playApiGet(url) {
+  const r = await fetch(url);
+  const data = await r.json().catch(() => null);
+  if (!r.ok) throw new Error((data && data.error) || `${url}: ${r.status}`);
+  return data;
+}
+async function playApiPost(url, body) {
+  const r = await fetch(url, {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body || {}),
+  });
+  const data = await r.json().catch(() => null);
+  if (!r.ok) throw new Error((data && data.error) || `${url}: ${r.status}`);
+  return data;
+}
+
+function applyPlayState(s) {
+  state.playState = s;
+  if (s.frame && s.frame.area) state.playVisited.add(s.frame.area);
+  pushPlayLog(s);
+  renderPlayAll();
+}
+
+async function startPlaySession() {
+  const seedRaw = $("#play-seed").value.trim();
+  const body = {
+    seed: seedRaw === "" ? null : Number(seedRaw),
+    n_days: Number($("#play-ndays").value) || 1,
+    reward: $("#play-reward").value,
+    unlocks: $("#play-unlocks").value,
+  };
+  $("#play-save-status").textContent = "starting…";
+  state.playVisited = new Set(["house"]);
+  state.playLog = [];
+  try {
+    const s = await playApiPost("/api/play/new", body);
+    $("#play-status").classList.remove("hidden");
+    $("#play-save-status").textContent = "";
+    applyPlayState(s);
+  } catch (err) {
+    $("#play-save-status").textContent = `failed to start: ${err.message}`;
+  }
+}
+$("#play-start-btn").onclick = startPlaySession;
+
+async function playAct(actionId) {
+  try {
+    const s = await playApiPost("/api/play/act", { action: actionId });
+    applyPlayState(s);
+  } catch (err) {
+    $("#play-save-status").textContent = `rejected: ${err.message}`;
+  }
+}
+
+async function playUndo() {
+  try {
+    const s = await playApiPost("/api/play/undo", {});
+    $("#play-save-status").textContent = s.undone ? "" : (s.message || "nothing to undo");
+    applyPlayState(s);
+  } catch (err) {
+    $("#play-save-status").textContent = `undo failed: ${err.message}`;
+  }
+}
+$("#play-undo-btn").onclick = playUndo;
+
+async function playSave() {
+  try {
+    const s = await playApiPost("/api/play/save", {});
+    $("#play-save-status").textContent = `saved ${s.written} record${s.written === 1 ? "" : "s"} → ${s.path}`;
+  } catch (err) {
+    $("#play-save-status").textContent = `save failed: ${err.message}`;
+  }
+}
+$("#play-save-btn").onclick = playSave;
+
+$("#play-debug").onchange = (e) => {
+  state.playDebug = e.target.checked;
+  $("#play-debug-marker").classList.toggle("hidden", !state.playDebug);
+  renderPlayAll();
+};
+
+// Group display order for the legal-action list; any group not listed here
+// (there shouldn't be one — see test_action_group_covers_full_action_space)
+// still renders, just after these.
+const PLAY_GROUP_LABELS = {
+  draft: "Draft", choose: "Choose", move: "Move", travel: "Travel",
+  buy: "Buy", trade: "Trade", fabricate: "Fabricate", use: "Use", control: "Control",
+};
+const PLAY_GROUP_ORDER = ["draft", "choose", "move", "travel", "buy", "trade", "fabricate", "use", "control"];
+
+function renderPlayActions() {
+  const el = $("#play-actions");
+  const s = state.playState;
+  if (!s) { el.innerHTML = ""; return; }
+  if (s.attempt_over) {
+    el.innerHTML = '<p class="dim">attempt over — start a new session to continue</p>';
+    return;
+  }
+  const byGroup = {};
+  for (const a of s.legal_actions || []) (byGroup[a.group] = byGroup[a.group] || []).push(a);
+  const groups = [...PLAY_GROUP_ORDER, ...Object.keys(byGroup).filter((g) => !PLAY_GROUP_ORDER.includes(g))];
+  let html = "";
+  for (const g of groups) {
+    const acts = byGroup[g];
+    if (!acts || !acts.length) continue;
+    html += `<div class="play-group-head">${esc(PLAY_GROUP_LABELS[g] || g)}</div>`;
+    for (const a of acts) {
+      html += `<button class="play-action-btn" data-id="${a.id}">${esc(a.label)}</button>`;
+    }
+  }
+  el.innerHTML = html || '<p class="dim">no legal actions — day is over</p>';
+  for (const btn of el.querySelectorAll(".play-action-btn")) {
+    btn.onclick = () => playAct(Number(btn.dataset.id));
+  }
+}
+
+function renderPlayStatus() {
+  const s = state.playState;
+  if (!s) return;
+  const status = s.attempt_over ? "ATTEMPT OVER"
+    : s.day_over ? "day over (advancing…)" : s.frame.phase;
+  $("#play-progress").innerHTML =
+    `day <b>${s.day}</b> / ${s.n_days} &nbsp;·&nbsp; steps <b>${s.frame.resources.steps}</b>
+     &nbsp;·&nbsp; ${esc(status)} &nbsp;·&nbsp; seed ${s.seed}`;
+}
+
+function renderPlayResources() {
+  const s = state.playState;
+  if (!s) return;
+  const r = s.frame.resources;
+  $("#play-resources").innerHTML =
+    [["Steps", r.steps], ["Gems", r.gems], ["Keys", r.keys],
+     ["Coins", r.coins], ["Dice", r.dice], ["Luck", r.luck]]
+    .map(([k, v]) => `<div class="res"><div class="k">${k}</div><div class="v">${v}</div></div>`).join("");
+}
+
+// The server only returns the most recently applied action, so the running
+// per-day log is accumulated client-side. `n_actions_today` is the source of
+// truth for "how many entries the log should have" — it resets to 0 on a new
+// day/session and shrinks by one on undo, so the log is trimmed/cleared to
+// match rather than guessed at from the action stream alone.
+function pushPlayLog(s) {
+  if (s.n_actions_today === 0) { state.playLog = []; return; }
+  const a = s.frame.action;
+  if (a && (!state.playLog.length || state.playLog[state.playLog.length - 1].index !== a.index)) {
+    state.playLog.push(a);
+  }
+  if (state.playLog.length > s.n_actions_today) {
+    state.playLog = state.playLog.slice(0, s.n_actions_today);
+  }
+}
+
+function renderPlayLog() {
+  $("#play-action-log").innerHTML = state.playLog.length
+    ? state.playLog.map((a, i) => `<div class="log-row"><span class="n">${i + 1}</span>${esc(a.text)}</div>`).join("")
+    : '<div class="dim">—</div>';
+}
+
+function renderPlayDebug() {
+  const el = $("#play-debug-panel");
+  const s = state.playState;
+  if (!state.playDebug || !s || !s.debug) { el.classList.add("hidden"); el.innerHTML = ""; return; }
+  el.classList.remove("hidden");
+  const d = s.debug;
+  const lockRows = Object.entries(d.door_locks || {})
+    .map(([cell, segs]) => `r${Math.floor(cell / 5) + 1}c${cell % 5}: ` +
+      Object.entries(segs).map(([dir, st]) => `${dir}=${st}`).join(" ")).join("<br>") || "—";
+  el.innerHTML = `<div class="panel-head" style="margin-top:0">Debug overlay</div>
+    <div>open frontier doors: <b>${fmtInt(d.open_path_count)}</b></div>
+    <div style="margin-top:8px">door lock states:<br>${lockRows}</div>
+    <div style="margin-top:8px" class="dim">optimistic distances to the Antechamber are on the house grid</div>`;
+}
+
+function renderPlayHouse() {
+  const s = state.playState;
+  if (!s) { $("#play-house").innerHTML = ""; return; }
+  renderHouse(s.frame, "play-house", "play-house-svg");
+  if (state.playDebug && s.debug && s.debug.optimistic_distances) {
+    // Overlay the optimistic per-cell distance-to-Antechamber on top of the
+    // freshly rendered SVG (debug-only signal: env/obs.py never encodes it).
+    const svg = $("#play-house svg");
+    if (svg) {
+      let ov = "";
+      s.debug.optimistic_distances.forEach((dv, cell) => {
+        if (dv < 0) return;
+        const [x, y] = cellXY(cell);
+        ov += `<text x="${x + 8}" y="${y + 16}" class="debug-dist">${dv}</text>`;
+      });
+      svg.insertAdjacentHTML("beforeend", ov);
+    }
+  }
+}
+
+function renderPlayArea() {
+  const s = state.playState;
+  const graphEl = $("#play-area-graph"), legendEl = $("#play-area-legend");
+  if (!s || !state.areaGraph) {
+    graphEl.innerHTML = '<p class="dim" style="padding:4px 0">area graph unavailable</p>';
+    legendEl.innerHTML = "";
+    return;
+  }
+  const outerRoomIds = deriveOuterRoomIds(state.areaGraph.edges);
+  const currentAreaId = s.frame.area || "house";
+  const draftedOuterRoomId = s.frame.outer_room || null;
+  // "replay" mode colours by current-position + visited-so-far, which is
+  // exactly the semantics a live session wants (no aggregate/replay toggle
+  // needed here — this IS the live position). visitTotals is only consulted
+  // by aggregate-mode rendering, so an empty object is safe to pass.
+  graphEl.innerHTML = renderAreaSvg(
+    state.areaGraph, {}, state.playVisited, currentAreaId, "replay",
+    outerRoomIds, draftedOuterRoomId,
+  );
+  const svgEl = graphEl.querySelector("svg");
+  if (svgEl) attachPanZoom(svgEl, "play-area-graph-svg");
+  renderAreaLegend("replay", true, "play-area-legend");
+}
+
+function renderPlayAll() {
+  renderPlayStatus();
+  renderPlayResources();
+  renderPlayActions();
+  renderPlayLog();
+  renderPlayHouse();
+  renderPlayArea();
+  renderPlayDebug();
 }
 
 /* ---------------------------------------------------------------- init */
