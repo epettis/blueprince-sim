@@ -1078,6 +1078,19 @@ def carryover(game) -> dict:
         # so the config is never mutated, same shape as west_gate_unlatched.
         # Permanently opens grounds<->sealed_entrance<->basement.
         "sealed_entrance_broken": cfg.sealed_entrance_broken or state.sealed_entrance_broken,
+        # boiler_room_steam: earned the first time the player enters the Boiler
+        # Room. ORed from state so the config is never mutated, same shape as
+        # west_gate_unlatched. Permanently opens the "boiler_room_steam" gate
+        # (Underpass -> Upper Rotating Gear, docs/areas.md).
+        "boiler_room_steam": cfg.boiler_room_steam or state.boiler_room_steam,
+        # treasure_trove_blackprint: earned the first time the player arrives at
+        # Upper Rotating Gear and picks up the blackprint. ORed from state so the
+        # config is never mutated, same shape as west_gate_unlatched. Permanently
+        # adds the Treasure Trove to the draft pool (decks.py::eligible_pool)
+        # from the following day.
+        "treasure_trove_blackprint": (
+            cfg.treasure_trove_blackprint or state.treasure_trove_blackprint
+        ),
         # Room 46 first reached: permanent gem-deck gate; carries once True, forever.
         "room46_reached": cfg.room46_reached or state.room46_reached,
         # Vault keys permanently used: accumulated union across all days.

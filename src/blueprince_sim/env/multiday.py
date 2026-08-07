@@ -38,6 +38,8 @@ _CARRYOVER_KEYS: frozenset[str] = frozenset({
     "sealed_entrance_broken",  # set on sealed_entrance arrival; opens the Basement route
     "weight_room_wall_broken",  # Power Hammer wall break: permanent on future days
     "room46_reached",             # Room 46 first visited: permanent gem-deck gate
+    "boiler_room_steam",       # set on Boiler Room entry; opens the Upper Rotating Gear route
+    "treasure_trove_blackprint",  # set on Upper Rotating Gear arrival; adds Treasure Trove to pool
 })
 
 

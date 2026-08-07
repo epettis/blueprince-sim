@@ -21,6 +21,15 @@ def eligible_pool(registry: Registry, cfg: GameConfig) -> list[Room]:
     Upgrade variants (from Upgrade Disks) REPLACE their base room: when a
     variant id appears in cfg.upgrade_disks, the variant joins the pool and
     its base room is removed.
+
+    The Treasure Trove (``pool == "studio_addition"``) has a second, narrower
+    door into the pool besides ``cfg.studio_additions``: ``cfg.treasure_trove_
+    blackprint``, set once the player has picked up its blackprint at Upper
+    Rotating Gear (game.py::travel_to / special_items.py::on_area_arrival).
+    This mirrors the general "GameConfig flag gates pool membership" pattern
+    rather than mutating cfg.studio_additions, because the Treasure Trove's
+    black-box/Key-of-Aries reward mechanics remain unmodelled (see
+    rl/train.py::_STUDIO_ADDITION_EXCLUSIONS) -- only its basic draftability is.
     """
     replaced: set[str] = set()
     chosen_variants: list[Room] = []
@@ -40,6 +49,8 @@ def eligible_pool(registry: Registry, cfg: GameConfig) -> list[Room]:
         if room.pool == "base":
             out.append(room)
         elif room.pool == "studio_addition" and room.id in cfg.studio_additions:
+            out.append(room)
+        elif room.id == "treasure_trove" and cfg.treasure_trove_blackprint:
             out.append(room)
         # "outer": drafted at the dedicated outer location, not in decks
         # "pool_temp": injected by The Pool's effect during the day

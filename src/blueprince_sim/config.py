@@ -30,6 +30,13 @@ class GameConfig:
     # The Sealed Entrance barrier has been broken by the Power Hammer, permanently
     # opening grounds<->sealed_entrance<->basement for the rest of the attempt.
     sealed_entrance_broken: bool = False
+    # The Boiler Room has been entered at least once (any prior day), permanently
+    # opening the "boiler_room_steam" gate: Underpass -> Upper Rotating Gear.
+    boiler_room_steam: bool = False
+    # The Treasure Trove blackprint has been picked up at Upper Rotating Gear
+    # (any prior day), permanently adding the Treasure Trove to the draft pool
+    # (decks.py::eligible_pool) from the following day onward.
+    treasure_trove_blackprint: bool = False
     orchard_unlocked: bool = False                   # Apple Orchard: +20 starting steps (wiki)
     mine_unlocked: bool = False                      # Gemstone Cavern: +2 gems at day start (wiki)
     upgrade_disks: frozenset[str] = frozenset()      # applied variant room ids (e.g. "pool_hall__ix12")
