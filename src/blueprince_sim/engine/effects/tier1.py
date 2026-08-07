@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from ..decks import reroll_random_rarities
 from .. import special_items
+from ..upgrades import root_base_id
 from . import Hook, effect
 
 RESOURCES = ("steps", "gems", "keys", "coins", "dice", "stars")
@@ -183,6 +184,31 @@ def coins_per_deadend(game, room, eff, ctx_room) -> None:
     """Tomb: each Dead End drafted in the house spreads gold into the Tomb."""
     if ctx_room is not None and ctx_room.layout == "dead_end":
         _grant(game, "coins", eff.param("amount", 5))
+
+
+@effect("coins_per_draft", Hook.ON_PLACE)
+def coins_per_draft(game, room, eff, ctx_room) -> None:
+    """Treasure Trove: the Nth draft this attempt pays 5*N coins, capped at 32 piles.
+
+    The room permanently gains a pile per draft, and every draft collects the
+    whole surface -- so draft 1 pays 5, draft 2 pays 10, draft N pays 5*N, and
+    once 32 piles have accumulated every later draft keeps paying the full 160
+    (wiki: "to a maximum of 32 piles (160 Gold Coin total)"). The cap bounds
+    what a single draft is worth, NOT what the room earns over the attempt:
+    the first 32 drafts alone total 5 * (1+2+...+32) = 2640 coins.
+
+    ``state.draft_counts`` already tracks cumulative attempt-wide draft counts
+    keyed by root base room id (engine/state.py), carried across days by
+    DayChain and incremented in ``Game._place_room`` immediately BEFORE the
+    ON_PLACE hook fires -- so the count read here already includes this draft.
+    Reusing it means no separate per-room counter is needed, and the payout is
+    a pure function of that count, so it cannot double-count however many times
+    the room is later entered or re-entered.
+    """
+    root_id = root_base_id(game.registry, room)
+    count = game.state.draft_counts.get(root_id, 0)
+    piles = min(count, eff.param("max_draft", 32))
+    _grant(game, "coins", eff.param("amount", 5) * piles)
 
 
 @effect("negate_red_rooms", Hook.ON_PLACE)
