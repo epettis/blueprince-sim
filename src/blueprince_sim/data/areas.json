@@ -238,9 +238,9 @@
    "id": "upper_rotating_gear",
    "name": "Upper Rotating Gear",
    "kind": "area",
-   "modelled": false,
+   "modelled": true,
    "surface": false,
-   "meta": {"source": "docs/areas.md", "confidence": "wiki"}
+   "meta": {"source": "docs/areas.md", "confidence": "wiki", "notes": "Reached only via the boiler_room_steam gate from Underpass (Rotating Gear (upstairs), NOT connected to rotating_gear). Grants a gem and the Treasure Trove blackprint on arrival, special_items.py::on_area_arrival."}
   },
   {
    "id": "underpass",
@@ -523,12 +523,10 @@
   },
   {
    "id": "boiler_room_steam",
-   "kind": "unmodelled",
-   "modelled": false,
+   "kind": "flag",
    "permanence": "permanent",
-   "stub": true,
-   "detail": "Underpass -> Upper Rotating Gear: red door powered by Boiler Room steam. Deferred: Power/steam system not modelled. Passes (stub open).",
-   "retire_in": "PR-power-system",
+   "stub": false,
+   "detail": "Underpass -> Upper Rotating Gear: red door powered by Boiler Room steam. Owner decision (docs/open_tasks.md decisions log, 2026-08-06): the player unlocks this door permanently the first time they enter the Boiler Room -- no power/steam system modelling needed beyond that one flag. The engine sets this flag in game.py::_gate_ctx from state.boiler_room_steam (set on Boiler Room entry, game.py::_enter) OR the carried-over cfg.boiler_room_steam (shops.py::carryover, env/multiday.py::DayChain).",
    "meta": {"source": "docs/areas.md", "confidence": "wiki"}
   },
   {

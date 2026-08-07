@@ -723,6 +723,14 @@ class Game:
               mine_south<->precipice edges: the stairway is a single physical structure
               the player lowers from inside the mine, not a front door (docs/areas.md;
               owner correction, 2026-08-05).
+          "boiler_room_steam" -- carried in from cfg, OR earned today the moment the
+              player first enters the Boiler Room.  Same OR-from-cfg-or-state shape as
+              west_gate_unlatched (a plain top-level GameState field, never lazily
+              seeded the way state.special.lit_targets is, so checking cfg directly
+              is already correct before any room is entered on a later day).
+              Permanent once entered (owner decision, docs/open_tasks.md decisions
+              log, 2026-08-06: "assume the player unlocks this room permanently after
+              entering the Boiler Room").  Gates Underpass -> Upper Rotating Gear.
         """
         st = self.state
         flags: set[str] = set()
@@ -730,6 +738,8 @@ class Game:
             flags.add("west_gate_unlatched")
         if self.cfg.mine_south_visited or st.mine_south_visited:
             flags.add("mine_south_visited")
+        if self.cfg.boiler_room_steam or st.boiler_room_steam:
+            flags.add("boiler_room_steam")
         if (self.cfg.sealed_entrance_broken or st.sealed_entrance_broken
                 or (self.cfg.special_items and special_items.has(st, "power_hammer"))):
             flags.add("sealed_entrance_broken")
@@ -917,6 +927,13 @@ class Game:
                 st.mine_south_visited = True
                 if self.cfg.special_items:
                     special_items.on_area_arrival(self, dest)
+            # Upper Rotating Gear: grants the gem and the Treasure Trove blackprint
+            # (owner spec, docs/open_tasks.md decisions log 2026-08-06). Unlike the
+            # Abandoned Mine (South) Upgrade Disk above, neither grant is an
+            # inventory item, so this call is unconditional -- not gated on
+            # cfg.special_items.
+            if dest == "upper_rotating_gear":
+                special_items.on_area_arrival(self, dest)
             # Sealed Entrance: the Power Hammer break is permanent once it happens.
             # Arriving here at all means the grounds->sealed_entrance edge already
             # passed (via the flag or a held Power Hammer), so this is the one
@@ -1352,6 +1369,13 @@ class Game:
             return
         st.entered[cell] = True
         room = self.registry.rooms[st.grid[cell]]
+        # Boiler Room: entering it permanently opens the "boiler_room_steam" gate
+        # (Underpass -> Upper Rotating Gear). Owner decision, docs/open_tasks.md
+        # decisions log 2026-08-06: unlocked permanently after entering the room,
+        # unconditional on any other config toggle. Recorded on STATE, never on
+        # cfg -- same shape as west_gate_unlatched.
+        if room.id == "boiler_room":
+            st.boiler_room_steam = True
         effects.fire(self, room, Hook.ON_ENTER)
         roll_room_items(st, self.registry, room, self.rng)
         if self.cfg.special_items:

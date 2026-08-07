@@ -235,16 +235,23 @@ rather than repeating it, so the two cannot drift.
 |---|---|---|
 | `foundation_elevator_down` | PR-foundation-elevator | The Foundation -> Basement: crank revealed AND car at the top |
 | `foundation_elevator_up` | PR-foundation-elevator | Basement -> The Foundation: keycard to SUMMON if the car is not already down |
-| `boiler_room_steam` | PR-power-system | Underpass -> Upper Rotating Gear: red door powered by Boiler Room steam |
 | `lab_steam_and_power` | PR-power-system | Private Drive -> Blackbridge Grotto: Laboratory steam/lever puzzle AND POWER |
 | `pump_water_lte8` | PR-pump-room | Grounds -> Well: **Fountain** level <= 8 |
 | `rowboat_water_6` | PR-pump-room | Reservoir South <-> Safehouse: rowboat, Reservoir level 6 |
 | `cliffside_elevator_down` | PR-torches-elevator | Grounds -> Precipice: 4 torches lit AND car at the top |
 | `cliffside_elevator_up` | PR-torches-elevator | Precipice -> Grounds: only if the car was ridden down |
 
+**`boiler_room_steam` graduated out of this table, 2026-08-06.** Owner ruling
+(docs/open_tasks.md decisions log): the player unlocks Underpass -> Upper
+Rotating Gear permanently the first time they enter the Boiler Room, no power
+system needed. It is now `kind: "flag"`, `stub: false`, set from
+`state.boiler_room_steam` (Boiler Room entry) OR the carried `cfg.boiler_room_steam`,
+the same shape as `west_gate_unlatched`.
+
 Gates that are **not** stubs are already live: item gates (Basement Key, ignition
 tools, microchips, Sanctum Keys), the `west_gate_unlatched`, `mine_south_visited`,
-`garage_door_breaker`, and `sealed_entrance_broken` flags, the `outer_room_drawn`
+`sealed_entrance_broken`, `boiler_room_steam`, and `garage_door_breaker` flags,
+the `outer_room_drawn`
 outer_room gate, the `tomb_catacombs` room gate, and the six `puzzle` gates that
 pass under the sim's standing "the player solves every puzzle in a room they
 enter" doctrine.

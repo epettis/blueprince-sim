@@ -73,6 +73,8 @@ def _all_open_ctx(outer_room_id: str | None = "tomb") -> GateContext:
     garage_door_breaker is now a real flag gate (not a stub) so it must be included.
     sealed_entrance_broken is a real flag gate — include it too.
     antechamber_north_door_open is a flag gate set when the north door lever is pulled.
+    boiler_room_steam is a real flag gate (graduated from an open stub, 2026-08-06)
+    gating Underpass -> Upper Rotating Gear — include it too.
     """
     return GateContext(
         held_items={
@@ -88,6 +90,7 @@ def _all_open_ctx(outer_room_id: str | None = "tomb") -> GateContext:
             "garage_door_breaker",
             "sealed_entrance_broken",
             "antechamber_north_door_open",
+            "boiler_room_steam",
         }),
         rooms_entered=frozenset({"tomb"}),
         outer_room_id=outer_room_id,

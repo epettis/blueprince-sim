@@ -219,6 +219,22 @@ class GameState:
     # to GameConfig. carryover() ORs this with cfg.sealed_entrance_broken; DayChain
     # carries the result, permanently opening grounds<->sealed_entrance<->basement.
     sealed_entrance_broken: bool = False
+    # Set the first time the player enters the Boiler Room today. Same shape as
+    # west_gate_unlatched: an IN-RUN discovery recorded on STATE, never written
+    # back to GameConfig. carryover() ORs this with cfg.boiler_room_steam; DayChain
+    # carries the result, permanently opening the "boiler_room_steam" gate
+    # (Underpass -> Upper Rotating Gear, docs/areas.md).
+    boiler_room_steam: bool = False
+    # True once today's single gem from arriving at Upper Rotating Gear has been
+    # granted. Per-day only -- deliberately NOT carried over (a fresh GameState
+    # resets it every day, unlike the permanent flags above).
+    upper_rotating_gear_gem_granted: bool = False
+    # Set on arrival at Upper Rotating Gear: the Treasure Trove blackprint has
+    # been picked up. Same shape as west_gate_unlatched: recorded on STATE, never
+    # written back to GameConfig. carryover() ORs this with
+    # cfg.treasure_trove_blackprint; DayChain carries the result, permanently
+    # adding the Treasure Trove to the draft pool from the following day.
+    treasure_trove_blackprint: bool = False
     # chronological (item id, count) pickups this run, for CLI/replay reporting
     items_found_log: list[tuple[str, int]] = field(default_factory=list)
 

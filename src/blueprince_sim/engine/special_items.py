@@ -412,16 +412,33 @@ def on_area_arrival(game, area_id: str) -> None:
     uniqueness check makes repeat calls within the same day a no-op, the same
     way re-entering a guaranteed_in room does.
 
-    Today this is exactly one grant: the Abandoned Mine (South)'s Upgrade
-    Disk, sitting openly on a table (docs/areas.md) — obtainable without an
-    ignition tool, unlike the candlesticks that separately open the Precipice
-    stairway.
+    Two grants live here:
+
+    - The Abandoned Mine (South)'s Upgrade Disk, sitting openly on a table
+      (docs/areas.md) — obtainable without an ignition tool, unlike the
+      candlesticks that separately open the Precipice stairway.
+    - Upper Rotating Gear's gem and Treasure Trove blackprint (owner spec,
+      docs/open_tasks.md decisions log 2026-08-06). Neither is an inventory
+      item, so neither uses ``grant``/``_is_available``: the gem is a plain
+      ``state.gems`` bump guarded by a per-day flag (once per day, not once
+      ever — a fresh ``GameState`` resets the guard every day), and the
+      blackprint is a permanent ``state.treasure_trove_blackprint`` flag
+      carried across days the same way ``west_gate_unlatched`` is, which
+      ``decks.py::eligible_pool`` reads (via the carried ``GameConfig`` field)
+      to add the Treasure Trove to the draft pool.
     """
     if area_id == "mine_south":
         state = game.state
         registry = game.registry
         if _is_available(state, "upgrade_disk_mine_south", registry):
             grant(state, registry, "upgrade_disk_mine_south", source="mine_south")
+    elif area_id == "upper_rotating_gear":
+        state = game.state
+        if not state.upper_rotating_gear_gem_granted:
+            state.gems += 1
+            state.upper_rotating_gear_gem_granted = True
+            state.items_found_log.append(("gem", 1))
+        state.treasure_trove_blackprint = True
 
 
 def on_enter(game, room, cell: int) -> None:
