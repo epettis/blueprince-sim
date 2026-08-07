@@ -41,7 +41,10 @@ class Gate:
     item_ids: tuple[str, ...]  # item ids (ANY of these count); non-empty only for kind="item"
     count: int           # how many items (summed across item_ids) the player must hold; default 1
     room_id: str | None  # room that must have been entered today; non-None only for kind="room"
-    retire_in: str | None  # PR that replaces this stub with the real gate; non-None iff stub
+    # PR that replaces this placeholder with the real gate. Non-None on every
+    # kind="unmodelled" gate, whether it defaults open (stub=True, passes) or closed
+    # (default_closed=True in the data, never passes) -- both are deferred work.
+    retire_in: str | None
 
 
 @dataclass(frozen=True, slots=True)
