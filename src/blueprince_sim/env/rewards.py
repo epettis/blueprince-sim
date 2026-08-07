@@ -57,6 +57,16 @@ def _ante_paths(game: Game) -> int:
     optimistic distance to the Antechamber: drafting through that doorway could
     still lead there.  Doorways into ante-walled-off pockets (target's optimistic
     distance is -1) do not count, so dead-end islands are correctly excluded.
+
+    Must be a pure function of the GRID (placed rooms and door masks), not of
+    where the player is standing: walking off the 5x9 grid into an outer area
+    does not change the house's connectivity, so this uses ``game.grid_frontier_doorways()``
+    (ungated) rather than ``game.frontier_doorways()`` (returns [] off-grid).
+    Without this, an off-grid excursion collapsed every path to "sealed" and
+    back on return — potential-neutral overall (so invisible in the reward
+    sum) but capable of masking a real 1-open-path danger state as 0-paths
+    while outside, and confirmed empirically to make travel actions the
+    dominant behavior of a policy trained under the collapsed signal.
     """
     if game.state.room46_reached:
         return 99  # already reached Room 46; win secured, no path penalty applies
@@ -70,7 +80,7 @@ def _ante_paths(game: Game) -> int:
         return 99  # Antechamber reachable on foot, or underfoot — no path penalty
     od = game.optimistic_distances()
     return sum(
-        1 for cell, d in game.frontier_doorways()
+        1 for cell, d in game.grid_frontier_doorways()
         if od[neighbor(cell, d)] != -1
     )
 
@@ -100,10 +110,16 @@ def _phi_paths(n_paths: int) -> float:
 def _phi_frontier(game: Game) -> float:
     """Potential of forward pathways: passable frontier doorways (open,
     locked with a key in hand, or security-openable) in the deepest two
-    ranks, capped at 4 for diminishing returns."""
+    ranks, capped at 4 for diminishing returns.
+
+    Uses ``grid_frontier_doorways`` for the same reason ``_ante_paths`` does:
+    the doorways the house still offers do not change because the player
+    stepped outside, and the position-gated view would collapse this
+    potential to 0 for the whole of an off-grid excursion.
+    """
     edge = game.deepest_rank - 1
     passable = sum(
-        1 for cell, d in game.frontier_doorways()
+        1 for cell, d in game.grid_frontier_doorways()
         if rank_of(cell) >= edge and game.doorway_passable(cell, d)
     )
     return 0.02 * min(passable, 4)
