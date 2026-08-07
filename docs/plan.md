@@ -56,7 +56,7 @@ checkpoints (pre-#19) are interface-incompatible — fresh checkpoint dir requir
   good via `used_vault_keys` across days) and Parlor boxes (Wind-up Keys, inferred
   loot table, per-cell cap). Actions 272/273, `item_state` 10 -> 12.
 - **#28** — ignition + machines: Torch / Burning Glass light the Chapel, Tomb
-  (gated on the Diary Key) and the Trading Post fuse (Upgrade Disk + 40 gold);
+  and the Trading Post fuse (Upgrade Disk + 40 gold);
   the Broken Lever installs on the Greenhouse machine (opens the Antechamber's
   rank-8 doorway segment, `segment_key(37, N) == segment_key(42, S)`) and the
   Casino slot. Actions 274/275.
@@ -80,7 +80,8 @@ delete again.
   itself (8 doors, the area behind them) is unmodeled — the largest remaining
   system and worth its own design pass rather than a rushed PR.
 - Out-of-scope areas that keep a handful of items inert: Grounds, Orindian Ruins,
-  Precipice, lore documents (Sleep Diary keeps `diary_key` blocked).
+  Precipice, lore documents. (`diary_key` used to be listed here; it was removed
+  from the item table outright on 2026-08-06 — see `docs/open_tasks.md` task 6.)
 - Freezer thaw: excluded from the ignition targets because the wiki calls it
   temporary/daily, which the one-shot `lit_targets` model cannot express.
 

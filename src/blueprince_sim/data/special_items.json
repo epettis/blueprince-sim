@@ -1522,27 +1522,6 @@
    }
   },
   {
-   "id": "diary_key",
-   "name": "Diary Key",
-   "kind": "unique",
-   "tier": null,
-   "unique": true,
-   "persistence": "permanent",
-   "spawn_rooms": [
-    "tomb"
-   ],
-   "spawn_rooms_high_luck": [],
-   "guaranteed_in": [],
-   "effects": [],
-   "implemented": false,
-   "meta": {
-    "source": "https://blueprince.wiki.gg/wiki/Diary_Key",
-    "confidence": "wiki",
-    "absent_spawn_areas": [],
-    "blocked_on": "lore_documents_not_modeled"
-   }
-  },
-  {
    "id": "file_cabinet_key",
    "name": "File Cabinet Key",
    "kind": "unique",
@@ -2869,10 +2848,6 @@
      {
       "kind": "dice",
       "amount": 4
-     },
-     {
-      "kind": "item",
-      "id": "diary_key"
      }
     ]
    },
