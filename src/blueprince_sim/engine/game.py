@@ -358,17 +358,23 @@ class Game:
                 if st.placed_doors[cell] & d
                 and (nb := neighbor(cell, d)) != -1 and st.grid[nb] < 0]
 
-    def frontier_doorways(self) -> list[tuple[int, int]]:
-        """Every closed door across all reachable rooms.
+    def grid_frontier_doorways(self) -> list[tuple[int, int]]:
+        """Every closed door across all reachable rooms, wherever the player is.
 
-        These are the draft targets of :meth:`draft_from`; the list also
-        drives dead-end detection.
+        A property of the HOUSE, not of the player: walking off the 5x9 grid
+        into an outer area does not change which doorways are still open, so
+        this deliberately has no ``off_grid`` early return.  Callers that need
+        "what can I draft right now" want :meth:`frontier_doorways` instead;
+        callers reasoning about the house's connectivity (env/rewards.py's
+        path-preservation and frontier potentials) want this one.
+
+        ``reachable_cells`` is likewise ungated: it BFSes from ``state.pos``,
+        which keeps the player's last on-grid cell for the whole of an
+        off-grid excursion, so this list is unchanged by stepping outside.
 
         Returns a cached list; treat it as read-only.
         """
         st = self.state
-        if self.off_grid:
-            return []
         maps = self._maps()
         cached = maps.get("frontier")
         if cached is not None:
@@ -384,6 +390,20 @@ class Game:
                     out.append((cell, d))
         maps["frontier"] = out
         return out
+
+    def frontier_doorways(self) -> list[tuple[int, int]]:
+        """The draft targets of :meth:`draft_from`; also drives dead-end detection.
+
+        Empty while off-grid: there is nothing to draft from out in an outer
+        area.  That is a restriction on what the player may DO right now, not
+        a statement about the house — see :meth:`grid_frontier_doorways`, of
+        which this is the position-gated view.
+
+        Returns a cached list; treat it as read-only.
+        """
+        if self.off_grid:
+            return []
+        return self.grid_frontier_doorways()
 
     # ------------------------------------------------------- locks & security
 

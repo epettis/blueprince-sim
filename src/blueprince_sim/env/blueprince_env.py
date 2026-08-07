@@ -253,6 +253,15 @@ class BluePrinceEnv(gymnasium.Env):
         replay.build_frames can reconstruct the day's exact conditions).
         These are present at every step so callers can read day progress
         without waiting for episode end.
+
+        ``"room46_reached"`` and ``"antechamber_reached"`` mirror
+        ``GameState`` directly (set the moment the player first steps onto
+        the Antechamber cell / enters Room 46 this day) and are always
+        present. Several consumers read them with ``.get()`` — rl/train.py's
+        ``evaluate()`` win counter, the training dashboard's win rate, and
+        ``EpisodeRecorder``'s per-replay "win" tag — so an absent key reads
+        as ``None``/falsy rather than raising, which is exactly what made
+        every win metric silently report 0 before these keys were added here.
         """
         if mask is None:
             mask = A.action_mask(self.game, self._prev_action)
@@ -264,6 +273,8 @@ class BluePrinceEnv(gymnasium.Env):
             "drafted_rooms": list(self.game.drafted_rooms),
             "visited_areas": sorted(self.game.state.areas_visited),
             "action_mask": np.array(mask, dtype=bool),
+            "room46_reached": self.game.state.room46_reached,
+            "antechamber_reached": self.game.state.antechamber_reached,
         }
         if self.day_chain is not None:
             # state.day is the in-game day index that was injected via next_config().
