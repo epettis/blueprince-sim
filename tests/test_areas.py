@@ -284,7 +284,8 @@ def test_item_gate_blocks_without_item(graph: AreaGraph) -> None:
 
     Uses basement_key_well (kind=item, stub=False): requires 'basement_key' in
     GateContext.held_items. Tests the gate function directly rather than
-    reachability, since alternative paths to reservoir_south exist via precipice.
+    reachability, so it pins the gate itself regardless of what else routes to
+    reservoir_south.
     """
     ctx_no_key = _ctx(held_items={})
     assert gate_open(graph, "basement_key_well", ctx_no_key) is False
