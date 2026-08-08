@@ -22,6 +22,7 @@ from __future__ import annotations
 import argparse
 import functools
 import json
+import math
 import os
 import random
 import signal
@@ -78,6 +79,36 @@ def all_studio_additions() -> frozenset[str]:
     ) - _STUDIO_ADDITION_EXCLUSIONS
 
 STOP = threading.Event()
+
+
+def atomic_replace(tmp: Path, final: Path, *, attempts: int = 8,
+                   delay_s: float = 0.05) -> bool:
+    """``os.replace`` with retries; True if it landed, False if it never did.
+
+    On Windows ``os.replace`` raises ``PermissionError`` (WinError 5) whenever
+    another process holds the DESTINATION open for reading, and the Observatory
+    polls ``latest.json`` on a short interval by design -- so a long run with a
+    dashboard attached will eventually collide. Observed twice while smoke
+    testing the progress tab at ``--metrics-poll 1``, each time killing the
+    trainer outright.
+
+    Retrying rather than crashing is the right trade for a multi-hour run: the
+    reader holds the file for microseconds, so a few short sleeps clear it.
+    Returning a bool rather than raising lets the CALLER decide what a failure
+    costs -- a missed metadata sidecar is one dashboard sample, a missed
+    checkpoint is real progress, and neither is worth losing the run over.
+    POSIX never takes this path (renaming over an open file is legal there),
+    so the retries are inert off Windows.
+    """
+    for attempt in range(attempts):
+        try:
+            os.replace(tmp, final)
+            return True
+        except PermissionError:
+            if attempt == attempts - 1:
+                return False
+            time.sleep(delay_s * (attempt + 1))
+    return False
 
 
 def all_unlocks_config(reward: str = "shaped") -> GameConfig:
@@ -413,6 +444,37 @@ def AreaStatsWriter(path: Path, episodes_done: int, bucket: int = 10_000) -> Buc
                              episodes_done=episodes_done, bucket=bucket)
 
 
+def _logger_snapshot(logger) -> dict[str, float]:
+    """The subset of ``dashboard.SPECS`` keys currently held in the sb3 logger.
+
+    Mirrors exactly what the CLI dashboard would be showing at this instant:
+    ``logger.name_to_value`` holds whatever has been ``record()``-ed since the
+    logger's last ``dump()`` (sb3 clears it on every dump), so e.g. every
+    ``train/*`` key is legitimately absent until after the first PPO update.
+    Absent keys are omitted here rather than filled with 0.0 -- a checkpoint
+    written before training has produced any updates must carry none of these
+    keys, not zeros standing in for them (a chart showing a real zero loss
+    would be a lie).
+
+    ``logger`` is duck-typed (only ``.name_to_value`` is read) so this stays
+    testable without sb3/torch installed, matching the rest of this module's
+    "stdlib until proven otherwise" import discipline.
+    """
+    snap: dict[str, float] = {}
+    values = getattr(logger, "name_to_value", {})
+    for spec in dashboard.SPECS:
+        value = values.get(spec.key)
+        if value is None:
+            continue
+        try:
+            value = float(value)
+        except (TypeError, ValueError):
+            continue
+        if math.isfinite(value):
+            snap[spec.key] = value
+    return snap
+
+
 class CheckpointAndStopCallback:
     """Counts finished episodes, checkpoints every N, stops on signal.
 
@@ -446,6 +508,8 @@ class CheckpointAndStopCallback:
                 self.recent_exploit = deque(maxlen=1000)
                 self.recent_explore = deque(maxlen=1000)
                 self.t0 = time.time()
+                self._iterations = 0            # our own rollout counter; see _on_rollout_end
+                self._metric_cache: dict[str, float] = {}  # freshest known dashboard.SPECS values
                 self.multi_day = multi_day  # 0 = single-day mode; >0 = chain length
                 # Per-episode chain notes are the only high-frequency terminal
                 # output; every line re-renders the whole dashboard frame, which
@@ -524,7 +588,27 @@ class CheckpointAndStopCallback:
                 return True
 
             def _on_rollout_end(self) -> None:
-                """Emit rolling 1k-episode win-rate metrics to the sb3 logger."""
+                """Emit rolling 1k-episode win-rate metrics to the sb3 logger, then
+                snapshot every dashboard.SPECS metric this callback can currently
+                see into ``self._metric_cache`` for ``save()`` to persist.
+
+                A point-in-time read of ``self.logger.name_to_value`` at checkpoint
+                time (which happens from ``_on_step``, mid-rollout) is not enough:
+                sb3 clears its logger on every ``dump()``, and ``dump()`` runs right
+                after this hook returns, before the next PPO ``train()`` call. So a
+                checkpoint would almost always see ``time/*``/``rollout/*`` as
+                already-dumped-and-cleared, and ``train/*`` stale by up to one
+                iteration (verified empirically: a smoke run's final checkpoint had
+                every ``train/*`` key but none of the others). ``train/*`` genuinely
+                only exists in the logger (PPO's own internals), so that staleness
+                is kept -- it is also exactly what the CLI dashboard itself shows,
+                since it too is fed only on ``dump()``. ``time/*`` and
+                ``blueprince/*`` are instead computed here from data this callback
+                already holds directly (mirroring sb3's own ``_dump_logs`` formulas
+                for ``time/*`` so the numbers match what sb3 would have printed),
+                and ``rollout/*`` from ``model.ep_info_buffer``, the same buffer sb3
+                reads to compute them.
+                """
                 if self.recent:
                     self.logger.record("blueprince/episodes", self.episodes)
                     self.logger.record("blueprince/win_rate_1k",
@@ -536,6 +620,24 @@ class CheckpointAndStopCallback:
                     self.logger.record("blueprince/win_rate_explore_1k",
                                        sum(self.recent_explore) / len(self.recent_explore))
 
+                self._iterations += 1
+                self._metric_cache.update(_logger_snapshot(self.logger))
+                self._metric_cache["time/iterations"] = float(self._iterations)
+                self._metric_cache["time/total_timesteps"] = float(self.model.num_timesteps)
+                start_ns = getattr(self.model, "start_time", None)
+                if start_ns:
+                    start_ts = getattr(self.model, "_num_timesteps_at_start", 0)
+                    elapsed = max((time.time_ns() - start_ns) / 1e9, 1e-9)
+                    self._metric_cache["time/time_elapsed"] = elapsed
+                    self._metric_cache["time/fps"] = (self.model.num_timesteps - start_ts) / elapsed
+                ep_info_buffer = getattr(self.model, "ep_info_buffer", None)
+                if ep_info_buffer:
+                    from stable_baselines3.common.utils import safe_mean
+                    self._metric_cache["rollout/ep_rew_mean"] = float(
+                        safe_mean([ep["r"] for ep in ep_info_buffer]))
+                    self._metric_cache["rollout/ep_len_mean"] = float(
+                        safe_mean([ep["l"] for ep in ep_info_buffer]))
+
             def save(self, name: str) -> None:
                 """Atomically write ``<name>.zip`` plus its ``<name>.json`` sidecar.
 
@@ -546,7 +648,13 @@ class CheckpointAndStopCallback:
                 tmp = self.ckpt_dir / f".tmp_{name}.zip"
                 final = self.ckpt_dir / f"{name}.zip"
                 self.model.save(tmp)
-                os.replace(tmp, final)  # atomic: never a half-written checkpoint
+                # atomic: never a half-written checkpoint. Retried because a
+                # dashboard reading the destination makes this fail on Windows.
+                if not atomic_replace(tmp, final):
+                    emit(f"[train] WARNING: could not replace {final.name} "
+                         "(file busy); skipping this checkpoint and continuing")
+                    tmp.unlink(missing_ok=True)
+                    return
                 meta = {
                     "episodes": self.episodes,
                     "timesteps": int(self.model.num_timesteps),
@@ -559,9 +667,22 @@ class CheckpointAndStopCallback:
                     "saved_at": time.strftime("%Y-%m-%dT%H:%M:%S"),
                     "wall_seconds_this_run": round(time.time() - self.t0, 1),
                 }
+                # Additive: dashboard.SPECS' train/*, rollout/*, time/* (and
+                # blueprince/*) values, keyed exactly as the CLI dashboard keys
+                # them. Merged from the persistent cache _on_rollout_end maintains,
+                # NOT a fresh read of self.logger here -- see that method's
+                # docstring for why a point-in-time logger read misses most of
+                # these keys entirely.
+                meta.update(self._metric_cache)
                 tmp_meta = self.ckpt_dir / f".tmp_{name}.json"
                 tmp_meta.write_text(json.dumps(meta, indent=2))
-                os.replace(tmp_meta, self.ckpt_dir / f"{name}.json")
+                # The dashboard polls this file, so it is the one that actually
+                # collides. Losing a sidecar costs one dashboard sample; the
+                # .zip above already landed, so the run carries on regardless.
+                if not atomic_replace(tmp_meta, self.ckpt_dir / f"{name}.json"):
+                    emit(f"[train] WARNING: could not replace {name}.json "
+                         "(file busy); dashboard will miss this sample")
+                    tmp_meta.unlink(missing_ok=True)
                 wr = meta["win_rate_recent"]
                 emit(f"[train] checkpoint {final.name}: {self.episodes} episodes, "
                      f"{meta['timesteps']} steps, win_rate(1k)="

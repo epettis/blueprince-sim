@@ -33,6 +33,10 @@ from urllib.parse import parse_qs, urlparse
 from . import play as _play
 from . import replay
 from ..engine import areas as _areas_mod
+# Pure-stdlib metric spec table (see its module docstring) -- importing it does
+# NOT pull in sb3/torch, preserving the "server never loads torch" invariant
+# the eval_worker subprocess split also relies on.
+from ..rl import dashboard as _dashboard
 
 STATIC_DIR = Path(__file__).resolve().parent / "static"
 MAX_CHART_POINTS = 2000
@@ -292,13 +296,22 @@ class Observatory:
             if key in seen or m.get("sampled_at") is None:
                 continue
             seen.add(key)
-            train.append({
+            row = {
                 "episodes": m.get("episodes"), "timesteps": m.get("timesteps"),
                 "sampled_at": m.get("sampled_at"),
                 "win_rate_recent": m.get("win_rate_recent"),
                 "win_rate_exploit": m.get("win_rate_exploit"),
                 "win_rate_explore": m.get("win_rate_explore"),
-            })
+            }
+            # The Progress tab mirrors the CLI dashboard's SPECS table, keyed by
+            # the literal sb3 logger keys (e.g. "train/approx_kl") that
+            # rl/train.py's checkpoint metadata now carries when present (see
+            # _logger_snapshot). Rows from a metrics.jsonl written before that
+            # change simply lack these keys, so every lookup here is None --
+            # the Progress tab's job, not this endpoint's, to say so honestly.
+            for spec in _dashboard.SPECS:
+                row[spec.key] = m.get(spec.key)
+            train.append(row)
         evals = sorted(_read_jsonl(self.eval_path),
                        key=lambda m: m.get("sampled_at", 0))
         return {"train": _downsample(train), "eval": _downsample(evals)}
@@ -309,8 +322,8 @@ class Observatory:
         if self.latest_json.exists():
             try:
                 latest = json.loads(self.latest_json.read_text())
-            except json.JSONDecodeError:
-                pass
+            except (json.JSONDecodeError, PermissionError, FileNotFoundError):
+                pass  # mid-replace or just-deleted; the next request retries
         ckpt_mtime = None
         if self.latest_zip.exists():
             ckpt_mtime = self.latest_zip.stat().st_mtime
@@ -551,7 +564,11 @@ def metrics_sampler(obs: Observatory, poll_s: float, stop: threading.Event) -> N
     while not stop.wait(poll_s):
         try:
             latest = json.loads(obs.latest_json.read_text())
-        except (FileNotFoundError, json.JSONDecodeError):
+        except (FileNotFoundError, json.JSONDecodeError, PermissionError):
+            # PermissionError: Windows raises it while the trainer is
+            # mid-os.replace on this very file. Transient -- the next poll
+            # sees the new contents; crashing this thread would silently
+            # stop the dashboard updating for the rest of the run.
             continue
         key = (latest.get("episodes"), latest.get("timesteps"))
         if key == last_key or key[0] is None:
@@ -583,7 +600,7 @@ def eval_worker(obs: Observatory, episodes: int, poll_s: float,
             continue
         try:
             trained = json.loads(obs.latest_json.read_text()).get("episodes")
-        except (FileNotFoundError, json.JSONDecodeError):
+        except (FileNotFoundError, json.JSONDecodeError, PermissionError):
             trained = None
         if trained is not None and trained in done_episodes:
             last_mtime = mtime
