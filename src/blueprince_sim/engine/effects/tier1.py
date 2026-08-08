@@ -130,6 +130,11 @@ def furnace_bias(game, room, eff, ctx_room) -> None:
     game.state.furnace_placed = True
 
 
+@effect("schoolhouse_bias", Hook.ON_PLACE)
+def schoolhouse_bias(game, room, eff, ctx_room) -> None:
+    game.state.schoolhouse_placed = True
+
+
 @effect("conservatory_rerolls", Hook.ON_PLACE)
 def conservatory_rerolls(game, room, eff, ctx_room) -> None:
     """One-time on draft: re-roll the rarity of 3 random undealt deck cards."""

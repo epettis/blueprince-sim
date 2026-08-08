@@ -154,7 +154,7 @@
       "meta": {
         "confidence": "datamined",
         "source": "sheet constants: 'Schoolhouse 35% Classroom'; confirmed on Drafting/Advanced and the Schoolhouse wiki page",
-        "notes": "Reachable via state.schoolhouse_placed, but nothing sets it yet: the Hook.ON_PLACE tag (mirroring greenhouse_bias/furnace_bias) is a follow-up PR. 35% datamined."
+        "notes": "Live: state.schoolhouse_placed is set by the schoolhouse_bias Hook.ON_PLACE effect (effects/tier1.py) and emitted by draft.py::_active_conditions. 35% datamined. NOTE the wiki also credits the Schoolhouse with boosting the Library and Studio Addition: Dormitory; neither magnitude is sourced anywhere in our data, so those entries are deliberately absent rather than guessed."
       }
     },
     {
