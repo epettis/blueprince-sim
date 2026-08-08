@@ -66,9 +66,11 @@ async function getJSON(url) {
 function setTab(tab) {
   state.tab = tab;
   $("#tab-dashboard").classList.toggle("active", tab === "dashboard");
+  $("#tab-progress").classList.toggle("active", tab === "progress");
   $("#tab-runs").classList.toggle("active", tab === "runs");
   $("#tab-play").classList.toggle("active", tab === "play");
   $("#view-dashboard").classList.toggle("hidden", tab !== "dashboard");
+  $("#view-progress").classList.toggle("hidden", tab !== "progress");
   $("#view-runs").classList.toggle("hidden", tab !== "runs");
   $("#view-play").classList.toggle("hidden", tab !== "play");
   if (tab === "runs") {
@@ -76,11 +78,14 @@ function setTab(tab) {
     ensureAreaGraph().then(() => renderAreaPanel());
   } else if (tab === "play") {
     ensureAreaGraph().then(() => { if (state.playState) renderPlayArea(); });
+  } else if (tab === "progress") {
+    refreshProgress();
   } else {
     refreshDashboard();
   }
 }
 $("#tab-dashboard").onclick = () => setTab("dashboard");
+$("#tab-progress").onclick = () => setTab("progress");
 $("#tab-runs").onclick = () => setTab("runs");
 $("#tab-play").onclick = () => setTab("play");
 
@@ -387,6 +392,131 @@ function renderCkptTable(metrics) {
       <td>${fmtInt(m.episodes)}</td><td>${fmtBig(m.timesteps)}</td>
       <td>${fmtPct(m.win_rate_recent)}</td></tr>`).join("")}
   </table>`;
+}
+
+/* -------------------------------------------------------------- progress */
+/* Parallels rl/dashboard.py's SPECS tuple: same 20 metrics, same three
+ * panels, same labels/goals, so the browser reads like the CLI's in-place
+ * terminal dashboard. Keys are the literal sb3 logger keys (e.g.
+ * "train/approx_kl") that rl/train.py's checkpoint metadata carries when
+ * present -- see _logger_snapshot there and Observatory.metrics() in
+ * web/server.py, which is what makes them show up in metrics.train rows. */
+const METRIC_SPECS = [
+  // PROGRESS -- monotonic counters (bar:false, no trend line, matching the
+  // CLI's "left column, top panel" comment).
+  { key: "blueprince/episodes", label: "episodes", panel: "PROGRESS", fmt: "int", bar: false },
+  { key: "time/iterations", label: "iterations", panel: "PROGRESS", fmt: "int", bar: false },
+  { key: "time/total_timesteps", label: "timesteps", panel: "PROGRESS", fmt: "int", bar: false },
+  { key: "time/time_elapsed", label: "elapsed", panel: "PROGRESS", fmt: "duration", bar: false },
+  { key: "time/fps", label: "fps", panel: "PROGRESS", fmt: "int", goal: "larger" },
+  // OUTCOMES -- what the agent actually achieves.
+  { key: "blueprince/win_rate_1k", label: "win_rate_1k", panel: "OUTCOMES", goal: "larger" },
+  { key: "blueprince/win_rate_exploit_1k", label: "win_exploit", panel: "OUTCOMES", goal: "larger" },
+  { key: "blueprince/win_rate_explore_1k", label: "win_explore", panel: "OUTCOMES", goal: "larger" },
+  { key: "rollout/ep_rew_mean", label: "ep_rew_mean", panel: "OUTCOMES", goal: "larger" },
+  { key: "rollout/ep_len_mean", label: "ep_len_mean", panel: "OUTCOMES", decimals: 2 },
+  // LEARNING -- optimiser health.
+  { key: "train/approx_kl", label: "approx_kl", panel: "LEARNING", goal: "smaller" },
+  { key: "train/clip_fraction", label: "clip_fraction", panel: "LEARNING", goal: "<0.3" },
+  { key: "train/clip_range", label: "clip_range", panel: "LEARNING", decimals: 3 },
+  { key: "train/entropy_loss", label: "entropy_loss", panel: "LEARNING", goal: "rises~0" },
+  { key: "train/explained_variance", label: "explained_var", panel: "LEARNING", goal: "larger" },
+  { key: "train/learning_rate", label: "learning_rate", panel: "LEARNING", fmt: "sci" },
+  { key: "train/loss", label: "loss", panel: "LEARNING", goal: "~0" },
+  { key: "train/n_updates", label: "n_updates", panel: "LEARNING", fmt: "int", bar: false },
+  { key: "train/policy_gradient_loss", label: "pg_loss", panel: "LEARNING", goal: "~0" },
+  { key: "train/value_loss", label: "value_loss", panel: "LEARNING", goal: "smaller" },
+];
+const PROGRESS_PANELS = ["PROGRESS", "OUTCOMES", "LEARNING"];
+
+// H:MM:SS, matching rl/dashboard.py::format_duration exactly (no day rollover).
+function fmtDuration(sec) {
+  const total = Math.max(0, Math.floor(sec));
+  const h = Math.floor(total / 3600), m = Math.floor((total % 3600) / 60), s = total % 60;
+  return `${h}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+}
+// Matches Python's f"{value:.2e}" exponent width (JS's toExponential omits
+// the leading zero on single-digit exponents, e.g. "3.00e-4" vs "3.00e-04").
+function fmtSci(v) {
+  return v.toExponential(2).replace(/e([+-])(\d)$/, "e$10$2");
+}
+// Mirrors rl/dashboard.py::format_value's fmt dispatch (int/duration/sci/float).
+function formatMetric(spec, v) {
+  if (v == null) return "—";
+  switch (spec.fmt) {
+    case "int": return Math.round(v).toLocaleString("en-US");
+    case "duration": return fmtDuration(v);
+    case "sci": return fmtSci(v);
+    default: return v.toFixed(spec.decimals ?? 4);
+  }
+}
+
+// One metric's trend line across this run's full recorded history. Reuses
+// niceStep-adjacent thinking (min/max axis labels) but at sparkline scale;
+// the CLI's "warming up" (fewer than 2 samples) / "constant" (no spread)
+// bar states are echoed here as text so degrading gracefully reads the same
+// way in both places.
+function renderMetricSpark(rows, spec) {
+  const pts = rows.filter((m) => m[spec.key] != null).map((m) => ({ t: m.sampled_at, v: m[spec.key] }));
+  if (!pts.length) return '<div class="spark-empty">no data</div>';
+  if (pts.length < 2) return '<div class="spark-empty">warming up</div>';
+  const vs = pts.map((p) => p.v);
+  const vmin = Math.min(...vs), vmax = Math.max(...vs);
+  if (vmin === vmax) return `<div class="spark-empty">constant (${formatMetric(spec, vmin)})</div>`;
+  const SW = 100, SH = 36, PAD = 2;
+  const t0 = pts[0].t, t1 = pts[pts.length - 1].t;
+  const X = (t) => PAD + (t1 > t0 ? (t - t0) / (t1 - t0) : 0) * (SW - 2 * PAD);
+  const Y = (v) => SH - PAD - ((v - vmin) / (vmax - vmin)) * (SH - 2 * PAD);
+  const pointsAttr = pts.map((p) => `${X(p.t).toFixed(1)},${Y(p.v).toFixed(1)}`).join(" ");
+  return `<svg viewBox="0 0 ${SW} ${SH}" class="spark" preserveAspectRatio="none">
+      <polyline points="${pointsAttr}" class="spark-line"/>
+    </svg>
+    <div class="spark-range"><span>${formatMetric(spec, vmin)}</span><span>${formatMetric(spec, vmax)}</span></div>`;
+}
+
+function metricCardHtml(rows, spec) {
+  let last = null;
+  for (let i = rows.length - 1; i >= 0; i--) {
+    if (rows[i][spec.key] != null) { last = rows[i][spec.key]; break; }
+  }
+  const goal = spec.goal ? `<span class="metric-goal">${esc(spec.goal)}</span>` : "";
+  const trend = spec.bar === false ? "" : renderMetricSpark(rows, spec);
+  return `<div class="metric-card">
+    <div class="metric-head"><span class="metric-label">${esc(spec.label)}</span>${goal}</div>
+    <div class="metric-value">${formatMetric(spec, last)}</div>
+    ${trend}
+  </div>`;
+}
+
+function renderProgressTab(metrics) {
+  const train = metrics.train || [];
+  const banner = $("#progress-banner");
+  const hasAnyNewKeys = train.some((m) => METRIC_SPECS.some((s) => m[s.key] != null));
+  if (!train.length) {
+    banner.textContent = "no metrics yet — waiting for the first checkpoint sample";
+    banner.classList.remove("hidden");
+  } else if (!hasAnyNewKeys) {
+    banner.textContent = "this run's metrics.jsonl predates the train/*, rollout/* and time/* " +
+      "metrics (only episodes/timesteps/win-rate were recorded before) — every card below will " +
+      "read “no data” until the trainer checkpoints again on the current code.";
+    banner.classList.remove("hidden");
+  } else {
+    banner.classList.add("hidden");
+  }
+  for (const panel of PROGRESS_PANELS) {
+    $(`#progress-panel-${panel}`).innerHTML =
+      METRIC_SPECS.filter((s) => s.panel === panel).map((s) => metricCardHtml(train, s)).join("");
+  }
+}
+
+async function refreshProgress() {
+  try {
+    const [summary, metrics] = await Promise.all([getJSON("/api/summary"), getJSON("/api/metrics")]);
+    renderProgressTab(metrics);
+    $("#conn").textContent = `run: ${summary.run}`;
+  } catch (err) {
+    $("#conn").textContent = "server unreachable";
+  }
 }
 
 /* ---------------------------------------------------------------- runs */
@@ -1876,6 +2006,7 @@ async function init() {
     if (document.hidden) return;
     if (!state.rooms.length) getJSON("/api/rooms").then((r) => { state.rooms = r; }).catch(() => {});
     if (state.tab === "dashboard") refreshDashboard();
+    if (state.tab === "progress") refreshProgress();
   }, 10_000);
   setInterval(() => {
     if (document.hidden || state.tab !== "runs") return;

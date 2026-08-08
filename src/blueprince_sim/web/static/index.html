@@ -11,6 +11,7 @@
   <h1>Blue Prince <span class="dim">· Training Observatory</span></h1>
   <nav>
     <button id="tab-dashboard" class="tab active">Dashboard</button>
+    <button id="tab-progress" class="tab">Progress</button>
     <button id="tab-runs" class="tab">Runs</button>
     <button id="tab-play" class="tab">Play</button>
   </nav>
@@ -84,6 +85,29 @@
     <h2>Upgrade statistics</h2>
     <div id="upgrade-stats"></div>
   </section>
+</main>
+
+<main id="view-progress" class="hidden">
+  <p id="progress-banner" class="dim note hidden"></p>
+  <section class="card">
+    <h2>PROGRESS</h2>
+    <div id="progress-panel-PROGRESS" class="metric-grid"></div>
+  </section>
+  <section class="card">
+    <h2>OUTCOMES</h2>
+    <div id="progress-panel-OUTCOMES" class="metric-grid"></div>
+  </section>
+  <section class="card">
+    <h2>LEARNING</h2>
+    <div id="progress-panel-LEARNING" class="metric-grid"></div>
+  </section>
+  <p class="dim note">
+    Mirrors <code>blueprince-train</code>'s in-terminal dashboard (<code>rl/dashboard.py::SPECS</code>):
+    same 20 metrics, same three panels, same "goal" hints. Each card's trend line
+    covers this run's full recorded history (subject to the server's downsampling);
+    "warming up" means fewer than two samples so far, "constant" means the window
+    has no spread to draw a line through yet.
+  </p>
 </main>
 
 <main id="view-runs" class="hidden">
