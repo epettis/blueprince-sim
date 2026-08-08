@@ -259,6 +259,14 @@ class GameState:
     foundation_cell: int = -1     # cell it was placed at today, if drafted today; -1 = not yet
     foundation_doors: int = 0     # its door mask as drafted today; 0 = not yet drafted
 
+    # --- Garage Forced Draw (data/priority_draws.json "forced_draws"; see draft.py) ---
+    # True once today's Garage forced-draw roll has succeeded (wiki: "Once the roll
+    # succeeds ... they will no longer be available for Forced Draws" today), whether
+    # or not the Garage actually ended up placed in slot 3 (it can "succeed but fail"
+    # when the Garage already occupies an earlier slot of the same hand). Per-day only:
+    # a fresh GameState resets it every day like schoolhouse_placed/greenhouse_placed.
+    garage_forced_draw_succeeded: bool = False
+
     def deck(self, rarity_idx: int, is_gem: bool) -> DeckState:
         return self.decks[rarity_idx * 2 + (1 if is_gem else 0)]
 

@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "comment": "Two mechanisms. 'priority_draws': chance to force a specific room (or one of a named set) into slot 3 whenever it is draftable. 'category_biases': conditional biases that force a category re-deal with the given chance while their condition holds (King's Chess Piece variants, constellations, room auras). Chances are fractions.",
+  "comment": "Three mechanisms. 'priority_draws': chance to force a specific room (or one of a named set) into slot 3 whenever it is draftable. 'forced_draws': a DIFFERENT mechanic (wiki.gg/Drafting/Advanced) -- once per day, the first time a doorway is opened where a listed room's own draft conditions + a gate are met, roll a very-high chance to push that specific room into slot 3; on success it is unavailable for the rest of the day even if the placement itself then fails (e.g. the room already occupies an earlier slot of the same hand). 'category_biases': conditional biases that force a category re-deal with the given chance while their condition holds (King's Chess Piece variants, constellations, room auras). Chances are fractions.",
   "priority_draws": [
     {
       "rooms": [
@@ -39,6 +39,20 @@
       "meta": {
         "confidence": "datamined",
         "source": "sheet constants: 'Classrooms 3%'"
+      }
+    }
+  ],
+  "forced_draws": [
+    {
+      "room": "garage",
+      "label": "garage",
+      "chance": 0.90,
+      "chance_with_west_gate": 0.925,
+      "gate_day": 3,
+      "meta": {
+        "confidence": "datamined",
+        "source": "blueprince.wiki.gg/wiki/Garage datamined box: 'the chance of the roll succeeding is 90%. If the West Gate permanent addition has been unlocked, the chance is increased to 92.5%.' Gate: 'Veteran Mode is active, or Day 3 has been reached.'",
+        "notes": "Only the Garage slice of forced_draw_precedence is implemented (owner decision); conservatory/morning_room/utility_closet remain unbuilt pending their own prerequisites (Found Floorplan, Bacon & Eggs, and Garage-drafted-first respectively). The separate Day-5-or-Veteran 3% passive Priority Draw for the Garage (wiki) is a different, unimplemented mechanic -- do not conflate the two gates."
       }
     }
   ],

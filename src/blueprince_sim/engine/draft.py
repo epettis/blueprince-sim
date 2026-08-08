@@ -126,6 +126,72 @@ def _priority_draw(ctx: DraftContext, cell: int, entry_dir: int,
     return None
 
 
+def _garage_dead_end_gate(ctx: DraftContext, earlier_options: list[DraftOption]) -> bool:
+    """Wiki gate: "the first two slots are not both a Dead End, or Slot 2 was not
+    drawn by a normal draw" (1-indexed wiki Slot 2 = this engine's slot index 1).
+
+    Reading: the Forced Draw attempt is blocked only when BOTH (a) slots 0 and 1
+    are both Dead End rooms AND (b) slot index 1 was placed by a normal roll-based
+    draw. "Normal draw" is read here as ``DraftOption.forced is False`` -- forced
+    marks priority draws, the Tunnel chain guarantee, and the forced-Closet
+    fallback, all of which bypassed the rarity lottery; a category-bias
+    substitution is still treated as normal since it re-deals the same
+    rarity-rolled slot rather than forcing a placement. If either slot hasn't
+    been dealt yet (a rare failure path), "both Dead End" is trivially false and
+    the gate passes.
+    """
+    if len(earlier_options) < 2:
+        return True
+    rooms = ctx.registry.rooms
+    slot0_room = rooms[earlier_options[0].room_idx]
+    slot1_room = rooms[earlier_options[1].room_idx]
+    both_dead_end = slot0_room.layout == "dead_end" and slot1_room.layout == "dead_end"
+    slot1_normal = not earlier_options[1].forced
+    return not (both_dead_end and slot1_normal)
+
+
+def _forced_draw_garage(ctx: DraftContext, cell: int, entry_dir: int, exclude: set[int],
+                        earlier_options: list[DraftOption]) -> Room | None:
+    """Roll the Garage's once-per-day Forced Draw into slot 3 (data/priority_draws.json
+    "forced_draws"; blueprince.wiki.gg/wiki/Garage).
+
+    Distinct from :func:`_priority_draw`: this targets one specific room's own
+    draft conditions (not a named group), is gated on Veteran Mode/Day 3 and the
+    slot-0/1 Dead-End clause, and can succeed (permanently disabling itself for
+    today) even when the resulting placement then fails because the Garage
+    already occupies an earlier slot of this same hand.
+    """
+    state, cfg = ctx.state, ctx.cfg
+    if state.garage_forced_draw_succeeded:
+        return None
+    if not (cfg.veteran_mode or state.day >= 3):
+        return None
+    entry = next((e for e in ctx.registry.priority.get("forced_draws", [])
+                  if e["room"] == "garage"), None)
+    garage = ctx.registry.by_id.get("garage")
+    if entry is None or garage is None:
+        return None
+    if not _garage_dead_end_gate(ctx, earlier_options):
+        return None
+    # "Spawning requirements met": the Garage's own draft conditions/geometry at
+    # this doorway, ignoring same-hand dedup (exclude=set()) -- the wiki says the
+    # roll still tries even if the Garage already occupies an earlier slot of
+    # this hand; only the eventual placement fails in that case (checked below,
+    # after the roll, against the caller's real `exclude`).
+    if not room_draftable(ctx, garage, cell, entry_dir, set()):
+        return None
+    west_gate = cfg.west_gate_unlatched or state.west_gate_unlatched
+    chance = entry["chance_with_west_gate"] if west_gate else entry["chance"]
+    if not ctx.rng.chance(f"forced_draw_{entry['label']}", chance):
+        return None
+    # The roll has succeeded: no more Forced Draw attempts for the Garage today,
+    # regardless of whether the placement below actually goes through.
+    state.garage_forced_draw_succeeded = True
+    if garage.idx in exclude:
+        return None  # already dealt into an earlier slot this hand: draw fails regardless
+    return garage
+
+
 def _active_conditions(ctx: DraftContext) -> set[str]:
     """Return the category-bias condition tags that are currently satisfied.
 
@@ -251,10 +317,22 @@ def _apply_category_bias(ctx: DraftContext, room: Room, slot: int, cell: int,
 
 
 def draw_slot(ctx: DraftContext, slot: int, cell: int, entry_dir: int,
-              exclude: set[int]) -> DraftOption | None:
-    """Fill one option slot via the four-attempt procedure."""
+              exclude: set[int], earlier_options: list[DraftOption] = ()) -> DraftOption | None:
+    """Fill one option slot via the four-attempt procedure.
+
+    ``earlier_options`` holds the already-dealt slot-0/1 options of this hand
+    (only meaningful, and only passed, at ``slot == 2``); it feeds the Garage
+    Forced Draw's Dead-End gate.
+    """
     state, registry, cfg, rng = ctx.state, ctx.registry, ctx.cfg, ctx.rng
     rank = rank_of(cell)
+
+    # Forced draws push one specific room into slot 3 with a very high chance,
+    # ahead of the named-group priority draws below (see _forced_draw_garage).
+    if slot == 2:
+        forced = _forced_draw_garage(ctx, cell, entry_dir, exclude, list(earlier_options))
+        if forced is not None:
+            return _make_option(ctx, forced, slot, cell, entry_dir, forced_draw=True)
 
     # Priority draws force specific rooms into slot 3 (attempt-1 rules only).
     if slot == 2:
@@ -405,7 +483,8 @@ def _fill_options(ctx: DraftContext, pending: PendingDraft, from_room: Room | No
             opt = _deal_cross_t_biased(ctx, slot, pending.target_cell,
                                        pending.direction, exclude)
         if opt is None:
-            opt = draw_slot(ctx, slot, pending.target_cell, pending.direction, exclude)
+            opt = draw_slot(ctx, slot, pending.target_cell, pending.direction, exclude,
+                            pending.options)
         if opt is not None:
             pending.options.append(opt)
             exclude.add(opt.room_idx)

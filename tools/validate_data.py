@@ -146,6 +146,14 @@ def main() -> int:
     for rid in priority["forced_draw_precedence"]["order"]:
         if rid not in by_id:
             warnings.append(f"forced-draw precedence references unknown room {rid}")
+    for entry in priority.get("forced_draws", []):
+        if entry["room"] not in by_id:
+            errors.append(f"forced draw references unknown room {entry['room']}")
+        for key in ("chance", "chance_with_west_gate"):
+            if key in entry and not 0 <= entry[key] <= 1:
+                errors.append(f"forced draw {entry['room']}/{key} out of range: {entry[key]}")
+        if "chance_with_west_gate" in entry and entry["chance_with_west_gate"] < entry["chance"]:
+            errors.append(f"forced draw {entry['room']}: chance_with_west_gate below base chance")
 
     # locks.json: table shape, referential integrity, sane probabilities
     ew = lock_rules["lock_chance"]["ew_by_rank"]
