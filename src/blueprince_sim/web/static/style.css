@@ -333,13 +333,6 @@ td:first-child, th:first-child { text-align: left; }
 #play-draft { margin-bottom: 14px; padding-bottom: 12px; border-bottom: 1px solid var(--line); }
 #play-draft:empty { display: none; }
 #play-draft-opts .opt { margin-bottom: 8px; }
-.play-opt-wrap { margin-bottom: 8px; }
-.play-opt-wrap .opt { margin-bottom: 4px; }
-.play-alt-btn {
-  display: block; width: 100%; text-align: left; background: var(--panel2);
-  color: var(--accent); border: 1px dashed var(--accent); border-radius: 5px;
-  padding: 4px 8px; cursor: pointer; font-size: 11px;
-}
 .play-draft-controls { display: flex; flex-direction: column; gap: 6px; margin-top: 6px; }
 .play-draft-btn {
   background: var(--panel2); color: var(--fg); border: 1px solid var(--accent);

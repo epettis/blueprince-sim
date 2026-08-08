@@ -128,7 +128,6 @@ def fresh_save_config(reward: str = "shaped") -> GameConfig:
         satisfied_conditions=frozenset(),  # no item/unlock-dependent conditions
         door_locks=True,               # locked/security doors active (default)
         strict_door_matching=False,    # permissive placement (default)
-        orientation_choice=False,      # random orientation (default)
         compass=False,                 # no compass held
         ornate_compass=False,          # no ornate compass held
         special_items=True,            # item system active (default)

@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import inspect
+import re
+
 import numpy as np
 
 from blueprince_sim import GameConfig, make_env
@@ -184,6 +187,102 @@ def test_mask_layout_and_retired_actions():
     # From a fresh entrance: its own doorways are draftable, nothing walkable.
     assert any(mask[A.OPEN_BASE:A.CHOOSE_BASE])
     assert not any(mask[A.MOVE_TO_BASE:A.MOVE_TO_BASE + N_CELLS])
+
+
+def test_every_action_kind_has_a_masking_site():
+    """Every ``*_BASE``/``*_ACTION`` id declared in the module's layout table is
+    actually written by ``action_mask`` somewhere -- not merely declared and
+    consumed by ``apply_action``/``describe_action``.
+
+    This is the regression guard for the ``ALT_BASE`` bug this PR removes:
+    ``ALT_BASE`` had ids reserved for it and was routed through
+    ``apply_action``/``describe_action``, but ``action_mask`` never contained
+    a ``mask[ALT_BASE...] = True`` anywhere, so it was permanently unmaskable
+    -- dead ids sitting in a masked space, which is exactly what misleads the
+    next investigation. A id can only ever become legal if some code path
+    assigns into it, so scanning ``action_mask``'s own source for
+    ``mask[<NAME>`` for every declared name is a direct, cheap check of that
+    property (rather than a probabilistic runtime sweep, which would have to
+    separately reconstruct rare game states -- shop stock, Trading Post
+    offers, Workshop fabrication, the Royal Scepter, vault keys, ignition
+    tools, machine levers, Upgrade Disks -- that are each already exercised
+    end-to-end, mask included, in their own dedicated test modules
+    (test_shops.py, test_containers.py, test_ignition.py,
+    test_upgrade_env.py, test_travel_anchor_filter.py, etc.).
+    """
+    src = inspect.getsource(A.action_mask)
+    action_kind_names = [
+        "OPEN_BASE", "CHOOSE_BASE", "REDRAW_ACTION", "OUTER_DRAFT_ACTION",
+        "TOGGLE_POWER_ACTION", "SET_LEVEL_BASE", "ROTATE_ACTION", "MOVE_TO_BASE",
+        "BUY_BASE", "TRADE_BASE", "FABRICATE_BASE", "SCEPTER_BASE",
+        "SMASH_VASE_ACTION", "OPEN_CONTAINER_ACTION", "OPEN_CAR_TRUNK_ACTION",
+        "OPEN_VAULT_BOX_ACTION", "LIGHT_ACTION", "INSTALL_LEVER_ACTION",
+        "INSERT_DISK_ACTION", "CHOOSE_UPGRADE_BASE", "TRAVEL_BASE",
+    ]
+    for name in action_kind_names:
+        assert re.search(rf"mask\[{name}\b", src), (
+            f"{name} is declared in env/actions.py but action_mask() never "
+            f"assigns into mask[{name}...] -- it can never become legal"
+        )
+
+
+def test_core_draft_choose_move_action_kinds_are_reachable_in_play():
+    """Draft/choose/move ids each go legal at least once across ordinary masked play.
+
+    Complements ``test_every_action_kind_has_a_masking_site`` (which checks
+    every kind has *a* masking site in the source) with a runtime check that
+    the core draft-then-move loop -- the region the ``ALT_BASE`` bug lived in
+    -- is not just present in the source but actually reachable when the env
+    is driven the way the trainer/human player drives it: every fresh day
+    drafts from the entrance's own doorways, every draft resolves through a
+    choose (Closet is always an affordable fallback slot), and every placed
+    room becomes a move target.
+
+    The other 18 action kinds are deliberately out of scope for this runtime
+    sweep: redraw/rotate/set-level/toggle-power/outer-draft and the
+    shop/trade/fabricate/scepter/container/vault/ignition/lever/disk/upgrade/
+    travel kinds each require specific unlocks, items, or room placements
+    (Study, a compass, standing in Security, specific shop stock, ...) that a
+    plain masked random walk from a fresh save has no guaranteed chance of
+    reaching in a bounded number of steps -- asserting on them here would
+    make this test flaky rather than more thorough. Each already has
+    dedicated, non-flaky mask-level coverage elsewhere (e.g.
+    test_action_guards.py for set-level, test_shops.py for buy/trade,
+    test_upgrade_env.py for choose-upgrade, test_travel_anchor_filter.py for
+    travel).
+    """
+    seen_kinds: set[str] = set()
+
+    def _classify(action_id: int) -> str | None:
+        if action_id < A.CHOOSE_BASE:
+            return "draft"
+        if action_id < A.REDRAW_ACTION:
+            return "choose"
+        if A.MOVE_TO_BASE <= action_id < A.MOVE_TO_BASE + N_CELLS:
+            return "move"
+        return None
+
+    env = make_env(GameConfig())
+    rng = np.random.default_rng(11)
+    for episode in range(5):
+        env.reset(seed=episode)
+        for _ in range(200):
+            mask = env.action_masks()
+            for action_id, legal in enumerate(mask):
+                if legal:
+                    kind = _classify(action_id)
+                    if kind is not None:
+                        seen_kinds.add(kind)
+            legal_ids = np.flatnonzero(mask)
+            if len(legal_ids) == 0:
+                break
+            _, _, term, trunc, _ = env.step(int(rng.choice(legal_ids)))
+            if term or trunc:
+                break
+
+    expected_kinds = {"draft", "choose", "move"}
+    missing = expected_kinds - seen_kinds
+    assert not missing, f"action kinds never went legal across the sweep: {missing}"
 
 
 def test_mask_draft_requires_step_to_spare():

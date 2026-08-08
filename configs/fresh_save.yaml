@@ -27,7 +27,6 @@ room46_reached: false
 satisfied_conditions: []
 door_locks: true
 strict_door_matching: false
-orientation_choice: false
 compass: false
 ornate_compass: false
 special_items: true
