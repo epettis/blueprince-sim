@@ -87,6 +87,10 @@
     "8": [12.0, 25.0, 45.0, 18.0],
     "9": [10.0, 20.0, 50.0, 20.0]
   },
+  "library_override": {
+    "weights": [0.0, 0.01, 49.99, 50.0],
+    "meta": { "confidence": "datamined", "source": "blueprince.wiki.gg/wiki/Library", "notes": "Drafting through the Library's doorway REPLACES the stage/slot/rank row outright (Commonplace 0%, Standard 0.01%, Unusual 49.99%, Rare 50%) rather than re-dealing or biasing. Rank-independent, so one flat row instead of the rank-keyed shape solarium_slot23 uses. Applied in decks.py::roll_rarity before the deck-size gating, so an exhausted or unaffordable deck is still zeroed normally." }
+  },
   "stage_day_boundaries": {
     "week1_days": [1, 7],
     "week2_days": [8, 14],

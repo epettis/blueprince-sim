@@ -193,17 +193,6 @@
       }
     },
     {
-      "rarity": "rare",
-      "chance": 1.0,
-      "condition": "drafting_from_library_rare_override_unimplemented",
-      "label": "Rare Rooms (Library)",
-      "meta": {
-        "confidence": "datamined",
-        "source": "wiki.gg/Library (rarity table: Commonplace 0%, Standard 0.01%, Unusual 49.99%, Rare 50%)",
-        "notes": "WRONG MECHANISM -- left inert. Shared 'drafting_from_library' with the Bookshop entry; renamed to a never-emitted condition so activating that one cannot fire this. Real Library rule is a full rarity-table override (datamined), not a re-deal; implement in decks.py::roll_rarity."
-      }
-    },
-    {
       "flag": "powered",
       "chance": 0.4,
       "condition": "adjacent_duct",
