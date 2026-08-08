@@ -752,6 +752,28 @@ def main(argv: list[str] | None = None) -> int:
                              "epsilon-greedy feel, keeps long episodes mostly "
                              "on-policy) or per episode (coherent deep "
                              "exploration, but a whole episode can be random)")
+    # --- behavioural-cloning warm start ---
+    parser.add_argument("--pretrain-demos", nargs="+", default=None, metavar="PATH",
+                        help="behavioural-cloning warm start: one or more demos.jsonl "
+                             "files (or directories of them), e.g. recorded by the "
+                             "Play tab. Replayed through the env to regenerate "
+                             "(obs, action, mask) triples and used for masked "
+                             "cross-entropy pretraining of the policy BEFORE PPO "
+                             "starts. Only records matching --unlocks are used. "
+                             "Refuses to run if --resume=auto would continue from "
+                             "an existing latest.zip (warm-starting on top of an "
+                             "already-trained checkpoint would overwrite its "
+                             "learned weights with the demo distribution) -- use "
+                             "--resume never or a fresh --checkpoint-dir instead.")
+    parser.add_argument("--pretrain-epochs", type=int, default=20,
+                        help="passes over the replayed demo set (default 20; "
+                             "demo sets are typically small, so more epochs than "
+                             "a single PPO pass is normal)")
+    parser.add_argument("--pretrain-batch-size", type=int, default=256)
+    parser.add_argument("--pretrain-lr", type=float, default=1e-3,
+                        help="Adam learning rate for pretraining (default 1e-3, "
+                             "higher than PPO's 3e-4 since BC is plain supervised "
+                             "cross-entropy, not a clipped policy-gradient update)")
     args = parser.parse_args(argv)
 
     if args.evaluate:
@@ -760,16 +782,26 @@ def main(argv: list[str] | None = None) -> int:
                         model_path=Path(args.model) if args.model else None,
                         eval_json=Path(args.eval_json) if args.eval_json else None)
 
+    ckpt_dir = Path(args.checkpoint_dir)
+    latest = ckpt_dir / "latest.zip"
+    meta_path = ckpt_dir / "latest.json"
+
+    if args.pretrain_demos and args.resume == "auto" and latest.exists():
+        print(f"[train] --pretrain-demos was given but {latest} exists and "
+              "--resume=auto would continue from it. Warm-starting on top of an "
+              "already-trained checkpoint would overwrite its learned weights "
+              "with the (typically much smaller, less diverse) demo "
+              "distribution, so this refuses to run. Use --resume never, point "
+              "--checkpoint-dir at a fresh directory, or drop --pretrain-demos.",
+              file=sys.stderr)
+        return 1
+
     import torch
 
     torch.set_num_threads(max(1, (os.cpu_count() or 4) // 2))
 
     from sb3_contrib import MaskablePPO
     from stable_baselines3.common.vec_env import DummyVecEnv, SubprocVecEnv
-
-    ckpt_dir = Path(args.checkpoint_dir)
-    latest = ckpt_dir / "latest.zip"
-    meta_path = ckpt_dir / "latest.json"
 
     # Activated before anything is logged so the startup banner lands in the
     # dashboard's event tail rather than tearing the frame.
@@ -817,6 +849,32 @@ def main(argv: list[str] | None = None) -> int:
         emit(f"[train] fresh run: {args.n_envs} envs, reward={args.reward}, "
              f"checkpoint every {args.checkpoint_every} episodes -> {ckpt_dir}")
         reset_counters = True
+
+        if args.pretrain_demos:
+            # Only reachable on a fresh model: the resume+pretrain combination
+            # was already refused above before vec_env/model construction.
+            from .behavioral_cloning import load_demo_dataset, pretrain, replay_dataset
+
+            records = load_demo_dataset(args.pretrain_demos, n_actions=_n_actions(),
+                                        unlocks=args.unlocks)
+            if not records:
+                emit(f"[train] --pretrain-demos: no records matching "
+                     f"unlocks={args.unlocks!r} found in {args.pretrain_demos}; "
+                     "nothing to pretrain on, continuing with random init")
+            else:
+                triples = replay_dataset(records)
+                emit(f"[train] pretraining on {len(records)} demo day(s) "
+                     f"({len(triples)} (obs, action) pairs), "
+                     f"{args.pretrain_epochs} epochs, batch {args.pretrain_batch_size}, "
+                     f"lr {args.pretrain_lr}")
+                losses = pretrain(
+                    model.policy, triples, epochs=args.pretrain_epochs,
+                    batch_size=args.pretrain_batch_size, lr=args.pretrain_lr,
+                    seed=args.seed,
+                    on_epoch=lambda e, loss: emit(
+                        f"[train] pretrain epoch {e + 1}/{args.pretrain_epochs}: "
+                        f"loss {loss:.4f}"))
+                emit(f"[train] pretraining done: loss {losses[0]:.4f} -> {losses[-1]:.4f}")
 
     if dash is not None:
         # set_logger flips sb3's _custom_logger flag, so learn() keeps ours
