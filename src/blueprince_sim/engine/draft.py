@@ -317,16 +317,18 @@ def _make_option(ctx: DraftContext, room: Room, slot: int, cell: int, entry_dir:
 
 
 def _tunnel_chain_option(ctx: DraftContext, cell: int, entry_dir: int) -> DraftOption | None:
-    """Return a forced Tunnel option when drafting north from a Tunnel cell.
+    """Return the guaranteed slot-0 Tunnel option for drafting north from a Tunnel cell.
 
     The Tunnel's chain-draft effect: opening the north door of a placed Tunnel
-    always deals exactly ONE forced Tunnel option, provided the Tunnel is still
-    legal at the target cell (rank_gte_2 / rank_lte_8 conditions + valid
-    orientation).  No RNG is consumed: the orientation is always N|S (the
-    Tunnel's only valid mask — a straight room drafted through a N doorway must
-    be oriented N-S).
+    guarantees a Tunnel in slot 0 of the normal three-slot hand (see
+    ``_fill_options``), provided the Tunnel is still legal at the target cell
+    (rank_gte_2 / rank_lte_8 conditions + valid orientation).  This helper
+    itself consumes no RNG: the orientation is always N|S (the Tunnel's only
+    valid mask — a straight room drafted through a N doorway must be oriented
+    N-S).
 
-    Returns None if the Tunnel is illegal at the target (chain ends naturally).
+    Returns None if the Tunnel is illegal at the target (chain ends naturally,
+    and the caller deals slot 0 normally instead).
     """
     tunnel = ctx.registry.by_id.get(TUNNEL_ID)
     if tunnel is None:
@@ -353,21 +355,30 @@ def _fill_options(ctx: DraftContext, pending: PendingDraft, from_room: Room | No
     fully draftable; only its identity and orientation are concealed from the
     player (and from the RL observation).
 
-    Tunnel chain: drafting north from a Tunnel always deals a single forced
-    Tunnel option (if the Tunnel is legal at the target).  The normal three-slot
-    deal is skipped entirely for the chain.  The chain ends naturally when the
-    forced Tunnel is illegal at the target (rank 9 blocked by rank_lte_8, or the
-    target is already occupied) — then the deal falls back to the normal pipeline.
+    Tunnel chain: drafting north from a placed Tunnel deals a normal
+    three-slot hand with slot 0 guaranteed to be a Tunnel — the wiki
+    (blueprince.wiki.gg/wiki/Drafting/Advanced) states "When drafting from a
+    Tunnel, a Tunnel is drawn into Slot 1", and its 1-indexed Slot 1 is this
+    engine's slot 0 (confirmed by the same page's "Slot 1 always makes a Free
+    Draw", matching slot 0's existing free-only convention here). Slots 1 and
+    2 are dealt through the ordinary pipeline and cannot re-deal a second
+    Tunnel (its index is pre-excluded). The guaranteed Tunnel is marked
+    ``forced`` — like a priority draw, it bypassed the rarity lottery even
+    though (like a priority draw) it sits alongside two ordinarily-dealt
+    options; it is a real, choosable slot, not a sole non-choice. The chain
+    ends naturally when the Tunnel is illegal at the target (rank 9 blocked by
+    rank_lte_8, or the target already occupied) — slot 0 then falls back to an
+    ordinary draw, so the hand is three ordinary options with no Tunnel.
     """
-    # Tunnel chain-draft: north exit of a Tunnel forces another Tunnel.
+    # Tunnel chain-draft: north exit of a placed Tunnel guarantees a Tunnel in
+    # slot 0 of an otherwise-normal three-slot hand (see docstring above).
+    exclude: set[int] = set()
+    tunnel_forced_option: DraftOption | None = None
     if (from_room is not None and from_room.id == TUNNEL_ID
             and pending.direction == N):
-        opt = _tunnel_chain_option(ctx, pending.target_cell, pending.direction)
-        if opt is not None:
-            pending.options.append(opt)
-            # Silver Key draft flag cleared: chain deal counts as the initial deal.
-            ctx.state.special.silver_key_draft = False
-            return  # chain active: skip the normal three-slot deal
+        tunnel_forced_option = _tunnel_chain_option(ctx, pending.target_cell, pending.direction)
+        if tunnel_forced_option is not None:
+            exclude.add(tunnel_forced_option.room_idx)
 
     # The Foundation: wiki says drafting on Rank 3 has a 90% chance to remove
     # it from the draft pool "for that draft" - rolled ONCE per hand (not once
@@ -375,7 +386,6 @@ def _fill_options(ctx: DraftContext, pending: PendingDraft, from_room: Room | No
     # break determinism), and only when the Foundation could otherwise be dealt
     # at all (not already on the grid), to avoid disturbing the RNG stream on
     # doorways where it was never a candidate. See docs/foundation-design.md.
-    exclude: set[int] = set()
     foundation = ctx.registry.by_id.get("the_foundation")
     if (foundation is not None and foundation.id not in ctx.placed_ids
             and rank_of(pending.target_cell) == 3
@@ -387,6 +397,9 @@ def _fill_options(ctx: DraftContext, pending: PendingDraft, from_room: Room | No
     # Redraws clear the flag before calling _fill_options via redeal (flag already False).
     silver_key_bias = ctx.state.special.silver_key_draft
     for slot in range(3):
+        if slot == 0 and tunnel_forced_option is not None:
+            pending.options.append(tunnel_forced_option)
+            continue
         opt = None
         if silver_key_bias:
             opt = _deal_cross_t_biased(ctx, slot, pending.target_cell,
