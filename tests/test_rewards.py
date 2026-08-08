@@ -378,6 +378,58 @@ def test_reopening_path_gives_positive_delta(registry):
     assert r > 0.0                      # positive: reclaiming potential is rewarded
 
 
+def test_time_term_scales_with_steps_not_flat_per_decision(registry):
+    """A decision that consumes several game-steps costs strictly more shaped
+    reward than a single-step decision, and a zero-step decision still pays
+    the old flat -0.001 floor.
+
+    Repricing the time term against game-steps (the resource that actually
+    ends 68% of runs via out_of_steps) rather than decision count is the
+    whole point of this change; a flat charge priced a multi-step travel hop
+    identically to a single-cell move.
+    """
+    g = _sealed_game(registry)
+    _place(g, 32, N | E, pos=True)  # two open paths -> phi_paths delta 0.0 throughout
+
+    g.state.steps = 50
+    prev_zero = snapshot(g)
+    zero_step = shaped(g, prev_zero, terminated=False)  # no steps consumed at all
+    assert zero_step == pytest.approx(-0.001)
+
+    g.state.steps = 50
+    prev_one = snapshot(g)
+    g.state.steps = 49  # single-step move
+    one_step = shaped(g, prev_one, terminated=False)
+    assert one_step == pytest.approx(-0.001)  # floor: same as the zero-step charge
+
+    g.state.steps = 50
+    prev_multi = snapshot(g)
+    g.state.steps = 44  # 6-step travel hop, same as travel_to's area_hop + walk cost
+    multi_step = shaped(g, prev_multi, terminated=False)
+    assert multi_step == pytest.approx(-0.006)
+    assert multi_step < one_step < 0  # the travel hop strictly outprices the single move
+
+
+def test_time_term_clamped_when_steps_gained(registry):
+    """Steps GAINED during a decision (food, the Orchard bonus, other
+    step-granting effects) must not turn the time-pressure term into a
+    reward bonus.
+
+    A naive ``prev["steps"] - game.state.steps`` delta goes negative when a
+    decision nets a step gain; without clamping, that would make step-granting
+    actions look strictly better than a free decision, the opposite of the
+    intended time pressure and a new exploit in a change meant to close one.
+    """
+    g = _sealed_game(registry)
+    _place(g, 32, N | E, pos=True)  # two open paths -> phi_paths delta 0.0 throughout
+
+    g.state.steps = 50
+    prev = snapshot(g)
+    g.state.steps = 70  # net +20 steps this decision (e.g. a food pickup on entry)
+    r = shaped(g, prev, terminated=False)
+    assert r == pytest.approx(-0.001)  # floored at the flat per-decision charge, not a bonus
+
+
 def test_antechamber_reachable_returns_open_goal_constant(registry):
     """When the Antechamber is already reachable on foot, _ante_paths returns 99
     and the potential is 0.0, leaving the +1.0 win bonus undiluted.
