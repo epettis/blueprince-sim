@@ -760,6 +760,195 @@ breaks, the Sanctum keys.
   answers "does the reward still price drafting negatively" — it does **not**
   predict what a freshly trained policy would do, and must not be read that way.
 
+- **2026-08-07, the reward function was NOT the problem.** The re-measurement
+  above came back and reversed its own premise. Measured policy-free on current
+  main, across **6,153 real grid crossings**, exactly **zero** produced a nonzero
+  path-term delta: PR #63's fix is validated at population scale. Under that
+  corrected accounting `greedy_rank` nets **+0.435/episode** and **+0.041 per
+  room placement**, reaching mean deepest rank **5.39** without dead-ending once
+  in 500 episodes. **Expansion is not structurally punished, so the 2026-08-05
+  recommendation to rebalance `PATHS_ONE_PENALTY`/`PATHS_ZERO_PENALTY` was
+  retired unimplemented** — it rested on a trained-policy measurement that is no
+  longer reproducible and predates the fix.
+
+  Act on this cold as: the instrument matters more than the suspicion. A
+  scripted, policy-free probe answered in minutes what a checkpoint could not
+  answer at all, and it overturned a recommendation that would have cost a
+  tuning cycle.
+
+- **2026-08-07, `runs/foundation-v2` is permanently unusable.** The checkpoint
+  deserializes but SB3 refuses to run it: `carryover` grew from 10 to 12 keys
+  when PRs #61/#63 landed *after* training stopped. A fresh run
+  (`runs/postfix-v1`, `--unlocks all --multi-day 200`) was started and then
+  **deliberately killed at 50,000 episodes / 2.21M timesteps** once the bugs
+  below surfaced — owner decision, on the reasoning that a run 3.5% in is nearly
+  free to discard and expensive to discard later.
+
+  Act on this cold as: an observation-space change kills every checkpoint
+  trained before it, the moment it merges. Batch space-affecting changes and
+  restart deliberately rather than merging them mid-run.
+
+- **2026-08-07, the Tunnel chain deals THREE options, not one.** Owner, from
+  play: the chain offers three rooms every time and merely *guarantees* a Tunnel
+  is one of them. The sim dealt exactly ONE forced Tunnel and skipped the
+  three-slot deal — its own docstring said so. Measured, 60 seeds: drafting
+  north from a Tunnel dealt 1 option in 60/60; drafting south dealt 3.
+
+  **This explains the apparent "Tunnel spam" completely, and it was never a
+  reward exploit.** Across the 329 recorded episodes of `runs/postfix-v1` there
+  were 210 Tunnel placements in 45 episodes: **exactly 45 genuine choices, one
+  per episode, and 165 forced single-option hands (78.6%)**. No episode ever
+  held two real Tunnel choices. A policy taking the only card it is dealt is not
+  gaming anything, so **no reward change was made on this evidence**.
+
+  The guaranteed Tunnel goes in **slot 0**, which **overrides the owner's own
+  recollection** of a middle slot. The wiki's `Drafting/Advanced` says "a Tunnel
+  is drawn into Slot 1", and that page is 1-indexed — its "Slot 1 always makes a
+  Free Draw" matches this engine's free-only slot 0, and "a Library is drawn
+  into Slot 3" matches the existing priority-draw index 2. The conflict was
+  surfaced rather than silently resolved, and the owner ruled for the wiki.
+
+  **Sourced but deliberately NOT implemented**: the same wiki line ends "This
+  does not repeat on redraws" — redealing a chain hand should not re-guarantee
+  the Tunnel. The code re-triggers on every redeal because it keys only off
+  `from_room`/`direction`; distinguishing the initial deal needs new per-hand
+  state.
+
+- **2026-08-07, the Garage gets its Forced Draw; the other three precedence
+  rooms do not.** Owner, from play: the Garage appears far more often in the
+  real game, typically ranks 4-5 in column 0. Cause: `forced_draw_precedence`
+  has been **dead data since the area work** — nothing in `src/` ever read it.
+
+  Datamined rule, now implemented: forced into **slot 3** at **90%** (**92.5%**
+  with the West Gate), gated on **Veteran Mode or Day 3**, blocked when the
+  first two slots are both Dead Ends, **once per day**, with the roll retrying
+  at each eligible doorway until it succeeds. Measured over 5000 episodes at
+  every doorway where the Garage is legal: `greedy_rank` **17.61% → 53.59%**,
+  `random` **39.06% → 78.31%**.
+
+  The Garage's **placement rule was already correct** (West Wing, ranks 4-8,
+  entered north or west — five legal tiles, wiki-verbatim), so the owner's
+  "ranks 4-5" observation was about frequency, not geometry.
+
+  **Scope is the Garage slice only**, for specific reasons: Conservatory sits
+  behind the unmodelled Found Floorplan mechanic, Morning Room behind a Bacon &
+  Eggs prerequisite of unverified completeness, and Utility Closet's own forced
+  draw is *gated on the Garage having already been drafted*. The precedence list
+  stays data. The Garage's separate **Day-5**-or-Veteran 3% passive priority
+  draw is a **different gate** from the **Day-3** forced-draw gate and is
+  deliberately not implemented — do not conflate the two thresholds.
+
+  Two unsourced readings, recorded rather than buried: "or Slot 2 was not drawn
+  by a normal draw" is read as slot 1's `DraftOption.forced` being False; and
+  the forced draw is checked **before** the existing priority draws, because no
+  source specifies precedence between the two systems. Note also that Forced
+  Draws and Priority Draws are **different mechanics** — the wiki is explicit
+  that one filters the deck for a round and the other pushes a room into slot 3.
+
+- **2026-08-07, per-option orientation choice is NOT a mechanic.** `ALT_BASE`
+  reserved three action ids nothing could ever select: `action_mask` never set
+  them (verified live as all-False at every draft), and `apply_action` routed
+  them through the identical `game.choose(slot)`, which takes no orientation
+  argument. `GameConfig.orientation_choice` was read nowhere. Owner ruling: an
+  option arrives with a rolled orientation, and rotation is a separate effect
+  (Ornate Compass / Rotunda / Dovecote) already modelled by `ROTATE_ACTION`,
+  which advances every option together. Both removed; `N_ACTIONS` 314 → 311.
+
+  Act on this cold as: a dead id in a masked action space misleads every later
+  investigation — this one survived long enough to be mistaken for a missing
+  feature. `test_macro_actions.py::test_every_action_kind_has_a_masking_site`
+  now asserts every declared `*_BASE`/`*_ACTION` has a write in `action_mask`.
+
+- **2026-08-07, time pressure is priced per game-step, not per decision.** The
+  flat `-0.001` per decision meant a travel hop consuming 4-8 steps cost the
+  same as a 1-step move, while `out_of_steps` causes **68% of terminations** —
+  so any action packing many steps into one decision was under-taxed per step.
+  Now `0.001 * max(1, steps_spent)`, with step *gains* clamped to zero (food and
+  the Orchard bonus would otherwise turn the term into a reward bonus) and a
+  floor so zero-step decisions still pay the old flat rate.
+
+  **Stated plainly: a principled correction, not a proven fix.** The policy
+  behind the measurement had trained 50k episodes, and a barely-trained masked
+  policy travels heavily regardless. The magnitude is **not** cosmetic either —
+  measured across 329 episodes the mean per-episode time term moves
+  **-0.04494 → -0.08257, ~1.84x**. `phased` got the identical change because its
+  own docstring promised it matches `shaped`.
+
+- **2026-08-07, the depth-vs-reachability question is DEFERRED, to be measured
+  after the Tunnel fix.** A Tunnel corridor proves `deepest_rank` can reach 9
+  while the Antechamber stays literally unreachable: a `straight` room drafted
+  north is always N|S, so a Tunnel spine has **zero lateral connectivity by
+  construction**, and a column-1 corridor can never reach the Antechamber in
+  column 2. In the traced episode `distance_map()` reported the Antechamber
+  unreachable from step 1 through termination while `deepest_rank` hit 9, and
+  `antechamber_reached` stayed false throughout. `_phi_paths` misses it because
+  it counts *global* frontier doorways, not whether a room added branching.
+  Measured, Tunnel placements net **+0.109** each against **+0.030-0.033** for
+  ordinary rooms — ~3.3x the reward density, risk-free and gem-free.
+
+  That gap applies to a *chosen* Tunnel too, so it survives the drafting fix.
+  **Owner decision: change no reward constants yet.** Once the Tunnel is one of
+  three options, measure how often the policy actually **chooses** it; well
+  above the ~33% base rate means the reward genuinely overvalues cheap depth and
+  can then be tuned against evidence rather than a 50k-episode artifact.
+
+- **2026-08-07, `replays.jsonl` is severely selection-biased — never use it to
+  establish prevalence.** Best-of-window records are selected by
+  `(win, deepest_rank, rooms_placed)`, so a depth-maximising pattern is exactly
+  what they over-represent. Measured on `runs/postfix-v1`, 329 records:
+
+  | population | n | mean deepest rank | mean rooms | rank-9 |
+  |---|---|---|---|---|
+  | `top_window` | 54 | **7.94** | 14.11 | 18 |
+  | `random` | 275 | **2.84** | 6.70 | 1 |
+
+  The buggy Tunnel chain fired in **74% of `top_window`** records but **0.7% of
+  `random`** ones. Both owner observations that started these investigations
+  came from browsing the Observatory's Runs list, which the starred records
+  dominate — the observations were right about what the *curator* surfaces, not
+  about what the policy typically does.
+
+  Act on this cold as: split `random` from `top_window` before quoting any rate,
+  and use `random` alone as the behavioural baseline. `EpisodeRecorder` does not
+  feed back into PPO's buffer, so this is a **reporting** artifact, not a
+  training feedback loop.
+
+- **2026-08-08, Veteran Mode is the default, including on a fresh save.** Owner:
+  the sim is written for experienced players, who trigger Veteran Mode on day 1
+  by drafting the first three rooms out of the Entrance Hall quickly. **The
+  trigger is not modelled — only its outcome**, the same assumed-solved doctrine
+  applied to room puzzles.
+
+  It gates three systems, and the effect differs sharply by preset because
+  `all_unlocks_config` runs at day=20, where the day counter already satisfied
+  two of them:
+
+  | | all_unlocks (day 20) | fresh_save (day 1) |
+  |---|---|---|
+  | gem deck-size gates | already on via day >= 16 | **now active** |
+  | Garage forced draw | already on via day >= 3 | **now active before day 3** |
+  | Upgrade Disk slots | **veteran tables** | **veteran tables** |
+
+  Non-veteran picks the first upgrade from a weighted table (Storeroom 35%,
+  Courtyard 25%, then a tail); veteran is **uniform over all 16 slots** plus a
+  **day-1 shortcut firing 70%** of the time.
+
+  **Consequence worth acting on: a fresh save is no longer the loosest possible
+  draw environment**, because the gem gates now bind from day 1. The
+  `fresh_save_config` docstring previously claimed `gem_gate_active()` is off
+  until day 16; that is no longer true and was removed. Veteran Mode is also
+  **not a permanent unlock** — it is triggered per save by how the player opens
+  day 1 — so it sits with `royal_scepter_found` under the deliberate exceptions,
+  not with the earned unlocks.
+
+- **2026-08-08, write rulings into this log immediately, not at session end.**
+  Owner instruction, after a session accumulated six unrecorded rulings before
+  writing any down. Decisions that live only in the conversation are lost to
+  compaction, and the cost of losing one is re-litigating something already
+  settled — the entire reason this log exists. Record the reasoning and any
+  measurement that justified it, not just the outcome, and say explicitly when a
+  ruling overrides the wiki or reverses an earlier assumption.
+
 ## 5. Throttle the training terminal output — DONE
 
 The trainer currently refreshes the dashboard after every completed seed, which
