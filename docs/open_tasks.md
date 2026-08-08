@@ -10,25 +10,46 @@ Several rooms scatter resources into OTHER rooms when drafted, rather than grant
 them on entry. None of this is modeled today (the Tomb's per-dead-end gold is the
 one exception — `coins_per_deadend` in `engine/effects/tier1.py`).
 
-Known spreaders (owner-reported; verify counts against the wiki before authoring):
+Known spreaders (owner-reported; **two rows corrected against the wiki 2026-08-06**,
+marked below):
 
-| Room | Spreads | Target |
-|---|---|---|
-| Patio | gems | Green Rooms |
-| Secret Garden | apples and oranges (food) | throughout the house |
-| Locker Room | basic keys | throughout the estate (high chance to seed itself) |
-| Conference Room | — | absorbs every other room's spread instead (see below) |
-| Office | money | throughout the house |
-| Tomb | 5 gold per Dead End drafted | into the Tomb itself (ALREADY MODELED) |
+| Room | Trigger | Spreads | Target |
+|---|---|---|---|
+| Patio | on draft | gems | Green Rooms, including itself |
+| Secret Garden | on draft | apples and oranges (food) | throughout the house |
+| Locker Room | on draft | basic keys | the estate minus 17 named rooms; can seed itself |
+| Conference Room | passive, while placed | — | absorbs others' spreads, **altering them** |
+| Office | **player action, once/day** | money | throughout the house |
+| Tomb | on other rooms' drafts | 5 gold per Dead End | into the Tomb itself (ALREADY MODELED) |
 
-**Conference Room override**: if a Conference Room is on the estate, every spread
-resource spawns there instead of being distributed.
+**Correction 1 — the Office is not an on-draft effect.** It is a player-triggered,
+once-per-day terminal action ("Spread Gold in Estate"), gated behind walking to the
+Office and operating its terminal — the same terminal concept as the shipped
+`disk_reader` flag. That makes it an **action-space change**, so per this file's own
+standing rule it belongs bundled with a retrain, not with the on-draft spreaders. Do
+not conflate it with the Office *safe* (+1 gem), which is task 3 and already shipped.
 
-Design notes: this is a placement-time effect that writes items into *other* cells'
-pending contents, so it needs a per-cell "resources waiting here" store that
-`roll_room_items` consumes on first entry — the current model grants a room's items
-purely from its own record. The Locker Room case matters for balance: its keys are
-what make the room's 17 locked lockers openable (see PR #26).
+**Correction 2 — the Conference Room is not a pure redirect.** The wiki: *"Spread
+effects do not necessarily spread the same number of items to the Conference Room as
+they would spread if the Conference Room were not present."* Patio's gems change
+colour; Secret Garden's CR case is a **completely different fixed formula** (always 4
+apples + 3 oranges, regardless of house size or soil quality) rather than the same
+roll redirected. So each spreader needs its own Conference-Room branch — a single
+generic "change the destination cell" function is the wrong shape.
+
+**A spread is a one-shot event, not a standing rule.** *"Spreading only applies to
+rooms currently on the estate. Rooms drafted after the spread is done cannot benefit
+from it unless the spread is performed a second time later."* It is evaluated once, at
+the spreader's own draft moment, over the cells occupied at that instant. This applies
+symmetrically to a Conference Room placed afterward: it absorbs nothing retroactively.
+
+Design notes: this writes resources into *other* cells' pending contents, so it needs
+a per-cell "resources waiting here" store. Note the drain cannot hang off first entry
+as originally sketched — `_enter()` returns early once `entered[cell]` is true, and
+the common case is a spreader drafted *after* its targets were already walked through,
+so the drain must sit above that gate and fire on every arrival. The Locker Room case
+matters for balance: its keys are what make the room's 17 locked lockers openable (see
+PR #26).
 
 ## 2. Upgrade Disk functionality
 
@@ -614,6 +635,31 @@ breaks, the Sanctum keys.
   drafted**, making it a very valuable room. The Key of Aries / black-chest
   mechanics are **explicitly deferred** — do not model them with this.
 
+  **Clarified 2026-08-07, after the first implementation got it wrong.** The
+  room accumulates a 5-coin pile per draft and **every draft collects the whole
+  surface**, so the Nth draft this attempt pays **5 × N**:
+
+  | draft | pays |
+  |---|---|
+  | 1st | 5 |
+  | 2nd | 10 |
+  | Nth (N ≤ 32) | 5 × N |
+  | 32nd | 160 |
+  | 33rd and every later one | **160** |
+
+  The wiki's "maximum of 32 piles (160 Gold Coin total)" caps **what a single
+  draft is worth, not what the room earns over an attempt**. Past 32 piles the
+  payout stops *growing*; it does not stop. The first 32 drafts alone come to
+  5 × (1+2+…+32) = **2640 coins**, which is what "a very valuable room" meant.
+
+  The first implementation read the cap as ending the payout — a flat 5 per
+  draft, 160 lifetime, then nothing — which is worth 6% of the real figure and
+  would have made the room barely worth drafting. Act on this cold as: when a
+  source gives a cap alongside a per-event gain, establish whether the cap
+  bounds the *event* or the *total* before coding it; here the two readings
+  differ by 16x. Pinned by `test_drafts_past_the_cap_keep_paying_160` and
+  `test_attempt_total_is_not_capped_at_160`.
+
 - **2026-08-06, `reservoir_south <-> mine_south` has a real Reservoir
   water-level requirement.** Owner. Model it as a stub gate folded into the
   deferred `PR-pump-room` set (task 11); **invent no number**. Until then that
@@ -652,6 +698,67 @@ breaks, the Sanctum keys.
   because its destination (`sigil_chambers`) is `modelled: false` with no
   further edges, which is an unbuilt-destination problem rather than a
   puzzle-only-item one.
+
+- **2026-08-06, task 6 ruled: `diary_key` is removed, everything else stays.**
+  Owner, after the audit. Only `diary_key` goes — the wiki itself says it has
+  "no other known use", and the sim double-sources it (a Tomb luck-roll spawn
+  *and* an unconditional Tomb-ignition grant) for an item that then sits inert.
+  Removing it is data-only; no Python references it. Its ignition-grant entry
+  must go in the same change, because `validate_data.py` resolves every ignition
+  grant id against the special-items table.
+
+  **`file_cabinet_key` is now an explicit KEEP**, reversing the audit's
+  recommendation. `basement_key` remains a KEEP for the reasons above.
+  `sanctum_key` stays **deferred**: unlike `diary_key` it is genuinely consumed
+  and genuinely gates traversal, and it fails the removal test only because
+  Inner Sanctum is unbuilt — not because the item is inherently choice-free.
+  With 8 chambers and non-unique keys it may present a real choice once that
+  lands, so re-run the decisive test then rather than assuming the answer now.
+  `key_of_aries` stays deferred pending the Treasure Trove work.
+
+- **2026-08-06, the Reservoir water gate is a NEW `reservoir_north <->
+  reservoir_south` edge, not a gate on the mine crossing.** Owner correction of
+  an earlier ruling that named `reservoir_south <-> mine_south`: the two
+  Reservoir halves are freely traversable in both directions once the water
+  level is set, and `reservoir_south <-> mine_south` stays **free and ungated**.
+  This is the level-13 side-to-side boat crossing task 11 already records as
+  "not currently represented as a graph edge/gate at all" — a **different** gate
+  from `rowboat_water_6` (level exactly 6, the Safehouse rowboat); both retire
+  in `PR-pump-room`.
+
+  **Also owner, from play: `mine_south <-> mine_north` can NEVER be traversed —
+  a mine cart blocks the way.** The graph already has no such edge, so this
+  needs no data change, but it is now a sourced fact rather than an accident and
+  is recorded in `docs/areas.md` so nobody later "fixes" the missing edge.
+
+  **This gate defaults CLOSED — a deliberate exception to the 2026-07-27
+  "deferred gates default OPEN" convention**, and the reason is measured, not
+  assumed. With an empty inventory and only `sealed_entrance_broken` set (a
+  Power Hammer sets it; it carries across days), an *open* crossing puts
+  `reservoir_south` at 5 hops from the house, `mine_south` at 6 and the
+  **`safehouse` at 6 — a Sanctum Key source** — all of which need the Basement
+  Key today. The free route is `house -> grounds -> sealed_entrance -> basement
+  -> reservoir_north -> ...`, walking straight around `basement_key_well`; that
+  is exactly the loophole the Precipice fix closed one entry above. The
+  convention's own rationale ("closing a gate kills 8 of 36 nodes") does not
+  apply, because the edge is **new**: closed, the reachable set is identical to
+  today's, so nothing is deleted and there is no empty-action-mask risk. Act on
+  this cold as: the stubs-default-open rule is about not deleting existing
+  reachability — it is not a licence to *grant* reachability the real game
+  gates.
+
+- **2026-08-06, re-measure the reward terms before buying the retrain.** Owner,
+  on being shown that the Antechamber diagnosis' ranked fixes **#2 (rebalance
+  the path-preservation penalty against the rank-progress reward) and #3 (make
+  idling costlier than exploring) were never applied** — `env/rewards.py` still
+  carries `PATHS_ONE_PENALTY = -0.15` / `PATHS_ZERO_PENALTY = -1.0`. PR #63
+  delivered only #1 (`_ante_paths` reading `grid_frontier_doorways`) and #4 (the
+  missing win keys). Since the diagnosis measured expansion at net-negative EV
+  (`path` -0.468/episode against `rank` +0.204), a retrain started now could buy
+  the same 8-hour stall with better instrumentation. The re-measurement re-scores
+  `foundation-v2`'s fixed behaviour under the current reward function, which
+  answers "does the reward still price drafting negatively" — it does **not**
+  predict what a freshly trained policy would do, and must not be read that way.
 
 ## 5. Throttle the training terminal output — DONE
 
@@ -695,6 +802,17 @@ Candidates to audit: `diary_key` (opens the Sleep Diary only), `key_of_aries`
 `basement_key`, `mora_jai`-adjacent records if any. For each: does holding it ever
 present the agent with a *choice*? If not, delete the item and grant its payoff
 directly.
+
+**Audited and ruled 2026-08-06 — see the decisions log.** Outcome: **`diary_key`
+removed; everything else kept or deferred.** `file_cabinet_key` KEEP,
+`basement_key` KEEP, `sanctum_key` and `key_of_aries` DEFER. Two findings that
+changed the task's premise: the removal candidates were already
+`implemented: false` with zero Python references, so this frees an observation
+dimension and a spawn slot — **not** the action id and inventory slot the task
+assumed; and there is no `mora_jai` record at all, the item standing in for
+"opens a Mora Jai box" is `sanctum_key`. The calibration example for the
+decisive test is `basement_key`: holding it is the literal difference between
+`reservoir_south` and the far side of the Basement being reachable or not.
 
 ## 7. Ignition candles in the Abandoned Mine
 
@@ -784,10 +902,16 @@ never carried).
 - `pump_water_lte8` (`grounds -> well`): Fountain level `<= 8`.
 - `rowboat_water_6` (`reservoir_south <-> safehouse`): Reservoir level
   `== 6`.
-- Reservoir level `== 13` additionally lets the boat cross the Reservoir
-  side-to-side (not currently represented as a graph edge/gate at all —
-  needs its own gate once this lands, distinct from the Safehouse rowboat
-  gate).
+- `reservoir_water_13` (`reservoir_north <-> reservoir_south`): Reservoir level
+  `== 13` lets the boat cross the Reservoir side-to-side. **The edge and gate now
+  exist** (2026-08-06) — this entry used to say the crossing was "not represented
+  as a graph edge/gate at all". Distinct from the Safehouse rowboat gate.
+
+  **Unlike every other gate in this list it defaults CLOSED**, so retiring it
+  *opens* a route rather than tightening one. That is the reverse of the usual
+  stub-retirement direction and it must be re-measured, not assumed safe: an open
+  crossing puts the `safehouse` (a Sanctum Key source) 6 key-free hops from the
+  house. See `docs/areas.md` for the measurement and the reasoning.
 
 **New traversal condition to add**, not currently modelled even as a stub:
 `well -> reservoir_south` needs Fountain level `== 0`, checked on **every**
@@ -935,3 +1059,29 @@ game (Observatory / Telescope?), whether it is per-day or permanent, and whether
 having "the same effect as Banner of the King", which suggests the `king` tag and
 the scepter tags may be the same mechanism entered from two directions). Do not
 infer any of this from the existing table.
+
+### Status after PR #60 and 2026-08-06 — the table above is stale
+
+`_active_conditions` now also emits `schoolhouse`, `southern_cross_constellation`,
+`draxus_constellation` and `drafting_from_library`, so most of the 14 are wired.
+What actually remains:
+
+- **`drafting_from_library` — DONE, and it was the wrong mechanism.** The Library
+  does not bias a re-deal; it **replaces the rarity table outright** (Commonplace
+  0%, Standard 0.01%, Unusual 49.99%, Rare 50%, datamined). Implemented in
+  `decks.py::roll_rarity` with the table in `weights.json`; the inert
+  `category_biases` signpost entry is deleted. The Bookshop 50% entry is separate
+  and still a genuine category bias.
+- **`schoolhouse` — the last small one.** `state.schoolhouse_placed` is read by
+  `_active_conditions` but **nothing ever sets it**. It needs one `Hook.ON_PLACE`
+  effect tag mirroring `greenhouse_bias`/`furnace_bias` in `effects/tier1.py`.
+  The Schoolhouse record already has a working `inject_pool` ON_PLACE effect, so
+  this is a second tag on an existing list. 35% Classroom bias is datamined.
+
+  **Completeness gap worth flagging separately**: the wiki says the Schoolhouse
+  also boosts the Library and Studio Addition: Dormitory, but our data encodes
+  only the Classroom entry. That is a missing-entries problem, not a wrong
+  magnitude — do not invent the other two percentages.
+- **Still genuinely unsourced** (no modelled activation source): the five `king_*`
+  tags, `electromagnet`, `chronograph`, `adjacent_duct`, `adjacent_powered`, and
+  the two constellations' activation chains.
