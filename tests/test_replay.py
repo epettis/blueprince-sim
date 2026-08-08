@@ -187,6 +187,81 @@ def test_frame_includes_scepter_color():
     assert all("scepter_color" in f and f["scepter_color"] in valid for f in frames)
 
 
+def test_option_orientation_is_always_a_legal_orientation():
+    """Every drafted option's dealt orientation is a member of its own
+    legal_orientations set, and (at this fixed, reproducible doorway) a
+    corner-shaped option's set holds more than one entry -- the signal the
+    Play tab uses to show "this room also legally fits another orientation
+    here" even though nothing currently lets the player pick it directly for
+    that option (see _option_legal_orientations's docstring: only
+    ROTATE_ACTION, which advances the whole hand together, is wired up).
+    """
+    env = BluePrinceEnv(cfg=all_unlocks_config("shaped"))
+    env.reset(seed=42)
+    game = env.game
+    open_actions = [i for i, ok in enumerate(env.action_masks()) if ok and i < A.CHOOSE_BASE]
+    env.step(open_actions[0])
+    pending = replay._pending_dict(game)
+    assert pending is not None
+    saw_multiple = False
+    for opt in pending["options"]:
+        if opt["hidden"]:
+            assert opt["legal_orientations"] == []
+            continue
+        assert opt["orientation"] in opt["legal_orientations"]
+        assert len(opt["legal_orientations"]) >= 1
+        saw_multiple = saw_multiple or len(opt["legal_orientations"]) > 1
+    assert saw_multiple, "expected a corner-shaped option with >1 legal orientation at this doorway"
+
+
+def test_redraw_info_reports_cost_and_reason():
+    """The pending dict's redraw field names the source REDRAW_ACTION would
+    actually consume when available (mirroring env.actions._redraw_kind, the
+    mask's own eligibility check) and states a concrete reason when no source
+    is available -- the owner's literal complaint was seeing no explanation
+    for why the redraw button was missing during a draft.
+    """
+    env = BluePrinceEnv(cfg=all_unlocks_config("shaped"))
+    env.reset(seed=42)
+    game = env.game
+    open_actions = [i for i, ok in enumerate(env.action_masks()) if ok and i < A.CHOOSE_BASE]
+    env.step(open_actions[0])
+
+    # No dice, no Study placed: unavailable, with a stated reason.
+    game.state.dice = 0
+    game.state.study_placed = False
+    info = replay._pending_dict(game)["redraw"]
+    assert info["available"] is False
+    assert info["reason"]
+
+    # Give the player a die: agrees with the mask, and names "die" as the cost.
+    game.state.dice = 1
+    info = replay._pending_dict(game)["redraw"]
+    assert info == {"available": True, "kind": "die"}
+    assert bool(env.action_masks()[A.REDRAW_ACTION]) is True
+
+
+def test_frame_inventory_reports_held_items_by_name():
+    """_frame's inventory field surfaces held special items by display name
+    and count -- readable identifiers the old display omitted entirely -- and
+    omits an item once its count drops to zero rather than listing it at 0.
+    """
+    env = BluePrinceEnv(cfg=all_unlocks_config("shaped"))
+    env.reset(seed=1)
+    game = env.game
+    before = replay._frame(game, None, "N")["inventory"]
+    assert all(it["id"] != "torch" for it in before)  # not held yet
+
+    game.state.inventory["torch"] = 2
+    frame = replay._frame(game, None, "N")
+    torch_entries = [it for it in frame["inventory"] if it["id"] == "torch"]
+    assert torch_entries == [{"id": "torch", "name": "Torch", "count": 2}]
+
+    game.state.inventory["torch"] = 0
+    frame = replay._frame(game, None, "N")
+    assert all(it["id"] != "torch" for it in frame["inventory"])
+
+
 def test_metrics_merge_and_downsample(tmp_path: Path):
     """Observatory metrics drop duplicate checkpoint samples and serve the
     eval series alongside the training series."""

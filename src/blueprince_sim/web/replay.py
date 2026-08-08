@@ -15,9 +15,10 @@ from __future__ import annotations
 import dataclasses
 
 from ..config import GameConfig
-from ..engine.game import Game, Phase
+from ..engine.game import Game, Phase, RedrawKind
 from ..engine.grid import DIR_NAMES
 from ..engine.items import expected_yields
+from ..engine.placement import legal_orientations
 from ..env import actions as A
 
 
@@ -35,11 +36,72 @@ def rooms_meta(registry) -> list[dict]:
     ]
 
 
+def _option_legal_orientations(game: Game, p, opt) -> list[int]:
+    """Every door mask ``opt``'s room could legally be placed in at this doorway.
+
+    ``opt.orientation`` (the dealt/rotated orientation) is always a member of
+    this list. A length > 1 is the signal the Play tab needs to tell the player
+    "this room has another legal orientation" even though no per-option action
+    currently lets them pick it directly: ``env.actions.action_mask`` never
+    legalizes ``ALT_BASE`` (its "alternate orientation" slot actions), so the
+    only way to reach a different orientation this hand is ``ROTATE_ACTION``,
+    which advances every option together. Outer-room drafts have no doorway to
+    rotate against (``target_cell == -1``, fixed orientation), and hidden
+    (Archives mystery) options have no known room, so both return [].
+    """
+    if p.target_cell == -1 or opt.hidden:
+        return []
+    room = game.registry.rooms[opt.room_idx]
+    return legal_orientations(room, p.target_cell, p.direction, game.state, game.cfg)
+
+
+def _redraw_info(game: Game) -> dict:
+    """What clicking REDRAW would cost right now, or why it is unavailable.
+
+    Delegates eligibility to ``env.actions._redraw_kind`` -- the action mask's
+    own source of truth for whether REDRAW_ACTION is legal -- so this display
+    summary can never claim "available" when the mask disagrees. Reports the
+    concrete cost (free hand-redraws left, a die, or a gem plus how many of
+    the 8 Study redraws remain) rather than the bare "redraw" label the mask
+    exposes, since not knowing what it would spend was the owner's complaint.
+    """
+    st = game.state
+    pending = st.pending
+    kind = A._redraw_kind(game)
+    if kind is None:
+        if pending is not None and pending.target_cell == -1:
+            reason = "outer-room drafts cannot be redrawn"
+        else:
+            missing = []
+            if st.dice < 1:
+                missing.append("no dice")
+            if not st.study_placed:
+                missing.append("Study not placed")
+            elif st.gems < 1:
+                missing.append("no gems for a Study redraw")
+            elif pending is not None and pending.study_redraws_used >= 8:
+                missing.append("Study redraws used up (8/8)")
+            reason = "; ".join(missing) or "no redraw source available"
+        return {"available": False, "kind": None, "reason": reason}
+    info: dict = {"available": True, "kind": kind.value}
+    if kind is RedrawKind.FREE:
+        info["free_left"] = pending.redraws_left
+    elif kind is RedrawKind.STUDY:
+        info["study_used"] = pending.study_redraws_used
+        info["study_cap"] = 8
+    return info
+
+
 def _pending_dict(game: Game) -> dict | None:
     """JSON view of the pending draft hand; None when no draft is open.
 
     Hidden (Archives mystery) options keep cost and affordability visible but
     report room_idx -1, name "???", and no identity/orientation fields.
+    ``redraw`` and each option's ``legal_orientations`` let the client show
+    what a redraw would cost and whether a drafted room has an orientation
+    other than the one it was dealt in -- see ``_redraw_info`` and
+    ``_option_legal_orientations`` for why those need engine calls rather than
+    being derivable from ``orientation`` alone.
     """
     p = game.state.pending
     if p is None:
@@ -50,7 +112,7 @@ def _pending_dict(game: Game) -> dict | None:
         if opt.hidden:
             options.append({
                 "slot": opt.slot, "room_idx": -1, "name": "???", "category": None,
-                "rarity": None, "layout": None, "orientation": 0,
+                "rarity": None, "layout": None, "orientation": 0, "legal_orientations": [],
                 "cost": game._effective_cost(room, opt),
                 "affordable": game.affordable(room, opt),
                 "forced": opt.forced, "hidden": True,
@@ -60,6 +122,7 @@ def _pending_dict(game: Game) -> dict | None:
             "slot": opt.slot, "room_idx": opt.room_idx, "name": room.name,
             "category": room.category, "rarity": room.rarity, "layout": room.layout,
             "orientation": opt.orientation,
+            "legal_orientations": _option_legal_orientations(game, p, opt),
             "cost": game._effective_cost(room, opt),
             "affordable": game.affordable(room, opt),
             "forced": opt.forced, "hidden": False,
@@ -69,7 +132,31 @@ def _pending_dict(game: Game) -> dict | None:
         "direction": DIR_NAMES.get(p.direction),
         "target_cell": p.target_cell,
         "options": options,
+        "redraw": _redraw_info(game),
+        "rotations_used": p.rotations_used,
     }
+
+
+def _inventory_list(game: Game) -> list[dict]:
+    """Held special items as ``[{id, name, count}, ...]``, sorted by name.
+
+    Sourced from ``GameState.inventory`` (item id -> count, see
+    engine/special_items.py) via the special-items registry for display
+    names -- the raw dict only has ids, which is what the owner could not read
+    off the old display. Items at count 0 are omitted rather than listed at
+    zero, so an empty-handed player sees an empty list, not a wall of zeros.
+    """
+    st = game.state
+    by_id = game.registry.special.by_id
+    items = []
+    for item_id, count in st.inventory.items():
+        if count <= 0:
+            continue
+        item = by_id.get(item_id)
+        items.append({"id": item_id, "name": item.name if item is not None else item_id,
+                      "count": count})
+    items.sort(key=lambda d: d["name"])
+    return items
 
 
 def _frame(game: Game, action: dict | None, facing: str | None) -> dict:
@@ -81,6 +168,9 @@ def _frame(game: Game, action: dict | None, facing: str | None) -> dict:
     (one of blueprint/green/red/bedroom/hallway/shop), or null when none.
     ``area`` is the area-graph node id the player is currently at, or null
     when the player is on the 5x9 grid (``pos`` is authoritative in that case).
+    ``inventory`` is the held special items (see ``_inventory_list``); replay
+    frames are rebuilt on demand from recorded actions and never stored, so
+    adding this field costs no disk for existing recordings.
     """
     st = game.state
     return {
@@ -99,6 +189,7 @@ def _frame(game: Game, action: dict | None, facing: str | None) -> dict:
             "steps": st.steps, "gems": st.gems, "keys": st.keys,
             "coins": st.coins, "dice": st.dice, "luck": st.luck,
         },
+        "inventory": _inventory_list(game),
         "deepest_rank": game.deepest_rank,
         "reason": game.termination_reason,
         "pending": _pending_dict(game),
