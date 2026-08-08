@@ -144,6 +144,13 @@ def observation_space(n_rooms: int, n_items: int, n_recipes: int,
         # disks_spent: how many one-time disk sources are permanently used up
         # (len(cfg.collected_disks)) — i.e. how much of the finite supply is gone.
         "disks_spent": spaces.Box(0, 99, shape=(1,), dtype=np.int16),
+        # treasure_trove_piles: cumulative attempt-wide Treasure Trove draft count,
+        # clamped to the 32-pile cap (state.draft_counts["treasure_trove"], carried
+        # across days by DayChain the same way as draft_counts generally). Same
+        # rationale as disks_spent: a "spend today, pays out capped forever" quantity
+        # is unpriceable to the agent unless V(s) can see how much of the lifetime
+        # 160-coin budget is already earned.
+        "treasure_trove_piles": spaces.Box(0, 32, shape=(1,), dtype=np.int16),
     })
 
 
@@ -448,6 +455,12 @@ def encode(game: Game, day_chain: DayChain | None = None) -> dict:
     # disks_spent: one-time disk sources permanently used up across the attempt.
     disks_spent_obs = np.array([len(game.cfg.collected_disks)], dtype=np.int16)
 
+    # treasure_trove_piles: cumulative draft count for the Treasure Trove this
+    # attempt, clamped to the 32-pile cap.
+    treasure_trove_piles_obs = np.array(
+        [min(st.draft_counts.get("treasure_trove", 0), 32)], dtype=np.int16
+    )
+
     return {
         "grid_room": grid_room,
         "grid_doors": grid_doors,
@@ -479,4 +492,5 @@ def encode(game: Game, day_chain: DayChain | None = None) -> dict:
         "carryover": carryover_obs,
         "upgrade_slots": upgrade_slots_obs,
         "disks_spent": disks_spent_obs,
+        "treasure_trove_piles": treasure_trove_piles_obs,
     }

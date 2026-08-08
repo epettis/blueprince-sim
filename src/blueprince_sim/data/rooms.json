@@ -6071,9 +6071,9 @@
    "deck_copies": 1,
    "effects": [
     {
-     "tag": "grant",
-     "resource": "coins",
-     "amount": 5
+     "tag": "coins_per_draft",
+     "amount": 5,
+     "max_draft": 32
     }
    ],
    "items": {
@@ -6085,7 +6085,7 @@
    "meta": {
     "source": "wiki",
     "confidence": "wiki",
-    "effect_text": "Grants +5 Gold Coins per Treasure Trove instance drafted. APPROXIMATION: modeled as grant +5 coins on entry (correct for the 1-copy case; multi-copy stacking unsupported). Coin-pile loot, memo chests, and black chest are out of scope.",
+    "effect_text": "The Treasure Trove permanently gains a 5 Gold Coin pile every time it is drafted, and each draft collects the whole surface: the Nth draft this attempt pays 5*N coins. The pile count caps at 32 (blueprince.wiki.gg/wiki/Treasure_Trove), so a single draft is worth at most 160 coins -- and every draft after the 32nd keeps paying the full 160 rather than nothing. The cap bounds the PER-DRAFT payout, not the attempt total (the first 32 drafts alone come to 2640 coins). Granted at draft time rather than on entry, keyed off the cumulative per-attempt draft count. Key of Aries, the black chest, coin-pile visual loot, and memo chests remain out of scope.",
     "rarity_confidence": "wiki"
    }
   },
