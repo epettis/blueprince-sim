@@ -550,6 +550,16 @@ function renderHouse(frame, targetId = "house", svgKey = "house-svg") {
 
 /* -------------------------------------------------------- detail panel */
 
+// Held special items as a row of chips: "{name} ×{count}" (count omitted at 1).
+// Shared by the Runs (replay) detail panel and the Play tab -- both frames carry
+// the same `inventory` field (see web/replay.py::_inventory_list).
+function inventoryChipsHtml(items) {
+  if (!items || !items.length) return '<p class="dim" style="margin:2px 0">— none —</p>';
+  return items.map((it) =>
+    `<span class="inv-chip">${esc(it.name)}${it.count > 1 ? ` <span class="n">×${it.count}</span>` : ""}</span>`
+  ).join("");
+}
+
 function miniGlyph(mask) {
   const sz = 34, t = 7, w = 12, c = sz / 2 - w / 2;
   let s = `<rect x="4" y="4" width="${sz - 8}" height="${sz - 8}" rx="5" fill="#3a3f48"/>`;
@@ -558,6 +568,35 @@ function miniGlyph(mask) {
   if (mask & E) s += `<rect x="${sz - t}" y="${c}" width="${t}" height="${w}" fill="#c8ccd4"/>`;
   if (mask & W) s += `<rect x="0" y="${c}" width="${t}" height="${w}" fill="#c8ccd4"/>`;
   return `<svg width="${sz}" height="${sz}" viewBox="0 0 ${sz} ${sz}">${s}</svg>`;
+}
+
+// One draft-option card, shared by the Runs (replay) detail panel and the
+// Play tab so both present orientation/rarity/layout/cost in identical visual
+// language (the owner's ask was specifically to stop the Play tab reinventing
+// this as plain buttons). `extra` lets a caller add interaction affordances:
+//   chosen     - true when this is frame N+1's look-back at the picked slot
+//   clickable  - true when the caller wired a click handler onto the card
+//   dataAttrs  - raw ` key="val"` string(s) for the click handler to read
+// `o.legal_orientations` (from web/replay.py::_option_legal_orientations) is
+// every door mask this room could legally take at this doorway; when it has
+// more than the one it was dealt in, the extra masks are shown as small dim
+// glyphs so "orientation is hugely important" is visible even though nothing
+// today lets a slot pick between them directly -- see the "also legal" note.
+function optionCardHtml(o, extra = {}) {
+  const cls = ["opt", o.affordable ? "" : "unaffordable", extra.chosen ? "chosen" : "",
+               extra.clickable ? "clickable" : ""].filter(Boolean).join(" ");
+  const tags = [o.rarity || "", o.layout || "", o.forced ? "forced" : "", o.hidden ? "mystery" : ""]
+    .filter(Boolean).join(" · ");
+  const others = (o.legal_orientations || []).filter((m) => m !== o.orientation);
+  const altHtml = others.length
+    ? `<div class="opt-alt" title="This room's layout also legally fits the other highlighted orientation(s) at this doorway. Nothing lets you choose it directly for this option -- only Rotate options (when available) cycles the whole hand's orientations together.">
+        <span class="opt-alt-label">also legal:</span>${others.map((m) => miniGlyph(m)).join("")}
+      </div>`
+    : "";
+  return `<div class="${cls}"${extra.dataAttrs || ""}>${miniGlyph(o.orientation)}
+    <div class="opt-body"><div class="name" style="color:${o.hidden ? "#8a919c" : catColor(o.category)}">${esc(o.name)}</div>
+    <div class="sub">${esc(tags)}</div>${altHtml}</div>
+    <div class="cost">${o.cost > 0 ? o.cost + " 💎" : "free"}</div></div>`;
 }
 
 function renderFrame() {
@@ -582,6 +621,7 @@ function renderFrame() {
     [["Steps", r.steps], ["Gems", r.gems], ["Keys", r.keys],
      ["Coins", r.coins], ["Dice", r.dice], ["Luck", r.luck]]
     .map(([k, v]) => `<div class="res"><div class="k">${k}</div><div class="v">${v}</div></div>`).join("");
+  $("#inventory").innerHTML = inventoryChipsHtml(frame.inventory);
 
   const act = frame.action;
   $("#mode-line").innerHTML = act == null ? '<span class="exploit">mode: —</span>'
@@ -598,16 +638,8 @@ function renderFrame() {
   if (pend) {
     $("#options-head").textContent =
       `Draft options — facing ${pend.direction || "?"}` + (chosenSlot != null ? " (picked)" : "");
-    $("#options").innerHTML = pend.options.map((o) => {
-      const cls = ["opt", o.affordable ? "" : "unaffordable",
-                   o.slot === chosenSlot ? "chosen" : ""].join(" ");
-      const tags = [o.rarity || "", o.layout || "", o.forced ? "forced" : "", o.hidden ? "mystery" : ""]
-        .filter(Boolean).join(" · ");
-      return `<div class="${cls}">${miniGlyph(o.orientation)}
-        <div><div class="name" style="color:${o.hidden ? "#8a919c" : catColor(o.category)}">${esc(o.name)}</div>
-        <div class="sub">${esc(tags)}</div></div>
-        <div class="cost">${o.cost > 0 ? o.cost + " 💎" : "free"}</div></div>`;
-    }).join("");
+    $("#options").innerHTML = pend.options.map((o) =>
+      optionCardHtml(o, { chosen: o.slot === chosenSlot })).join("");
   } else {
     $("#options-head").textContent = "Draft options";
     $("#options").innerHTML = '<div id="options-placeholder">— no draft in progress —</div>';
@@ -1617,8 +1649,19 @@ function renderPlayActions() {
     el.innerHTML = '<p class="dim">attempt over — start a new session to continue</p>';
     return;
   }
+  // While a draft hand is open (frame.pending truthy), env/actions.py's
+  // action_mask legalizes ONLY the "choose" and "control" groups (choose a
+  // slot, redraw, rotate — see action_mask's Phase.DRAFTING branch), and
+  // renderPlayDraft() already renders all three richly (option cards with
+  // orientation glyphs, a labelled redraw button, a labelled rotate button).
+  // Skipping those two groups here avoids showing the same actions twice as
+  // both a rich card and a bare "choose #2 Parlor" button.
+  const pending = s.frame.pending;
   const byGroup = {};
-  for (const a of s.legal_actions || []) (byGroup[a.group] = byGroup[a.group] || []).push(a);
+  for (const a of s.legal_actions || []) {
+    if (pending && (a.group === "choose" || a.group === "control")) continue;
+    (byGroup[a.group] = byGroup[a.group] || []).push(a);
+  }
   const groups = [...PLAY_GROUP_ORDER, ...Object.keys(byGroup).filter((g) => !PLAY_GROUP_ORDER.includes(g))];
   let html = "";
   for (const g of groups) {
@@ -1629,9 +1672,99 @@ function renderPlayActions() {
       html += `<button class="play-action-btn" data-id="${a.id}">${esc(a.label)}</button>`;
     }
   }
-  el.innerHTML = html || '<p class="dim">no legal actions — day is over</p>';
+  // An empty list here has two very different meanings: mid-draft, every
+  // legal action moved into the Draft options panel above (nothing is
+  // actually wrong); with no draft open, an empty list means the day truly
+  // has nowhere left to go. Conflating them previously said "day is over"
+  // while a draft was in progress, which is exactly the kind of unexplained-
+  // absence the redraw control was rewritten to stop doing.
+  const emptyMsg = pending
+    ? '<p class="dim">all legal actions are in the Draft options panel above</p>'
+    : '<p class="dim">no legal actions — day is over</p>';
+  el.innerHTML = html || emptyMsg;
   for (const btn of el.querySelectorAll(".play-action-btn")) {
     btn.onclick = () => playAct(Number(btn.dataset.id));
+  }
+}
+
+// Find the legal "choose"-group action(s) for a given draft slot by matching
+// describe_action's label format ("choose #{n}[ alt] {name}", n = slot+1 —
+// see env/actions.py::describe_action and the same regex trick renderFrame()
+// already uses to recover a replayed pick's slot). Matching on the label
+// rather than hardcoding CHOOSE_BASE/ALT_BASE offsets means this keeps
+// working if the action space is ever renumbered, and — because the label
+// format itself distinguishes " alt" — it also means that IF env/actions.py's
+// currently-dead ALT_BASE range (see action_mask's Phase.DRAFTING branch,
+// where only CHOOSE_BASE/REDRAW_ACTION/ROTATE_ACTION are ever legalized) is
+// wired up later, this starts returning `alt` with zero UI changes needed.
+function findChooseAction(legalActions, slot) {
+  const re = new RegExp(`^choose #${slot + 1}( alt)? `);
+  let base = null, alt = null;
+  for (const a of legalActions) {
+    if (a.group !== "choose") continue;
+    const m = a.label.match(re);
+    if (!m) continue;
+    if (m[1]) alt = a; else base = a;
+  }
+  return { base, alt };
+}
+
+function renderPlayDraft() {
+  const el = $("#play-draft");
+  const s = state.playState;
+  if (!el) return;
+  const pend = s && !s.attempt_over ? s.frame.pending : null;
+  if (!pend) { el.innerHTML = ""; return; }
+
+  const legal = s.legal_actions || [];
+  const optsHtml = pend.options.map((o) => {
+    const { base, alt } = findChooseAction(legal, o.slot);
+    const dataAttrs = base ? ` data-choose-id="${base.id}"` : "";
+    const card = optionCardHtml(o, { clickable: !!base, dataAttrs });
+    // The alt button is only reachable once ALT_BASE is wired up in the
+    // engine (see findChooseAction's docstring) -- inert today, kept as a
+    // sibling (not spliced into the card's own HTML) so the UI needs no
+    // further change when it lands.
+    if (!alt) return card;
+    return `<div class="play-opt-wrap">${card}
+      <button class="play-alt-btn" data-choose-id="${alt.id}">place in alt orientation</button></div>`;
+  }).join("");
+
+  const rd = pend.redraw || {};
+  const redrawHtml = rd.available
+    ? `<button id="play-redraw-btn" class="play-draft-btn">Redraw — costs ${esc(
+        rd.kind === "free" ? `free (${rd.free_left} left)`
+        : rd.kind === "die" ? "1 die 🎲"
+        : rd.kind === "study" ? `1 gem 💎 (Study ${rd.study_used}/${rd.study_cap} used)`
+        : rd.kind)}</button>`
+    : `<div class="play-draft-unavailable">Redraw unavailable — ${esc(rd.reason || "no source")}</div>`;
+
+  const rotateLegal = legal.some((a) => a.group === "control" && a.label === "rotate options");
+  const rotateHtml = rotateLegal
+    ? `<button id="play-rotate-btn" class="play-draft-btn">Rotate all options' orientation
+        <span class="dim">(${pend.rotations_used} used this hand)</span></button>`
+    : "";
+
+  el.innerHTML = `<div class="panel-head" style="margin-top:0">Draft options — facing ${esc(pend.direction || "?")}</div>
+    <div id="play-draft-opts">${optsHtml}</div>
+    <div class="play-draft-controls">${redrawHtml}${rotateHtml}</div>`;
+
+  for (const card of el.querySelectorAll(".opt.clickable[data-choose-id]")) {
+    card.onclick = () => playAct(Number(card.dataset.chooseId));
+  }
+  for (const btn of el.querySelectorAll(".play-alt-btn")) {
+    // Its own click handler so clicking it doesn't also trigger the card's.
+    btn.onclick = (e) => { e.stopPropagation(); playAct(Number(btn.dataset.chooseId)); };
+  }
+  const redrawBtn = $("#play-redraw-btn");
+  if (redrawBtn) {
+    const redrawAction = legal.find((a) => a.group === "control" && a.label === "redraw");
+    if (redrawAction) redrawBtn.onclick = () => playAct(redrawAction.id);
+  }
+  const rotateBtn = $("#play-rotate-btn");
+  if (rotateBtn) {
+    const rotateAction = legal.find((a) => a.group === "control" && a.label === "rotate options");
+    if (rotateAction) rotateBtn.onclick = () => playAct(rotateAction.id);
   }
 }
 
@@ -1653,6 +1786,11 @@ function renderPlayResources() {
     [["Steps", r.steps], ["Gems", r.gems], ["Keys", r.keys],
      ["Coins", r.coins], ["Dice", r.dice], ["Luck", r.luck]]
     .map(([k, v]) => `<div class="res"><div class="k">${k}</div><div class="v">${v}</div></div>`).join("");
+}
+
+function renderPlayInventory() {
+  const s = state.playState;
+  $("#play-inventory").innerHTML = s ? inventoryChipsHtml(s.frame.inventory) : "";
 }
 
 // The server only returns the most recently applied action, so the running
@@ -1739,6 +1877,8 @@ function renderPlayArea() {
 function renderPlayAll() {
   renderPlayStatus();
   renderPlayResources();
+  renderPlayInventory();
+  renderPlayDraft();
   renderPlayActions();
   renderPlayLog();
   renderPlayHouse();
