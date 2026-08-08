@@ -57,7 +57,6 @@ class GameConfig:
     antechamber_levers: bool = True
     # --- rule flags for documented-but-ambiguous behavior ---
     strict_door_matching: bool = False  # True: forbid doors facing occupied blank walls
-    orientation_choice: bool = False    # True: player picks orientation; False: dealt orientation
     # Compass held this run: shifts the random rotation roll toward north-facing
     # doors (datamined "Compass" column). See engine/rotation.py.
     compass: bool = False

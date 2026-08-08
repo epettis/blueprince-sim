@@ -41,13 +41,15 @@ def _option_legal_orientations(game: Game, p, opt) -> list[int]:
 
     ``opt.orientation`` (the dealt/rotated orientation) is always a member of
     this list. A length > 1 is the signal the Play tab needs to tell the player
-    "this room has another legal orientation" even though no per-option action
-    currently lets them pick it directly: ``env.actions.action_mask`` never
-    legalizes ``ALT_BASE`` (its "alternate orientation" slot actions), so the
-    only way to reach a different orientation this hand is ``ROTATE_ACTION``,
-    which advances every option together. Outer-room drafts have no doorway to
-    rotate against (``target_cell == -1``, fixed orientation), and hidden
-    (Archives mystery) options have no known room, so both return [].
+    "this room has another legal orientation" -- purely informational, because
+    picking one per option is NOT a mechanic: an option arrives with a rolled
+    orientation, and the only way to reach a different one this hand is
+    ``ROTATE_ACTION``, which advances every option together. (A vestigial
+    per-option "alternate orientation" action block once existed but was never
+    reachable from the mask, and was removed along with it.) Outer-room drafts
+    have no doorway to rotate against (``target_cell == -1``, fixed
+    orientation), and hidden (Archives mystery) options have no known room, so
+    both return [].
     """
     if p.target_cell == -1 or opt.hidden:
         return []

@@ -1687,26 +1687,18 @@ function renderPlayActions() {
   }
 }
 
-// Find the legal "choose"-group action(s) for a given draft slot by matching
-// describe_action's label format ("choose #{n}[ alt] {name}", n = slot+1 —
-// see env/actions.py::describe_action and the same regex trick renderFrame()
+// Find the legal "choose"-group action for a given draft slot by matching
+// describe_action's label format ("choose #{n} {name}", n = slot+1 — see
+// env/actions.py::describe_action and the same regex trick renderFrame()
 // already uses to recover a replayed pick's slot). Matching on the label
-// rather than hardcoding CHOOSE_BASE/ALT_BASE offsets means this keeps
-// working if the action space is ever renumbered, and — because the label
-// format itself distinguishes " alt" — it also means that IF env/actions.py's
-// currently-dead ALT_BASE range (see action_mask's Phase.DRAFTING branch,
-// where only CHOOSE_BASE/REDRAW_ACTION/ROTATE_ACTION are ever legalized) is
-// wired up later, this starts returning `alt` with zero UI changes needed.
+// rather than hardcoding CHOOSE_BASE offsets means this keeps working if the
+// action space is ever renumbered. Per-option orientation choice is not a
+// real game mechanic (each dealt option carries a rolled orientation;
+// rotation is a separate, whole-hand effect — see ROTATE_ACTION), so there
+// is only ever one choose action per slot.
 function findChooseAction(legalActions, slot) {
-  const re = new RegExp(`^choose #${slot + 1}( alt)? `);
-  let base = null, alt = null;
-  for (const a of legalActions) {
-    if (a.group !== "choose") continue;
-    const m = a.label.match(re);
-    if (!m) continue;
-    if (m[1]) alt = a; else base = a;
-  }
-  return { base, alt };
+  const re = new RegExp(`^choose #${slot + 1} `);
+  return legalActions.find((a) => a.group === "choose" && re.test(a.label)) || null;
 }
 
 function renderPlayDraft() {
@@ -1718,16 +1710,9 @@ function renderPlayDraft() {
 
   const legal = s.legal_actions || [];
   const optsHtml = pend.options.map((o) => {
-    const { base, alt } = findChooseAction(legal, o.slot);
-    const dataAttrs = base ? ` data-choose-id="${base.id}"` : "";
-    const card = optionCardHtml(o, { clickable: !!base, dataAttrs });
-    // The alt button is only reachable once ALT_BASE is wired up in the
-    // engine (see findChooseAction's docstring) -- inert today, kept as a
-    // sibling (not spliced into the card's own HTML) so the UI needs no
-    // further change when it lands.
-    if (!alt) return card;
-    return `<div class="play-opt-wrap">${card}
-      <button class="play-alt-btn" data-choose-id="${alt.id}">place in alt orientation</button></div>`;
+    const action = findChooseAction(legal, o.slot);
+    const dataAttrs = action ? ` data-choose-id="${action.id}"` : "";
+    return optionCardHtml(o, { clickable: !!action, dataAttrs });
   }).join("");
 
   const rd = pend.redraw || {};
@@ -1751,10 +1736,6 @@ function renderPlayDraft() {
 
   for (const card of el.querySelectorAll(".opt.clickable[data-choose-id]")) {
     card.onclick = () => playAct(Number(card.dataset.chooseId));
-  }
-  for (const btn of el.querySelectorAll(".play-alt-btn")) {
-    // Its own click handler so clicking it doesn't also trigger the card's.
-    btn.onclick = (e) => { e.stopPropagation(); playAct(Number(btn.dataset.chooseId)); };
   }
   const redrawBtn = $("#play-redraw-btn");
   if (redrawBtn) {

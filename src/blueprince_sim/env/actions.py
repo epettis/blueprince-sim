@@ -5,23 +5,24 @@ to draft, or a room to enter) and the engine walks the shortest connected
 path, paying the normal one-step-per-room cost. Re-entering rooms grants
 nothing, so free-form single-tile moves were retired.
 
-Layout (Discrete(314)):
+Layout (Discrete(311)):
   0..179   draft at doorway: cell (45) x direction (4: N,E,S,W) ->
            cell*4 + dir_index. Walks to the room first if needed. Legal for
            every frontier doorway reachable with at least one step to spare
            on arrival (the drafted room must still be enterable).
-  180..182 choose option slot 0/1/2 (as-dealt orientation)
-  183..185 choose option slot 0/1/2 (alternate orientation; only legal when
-           GameConfig.orientation_choice is enabled and an alternate exists)
-  186      redraw (engine picks the cheapest available source: free > die > study)
-  187      outer-room draft (walk the West Path; once per day, if unlocked)
-  188      toggle the keycard power (standing at the Utility Closet breaker)
-  189..191 set security level low/normal/high (standing at the Security
+  180..182 choose option slot 0/1/2 (the dealt orientation; per-option
+           orientation choice is not a real game mechanic -- each option
+           arrives with a rolled orientation, and rotation is a separate
+           effect, see ROTATE_ACTION)
+  183      redraw (engine picks the cheapest available source: free > die > study)
+  184      outer-room draft (walk the West Path; once per day, if unlocked)
+  185      toggle the keycard power (standing at the Utility Closet breaker)
+  186..188 set security level low/normal/high (standing at the Security
            terminal; the current level is masked out as a no-op)
-  192      rotate the drawn floorplans to their next legal orientation
+  189      rotate the drawn floorplans to their next legal orientation
            (Ornate Compass held / Rotunda placed / Dovecote in hand;
            overrides the random roll)
-  193..237 walk to cell (45): shortest connected path into an unentered
+  190..234 walk to cell (45): shortest connected path into an unentered
            reachable room (spends steps, first entry grants its resources),
            into the Antechamber (wins), or back into the Utility Closet /
            Security to work their switches; also re-enters shop cells with a
@@ -31,24 +32,24 @@ Layout (Discrete(314)):
            with an openable deposit box, an ignition target (chapel/tomb/trading_post)
            with a torch or burning_glass held, and a machine room (greenhouse/casino)
            with a broken_lever held.
-  238..243 buy current shop display entry 0..5 (NAVIGATE; on-grid shop or
+  235..240 buy current shop display entry 0..5 (NAVIGATE; on-grid shop or
            inside outer shop (inside_outer_room))
-  244..251 trade offer 0..7 (inside the Trading Post; offer index matches
+  241..248 trade offer 0..7 (inside the Trading Post; offer index matches
            trade_offers() order)
-  252..259 fabricate recipe 0..7 (standing in the Workshop; recipe order
+  249..256 fabricate recipe 0..7 (standing in the Workshop; recipe order
            matches registry.special.fabrication)
-  260..265 activate the Royal Scepter with color 0..5 (shops.SCEPTER_COLORS
+  257..262 activate the Royal Scepter with color 0..5 (shops.SCEPTER_COLORS
            order: blueprint, green, red, bedroom, hallway, shop)
-  266      smash the Entrance Hall vase
-  267      open container at the current cell (trunk/chest/locker; one per action)
-  268      open the Garage car trunk (standing in the Garage with Car Keys held)
-  269      open vault deposit box (standing in the Vault with a matching vault key)
-  270      light ignition target (standing in chapel/tomb/trading_post with torch or burning_glass)
-  271      install broken lever in a machine room (greenhouse/casino)
-  272      insert an Upgrade Disk (NAVIGATE; standing at a disk reader holding a disk)
-  273..275 choose upgrade variant slot 0/1/2 (UPGRADE_PENDING only; exactly
+  263      smash the Entrance Hall vase
+  264      open container at the current cell (trunk/chest/locker; one per action)
+  265      open the Garage car trunk (standing in the Garage with Car Keys held)
+  266      open vault deposit box (standing in the Vault with a matching vault key)
+  267      light ignition target (standing in chapel/tomb/trading_post with torch or burning_glass)
+  268      install broken lever in a machine room (greenhouse/casino)
+  269      insert an Upgrade Disk (NAVIGATE; standing at a disk reader holding a disk)
+  270..272 choose upgrade variant slot 0/1/2 (UPGRADE_PENDING only; exactly
            three options are always offered)
-  276..311 travel to area-graph node (36 nodes, sorted by node id for
+  273..310 travel to area-graph node (38 nodes, sorted by node id for
            determinism): TRAVEL_BASE + area_index. Legal when the destination
            is reachable, affordable (strictly more steps than cost so at least
            1 remains on arrival), and not the player's current position.
@@ -88,34 +89,34 @@ def _build_area_node_ids(registry: Registry) -> tuple[str, ...]:
 # Action layout constants
 # ---------------------------------------------------------------------------
 
-OPEN_BASE, CHOOSE_BASE, ALT_BASE = 0, 180, 183
-REDRAW_ACTION    = 186
-OUTER_DRAFT_ACTION = 187  # walk the West Path; once per day, if unlocked
-TOGGLE_POWER_ACTION = 188  # flip the Utility Closet "Keycard Entry" breaker
-SET_LEVEL_BASE = 189       # 189..191: set security level low/normal/high
-ROTATE_ACTION = 192
-MOVE_TO_BASE = 193  # 193..237: walk to cell
-BUY_BASE = 238      # 238..243: buy current shop display entry 0..5
-TRADE_BASE = 244    # 244..251: trade offer 0..7 (inside the Trading Post)
-FABRICATE_BASE = 252  # 252..259: fabricate recipe 0..7 (in the Workshop)
-SCEPTER_BASE = 260  # 260..265: activate the Royal Scepter color 0..5
-SMASH_VASE_ACTION = 266
-OPEN_CONTAINER_ACTION = 267  # open the next container at the current cell
-OPEN_CAR_TRUNK_ACTION = 268  # open garage car trunk (Garage + Car Keys)
-OPEN_VAULT_BOX_ACTION = 269  # open a vault deposit box (Vault + matching vault key)
-LIGHT_ACTION = 270           # light ignition target (torch or burning_glass)
-INSTALL_LEVER_ACTION = 271   # install broken_lever in a machine room
-INSERT_DISK_ACTION = 272     # insert an Upgrade Disk at a disk reader (NAVIGATE)
-CHOOSE_UPGRADE_BASE = 273    # 273..275: choose upgrade variant slot 0/1/2 (UPGRADE_PENDING)
-TRAVEL_BASE = 276            # 276..313: travel to area-graph node (38 nodes)
+OPEN_BASE, CHOOSE_BASE = 0, 180
+REDRAW_ACTION    = 183
+OUTER_DRAFT_ACTION = 184  # walk the West Path; once per day, if unlocked
+TOGGLE_POWER_ACTION = 185  # flip the Utility Closet "Keycard Entry" breaker
+SET_LEVEL_BASE = 186       # 186..188: set security level low/normal/high
+ROTATE_ACTION = 189
+MOVE_TO_BASE = 190  # 190..234: walk to cell
+BUY_BASE = 235      # 235..240: buy current shop display entry 0..5
+TRADE_BASE = 241    # 241..248: trade offer 0..7 (inside the Trading Post)
+FABRICATE_BASE = 249  # 249..256: fabricate recipe 0..7 (in the Workshop)
+SCEPTER_BASE = 257  # 257..262: activate the Royal Scepter color 0..5
+SMASH_VASE_ACTION = 263
+OPEN_CONTAINER_ACTION = 264  # open the next container at the current cell
+OPEN_CAR_TRUNK_ACTION = 265  # open garage car trunk (Garage + Car Keys)
+OPEN_VAULT_BOX_ACTION = 266  # open a vault deposit box (Vault + matching vault key)
+LIGHT_ACTION = 267           # light ignition target (torch or burning_glass)
+INSTALL_LEVER_ACTION = 268   # install broken_lever in a machine room
+INSERT_DISK_ACTION = 269     # insert an Upgrade Disk at a disk reader (NAVIGATE)
+CHOOSE_UPGRADE_BASE = 270    # 270..272: choose upgrade variant slot 0/1/2 (UPGRADE_PENDING)
+TRAVEL_BASE = 273            # 273..310: travel to area-graph node (38 nodes)
 
 # N_ACTIONS = first slot after TRAVEL_BASE + one slot per area node (38)
 # Derived so that adding a node to areas.json expands the space automatically.
-# The literal 36 is intentional: the test suite pins mask-length == N_ACTIONS,
-# not a bare count, so the only invariant that matters is that this equals
-# TRAVEL_BASE + len(area_node_ids) for the committed graph.
+# The test suite pins mask-length == N_ACTIONS, not a bare count, so the only
+# invariant that matters is that this equals TRAVEL_BASE + len(area_node_ids)
+# for the committed graph.
 _N_AREA_NODES = 38  # asserted by tests via mask length, not literal comparison
-N_ACTIONS = TRAVEL_BASE + _N_AREA_NODES  # 276 + 38 = 314
+N_ACTIONS = TRAVEL_BASE + _N_AREA_NODES  # 273 + 38 = 311
 
 DIR_INDEX = {d: i for i, d in enumerate(DIRS)}
 
@@ -512,10 +513,8 @@ def apply_action(game: Game, action: int) -> None:
     if action < CHOOSE_BASE:
         cell, dir_idx = divmod(action, 4)
         game.draft_from(cell, DIRS[dir_idx])
-    elif action < ALT_BASE:
-        game.choose(action - CHOOSE_BASE)
     elif action < REDRAW_ACTION:
-        game.choose(action - ALT_BASE)  # alternate orientation: Tier-2 refinement
+        game.choose(action - CHOOSE_BASE)
     elif action == REDRAW_ACTION:
         kind = _redraw_kind(game)
         assert kind is not None, "no redraw available"
@@ -577,14 +576,13 @@ def describe_action(game: Game, action: int) -> str:
         cell, dir_idx = divmod(action, 4)
         return f"draft {DIR_NAMES[DIRS[dir_idx]]} door @ {_cell_name(cell)}"
     if action < REDRAW_ACTION:
-        slot = action - (CHOOSE_BASE if action < ALT_BASE else ALT_BASE)
-        alt = " alt" if action >= ALT_BASE else ""
+        slot = action - CHOOSE_BASE
         pending = game.state.pending
         if pending is not None and slot < len(pending.options):
             opt = pending.options[slot]
             name = "???" if opt.hidden else game.registry.rooms[opt.room_idx].name
-            return f"choose #{slot + 1}{alt} {name}"
-        return f"choose #{slot + 1}{alt}"
+            return f"choose #{slot + 1} {name}"
+        return f"choose #{slot + 1}"
     if action == REDRAW_ACTION:
         return "redraw"
     if action == OUTER_DRAFT_ACTION:
