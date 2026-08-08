@@ -40,7 +40,10 @@ class GameConfig:
     orchard_unlocked: bool = False                   # Apple Orchard: +20 starting steps (wiki)
     mine_unlocked: bool = False                      # Gemstone Cavern: +2 gems at day start (wiki)
     upgrade_disks: frozenset[str] = frozenset()      # applied variant room ids (e.g. "pool_hall__ix12")
-    veteran_mode: bool = False                       # triggers gem deck-size gates (with day>=16/room46)
+    # Veteran Mode (New Game+). Default TRUE: this project models expert play.
+    # Gates three things -- the stricter gem deck-size gates (with day>=16/room46),
+    # the Garage forced draw before day 3, and the veteran Upgrade-Disk slot table.
+    veteran_mode: bool = True
     room46_reached: bool = False                     # Room 46 reached before: gem deck-size gate
     # Draft-condition gates satisfied for this run (item/unlock-dependent
     # conditions: "breakfast", "secret_garden_key", "knight_chess_piece",

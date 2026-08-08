@@ -66,9 +66,14 @@ def test_forced_draw_offer_rate_jumps_when_gate_satisfied(registry: Registry):
     """At a doorway where the Garage's placement conditions are always met (West
     Wing, rank 4->5, entered north), the offer rate goes from ~never (Day 2, gate
     unmet) to the wiki's ~90% (Day 5, gate met) -- pinning the Forced Draw as an
-    actual behavior change in the real deal_draft pipeline, not just data."""
+    actual behavior change in the real deal_draft pipeline, not just data.
+
+    The Day-2 arm sets veteran_mode=False explicitly: the gate is "Veteran Mode
+    OR Day 3", so leaving it to the config default would silently stop testing
+    the day half of it once that default is veteran (which it now is).
+    """
     n = 600
-    before = _offer_hits(_base_cfg(day=2), registry, SRC_A, N, n, seed0=0)
+    before = _offer_hits(_base_cfg(day=2, veteran_mode=False), registry, SRC_A, N, n, seed0=0)
     after = _offer_hits(_base_cfg(day=5), registry, SRC_A, N, n, seed0=10_000_000)
     assert before < n * 0.05, f"Day 2 (gate unmet) offered the Garage {before}/{n} times"
     assert after > n * 0.6, f"Day 5 (gate met) only offered the Garage {after}/{n} times"

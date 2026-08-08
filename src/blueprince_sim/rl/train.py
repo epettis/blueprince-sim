@@ -101,14 +101,25 @@ def all_unlocks_config(reward: str = "shaped") -> GameConfig:
 def fresh_save_config(reward: str = "shaped") -> GameConfig:
     """Brand-new save with nothing earned — the counterpart to all_unlocks_config.
 
-    day=1: stage="auto" resolves to "week1" rarity tables (<=7 days), and
-    gem_gate_active() is off (triggers at day>=16). Results are NOT comparable
-    to the day=20 baseline; use this only to study fresh-save behaviour.
+    day=1: stage="auto" resolves to "week1" rarity tables (<=7 days). Results
+    are NOT comparable to the day=20 baseline; use this only to study
+    fresh-save behaviour.
 
     All fields are set explicitly so this reads as a complete statement of a
     fresh save and a future default change cannot silently alter it.
 
-    ONE deliberate exception: royal_scepter_found=True. The Key of Aries ->
+    TWO deliberate exceptions to "nothing earned".
+
+    veteran_mode=True. Veteran Mode is reachable on day 1 by an experienced
+    player -- the owner's route is to draft the first three rooms out of the
+    Entrance Hall quickly -- so this project assumes it is triggered, the same
+    assumed-solved doctrine applied to room puzzles elsewhere. The trigger
+    itself is NOT modelled, only its outcome. Note this makes gem_gate_active()
+    true at day 1 (it reads "veteran or room46 or day>=16"), turns on the Garage
+    forced draw before day 3, and selects the veteran Upgrade-Disk tables -- so
+    a fresh save is no longer the loosest possible draw environment.
+
+    royal_scepter_found=True. The Key of Aries ->
     Treasure Trove unlock chain is unmodelled, so leaving it False means the
     scepter is never exercised at all. The owner wants it on because the scepter's
     colour prioritisation (green) is what makes Cloisters appear. Everything else
@@ -123,7 +134,7 @@ def fresh_save_config(reward: str = "shaped") -> GameConfig:
         orchard_unlocked=False,        # no +20 steps
         mine_unlocked=False,           # no +2 gems
         upgrade_disks=frozenset(),     # no room upgrades
-        veteran_mode=False,            # no gem deck-size gates
+        veteran_mode=True,             # see the docstring: assumed triggered on day 1
         room46_reached=False,          # no gem gate from reaching Room 46
         satisfied_conditions=frozenset(),  # no item/unlock-dependent conditions
         door_locks=True,               # locked/security doors active (default)
