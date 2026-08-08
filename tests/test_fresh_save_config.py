@@ -185,7 +185,7 @@ def test_arriving_at_west_path_unlatches_gate_and_daychain_carries_forward(regis
 
 def test_fresh_save_yaml_loads_no_unlocks_scepter_on():
     """configs/fresh_save.yaml loads via GameConfig.from_yaml and produces a config
-    with no permanent unlocks but royal_scepter_found=True.
+    with no permanent unlocks, but with the two documented exceptions on.
 
     The YAML is the --config path for blueprince-sim play/batch; its contents must
     match the documented fresh-save state.
@@ -199,11 +199,14 @@ def test_fresh_save_yaml_loads_no_unlocks_scepter_on():
     assert cfg.west_gate_unlatched is False
     assert cfg.orchard_unlocked is False
     assert cfg.mine_unlocked is False
-    assert cfg.veteran_mode is False
     assert not cfg.studio_additions
     assert not cfg.upgrade_disks
 
-    # The deliberate scepter exception.
+    # The two deliberate exceptions. veteran_mode is NOT a permanent unlock --
+    # an experienced player triggers it on day 1 (draft the first three rooms out
+    # of the Entrance Hall quickly), so it is assumed on rather than earned, and
+    # it belongs here beside the scepter rather than in the block above.
+    assert cfg.veteran_mode is True
     assert cfg.royal_scepter_found is True
 
     # Everything else is clean.
