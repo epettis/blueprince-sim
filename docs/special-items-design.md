@@ -524,7 +524,7 @@ The three channels are computed by `special_items.end_of_day_carry(state, regist
 and reported as `carryover()["starting_items"]`:
 
 - **Self-persisting items**: any held item whose `SpecialItem.persistence` is
-  `"permanent"` (key_8, allowance_token, diary_key, microchip,
+  `"permanent"` (key_8, allowance_token, microchip,
   upgrade_disk_vault_304/commissary/garage/trading_post/lost_and_found/tomb,
   basement_key) or `"until_used"` (sanctum_key, all four vault keys,
   file_cabinet_key, stopwatch, repellent).
@@ -665,14 +665,14 @@ ignition: {
   tools: ["torch", "burning_glass"],   # either one lights any target
   targets: {                            # room id -> what lighting it yields
     chapel:       {candles: 2, grants: [{kind: "chapel_tithe_payout"}]},
-    tomb:         {candles: 2, grants: [upgrade_disk_tomb, {dice: 4}, diary_key]},
+    tomb:         {candles: 2, grants: [upgrade_disk_tomb, {dice: 4}]},
     trading_post: {fuse: True,  grants: [upgrade_disk_trading_post, {coins: 40}]},
   },
   meta: {source, confidence, absent_targets, notes},
 }
 # chapel_tithe_payout: special kind resolved in engine/special_items.light() as
 # the accumulated chapel_tithes counter (coins the Chapel entry -1 penalty has
-# ever banked). Diary Key is a REWARD of lighting the Tomb, not a prerequisite.
+# ever banked).
 ```
 
 ### Data schema — `"machines"` section
@@ -733,10 +733,11 @@ Trading Post fuse reward is **wiki-documented** (dynamite barrels → a permanen
 secret room holding an Upgrade Disk + 40 gold), collapsed here to an immediate
 grant since the secret room itself is not modeled. Tomb rewards are
 **wiki-documented**: near candles yield an Upgrade Disk + 4 dice; far candles
-reveal Clara Epsen's resting place containing the Diary Key. Both candle pairs are
-collapsed into one ignition event granting all three. The Diary Key is a REWARD
-of lighting, never a prerequisite. Chapel reward: the Keeper of Tithes is an
-angelic piggy bank that banks each coin the Chapel's -1 entry penalty takes;
+reveal Clara Epsen's resting place, containing the Diary Key. Both candle pairs
+are collapsed into one ignition event granting the Upgrade Disk and dice; the
+Diary Key itself is not modeled as a grant (see the removal note below). Chapel
+reward: the Keeper of Tithes is an angelic piggy bank that banks each coin the
+Chapel's -1 entry penalty takes;
 lighting the altar pays out the accumulated total (see `chapel_tithes` in
 SpecialItemsState and GameConfig). All ignition effects persist permanently
 across days (stored in `GameConfig.lit_targets`; a lit target cannot be lit again).
@@ -750,10 +751,14 @@ describes it as temporary/daily, which the one-shot `lit_targets` model does not
 express.
 
 The Casino `slot_bonus` payout (20 coins + 2 gems) is `inferred` — the wiki says
-5 bonus spins instead of 3 but gives no expected value. `diary_key` stays
-`implemented: false`: its remaining blocker is the unmodeled Sleep Diary lore
-document, not candle access, so lighting the Tomb consumes the gate without
-unlocking the diary itself.
+5 bonus spins instead of 3 but gives no expected value. `diary_key` was removed
+from the item table entirely (2026-08-06, project owner ruling): the wiki is
+explicit that the key only unlocks Her Ladyship's Sleep Diary's flavour text and
+has "no other known use," so — unlike the Wind-up Key precedent in
+Simplification #17, which at least opens a box with real gems — there is no
+mechanical payoff for an agent to reason about. The Tomb's ignition grants
+(`upgrade_disk_tomb` + 4 dice) are unaffected and still fire unconditionally on
+lighting.
 ## Parlor room
 
 The Parlor room contains a box that always grants a fixed number of gems on
