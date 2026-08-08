@@ -160,8 +160,17 @@ def shaped(game: Game, prev: dict, terminated: bool) -> float:
     0.1 per new deepest rank reached, 0.01 per unit of resource value gained
     (gems/keys/coins/dice at the datamined item values, held special items at
     their tier values — so buying an item trades coin value for item value
-    instead of reading as a pure loss), -0.001 per decision as time pressure,
-    plus 1.0 on a winning termination.
+    instead of reading as a pure loss), plus 1.0 on a winning termination.
+
+    Time pressure is -0.001 per game-step the decision actually consumed
+    (``prev["steps"] - game.state.steps``), floored at one decision's worth
+    (``max(1, steps_spent)``) so a zero-step decision (opening a doorway,
+    choosing an option, ...) still pays the old flat rate, and a multi-step
+    decision (a grid walk or an area-graph travel hop covering several rooms
+    at once) now pays proportionally more instead of being priced the same
+    as a single-cell move. Steps GAINED during a decision (food, the Orchard
+    bonus, other step-granting effects) are clamped to zero spent rather than
+    turned into a reward bonus on this term.
 
     Path-preservation potential (phi_paths delta): the draft that closes the
     last viable route to the Antechamber eats ~-1.0, dwarfing any dead-end
@@ -182,7 +191,12 @@ def shaped(game: Game, prev: dict, terminated: bool) -> float:
     )
     r += 0.01 * d_res
     r += _phi_paths(_ante_paths(game)) - prev["phi_paths"]
-    r -= 0.001  # per-decision time pressure
+    # Time pressure priced against the resource that actually ends runs (steps),
+    # not decision count: clamp step GAINS to 0 first (food etc. must not turn
+    # this term into a bonus), then floor at 1 so zero-step decisions still pay
+    # the old flat rate and multi-step decisions pay proportionally more.
+    steps_spent = max(0, prev["steps"] - game.state.steps)
+    r -= 0.001 * max(1, steps_spent)
     if game.state.antechamber_reached and not prev["antechamber_reached"]:
         r += ANTECHAMBER_REWARD
     if game.state.north_door_opened and not prev["north_door_opened"]:
@@ -230,7 +244,12 @@ def phased(game: Game, prev: dict, terminated: bool) -> float:
     r += _phi_keys(game) - prev["phi_keys"]
     r += _phi_frontier(game) - prev["phi_frontier"]
     r += _phi_paths(_ante_paths(game)) - prev["phi_paths"]
-    r -= 0.001  # per-decision time pressure
+    # Step-scaled time pressure, identical to `shaped` -- see its comment for
+    # the clamp and the floor. Kept in lockstep deliberately: this docstring
+    # promises the two match, and a silent divergence between reward modes is
+    # the kind of thing that surfaces months later as an unreproducible run.
+    steps_spent = max(0, prev["steps"] - game.state.steps)
+    r -= 0.001 * max(1, steps_spent)
     if game.state.antechamber_reached and not prev["antechamber_reached"]:
         r += ANTECHAMBER_REWARD
     if game.state.north_door_opened and not prev["north_door_opened"]:
