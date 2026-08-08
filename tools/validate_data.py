@@ -770,14 +770,40 @@ def main() -> int:
                 errors.append(f"{where}: room_id {rid!r} not in rooms.json")
         # stub invariants:
         # 1. A stub gate must carry retire_in (the only record of what retires it).
-        # 2. kind=unmodelled implies stub=True; otherwise the edge goes dead silently.
-        # 3. retire_in must NOT be present on non-stub gates.
+        # 2. kind=unmodelled must carry retire_in regardless of stub, and must declare
+        #    which way it fails, EXACTLY ONE of:
+        #      stub=true           default-OPEN (2026-07-27 convention). Passes
+        #                          unconditionally, so no node is stranded, and
+        #                          anything measured through it is an upper bound.
+        #      default_closed=true default-CLOSED (2026-08-06, reservoir_water_13).
+        #                          gate_open returns False for kind=unmodelled, so the
+        #                          edge is shut until the real mechanism lands.
+        #    Demanding an explicit declaration is the point. Before this, the rule was
+        #    "unmodelled implies stub=true", which made an accidental stub=false
+        #    silently kill an edge and strand whatever sat behind it -- the exact
+        #    failure mode behind the withdrawn basement_key_well PR. Inferring intent
+        #    from stub=false would re-open that hole for every future gate; naming it
+        #    means a closed gate is always somebody's stated decision.
+        # 3. retire_in must NOT be present on any other (non-unmodelled) non-stub gate
+        #    -- a live gate with a real mechanism has nothing left to retire.
         if g.get("stub") is True and not g.get("retire_in"):
             errors.append(f"{where}: stub=true gate missing retire_in field")
-        if g.get("stub") is False and g.get("retire_in"):
+        if g.get("kind") == "unmodelled":
+            if not g.get("retire_in"):
+                errors.append(f"{where}: kind=unmodelled gate missing retire_in field")
+            if g.get("stub") is True and g.get("default_closed") is True:
+                errors.append(f"{where}: kind=unmodelled gate cannot be both stub=true "
+                              f"(passes) and default_closed=true (never passes)")
+            if g.get("stub") is not True and g.get("default_closed") is not True:
+                errors.append(f"{where}: kind=unmodelled gate must declare either "
+                              f"stub=true (default-open) or default_closed=true "
+                              f"(default-closed); a bare stub=false silently kills "
+                              f"the edge")
+        elif g.get("stub") is False and g.get("retire_in"):
             errors.append(f"{where}: stub=false gate must not have retire_in field")
-        if g.get("kind") == "unmodelled" and g.get("stub") is not True:
-            errors.append(f"{where}: kind=unmodelled gate must have stub=true")
+        if g.get("default_closed") is True and g.get("kind") != "unmodelled":
+            errors.append(f"{where}: default_closed is only meaningful on "
+                          f"kind=unmodelled gates")
 
     # Edge uniqueness and referential integrity
     a_edge_pairs = [(e["from"], e["to"]) for e in a_edges]
@@ -826,14 +852,16 @@ def main() -> int:
         if gid not in gates_used:
             warnings.append(f"areas/gates/{gid}: gate declared but not referenced by any edge")
 
-    # Node and edge count consistency: 38 nodes (26 area + 12 anchors) and 75 directed
+    # Node and edge count consistency: 38 nodes (26 area + 12 anchors) and 77 directed
     # edges. A mismatch means the data and spec have drifted.
     #
-    # 75, not 77: the antechamber anchor deliberately has NO area edges to the house.
-    # Reaching rank 9 center is a GRID walk through a lever-opened door, and an area
-    # edge would let travel_to() hop there for ~0 steps straight past the seal.
+    # 77: the reservoir_north<->reservoir_south crossing (2026-08-06, gated CLOSED by
+    # reservoir_water_13) added 2 edges to the prior 75. Not 79: the antechamber
+    # anchor deliberately has NO area edges to the house. Reaching rank 9 center is a
+    # GRID walk through a lever-opened door, and an area edge would let travel_to()
+    # hop there for ~0 steps straight past the seal.
     SPEC_NODE_COUNT = 38
-    SPEC_EDGE_COUNT = 75
+    SPEC_EDGE_COUNT = 77
     actual_node_count = len(a_node_ids)
     actual_edge_count = len(a_edges)
     if actual_node_count != SPEC_NODE_COUNT:

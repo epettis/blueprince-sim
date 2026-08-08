@@ -193,6 +193,17 @@ digraph blueprince_outside {
 	reservoir_south -> mine_south      [];
 	mine_south      -> reservoir_south [];
 
+	// Reservoir crossing: DEFAULTS CLOSED, unlike every other deferred/unmodelled
+	// gate in this graph (owner ruling, 2026-08-06). This edge is brand new -- no
+	// direct reservoir_north<->reservoir_south edge existed before it -- so closing
+	// it strands nothing. Opening it unconditionally would let an empty inventory
+	// walk basement -> reservoir_north -> here -> safehouse (a Sanctum Key source)
+	// straight around the basement_key_well door. See docs/areas.md.
+	reservoir_north -> reservoir_south [label="rowboat; Reservoir level\nexactly 13 (CLOSED until\nPump Room lands)", style=dashed];
+	reservoir_south -> reservoir_north [label="rowboat; Reservoir level\nexactly 13 (CLOSED until\nPump Room lands)", style=dashed];
+
+	// No mine_south<->mine_north edge, either direction: a mine cart permanently
+	// blocks the passage (owner ruling, 2026-08-06, from play). Not an omission.
 	// The mine cart blocks this until it is shifted from the SOUTH side.
 	reservoir_north -> mine_north      [label="mine cart moved\n(requires Mine South visited)", style=bold];
 	mine_north      -> reservoir_north [];

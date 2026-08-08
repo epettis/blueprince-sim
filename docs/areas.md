@@ -135,6 +135,7 @@ once satisfied, **D** = resets daily, **-** = ungated.
 | `basement` -> `reservoir_north` | pallet-jack puzzle | P |
 | `well` -> `reservoir_south` | Basement Key (not consumed); **+ Fountain==0, not modelled** | P |
 | `reservoir_south` <-> `mine_south` | none | - |
+| `reservoir_north` <-> `reservoir_south` | rowboat; **Reservoir** level exactly 13, permanent once set (two-way). **Defaults CLOSED** — see below | P |
 | `reservoir_north` -> `mine_north` | mine cart moved (**requires Mine South visited**) | P |
 | `reservoir_north` <-> `rotating_gear` | none | - |
 | `reservoir_south` <-> `safehouse` | rowboat; **Reservoir** level exactly 6 (two-way) | D |
@@ -149,6 +150,10 @@ once satisfied, **D** = resets daily, **-** = ungated.
 
 **Mine North and Mine South are NOT directly connected.** Getting between them
 means going back out through Reservoir South and around via Reservoir North.
+There is deliberately **no** `mine_south <-> mine_north` edge, in either
+direction: a mine cart permanently blocks that passage (owner ruling,
+2026-08-06, from play). This is recorded here so the missing edge is never
+mistaken for an omission and "fixed" — there is nothing to add.
 
 **The mine-cart simplification (owner):** visiting `mine_south` unlocks *both*
 `reservoir_north -> mine_north` *and* `rotating_gear -> underpass`. Physically
@@ -240,6 +245,55 @@ rather than repeating it, so the two cannot drift.
 | `rowboat_water_6` | PR-pump-room | Reservoir South <-> Safehouse: rowboat, Reservoir level 6 |
 | `cliffside_elevator_down` | PR-torches-elevator | Grounds -> Precipice: 4 torches lit AND car at the top |
 | `cliffside_elevator_up` | PR-torches-elevator | Precipice -> Grounds: only if the car was ridden down |
+
+**`reservoir_water_13` is a deliberate exception to "deferred gates default
+OPEN", 2026-08-06.** Every gate in the table above is `kind: "unmodelled"` with
+`stub: true`, which makes it pass unconditionally — the 2026-07-27 convention
+exists because closing them stranded nodes that measure zero. This is why the
+Reservoir's own `rowboat_water_6` (Reservoir South <-> Safehouse) and
+`pump_water_lte8` (Grounds <-> Well) are both open stubs above.
+
+`reservoir_water_13` (Reservoir North <-> Reservoir South, the boat crossing
+side-to-side; see `open_tasks.md` task 11) is **not** in that table, and does
+**not** default open, even though it is equally unmodelled and equally
+`retire_in: "PR-pump-room"`. It is declared `kind: "unmodelled"`, `stub:
+false`, **`default_closed: true`** — the same `kind` as the open stubs, but
+with `stub` left off, so `engine/areas.py::gate_open`'s stub short-circuit
+never fires and the `"unmodelled"` case falls through to its unconditional
+`False`. It still carries `retire_in`, so it remains discoverable as deferred
+work even though `stub_gates()` (keyed on `stub: true`) does not list it —
+correctly, since that table exists to flag measurements that are upper bounds,
+and a gate that never passes produces no upper bound.
+
+**`default_closed` is a declaration, not a mechanism.** Nothing in the engine
+reads it; `gate_open` already returns `False` for `kind: "unmodelled"` on its
+own. It exists so `tools/validate_data.py` can require every unmodelled gate to
+state which way it fails — **exactly one of** `stub: true` (default-open) or
+`default_closed: true` (default-closed), never both, never neither. The
+previous rule was "unmodelled implies `stub: true`", which had to be relaxed to
+allow this gate at all; relaxing it to merely *permit* `stub: false` would have
+meant a typo could silently shut an edge and strand whatever sat behind it —
+the precise failure mode behind the withdrawn `basement_key_well` change, where
+closing one door dropped the action mask at `mine_south` to zero. Requiring the
+declaration keeps that impossible: a closed gate is always somebody's stated
+decision, never an omission.
+
+The reason: this edge is **brand new** — no `reservoir_north <->
+reservoir_south` edge existed before this gate landed — so closing it strands
+nothing and the reachable set is byte-identical to before. Opening it instead
+would have created a real loophole. Measured (empty inventory, only
+`sealed_entrance_broken` set — the free route
+`house -> grounds -> sealed_entrance -> basement -> reservoir_north`, where
+`pallet_jack_puzzle` passes unconditionally): an OPEN crossing takes
+`reservoir_south` from unreachable to 5 hops, `mine_south` from unreachable to
+6, and `safehouse` — a **Sanctum Key source** — from unreachable to 6, all
+without ever holding a Basement Key. That is exactly the class of loophole the
+2026-08-06 Precipice fix (below) closed: a free walk around
+`basement_key_well`. So the "unreachable node measures zero" argument that
+justifies every other open stub does not apply here — there is no unreachable
+node this edge uniquely supplies, only a shortcut around an existing gate — and
+the closed default was kept instead. **Do not "fix" this gate to a passing
+stub without re-checking this loophole first.**
 
 **`boiler_room_steam` graduated out of this table, 2026-08-06.** Owner ruling
 (docs/open_tasks.md decisions log): the player unlocks Underpass -> Upper

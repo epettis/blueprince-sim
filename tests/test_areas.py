@@ -647,6 +647,73 @@ def test_garage_to_west_path_open_with_breaker_flag(graph: AreaGraph) -> None:
 
 
 # ---------------------------------------------------------------------------
+# I: reservoir_water_13 — the deliberate default-CLOSED exception (2026-08-06)
+# ---------------------------------------------------------------------------
+
+
+def test_reservoir_crossing_gate_defaults_closed(graph: AreaGraph) -> None:
+    """reservoir_water_13 never passes, even with every other gate's context wide open.
+
+    Every other deferred (unmodelled) gate in this graph defaults OPEN so no node
+    is stranded (2026-07-27 stub convention, stub=True). This one is a deliberate
+    exception (owner ruling, 2026-08-06): it is kind=unmodelled but stub=False, so
+    gate_open's stub short-circuit never fires and the "unmodelled" case falls
+    through to its unconditional False. If this gate is ever flipped to stub=True
+    (the ordinary way to retire a deferred mechanism), this assertion catches it.
+
+    Only the behaviour is asserted here, not the record's kind/stub/default_closed
+    fields -- that shape is validate_data.py's job, which requires every unmodelled
+    gate to declare exactly one of stub=true or default_closed=true.
+    """
+    assert gate_open(graph, "reservoir_water_13", _all_open_ctx()) is False
+
+
+def test_reservoir_crossing_does_not_bypass_basement_key(graph: AreaGraph) -> None:
+    """The new reservoir_north<->reservoir_south edge must not open a key-free
+    route to reservoir_south / safehouse (a Sanctum Key source).
+
+    With an empty inventory and only sealed_entrance_broken set -- the free route
+    house->grounds->sealed_entrance->basement->reservoir_north that the 2026-08-06
+    Precipice writeup measured -- reservoir_south and safehouse must stay
+    unreachable, exactly as they were before this edge existed. An earlier reading
+    of the owner's ruling would have opened this crossing unconditionally, which
+    recreates precisely the loophole the Precipice fix closed: reservoir_north was
+    already free to reach (pallet_jack_puzzle is a passing puzzle gate), so an open
+    crossing here would walk straight around basement_key_well. Holding
+    basement_key must still be required to reach either node.
+    """
+    ctx_no_key = _ctx(flags=frozenset({"sealed_entrance_broken"}))
+    dist_no_key = reachable(graph, "house", ctx_no_key)
+    assert "reservoir_south" not in dist_no_key
+    assert "safehouse" not in dist_no_key
+    assert "mine_south" not in dist_no_key
+
+    ctx_with_key = _ctx(
+        held_items={"basement_key": 1}, flags=frozenset({"sealed_entrance_broken"})
+    )
+    dist_with_key = reachable(graph, "house", ctx_with_key)
+    assert "reservoir_south" in dist_with_key
+    assert "safehouse" in dist_with_key
+
+
+def test_reservoir_north_south_unreachable_from_each_other_via_new_edge(
+    graph: AreaGraph,
+) -> None:
+    """reservoir_north and reservoir_south are not mutually reachable through
+    ONLY the new direct edge when reservoir_water_13 is closed.
+
+    Isolates the new edge from the pre-existing basement/well/mine_south detour
+    routes by starting the BFS from each side directly, with no flags or items at
+    all -- so the only candidate path is the single new edge under test.
+    """
+    ctx_empty = _ctx()
+    dist_from_north = reachable(graph, "reservoir_north", ctx_empty)
+    assert "reservoir_south" not in dist_from_north
+    dist_from_south = reachable(graph, "reservoir_south", ctx_empty)
+    assert "reservoir_north" not in dist_from_south
+
+
+# ---------------------------------------------------------------------------
 # H: state.area round-trip — game-level integration
 # ---------------------------------------------------------------------------
 

@@ -486,6 +486,17 @@
    "meta": {"source": "docs/areas.md", "confidence": "wiki"}
   },
   {
+   "id": "reservoir_water_13",
+   "kind": "unmodelled",
+   "modelled": false,
+   "permanence": "permanent",
+   "stub": false,
+   "default_closed": true,
+   "detail": "Reservoir North <-> Reservoir South: the boat crosses the Reservoir side-to-side once the Reservoir water level is set to exactly 13, permanent once set (docs/open_tasks.md task 11). Deferred: Pump Room water level not modelled -- but unlike the other two Pump Room stubs (pump_water_lte8, rowboat_water_6), this gate defaults CLOSED rather than open (owner ruling 2026-08-06). The edge is brand new (no reservoir_north<->reservoir_south edge existed before it), so closing it strands no node and changes no reachable set. An OPEN crossing would instead let an empty inventory walk basement -> reservoir_north -> reservoir_south -> mine_south / safehouse for free, around the basement_key_well door -- the same loophole the 2026-08-06 Precipice fix closed (see docs/areas.md). Measured before landing: house->reservoir_south=5, house->mine_south=6, house->safehouse=6 with this edge open and an empty inventory, all unreachable with it closed.",
+   "retire_in": "PR-pump-room",
+   "meta": {"source": "docs/areas.md", "confidence": "wiki"}
+  },
+  {
    "id": "tomb_catacombs",
    "kind": "room",
    "modelled": false,
@@ -611,6 +622,8 @@
   {"from": "reservoir_south", "to": "well", "requires": [], "meta": {"source": "docs/areas.md", "confidence": "wiki"}},
   {"from": "reservoir_south", "to": "mine_south", "requires": [], "meta": {"source": "docs/areas.md", "confidence": "wiki"}},
   {"from": "mine_south", "to": "reservoir_south", "requires": [], "meta": {"source": "docs/areas.md", "confidence": "wiki"}},
+  {"from": "reservoir_north", "to": "reservoir_south", "requires": ["reservoir_water_13"], "meta": {"source": "docs/areas.md", "confidence": "wiki"}},
+  {"from": "reservoir_south", "to": "reservoir_north", "requires": ["reservoir_water_13"], "meta": {"source": "docs/areas.md", "confidence": "wiki"}},
   {"from": "reservoir_north", "to": "mine_north", "requires": ["mine_south_visited"], "meta": {"source": "docs/areas.md", "confidence": "wiki"}},
   {"from": "mine_north", "to": "reservoir_north", "requires": [], "meta": {"source": "docs/areas.md", "confidence": "wiki"}},
   {"from": "reservoir_south", "to": "safehouse", "requires": ["rowboat_water_6"], "meta": {"source": "docs/areas.md", "confidence": "wiki"}},
