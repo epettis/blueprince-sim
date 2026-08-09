@@ -8,7 +8,8 @@ requires importing it from this file.
 
 from __future__ import annotations
 
-from . import conservatory  # noqa: F401  (registers room_hook handlers on import)
+from . import classroom  # noqa: F401  (registers room_hook handlers on import)
+from . import conservatory  # noqa: F401
 from . import dovecote  # noqa: F401  (no handler; imported for the predicate helper)
 from . import furnace  # noqa: F401
 from . import greenhouse  # noqa: F401

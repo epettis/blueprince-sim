@@ -672,12 +672,14 @@ class Game:
         if pending is None:
             pending = deal_draft(st, self.registry, self.cfg, self.rng,
                                  self.placed_ids, cell, direction, target)
+            # Visible to ON_DRAFT_FROM handlers below (the Classroom's free-redraw
+            # grant reads/adds to pending.redraws_left, which defaults to 0).
+            st.pending = pending
             # ON_DRAFT_FROM fires once, on the initial deal only -- not on
             # redraws (see redraw(), which deliberately does not re-fire it).
             effects.fire(self, self.registry.rooms[st.grid[cell]], Hook.ON_DRAFT_FROM)
             for opt in pending.options:
                 effects.fire(self, self.registry.rooms[opt.room_idx], Hook.ON_HAND_DEALT)
-            pending.redraws_left = st.drafting_room_count if self._in_classroom_context() else 0
             # Paper Crown: +1 free redraw on an all-non-red initial deal.
             # Hidden options are treated as potentially red (no crown bonus if any hidden).
             if (self.cfg.special_items and special_items.has(st, "paper_crown")
@@ -704,11 +706,6 @@ class Game:
         if self.phase is not Phase.NAVIGATE:
             return None
         return self.open_door(cell, direction)
-
-    def _in_classroom_context(self) -> bool:
-        """Is the player drafting from inside the Classroom (grants free redraws)?"""
-        room_idx = self.state.grid[self.state.pos]
-        return room_idx >= 0 and self.registry.rooms[room_idx].id == "classroom"
 
     # --------------------------------------------------------- outer rooms
 
