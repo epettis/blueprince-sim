@@ -36,6 +36,33 @@ DIG_PRIORITY: tuple[str, ...] = ("jack_hammer", "detector_shovel", "shovel")
 # has_keycard directly).
 PIPELINE_EXCLUDED = frozenset({"keycard"})
 
+# The eight Sanctum Key source ids (one per spawn site: six on-grid rooms,
+# two off-grid areas -- see each record's meta in special_items.json).
+# Sorted for deterministic iteration (which held key gets spent first).
+SANCTUM_KEY_IDS: tuple[str, ...] = (
+    "sanctum_key_clock_tower",
+    "sanctum_key_mechanarium",
+    "sanctum_key_music_room",
+    "sanctum_key_reservoir_north",
+    "sanctum_key_room_46",
+    "sanctum_key_safehouse",
+    "sanctum_key_throne_room",
+    "sanctum_key_vault",
+)
+
+# The eight Inner Sanctum realm ids, sorted for deterministic iteration and
+# stable observation/action ordering (env/actions.py, env/obs.py).
+SIGIL_REALMS: tuple[str, ...] = (
+    "arch_aries",
+    "corarica",
+    "eraja",
+    "fenn_aries",
+    "mora_jai",
+    "nuance",
+    "orinda_aries",
+    "verra",
+)
+
 
 @dataclass(frozen=True, slots=True)
 class SpecialItem:
@@ -184,6 +211,12 @@ class SpecialItemsState:
     # in full when the Chapel altar is lit.  Resets across days via carryover() — the
     # running total lives in GameConfig.chapel_tithes and is re-injected at configure().
     chapel_tithes: int = 0
+    # Inner Sanctum: realm ids whose Sigil Chamber door was opened TODAY (a
+    # Sanctum Key spent via open_sigil_door).  Checked alongside
+    # cfg.sigil_doors_open (permanently opened on an earlier day), the same
+    # "today's list + cfg's permanent set" shape as vault_boxes_opened /
+    # used_vault_keys.
+    sigil_doors_opened: list[str] = field(default_factory=list)
 
 
 # --------------------------------------------------------------- inventory ops
@@ -369,6 +402,19 @@ def configure(state, cfg) -> None:
     for token_id in getattr(cfg, "collected_allowance_tokens", frozenset()):
         if token_id not in gated:
             gated.append(token_id)
+    # Sanctum Key sources already spent (ever, across all days): permanently
+    # blocked, same shape as collected_disks/collected_allowance_tokens.
+    for key_id in getattr(cfg, "collected_sanctum_keys", frozenset()):
+        if key_id not in gated:
+            gated.append(key_id)
+    # Owner ruling (docs/open_tasks.md decisions log, 2026-08-09): none of the
+    # eight Sanctum Keys spawn anywhere until Room 46 has been reached at least
+    # once (cfg.room46_reached, a permanent carry-over flag set the FOLLOWING
+    # day -- same convention as gem_gate_active(), which also reads cfg only).
+    if not cfg.room46_reached:
+        for key_id in SANCTUM_KEY_IDS:
+            if key_id not in gated:
+                gated.append(key_id)
     state.special.gated_out = gated
     # Ignition targets permanently lit across days: pre-populate lit_targets so
     # can_light() blocks them on day N+1 just as it would mid-day.
@@ -449,6 +495,11 @@ def on_area_arrival(game, area_id: str) -> None:
       carried across days the same way ``west_gate_unlatched`` is, which
       ``decks.py::eligible_pool`` reads (via the carried ``GameConfig`` field)
       to add the Treasure Trove to the draft pool.
+    - Two of the eight Sanctum Key sources (``reservoir_north``, ``safehouse``)
+      sit off-grid with no rooms.json record, same shape as the Abandoned
+      Mine's disk above -- configure()'s room46_reached/collected_sanctum_keys
+      gating already runs through ``_is_available``, so no extra gate is
+      needed here.
     """
     if area_id == "mine_south":
         state = game.state
@@ -462,6 +513,16 @@ def on_area_arrival(game, area_id: str) -> None:
             state.upper_rotating_gear_gem_granted = True
             state.items_found_log.append(("gem", 1))
         state.treasure_trove_blackprint = True
+    elif area_id == "reservoir_north":
+        state = game.state
+        registry = game.registry
+        if _is_available(state, "sanctum_key_reservoir_north", registry):
+            grant(state, registry, "sanctum_key_reservoir_north", source="reservoir_north")
+    elif area_id == "safehouse":
+        state = game.state
+        registry = game.registry
+        if _is_available(state, "sanctum_key_safehouse", registry):
+            grant(state, registry, "sanctum_key_safehouse", source="safehouse")
 
 
 def on_enter(game, room, cell: int) -> None:
@@ -1675,7 +1736,7 @@ def open_vault_box(game) -> list[str]:
         (i.e. already spent), so this is a no-op once the disk is gone.
 
     Grants: allowance_token (149/233), upgrade_disk_vault_304 (304),
-    sanctum_key (370).  Returns the list of granted item ids.
+    sanctum_key_vault (370).  Returns the list of granted item ids.
     """
     state = game.state
     registry = game.registry
@@ -1701,6 +1762,69 @@ def open_vault_box(game) -> list[str]:
             grant(state, registry, item_id, source="vault_box")
             granted.append(item_id)
     return granted
+
+
+# --------------------------------------------------------- inner sanctum
+
+
+def can_open_sigil_door(game, realm: str) -> bool:
+    """Holding an unspent Sanctum Key, standing at the Inner Sanctum, door sealed.
+
+    ``realm`` must be one of :data:`SIGIL_REALMS`. Requires special items
+    enabled, the player off-grid at the ``inner_sanctum`` area node, at least
+    one held ``sanctum_key_*`` item, and the realm's door not already open
+    (checked against BOTH ``cfg.sigil_doors_open``, permanent from an earlier
+    day, and ``state.special.sigil_doors_opened``, opened earlier today).
+    """
+    state = game.state
+    if realm not in SIGIL_REALMS:
+        return False
+    if not state.special.enabled:
+        return False
+    if state.area != "inner_sanctum":
+        return False
+    if (realm in getattr(game.cfg, "sigil_doors_open", frozenset())
+            or realm in state.special.sigil_doors_opened):
+        return False
+    return any(state.inventory.get(kid, 0) > 0 for kid in SANCTUM_KEY_IDS)
+
+
+def open_sigil_door(game, realm: str) -> bool:
+    """Spend one held Sanctum Key to permanently unlock the Sigil Chamber door for ``realm``.
+
+    Picks the first held key id in :data:`SANCTUM_KEY_IDS` order (a specific
+    physical key is not tracked; any held key opens any door -- the wiki does
+    not distinguish). Consuming it (``remove(..., consumed=True)``) records
+    its *source* in ``state.special.removed``, which ``fixed_sanctum_keys_spent_today``
+    turns into the permanent ``collected_sanctum_keys`` carry-over so that
+    source never spawns another key. Grants the realm's own dedicated
+    Allowance Token immediately (the assumed-solved Mora Jai box fires the
+    moment the door opens, not on a later chamber visit -- see the
+    ``sigil_chambers`` node's notes in areas.json). Returns True on success.
+    """
+    if not can_open_sigil_door(game, realm):
+        return False
+    state = game.state
+    registry = game.registry
+    key_id = next(kid for kid in SANCTUM_KEY_IDS if state.inventory.get(kid, 0) > 0)
+    remove(state, key_id, consumed=True)
+    state.special.sigil_doors_opened.append(realm)
+    token_id = f"allowance_token_sigil_{realm}"
+    if _is_available(state, token_id, registry):
+        grant(state, registry, token_id, source="sigil_chamber")
+    return True
+
+
+def fixed_sanctum_keys_spent_today(state, registry) -> set[str]:
+    """Sanctum Key source ids consumed today, for the collected_sanctum_keys carryover.
+
+    Mirrors fixed_disks_spent_today: each of the eight sources has its own
+    item id, consumed (remove(..., consumed=True)) the instant open_sigil_door
+    spends it, so state.special.removed already records it here.
+    """
+    keys = {item.id for item in registry.special.items if item.id in SANCTUM_KEY_IDS}
+    return keys & set(state.special.removed)
+
 
 # ----------------------------------------------------------------- ignition
 

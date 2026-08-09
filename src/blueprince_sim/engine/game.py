@@ -618,6 +618,15 @@ class Game:
         assert self.cfg.special_items
         special_items.install_lever(self)
 
+    def can_open_sigil_door(self, realm: str) -> bool:
+        """A Sanctum Key is held, standing at the Inner Sanctum, and ``realm``'s door is sealed."""
+        return special_items.can_open_sigil_door(self, realm)
+
+    def open_sigil_door(self, realm: str) -> bool:
+        """Spend a held Sanctum Key to permanently unlock the Sigil Chamber door for ``realm``."""
+        assert self.cfg.special_items
+        return special_items.open_sigil_door(self, realm)
+
 
     def can_use_repellent(self) -> bool:
         """Is using the Repellent available right now (held + NAVIGATE phase)?"""
@@ -636,7 +645,28 @@ class Game:
         """Cross-day discoveries to feed into tomorrow's GameConfig."""
         result = shops.carryover(self)
         result.update(self._room_pulse_carryover())
+        result.update(self._sigil_carryover())
         return result
+
+    def _sigil_carryover(self) -> dict:
+        """Cross-day carry for consumed Sanctum Key sources and opened Sigil doors.
+
+        Both are permanent, union-accumulated sets -- the same shape as
+        ``collected_disks``/``collected_allowance_tokens`` in ``shops.carryover``.
+        Kept here (rather than in shops.py) since this PR's file allowlist does
+        not include shops.py.
+        """
+        st = self.state
+        return {
+            "collected_sanctum_keys": sorted(
+                set(getattr(self.cfg, "collected_sanctum_keys", frozenset()))
+                | special_items.fixed_sanctum_keys_spent_today(st, self.registry)
+            ),
+            "sigil_doors_open": sorted(
+                set(getattr(self.cfg, "sigil_doors_open", frozenset()))
+                | set(st.special.sigil_doors_opened)
+            ),
+        }
 
     def _room_pulse_carryover(self) -> dict:
         """One-day-pulse cross-day bonuses: Sauna, Morning Room, Freezer, Break Room.
@@ -994,6 +1024,13 @@ class Game:
             # inventory item, so this call is unconditional -- not gated on
             # cfg.special_items.
             if dest == "upper_rotating_gear":
+                special_items.on_area_arrival(self, dest)
+            # Sanctum Key sources at reservoir_north/safehouse: off-grid, no
+            # rooms.json record, same shape as mine_south's disk above. Not
+            # currently offered as a travel destination (areas.json
+            # modelled=false), so this fires only via a direct engine call
+            # (e.g. a test) until a later PR flips that flag.
+            if dest in ("reservoir_north", "safehouse") and self.cfg.special_items:
                 special_items.on_area_arrival(self, dest)
             # Sealed Entrance: the Power Hammer break is permanent once it happens.
             # Arriving here at all means the grounds->sealed_entrance edge already

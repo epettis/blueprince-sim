@@ -357,7 +357,9 @@ def test_trade_graph_successors_same_tier_or_sentinel():
     """Every item in the graph points to a same-tier item or an allowed sentinel.
 
     Items must only cycle within their own tier.  Dice and allowance_token are
-    permitted cross-tier sentinels; upgrade_disk is no longer on the trade path.
+    permitted cross-tier sentinels; upgrade_disk_trade is a tier-5-only special
+    outcome (shops.py::_roll_trade_graph) and also crosses tiers (its own tier
+    is None, untradeable), so it is allowed here too.
     """
     game = _game(seed=0)
     state = game.state
@@ -365,7 +367,7 @@ def test_trade_graph_successors_same_tier_or_sentinel():
     _set_trading_post_inner(game)
     shops.trade_offers(game)
     reg = game.registry
-    sentinels = {"dice", "allowance_token"}
+    sentinels = {"dice", "allowance_token", "upgrade_disk_trade"}
     for give_id, successor in state.shops.trade_graph.items():
         if successor in sentinels:
             continue
