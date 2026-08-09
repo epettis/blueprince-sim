@@ -227,6 +227,75 @@ breaks, the Sanctum keys.
 - **Inner Sanctum**: the 8 Sanctum Keys have sources and persist, but the area
   behind the 8 doors is unmodeled. Overlaps heavily with task 4.
 
+## 15. Room-behaviour fidelity: audit every room against the wiki
+
+Opened 2026-08-08. The owner played several days through the Play tab and found
+four modelling gaps in one sitting. Every one is a room whose *record exists* and
+whose behaviour is wrong or missing, which is the class of bug no measurement
+against the sim can find -- every probe agrees with the engine, because the
+engine is what it measures. That makes this a systematic problem rather than
+four tickets.
+
+### The four found by play (verified against the data, not just reported)
+
+- **Secret Passage — colour choice not modelled.** `effects: []`. Its own
+  `meta.effect_text` says "Leads to a room of a color of your choice", and the
+  owner reports the real mechanic: you pick one of **red, green, yellow, orange
+  or purple** (blue and black are NOT offered), and then every room drafted from
+  that room is that colour, unless none of that colour remain. Nothing
+  implements this, and it is a *player choice*, so it needs an action, not just
+  an effect tag.
+
+- **Pantry — grants nothing.** `effects: []`, `meta.effect_text: "+4<coin>"`.
+  Owner: it always gives **one random fruit (apple, orange or banana) and +4
+  coins**. Note apples and oranges do not exist in `data/items.json` today (only
+  `banana` among fruit) -- the same gap the resource-spreading design note hit
+  for the Secret Garden, so the two should be fixed together.
+
+- **Nursery — missing its immediate self-grant.** It has
+  `grant_on_draft_category`, which pays when a Bedroom is drafted *later*, but
+  the owner reports it **immediately grants the bedroom step bonus (+5 by
+  default) on its own draft**. The forward-looking half works; the on-draft half
+  is absent.
+
+- **Eight rooms have a POOL name where a COLOUR should be.** The owner's example
+  was the Vestibule (should be orange). The underlying fault is broader:
+  `category: "studio_addition"` is not a colour at all, and eight rooms carry it
+  -- `solarium`, `classroom`, `clock_tower`, `dormitory`, `vestibule`, `casino`,
+  `dovecote`, `the_kennel`. Category drives real behaviour (category biases,
+  `grant_per_category`, the Cloister/Terrace green boosts, scepter colours), so
+  these eight are silently excluded from every category-keyed mechanic.
+  `lost_and_found` is already correctly `red` -- the owner cited it as the
+  *expected* colour, not a defect.
+
+### The work: a per-room fidelity pass
+
+Ad-hoc fixing has now missed four rooms in a row. Do this systematically instead:
+
+1. **Split room-specific behaviour into per-room unit test files.** Today room
+   behaviour is scattered across `test_game.py`, `test_effects*.py` and others,
+   so "is the Pantry right?" has no single place to look or to fail.
+2. **Research every room's behaviour from the wiki**, with verbatim citations,
+   the way the Garage and Tunnel investigations were done.
+3. **For each room, evaluate the codebase** to determine whether all of that
+   room's functionality is actually modelled -- record present / partial /
+   missing per room, and note where `meta.effect_text` describes something the
+   `effects` list does not implement. That mismatch found three of the four
+   above and is the cheapest first sweep.
+4. **Write unit tests for each room's functionality**, following the repo rule
+   that tests assert observable behaviour rather than data contents.
+5. **Iterate until every room's functionality is properly implemented.**
+
+Expect this to be large -- 169 room records, ~80 in the base pool. It is worth
+scoping as a sequence of PRs (a batch of rooms each) rather than one change, and
+worth starting with the rooms most likely to matter for the win condition, since
+the 2026-08-08 measurement showed victory is unreachable on ~89% of days for
+lack of lever rooms.
+
+**Do not start a training run mid-audit.** Room behaviour changes what the
+policy learns; batch these and restart deliberately, per the two runs already
+discarded for exactly that reason.
+
 ## Decisions log
 
 - **2026-07-26, lockers**: locked lockers cost exactly one BASIC key — the wiki is
