@@ -68,8 +68,12 @@ class Game:
         self.rng = Rng(self.seed)
         cfg = self.cfg
         st = GameState()
-        st.steps = cfg.starting_steps + (20 if cfg.orchard_unlocked else 0)
-        st.gems = 2 if cfg.mine_unlocked else 0
+        st.steps = (cfg.starting_steps + (20 if cfg.orchard_unlocked else 0)
+                    + (20 if cfg.sauna_bonus else 0))
+        st.gems = ((2 if cfg.mine_unlocked else 0) + (2 if cfg.morning_room_bonus else 0)
+                   + cfg.frozen_gems)
+        st.coins = cfg.frozen_coins
+        st.has_keycard = cfg.break_room_keycard
         st.day = cfg.day
         st.stage = cfg.resolved_stage()
         st.luck = self.registry.item_rules["luck"]["day_start"]
@@ -621,7 +625,29 @@ class Game:
 
     def carryover(self) -> dict:
         """Cross-day discoveries to feed into tomorrow's GameConfig."""
-        return shops.carryover(self)
+        result = shops.carryover(self)
+        result.update(self._room_pulse_carryover())
+        return result
+
+    def _room_pulse_carryover(self) -> dict:
+        """One-day-pulse cross-day bonuses: Sauna, Morning Room, Freezer, Break Room.
+
+        Unlike the permanent flags in ``shops.carryover`` (ORed with cfg so a
+        discovery, once made, holds forever), these report only TODAY's own
+        trigger with no OR against cfg -- DayChain replaces its running value
+        from this each advance() rather than merging it in, so each bonus lands
+        on exactly the FOLLOWING day and lapses again unless re-earned.
+        """
+        st = self.state
+        return {
+            "sauna_bonus": st.sauna_visited,
+            "morning_room_bonus": st.morning_room_visited,
+            "break_room_keycard": st.break_room_keycard,
+            # None (not 0) means "no freeze today" -- 0 coins/gems held while
+            # frozen is a real, distinct value from "not frozen at all".
+            "frozen_coins": st.coins if st.freezer_frozen else None,
+            "frozen_gems": st.gems if st.freezer_frozen else None,
+        }
 
     def open_door(self, cell: int, direction: int) -> PendingDraft:
         """Draft (but do not enter) through a doorway of the current room.
@@ -1645,6 +1671,13 @@ class Game:
     def _terminate(self, reason: str) -> None:
         self.phase = Phase.TERMINAL
         self.termination_reason = reason
+        # Break Room: "call it a day" here (the day ending while the player stands
+        # in the room) grants a starting keycard tomorrow. Grid-only (Break Room has
+        # no off-grid presence), and a one-day pulse -- see state.break_room_keycard.
+        st = self.state
+        if not self.off_grid and st.grid[st.pos] >= 0:
+            if self.registry.rooms[st.grid[st.pos]].id == "break_room__ix11":
+                st.break_room_keycard = True
 
     def _check_termination(self) -> None:
         """End the day when out of steps or no purposeful action remains.

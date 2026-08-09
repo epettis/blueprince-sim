@@ -42,6 +42,25 @@ class GameConfig:
     # same carry shape as west_gate_unlatched (recorded on GameState, ORed in
     # via shops.carryover(), never written back here).
     orchard_unlocked: bool = False
+    # Sauna entered on the previous day: +20 starting steps today only (Game.reset).
+    # A ONE-DAY pulse, not a permanent unlock like orchard_unlocked: DayChain replaces
+    # this each advance() from that day's own carryover rather than OR-ing it in
+    # forever, so a day that does not (re-)enter a Sauna does not inherit yesterday's
+    # bonus (wiki: "Sauna" is a "Tomorrow Room", scoped to the single following day).
+    sauna_bonus: bool = False
+    # Morning Room entered on the previous day: +2 starting gems today only
+    # (Game.reset). Same one-day pulse shape as sauna_bonus.
+    morning_room_bonus: bool = False
+    # A previous day ended with the player standing in Break Room: start today with
+    # a keycard (Game.reset -> state.has_keycard). Same one-day pulse shape as
+    # sauna_bonus.
+    break_room_keycard: bool = False
+    # Freezer carry: coins/gems to start today with instead of the normal reset
+    # (0 coins; gems from mine_unlocked/morning_room_bonus only). 0 = no freeze
+    # pending. A one-day pulse, replaced each DayChain.advance() from that day's
+    # own carryover -- entering the Freezer again is required to keep carrying.
+    frozen_coins: int = 0
+    frozen_gems: int = 0
     mine_unlocked: bool = False                      # Gemstone Cavern: +2 gems at day start (wiki)
     upgrade_disks: frozenset[str] = frozenset()      # applied variant room ids (e.g. "pool_hall__ix12")
     # Veteran Mode (New Game+). Default TRUE: this project models expert play.
