@@ -294,7 +294,14 @@
     "disk_reader": false
    },
    "deck_copies": 1,
-   "effects": [],
+   "effects": [
+    {
+     "tag": "grant_per_category",
+     "resource": "steps",
+     "amount": 1,
+     "category": "any"
+    }
+   ],
    "items": {
     "guaranteed": [],
     "additional_max": 1,
@@ -465,7 +472,11 @@
     "disk_reader": false
    },
    "deck_copies": 1,
-   "effects": [],
+   "effects": [
+    {
+     "tag": "free_green_drafts"
+    }
+   ],
    "items": {
     "guaranteed": [],
     "additional_max": 1,
@@ -827,7 +838,16 @@
     "disk_reader": false
    },
    "deck_copies": 1,
-   "effects": [],
+   "effects": [
+    {
+     "tag": "inject_pool",
+     "rooms": [
+      "great_hall",
+      "foyer",
+      "secret_passage"
+     ]
+    }
+   ],
    "items": {
     "guaranteed": [],
     "additional_max": 1,
@@ -963,7 +983,12 @@
    "deck_copies": 1,
    "effects": [],
    "items": {
-    "guaranteed": [],
+    "guaranteed": [
+     {
+      "item": "random",
+      "count": 2
+     }
+    ],
     "additional_max": 1,
     "dig_spots": 0
    },
@@ -996,7 +1021,12 @@
    "deck_copies": 1,
    "effects": [],
    "items": {
-    "guaranteed": [],
+    "guaranteed": [
+     {
+      "item": "random",
+      "count": 2
+     }
+    ],
     "additional_max": 1,
     "dig_spots": 0
    },
@@ -1195,7 +1225,7 @@
     "guaranteed": [
      {
       "item": "key",
-      "count": 1
+      "count": 2
      },
      {
       "item": "gem",
@@ -1259,7 +1289,7 @@
      },
      {
       "item": "gem",
-      "count": 1
+      "count": 2
      },
      {
       "item": "coins",
@@ -1417,7 +1447,7 @@
     "guaranteed": [
      {
       "item": "key",
-      "count": 1
+      "count": 2
      }
     ],
     "additional_max": 1,
@@ -1458,7 +1488,12 @@
    "deck_copies": 1,
    "effects": [],
    "items": {
-    "guaranteed": [],
+    "guaranteed": [
+     {
+      "item": "key",
+      "count": 1
+     }
+    ],
     "additional_max": 1,
     "dig_spots": 0
    },
@@ -1497,7 +1532,12 @@
    "deck_copies": 1,
    "effects": [],
    "items": {
-    "guaranteed": [],
+    "guaranteed": [
+     {
+      "item": "key",
+      "count": 1
+     }
+    ],
     "additional_max": 1,
     "dig_spots": 0
    },
@@ -3049,6 +3089,11 @@
      "tag": "grant",
      "resource": "gems",
      "amount": 1
+    },
+    {
+     "tag": "grant",
+     "resource": "gems",
+     "amount": 1
     }
    ],
    "items": {
@@ -3094,6 +3139,11 @@
      "tag": "grant",
      "resource": "gems",
      "amount": 1
+    },
+    {
+     "tag": "grant",
+     "resource": "dice",
+     "amount": 2
     }
    ],
    "items": {
@@ -3139,6 +3189,11 @@
      "tag": "grant",
      "resource": "gems",
      "amount": 1
+    },
+    {
+     "tag": "grant",
+     "resource": "gems",
+     "amount": 3
     }
    ],
    "items": {
@@ -3431,7 +3486,14 @@
     "disk_reader": false
    },
    "deck_copies": 1,
-   "effects": [],
+   "effects": [
+    {
+     "tag": "set_resource_on_enter",
+     "resource": "steps",
+     "value": 20,
+     "if_below": 10
+    }
+   ],
    "items": {
     "guaranteed": [],
     "additional_max": 1,
@@ -3474,7 +3536,14 @@
     "disk_reader": false
    },
    "deck_copies": 1,
-   "effects": [],
+   "effects": [
+    {
+     "tag": "grant_on_draft_category",
+     "resource": "gems",
+     "amount": 2,
+     "category": "green"
+    }
+   ],
    "items": {
     "guaranteed": [],
     "additional_max": 1,
@@ -3851,7 +3920,12 @@
    "deck_copies": 1,
    "effects": [],
    "items": {
-    "guaranteed": [],
+    "guaranteed": [
+     {
+      "item": "key",
+      "count": 1
+     }
+    ],
     "additional_max": 1,
     "dig_spots": 0
    },
