@@ -312,6 +312,9 @@ class GameState:
     # cell is never removed, but Game._enter's own entered[cell] guard already
     # prevents a second grant on re-entry, so nothing re-reads a stale entry.
     cloister_mila_bonus_cells: set[int] = field(default_factory=set)
+    # Cells holding a Closet-family variant whose adjacency bonus condition held
+    # at placement; popped when that cell is first entered and the bonus paid.
+    closet_bonus_cells: set[int] = field(default_factory=set)
 
     def deck(self, rarity_idx: int, is_gem: bool) -> DeckState:
         return self.decks[rarity_idx * 2 + (1 if is_gem else 0)]

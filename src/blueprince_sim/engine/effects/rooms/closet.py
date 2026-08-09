@@ -24,13 +24,9 @@ Design:
     smaller set than "adjoined right now"). Since items are only granted on
     first ENTRY (Game._enter -> roll_room_items), the ON_PLACE result has to
     be parked somewhere until the Closet's own ON_ENTER fires and pays out.
-  - That parking spot is _bonus_cells below, kept on the Game instance
-    (game.py and state.py are both out of scope for this change, and
-    GameState is a slots dataclass that cannot take a new field from here
-    anyway) rather than on GameState. It is keyed to the current GameState's
-    identity so a Game reused across many Game.reset() calls (batch runs,
-    RL training) starts each day with an empty cache instead of
-    accumulating cells from days long past.
+  - That parking spot is GameState.closet_bonus_cells, which a fresh
+    GameState per day clears on its own, alongside the Cloister of Mila's
+    equivalent marker.
   - The bonus items are drawn through items.roll_extra_items, the same
     luck-immune EXTRA_ITEM_TABLE roll a Closet's own guaranteed "random"
     items use -- no separate distribution.
@@ -47,18 +43,9 @@ BEDROOM_CLOSET_BONUS = 2  # bedroom_closet__ix40, adjoined to a Bedroom
 EMPTY_CLOSET_BONUS = 4    # empty_closet__ix41, adjoined to a Red Room
 
 
-def _bonus_cells(game) -> dict[int, bool]:
-    """This episode's cells whose Closet-family bonus condition was met at ON_PLACE.
-
-    See the module docstring for why this lives on ``game`` instead of
-    ``game.state``, and why it is scoped to ``id(game.state)``.
-    """
-    epoch = id(game.state)
-    cache = getattr(game, "_closet_adjacency_cache", None)
-    if cache is None or cache[0] != epoch:
-        cache = (epoch, {})
-        game._closet_adjacency_cache = cache
-    return cache[1]
+def _bonus_cells(game) -> set[int]:
+    """Cells whose Closet-family bonus condition held at placement."""
+    return game.state.closet_bonus_cells
 
 
 def _has_adjacent_category(game, cell: int, category: str) -> bool:
@@ -74,13 +61,14 @@ def _mark_if_adjoined(game, room, category: str) -> None:
     """Record ON_PLACE-time eligibility for ``room``'s own adjacency bonus."""
     cell = game.room_cells.get(room.id)
     if cell is not None and _has_adjacent_category(game, cell, category):
-        _bonus_cells(game)[cell] = True
+        _bonus_cells(game).add(cell)
 
 
 def _pay_bonus(game, room, count: int) -> None:
     """Grant the bonus marked at ON_PLACE, if any, and clear the marker."""
     cell = game.room_cells.get(room.id)
-    if cell is not None and _bonus_cells(game).pop(cell, False):
+    if cell is not None and cell in _bonus_cells(game):
+        _bonus_cells(game).discard(cell)
         roll_extra_items(game.state, game.registry, count, game.rng)
 
 
