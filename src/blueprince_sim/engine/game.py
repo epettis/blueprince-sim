@@ -12,6 +12,7 @@ from .areas import GateContext, reachable
 from .decks import apply_upgrade, build_decks, inject_rooms
 from .draft import deal_draft, redeal
 from .effects import Hook
+from .effects.rooms import dovecote
 from .grid import (ADJACENT, DIRS, E, ENTRANCE_CELL, N, N_CELLS, OPPOSITE, W,
                    neighbor, rank_of, rotate_mask)
 from .items import roll_room_items
@@ -98,6 +99,7 @@ class Game:
         self.bedroom_bonus = 0
         self.red_negations = 0
         self.hovel_placed = False
+        self.rotunda_placed = False  # Rotunda: free floorplan rotation while placed
         self.doorway_drafts: dict[tuple[int, int], PendingDraft] = {}
         self.phase = Phase.NAVIGATE
         self.termination_reason = ""
@@ -1261,10 +1263,9 @@ class Game:
             return False
         if st.pending.target_cell == -1:  # outer-room draft: no doorway to rotate against
             return False
-        if special_items.ornate_compass_active(self) or "rotunda" in self.placed_ids:
+        if special_items.ornate_compass_active(self) or self.rotunda_placed:
             return True
-        return any(self.registry.rooms[o.room_idx].id == "dovecote"
-                   for o in st.pending.options)
+        return dovecote.in_current_hand(self)
 
     def rotation_available(self) -> bool:
         """Can the current hand's floorplans be freely rotated?
