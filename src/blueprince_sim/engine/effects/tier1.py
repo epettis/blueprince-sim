@@ -151,24 +151,10 @@ def inject_pool(game, room, eff, ctx_room) -> None:
     game.inject_rooms(list(eff.param("rooms", ())))
 
 
-@effect("allow_duplicates", Hook.ON_PLACE)
-def allow_duplicates(game, room, eff, ctx_room) -> None:
-    # Chamber of Mirrors: handled via placed_ids check in draft.room_draftable
-    pass
-
-
 @effect("free_green_drafts", Hook.ON_PLACE)
 def free_green_drafts(game, room, eff, ctx_room) -> None:
     """Terrace: green rooms cost no gems."""
     game.free_categories.add("green")
-
-
-@effect("halve_steps", Hook.ON_PLACE)
-def halve_steps(game, room, eff, ctx_room) -> None:
-    """Weight Room: lose half your steps (rounded down) on draft."""
-    if _red_negated(game, room):
-        return
-    game.state.steps -= game.state.steps // 2
 
 
 # reduce_draft_options (Archives) is consumed directly by draft.deal_draft

@@ -209,11 +209,7 @@
         "duct": false
       },
       "deck_copies": 1,
-      "effects": [
-        {
-          "tag": "halve_steps"
-        }
-      ],
+      "effects": [],
       "items": {
         "guaranteed": [],
         "additional_max": 0,

@@ -18,3 +18,4 @@ from . import solarium  # noqa: F401
 from . import study  # noqa: F401
 from . import tomb  # noqa: F401
 from . import treasure_trove  # noqa: F401
+from . import weight_room  # noqa: F401

@@ -55,8 +55,8 @@ VALID_DIG_OUTCOME_KINDS = {"junk", "nothing", "coins", "gold_coin", "turnip", "k
 KNOWN_EFFECT_TAGS = {"grant", "grant_per_category", "grant_on_draft_category",
                      "set_resource_on_enter",
                      "counts_as_drafting_room",
-                     "counts_as_bedrooms", "inject_pool", "allow_duplicates",
-                     "free_green_drafts", "halve_steps",
+                     "counts_as_bedrooms", "inject_pool",
+                     "free_green_drafts",
                      "reduce_draft_options",
                      "anti_luck", "mark_visited"}
 
