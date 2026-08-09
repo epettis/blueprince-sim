@@ -3,6 +3,10 @@
 Room effects are structured tags in rooms.json. Handlers register per tag and
 fire at hook points. Unknown tags no-op (logged once) so the sim degrades
 gracefully while data coverage grows.
+
+Alongside the tag registry, a second registry keys handlers by room id
+directly (``room_hook``), for behaviour that belongs to exactly one room
+rather than to a reusable data tag.
 """
 
 from __future__ import annotations
@@ -10,6 +14,8 @@ from __future__ import annotations
 import logging
 from enum import Enum
 from typing import Callable
+
+from ..upgrades import root_base_id
 
 logger = logging.getLogger("blueprince_sim.effects")
 
@@ -46,8 +52,54 @@ def effect(tag: str, hook: Hook):
     return deco
 
 
+RoomHandler = Callable  # (game, room, context_room) -> None
+_ROOM_REGISTRY: dict[tuple[str, Hook], RoomHandler] = {}
+# Per (room_id, hook): whether the handler also applies to upgrade variants
+# whose root base is room_id (see room_hook).
+_ROOM_INHERIT: dict[tuple[str, Hook], bool] = {}
+
+
+def room_hook(room_id: str, hook: Hook, *, inherit: bool = False):
+    """Decorator registering a handler for one room id at one hook.
+
+    ``inherit=False`` (the default) means the handler fires only for
+    ``room_id`` itself. ``inherit=True`` also applies it to every upgrade
+    variant whose root base (``upgrades.root_base_id``) is ``room_id`` --
+    covering variants at any chain depth, e.g. both stages of the Spare
+    Room's two-level chain -- unless the variant has its own registration
+    at the same hook, which shadows the inherited one. Default False because
+    of the 56 upgrade variants with both a parent and an effect_text, zero
+    share their parent's text; blanket inheritance would be wrong far more
+    often than right. Use inherit=True for a fixture that genuinely survives
+    every upgrade, e.g. the Boudoir's safe.
+    """
+    def deco(fn: RoomHandler) -> RoomHandler:
+        _ROOM_REGISTRY[(room_id, hook)] = fn
+        _ROOM_INHERIT[(room_id, hook)] = inherit
+        return fn
+    return deco
+
+
+def validate_room_registry(registry) -> list[str]:
+    """Return every room id registered via ``room_hook`` that ``registry`` lacks.
+
+    ``room_hook`` runs at import time, before any ``Registry`` is loaded, so
+    a typo'd room id cannot be checked at registration -- it would otherwise
+    just never fire, silently. Callers run this once a ``Registry`` exists
+    (a dedicated test, here) and treat a nonempty result as a hard failure.
+    """
+    return sorted({room_id for room_id, _hook in _ROOM_REGISTRY if room_id not in registry.by_id})
+
+
 def fire(game, room, hook: Hook, context_room=None) -> None:
-    """Run all of ``room``'s effects that belong to ``hook``."""
+    """Run all of ``room``'s effects that belong to ``hook``, then its room-id handler.
+
+    The tag loop runs first, in its existing per-effect order -- unchanged,
+    since two of its handlers (``conservatory_rerolls``, ``inject_pool``)
+    consume RNG and reordering them would shift seed-stream consumption. The
+    room-id lookup always runs after, in this one fixed position, regardless
+    of what tags ``room`` carries.
+    """
     for eff in room.effects:
         when = eff.param("when")
         eff_hook = Hook(when) if when is not None else DEFAULT_HOOK.get(eff.tag)
@@ -60,5 +112,14 @@ def fire(game, room, hook: Hook, context_room=None) -> None:
         if handler is not None:
             handler(game, room, eff, context_room)
 
+    room_handler = _ROOM_REGISTRY.get((room.id, hook))
+    if room_handler is None:
+        root_id = root_base_id(game.registry, room)
+        if root_id != room.id and _ROOM_INHERIT.get((root_id, hook), False):
+            room_handler = _ROOM_REGISTRY.get((root_id, hook))
+    if room_handler is not None:
+        room_handler(game, room, context_room)
+
 
 from . import tier1  # noqa: E402,F401  (registers handlers on import)
+from . import rooms  # noqa: E402,F401  (registers room_hook handlers on import)
