@@ -234,6 +234,14 @@ class GameState:
     # cfg.treasure_trove_blackprint; DayChain carries the result, permanently
     # adding the Treasure Trove to the draft pool from the following day.
     treasure_trove_blackprint: bool = False
+    # Set the first time the player arrives at apple_orchard today. Same shape as
+    # west_gate_unlatched: an IN-RUN discovery recorded on STATE, never written
+    # back to GameConfig. carryover() ORs this with cfg.orchard_unlocked; DayChain
+    # carries the result, so the +20 starting-steps bonus (Game.reset) applies
+    # from the FOLLOWING day onward -- a same-day visit does not retroactively
+    # top up steps already spent this attempt, since st.steps is only set once
+    # at reset().
+    orchard_unlocked: bool = False
     # chronological (item id, count) pickups this run, for CLI/replay reporting
     items_found_log: list[tuple[str, int]] = field(default_factory=list)
 

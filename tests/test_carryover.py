@@ -451,7 +451,8 @@ def test_carryover_shape_is_complete():
     the flag-split PR, weight_room_wall_broken in the antechamber-levers PR,
     room46_reached in the room46 PR, mine_south_visited in the Sanctum-route PR,
     boiler_room_steam and treasure_trove_blackprint in the Rotating Gear
-    (upstairs) PR); the non-bool keys are also always included.
+    (upstairs) PR, orchard_unlocked in the Apple Orchard PR); the non-bool
+    keys are also always included.
     """
     bool_keys = {
         "lunch_box_unlocked",
@@ -466,6 +467,7 @@ def test_carryover_shape_is_complete():
         "sealed_entrance_broken",
         "boiler_room_steam",
         "treasure_trove_blackprint",
+        "orchard_unlocked",
     }
     expected_keys = bool_keys | {
         "starting_items", "banned_rooms", "used_vault_keys",

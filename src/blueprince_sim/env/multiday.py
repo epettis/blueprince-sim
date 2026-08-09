@@ -40,6 +40,7 @@ _CARRYOVER_KEYS: frozenset[str] = frozenset({
     "room46_reached",             # Room 46 first visited: permanent gem-deck gate
     "boiler_room_steam",       # set on Boiler Room entry; opens the Upper Rotating Gear route
     "treasure_trove_blackprint",  # set on Upper Rotating Gear arrival; adds Treasure Trove to pool
+    "orchard_unlocked",        # set on apple_orchard arrival; grants +20 starting steps next day
 })
 
 
