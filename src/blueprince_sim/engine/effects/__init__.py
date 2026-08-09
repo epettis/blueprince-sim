@@ -19,6 +19,10 @@ class Hook(Enum):
     ON_ENTER = "on_enter"          # player enters the room (first time)
     ON_DRAFT_ROOM = "on_draft_room"  # some OTHER room was drafted (Nursery etc.)
     ON_DAY_START = "on_day_start"
+    ON_DRAFT_FROM = "on_draft_from"  # a hand is initially dealt from this room's doorway
+    ON_HAND_DEALT = "on_hand_dealt"  # this room appears as an option in the current hand
+    ON_ARRIVE = "on_arrive"        # player arrives at this cell, every time (incl. re-entry)
+    ON_DAY_END = "on_day_end"      # the day terminates (out_of_steps / dead_end)
 
 
 EffectHandler = Callable  # (game, room, effect, context_room) -> None

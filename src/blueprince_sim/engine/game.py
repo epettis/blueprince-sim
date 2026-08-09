@@ -670,6 +670,11 @@ class Game:
         if pending is None:
             pending = deal_draft(st, self.registry, self.cfg, self.rng,
                                  self.placed_ids, cell, direction, target)
+            # ON_DRAFT_FROM fires once, on the initial deal only -- not on
+            # redraws (see redraw(), which deliberately does not re-fire it).
+            effects.fire(self, self.registry.rooms[st.grid[cell]], Hook.ON_DRAFT_FROM)
+            for opt in pending.options:
+                effects.fire(self, self.registry.rooms[opt.room_idx], Hook.ON_HAND_DEALT)
             pending.redraws_left = st.drafting_room_count if self._in_classroom_context() else 0
             # Paper Crown: +1 free redraw on an all-non-red initial deal.
             # Hidden options are treated as potentially red (no crown bonus if any hidden).
@@ -912,7 +917,8 @@ class Game:
 
         Special case — grid anchors ("house", "garage"):
         sets area=None and pos=<anchor cell>, then fires _enter() when the cell
-        has not been entered yet (preserves ON_ENTER effects for the Garage).
+        has not been entered yet (preserves ON_ENTER effects for the Garage),
+        then fires ON_ARRIVE unconditionally (every landing, including re-entry).
 
         Special case — drafted outer room:
         when arriving at the today's outer room for the first time, marks it
@@ -955,6 +961,9 @@ class Game:
             st.pos = dest_cell
             if not st.entered[dest_cell]:
                 self._enter(dest_cell)  # returning into a never-entered room fires ON_ENTER
+            # ON_ARRIVE fires on every arrival, including re-entry -- outside
+            # the entered-gate above, same contract as the move() call site.
+            effects.fire(self, self.registry.rooms[st.grid[dest_cell]], Hook.ON_ARRIVE)
         else:
             st.area = dest
             st.areas_visited.add(dest)
@@ -1097,6 +1106,9 @@ class Game:
         if pending is None:
             pending = PendingDraft(from_cell=-1, direction=0, target_cell=-1)
             pending.options = self._deal_outer_options("outer_draft")
+            # No ON_DRAFT_FROM: outer drafts have no from-room (from_cell=-1).
+            for opt in pending.options:
+                effects.fire(self, self.registry.rooms[opt.room_idx], Hook.ON_HAND_DEALT)
             self.doorway_drafts[key] = pending
         st.pending = pending
         self.phase = Phase.DRAFTING
@@ -1236,6 +1248,11 @@ class Game:
             pending.options.extend(self._deal_outer_options("outer_redraw"))
         else:
             redeal(st, self.registry, self.cfg, self.rng, self.placed_ids, pending)
+        # ON_HAND_DEALT fires again for the freshly redealt options -- unlike
+        # ON_DRAFT_FROM (initial deal only), a room re-entering the hand on a
+        # redraw is itself the event this hook exists to model.
+        for opt in pending.options:
+            effects.fire(self, self.registry.rooms[opt.room_idx], Hook.ON_HAND_DEALT)
 
     def _rotation_source(self) -> bool:
         """Is a free-rotation source in play for the current hand?"""
@@ -1339,6 +1356,9 @@ class Game:
         st.steps -= cost
         st.pos = nb
         self._enter(nb)
+        # ON_ARRIVE fires on every arrival, including re-entry -- unlike
+        # ON_ENTER (inside _enter, above), it is not gated on st.entered.
+        effects.fire(self, self.registry.rooms[st.grid[nb]], Hook.ON_ARRIVE)
         if self.cfg.special_items:
             special_items.on_arrive(self, nb)
         self._check_termination()
@@ -1669,15 +1689,30 @@ class Game:
         self.phase = Phase.NAVIGATE
 
     def _terminate(self, reason: str) -> None:
+        """End the day; this is the sole place Phase.TERMINAL is set.
+
+        Every day-ending route in this module runs through here (called only
+        from _check_termination), so it is the single fire site for ON_DAY_END.
+        """
         self.phase = Phase.TERMINAL
         self.termination_reason = reason
+        st = self.state
+        # The "current room" for day-end effects (Tomorrow Rooms): the
+        # drafted outer room while standing inside it, otherwise the on-grid
+        # room at the player's position. Off-grid but not inside the outer
+        # room (e.g. at the doorstep) has no current room.
+        room = None
+        if self.inside_outer_room:
+            room = self.drafted_outer_room
+        elif not self.off_grid and st.grid[st.pos] >= 0:
+            room = self.registry.rooms[st.grid[st.pos]]
+        if room is not None:
+            effects.fire(self, room, Hook.ON_DAY_END)
         # Break Room: "call it a day" here (the day ending while the player stands
         # in the room) grants a starting keycard tomorrow. Grid-only (Break Room has
         # no off-grid presence), and a one-day pulse -- see state.break_room_keycard.
-        st = self.state
-        if not self.off_grid and st.grid[st.pos] >= 0:
-            if self.registry.rooms[st.grid[st.pos]].id == "break_room__ix11":
-                st.break_room_keycard = True
+        if room is not None and room.id == "break_room__ix11":
+            st.break_room_keycard = True
 
     def _check_termination(self) -> None:
         """End the day when out of steps or no purposeful action remains.
