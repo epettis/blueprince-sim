@@ -1603,6 +1603,62 @@ parametric tags; it has been quietly wrong for singleton behaviour for a while.
   - The **gates still bind**: tests, ruff, and validate_data at 0 errors and 0
     warnings, on every commit.
 
+- **2026-08-09, allowance is a permanent accumulating total, and most of its
+  sources are one-time.** Owner, prioritising it as the next lane-B item after
+  noticing the Cloister's free token: "Most allowance tokens can only be
+  collected once. Once collected, you cannot get another +2 boost from them
+  again. The total accumulated allowance becomes your starting money the next
+  day, so three +2 allowance tokens over seven days would result in 6 coins to
+  start the eighth day."
+
+  The wiki agrees: *"A set amount of gold granted at the beginning of each
+  day"*, and *"As a permanent resource, allowance does not reset between each
+  day and is generally never spent."* No base value and no cap are stated, so
+  base 0 and no ceiling -- neither is invented. The packet appears in the
+  Entrance Hall each morning; the sim starts the player there and assumes
+  puzzles are solved, so granting it at `reset()` is the modelling
+  simplification.
+
+  **This settles task 10's open question** -- allowance is the daily gold
+  packet, not a one-time grant -- and it makes the shape `orchard_unlocked`
+  with an integer instead of a bool.
+
+  **One-time sources need collection tracking, which uniqueness does not
+  provide.** A unique item is only blocked while *held*; `remove(consumed=True)`
+  records it in per-day state, so the source re-mints the next day. That exact
+  bug was measured at 7 duplicate disks per day before `collected_disks` was
+  added, so one-time allowance sources ride that same carried-set shape.
+
+  Sourced from `https://blueprince.wiki.gg/wiki/Allowance`:
+
+  - **One-time**: the Cloister (*"always present in the room until it is
+    collected"*), Mora Jai boxes (*"do not respawn once solved"*), the
+    Reservoir and Vault boxes (*"spawn only when their respective box are first
+    unlocked and never again"*), the Entrance Hall vase.
+  - **Repeatable**: Trading Post tier-5 trades, Jack Hammer digging, Room 8,
+    the Quest Bedroom (owner: once per day maximum), Cloister of Lydia, Casino
+    roulette (2 and 4 allowance prizes), the Guess Bedroom, the Laundry Room's
+    Star/Allowance swap, and an "Experimental effect" worth +1.
+
+  **Three corrections to task 10's premise, from that same page**:
+
+  1. The Cloister's token is **one-time**, not the standing per-day +2 the task
+     assumed.
+  2. There is **no standing Trading Post bonus** -- only the tier-5 trade
+     chance, which `shops.py` already grants.
+  3. The **Closed Exhibit is not mentioned at all**. Task 10 names it; the wiki
+     does not support it, so it is deliberately not implemented.
+
+  Two things to check rather than carry forward: the wiki lists Vault box **53**
+  alongside 149 and 233, which our data may not have; and the Entrance Hall vase
+  is already modelled as a carry-over flag (`entrance_vase_broken`) that may not
+  grant a token.
+
+  Act on this cold as: **"the player gets a free X in room Y" needs its
+  repeatability established before its magnitude.** A one-time pickup modelled
+  as a standing bonus pays out forever, and nothing in a per-day test would show
+  it.
+
 ## 5. Throttle the training terminal output — DONE
 
 The trainer currently refreshes the dashboard after every completed seed, which
