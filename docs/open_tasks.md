@@ -949,6 +949,77 @@ breaks, the Sanctum keys.
   measurement that justified it, not just the outcome, and say explicitly when a
   ruling overrides the wiki or reverses an earlier assumption.
 
+- **2026-08-08, three outer-area bugs found by PLAYING the Play tab, and the
+  second run was discarded for them.** The owner played a day through the web
+  interface and recorded it to `runs/postfix-v2/demos.jsonl` (seed 964156478,
+  103 actions, `unlocks: fresh`). It replays with `divergence=None`, so all
+  three reproduce exactly — the demo pipeline paid for itself here.
+
+  **The outer draft was refused while standing on its own doorstep.**
+  `outer_draft_available()` carried `if self.off_grid: return False`, but
+  `west_path` IS the doorstep — `open_outer_draft()` opens with
+  `travel_to("west_path")`. The session shows the cost: travel to West Path (3
+  steps), forced back to House (2 steps), then "outer draft" auto-walks back to
+  West Path. **Two steps burned to stand where the player already was.**
+
+  **Dice could not reroll the outer-room hand**, which the owner reports is a
+  common strategy for forcing the Tomb. Reproduced holding 5 dice:
+  `_redraw_kind()` returned None before ever looking at them.
+
+  **The Apple Orchard was unreachable and its +20 steps unearnable** — two
+  problems stacked, which is why nothing the owner tried worked. `apple_orchard`
+  AND `campsite` (its only approach) are both `modelled: false`, so neither is
+  ever offered as a destination even though the graph path is fine and the
+  `padlock_code` gate passes under the assumed-solved doctrine. Separately,
+  `GameConfig.orchard_unlocked` is set only in the two `train.py` presets, so
+  even arriving could not grant the bonus. Advertising the nodes alone would
+  have left the player walking there for nothing.
+
+  **`runs/postfix-v2` was killed at 122,500 episodes / 5.55M timesteps (39
+  min)** — owner decision, the same reasoning as the first discard: bugs 1 and 2
+  change which actions are legal during outer-room drafting, a once-per-day
+  decision every single day, so a policy trained through them learns a game we
+  know is wrong. The action-space SIZE was unchanged, so this was a correctness
+  call rather than a forced one.
+
+  Act on this cold as: **play the game through the Play tab before committing
+  compute.** Three real modelling bugs surfaced in a single recorded day, none
+  of which any amount of measurement against the sim would have found — every
+  probe agrees with the engine, because the engine is what it measures.
+
+- **2026-08-08, redraws work on the outer-room draft, from every source.**
+  Owner: "Assume that the study works outdoors. I think the reroll works on all
+  drafts" — clarified as the Study's **gem** rerolls specifically. So the
+  `target_cell == -1` early-return in `_redraw_kind` goes away entirely rather
+  than being narrowed to dice: the Classroom's free redraws, an ivory die, and
+  the Study's 1-gem reroll (still capped at 8 per hand) all apply to an outer
+  hand, with the existing cheapest-first precedence unchanged.
+
+  **Recorded as owner-ruled and hedged ("I think"), not as sourced.** If the
+  wiki later contradicts it, this is the entry to revisit.
+
+  Not a one-line unblock, and worth knowing why: `Game.redraw()` also asserts on
+  outer hands, and it calls `redeal()`, which runs the GRID pipeline
+  (`_fill_options`: rarity rolls, decks, priority draws, the Tunnel chain) while
+  outer hands come from a fixed pool of 8 shuffled on the `"outer_draft"` RNG
+  label. Worse, `redeal()` opens with `state.grid[pending.from_cell]` and an
+  outer hand has `from_cell = -1`, which Python does not reject — it silently
+  reads the LAST grid cell. Lifting the assert alone would have dealt grid rooms
+  into an outer hand from a fabricated "from room". The redeal needs its own
+  outer path and its own RNG label, so the initial-deal sequence is untouched.
+
+- **2026-08-08, the Apple Orchard becomes reachable and its +20 steps earnable.**
+  Owner. `apple_orchard` and `campsite` flip to `modelled: true` so they are
+  offered as travel destinations, and visiting the Orchard grants a permanent
+  +20 starting steps through the carry-over machinery — the same shape as
+  `west_gate_unlatched` and `sealed_entrance_broken`, which are likewise earned
+  in-run rather than configured.
+
+  Note this is a deliberate exception to the 2026-08-04 rule that a node only
+  goes `modelled: true` if it "holds something worth walking to". The Orchard
+  now does hold something: a permanent step bonus. The step-share measurement
+  that rule exists to protect should be re-checked after it lands.
+
 ## 5. Throttle the training terminal output — DONE
 
 The trainer currently refreshes the dashboard after every completed seed, which
