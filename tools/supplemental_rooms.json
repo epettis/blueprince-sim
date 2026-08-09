@@ -511,7 +511,8 @@
       "effects": [
         {
           "tag": "coins_per_deadend",
-          "amount": 5
+          "amount": 5,
+          "include_self": true
         }
       ],
       "items": {

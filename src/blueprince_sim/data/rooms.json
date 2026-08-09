@@ -3410,7 +3410,8 @@
      "tag": "grant_on_draft_category",
      "resource": "steps",
      "amount": 5,
-     "category": "bedroom"
+     "category": "bedroom",
+     "include_self": true
     }
    ],
    "items": {
@@ -3453,8 +3454,9 @@
     {
      "tag": "grant_on_draft_category",
      "resource": "steps",
-     "amount": 5,
-     "category": "bedroom"
+     "amount": 8,
+     "category": "bedroom",
+     "include_self": true
     }
    ],
    "items": {
@@ -5720,7 +5722,8 @@
    "effects": [
     {
      "tag": "coins_per_deadend",
-     "amount": 5
+     "amount": 5,
+     "include_self": true
     }
    ],
    "items": {
