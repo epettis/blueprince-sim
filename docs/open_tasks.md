@@ -1562,6 +1562,47 @@ parametric tags; it has been quietly wrong for singleton behaviour for a while.
   solely to prove the two agree. Moving behaviour into code deletes that whole
   apparatus -- but only if the field moves out of the JSON entirely.
 
+- **2026-08-09, the audit worklist is worked lane by lane, not to a number.**
+  Owner, after being shown that the "drop the divergence audit below 70
+  findings" target could not be reached from cheap work alone. Of the 34 kind-1
+  findings, roughly 21 are blocked on new engine capability rather than on
+  authoring: 8 need "which rooms were drafted through THIS placed Cloister", 3
+  need cross-day package delivery, 2 need the spread pipeline, 2 need items that
+  do not exist, and 4 need genuinely new mechanics. Only about 10 were reachable
+  by data plus a room module.
+
+  So the goal is restated as **clear everything lane A can reach**, which lands
+  near 85-90 findings rather than 70. The remaining gap is lane B and is worked
+  on its own merits, not to hit a number. Act on this cold as: a metric target
+  set before triage will usually price in work that does not exist at that
+  price.
+
+  **Lane A** is a room whose behaviour fits existing parametric tags or a
+  `room_hook` module: disjoint files, so several agents run at once.
+  **Lane B** is anything needing a new shared primitive, a new action, a new
+  item, or cross-day machinery: it touches shared files and runs serially.
+  **Lane C** is anything needing an owner ruling: parked and batched.
+
+- **2026-08-09, lane B work is queued without waiting for per-PR approval.**
+  Owner: "You can queue up all the changes on Lane B assuming I approve the
+  merges because I generally make very few changes to your PRs."
+
+  So a lane-B PR is built, reviewed by the orchestrator, and merged once all
+  three gates are green, rather than blocking on an LGTM. Dependent work stacks
+  on the branch immediately rather than waiting.
+
+  **Three things this does NOT relax**, because none of them is about approval
+  speed:
+
+  - Anything needing a **ruling** is still parked and batched, never guessed.
+    The owner's involvement is being spent on decisions, not on merges.
+  - Every diff is still **reviewed by the orchestrator before merge**. That
+    review has caught something in most rounds -- a test that pinned a bug as
+    correct, a glyph read off the mojibake, a private-global import across a
+    module boundary.
+  - The **gates still bind**: tests, ruff, and validate_data at 0 errors and 0
+    warnings, on every commit.
+
 ## 5. Throttle the training terminal output — DONE
 
 The trainer currently refreshes the dashboard after every completed seed, which
