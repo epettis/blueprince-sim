@@ -1742,6 +1742,42 @@ parametric tags; it has been quietly wrong for singleton behaviour for a while.
   satisfies is indistinguishable, in every measurement, from not modelling it at
   all.
 
+- **2026-08-09, features are built to be PLAYED, not to be reachable by the
+  policy.** Owner: "I realize that the RL algorithm is unlikely to reach that
+  stage of the game on its own. That's why I'm going to play the game myself to
+  teach it some expert judgement. I need you to implement the features so I can
+  teach it."
+
+  **This retires the objection raised one entry above** against modelling the
+  Inner Sanctum. That objection was that `P(room 46)` is 0.000 over 400 measured
+  days, so a Sanctum gated behind Room 46 would be content no policy can enter.
+  The premise was that the policy has to get there unaided. It does not: the
+  owner reaches it by playing, records the day through the Play tab, and the
+  behavioural-cloning pipeline turns it into training signal.
+
+  So **"unreachable by the current policy" is not a reason to defer a feature.**
+  It is a reason the feature has to exist *before* the demonstrations that teach
+  it, not after.
+
+  **What this does change is the acceptance bar.** A feature is not done when the
+  engine models it correctly -- it is done when the owner can *operate* it in a
+  recorded session. Concretely, every feature of this kind needs:
+
+  - a **player action** in `env/actions.py` with a masking site, not just engine
+    state that some other code path mutates;
+  - that action **exposed in the Play tab**, since that is where demonstrations
+    are recorded;
+  - the resulting day to **replay clean** (`divergence=None`), which is what
+    makes a demo usable as training data.
+
+  A correct mechanic with no action to drive it is unteachable, and the gap is
+  invisible to every test that drives the engine directly.
+
+  Act on this cold as: **ask "can the owner do this in a recorded session?"
+  before calling a feature complete.** The three outer-area bugs found on
+  2026-08-08 were all of exactly this kind -- the engine was right and the
+  player could not act.
+
 ## 5. Throttle the training terminal output — DONE
 
 The trainer currently refreshes the dashboard after every completed seed, which
