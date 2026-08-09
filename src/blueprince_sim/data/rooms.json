@@ -2862,7 +2862,12 @@
    "deck_copies": 1,
    "effects": [],
    "items": {
-    "guaranteed": [],
+    "guaranteed": [
+     {
+      "item": "coins_exact",
+      "count": 10
+     }
+    ],
     "additional_max": 1,
     "dig_spots": 0
    },

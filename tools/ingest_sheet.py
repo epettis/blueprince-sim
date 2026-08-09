@@ -277,6 +277,8 @@ EFFECT_OVERRIDE: dict[str, dict] = {
     "vault": {"items": {"guaranteed": [{"item": "coins_exact", "count": 40}]}},
     "rumpus_room": {"items": {"guaranteed": [{"item": "coins_exact", "count": 8}]}},
     "pantry": {"items": {"guaranteed": [{"item": "coins_exact", "count": 4}]}},
+    # Goldfish Aquarium's "+10" is a literal coin figure, not a pile count.
+    "goldfish_aquarium__ix2": {"items": {"guaranteed": [{"item": "coins_exact", "count": 10}]}},
     # Storeroom upgrade variants each roll a different key/gem/coin mix; ix146's
     # coin pile is also exact rather than a generic pile.
     "storeroom__ix144": {"items": {"guaranteed": [
