@@ -862,7 +862,16 @@
    "deck_copies": 1,
    "effects": [],
    "items": {
-    "guaranteed": [],
+    "guaranteed": [
+     {
+      "item": "gem",
+      "count": 2
+     },
+     {
+      "item": "coins_exact",
+      "count": 4
+     }
+    ],
     "additional_max": 1,
     "dig_spots": 0
    },
