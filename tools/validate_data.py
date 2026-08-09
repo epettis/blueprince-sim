@@ -26,6 +26,13 @@ KNOWN_CONDITIONS = {"west_wing", "east_wing", "west_or_east_wing", "not_on_wing"
                     "no_north_on_wing", "no_horizontal_end_rank", "north_south_only",
                     "pool_drafted", "library_only", "antechamber_north_door", "room8_key",
                     "knight_chess_piece", "secret_garden_key", "breakfast", "the_foundation"}
+# Item kinds engine/items.py::grant_item and roll_room_items actually handle
+# for a room's items.guaranteed list. "coins_exact" grants the literal count
+# as coins with no pile roll (2026-08-09 exact-coin-amount ruling); "coins"
+# rolls each of count PILES from items.json's pile_min..pile_max range;
+# "random" resolves count table-rolled items (Closet/Walk-In/Attic style).
+KNOWN_GUARANTEED_ITEM_KINDS = {"coins", "coins_exact", "key", "gem", "die", "steps",
+                                "food", "random"}
 KNOWN_ITEM_EFFECT_TAGS = {
     # PR1 functional set
     "lockpick", "luck_bonus", "coin_interest", "coin_multiplier",
@@ -113,6 +120,25 @@ def main() -> int:
                         errors.append(f"{where}: inject_pool references unknown room {rid}")
         if r.get("variant_of") and r["variant_of"] not in by_id:
             warnings.append(f"{where}: variant_of {r['variant_of']!r} not a known id")
+        guaranteed = r.get("items", {}).get("guaranteed", [])
+        guaranteed_kinds = []
+        for g in guaranteed:
+            gitem, gcount = g.get("item"), g.get("count")
+            # engine/items.py::grant_item silently no-ops on an item id it
+            # doesn't recognise (logs the pickup but grants nothing) -- a typo
+            # here fails exactly the same silent way the exact-coins bug did,
+            # so it is worth catching at data-validation time rather than in
+            # a low-value round-trip test.
+            if gitem not in KNOWN_GUARANTEED_ITEM_KINDS:
+                errors.append(f"{where}: items.guaranteed has unknown item kind {gitem!r}")
+            if not isinstance(gcount, int) or gcount < 0:
+                errors.append(f"{where}: items.guaranteed {gitem!r} has bad count {gcount!r}")
+            guaranteed_kinds.append(gitem)
+        if "coins" in guaranteed_kinds and "coins_exact" in guaranteed_kinds:
+            errors.append(
+                f"{where}: items.guaranteed has both 'coins' (pile roll) and "
+                f"'coins_exact' (literal amount) -- ambiguous, pick one"
+            )
 
     # weights
     for stage, slots in weights["tables"].items():

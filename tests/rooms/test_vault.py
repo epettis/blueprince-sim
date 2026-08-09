@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from blueprince_sim.config import GameConfig
 from blueprince_sim.engine import special_items as si
+from blueprince_sim.engine.game import Game
 from blueprince_sim.engine.model import Registry
 from blueprince_sim.engine.rng import Rng
 from blueprince_sim.engine.state import GameState
@@ -43,6 +44,21 @@ def _place_room(state, registry, room_id: str, cell: int) -> None:
     room = registry.by_id[room_id]
     state.grid[cell] = room.idx
     state.placed_doors[cell] = room.door_mask
+
+
+def _game_with_room(room_id: str, cell: int, seed: int = 0, cfg: GameConfig | None = None) -> Game:
+    """Return a real Game with ``room_id`` placed at ``cell``, not yet entered.
+
+    Unlike ``_state_with_registry``/``_fake_game`` above (a duck-typed stand-in
+    used for the vault-box helpers), the coin-grant tests below call
+    ``Game._enter`` directly -- the real first-entry item-roll pipeline
+    (``roll_room_items`` -> ``grant_item``) -- so they need a real Game.
+    """
+    g = Game(cfg or GameConfig(), seed=seed)
+    room = g.registry.by_id[room_id]
+    g.state.grid[cell] = room.idx
+    g.state.placed_doors[cell] = room.door_mask
+    return g
 
 
 # ====================================================== vault deposit boxes
@@ -276,3 +292,73 @@ def test_apply_vault_box_action():
 
     apply_action(g, OPEN_VAULT_BOX_ACTION)
     assert "vault_key_233" in g.state.special.vault_boxes_opened
+
+
+# ====================================================== exact coin grant (2026-08-09 ruling)
+#
+# The Vault's effect_text states "+40 coins" but items.guaranteed used to spend
+# it as 8 PILES (each rolling 1-5), averaging 24 and ranging 8-40 -- see
+# docs/open_tasks.md. These tests pin the fix: entering the Vault now grants
+# exactly 40 coins, unconditional on RNG.
+
+
+def test_vault_entry_grants_exactly_40_coins_every_seed():
+    """The Vault's guaranteed grant is a literal 40 coins, not an 8-40 pile roll.
+
+    Luck is pinned to the floor so the room's additional_max=1 luck-rolled
+    bonus item never fires; that isolates the guaranteed coins_exact grant
+    under test from an unrelated (and still probabilistic) extra-item roll.
+    Checked across many seeds because the whole point of the fix is that the
+    result is no longer a distribution -- under the old pile-roll code this
+    ranged 8-40 and a handful of seeds would have failed a fixed assertion.
+    """
+    cell = 5
+    for seed in range(1, 31):
+        g = _game_with_room("vault", cell, seed=seed)
+        g.state.luck = 0
+        g._enter(cell)
+        assert g.state.coins == 40, f"seed {seed}: expected exactly 40 coins, got {g.state.coins}"
+
+
+def test_vault_exact_grant_still_pays_coin_purse_interest():
+    """A Coin Purse held while entering the Vault still earns interest on the exact grant.
+
+    This is the regression guard for the "obvious but wrong" fix described in
+    the task: routing the exact amount through a bare `_grant` effect (bypassing
+    grant_item's "coins" dispatch) would silently stop paying Coin Purse
+    interest. grant_item's "coins_exact" case must still call
+    special_items.on_coins_granted, so 40 coins at 1 bonus per 3 collected pays
+    floor(40/3)=13 bonus coins, landing on 53 total.
+    """
+    cell = 5
+    g = _game_with_room("vault", cell)
+    g.state.luck = 0  # isolate the guaranteed grant from the luck-rolled extra item
+    si.grant(g.state, g.registry, "coin_purse", source="test")
+
+    g._enter(cell)
+
+    assert g.state.coins == 40 + 13, (
+        "Coin Purse interest (1 per 3 coins) must still apply to an exact grant"
+    )
+    assert g.state.special.coin_interest == 40 % 3
+
+
+def test_vault_single_exact_entry_does_not_trigger_two_plus_items_luck_penalty():
+    """A single coins_exact guaranteed entry counts as ONE item found, not per pile.
+
+    roll_room_items increments `found` once per items.guaranteed ENTRY and only
+    applies the luck.penalty_two_plus_items penalty when found >= 2. Before the
+    ruling the Vault's 8 piles were still one entry (found=1); the fix must not
+    change that -- it would be easy to accidentally split the exact amount into
+    per-unit entries and flip the room into the 2+-items penalty.
+    """
+    cell = 5
+    g = _game_with_room("vault", cell)
+    g.state.luck = 0  # pin at floor: no luck-rolled additional item can fire
+    luck_before = g.state.luck
+
+    g._enter(cell)
+
+    assert g.state.luck == luck_before, (
+        "a lone coins_exact guaranteed entry must not trip the 2+ items luck penalty"
+    )

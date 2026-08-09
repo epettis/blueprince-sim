@@ -54,6 +54,8 @@ def expected_yields(room: Room, registry: Registry) -> dict[str, float]:
                 y["steps"] += count
             case "coins":  # coin piles, each rolling pile_min..pile_max
                 y["coins"] += count * pile_avg
+            case "coins_exact":  # a literal coin amount, no pile roll (see grant_item)
+                y["coins"] += count
             case "random":  # table-rolled items; count may be a fractional expectation
                 y["keys"] += count * p_item["key"]
                 y["gems"] += count * p_item["gem"]
@@ -93,15 +95,22 @@ def grant_item(state: GameState, item: str, count: int, rng: Rng, registry: Regi
     """Add ``count`` of one item kind to the player's resources and log the pickup.
 
     "coins" means coin PILES: each of the ``count`` piles rolls its own size
-    from the items.json pile_min..pile_max range. Unknown item ids grant
-    nothing but are still logged.
+    from the items.json pile_min..pile_max range. "coins_exact" means a
+    literal coin amount (``count`` IS the payout, no pile roll) for rooms
+    whose effect text states an exact figure (see rooms.json's
+    ``items.guaranteed`` entries for e.g. the Vault) - it still routes through
+    the same Coin Purse / Lucky Purse interest hook as "coins". Unknown item
+    ids grant nothing but are still logged.
     """
     match item:
-        case "coins":
-            pile = registry.item_rules["coins"]
-            got = 0
-            for _ in range(count):
-                got += rng.randint("coin_pile", pile["pile_min"], pile["pile_max"])
+        case "coins" | "coins_exact":
+            if item == "coins_exact":
+                got = count
+            else:
+                pile = registry.item_rules["coins"]
+                got = 0
+                for _ in range(count):
+                    got += rng.randint("coin_pile", pile["pile_min"], pile["pile_max"])
             # Coin Purse / Lucky Purse interest rides every coin pickup.
             state.coins += got + special_items.on_coins_granted(state, registry, got)
         case "key":
