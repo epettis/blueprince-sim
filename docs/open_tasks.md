@@ -1806,6 +1806,49 @@ parametric tags; it has been quietly wrong for singleton behaviour for a while.
   by whether the owner can operate it in a recorded session, not by whether any
   measurement over untrained play ever exercises it -- none will.
 
+- **2026-08-09, every Mora Jai box holds a +2 allowance token.** Owner, on the
+  six locations whose contents the wiki leaves unstated: "They all include +2
+  allowance tokens." So the pattern holds across all ten standard locations, and
+  the earlier refusal to guess them is now resolved by ruling rather than by
+  inference.
+
+  The complete set, with the allowance each contributes once per save:
+
+  | location | boxes | allowance | status |
+  |---|---|---|---|
+  | Cloister | 1 | +2 | landed |
+  | Master Bedroom | 1 | +2 | landed |
+  | Solarium | 1 | +2 | landed |
+  | Trading Post | 1 | +2 | landed |
+  | Closed Exhibit | 1 | +2 | landed |
+  | Tomb | 1 | +2 | ruled here |
+  | Lost & Found | 1 | +2 | ruled here |
+  | Tunnel | 1 | +2 | ruled here |
+  | Throne Room | 1 | +2 | ruled here |
+  | Underpass (**area node**) | 1 | +2 | ruled here |
+  | Inner Sanctum (**area node**) | **8** | **+16** | ruled here |
+
+  **A fully explored save banks +36 allowance from Mora Jai boxes alone**, which
+  is 36 coins at the start of every subsequent day, before any repeatable source
+  (Cloister of Lydia, Trading Post trades, Jack Hammer digs, Casino roulette).
+  That is a large permanent economy, and it is worth watching the first time a
+  policy is trained against it: allowance is unspendable income that arrives
+  before any decision is made, so it shifts what an early-day gem or key purchase
+  is worth.
+
+  **Two of the eleven cannot use `guaranteed_in`.** The Underpass and the Inner
+  Sanctum are area nodes, not rooms, so a room record cannot reach them; the
+  Abandoned Mine's Upgrade Disk solves the same problem through
+  `special_items.py::on_area_arrival`, called from `Game.travel_to`.
+
+  The endgame sets stay excluded: Aries Court's 8 boxes and Rough Draft's 46
+  contain "a note instead of an Allowance Token" and are not permanently opened.
+
+  Act on this cold as: the Inner Sanctum's eight boxes are **+16 of the +36**,
+  so nearly half this economy sits behind Room 46 and the eight Sanctum Keys.
+  Do not read a measured allowance figure from untrained play as representative
+  -- none of it is reachable until Room 46 is.
+
 ## 5. Throttle the training terminal output — DONE
 
 The trainer currently refreshes the dashboard after every completed seed, which
