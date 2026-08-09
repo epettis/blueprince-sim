@@ -5456,7 +5456,7 @@
   {
    "id": "solarium",
    "name": "Solarium",
-   "category": "studio_addition",
+   "category": "green",
    "rarity": "standard",
    "gem_cost": 1,
    "layout": "dead_end",
@@ -5491,7 +5491,7 @@
   {
    "id": "classroom",
    "name": "Classroom",
-   "category": "studio_addition",
+   "category": "blueprint",
    "rarity": "standard",
    "gem_cost": 1,
    "layout": "corner",
@@ -5523,7 +5523,7 @@
   {
    "id": "clock_tower",
    "name": "Clock Tower",
-   "category": "studio_addition",
+   "category": "blueprint",
    "rarity": "standard",
    "gem_cost": 1,
    "layout": "dead_end",
@@ -5553,7 +5553,7 @@
   {
    "id": "dormitory",
    "name": "Dormitory",
-   "category": "studio_addition",
+   "category": "bedroom",
    "rarity": "standard",
    "gem_cost": 1,
    "layout": "dead_end",
@@ -5587,7 +5587,7 @@
   {
    "id": "vestibule",
    "name": "Vestibule",
-   "category": "studio_addition",
+   "category": "hallway",
    "rarity": "standard",
    "gem_cost": 2,
    "layout": "cross",
@@ -5615,7 +5615,7 @@
   {
    "id": "casino",
    "name": "Casino",
-   "category": "studio_addition",
+   "category": "shop",
    "rarity": "standard",
    "gem_cost": 2,
    "layout": "corner",
@@ -5648,7 +5648,7 @@
   {
    "id": "dovecote",
    "name": "Dovecote",
-   "category": "studio_addition",
+   "category": "blueprint",
    "rarity": "standard",
    "gem_cost": 1,
    "layout": "corner",
@@ -5676,7 +5676,7 @@
   {
    "id": "the_kennel",
    "name": "The Kennel",
-   "category": "studio_addition",
+   "category": "blueprint",
    "rarity": "standard",
    "gem_cost": 1,
    "layout": "straight",
@@ -5704,7 +5704,7 @@
   {
    "id": "tomb",
    "name": "Tomb",
-   "category": "outer",
+   "category": "blackprint",
    "rarity": null,
    "gem_cost": 0,
    "layout": "dead_end",
@@ -5738,7 +5738,7 @@
   {
    "id": "toolshed",
    "name": "Toolshed",
-   "category": "outer",
+   "category": "blueprint",
    "rarity": null,
    "gem_cost": 0,
    "layout": "dead_end",
@@ -5771,7 +5771,7 @@
   {
    "id": "root_cellar",
    "name": "Root Cellar",
-   "category": "outer",
+   "category": "green",
    "rarity": null,
    "gem_cost": 0,
    "layout": "dead_end",
@@ -5805,7 +5805,7 @@
   {
    "id": "shelter",
    "name": "Shelter",
-   "category": "outer",
+   "category": "blueprint",
    "rarity": null,
    "gem_cost": 0,
    "layout": "dead_end",
@@ -5843,7 +5843,7 @@
   {
    "id": "hovel",
    "name": "Hovel",
-   "category": "outer",
+   "category": "bedroom",
    "rarity": null,
    "gem_cost": 0,
    "layout": "dead_end",
@@ -5876,7 +5876,7 @@
   {
    "id": "schoolhouse",
    "name": "Schoolhouse",
-   "category": "outer",
+   "category": "blueprint",
    "rarity": null,
    "gem_cost": 0,
    "layout": "dead_end",
@@ -5921,7 +5921,7 @@
   {
    "id": "shrine",
    "name": "Shrine",
-   "category": "outer",
+   "category": "blueprint",
    "rarity": null,
    "gem_cost": 0,
    "layout": "dead_end",
@@ -5949,7 +5949,7 @@
   {
    "id": "trading_post",
    "name": "Trading Post",
-   "category": "outer",
+   "category": "shop",
    "rarity": null,
    "gem_cost": 0,
    "layout": "dead_end",

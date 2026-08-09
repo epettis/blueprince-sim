@@ -3,6 +3,8 @@
 Split out of the old test_game.py, which keeps the general game-loop tests.
 """
 
+from blueprince_sim.config import GameConfig
+from blueprince_sim.engine import special_items as si
 from blueprince_sim.engine.game import Game
 from blueprince_sim.engine.grid import N, S
 from blueprince_sim.engine.state import DraftOption
@@ -24,3 +26,26 @@ def test_hovel_pays_gem_costs_with_steps(registry, cfg):
     g._pay(room, opt)
     assert g.state.steps == 40 - 3 * cost   # paid in steps
     assert g.state.gems == 5                # gems untouched
+
+
+def test_hovel_grants_sleeping_mask_bonus_steps(registry):
+    """The Sleeping Mask's bonus (special_items.py::on_enter, ON_ENTER hook)
+    fires when the entered room's category is "bedroom". Hovel now qualifies,
+    since its category is "bedroom" rather than the pool name "outer" --
+    previously entering it while holding a Sleeping Mask granted nothing."""
+    # Seed 4's outer-room hand deals Hovel into slot 0 (verified by construction).
+    g = Game(GameConfig(west_gate_unlatched=True, special_items=True), seed=4)
+    assert registry.by_id["hovel"].category == "bedroom"
+    pending = g.open_outer_draft()
+    opt = next(o for o in pending.options if o.slot == 0)
+    assert g.registry.rooms[opt.room_idx].id == "hovel", "setup: seed must deal Hovel"
+    g.choose(0)
+
+    si.grant(g.state, g.registry, "sleeping_mask", source="test")
+    steps_before = g.state.steps
+    g.travel_to("hovel")
+
+    assert g.state.outer_room_entered
+    assert g.state.steps > steps_before, (
+        "Sleeping Mask must grant bonus steps entering a bedroom-category room"
+    )

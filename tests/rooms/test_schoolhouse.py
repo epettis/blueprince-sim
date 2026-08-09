@@ -11,8 +11,10 @@ import pytest
 from scipy import stats
 
 from blueprince_sim.config import GameConfig
+from blueprince_sim.engine import shops
 from blueprince_sim.engine.game import Game
 from blueprince_sim.engine.grid import N, S
+from blueprince_sim.engine.model import Registry
 
 # Cell layout: rank 1 = cells 0-4 (entrance = cell 2).
 # We draft northward: player at cell 2, door direction N, target cell 7.
@@ -147,3 +149,27 @@ def test_no_schoolhouse_leaves_draws_unchanged():
         run_a = collect(seed)
         run_b = collect(seed)
         assert run_a == run_b, f"seed {seed}: non-deterministic without schoolhouse"
+
+
+def test_schoolhouse_category_does_not_activate_the_outer_shop_dead_branch():
+    """Schoolhouse's category is "blueprint" (corrected from the pool name
+    "outer"), not "shop": entering it off-grid must not resolve a
+    current_shop_id -- that branch (game.py:994 / shops.py:359) only fires
+    for Trading Post. See tests/rooms/test_trading_post.py for the
+    positive case."""
+    reg = Registry.load()
+    assert reg.by_id["schoolhouse"].category == "blueprint"
+
+    # Seed 4's outer-room hand deals Schoolhouse into slot 1 (verified by
+    # construction; shared with tests/rooms/test_toolshed.py's seed).
+    g = Game(GameConfig(west_gate_unlatched=True, special_items=False), seed=4, registry=reg)
+    pending = g.open_outer_draft()
+    opt = next(o for o in pending.options if o.slot == 1)
+    assert g.registry.rooms[opt.room_idx].id == "schoolhouse", (
+        "setup: seed must deal Schoolhouse into slot 1"
+    )
+    g.choose(1)
+    g.travel_to("schoolhouse")
+
+    assert g.state.outer_room_entered
+    assert shops.current_shop_id(g) is None
