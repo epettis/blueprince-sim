@@ -205,6 +205,43 @@ def test_second_level_variant_compares_against_immediate_parent():
     assert any("child" in f for f in kind1)
 
 
+def test_variant_with_own_handler_is_not_a_kind1_finding(room_probe):
+    """A variant whose effects/items.guaranteed match its parent's, and whose
+    effect_text differs, is not a kind-1 finding once its own room id has a
+    room_hook registration -- the upgrade step is authored in Python even
+    though the data comparison alone would call it identical to the parent."""
+    base = _room("base", text="")
+    variant = _room("var", variant_of="base", text="gain 5 steps")
+    rooms = [base, variant]
+    by_id = {r["id"]: r for r in rooms}
+    room_probe("var")
+
+    kind1, kind2 = find_divergences(rooms, by_id, EMPTY_LOCKS)
+
+    assert not any("var" in f for f in kind1)
+
+
+def test_variant_sharing_parents_inherited_handler_is_still_a_kind1_finding(room_probe):
+    """A variant covered only by its chain root's inherit=True handler --
+    the same handler the parent (the root itself) also runs -- stays a
+    kind-1 finding when effects/items.guaranteed match and effect_text
+    differs. Unlike kind 2's registry awareness, inherited coverage does not
+    exempt kind 1: the shared handler runs identical code for parent and
+    variant, so it cannot demonstrate that this variant's own step was
+    authored, and the variant's text still promises something the shared
+    handler doesn't implement."""
+    base = _room("inheriting_root", text="")
+    variant = _room("inheriting_root__ix1", variant_of="inheriting_root",
+                     text="Whenever something happens, do a thing.")
+    rooms = [base, variant]
+    by_id = {r["id"]: r for r in rooms}
+    room_probe("inheriting_root", inherit=True)
+
+    kind1, kind2 = find_divergences(rooms, by_id, EMPTY_LOCKS)
+
+    assert any("inheriting_root__ix1" in f for f in kind1)
+
+
 def test_structural_exemption_suppresses_locks_json_implemented_rooms():
     """Rooms whose 'always unlocked' behaviour lives in locks.json's
     always_unlocked_rooms table (not effects/items) are excluded from both

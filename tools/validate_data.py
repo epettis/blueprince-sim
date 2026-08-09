@@ -120,6 +120,20 @@ def find_divergences(
     to add, not against the original base room three steps back. A variant whose
     own ``effect_text`` is blank is excluded -- it cannot diverge from anything.
 
+    A variant is also excluded if it has its own ``room_hook`` handler
+    registered directly at its own id (``registered_room_ids``) -- that
+    handler is authored specifically for this variant's upgrade step,
+    whatever ``effects``/``items.guaranteed`` say, so the record is modelled
+    even though the data comparison alone can't see it. Coverage through an
+    *inherited* handler (the chain root's ``inherit=True`` fallback,
+    ``inherited_root_ids``) does NOT exempt a kind-1 finding, unlike kind 2:
+    an inherited handler runs the exact same code for the variant as it does
+    for its parent (and every other descendant of the root), so it can never
+    demonstrate that this specific step was authored -- a variant and parent
+    sharing one inherited handler while their texts differ is still a
+    genuine gap, because the variant's own text promises something the
+    shared handler does not implement.
+
     Kind 2: any record whose ``meta.effect_text`` is non-empty, which has no
     ``effects`` and no ``items.guaranteed``, AND whose behaviour is not covered
     by a registered ``room_hook`` handler (``engine/effects/rooms/``) either. A
@@ -171,7 +185,7 @@ def find_divergences(
                 parent_effects = parent.get("effects", [])
                 parent_guaranteed = parent.get("items", {}).get("guaranteed", [])
                 if (effects == parent_effects and guaranteed == parent_guaranteed
-                        and text != parent_text):
+                        and text != parent_text and rid not in registered_room_ids):
                     kind1.append(
                         f"{rid}: identical modelling to parent {variant_of!r} but "
                         f"effect_text differs ({text!r} vs parent's {parent_text!r})"
