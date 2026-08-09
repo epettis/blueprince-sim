@@ -15,7 +15,7 @@ from .effects import Hook
 from .effects.rooms import dovecote, great_hall, secret_garden, throne_room, weight_room
 from .grid import (ADJACENT, DIRS, E, ENTRANCE_CELL, N, N_CELLS, OPPOSITE, W,
                    neighbor, rank_of, rotate_mask)
-from .items import roll_room_items
+from .items import EXTRA_ITEM_TABLE, grant_item, roll_room_items
 from .locks import (DOOR_LOCKED, DOOR_OPEN, DOOR_SEALED, DOOR_SECURITY, SECURITY_LEVELS,
                     roll_segment, segment_key)
 from .locks import security_openable as _security_openable
@@ -1486,6 +1486,13 @@ class Game:
         room = self.registry.rooms[st.grid[cell]]
         effects.fire(self, room, Hook.ON_ENTER)
         roll_room_items(st, self.registry, room, self.rng)
+        if cell in st.cloister_mila_bonus_cells:
+            # Cloister of Mila's extra item: a guaranteed, luck-immune pull
+            # from the same table roll_room_items uses for its own luck-
+            # immune "random" guaranteed items (Closet/Walk-In/Attic).
+            idx = self.rng.roll_weighted(
+                "extra_item_kind", tuple(w for _, w in EXTRA_ITEM_TABLE))
+            grant_item(st, EXTRA_ITEM_TABLE[idx][0], 1, self.rng, self.registry)
         if self.cfg.special_items:
             special_items.on_enter(self, room, cell)
             if room.category == "shop" or room.id == "workshop":  # workshop needs first-entry roll

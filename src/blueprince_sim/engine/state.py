@@ -296,6 +296,15 @@ class GameState:
     # a fresh GameState resets it every day like schoolhouse_placed/greenhouse_placed.
     garage_forced_draw_succeeded: bool = False
 
+    # Grid cells holding a Bedroom-category room owed one guaranteed extra item on
+    # its own first entry, because it was drafted from a placed Cloister of Mila
+    # (cloister_of_mila__ix33; see effects/rooms/cloister.py). The bonus cannot be
+    # granted at draft time -- the room is only entered later, possibly far from the
+    # Cloister -- so it is parked here and consumed by Game._enter. Append-only: a
+    # cell is never removed, but Game._enter's own entered[cell] guard already
+    # prevents a second grant on re-entry, so nothing re-reads a stale entry.
+    cloister_mila_bonus_cells: set[int] = field(default_factory=set)
+
     def deck(self, rarity_idx: int, is_gem: bool) -> DeckState:
         return self.decks[rarity_idx * 2 + (1 if is_gem else 0)]
 
