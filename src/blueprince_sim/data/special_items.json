@@ -1964,6 +1964,139 @@
    }
   },
   {
+   "id": "allowance_token_tomb",
+   "name": "Allowance Token (Tomb Mora Jai Box)",
+   "kind": "unique",
+   "tier": null,
+   "unique": true,
+   "persistence": "day",
+   "spawn_rooms": [],
+   "spawn_rooms_high_luck": [],
+   "guaranteed_in": [
+    "tomb"
+   ],
+   "effects": [
+    {
+     "tag": "allowance",
+     "amount": 2
+    }
+   ],
+   "implemented": true,
+   "meta": {
+    "source": "https://blueprince.wiki.gg/wiki/Mora_Jai_Box",
+    "confidence": "wiki",
+    "absent_spawn_areas": [],
+    "blocked_on": null,
+    "notes": "The Tomb's Mora Jai box gives a +2 Allowance Token. The wiki's Mora Jai Box page does not itself state this room's contents; the amount follows the owner ruling that every Mora Jai box holds a +2 token (see allowance_token_master_bedroom for the shared design). This box is separate from the Tomb's own candle-ignition rewards (upgrade_disk_tomb, dice) and from its per-Dead-End coin effect -- it is an unconditional guaranteed_in pickup, not tied to lighting anything. Assumed-solved doctrine: granted on first entry. One-time source, gated via GameConfig.collected_allowance_tokens."
+   }
+  },
+  {
+   "id": "allowance_token_lost_and_found",
+   "name": "Allowance Token (Lost & Found Mora Jai Box)",
+   "kind": "unique",
+   "tier": null,
+   "unique": true,
+   "persistence": "day",
+   "spawn_rooms": [],
+   "spawn_rooms_high_luck": [],
+   "guaranteed_in": [
+    "lost_and_found"
+   ],
+   "effects": [
+    {
+     "tag": "allowance",
+     "amount": 2
+    }
+   ],
+   "implemented": true,
+   "meta": {
+    "source": "https://blueprince.wiki.gg/wiki/Mora_Jai_Box",
+    "confidence": "wiki",
+    "absent_spawn_areas": [],
+    "blocked_on": null,
+    "notes": "The Lost & Found's Mora Jai box gives a +2 Allowance Token, following the owner ruling that every Mora Jai box holds one (see allowance_token_master_bedroom). Separate from the room's own steal-and-draw-two mechanic (special_items.py::lost_and_found_on_enter), which is a different pool entirely. Assumed-solved doctrine: granted on first entry. One-time source, gated via GameConfig.collected_allowance_tokens."
+   }
+  },
+  {
+   "id": "allowance_token_tunnel",
+   "name": "Allowance Token (Tunnel Mora Jai Box)",
+   "kind": "unique",
+   "tier": null,
+   "unique": true,
+   "persistence": "day",
+   "spawn_rooms": [],
+   "spawn_rooms_high_luck": [],
+   "guaranteed_in": [
+    "tunnel"
+   ],
+   "effects": [
+    {
+     "tag": "allowance",
+     "amount": 2
+    }
+   ],
+   "implemented": true,
+   "meta": {
+    "source": "https://blueprince.wiki.gg/wiki/Mora_Jai_Box",
+    "confidence": "wiki",
+    "absent_spawn_areas": [],
+    "blocked_on": null,
+    "notes": "The Tunnel's Mora Jai box gives a +2 Allowance Token, following the owner ruling that every Mora Jai box holds one (see allowance_token_master_bedroom). Assumed-solved doctrine: granted on first entry. One-time source, gated via GameConfig.collected_allowance_tokens."
+   }
+  },
+  {
+   "id": "allowance_token_throne_room",
+   "name": "Allowance Token (Throne Room Mora Jai Box)",
+   "kind": "unique",
+   "tier": null,
+   "unique": true,
+   "persistence": "day",
+   "spawn_rooms": [],
+   "spawn_rooms_high_luck": [],
+   "guaranteed_in": [
+    "throne_room"
+   ],
+   "effects": [
+    {
+     "tag": "allowance",
+     "amount": 2
+    }
+   ],
+   "implemented": true,
+   "meta": {
+    "source": "https://blueprince.wiki.gg/wiki/Mora_Jai_Box",
+    "confidence": "wiki",
+    "absent_spawn_areas": [],
+    "blocked_on": null,
+    "notes": "The Throne Room's Mora Jai box gives a +2 Allowance Token, following the owner ruling that every Mora Jai box holds one (see allowance_token_master_bedroom). Separate from sanctum_key_throne_room (a luck-roll spawn_rooms item, a different mechanism from this unconditional guaranteed_in pickup) and from the room's backup Antechamber-lever action. Assumed-solved doctrine: granted on first entry. One-time source, gated via GameConfig.collected_allowance_tokens."
+   }
+  },
+  {
+   "id": "allowance_token_underpass",
+   "name": "Allowance Token (Underpass Mora Jai Box)",
+   "kind": "unique",
+   "tier": null,
+   "unique": true,
+   "persistence": "day",
+   "spawn_rooms": [],
+   "spawn_rooms_high_luck": [],
+   "guaranteed_in": [],
+   "effects": [
+    {
+     "tag": "allowance",
+     "amount": 2
+    }
+   ],
+   "implemented": true,
+   "meta": {
+    "source": "https://blueprince.wiki.gg/wiki/Mora_Jai_Box",
+    "confidence": "wiki",
+    "absent_spawn_areas": [],
+    "blocked_on": null,
+    "notes": "The Underpass's Mora Jai box gives a +2 Allowance Token, following the owner ruling that every Mora Jai box holds one (see allowance_token_master_bedroom). The Underpass is an area node with no rooms.json record, so guaranteed_in cannot reach it -- granted instead by special_items.py::on_area_arrival on arrival at the underpass area node, the same shape as the Abandoned Mine's Upgrade Disk. One-time source, gated via GameConfig.collected_allowance_tokens."
+   }
+  },
+  {
    "id": "crown_of_the_blueprints",
    "name": "Crown of the Blueprints",
    "kind": "unique",

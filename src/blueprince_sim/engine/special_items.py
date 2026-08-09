@@ -500,7 +500,19 @@ def on_area_arrival(game, area_id: str) -> None:
       Mine's disk above -- configure()'s room46_reached/collected_sanctum_keys
       gating already runs through ``_is_available``, so no extra gate is
       needed here.
+    - The Underpass's Mora Jai box (+2 allowance), off-grid with no
+      rooms.json record, same shape as the Abandoned Mine's disk above --
+      ``configure()``'s ``collected_allowance_tokens`` gating already runs
+      through ``_is_available``, so no extra gate is needed here either.
+
+    Calls ``configure()`` itself, the same as ``on_enter()`` does: an off-grid
+    area can be the day's very first special-items touch (nothing on the grid
+    has to be entered before travelling straight to an area node), and
+    ``configure()`` is what seeds ``state.special.gated_out`` from the
+    permanent carry-over sets. ``configure()`` is idempotent, so this is a
+    no-op on every call after the first for the day.
     """
+    configure(game.state, game.cfg)
     if area_id == "mine_south":
         state = game.state
         registry = game.registry
@@ -523,6 +535,11 @@ def on_area_arrival(game, area_id: str) -> None:
         registry = game.registry
         if _is_available(state, "sanctum_key_safehouse", registry):
             grant(state, registry, "sanctum_key_safehouse", source="safehouse")
+    elif area_id == "underpass":
+        state = game.state
+        registry = game.registry
+        if _is_available(state, "allowance_token_underpass", registry):
+            grant(state, registry, "allowance_token_underpass", source="underpass")
 
 
 def on_enter(game, room, cell: int) -> None:

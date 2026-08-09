@@ -1032,6 +1032,12 @@ class Game:
             # (e.g. a test) until a later PR flips that flag.
             if dest in ("reservoir_north", "safehouse") and self.cfg.special_items:
                 special_items.on_area_arrival(self, dest)
+            # Underpass Mora Jai box: off-grid, no rooms.json record, same shape
+            # as the sources above. Not currently offered as a travel
+            # destination (areas.json modelled=false), so this fires only via a
+            # direct engine call (e.g. a test) until a later PR flips that flag.
+            if dest == "underpass" and self.cfg.special_items:
+                special_items.on_area_arrival(self, dest)
             # Sealed Entrance: the Power Hammer break is permanent once it happens.
             # Arriving here at all means the grounds->sealed_entrance edge already
             # passed (via the flag or a held Power Hammer), so this is the one
