@@ -129,17 +129,30 @@ def grant_item(state: GameState, item: str, count: int, rng: Rng, registry: Regi
     state.items_found_log.append((item, count))
 
 
+def roll_extra_items(state: GameState, registry: Registry, count: int, rng: Rng) -> int:
+    """Grant ``count`` items resolved through EXTRA_ITEM_TABLE, luck-immune.
+
+    The same fixed-count random-item roll a room's own guaranteed "random"
+    entries use below (Closet/Walk-In/Attic). Callers that owe a flat bonus
+    on top of a room's own items -- the Closet-family adjacency bonuses,
+    effects/rooms/closet.py -- reuse this rather than re-rolling their own
+    table. Returns ``count``, matching roll_room_items's "items found"
+    convention.
+    """
+    for _ in range(count):
+        weights = tuple(w for _, w in EXTRA_ITEM_TABLE)
+        idx = rng.roll_weighted("extra_item_kind", weights)
+        grant_item(state, EXTRA_ITEM_TABLE[idx][0], 1, rng, registry)
+    return count
+
+
 def roll_room_items(state: GameState, registry: Registry, room: Room, rng: Rng) -> int:
     """Spawn a room's items into the player's resources; returns items found."""
     found = 0
     for item, count in room.items.guaranteed:
         if item == "random":
             # Fixed COUNT of random items (Closet/Walk-In/Attic): luck-immune.
-            for _ in range(count):
-                weights = tuple(w for _, w in EXTRA_ITEM_TABLE)
-                idx = rng.roll_weighted("extra_item_kind", weights)
-                grant_item(state, EXTRA_ITEM_TABLE[idx][0], 1, rng, registry)
-                found += 1
+            found += roll_extra_items(state, registry, count, rng)
         else:
             grant_item(state, item, count, rng, registry)
             found += 1
