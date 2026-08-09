@@ -2096,9 +2096,6 @@
    "deck_copies": 1,
    "effects": [
     {
-     "tag": "study_redraws"
-    },
-    {
      "tag": "grant",
      "resource": "gems",
      "amount": 1
@@ -2175,11 +2172,7 @@
     "disk_reader": false
    },
    "deck_copies": 1,
-   "effects": [
-    {
-     "tag": "allow_duplicates"
-    }
-   ],
+   "effects": [],
    "items": {
     "guaranteed": [],
     "additional_max": 1,
@@ -4868,9 +4861,6 @@
    "deck_copies": 1,
    "effects": [
     {
-     "tag": "greenhouse_bias"
-    },
-    {
      "tag": "counts_as_drafting_room"
     }
    ],
@@ -5419,11 +5409,7 @@
     "disk_reader": false
    },
    "deck_copies": 1,
-   "effects": [
-    {
-     "tag": "halve_steps"
-    }
-   ],
+   "effects": [],
    "items": {
     "guaranteed": [],
     "additional_max": 0,
@@ -5452,11 +5438,7 @@
     "disk_reader": false
    },
    "deck_copies": 1,
-   "effects": [
-    {
-     "tag": "furnace_bias"
-    }
-   ],
+   "effects": [],
    "items": {
     "guaranteed": [],
     "additional_max": 0,
@@ -5488,11 +5470,7 @@
     "disk_reader": false
    },
    "deck_copies": 1,
-   "effects": [
-    {
-     "tag": "solarium_weights"
-    }
-   ],
+   "effects": [],
    "items": {
     "guaranteed": [],
     "additional_max": 1,
@@ -5734,13 +5712,7 @@
     "unlocks_catacombs": true
    },
    "deck_copies": 1,
-   "effects": [
-    {
-     "tag": "coins_per_deadend",
-     "amount": 5,
-     "include_self": true
-    }
-   ],
+   "effects": [],
    "items": {
     "guaranteed": [],
     "additional_max": 0,
@@ -5837,10 +5809,6 @@
    "deck_copies": 1,
    "effects": [
     {
-     "tag": "negate_red_rooms",
-     "amount": 3
-    },
-    {
      "tag": "grant",
      "resource": "gems",
      "amount": 1
@@ -5873,12 +5841,7 @@
     "disk_reader": false
    },
    "deck_copies": 1,
-   "effects": [
-    {
-     "tag": "pay_gems_with_steps",
-     "ratio": 3
-    }
-   ],
+   "effects": [],
    "items": {
     "guaranteed": [],
     "additional_max": 0,
@@ -5919,9 +5882,6 @@
       "classroom",
       "classroom"
      ]
-    },
-    {
-     "tag": "schoolhouse_bias"
     }
    ],
    "items": {
@@ -6040,11 +6000,7 @@
     "disk_reader": false
    },
    "deck_copies": 1,
-   "effects": [
-    {
-     "tag": "conservatory_rerolls"
-    }
-   ],
+   "effects": [],
    "items": {
     "guaranteed": [],
     "additional_max": 0,
@@ -6173,13 +6129,7 @@
     "disk_reader": false
    },
    "deck_copies": 1,
-   "effects": [
-    {
-     "tag": "coins_per_draft",
-     "amount": 5,
-     "max_draft": 32
-    }
-   ],
+   "effects": [],
    "items": {
     "guaranteed": [],
     "additional_max": 0,

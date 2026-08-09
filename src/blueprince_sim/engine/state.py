@@ -153,8 +153,8 @@ class GameState:
     greenhouse_placed: bool = False  # Greenhouse: green-room bias, boosts some priority draws
     furnace_placed: bool = False  # Furnace: red-room category bias on draws
     # Schoolhouse: Classroom category bias on draws (priority_draws.json "schoolhouse").
-    # Set by the schoolhouse_bias Hook.ON_PLACE effect (effects/tier1.py), read by
-    # draft.py's _active_conditions. Per-day like greenhouse_placed/furnace_placed:
+    # Set by the Schoolhouse's ON_PLACE room handler (effects/rooms/schoolhouse.py),
+    # read by draft.py's _active_conditions. Per-day like greenhouse_placed/furnace_placed:
     # reset() builds a fresh GameState, and nothing carries this across days.
     schoolhouse_placed: bool = False
     # Southern Cross constellation active tonight: 4-way (layout: cross) room bias on draws
