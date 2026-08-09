@@ -212,7 +212,14 @@
     "disk_reader": false
    },
    "deck_copies": 1,
-   "effects": [],
+   "effects": [
+    {
+     "tag": "grant_per_category",
+     "resource": "keys",
+     "amount": 1,
+     "category": "bedroom"
+    }
+   ],
    "items": {
     "guaranteed": [],
     "additional_max": 1,
@@ -439,7 +446,13 @@
     "disk_reader": false
    },
    "deck_copies": 1,
-   "effects": [],
+   "effects": [
+    {
+     "tag": "grant",
+     "resource": "luck",
+     "amount": 3
+    }
+   ],
    "items": {
     "guaranteed": [],
     "additional_max": 1,
@@ -4387,7 +4400,13 @@
     "disk_reader": false
    },
    "deck_copies": 1,
-   "effects": [],
+   "effects": [
+    {
+     "tag": "grant",
+     "resource": "gems",
+     "amount": 2
+    }
+   ],
    "items": {
     "guaranteed": [],
     "additional_max": 1,
@@ -4432,7 +4451,7 @@
    "items": {
     "guaranteed": [],
     "additional_max": 1,
-    "dig_spots": 1
+    "dig_spots": 5
    },
    "pool": "upgrade_variant",
    "meta": {

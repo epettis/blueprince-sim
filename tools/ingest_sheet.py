@@ -320,6 +320,20 @@ EFFECT_OVERRIDE: dict[str, dict] = {
     "spare_terrace__ix141": {"effects": [{"tag": "free_green_drafts"}]},
     "pool_hall__ix12": {"effects": [
         {"tag": "inject_pool", "rooms": ["great_hall", "foyer", "secret_passage"]}]},
+    # Courtyard upgrade variants: ix48 grants the "+2 gem" prize (glyph resolves
+    # to gem per meta.glyph_resolution); ix49 widens the dig-spot count to 5
+    # rather than the base's 1. Both share the base's "Courtyard" display name,
+    # so EFFECT_MAP's base-slug entry would otherwise apply to all three.
+    "courtyard__ix48": {"effects": [{"tag": "grant", "resource": "gems", "amount": 2}]},
+    "courtyard__ix49": {"items": {"dig_spots": 5}},
+    # Servant's Spare Quarters: second-level variant with its own name, so
+    # EFFECT_MAP's "servants_quarters" entry does not match; mirrors the base
+    # Servant's Quarters' key-per-Bedroom grant (glyph resolves to key).
+    "servants_spare_quarters__ix134": {"effects": [
+        {"tag": "grant_per_category", "resource": "keys", "amount": 1, "category": "bedroom"}]},
+    # Spare Veranda: second-level variant with its own name, so EFFECT_MAP's
+    # "veranda" entry does not match; mirrors the base Veranda's luck grant.
+    "spare_veranda__ix140": {"effects": [{"tag": "grant", "resource": "luck", "amount": 3}]},
 }
 
 
