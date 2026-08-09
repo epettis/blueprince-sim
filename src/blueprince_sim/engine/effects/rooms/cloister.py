@@ -38,6 +38,7 @@ Not modeled, and why:
 from __future__ import annotations
 
 from ...grid import E, N, W
+from ...locks import DOOR_SEALED, segment_key
 from .. import Hook, room_hook
 from ..tier1 import _grant
 
@@ -95,18 +96,24 @@ def mark_bedroom_bonus_item(game, room, ctx_room) -> None:
 
 
 def _open_random_antechamber_door(game) -> None:
-    """Open one of the Antechamber's four doorway segments, chosen uniformly.
+    """Open one of the Antechamber's sealed doorway segments, chosen uniformly.
 
-    Mirrors the lever rooms (Game._open_segment / Game._open_north_door):
-    gated on antechamber_levers, since without it the Antechamber's doors are
-    never sealed to begin with, so there is nothing for this to open that a
-    normal doorway doesn't already offer. The North segment routes through
-    Game._open_north_door so it records the same per-day reward event a
-    lever pull would.
+    Only segments still sealed are candidates, so the room always delivers the
+    door it promises; when none is sealed there is nothing to open and the
+    trigger passes. Mirrors the lever rooms (Game._open_segment /
+    Game._open_north_door): gated on antechamber_levers, since without it the
+    Antechamber's doors are never sealed to begin with, so there is nothing for
+    this to open that a normal doorway doesn't already offer. The North segment
+    routes through Game._open_north_door so it records the same per-day reward
+    event a lever pull would.
     """
     if not game.cfg.antechamber_levers:
         return
-    cell, direction = game.rng.choice("cloister_of_orinda_door", list(_ANTECHAMBER_SEGMENTS))
+    sealed = [(cell, direction) for cell, direction in _ANTECHAMBER_SEGMENTS
+              if game.state.door_state.get(segment_key(cell, direction)) == DOOR_SEALED]
+    if not sealed:
+        return
+    cell, direction = game.rng.choice("cloister_of_orinda_door", sealed)
     if cell == ANTECHAMBER_CELL and direction == N:
         game._open_north_door()
     else:
