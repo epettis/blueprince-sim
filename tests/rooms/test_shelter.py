@@ -13,6 +13,7 @@ lock is assumed, so it pays out.
 """
 
 from blueprince_sim.config import GameConfig
+from blueprince_sim.engine import shops
 from blueprince_sim.engine.game import Game
 
 
@@ -54,3 +55,15 @@ def test_shelter_keeps_its_red_room_negation():
     gems0 = g.state.gems
     g.travel_to("shelter")
     assert g.state.gems == gems0 + 1, "and the safe still pays out on entry"
+
+
+def test_shelter_category_does_not_activate_the_outer_shop_dead_branch():
+    """Shelter's category is "blueprint" (corrected from the pool name
+    "outer"), not "shop": entering it off-grid must not resolve a
+    current_shop_id -- that branch (game.py:994 / shops.py:359) only fires
+    for Trading Post. See tests/rooms/test_trading_post.py for the
+    positive case."""
+    g = _shelter_at_the_doorstep()
+    assert g.registry.by_id["shelter"].category == "blueprint"
+    g.travel_to("shelter")
+    assert shops.current_shop_id(g) is None

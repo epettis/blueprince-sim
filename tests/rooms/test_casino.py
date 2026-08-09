@@ -8,7 +8,9 @@ for those.
 from __future__ import annotations
 
 from blueprince_sim.config import GameConfig
+from blueprince_sim.engine import shops
 from blueprince_sim.engine import special_items as si
+from blueprince_sim.engine.game import Game, Phase
 from blueprince_sim.engine.model import Registry
 from blueprince_sim.engine.rng import Rng
 from blueprince_sim.engine.state import GameState
@@ -51,3 +53,23 @@ def test_casino_lever_grants_loot():
     assert st.coins > before_coins or st.gems > before_gems, (
         "Casino lever must grant coins or gems"
     )
+
+
+def test_casino_activates_shop_stock_roll_on_entry():
+    """Casino's category is now "shop" (not the pool name "studio_addition"),
+    so shops.current_shop_id recognizes it while standing in it and
+    on_enter_shop rolls its stock -- both were unreachable under the old
+    category. data/shops.json has no "casino" table, so the rolled stock is
+    an empty (harmless) list, mirroring Trading Post's outer-room case."""
+    reg = Registry.load()
+    game = Game(GameConfig(special_items=False), seed=0, registry=reg)
+    casino = reg.by_id["casino"]
+    game._place_room(casino, 7, casino.door_mask)
+    game.state.pos = 7
+    game.phase = Phase.NAVIGATE
+
+    assert shops.current_shop_id(game) == "casino"
+
+    shops.on_enter_shop(game, casino)
+    assert game.state.shops.stock.get("casino") == []
+    assert shops.stock_for(game) == []

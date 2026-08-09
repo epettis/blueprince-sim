@@ -8,7 +8,9 @@ for those.
 from __future__ import annotations
 
 from blueprince_sim.config import GameConfig
+from blueprince_sim.engine import shops
 from blueprince_sim.engine import special_items as si
+from blueprince_sim.engine.game import Game
 from blueprince_sim.engine.model import Registry
 from blueprince_sim.engine.rng import Rng
 from blueprince_sim.engine.state import GameState
@@ -49,3 +51,24 @@ def test_tomb_can_be_lit_without_diary_key():
     st.pos = 5
     game = _fake_game(st, reg)
     assert si.can_light(game), "Tomb must be lightable with only a torch (no diary_key required)"
+
+
+def test_tomb_category_does_not_activate_the_outer_shop_dead_branch():
+    """Tomb's category is "blackprint" (verified from the wiki), not "shop":
+    entering it off-grid must not resolve a current_shop_id -- that branch
+    (game.py:994 / shops.py:359) only fires for Trading Post, the one outer
+    room that really is a Shop. See tests/rooms/test_trading_post.py for the
+    positive case."""
+    reg = Registry.load()
+    tomb = reg.by_id["tomb"]
+    assert tomb.category == "blackprint"
+
+    g = Game(GameConfig(west_gate_unlatched=True, special_items=False), seed=1, registry=reg)
+    pending = g.open_outer_draft()
+    opt = next(o for o in pending.options if o.slot == 1)
+    assert g.registry.rooms[opt.room_idx].id == "tomb", "setup: seed must deal Tomb into slot 1"
+    g.choose(1)
+    g.travel_to("tomb")
+
+    assert g.state.outer_room_entered
+    assert shops.current_shop_id(g) is None
