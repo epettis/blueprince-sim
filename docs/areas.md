@@ -66,8 +66,8 @@ routes through it are unavailable the way an unplaced Garage is.
 | `private_drive` | |
 | `blackbridge_grotto` | **5th disk-reader terminal**; the one modelled terminal with no room record |
 | `orindian_ruins` | Throne Room floorplan |
-| `campsite` | |
-| `apple_orchard` | +20 steps/day; lights a torch on ENTRY |
+| `campsite` | **modelled**; no contents of its own, but it is the only approach to Apple Orchard |
+| `apple_orchard` | **modelled**; +20 steps/day (permanent from first arrival, `GameState.orchard_unlocked`); lights a torch on ENTRY (**not modelled** — see "Stateful mechanisms" below) |
 | `gemstone_cavern` | 2 gems/day; lights a torch on ENTRY |
 | `crate_tunnel` | **Entrance only.** Igniting the torches grants the Tunnel floorplan; everything deeper is story, not progression |
 | `sealed_entrance` | |
@@ -340,7 +340,17 @@ Surfaced by building this graph:
 
 ## Contents worth modelling
 
-- **Apple Orchard**: +20 steps/day, permanent from first unlock.
+- **Apple Orchard**: +20 steps/day, permanent from first unlock. **Modelled,
+  2026-08-08**: arrival sets `GameState.orchard_unlocked` (never written back
+  to `GameConfig` — same carry-over shape as `west_gate_unlatched`), surfaced
+  by `shops.carryover()` and carried by `DayChain`, so `cfg.orchard_unlocked`
+  is `True` at the next day's `reset()`, which is where `Game.reset` actually
+  adds the +20 (`st.steps = cfg.starting_steps + (20 if cfg.orchard_unlocked
+  else 0)`). A same-day visit does not retroactively top up the day already in
+  progress. The node's own name promises a torch lights **on ENTRY**; that
+  requirement is explicitly **not modelled** (out of scope for this change) —
+  see "Stateful mechanisms this graph requires" above, which already tracks it
+  as one of the four torches nothing implements yet.
 - **Gemstone Cavern**: 2 gems/day, passive.
 - **Sigil chambers**: each is opened by one Sanctum Key, stays open permanently,
   and grants a **permanent +2 allowance** from the Mora Jai box inside — 8
@@ -386,11 +396,18 @@ All currently inert with `meta.blocked_on` set:
 ### `modelled`: which areas are offered as destinations
 
 Every node carries a required boolean `modelled`. Only modelled nodes are offered
-as travel actions; the pathfinder still routes *through* the rest. Today 16 are
-modelled — `house`, `garage`, `west_path`, the 8 outer rooms, `room_46`, and the
+as travel actions; the pathfinder still routes *through* the rest. Today 19 are
+modelled — `house`, `garage`, `west_path`, the 8 outer rooms, `room_46`, the
 four nodes that make the Sanctum route walkable (`the_foundation`, `basement`,
-`mine_south`, `inner_sanctum`) — which is the set that has contents worth
-walking to, or that a player needs to pass through by name to reach them.
+`mine_south`, `inner_sanctum`), `upper_rotating_gear` (added with the gem/blackprint
+grant, see "graduated" below — this list previously undercounted it as 16), and
+now `apple_orchard` plus its only approach, `campsite` (owner report, 2026-08-08:
+the Orchard's +20-steps-per-day bonus was unreachable in two independent ways —
+never offered as a destination, and its `orchard_unlocked` config flag was never
+set anywhere in-run; both are now fixed, `GameState.orchard_unlocked` following
+the exact `west_gate_unlatched` carry-over shape). `campsite` itself holds
+nothing — it is modelled purely as the required waypoint, the same
+pass-through justification as the four Sanctum nodes.
 
 This is not tidiness, it is a measured fix. With all 36 exposed, 13 nodes were
 reachable on day 1 through open stub gates, none of them holding anything
@@ -412,9 +429,30 @@ These figures were measured against the pre-fix graph, where the free
 `precipice -> mine_south` leg was the item-gate bug described in "Corrections
 already applied". `mine_south` is unreachable on a fresh day 1 now that both
 directions require `candlestick_stairway_lit`, so the off-grid share is lower
-than 41.88% by an unmeasured amount — the 300-seed harness has not been re-run.
-The numbers are kept because they are what justified the `modelled` flag, and
-that decision still stands.
+than 41.88% by an unmeasured amount. The numbers are kept because they are
+what justified the `modelled` flag, and that decision still stands.
+
+**Apple Orchard/Campsite moved the number sharply, 2026-08-08.** Re-measured
+with the same method (300 seeds, uniform-random masked play, `all_unlocks_config()`,
+one flat action chosen uniformly from the legal mask each step, single-day
+episodes) directly before and after flipping only `campsite`/`apple_orchard` to
+`modelled: true` (all other data unchanged from whatever the tree held at
+measurement time — this is a same-tree A/B, not a comparison against the stale
+29.93/41.88 figures above, which predate the candlestick fix): off-grid step
+share (steps paid by an action taken while already off-grid, over all steps
+paid by any action) rose from **35.67%** to **69.28%**, and the travel-action
+share of all actions taken rose from **42.62%** to **64.10%** — a far sharper
+move than the Sanctum route's ~12-point rise. The driver is structural rather
+than a stub-gate artefact this time: from `campsite`, the only two legal travel
+destinations are `apple_orchard` and `house`; from `apple_orchard`, the only two
+are `campsite` and `house`. A uniform-random walker that lands on either node
+has even odds of taking the 1-step hop to the other rather than heading back
+toward `house`, so the pair forms a cheap, freely-repeatable oscillation that a
+random policy falls into and stays in for many steps once it arrives. Reported
+here in full per the 2026-08-04 measurement requirement rather than only citing
+a summary number, since the owner may weigh this differently for a permanent
+step bonus than for the Sanctum route's disks/keys — but it should not be
+discovered later in a training run.
 
 An action slot exists for **every** node, modelled or not, so switching an area on
 later is a mask-only change: **no action-space change and therefore no retrain.**

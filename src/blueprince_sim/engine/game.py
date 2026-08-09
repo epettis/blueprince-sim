@@ -971,6 +971,15 @@ class Game:
             # Room 46: record first arrival (permanent via carryover; see shops.carryover).
             if dest == "room_46" and not st.room46_reached:
                 st.room46_reached = True
+            # Apple Orchard: the +20 starting-steps bonus is permanent from first
+            # arrival. Recorded on STATE, never on cfg -- same shape as
+            # west_gate_unlatched/mine_south_visited/sealed_entrance_broken.
+            # st.steps is only ever set once, at reset(), so this cannot top up
+            # the CURRENT day's already-spent budget -- carryover()/DayChain
+            # carry the flag so cfg.orchard_unlocked is True at next reset(),
+            # which is where the +20 actually lands (see Game.reset).
+            if dest == "apple_orchard":
+                st.orchard_unlocked = True
             # Fire ON_ENTER the first time the player enters the drafted outer room.
             outer_room = self.drafted_outer_room
             if (outer_room is not None and dest == outer_room.id

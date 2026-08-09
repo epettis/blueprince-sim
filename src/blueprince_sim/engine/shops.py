@@ -1093,6 +1093,12 @@ def carryover(game) -> dict:
         ),
         # Room 46 first reached: permanent gem-deck gate; carries once True, forever.
         "room46_reached": cfg.room46_reached or state.room46_reached,
+        # orchard_unlocked: earned the first time the player arrives at
+        # apple_orchard. ORed from state so the config is never mutated, same
+        # shape as west_gate_unlatched. Permanently grants +20 starting steps
+        # (Game.reset) from the FOLLOWING day -- the current day's steps were
+        # already set at reset() and are not topped up retroactively.
+        "orchard_unlocked": cfg.orchard_unlocked or state.orchard_unlocked,
         # Vault keys permanently used: accumulated union across all days.
         "used_vault_keys": sorted(
             set(getattr(cfg, "used_vault_keys", frozenset()))

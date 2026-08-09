@@ -126,17 +126,17 @@
    "id": "campsite",
    "name": "Campsite",
    "kind": "area",
-   "modelled": false,
+   "modelled": true,
    "surface": true,
-   "meta": {"source": "docs/areas.md", "confidence": "wiki"}
+   "meta": {"source": "docs/areas.md", "confidence": "wiki", "notes": "No contents of its own; modelled because it is the only approach to Apple Orchard."}
   },
   {
    "id": "apple_orchard",
    "name": "Apple Orchard (+20 steps/day - torch on ENTRY)",
    "kind": "area",
-   "modelled": false,
+   "modelled": true,
    "surface": true,
-   "meta": {"source": "docs/areas.md", "confidence": "wiki"}
+   "meta": {"source": "docs/areas.md", "confidence": "wiki", "notes": "orchard_unlocked grants +20 starting steps from the following day (GameState.orchard_unlocked, carried like west_gate_unlatched). The torch-on-ENTRY requirement in this node's name is NOT modelled."}
   },
   {
    "id": "gemstone_cavern",

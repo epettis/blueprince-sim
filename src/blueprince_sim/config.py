@@ -37,7 +37,11 @@ class GameConfig:
     # (any prior day), permanently adding the Treasure Trove to the draft pool
     # (decks.py::eligible_pool) from the following day onward.
     treasure_trove_blackprint: bool = False
-    orchard_unlocked: bool = False                   # Apple Orchard: +20 starting steps (wiki)
+    # Apple Orchard reached at least once (any prior day): +20 starting steps
+    # (Game.reset). Earned the first time the player travels to apple_orchard;
+    # same carry shape as west_gate_unlatched (recorded on GameState, ORed in
+    # via shops.carryover(), never written back here).
+    orchard_unlocked: bool = False
     mine_unlocked: bool = False                      # Gemstone Cavern: +2 gems at day start (wiki)
     upgrade_disks: frozenset[str] = frozenset()      # applied variant room ids (e.g. "pool_hall__ix12")
     # Veteran Mode (New Game+). Default TRUE: this project models expert play.
