@@ -1366,6 +1366,40 @@ Two things NOT to strip, so the sweep does not overshoot:
   brief.** Agents narrate their reasoning into the code they write by default,
   so this recurs unless it is stated up front.
 
+- **2026-08-09, model correctness outranks observation- and action-space
+  stability.** Owner: "Do not worry about changing the observation vector or
+  action vector. I need the game to function properly before we train anything
+  meaningful."
+
+  This **suspends** the standing caution that has shaped several earlier
+  decisions -- the 2026-07-27 "an action slot exists for every node regardless,
+  so switching an area on later is mask-only", the PR2/PR3 merge whose split
+  existed to keep the action space frozen, and the 2026-08-07 note that an
+  observation-space change kills every checkpoint the moment it merges. Those
+  were correct while a run was live or imminent. No run is live, no checkpoint
+  is being preserved, and the 11.0% lever-room measurement says a trained
+  policy would be measuring room availability rather than skill.
+
+  So during the room audit: **if widening the observation vector or adding an
+  action is the natural model for a mechanic, do it.** Do not contort a design
+  to preserve a vector nobody is training against.
+
+  Two things this does NOT license, because neither is about checkpoints:
+
+  - The carry-over vector and `upgrade_slots` must stay **sorted, never
+    set-ordered**. Python randomises string hashing per process, so a
+    set-ordered vector permutes between runs *within* a training session and
+    silently corrupts learned field positions. That hazard is unchanged.
+  - A dead action id is still a defect. `ALT_BASE` reserved three ids nothing
+    could select and survived long enough to be mistaken for a missing feature
+    (2026-08-07). `test_macro_actions.py` asserts every declared `*_BASE` has a
+    masking site; keep it true.
+
+  Act on this cold as: **record the width change even though it no longer
+  blocks anything.** Whenever training resumes it forces a fresh run, and the
+  cheapest time to know that is when it happens, not when a checkpoint fails to
+  load.
+
 ## 5. Throttle the training terminal output — DONE
 
 The trainer currently refreshes the dashboard after every completed seed, which
