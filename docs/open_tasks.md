@@ -1685,6 +1685,63 @@ parametric tags; it has been quietly wrong for singleton behaviour for a while.
   as a standing bonus pays out forever, and nothing in a per-day test would show
   it.
 
+- **2026-08-09, the Inner Sanctum's eight chambers are modelled separately, one
+  per realm.** Owner: the Sanctum has "eight doors, each of which can be
+  permanently opened by a Sanctum Key", and each Sanctum Key room needs its own
+  model. `areas.json` currently collapses all eight into a single
+  `sigil_chambers` node, whose own note already records the payoff: *"Each
+  opened by 1 Sanctum Key (consumed), stays permanently open, grants +2
+  allowance from its Mora Jai box."*
+
+  The eight realms, from `https://blueprince.wiki.gg/wiki/Inner_Sanctum`:
+  **Arch Aries**, **Corarica**, **Eraja**, **Fenn Aries**, **Mora Jai**,
+  **Nuance**, **Orinda Aries**, **Verra**.
+
+  Mechanics, verbatim from the same page and from
+  `https://blueprince.wiki.gg/wiki/Sanctum_Key`:
+
+  - *"Bringing a Sanctum Key here allows using it on one of the doors to
+    permanently unlock that door."* *"The Sanctum Key is then consumed and
+    cannot be used to open another door."*
+  - *"There are a total of eight Sanctum Keys in the game."* Our data already
+    carries exactly eight sources -- six `spawn_rooms` (`room_46`, `vault`,
+    `clock_tower`, `throne_room`, `mechanarium`, `music_room`) plus two
+    `absent_spawn_areas` (`reservoir_north`, `safehouse`).
+  - *"Once used, the Sanctum Key is lost (and no longer spawns in the location
+    it was obtained)."* Unused keys *"generally reappear in the same location on
+    subsequent days"* unless stored in the Coat Check or retained by the Moon
+    Pendant.
+  - Each chamber holds a mechanism and a sigil puzzle; solving it reveals the
+    rest of the chamber, which contains **a Mora Jai Box**. Under the
+    assumed-solved doctrine that is a one-time +2 allowance per chamber, so
+    **+16 across all eight**.
+
+  **Open discrepancy, surfaced rather than resolved.** Owner: "The Sanctum Keys
+  can only spawn after Room 46 has been reached for the first time." The wiki
+  states that condition explicitly for **only one** key -- *"This Sanctum Key
+  only spawns once Room 46 has been reached at least once"* -- and for the rest
+  says merely that they are *"usually discovered around the same time Room 46
+  has been reached for the first time."* The owner's rule is the stronger claim.
+  Owner play outranks the wiki, but this one is worth re-checking in game before
+  it is coded, because of the consequence below.
+
+  **The consequence makes that gate load-bearing.** `P(room 46)` is currently
+  **0.000** over 400 measured days. If all eight keys gate on having reached
+  Room 46, the entire Inner Sanctum -- eight doors, eight Mora Jai boxes, +16
+  allowance -- is unreachable content in every simulated day, and modelling it
+  would produce a subsystem no policy can ever enter. If instead only one key
+  carries that gate, seven remain collectable and the Sanctum is reachable
+  before the win condition is.
+
+  The owner also notes the first discoverable key sits in Room 46 alongside the
+  Crown of the Blue Prince; the wiki adds that it *"can only be collected the
+  second time the room is visited."*
+
+  Act on this cold as: **check what a gate makes unreachable before implementing
+  it.** A faithfully modelled subsystem behind a condition the sim never
+  satisfies is indistinguishable, in every measurement, from not modelling it at
+  all.
+
 ## 5. Throttle the training terminal output — DONE
 
 The trainer currently refreshes the dashboard after every completed seed, which
