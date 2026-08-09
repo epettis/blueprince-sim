@@ -95,10 +95,9 @@ def fire(game, room, hook: Hook, context_room=None) -> None:
     """Run all of ``room``'s effects that belong to ``hook``, then its room-id handler.
 
     The tag loop runs first, in its existing per-effect order -- unchanged,
-    since two of its handlers (``conservatory_rerolls``, ``inject_pool``)
-    consume RNG and reordering them would shift seed-stream consumption. The
-    room-id lookup always runs after, in this one fixed position, regardless
-    of what tags ``room`` carries.
+    since ``inject_pool`` consumes RNG and reordering it would shift
+    seed-stream consumption. The room-id lookup always runs after, in this
+    one fixed position, regardless of what tags ``room`` carries.
     """
     for eff in room.effects:
         when = eff.param("when")
