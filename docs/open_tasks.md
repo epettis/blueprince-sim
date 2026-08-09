@@ -1640,14 +1640,40 @@ parametric tags; it has been quietly wrong for singleton behaviour for a while.
     roulette (2 and 4 allowance prizes), the Guess Bedroom, the Laundry Room's
     Star/Allowance swap, and an "Experimental effect" worth +1.
 
-  **Three corrections to task 10's premise, from that same page**:
+  **Task 10 named the right three rooms; the mechanism is a Mora Jai box.** An
+  earlier reading of this ruling claimed the Trading Post had no allowance
+  source and that the Closed Exhibit was unsupported, because neither appears on
+  the Allowance page. Both are wrong -- owner, from play: the Trading Post "has
+  a Mora Jai box containing a +2 allowance token that can be opened exactly
+  once", and the Closed Exhibit "has a Mora Jai box with a +2 allowance token".
+  What the task got wrong was only the shape: it is a **one-time box**, not a
+  standing per-day +2. The same is true of the Cloister's.
 
-  1. The Cloister's token is **one-time**, not the standing per-day +2 the task
-     assumed.
-  2. There is **no standing Trading Post bonus** -- only the tier-5 trade
-     chance, which `shops.py` already grants.
-  3. The **Closed Exhibit is not mentioned at all**. Task 10 names it; the wiki
-     does not support it, so it is deliberately not implemented.
+  **Mora Jai boxes are the general one-time allowance source.** From
+  `https://blueprince.wiki.gg/wiki/Mora_Jai_Box`, ten standard locations, every
+  one of which exists in our data:
+
+  - **Master Bedroom** -- "one Allowance Token when completed"
+  - **Solarium** -- allowance token
+  - **Trading Post** -- owner-confirmed +2
+  - **Closed Exhibit** -- owner-confirmed +2
+  - **Tomb**, **Lost & Found**, **Tunnel**, **Throne Room** -- contents not stated
+  - **Underpass** -- area node, contents not stated
+  - **Inner Sanctum** -- area node, **8 boxes**, contents not stated
+
+  Each is one-time: the Allowance page says Mora Jai boxes "do not respawn once
+  solved". The endgame sets are explicitly excluded -- Aries Court's 8 boxes and
+  Rough Draft's 46 contain "a note instead of an Allowance Token" and are not
+  permanently opened.
+
+  **Only the four confirmed boxes are implemented.** The six whose contents the
+  wiki does not state are NOT assumed to match: inventing four to twelve more
+  +2 sources on a pattern guess would move the economy invisibly. The Inner
+  Sanctum matters most there -- eight boxes would be +16 from one area.
+
+  Note `underpass` and `inner_sanctum` are area nodes, so `guaranteed_in` on a
+  room record cannot reach them; the Abandoned Mine's disk uses
+  `special_items.py::on_area_arrival` for exactly this case.
 
   Two things to check rather than carry forward: the wiki lists Vault box **53**
   alongside 149 and 233, which our data may not have; and the Entrance Hall vase
