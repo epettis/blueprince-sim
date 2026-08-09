@@ -8,7 +8,6 @@ for the Nursery's ON_DRAFT_ROOM effect).
 
 from __future__ import annotations
 
-from ..decks import reroll_random_rarities
 from .. import special_items
 from ..upgrades import root_base_id
 from . import Hook, effect
@@ -135,37 +134,6 @@ def grant_on_draft_category(game, room, eff, ctx_room) -> None:
 
 
 # --- house-state flags recomputed on placement (draft modifiers) ---
-
-@effect("solarium_weights", Hook.ON_PLACE)
-def solarium_weights(game, room, eff, ctx_room) -> None:
-    game.state.solarium_placed = True
-
-
-@effect("greenhouse_bias", Hook.ON_PLACE)
-def greenhouse_bias(game, room, eff, ctx_room) -> None:
-    game.state.greenhouse_placed = True
-
-
-@effect("furnace_bias", Hook.ON_PLACE)
-def furnace_bias(game, room, eff, ctx_room) -> None:
-    game.state.furnace_placed = True
-
-
-@effect("schoolhouse_bias", Hook.ON_PLACE)
-def schoolhouse_bias(game, room, eff, ctx_room) -> None:
-    game.state.schoolhouse_placed = True
-
-
-@effect("conservatory_rerolls", Hook.ON_PLACE)
-def conservatory_rerolls(game, room, eff, ctx_room) -> None:
-    """One-time on draft: re-roll the rarity of 3 random undealt deck cards."""
-    reroll_random_rarities(game.state, game.rng, count=eff.param("count", 3))
-
-
-@effect("study_redraws", Hook.ON_PLACE)
-def study_redraws(game, room, eff, ctx_room) -> None:
-    game.state.study_placed = True
-
 
 @effect("counts_as_drafting_room", Hook.ON_PLACE)
 def counts_as_drafting_room(game, room, eff, ctx_room) -> None:

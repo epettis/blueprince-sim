@@ -241,11 +241,7 @@
         "duct": false
       },
       "deck_copies": 1,
-      "effects": [
-        {
-          "tag": "furnace_bias"
-        }
-      ],
+      "effects": [],
       "items": {
         "guaranteed": [],
         "additional_max": 0,
@@ -273,11 +269,7 @@
         "duct": false
       },
       "deck_copies": 1,
-      "effects": [
-        {
-          "tag": "solarium_weights"
-        }
-      ],
+      "effects": [],
       "items": {
         "guaranteed": [],
         "additional_max": 1,
@@ -688,9 +680,6 @@
             "classroom",
             "classroom"
           ]
-        },
-        {
-          "tag": "schoolhouse_bias"
         }
       ],
       "items": {
@@ -802,11 +791,7 @@
         "duct": false
       },
       "deck_copies": 1,
-      "effects": [
-        {
-          "tag": "conservatory_rerolls"
-        }
-      ],
+      "effects": [],
       "items": {
         "guaranteed": [],
         "additional_max": 0,

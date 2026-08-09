@@ -183,13 +183,14 @@ def test_schoolhouse_does_not_increment_drafting_room_count():
     Room -- see tests/rooms/test_classroom.py and test_drawing_room.py) and
     consumed by Game._in_classroom_context, which hardcodes the room id
     "classroom" (game.py:678). The Schoolhouse record carries only
-    inject_pool and schoolhouse_bias, no counts_as_drafting_room tag -- so
-    placing it never touches drafting_room_count at all. This pins that gap
-    directly: it is NOT a rounding or threshold issue, the count never moves."""
+    inject_pool as a data effect (its draw-bias is a room_hook, not a data
+    tag) and no counts_as_drafting_room tag -- so placing it never touches
+    drafting_room_count at all. This pins that gap directly: it is NOT a
+    rounding or threshold issue, the count never moves."""
     cfg = GameConfig()
     game = Game(cfg, seed=0)
     schoolhouse = game.registry.by_id["schoolhouse"]
-    assert [eff.tag for eff in schoolhouse.effects] == ["inject_pool", "schoolhouse_bias"], (
+    assert [eff.tag for eff in schoolhouse.effects] == ["inject_pool"], (
         "setup: Schoolhouse must not carry counts_as_drafting_room"
     )
     count_before = game.state.drafting_room_count

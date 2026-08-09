@@ -53,8 +53,7 @@ VALID_ITEM_PERSISTENCE = {"day", "until_used", "permanent"}
 VALID_DIG_OUTCOME_KINDS = {"junk", "nothing", "coins", "gold_coin", "turnip", "key", "item", "gems"}
 
 KNOWN_EFFECT_TAGS = {"grant", "grant_per_category", "grant_on_draft_category",
-                     "set_resource_on_enter", "solarium_weights", "greenhouse_bias",
-                     "furnace_bias", "schoolhouse_bias", "conservatory_rerolls", "study_redraws",
+                     "set_resource_on_enter",
                      "counts_as_drafting_room",
                      "counts_as_bedrooms", "inject_pool", "allow_duplicates",
                      "free_green_drafts", "halve_steps", "coins_per_deadend",

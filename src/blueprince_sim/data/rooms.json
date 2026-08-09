@@ -2096,9 +2096,6 @@
    "deck_copies": 1,
    "effects": [
     {
-     "tag": "study_redraws"
-    },
-    {
      "tag": "grant",
      "resource": "gems",
      "amount": 1
@@ -4868,9 +4865,6 @@
    "deck_copies": 1,
    "effects": [
     {
-     "tag": "greenhouse_bias"
-    },
-    {
      "tag": "counts_as_drafting_room"
     }
    ],
@@ -5452,11 +5446,7 @@
     "disk_reader": false
    },
    "deck_copies": 1,
-   "effects": [
-    {
-     "tag": "furnace_bias"
-    }
-   ],
+   "effects": [],
    "items": {
     "guaranteed": [],
     "additional_max": 0,
@@ -5488,11 +5478,7 @@
     "disk_reader": false
    },
    "deck_copies": 1,
-   "effects": [
-    {
-     "tag": "solarium_weights"
-    }
-   ],
+   "effects": [],
    "items": {
     "guaranteed": [],
     "additional_max": 1,
@@ -5919,9 +5905,6 @@
       "classroom",
       "classroom"
      ]
-    },
-    {
-     "tag": "schoolhouse_bias"
     }
    ],
    "items": {
@@ -6040,11 +6023,7 @@
     "disk_reader": false
    },
    "deck_copies": 1,
-   "effects": [
-    {
-     "tag": "conservatory_rerolls"
-    }
-   ],
+   "effects": [],
    "items": {
     "guaranteed": [],
     "additional_max": 0,
