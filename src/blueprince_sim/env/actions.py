@@ -574,11 +574,30 @@ def _cell_name(cell: int) -> str:
     return f"r{cell // 5 + 1}c{cell % 5}"
 
 
+def _room_name_at(game: Game, cell: int) -> str | None:
+    """Name of the room placed at ``cell``, or None when there isn't one.
+
+    None covers both the off-grid sentinel (``cell < 0``, e.g. an outer-room
+    draft's ``from_cell``) and an on-grid cell whose room slot is empty
+    (``grid[cell] < 0`` -- defensive; a doorway's source cell should always
+    be occupied, but this mirrors the guard ``describe_action``'s ``move_to``
+    branch already applies).
+    """
+    if cell < 0:
+        return None
+    idx = game.state.grid[cell]
+    if idx < 0:
+        return None
+    return game.registry.rooms[idx].name
+
+
 def describe_action(game: Game, action: int) -> str:
     """Concise human-readable form of ``action`` in the CURRENT (pre-step) state."""
     if action < CHOOSE_BASE:
         cell, dir_idx = divmod(action, 4)
-        return f"draft {DIR_NAMES[DIRS[dir_idx]]} door @ {_cell_name(cell)}"
+        room_name = _room_name_at(game, cell)
+        src = f"{room_name} ({_cell_name(cell)})" if room_name is not None else _cell_name(cell)
+        return f"draft {DIR_NAMES[DIRS[dir_idx]]} door from {src}"
     if action < REDRAW_ACTION:
         slot = action - CHOOSE_BASE
         pending = game.state.pending

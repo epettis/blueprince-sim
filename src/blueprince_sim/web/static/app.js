@@ -712,6 +712,20 @@ function miniGlyph(mask) {
 // more than the one it was dealt in, the extra masks are shown as small dim
 // glyphs so "orientation is hugely important" is visible even though nothing
 // today lets a slot pick between them directly -- see the "also legal" note.
+// Draft-panel header text: names the room the draft was opened from, not just
+// its grid coordinate (the coordinate stays too, parenthetically, since room
+// names can repeat across a house -- see env/actions.py::_room_name_at, the
+// server-side counterpart this mirrors). The outer-room draft has no source
+// cell at all (`from_cell === -1`, opened from the West Path doorstep off-grid)
+// and so has no "facing" either; that case gets its own sentence instead of
+// showing "facing ?".
+function draftHeaderText(pend) {
+  if (pend.from_cell === -1) return "Draft options — outer draft (West Path)";
+  const loc = `r${Math.floor(pend.from_cell / 5) + 1}c${pend.from_cell % 5}`;
+  const src = pend.from_room ? `${pend.from_room} (${loc})` : loc;
+  return `Draft options — from ${src}, facing ${pend.direction || "?"}`;
+}
+
 function optionCardHtml(o, extra = {}) {
   const cls = ["opt", o.affordable ? "" : "unaffordable", extra.chosen ? "chosen" : "",
                extra.clickable ? "clickable" : ""].filter(Boolean).join(" ");
@@ -767,7 +781,7 @@ function renderFrame() {
   }
   if (pend) {
     $("#options-head").textContent =
-      `Draft options — facing ${pend.direction || "?"}` + (chosenSlot != null ? " (picked)" : "");
+      draftHeaderText(pend) + (chosenSlot != null ? " (picked)" : "");
     $("#options").innerHTML = pend.options.map((o) =>
       optionCardHtml(o, { chosen: o.slot === chosenSlot })).join("");
   } else {
@@ -1860,7 +1874,7 @@ function renderPlayDraft() {
         <span class="dim">(${pend.rotations_used} used this hand)</span></button>`
     : "";
 
-  el.innerHTML = `<div class="panel-head" style="margin-top:0">Draft options — facing ${esc(pend.direction || "?")}</div>
+  el.innerHTML = `<div class="panel-head" style="margin-top:0">${esc(draftHeaderText(pend))}</div>
     <div id="play-draft-opts">${optsHtml}</div>
     <div class="play-draft-controls">${redrawHtml}${rotateHtml}</div>`;
 

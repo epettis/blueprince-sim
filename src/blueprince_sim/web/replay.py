@@ -105,7 +105,10 @@ def _pending_dict(game: Game) -> dict | None:
     what a redraw would cost and whether a drafted room has an orientation
     other than the one it was dealt in -- see ``_redraw_info`` and
     ``_option_legal_orientations`` for why those need engine calls rather than
-    being derivable from ``orientation`` alone.
+    being derivable from ``orientation`` alone. ``from_room`` is the name of
+    the room the draft was opened from (None for the outer-room draft, whose
+    ``from_cell`` is -1) -- the client needs this to label the draft panel by
+    room rather than by bare grid coordinate (see env/actions.py::_room_name_at).
     """
     p = game.state.pending
     if p is None:
@@ -133,6 +136,7 @@ def _pending_dict(game: Game) -> dict | None:
         })
     return {
         "from_cell": p.from_cell,
+        "from_room": A._room_name_at(game, p.from_cell),
         "direction": DIR_NAMES.get(p.direction),
         "target_cell": p.target_cell,
         "options": options,
