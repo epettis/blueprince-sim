@@ -8,6 +8,11 @@ entirely off Room.category, so a room whose category was a pool name
 selected by it -- The Kennel is used here as the worked example, with a
 hand-built single-card deck so the proof is deterministic rather than
 statistical.
+
+The Kennel's own effect ("Digging in rooms with locked doors unlocks them")
+is out of scope (the lock system does not model per-room dig unlocks), and
+its rooms.json effects list is empty -- so category reachability is the only
+room-specific behaviour there is to pin here.
 """
 
 from __future__ import annotations

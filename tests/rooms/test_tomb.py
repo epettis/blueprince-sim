@@ -1,8 +1,13 @@
-"""Tomb: lighting does not require the Diary Key it rewards.
+"""Tomb: lighting does not require the Diary Key it rewards, plus its
+coins_per_deadend accumulation.
 
 Split out of the old test_ignition.py, which keeps the generic ignition
 system tests (can_light rules, action mask wiring); see tests/test_ignition.py
 for those.
+
+The coins_per_deadend tests below cover Dead Ends drafted after the Tomb is
+placed. The Tomb's own placement is covered separately, alongside the
+Nursery's, since both ride the same dispatch.
 """
 
 from __future__ import annotations
@@ -72,3 +77,29 @@ def test_tomb_category_does_not_activate_the_outer_shop_dead_branch():
 
     assert g.state.outer_room_entered
     assert shops.current_shop_id(g) is None
+
+
+def test_tomb_grants_coins_for_a_dead_end_drafted_after_it(registry, cfg):
+    """Once the Tomb is placed, drafting any further Dead End room in the
+    house grants +5 coins (coins_per_deadend, Hook.ON_DRAFT_ROOM)."""
+    g = Game(cfg, seed=1)
+    tomb = registry.by_id["tomb"]
+    closet = registry.by_id["closet"]
+    assert closet.layout == "dead_end", "setup: Closet must be a Dead End"
+    g._place_room(tomb, 6, tomb.door_mask)
+    coins_before = g.state.coins
+    g._place_room(closet, 11, closet.door_mask)
+    assert g.state.coins == coins_before + 5
+
+
+def test_tomb_grants_nothing_for_a_non_dead_end_drafted_after_it(registry, cfg):
+    """A room drafted after the Tomb that is NOT a Dead End grants no coins --
+    coins_per_deadend is keyed on ctx_room.layout, not on drafting alone."""
+    g = Game(cfg, seed=1)
+    tomb = registry.by_id["tomb"]
+    not_dead_end = next(r for r in registry.rooms
+                        if r.layout != "dead_end" and r.rarity is not None)
+    g._place_room(tomb, 6, tomb.door_mask)
+    coins_before = g.state.coins
+    g._place_room(not_dead_end, 11, not_dead_end.door_mask)
+    assert g.state.coins == coins_before

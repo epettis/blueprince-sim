@@ -1,4 +1,5 @@
-"""Casino: the Broken Lever machine's slot bonus loot.
+"""Casino: the Broken Lever machine's slot bonus loot, plus its own
+guaranteed die on first entry.
 
 Split out of the old test_ignition.py, which keeps the broken_lever item's
 generic consumption rules for any machine room; see tests/test_ignition.py
@@ -11,6 +12,7 @@ from blueprince_sim.config import GameConfig
 from blueprince_sim.engine import shops
 from blueprince_sim.engine import special_items as si
 from blueprince_sim.engine.game import Game, Phase
+from blueprince_sim.engine.grid import N, S
 from blueprince_sim.engine.model import Registry
 from blueprince_sim.engine.rng import Rng
 from blueprince_sim.engine.state import GameState
@@ -73,3 +75,22 @@ def test_casino_activates_shop_stock_roll_on_entry():
     shops.on_enter_shop(game, casino)
     assert game.state.shops.stock.get("casino") == []
     assert shops.stock_for(game) == []
+
+
+def test_casino_grants_one_die_on_first_entry():
+    """Casino's items.guaranteed is [{"die", 1}] (the slot-machine modeled as
+    a guaranteed die, per meta.effect_text) -- granted unconditionally on
+    first entry, on top of whatever the luck-rolled additional_max=1 slot
+    may separately add. Luck is floored to 0 so that slot never fires,
+    isolating the guaranteed grant for an exact assertion."""
+    reg = Registry.load()
+    casino = reg.by_id["casino"]
+    assert casino.items.guaranteed == (("die", 1),)
+
+    game = Game(GameConfig(special_items=False), seed=0, registry=reg)
+    game.state.luck = 0
+    game._place_room(casino, 7, N | S)  # orientation is irrelevant to the grant
+    dice_before = game.state.dice
+    game.move(N)
+    assert game.state.pos == 7
+    assert game.state.dice == dice_before + 1
