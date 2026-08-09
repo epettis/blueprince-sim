@@ -1484,13 +1484,6 @@ class Game:
             return
         st.entered[cell] = True
         room = self.registry.rooms[st.grid[cell]]
-        # Boiler Room: entering it permanently opens the "boiler_room_steam" gate
-        # (Underpass -> Upper Rotating Gear). Owner decision, docs/open_tasks.md
-        # decisions log 2026-08-06: unlocked permanently after entering the room,
-        # unconditional on any other config toggle. Recorded on STATE, never on
-        # cfg -- same shape as west_gate_unlatched.
-        if room.id == "boiler_room":
-            st.boiler_room_steam = True
         effects.fire(self, room, Hook.ON_ENTER)
         roll_room_items(st, self.registry, room, self.rng)
         if self.cfg.special_items:
@@ -1498,11 +1491,6 @@ class Game:
             if room.category == "shop" or room.id == "workshop":  # workshop needs first-entry roll
                 shops.on_enter_shop(self, room)
         if self.cfg.door_locks:
-            if room.id == "security":
-                # Assume the player always flips the terminal's offline mode
-                # to Unlocked when visiting Security: from now on, cutting the
-                # power at the Utility Closet swings every security door open.
-                st.offline_unlocked = True
             kc = self.registry.lock_rules["keycard"]
             if (not st.has_keycard and room.id in kc["source_rooms"]
                     and self.rng.chance("keycard", kc["chance"] / 100.0)):
