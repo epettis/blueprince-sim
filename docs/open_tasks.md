@@ -296,6 +296,45 @@ lack of lever rooms.
 policy learns; batch these and restart deliberately, per the two runs already
 discarded for exactly that reason.
 
+## 16. Sweep comments that re-litigate past behaviour
+
+Opened 2026-08-09, from the PR #89 review. Blocked on task 15 finishing -- a
+comment-only pass touches many files at once and would collide with every
+in-flight room PR.
+
+The standing rule is in the decisions log: a comment says what the code does.
+It does not narrate what the code used to do, defend against an alternative
+that was rejected, or cite the bug that prompted the change.
+
+Known instances, all landed in #89 and left in place on purpose:
+
+- `tools/validate_data.py` -- the `KNOWN_GUARANTEED_ITEM_KINDS` comment cites
+  the "2026-08-09 exact-coin-amount ruling" and the inline comment in the
+  guaranteed-items loop explains that a typo "fails exactly the same silent way
+  the exact-coins bug did" and justifies itself against "a low-value
+  round-trip test".
+- `src/blueprince_sim/engine/items.py` -- `grant_item`'s docstring contrasts
+  `coins_exact` against `coins` at length, where it need only state what each
+  one grants.
+- `tests/rooms/test_vault.py` -- the two guard tests' docstrings describe the
+  "obvious but wrong" fix they defend against rather than the property they
+  pin.
+
+Do not treat that list as exhaustive; it is where the rule was first noticed.
+The sweep should cover `src/`, `tools/` and `tests/`, and is a good candidate
+for a mechanical first pass (grep for dated ruling references, "used to",
+"previously", "no longer", "instead of", "would have") followed by judgment.
+
+Two things NOT to strip, so the sweep does not overshoot:
+
+- **`docs/`** is exempt. `open_tasks.md` in particular exists to record
+  history, and its decisions log is explicitly a record of what was ruled and
+  why.
+- **A comment explaining a non-obvious constraint the code must still honour**
+  is describing the present, even when it sounds historical -- e.g. that
+  `rooms.json` round-trips at 1-space indent, or that `_CARRYOVER_KEYS` is
+  sorted because Python randomises string hashing per process. Keep those.
+
 ## Decisions log
 
 - **2026-07-26, lockers**: locked lockers cost exactly one BASIC key — the wiki is
@@ -1300,6 +1339,32 @@ discarded for exactly that reason.
   constant would delete the structure, not approximate it. The Great Hall is
   a lever room at 3.3% placement, so the temptation to inflate it is real and
   is being declined on purpose.
+
+- **2026-08-09, comments state what the code does, not what it used to do.**
+  Owner, on PR #89. Code comments, docstrings and test docstrings must describe
+  **current behaviour**. They must not narrate the previous behaviour, argue
+  against a rejected alternative, or cite the bug that motivated the change.
+  When behaviour changes, **delete the old description rather than contrasting
+  with it**.
+
+  The rationale, the rejected alternatives and the measurement belong in the
+  **PR body and the commit message** -- those are the record of *why*. The
+  source comment answers *what*. Test docstrings still state the property under
+  test, which is a hard CLAUDE.md rule, but they state it directly: "a Coin
+  Purse held on entry earns interest on the grant", not "this guards against
+  the wrong fix that would have bypassed the purse hook".
+
+  **#89 was merged carrying the violation**, deliberately: the owner's reason
+  was that the habit is widespread rather than specific to that PR, so fixing
+  one instance while the rest of the tree does it would be noise. The sweep is
+  task 16, scheduled **after** the room-behaviour audit rather than interleaved
+  with it -- a comment-only pass touching many files would collide with every
+  in-flight room PR, which is the same disjointness argument that put the test
+  split first.
+
+  Act on this cold as: **put this constraint in every subagent implementation
+  brief.** Agents narrate their reasoning into the code they write by default,
+  so this recurs unless it is stated up front.
 
 ## 5. Throttle the training terminal output — DONE
 
