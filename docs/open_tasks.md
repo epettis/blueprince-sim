@@ -1130,6 +1130,57 @@ discarded for exactly that reason.
   Owner's plan is to re-measure after the Pump Room lands, since that opens
   routes the sim currently closes.
 
+- **2026-08-09, training is parked; room fidelity is the only priority.** Owner,
+  ruling on PR #84's open question. The Apple Orchard's off-grid step-share jump
+  (35.67% -> 69.28%, 300 seeds, uniform-random masked play) is **accepted as-is**:
+  both `campsite` and `apple_orchard` stay `modelled: true`. The reasoning is not
+  that the tax is small -- it is that **the tax does not matter yet**, because
+  "too few victory paths exist to make training worthwhile" (the 11.0% lever-room
+  measurement one entry above). Optimising a training cost before the game is
+  winnable is optimising the wrong thing.
+
+  Two consequences to act on. First, this **suspends the usual "a node only goes
+  `modelled: true` if it holds something worth walking to" discipline** (2026-08-04)
+  for the duration of the audit -- but only suspends it: the step share must be
+  re-measured, and this decision revisited, before any run is started. Second, the
+  standing "do not start a training run mid-audit" rule now has a second and
+  stronger reason behind it than checkpoint churn.
+
+- **2026-08-09, task 15 sequencing: the test split ships FIRST, alone, to buy
+  parallelism.** Owner. PR 1 is a pure reorganisation -- room-specific behaviour
+  moves out of `test_game.py` / `test_effects*.py` / the scattered feature files
+  into `tests/rooms/test_<room_id>.py`, one file per room. No behaviour change, no
+  new assertions. It ships before any room fix because per-room files are what make
+  the later PRs **genuinely disjoint**, and the repo rule is that parallel subagents
+  need disjoint files including `tests/`. Without the split every room fix collides
+  in `test_game.py` and the audit serialises.
+
+  Granularity ruled: **one file per room, created as the audit reaches it**, not
+  169 stubs up front and not per-category groupings. Rooms with no behaviour to pin
+  get no file. The **absence** of a file is therefore a deliberate, readable record
+  of what has not been audited yet -- the audit's own progress bar, kept in the test
+  tree rather than in a document that can drift.
+
+  After PR 1: identify sets of rooms whose behaviour is genuinely independent and
+  give **each set its own PR**, rather than one large audit change.
+
+- **2026-08-09, research doctrine for task 15: full wiki pass per room, with
+  `effect_text` as a strongly-weighted prior.** Owner, refining the 2026-08-06
+  "our datamined tables beat the wiki" ruling rather than repeating it. That ruling
+  was about **magnitudes** -- exact percentages and payouts, where the decompiled
+  sheet has won before. It does not extend to **coverage**: `meta.effect_text` is a
+  single curated line and routinely elides an entire mechanic (the Secret Passage's
+  five-colour choice, the Pantry's fruit). So every room gets a full wiki pass whose
+  specific job is **finding mechanics the effect_text omits**, while `effect_text`
+  stays authoritative on the numbers it does state.
+
+  **Discrepancies are batched, not streamed.** Where the wiki and `effect_text`
+  disagree on a *mechanic* (not a number), the room is parked and carried into a
+  single consolidated question round put to the owner **before implementation
+  begins** -- explicitly so the owner's involvement is one sitting rather than
+  interruptions spread over hours. This is a process ruling with teeth: an agent
+  that hits a discrepancy mid-implementation has already sequenced the work wrong.
+
 ## 5. Throttle the training terminal output — DONE
 
 The trainer currently refreshes the dashboard after every completed seed, which
