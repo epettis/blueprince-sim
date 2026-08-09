@@ -2,10 +2,14 @@
 """Validate the committed data files: referential integrity + sanity checks.
 
 Run: python tools/validate_data.py  (exit 1 on any error)
+Run: python tools/validate_data.py --audit  (also prints the room-fidelity
+     divergence worklist; still exits 0 -- it is a worklist, not a
+     validation failure)
 """
 
 from __future__ import annotations
 
+import argparse
 import json
 import sys
 from pathlib import Path
@@ -62,14 +66,102 @@ KNOWN_EFFECT_TAGS = {"grant", "grant_per_category", "grant_on_draft_category",
                      "negate_red_rooms", "pay_gems_with_steps", "reduce_draft_options",
                      "anti_luck", "mark_visited"}
 
+# Room ids whose "always unlocked" effect_text is implemented via
+# locks.json's always_unlocked_rooms table rather than effects/items --
+# excluded from the divergence audit below by exact id, not by text pattern,
+# so any other room's unmodelled "always unlocked" claim still surfaces.
+_AUDIT_STRUCTURAL_EXEMPT_IDS = {"corridor", "corriyard__ix50"}
 
-def main() -> int:
+
+def find_divergences(
+    rooms: list[dict], by_id: dict[str, dict], lock_rules: dict
+) -> tuple[list[str], list[str]]:
+    """Return (kind1, kind2) room-fidelity divergence findings (an audit worklist).
+
+    Kind 1: an upgrade variant whose ``effects`` and ``items.guaranteed`` are
+    identical to its immediate parent's while its ``meta.effect_text`` differs.
+    Upgrade variants are by construction rooms that do something different from
+    their parent, so identical modelling plus differing text means the variant
+    step was never authored. Comparison is against the immediate ``variant_of``
+    parent, not the chain root: a two-level variant (e.g. the Spare Room's
+    second-stage rooms) is judged against what its own upgrade step was supposed
+    to add, not against the original base room three steps back. A variant whose
+    own ``effect_text`` is blank is excluded -- it cannot diverge from anything.
+
+    Kind 2: any record whose ``meta.effect_text`` is non-empty but which has no
+    ``effects`` and no ``items.guaranteed`` -- it describes behaviour it does
+    not implement.
+
+    Both kinds exclude ``_AUDIT_STRUCTURAL_EXEMPT_IDS``: rooms whose "always
+    unlocked" text is implemented in locks.json rather than effects/items.
+    """
+    structural = frozenset(rid for rid in _AUDIT_STRUCTURAL_EXEMPT_IDS if rid in by_id)
+    # Sanity-check the exemption list itself so it can't silently rot: every id
+    # in it must actually be exempt from locks.json's own always_unlocked table.
+    lock_exempt = set(lock_rules.get("always_unlocked_rooms", {}).get("rooms", []))
+    assert structural <= lock_exempt, (
+        f"_AUDIT_STRUCTURAL_EXEMPT_IDS has ids not in locks.json "
+        f"always_unlocked_rooms: {structural - lock_exempt}"
+    )
+
+    kind1: list[str] = []
+    kind2: list[str] = []
+    for r in rooms:
+        rid = r["id"]
+        if rid in structural:
+            continue
+        text = (r.get("meta", {}).get("effect_text") or "").strip()
+        effects = r.get("effects", [])
+        guaranteed = r.get("items", {}).get("guaranteed", [])
+
+        variant_of = r.get("variant_of")
+        if variant_of and text:
+            parent = by_id.get(variant_of)
+            if parent is not None:
+                parent_text = (parent.get("meta", {}).get("effect_text") or "").strip()
+                parent_effects = parent.get("effects", [])
+                parent_guaranteed = parent.get("items", {}).get("guaranteed", [])
+                if (effects == parent_effects and guaranteed == parent_guaranteed
+                        and text != parent_text):
+                    kind1.append(
+                        f"{rid}: identical modelling to parent {variant_of!r} but "
+                        f"effect_text differs ({text!r} vs parent's {parent_text!r})"
+                    )
+
+        if text and not effects and not guaranteed:
+            kind2.append(
+                f"{rid}: effect_text {text!r} present but no effects and no "
+                f"items.guaranteed"
+            )
+
+    return kind1, kind2
+
+
+def main(argv: list[str] | None = None) -> int:
     """Check every data/*.json file and print a report; return 1 if any error, else 0.
 
     Errors are schema/range/referential violations that must block a commit;
     warnings (unknown draft-condition tags, unhandled effect tags) are printed
-    but do not affect the exit code.
+    but do not affect the exit code. The room-fidelity divergence audit is a
+    separate, opt-in channel: its findings are worklist entries, not
+    validation failures, so they are never counted as errors or warnings and
+    are only printed with ``--audit``. Always exits 0 when there are no
+    errors, with or without ``--audit``.
     """
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--audit", action="store_true",
+        help="also print the room-fidelity divergence worklist; "
+             "informational only, does not affect the exit code",
+    )
+    args = parser.parse_args(argv)
+
+    # --audit prints raw meta.effect_text, which carries in-game currency
+    # glyphs (steps/gems icons) outside the Windows console's default cp1252
+    # codepage; widen stdout to UTF-8 so --audit can't crash mid-report.
+    if args.audit and hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+
     errors: list[str] = []
     warnings: list[str] = []
 
@@ -920,16 +1012,40 @@ def main() -> int:
             f"update docs/areas.md if the graph has changed"
         )
 
+    # Room-fidelity divergence audit: its own channel, always computed so the
+    # summary line can advertise the count, but only printed under --audit and
+    # never folded into errors/warnings -- see find_divergences' docstring.
+    audit_kind1, audit_kind2 = find_divergences(rooms, by_id, lock_rules)
+    n_audit = len(audit_kind1) + len(audit_kind2)
+
     base = [r for r in rooms if r.get("pool") == "base"]
     n_shops = len(shops)
+    audit_note = (
+        f"; {n_audit} divergence-audit findings (run with --audit to list)"
+        if n_audit else ""
+    )
     print(f"{len(rooms)} rooms ({len(base)} base pool); "
           f"{len(si_items)} special items; "
           f"{n_shops} shops; "
-          f"{len(errors)} errors, {len(warnings)} warnings")
+          f"{len(errors)} errors, {len(warnings)} warnings{audit_note}")
     for w in warnings:
         print(f"  warning: {w}")
     for e in errors:
         print(f"  ERROR: {e}")
+
+    if args.audit:
+        print()
+        print(f"--- divergence audit worklist, NOT validation failures "
+              f"({n_audit} findings) ---")
+        print(f"kind 1 -- variant identical to parent, effect_text differs "
+              f"({len(audit_kind1)}):")
+        for f in audit_kind1:
+            print(f"  audit[kind1]: {f}")
+        print(f"kind 2 -- effect_text present, no modelling "
+              f"({len(audit_kind2)}):")
+        for f in audit_kind2:
+            print(f"  audit[kind2]: {f}")
+
     return 1 if errors else 0
 
 
