@@ -197,7 +197,6 @@ EFFECT_MAP: dict[str, dict] = {
     "boudoir": {"effects": [{"tag": "grant", "resource": "gems", "amount": 1}]},
     "library": {"effects": [{"tag": "counts_as_drafting_room"}]},
     "drafting_studio": {"effects": [{"tag": "counts_as_drafting_room"}]},
-    "chamber_of_mirrors": {"effects": []},
     "the_pool": {"effects": [
         {"tag": "counts_as_drafting_room"},
         {"tag": "inject_pool", "rooms": ["locker_room", "sauna", "pump_room"]}]},

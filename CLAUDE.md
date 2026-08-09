@@ -29,7 +29,36 @@ source .venv/bin/activate          # do this before pytest / ruff / blueprince-*
 
 **Drafting and moving are distinct.** `open_door` + `choose` *places* a room behind a doorway but does not enter it; you pay no step and gain none of its resources until you `move` in. This split is fundamental to both the reward structure and the action space.
 
-**The engine is data-driven and pure-stdlib.** All room stats and probabilities live in `data/*.json`; `model.Registry.load()` parses them into immutable frozen `Room` dataclasses. Prefer changing behavior by editing data over editing code. Data files: `rooms.json` (room table), `weights.json` (rarity roll tables), `priority_draws.json`, `items.json`, `locks.json` (locked/security door tables), `special_items.json` (the ~76 inventory items: spawn pools, effects, dig tables, Lost & Found pool, fabrication recipes — see `docs/special-items-design.md`), `shops.json` (the 8 shops and the Trading Post trade graph), `areas.json` (the 36-node off-grid area graph driving `engine/areas.py` and the travel actions — see `docs/areas.md`), `upgrade_selection.json` (the Upgrade Disk selection tables — see `docs/upgrade-disks-design.md`). Every record carries `meta.source` + `meta.confidence` (`datamined > wiki > inferred > placeholder`).
+**The engine is pure-stdlib, and behaviour lives in one of two places.** Stats —
+rarity, layout, gem cost, category, draft conditions, deck copies — live in
+`data/*.json`, derived by `tools/ingest_sheet.py` from the datamined sheet;
+`model.Registry.load()` parses them into immutable frozen `Room` dataclasses.
+Room *behaviour* splits by how many rooms share it:
+
+- **Shared and parametric → a data tag**, one handler in `engine/effects/tier1.py`
+  serving many rooms, each room's numbers in its own `effects` list. These are
+  `grant`, `grant_per_category`, `grant_on_draft_category`,
+  `set_resource_on_enter`, `counts_as_bedrooms`, `counts_as_drafting_room`,
+  `inject_pool`, `free_green_drafts`, `reduce_draft_options`, and `anti_luck`
+  (which `items.py::expected_yields` reads generically).
+- **Belonging to exactly one room → `engine/effects/rooms/<room_id>.py`**,
+  registered with `@room_hook(room_id, Hook.<member>)`, mirroring
+  `tests/rooms/test_<room_id>.py` one-to-one.
+
+**Choosing between them**: if the mechanic already exists as a parametric tag,
+add a tag instance in data; if it is bespoke to one room, write a `room_hook`
+handler rather than invent a new single-use tag.
+
+`Hook` members: `ON_PLACE`, `ON_ENTER`, `ON_DRAFT_ROOM`, `ON_DAY_START`,
+`ON_DRAFT_FROM`, `ON_HAND_DEALT`, `ON_ARRIVE`, `ON_DAY_END`.
+
+`room_hook` takes `inherit=` (default `False`), which extends a handler to the
+room's upgrade variants. It is off by default because of the 56 upgrade variants
+that have both a parent and an `effect_text`, none shares its parent's text —
+reserve `inherit=True` for a fixture that genuinely survives every upgrade, such
+as the Boudoir's safe.
+
+Data files: `rooms.json` (room table), `weights.json` (rarity roll tables), `priority_draws.json`, `items.json`, `locks.json` (locked/security door tables), `special_items.json` (the ~76 inventory items: spawn pools, effects, dig tables, Lost & Found pool, fabrication recipes — see `docs/special-items-design.md`), `shops.json` (the 8 shops and the Trading Post trade graph), `areas.json` (the 36-node off-grid area graph driving `engine/areas.py` and the travel actions — see `docs/areas.md`), `upgrade_selection.json` (the Upgrade Disk selection tables — see `docs/upgrade-disks-design.md`). Every record carries `meta.source` + `meta.confidence` (`datamined > wiki > inferred > placeholder`).
 
 **The draft pipeline** (one option slot at a time): `decks.py` builds 8 solitaire decks (4 rarities × free/gem) from the enabled pools and does the rank/slot/stage/Solarium-keyed rarity roll → `draft.py` runs the 4-attempt draw procedure, priority draws, and forced-Closet fallback → `placement.py` filters by legality → `rotation.py` rolls the floorplan orientation. `items.py` handles the luck/item system; `special_items.py` holds the inventory-item system (spawning, per-item behavior, digging, Lost & Found) behind hook functions game.py calls at fixed sites; `effects/` holds Tier-1 room effects; `locks.py` rolls locked/security doors on doorway *segments* (state in `GameState.door_state` keyed by `locks.segment_key`; opening a locked door costs a key, security doors ride the keycard/power/offline-mode system worked from Security and the Utility Closet); `rng.py` provides seeded **named substreams** (determinism given a seed is a tested invariant).
 

@@ -342,14 +342,14 @@ same date for the reasoning and the measurements). Runs alongside task 15 rather
 than blocking it -- task 15 authors what a room does, task 17 changes where that
 lives.
 
-| Phase | Content |
-|---|---|
-| 0 | Divergence validator in `validate_data.py` |
-| 1 | Widen `Hook`: `ON_DRAFT_FROM`, `ON_HAND_DEALT`, `ON_ARRIVE`, `ON_DAY_END` |
-| 2 | `room_hook` registry with opt-in `inherit` |
-| 3 | Migrate the 13 singleton tags to `engine/effects/rooms/` |
-| 4 | Relocate room-behaviour branches out of `game.py` / `draft.py` |
-| 5 | Retire the behaviour half of the ingest tables |
+| Phase | Content | Status |
+|---|---|---|
+| 0 | Divergence validator in `validate_data.py` | DONE |
+| 1 | Widen `Hook`: `ON_DRAFT_FROM`, `ON_HAND_DEALT`, `ON_ARRIVE`, `ON_DAY_END` | DONE |
+| 2 | `room_hook` registry with opt-in `inherit` | DONE |
+| 3 | Migrate the 13 singleton tags to `engine/effects/rooms/` | DONE |
+| 4 | Relocate room-behaviour branches out of `game.py` / `draft.py` | DONE |
+| 5 | Retire the behaviour half of the ingest tables | DONE |
 
 The 13 singleton tags, which are the phase-3 worklist: `study_redraws`,
 `allow_duplicates`, `greenhouse_bias`, `anti_luck`, `halve_steps`,
