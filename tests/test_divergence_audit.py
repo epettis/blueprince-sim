@@ -11,6 +11,8 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
+import pytest
+
 # tools/ is not a proper package; insert the repo root so the import works.
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
@@ -18,6 +20,13 @@ from tools.validate_data import (  # noqa: E402
     _AUDIT_STRUCTURAL_EXEMPT_IDS,
     find_divergences,
     main,
+)
+
+from blueprince_sim.engine.effects import (  # noqa: E402
+    Hook,
+    _ROOM_INHERIT,
+    _ROOM_REGISTRY,
+    room_hook,
 )
 
 
@@ -35,6 +44,29 @@ def _room(id, variant_of=None, text="", effects=None, guaranteed=None):
 
 
 EMPTY_LOCKS = {"always_unlocked_rooms": {"rooms": []}}
+
+
+@pytest.fixture()
+def room_probe():
+    """Register a temporary ``room_hook`` handler and remove it at teardown.
+
+    ``_ROOM_REGISTRY``/``_ROOM_INHERIT`` are module-global in
+    ``engine.effects``, shared with every other suite that imports it, so a
+    registration leaked past a test would silently change ``find_divergences``
+    (and ``fire()``) behaviour elsewhere. Mirrors the identical fixture in
+    ``tests/test_room_registry.py``.
+    """
+    registered: list[tuple[str, Hook]] = []
+
+    def _register(room_id: str, hook: Hook = Hook.ON_ENTER, *, inherit: bool = False) -> None:
+        room_hook(room_id, hook, inherit=inherit)(lambda game, room, context_room: None)
+        registered.append((room_id, hook))
+
+    yield _register
+
+    for room_id, hook in registered:
+        _ROOM_REGISTRY.pop((room_id, hook), None)
+        _ROOM_INHERIT.pop((room_id, hook), None)
 
 
 def test_variant_identical_to_parent_with_differing_text_is_flagged():
@@ -70,6 +102,68 @@ def test_record_with_effect_text_and_no_modelling_is_flagged():
     by_id = {r["id"]: r for r in rooms}
     kind1, kind2 = find_divergences(rooms, by_id, EMPTY_LOCKS)
     assert any("unmodelled" in f for f in kind2)
+
+
+def test_record_with_registered_room_handler_is_not_flagged(room_probe):
+    """A record with effect_text and no data modelling is not a kind-2
+    finding once its own room id has a room_hook registration -- the
+    behaviour is implemented in Python (engine/effects/rooms/), not in
+    effects/items.guaranteed, so the audit must not call it unmodelled."""
+    room = _room("handled_in_python", text="Whenever something happens, do a thing.")
+    rooms = [room]
+    by_id = {r["id"]: r for r in rooms}
+    room_probe("handled_in_python")
+
+    kind1, kind2 = find_divergences(rooms, by_id, EMPTY_LOCKS)
+
+    assert not any("handled_in_python" in f for f in kind2)
+
+
+def test_record_without_any_handler_is_still_flagged():
+    """The same shape of record with no room_hook registration at all stays
+    a kind-2 finding -- confirms the registry-awareness only suppresses
+    rooms that are actually registered, not every record unconditionally."""
+    room = _room("nobody_implements_this", text="Whenever something happens, do a thing.")
+    rooms = [room]
+    by_id = {r["id"]: r for r in rooms}
+
+    kind1, kind2 = find_divergences(rooms, by_id, EMPTY_LOCKS)
+
+    assert any("nobody_implements_this" in f for f in kind2)
+
+
+def test_variant_covered_by_inherited_root_handler_is_not_flagged(room_probe):
+    """An upgrade variant with no handler of its own is not a kind-2 finding
+    when its chain root has a room_hook registered with inherit=True --
+    that handler fires for every variant of the root, so the variant's
+    behaviour is modelled even though rooms.json shows nothing for it."""
+    base = _room("inheriting_root", text="")
+    variant = _room("inheriting_root__ix1", variant_of="inheriting_root",
+                     text="Whenever something happens, do a thing.")
+    rooms = [base, variant]
+    by_id = {r["id"]: r for r in rooms}
+    room_probe("inheriting_root", inherit=True)
+
+    kind1, kind2 = find_divergences(rooms, by_id, EMPTY_LOCKS)
+
+    assert not any("inheriting_root__ix1" in f for f in kind2)
+
+
+def test_variant_of_noninheriting_root_handler_is_still_flagged(room_probe):
+    """A variant of a room whose handler was registered with inherit=False
+    (the default) stays a kind-2 finding -- that handler only fires for the
+    root room itself, so the variant's own text is still unmodelled from
+    this check's point of view."""
+    base = _room("noninheriting_root", text="")
+    variant = _room("noninheriting_root__ix1", variant_of="noninheriting_root",
+                     text="Whenever something happens, do a thing.")
+    rooms = [base, variant]
+    by_id = {r["id"]: r for r in rooms}
+    room_probe("noninheriting_root", inherit=False)
+
+    kind1, kind2 = find_divergences(rooms, by_id, EMPTY_LOCKS)
+
+    assert any("noninheriting_root__ix1" in f for f in kind2)
 
 
 def test_record_with_no_effect_text_is_not_flagged():

@@ -80,6 +80,20 @@ def room_hook(room_id: str, hook: Hook, *, inherit: bool = False):
     return deco
 
 
+def registered_rooms() -> tuple[frozenset[str], frozenset[str]]:
+    """Room ids with a ``room_hook`` handler, and those whose handler inherits.
+
+    The first set is every room id registered at any hook. The second is the
+    subset registered with ``inherit=True``, which also covers upgrade
+    variants whose root base is that id. Callers outside this module use this
+    rather than reading the registries directly.
+    """
+    registered = frozenset(room_id for room_id, _hook in _ROOM_REGISTRY)
+    inheriting = frozenset(
+        room_id for (room_id, _hook), inherit in _ROOM_INHERIT.items() if inherit)
+    return registered, inheriting
+
+
 def validate_room_registry(registry) -> list[str]:
     """Return every room id registered via ``room_hook`` that ``registry`` lacks.
 
