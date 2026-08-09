@@ -1196,7 +1196,7 @@ discarded for exactly that reason.
       "orchard_unlocked",   # grants +20 starting steps next day
 
   which is exactly the shape `morning_room` ("+2 gems tomorrow") and `sauna`
-  ("+20 coins tomorrow") need. All seven are implemented on that pattern.
+  ("+20 STEPS tomorrow") need. All seven are implemented on that pattern.
   `mail_room` and `clock_tower` additionally need a small day-counter rather
   than a bool, which is new but shallow.
 
@@ -1212,6 +1212,21 @@ discarded for exactly that reason.
 
   Act on this cold as: **a scope annotation is a claim with an expiry date.**
   When the engine grows a capability, sweep the annotations that denied it.
+
+  **Correction, same day: the Sauna grants STEPS, not coins.** The question
+  round and the first version of this entry both said "+20 coins". The
+  record's own `meta.glyph_resolution` resolves its glyph as `steps` at
+  `datamined` confidence. The ruling is unchanged -- cross-day mechanics are
+  in scope whatever the resource -- but the wrong resource would have been
+  implemented from this entry.
+
+  Act on this cold as: **never read a currency off the mojibake in
+  `effect_text`.** Every ambiguous glyph carries its own
+  `meta.glyph_resolution` entry with a confidence, and that is the
+  authoritative resolver -- the ingest `GLYPH_MAP` resolves by UTF-8 byte
+  value for exactly this reason. Three glyphs collide visually once the sheet
+  is decoded: steps, coins and gems. `nurses_station__ix102` and
+  `spare_master_bedroom__ix136` are steps too, not the coins they look like.
 
 - **2026-08-09, a room stating an exact coin amount grants exactly that amount.**
   Owner. `items.guaranteed`'s `coins` count means *piles*, each rolling 1-5
