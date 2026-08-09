@@ -1778,6 +1778,34 @@ parametric tags; it has been quietly wrong for singleton behaviour for a while.
   2026-08-08 were all of exactly this kind -- the engine was right and the
   player could not act.
 
+- **2026-08-09, all eight Sanctum Keys require Room 46, and simply do not
+  spawn before it.** Owner, resolving the discrepancy surfaced two entries
+  above: "All eight keys require reaching Room 46 for the first time. They
+  simply do not spawn."
+
+  **This overrides the wiki**, which states that condition for exactly one key
+  (*"This Sanctum Key only spawns once Room 46 has been reached at least
+  once"*) and says of the others only that they are *"usually discovered around
+  the same time Room 46 has been reached for the first time."* Owner play
+  outranks the wiki; the conflict is recorded here rather than resolved
+  silently, so a later wiki edit does not look like it contradicts a bug.
+
+  The gate mechanism already exists: `room46_reached` is a permanent carry-over
+  flag, set on first arrival and carried by `DayChain`. No new state is needed
+  for the gate itself -- keys check it at spawn time.
+
+  **The consequence is deliberate, not a side effect.** Every Sanctum Key, all
+  eight Sigil Chambers, and the +16 allowance behind them are unreachable until
+  Room 46 is first reached -- and the measured `P(room 46)` is 0.000. That is
+  acceptable under the ruling one entry above: the owner reaches Room 46 by
+  playing, and the recorded day teaches the policy. The content exists so it can
+  be demonstrated, not because the current policy will stumble into it.
+
+  Act on this cold as: this is the first feature in the project built for the
+  demonstration pipeline rather than for the policy's own exploration. Judge it
+  by whether the owner can operate it in a recorded session, not by whether any
+  measurement over untrained play ever exercises it -- none will.
+
 ## 5. Throttle the training terminal output — DONE
 
 The trainer currently refreshes the dashboard after every completed seed, which
