@@ -5720,13 +5720,7 @@
     "unlocks_catacombs": true
    },
    "deck_copies": 1,
-   "effects": [
-    {
-     "tag": "coins_per_deadend",
-     "amount": 5,
-     "include_self": true
-    }
-   ],
+   "effects": [],
    "items": {
     "guaranteed": [],
     "additional_max": 0,
@@ -5823,10 +5817,6 @@
    "deck_copies": 1,
    "effects": [
     {
-     "tag": "negate_red_rooms",
-     "amount": 3
-    },
-    {
      "tag": "grant",
      "resource": "gems",
      "amount": 1
@@ -5859,12 +5849,7 @@
     "disk_reader": false
    },
    "deck_copies": 1,
-   "effects": [
-    {
-     "tag": "pay_gems_with_steps",
-     "ratio": 3
-    }
-   ],
+   "effects": [],
    "items": {
     "guaranteed": [],
     "additional_max": 0,
@@ -6152,13 +6137,7 @@
     "disk_reader": false
    },
    "deck_copies": 1,
-   "effects": [
-    {
-     "tag": "coins_per_draft",
-     "amount": 5,
-     "max_draft": 32
-    }
-   ],
+   "effects": [],
    "items": {
     "guaranteed": [],
     "additional_max": 0,

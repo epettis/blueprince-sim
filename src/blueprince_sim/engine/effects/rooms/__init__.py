@@ -11,6 +11,10 @@ from __future__ import annotations
 from . import conservatory  # noqa: F401  (registers room_hook handlers on import)
 from . import furnace  # noqa: F401
 from . import greenhouse  # noqa: F401
+from . import hovel  # noqa: F401
 from . import schoolhouse  # noqa: F401
+from . import shelter  # noqa: F401
 from . import solarium  # noqa: F401
 from . import study  # noqa: F401
+from . import tomb  # noqa: F401
+from . import treasure_trove  # noqa: F401
