@@ -36,17 +36,6 @@ def _enter_at(g: Game, cell: int) -> None:
     g.state.door_version += 1
 
 
-def _place_room(g: Game, room_id: str, cell: int, mask: int) -> None:
-    """Plant a room in the grid at *cell* with *mask* doors, without drafting."""
-    room = g.registry.by_id[room_id]
-    g.state.grid[cell] = room.idx
-    g.state.placed_doors[cell] = mask
-    g.state.entered[cell] = False
-    g.room_cells[room_id] = cell
-    g.placed_ids.add(room_id)
-    g.state.door_version += 1
-
-
 def _travel_to_inner_sanctum(g: Game) -> None:
     """Drive the real travel_to() into inner_sanctum from its off-grid neighbour.
 
@@ -167,20 +156,8 @@ def test_inner_sanctum_arrival_idempotent():
 
 
 # ---------------------------------------------------------------------------
-# 5. Throne Room entry opens the north door (studio_additions unlock)
+# 5. (Throne Room's own lever behaviour lives in tests/rooms/test_throne_room.py)
 # ---------------------------------------------------------------------------
-
-def test_throne_room_lever_opens_north_door():
-    """Entering the Throne Room opens the Antechamber north door (backup lever).
-
-    Throne Room is a studio_additions room; its lever behaviour is the backup
-    path to Room 46 for runs that cannot reach Inner Sanctum in time.
-    """
-    g = _game(studio_additions=frozenset({"throne_room"}))
-    _place_room(g, "throne_room", cell=37, mask=0xF)
-    assert g.door_state_of(ANTECHAMBER_CELL, N) == DOOR_SEALED
-    _enter_at(g, 37)
-    assert g.door_state_of(ANTECHAMBER_CELL, N) == DOOR_OPEN
 
 
 # ---------------------------------------------------------------------------
