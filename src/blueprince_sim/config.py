@@ -142,6 +142,19 @@ class GameConfig:
     # all days until the altar is lit (which is a one-time-ever event by construction,
     # since lit_targets makes the Chapel un-lightable on future days).
     chapel_tithes: int = 0
+    # Permanent allowance total: the daily gold packet's size.  Grown by
+    # Allowance Tokens (+2 each) and Cloister of Lydia (+2 per Shop drafted
+    # from it) and added to coins at the start of every future day
+    # (Game.reset).  Never spent itself.  Carried by DayChain as a running
+    # total, replaced wholesale each advance() the same way as chapel_tithes.
+    allowance: int = 0
+    # Fixed-source Allowance Token ids collected (ever, across all days): each
+    # one-time find spot (a Mora Jai box or the Cloister's token) has its own
+    # item id, so this set gates exactly the sources already collected without
+    # blocking the others.  Same shape as collected_disks: seeded into
+    # gated_out at day start, accumulated as a union by DayChain, never
+    # shrinks within an attempt.
+    collected_allowance_tokens: frozenset[str] = frozenset()
     # The Foundation does not reset day-to-day: once drafted it stays at the same
     # cell/orientation forever.  -1 = not yet drafted this attempt.
     foundation_cell: int = -1           # grid cell the Foundation permanently occupies

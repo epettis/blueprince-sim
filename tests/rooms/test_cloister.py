@@ -1,7 +1,7 @@
 """Cloister variants: "...for each X you draft FROM THIS CLOISTER" tracking.
 
-Covers the four variants implemented in effects/rooms/cloister.py (Rynna,
-Mila, Orinda, Draxus). Joya, Dauja, Veia and Lydia are not modeled (see that
+Covers the five variants implemented in effects/rooms/cloister.py (Rynna,
+Mila, Orinda, Draxus, Lydia). Joya, Dauja and Veia are not modeled (see that
 module's docstring) and have no tests here.
 
 Every test bypasses the deal pipeline via Game._place_room directly (as the
@@ -185,6 +185,47 @@ def test_two_cloisters_each_track_only_their_own_doorway(registry, cfg):
 
     _draft_from(g, 30, 31, closet)  # dealt from Draxus's doorway
     assert (g.state.luck, g.state.dice) == (6, 4)
+
+
+def test_lydia_raises_allowance_for_a_shop_drafted_from_it_but_base_cloister_does_not(
+        registry, cfg):
+    """cloister_of_lydia__ix34 adds 2 permanent allowance when a Shop is dealt
+    from its own doorway; the base Cloister (identical effects: []) does not."""
+    commissary = registry.by_id["commissary"]
+    assert commissary.category == "shop", "setup: Commissary must be a Shop"
+    for room_id, expected_allowance in (("cloister", 0), ("cloister_of_lydia__ix34", 2)):
+        g = Game(cfg, seed=1)
+        g.state.luck = 0
+        cloister = registry.by_id[room_id]
+        g._place_room(cloister, 10, cloister.door_mask)
+        _draft_from(g, 10, 11, commissary)
+        assert g.state.allowance == expected_allowance, room_id
+
+
+def test_lydia_does_not_react_to_a_non_shop_room_from_its_own_doorway(registry, cfg):
+    """A non-Shop room dealt from Lydia's own doorway raises no allowance --
+    the trigger is ctx_room.category == "shop", not the doorway alone."""
+    g = Game(cfg, seed=1)
+    g.state.luck = 0
+    lydia = registry.by_id["cloister_of_lydia__ix34"]
+    closet = registry.by_id["closet"]  # category "blueprint", not shop
+    g._place_room(lydia, 10, lydia.door_mask)
+    _draft_from(g, 10, 11, closet)
+    assert g.state.allowance == 0
+
+
+def test_lydia_does_not_react_to_a_shop_drafted_from_elsewhere(registry, cfg):
+    """Allowance stays put when the Shop's doorway is some other placed
+    room's, even with Cloister of Lydia elsewhere on the grid."""
+    g = Game(cfg, seed=1)
+    g.state.luck = 0
+    lydia = registry.by_id["cloister_of_lydia__ix34"]
+    closet = registry.by_id["closet"]
+    commissary = registry.by_id["commissary"]
+    g._place_room(lydia, 10, lydia.door_mask)
+    g._place_room(closet, 20, closet.door_mask)
+    _draft_from(g, 20, 21, commissary)  # dealt from Closet's doorway, not Lydia's
+    assert g.state.allowance == 0
 
 
 def test_orinda_opens_a_still_sealed_door_rather_than_one_already_open(registry, cfg):

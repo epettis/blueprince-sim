@@ -474,6 +474,7 @@ def test_carryover_shape_is_complete():
         "lit_targets", "collected_disks", "chapel_tithes",
         "upgrade_disks", "draft_counts",
         "foundation_cell", "foundation_doors",
+        "allowance", "collected_allowance_tokens",
     }
     # Test a variety of configs
     for cfg in [

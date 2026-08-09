@@ -73,7 +73,14 @@ class Game:
                     + (20 if cfg.sauna_bonus else 0))
         st.gems = ((2 if cfg.mine_unlocked else 0) + (2 if cfg.morning_room_bonus else 0)
                    + cfg.frozen_gems)
-        st.coins = cfg.frozen_coins
+        # The allowance packet: the sim assumes the player is already standing in
+        # the Entrance Hall at reset(), so the daily gold packet is granted here
+        # unconditionally rather than modelled as a pickup action -- adding zero
+        # when cfg.allowance is 0 reproduces "the packet only appears when
+        # nonzero" without a branch. state.allowance tracks the permanent total
+        # separately from today's spendable coins.
+        st.coins = cfg.frozen_coins + cfg.allowance
+        st.allowance = cfg.allowance
         st.has_keycard = cfg.break_room_keycard
         st.day = cfg.day
         st.stage = cfg.resolved_stage()

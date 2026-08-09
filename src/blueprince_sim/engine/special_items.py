@@ -317,6 +317,23 @@ def _on_pickup(state, registry, item: SpecialItem) -> None:
     # treasure_map: the marked cell is resolved lazily in on_arrive/dig_all
     # when game.rng is available. No action needed at pickup time.
 
+    # allowance (Allowance Token): +2 permanent allowance, credited once at
+    # pickup, then the token itself is cleared from the inventory slot -- it
+    # converts straight to allowance rather than sitting as a held item.
+    # Fixed one-time-source tokens (every id besides the shared "allowance_token"
+    # -- one per Mora Jai box / the Cloister's own token) are removed with
+    # consumed=True so fixed_allowance_tokens_collected_today can see they were
+    # taken today, feeding the permanent collected_allowance_tokens gate that
+    # stops that specific spot from ever granting again. The shared
+    # "allowance_token" id (Trading Post trades, Jack Hammer digging, and the
+    # Vault 149/233 boxes -- whose own key-tracked one-shot open already keeps
+    # them one-time) removes with consumed=False since it never needs that gate
+    # and must stay repeatable.
+    e = item.effect("allowance")
+    if e is not None:
+        state.allowance += e.param("amount", 2)
+        remove(state, item.id, consumed=(item.id != "allowance_token"))
+
 
 # ------------------------------------------------------------------ config gates
 
@@ -346,6 +363,12 @@ def configure(state, cfg) -> None:
     for disk_id in getattr(cfg, "collected_disks", frozenset()):
         if disk_id not in gated:
             gated.append(disk_id)
+    # Fixed-source Allowance Token ids already collected on an earlier day (a
+    # Mora Jai box or the Cloister's own token): same shape as collected_disks,
+    # so a later visit to that same spot cannot mint a second one.
+    for token_id in getattr(cfg, "collected_allowance_tokens", frozenset()):
+        if token_id not in gated:
+            gated.append(token_id)
     state.special.gated_out = gated
     # Ignition targets permanently lit across days: pre-populate lit_targets so
     # can_light() blocks them on day N+1 just as it would mid-day.
@@ -951,6 +974,26 @@ def fixed_disks_spent_today(state, registry) -> set[str]:
         if item.id.startswith("upgrade_disk_") and item.persistence == "day"
     }
     return respawning & set(state.special.removed)
+
+
+def fixed_allowance_tokens_collected_today(state, registry) -> set[str]:
+    """Fixed-source Allowance Token ids collected today, for the
+    collected_allowance_tokens carryover.
+
+    Mirrors fixed_disks_spent_today: each one-time source (a Mora Jai box or
+    the Cloister's own token) has its own item id and is consumed
+    (remove(..., consumed=True)) the instant its "allowance" effect fires in
+    _on_pickup, so state.special.removed already records it here. The shared
+    "allowance_token" id -- the Trading Post trades, Jack Hammer digging, and
+    the Vault 149/233 boxes (whose own key-tracked one-shot open already keeps
+    them one-time) -- is excluded by name so it never gets permanently gated.
+    """
+    fixed = {
+        item.id
+        for item in registry.special.items
+        if item.id != "allowance_token" and item.effect("allowance") is not None
+    }
+    return fixed & set(state.special.removed)
 
 
 def luck_bonus(state, registry) -> int:
@@ -1570,9 +1613,11 @@ def can_open_vault_box(game) -> str | None:
       is spent (inserted at a terminal), at which point ``collected_disks``
       blocks the disk and there is nothing left to grant — the box becomes inert.
 
-    Boxes for keys 149, 233, and 370 grant non-disk items (allowance_token,
-    sanctum_key); they do not re-grant under the ``used_vault_keys`` path since
-    those items are permanent-persistence and ``_is_available`` blocks re-grants.
+    Boxes for keys 149, 233, and 370 grant non-disk items (an Allowance Token,
+    sanctum_key); the ``has_respawning_disk`` check below is False for all
+    three, so once opened they never satisfy the re-entry condition again --
+    the box itself becomes permanently inert, independent of whatever
+    persistence the granted item carries.
 
     Requires: standing in the Vault, special items enabled.
     Priority order: 149, 233, 304, 370.
@@ -1597,8 +1642,9 @@ def can_open_vault_box(game) -> str | None:
         if key_id in used_keys:
             # Box was previously opened; the only thing worth re-entering for is a
             # day-persistence disk (which returns to the open box until spent).
-            # Boxes 149/233/370 grant permanent items (allowance_token, sanctum_key)
-            # that do not respawn — they stay permanently blocked once given.
+            # Boxes 149/233/370 grant an Allowance Token / sanctum_key, neither of
+            # which is a respawning disk, so those boxes never satisfy this check
+            # again once opened -- they stay permanently inert.
             box_grants = boxes[key_id].get("grants", [])
             has_respawning_disk = any(
                 (item := registry.special.by_id.get(item_id)) is not None

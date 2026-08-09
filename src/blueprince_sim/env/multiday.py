@@ -96,6 +96,16 @@ class DayChain:
         # Accumulated across all days until the Chapel altar is lit (one-time-ever);
         # after payout the counter stays 0 (state.special.chapel_tithes cleared to 0).
         self.chapel_tithes: int = 0
+        # Allowance: running permanent total, replaced (not merged) from each
+        # day's own carryover value every advance() -- state.allowance already
+        # IS the accumulated figure by day end, the same shape as chapel_tithes.
+        self.allowance: int = base_cfg.allowance
+        # Fixed-source Allowance Token ids collected (ever, across all days):
+        # a Mora Jai box or the Cloister's own token, each with its own id.
+        # Union-merged across days, same shape as collected_disks.
+        self.collected_allowance_tokens: frozenset[str] = frozenset(
+            base_cfg.collected_allowance_tokens
+        )
         # Repellent bans: room_id -> days_remaining (positive integer).
         # Decremented each advance(); 0 = expired (dropped before next_config).
         self.repellent_bans: dict[str, int] = {}
@@ -146,6 +156,8 @@ class DayChain:
             lit_targets=self.lit_targets,
             collected_disks=self.collected_disks,
             chapel_tithes=self.chapel_tithes,
+            allowance=self.allowance,
+            collected_allowance_tokens=self.collected_allowance_tokens,
             upgrade_disks=self.applied_upgrades,
             draft_counts=dict(self.draft_counts),
             foundation_cell=self.foundation_cell,
@@ -221,6 +233,16 @@ class DayChain:
         if ct_val is not None:
             self.chapel_tithes = ct_val
 
+        # --- allowance (running permanent total; replace each advance) ---
+        av_val = carryover.get("allowance")
+        if av_val is not None:
+            self.allowance = av_val
+
+        # --- collected_allowance_tokens (fixed one-time sources; accumulate as union) ---
+        cat_val = carryover.get("collected_allowance_tokens")
+        if cat_val is not None:
+            self.collected_allowance_tokens = self.collected_allowance_tokens | frozenset(cat_val)
+
         # --- upgrade_disks (variant ids applied this attempt; accumulate as union) ---
         ud_val = carryover.get("upgrade_disks")
         if ud_val is not None:
@@ -291,6 +313,10 @@ class DayChain:
             self.lit_targets = frozenset()    # fresh attempt; ignition history reset
             self.collected_disks = frozenset()  # fresh attempt; disks back in the house
             self.chapel_tithes = 0            # fresh attempt; tithe bank reset
+            self.allowance = self.base_cfg.allowance  # fresh attempt; back to the base preset
+            self.collected_allowance_tokens = frozenset(
+                self.base_cfg.collected_allowance_tokens
+            )
             self.repellent_bans = {}
             self._ban_order = []
             self.sauna_bonus = False          # fresh attempt; no "yesterday" to carry a pulse from
