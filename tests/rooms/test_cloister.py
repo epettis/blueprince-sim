@@ -15,7 +15,7 @@ from __future__ import annotations
 
 from blueprince_sim.engine.game import Game
 from blueprince_sim.engine.grid import E, N, W
-from blueprince_sim.engine.locks import DOOR_SEALED, segment_key
+from blueprince_sim.engine.locks import DOOR_OPEN, DOOR_SEALED, segment_key
 from blueprince_sim.engine.state import PendingDraft
 
 ANTECHAMBER_CELL = 42
@@ -185,3 +185,38 @@ def test_two_cloisters_each_track_only_their_own_doorway(registry, cfg):
 
     _draft_from(g, 30, 31, closet)  # dealt from Draxus's doorway
     assert (g.state.luck, g.state.dice) == (6, 4)
+
+
+def test_orinda_opens_a_still_sealed_door_rather_than_one_already_open(registry, cfg):
+    """With three of the four segments already open, Orinda opens the fourth.
+
+    The room promises a door, so a trigger that landed on an already-open
+    segment would silently deliver nothing. Leaving exactly one sealed makes
+    the choice observable without depending on the RNG."""
+    g = Game(cfg, seed=1)
+    orinda = registry.by_id["cloister_of_orinda__ix35"]
+    throne_room = registry.by_id["throne_room"]
+    still_sealed = ANTECHAMBER_SEGMENTS[1]
+    for seg in ANTECHAMBER_SEGMENTS:
+        if seg != still_sealed:
+            g.state.door_state[seg] = DOOR_OPEN
+
+    g._place_room(orinda, 10, orinda.door_mask)
+    _draft_from(g, 10, 11, throne_room)
+
+    assert g.state.door_state[still_sealed] != DOOR_SEALED
+
+
+def test_orinda_is_a_no_op_when_every_antechamber_door_is_open(registry, cfg):
+    """Orinda leaves the Antechamber alone once nothing is sealed, rather than
+    failing on an empty set of candidates."""
+    g = Game(cfg, seed=1)
+    orinda = registry.by_id["cloister_of_orinda__ix35"]
+    throne_room = registry.by_id["throne_room"]
+    for seg in ANTECHAMBER_SEGMENTS:
+        g.state.door_state[seg] = DOOR_OPEN
+
+    g._place_room(orinda, 10, orinda.door_mask)
+    _draft_from(g, 10, 11, throne_room)
+
+    assert all(g.state.door_state[s] == DOOR_OPEN for s in ANTECHAMBER_SEGMENTS)
