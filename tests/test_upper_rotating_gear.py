@@ -150,7 +150,7 @@ def test_rotating_gear_and_upper_rotating_gear_have_no_direct_edge(registry):
 
     ctx = GateContext(
         held_items={iid: 99 for iid in
-                     ("sanctum_key", "burning_glass", "torch", "microchip", "basement_key")},
+                     ("sanctum_key_room_46", "burning_glass", "torch", "microchip", "basement_key")},
         flags=frozenset(graph.gates.keys()),
         rooms_entered=frozenset(r.id for r in registry.rooms),
     )

@@ -155,6 +155,18 @@ class GameConfig:
     # gated_out at day start, accumulated as a union by DayChain, never
     # shrinks within an attempt.
     collected_allowance_tokens: frozenset[str] = frozenset()
+    # Sanctum Key source ids permanently spent (ever, across all days): opening a
+    # Sigil Chamber door consumes one key and its own source id (e.g.
+    # "sanctum_key_vault") is recorded here, so that source never spawns another
+    # key -- "no longer spawns in the location it was obtained" (wiki). Same
+    # shape as collected_disks: seeded into gated_out at day start, accumulated
+    # as a union by DayChain, never shrinks within an attempt.
+    collected_sanctum_keys: frozenset[str] = frozenset()
+    # Realm ids (arch_aries, corarica, eraja, fenn_aries, mora_jai, nuance,
+    # orinda_aries, verra) whose Inner Sanctum door has been permanently
+    # unlocked with a Sanctum Key.  Union-accumulated across days by DayChain;
+    # an opened door never re-seals.
+    sigil_doors_open: frozenset[str] = frozenset()
     # The Foundation does not reset day-to-day: once drafted it stays at the same
     # cell/orientation forever.  -1 = not yet drafted this attempt.
     foundation_cell: int = -1           # grid cell the Foundation permanently occupies

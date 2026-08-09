@@ -10,6 +10,7 @@ from ..engine.grid import DIRS, OPPOSITE, neighbor
 from ..engine.locks import DOOR_LOCKED, DOOR_SEALED, DOOR_SECURITY, SECURITY_LEVELS
 from ..engine.model import LAYOUTS
 from ..engine.shops import SCEPTER_COLORS, current_shop_id
+from ..engine.special_items import SIGIL_REALMS
 from ..engine.upgrades import all_slot_ids, upgraded_slots
 from .actions import _build_area_node_ids
 from .multiday import DayChain
@@ -157,6 +158,11 @@ def observation_space(n_rooms: int, n_items: int, n_recipes: int,
         # rationale as disks_spent/treasure_trove_piles/upgrade_slots: V(s)
         # cannot price a cross-day investment it cannot see.
         "allowance": spaces.Box(0, 9999, shape=(1,), dtype=np.int16),
+        # sigil_doors_open: 1 bit per Inner Sanctum realm door, in SIGIL_REALMS
+        # (sorted) order, 1 = permanently unlocked (state.special.sigil_doors_opened
+        # union cfg.sigil_doors_open). A door never re-seals, so this is another
+        # cross-day investment V(s) needs to see, same rationale as upgrade_slots.
+        "sigil_doors_open": spaces.Box(0, 1, shape=(len(SIGIL_REALMS),), dtype=np.uint8),
     })
 
 
@@ -470,6 +476,14 @@ def encode(game: Game, day_chain: DayChain | None = None) -> dict:
     # allowance: the permanent total banked so far this attempt, clamped to the space bound.
     allowance_obs = np.array([min(st.allowance, 9999)], dtype=np.int16)
 
+    # sigil_doors_open: which Inner Sanctum realm doors are permanently unlocked.
+    # Union of cfg (carried from earlier days) and today's own openings, same
+    # read shape as upgrade_slots (state.applied_upgrades).
+    _opened_realms = set(game.cfg.sigil_doors_open) | set(st.special.sigil_doors_opened)
+    sigil_doors_open_obs = np.array(
+        [1 if r in _opened_realms else 0 for r in SIGIL_REALMS], dtype=np.uint8
+    )
+
     return {
         "grid_room": grid_room,
         "grid_doors": grid_doors,
@@ -503,4 +517,5 @@ def encode(game: Game, day_chain: DayChain | None = None) -> dict:
         "disks_spent": disks_spent_obs,
         "treasure_trove_piles": treasure_trove_piles_obs,
         "allowance": allowance_obs,
+        "sigil_doors_open": sigil_doors_open_obs,
     }

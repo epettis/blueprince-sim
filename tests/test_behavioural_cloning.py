@@ -224,18 +224,31 @@ from blueprince_sim.rl.mixed_policy import MixedExplorationPolicy  # noqa: E402
 from blueprince_sim.rl.train import make_single_env  # noqa: E402
 
 
+def _fresh_bc_model():
+    """A tiny untrained MaskablePPO, freshly constructed (never pretrained)."""
+    env = make_single_env("shaped", 0)()
+    return MaskablePPO(
+        MixedExplorationPolicy, env, n_steps=64, batch_size=64, seed=0, device="cpu",
+        policy_kwargs={"exploit_temp": 0.5, "explore_temp": 1.5, "explore_eps": 0.05},
+    )
+
+
 @pytest.fixture(scope="module")
 def bc_fixture():
     """A tiny untrained MaskablePPO plus a small replayed demo set to overfit.
 
     Module-scoped: constructing the torch policy is the slow part of these
     tests, so it is built once and reused (mirrors test_mixed_policy.py).
+
+    Only tests that do NOT call ``pretrain()`` on ``model.policy`` (or that
+    don't care about starting from an untrained policy) may share this --
+    ``pretrain`` mutates the policy's weights in place, so a test asserting
+    "before vs. after" needs its own model (see
+    ``test_pretrain_raises_agreement_with_demo_actions``), otherwise its
+    "before" is silently whatever an EARLIER test in this module already
+    trained the shared policy to.
     """
-    env = make_single_env("shaped", 0)()
-    model = MaskablePPO(
-        MixedExplorationPolicy, env, n_steps=64, batch_size=64, seed=0, device="cpu",
-        policy_kwargs={"exploit_temp": 0.5, "explore_temp": 1.5, "explore_eps": 0.05},
-    )
+    model = _fresh_bc_model()
     records = synthetic_demo_records("all", "shaped", n_days=1, seed=100,
                                      action_rng_seed=0, use_chain=False)
     triples = replay_dataset(records)
@@ -254,8 +267,17 @@ def test_pretrain_raises_agreement_with_demo_actions(bc_fixture):
     """After pretraining, the masked-argmax action should agree with the
     demonstrator's action far more often than an untrained (near-uniform)
     policy does -- BC is actually learning the demonstrated behaviour, not
-    just reducing a number that doesn't correspond to imitation."""
-    model, triples = bc_fixture
+    just reducing a number that doesn't correspond to imitation.
+
+    Uses its own freshly-constructed model rather than ``bc_fixture``'s
+    shared one: other tests in this module also call ``pretrain()`` on the
+    shared policy, which mutates its weights in place, so reusing it here
+    would measure "already-trained vs. trained-more" instead of the
+    untrained-vs-trained comparison this test's name promises, and the
+    result would depend on module test execution order.
+    """
+    model = _fresh_bc_model()
+    _, triples = bc_fixture
     acc_before = masked_accuracy(model.policy, triples)
     pretrain(model.policy, triples, epochs=40, batch_size=32, lr=1e-3, seed=1)
     acc_after = masked_accuracy(model.policy, triples)

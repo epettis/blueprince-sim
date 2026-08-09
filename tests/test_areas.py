@@ -82,7 +82,7 @@ def _all_open_ctx(outer_room_id: str | None = "tomb") -> GateContext:
             "power_hammer": 1,
             "torch": 1,
             "basement_key": 1,
-            "sanctum_key": 1,
+            "sanctum_key_room_46": 1,
         },
         flags=frozenset({
             "west_gate_unlatched",

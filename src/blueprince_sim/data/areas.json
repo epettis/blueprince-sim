@@ -264,7 +264,7 @@
    "kind": "area",
    "modelled": false,
    "surface": false,
-   "meta": {"source": "docs/areas.md", "confidence": "wiki", "notes": "Each opened by 1 Sanctum Key (consumed), stays permanently open, grants +2 allowance from its Mora Jai box."}
+   "meta": {"source": "docs/areas.md", "confidence": "wiki", "notes": "Each of the 8 realm doors (Arch Aries, Corarica, Eraja, Fenn Aries, Mora Jai, Nuance, Orinda Aries, Verra) is opened independently by 1 Sanctum Key (consumed) via Game.open_sigil_door(realm); stays permanently open (GameConfig.sigil_doors_open). Modelled as one node with per-door state rather than 8 travel-actionable nodes: the assumed-solved +2 allowance from each chamber's Mora Jai box is granted at the moment the door opens (special_items.py::open_sigil_door), so there is nothing left worth walking here for -- stays modelled=false per the 2026-08-04 'holds something worth walking to' rule."}
   },
   {
    "id": "precipice",
@@ -555,8 +555,17 @@
    "modelled": false,
    "permanence": "permanent",
    "stub": false,
-   "detail": "Inner Sanctum -> Sigil Chambers: 1 Sanctum Key per chamber (consumed); door then stays permanently open.",
-   "item_ids": ["sanctum_key"],
+   "detail": "Inner Sanctum -> Sigil Chambers: flavour-only walk-in gate (holding ANY unspent Sanctum Key). The real per-door unlock (consuming a specific key, opening one of the 8 realm doors permanently, granting its +2 allowance) is the Game.open_sigil_door(realm) action, not this edge -- see the sigil_chambers node's own notes.",
+   "item_ids": [
+    "sanctum_key_clock_tower",
+    "sanctum_key_mechanarium",
+    "sanctum_key_music_room",
+    "sanctum_key_reservoir_north",
+    "sanctum_key_room_46",
+    "sanctum_key_safehouse",
+    "sanctum_key_throne_room",
+    "sanctum_key_vault"
+   ],
    "count": 1,
    "meta": {"source": "docs/areas.md", "confidence": "wiki"}
   },

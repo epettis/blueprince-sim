@@ -106,6 +106,14 @@ class DayChain:
         self.collected_allowance_tokens: frozenset[str] = frozenset(
             base_cfg.collected_allowance_tokens
         )
+        # Sanctum Key source ids permanently spent: accumulate across all days,
+        # same shape as collected_disks/collected_allowance_tokens.
+        self.collected_sanctum_keys: frozenset[str] = frozenset(
+            base_cfg.collected_sanctum_keys
+        )
+        # Inner Sanctum realm ids whose door is permanently open: accumulate
+        # across all days, same shape as collected_sanctum_keys.
+        self.sigil_doors_open: frozenset[str] = frozenset(base_cfg.sigil_doors_open)
         # Repellent bans: room_id -> days_remaining (positive integer).
         # Decremented each advance(); 0 = expired (dropped before next_config).
         self.repellent_bans: dict[str, int] = {}
@@ -158,6 +166,8 @@ class DayChain:
             chapel_tithes=self.chapel_tithes,
             allowance=self.allowance,
             collected_allowance_tokens=self.collected_allowance_tokens,
+            collected_sanctum_keys=self.collected_sanctum_keys,
+            sigil_doors_open=self.sigil_doors_open,
             upgrade_disks=self.applied_upgrades,
             draft_counts=dict(self.draft_counts),
             foundation_cell=self.foundation_cell,
@@ -243,6 +253,16 @@ class DayChain:
         if cat_val is not None:
             self.collected_allowance_tokens = self.collected_allowance_tokens | frozenset(cat_val)
 
+        # --- collected_sanctum_keys (Sanctum Key sources spent; accumulate forever within attempt) ---
+        csk_val = carryover.get("collected_sanctum_keys")
+        if csk_val is not None:
+            self.collected_sanctum_keys = self.collected_sanctum_keys | frozenset(csk_val)
+
+        # --- sigil_doors_open (Inner Sanctum doors unlocked; accumulate forever within attempt) ---
+        sdo_val = carryover.get("sigil_doors_open")
+        if sdo_val is not None:
+            self.sigil_doors_open = self.sigil_doors_open | frozenset(sdo_val)
+
         # --- upgrade_disks (variant ids applied this attempt; accumulate as union) ---
         ud_val = carryover.get("upgrade_disks")
         if ud_val is not None:
@@ -317,6 +337,8 @@ class DayChain:
             self.collected_allowance_tokens = frozenset(
                 self.base_cfg.collected_allowance_tokens
             )
+            self.collected_sanctum_keys = frozenset(self.base_cfg.collected_sanctum_keys)
+            self.sigil_doors_open = frozenset(self.base_cfg.sigil_doors_open)
             self.repellent_bans = {}
             self._ban_order = []
             self.sauna_bonus = False          # fresh attempt; no "yesterday" to carry a pulse from

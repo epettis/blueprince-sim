@@ -59,9 +59,9 @@ def test_permanent_item_always_carried():
     The permanent flag is the self-persistence channel for Key 8 (unlocks rank 8
     room drafts) — losing it between days would make the unlock meaningless.
     """
-    g = _game_with("sanctum_key")
+    g = _game_with("sanctum_key_room_46")
     carried = si.end_of_day_carry(g.state, g.registry, g.rng)
-    assert "sanctum_key" in carried
+    assert "sanctum_key_room_46" in carried
 
 
 def test_until_used_item_carried():
@@ -81,10 +81,10 @@ def test_multiple_persistence_channels_combined():
     When the inventory contains items from different persistence tiers,
     each channel fires independently.
     """
-    g = _game_with("vault_key_149", "sanctum_key", "shovel", "magnifying_glass")
+    g = _game_with("vault_key_149", "sanctum_key_room_46", "shovel", "magnifying_glass")
     carried = si.end_of_day_carry(g.state, g.registry, g.rng)
-    assert "sanctum_key" in carried
-    assert "sanctum_key" in carried
+    assert "vault_key_149" in carried
+    assert "sanctum_key_room_46" in carried
     assert "shovel" not in carried
     assert "magnifying_glass" not in carried
 
@@ -184,9 +184,9 @@ def test_without_moon_pendant_only_persistent_items_carry():
     This pins the baseline: the pendant is the only source of extra carry for
     day-persistence items (besides Coat Check).
     """
-    g = _game_with("sanctum_key", "shovel", "telescope")
+    g = _game_with("sanctum_key_room_46", "shovel", "telescope")
     carried = si.end_of_day_carry(g.state, g.registry, g.rng)
-    assert "sanctum_key" in carried
+    assert "sanctum_key_room_46" in carried
     assert "shovel" not in carried
     assert "telescope" not in carried
 
@@ -395,11 +395,11 @@ def test_starting_items_from_carryover_are_granted_at_day_start():
     grants them at construction time.
     """
     chain = DayChain(GameConfig(royal_scepter_found=False), n_days=10)
-    g1 = _game_with("sanctum_key")
+    g1 = _game_with("sanctum_key_room_46")
     chain.advance(shops.carryover(g1))
     cfg2 = chain.next_config()
     g2 = Game(cfg2, seed=0)
-    assert si.has(g2.state, "sanctum_key")
+    assert si.has(g2.state, "sanctum_key_room_46")
 
 
 def test_carryover_starting_items_is_sorted_and_deduped():
@@ -408,7 +408,7 @@ def test_carryover_starting_items_is_sorted_and_deduped():
     The caller (DayChain) converts this to a frozenset; a sorted list
     is the stable canonical form for comparison in tests.
     """
-    g = _game_with("key_8", "vault_key_149", "sanctum_key")
+    g = _game_with("key_8", "vault_key_149", "sanctum_key_room_46")
     carried = si.end_of_day_carry(g.state, g.registry, g.rng)
     assert carried == sorted(set(carried))
 

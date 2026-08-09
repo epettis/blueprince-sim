@@ -124,7 +124,7 @@ def test_vault_box_304_grants_upgrade_disk():
 
 
 def test_vault_box_370_grants_sanctum_key():
-    """Vault key 370 opens a box that grants a sanctum_key."""
+    """Vault key 370 opens a box that grants a sanctum_key_vault."""
     st, reg = _state_with_registry()
     si.grant(st, reg, "vault_key_370", source="test")
     _place_room(st, reg, "vault", 4)
@@ -132,7 +132,7 @@ def test_vault_box_370_grants_sanctum_key():
 
     game = _fake_game(st, reg)
     granted = si.open_vault_box(game)
-    assert "sanctum_key" in granted
+    assert "sanctum_key_vault" in granted
 
 
 def test_vault_key_stays_in_inventory_after_use():
