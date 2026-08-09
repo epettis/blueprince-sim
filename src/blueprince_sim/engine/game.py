@@ -1001,8 +1001,14 @@ class Game:
     def outer_draft_available(self) -> bool:
         """Can the once-per-day outer-room draft be started right now?
 
-        Requires no outer room drafted yet today, NAVIGATE phase on the grid,
-        and an affordable route to the doorstep (see :meth:`_outer_route_cost`).
+        Requires no outer room drafted yet today, NAVIGATE phase, and an
+        affordable route to the doorstep (see :meth:`_outer_route_cost`) from
+        wherever the player currently is -- on the grid or already off it.
+        West Path *is* the doorstep, so standing there makes the route free
+        (cost 0) rather than unavailable: :meth:`_outer_route_cost` already
+        handles the off-grid case correctly via :meth:`area_route_cost`
+        (whose BFS includes the origin itself at distance 0), so there is no
+        separate on-grid-only restriction to enforce here.
 
         No config flag is checked: on a fresh save the Garage + breaker route
         to west_path is open from day 1 without any unlock. The west_gate_unlatched
@@ -1013,9 +1019,27 @@ class Game:
             return False
         if self.phase is not Phase.NAVIGATE:
             return False
-        if self.off_grid:
-            return False
         return self._outer_route_cost() is not None
+
+    def _deal_outer_options(self, label: str) -> list[DraftOption]:
+        """Shuffle the fixed 8-room outer pool via RNG stream ``label`` and offer 3.
+
+        No rarity roll: outer rooms are a fixed pool, shuffled and truncated
+        to the first 3 (wiki-documented mechanic). Shared by the initial deal
+        (:meth:`open_outer_draft`, label ``"outer_draft"``) and by redraws
+        (:meth:`redraw`, a distinct label) so redrawing an outer hand can
+        never perturb the initial deal's RNG sequence -- ``rng.py::Rng.stream``
+        seeds a fresh, independent generator per label.
+        """
+        outer = self.outer_rooms
+        order = list(range(len(outer)))
+        self.rng.shuffle(label, order)
+        options = []
+        for slot, i in enumerate(order[:3]):
+            room = outer[i]
+            options.append(DraftOption(
+                room_idx=room.idx, orientation=room.door_mask, gem_cost=0, slot=slot))
+        return options
 
     def open_outer_draft(self) -> PendingDraft | None:
         """Walk to the outer-area doorstep and open the once-per-day outer-room draft.
@@ -1036,14 +1060,8 @@ class Game:
         key = (-1, 0)
         pending = self.doorway_drafts.get(key)
         if pending is None:
-            outer = self.outer_rooms
-            order = list(range(len(outer)))
-            self.rng.shuffle("outer_draft", order)
             pending = PendingDraft(from_cell=-1, direction=0, target_cell=-1)
-            for slot, i in enumerate(order[:3]):
-                room = outer[i]
-                pending.options.append(DraftOption(
-                    room_idx=room.idx, orientation=room.door_mask, gem_cost=0, slot=slot))
+            pending.options = self._deal_outer_options("outer_draft")
             self.doorway_drafts[key] = pending
         st.pending = pending
         self.phase = Phase.DRAFTING
@@ -1149,12 +1167,24 @@ class Game:
 
         STUDY costs 1 gem (needs the Study placed, max 8 per draft), FREE
         spends one of the hand's Classroom redraws, DIE spends an ivory die.
-        Outer-room drafts cannot be redrawn.
+        Applies to outer-room drafts too: an outer hand is reshuffled from the
+        fixed outer pool via :meth:`_deal_outer_options` rather than the grid
+        pipeline, since it has no doorway/from-room to redraw against.
+
+        Provenance, recorded because this REVERSES a restriction the code
+        previously asserted outright. Owner ruling from play ("assume the Study
+        works outdoors; I think the reroll works on all drafts"), corroborated
+        by Fandom's Outer Room page: "Ivory Dice may be used to reroll the pool
+        of Outer Rooms, as may Gems if you drafted a Study inside before you
+        drafted an Outer Room" -- naming exactly DIE and STUDY. That page could
+        not be fetched directly (HTTP 402); the quote comes from search snippets
+        that agreed across two independent queries. blueprince.wiki.gg, this
+        project's usual source, does not mention outer rerolls either way.
+        So: owner-ruled, externally corroborated, not datamined.
         """
         assert self.phase is Phase.DRAFTING and self.state.pending is not None
         st = self.state
         pending = st.pending
-        assert pending.target_cell != -1, "outer-room drafts cannot be redrawn"
         if kind is RedrawKind.STUDY:
             assert st.study_placed and st.gems >= 1 and pending.study_redraws_used < 8
             st.gems -= 1
@@ -1165,7 +1195,12 @@ class Game:
         elif kind is RedrawKind.DIE:
             assert st.dice >= 1
             st.dice -= 1
-        redeal(st, self.registry, self.cfg, self.rng, self.placed_ids, pending)
+        if pending.target_cell == -1:  # outer-room draft: fixed pool, not the grid pipeline
+            pending.options.clear()
+            pending.rotations_used = 0  # fresh hand, fresh rotation budget
+            pending.options.extend(self._deal_outer_options("outer_redraw"))
+        else:
+            redeal(st, self.registry, self.cfg, self.rng, self.placed_ids, pending)
 
     def _rotation_source(self) -> bool:
         """Is a free-rotation source in play for the current hand?"""

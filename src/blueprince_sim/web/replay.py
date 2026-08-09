@@ -71,19 +71,21 @@ def _redraw_info(game: Game) -> dict:
     pending = st.pending
     kind = A._redraw_kind(game)
     if kind is None:
-        if pending is not None and pending.target_cell == -1:
-            reason = "outer-room drafts cannot be redrawn"
-        else:
-            missing = []
-            if st.dice < 1:
-                missing.append("no dice")
-            if not st.study_placed:
-                missing.append("Study not placed")
-            elif st.gems < 1:
-                missing.append("no gems for a Study redraw")
-            elif pending is not None and pending.study_redraws_used >= 8:
-                missing.append("Study redraws used up (8/8)")
-            reason = "; ".join(missing) or "no redraw source available"
+        # Outer-room drafts redraw the same as grid drafts (owner-ruled,
+        # externally corroborated -- see Game.redraw); FREE (Classroom) is the
+        # only source that's structurally unreachable there, since an outer
+        # hand has no from-cell to be "drafting from the Classroom" with, so
+        # it never shows up as a missing-source reason.
+        missing = []
+        if st.dice < 1:
+            missing.append("no dice")
+        if not st.study_placed:
+            missing.append("Study not placed")
+        elif st.gems < 1:
+            missing.append("no gems for a Study redraw")
+        elif pending is not None and pending.study_redraws_used >= 8:
+            missing.append("Study redraws used up (8/8)")
+        reason = "; ".join(missing) or "no redraw source available"
         return {"available": False, "kind": None, "reason": reason}
     info: dict = {"available": True, "kind": kind.value}
     if kind is RedrawKind.FREE:

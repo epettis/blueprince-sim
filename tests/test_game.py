@@ -3,11 +3,12 @@
 import random
 
 from blueprince_sim.config import GameConfig
-from blueprince_sim.engine.game import ANTECHAMBER_CELL, Game, Phase
+from blueprince_sim.engine.game import ANTECHAMBER_CELL, Game, Phase, RedrawKind
 from blueprince_sim.engine.grid import N, E, S, W
 from blueprince_sim.engine.state import DraftOption
 from blueprince_sim.cli.batch import run_episode
 from blueprince_sim.cli.policies import POLICIES, greedy_rank
+from blueprince_sim.env import actions as A
 
 
 def test_reset_state(registry, cfg):
@@ -299,6 +300,72 @@ def test_outer_draft_once_per_day(registry):
     assert not g.outer_draft_available()
 
 
+def test_outer_draft_available_while_already_at_the_doorstep():
+    """Standing at west_path in NAVIGATE phase (reached by ordinary off-grid
+    travel, not by opening the draft) must not refuse the outer draft, and
+    opening it from there costs no extra steps.
+
+    Regression for the bug where ``outer_draft_available()`` unconditionally
+    returned False whenever ``off_grid`` was True -- refusing the one place
+    (the doorstep itself) where the draft is obviously legal, and forcing a
+    wasted round-trip back onto the grid and out again just to reopen it.
+    """
+    cfg = GameConfig(west_gate_unlatched=True)
+    g = Game(cfg, seed=9)
+    g.state.steps = 10
+    g.travel_to("west_path")
+    assert g.state.area == "west_path" and g.off_grid
+    assert g.phase is Phase.NAVIGATE
+    assert not g.state.outer_room_drafted
+    assert g.outer_draft_available()
+    steps_before = g.state.steps
+    g.open_outer_draft()
+    assert g.state.steps == steps_before  # already at the doorstep: free to open
+    assert g.phase is Phase.DRAFTING
+    assert g.state.area == "west_path"
+
+
+def test_outer_draft_unavailable_once_drafted_today_even_at_the_doorstep():
+    """Once today's outer room has been drafted, standing at the doorstep
+    does not make the draft available again -- the once-per-day guard still
+    applies off-grid."""
+    cfg = GameConfig(west_gate_unlatched=True)
+    g = Game(cfg, seed=9)
+    g.open_outer_draft()
+    g.choose(0)
+    assert g.state.outer_room_drafted
+    assert g.state.area == "west_path" and g.off_grid
+    assert not g.outer_draft_available()
+
+
+def test_outer_draft_unavailable_mid_draft_phase():
+    """While a grid draft is already open (DRAFTING phase), the outer draft
+    is not available -- the phase guard is unaffected by the off-grid fix."""
+    cfg = GameConfig(west_gate_unlatched=True)
+    g = Game(cfg, seed=9)
+    g.open_door(2, N)
+    assert g.phase is Phase.DRAFTING
+    assert not g.outer_draft_available()
+
+
+def test_outer_draft_unavailable_off_grid_when_route_unaffordable():
+    """Off-grid but short of steps, the draft is still refused; one more
+    step makes it available -- affordability is enforced uniformly whether
+    the route starts on or off the grid, not bypassed by removing the
+    ``off_grid`` guard.
+    """
+    cfg = GameConfig(west_gate_unlatched=True)
+    g = Game(cfg, seed=9)
+    g.state.steps = 20
+    g.travel_to("grounds")  # off-grid, one edge short of west_path
+    assert g.off_grid and g.state.area == "grounds"
+    cost, _ = g.area_route_cost("west_path")
+    g.state.steps = cost  # exactly the route cost: no step left over on arrival
+    assert not g.outer_draft_available()
+    g.state.steps = cost + 1
+    assert g.outer_draft_available()
+
+
 def test_outer_draft_cost_from_entrance_hall():
     """Drafting from the Entrance Hall deducts exactly 2 steps (house->grounds->west_path).
 
@@ -411,6 +478,140 @@ def test_travel_to_outer_room_fires_once():
     assert g.state.area == outer_room.id  # inside the drafted outer room
     assert g.state.outer_room_entered
     assert g.state.steps == steps_before - 1  # graph: west_path->outer_room = 1 step
+
+
+def _outer_pending_room_idxs(g: Game) -> list[int]:
+    """The room_idx of each option in the currently pending outer hand."""
+    return [o.room_idx for o in g.state.pending.options]
+
+
+def test_outer_hand_redraw_via_die_redeals_from_the_outer_pool():
+    """Holding a die, redrawing an open outer hand spends exactly one die and
+    deals a fresh 3-slot hand from the fixed outer pool -- not the grid
+    pipeline, which has no doorway to deal against for an outer hand and
+    would silently misread ``state.grid[-1]`` as the "from room" if reused.
+
+    Regression for the bug where ``Game.redraw()`` asserted outer hands could
+    never be redrawn at all, no matter what the player held.
+    """
+    cfg = GameConfig(west_gate_unlatched=True)
+    g = Game(cfg, seed=9)
+    g.open_outer_draft()
+    g.state.dice = 3
+    assert g.state.pending.target_cell == -1
+    dice_before = g.state.dice
+    g.redraw(RedrawKind.DIE)
+    assert g.state.dice == dice_before - 1
+    assert g.state.pending.target_cell == -1  # still an outer hand
+    assert len(g.state.pending.options) == 3
+    assert all(g.registry.rooms[i].pool == "outer" for i in _outer_pending_room_idxs(g))
+
+
+def test_outer_hand_redraw_via_study_spends_a_gem_and_counts_toward_the_cap():
+    """A Study redraw on an open outer hand costs 1 gem and increments the
+    hand's ``study_redraws_used`` counter, the same bookkeeping a grid hand
+    gets -- the 8-per-hand cap is meant to keep applying off-grid."""
+    cfg = GameConfig(west_gate_unlatched=True)
+    g = Game(cfg, seed=9)
+    g.open_outer_draft()
+    g.state.study_placed = True
+    g.state.gems = 5
+    g.redraw(RedrawKind.STUDY)
+    assert g.state.gems == 4
+    assert g.state.pending.study_redraws_used == 1
+    assert all(g.registry.rooms[i].pool == "outer" for i in _outer_pending_room_idxs(g))
+
+
+def test_outer_hand_study_redraw_refused_at_the_8_cap():
+    """With 8 Study redraws already used on the open hand, ``_redraw_kind``
+    offers no source at all (no dice, Study capped) -- the cap holds on an
+    outer hand exactly as it does on a grid hand."""
+    cfg = GameConfig(west_gate_unlatched=True)
+    g = Game(cfg, seed=9)
+    g.open_outer_draft()
+    g.state.study_placed = True
+    g.state.gems = 5
+    g.state.dice = 0
+    g.state.pending.study_redraws_used = 8
+    assert A._redraw_kind(g) is None
+    assert not A.action_mask(g)[A.REDRAW_ACTION]
+
+
+def test_outer_hand_redraw_via_free_source_spends_no_resource():
+    """A free-redraw source (``pending.redraws_left > 0``, the Classroom's
+    mechanism) applies to an outer hand the same way it would to a grid hand:
+    it is preferred over dice/Study, spends no gem or die, and decrements the
+    per-hand counter by exactly one.
+
+    Under real play this counter is never populated for an outer hand today
+    (it is only set when drafting from inside a placed Classroom, which has
+    no meaning off-grid), so this exercises the mechanism directly rather
+    than a reachable play scenario -- see the accompanying report.
+    """
+    cfg = GameConfig(west_gate_unlatched=True)
+    g = Game(cfg, seed=9)
+    g.open_outer_draft()
+    g.state.pending.redraws_left = 1
+    g.state.dice = 3
+    g.state.study_placed = True
+    g.state.gems = 5
+    assert A._redraw_kind(g) is RedrawKind.FREE  # free beats die/study
+    gems_before, dice_before = g.state.gems, g.state.dice
+    g.redraw(RedrawKind.FREE)
+    assert g.state.pending.redraws_left == 0
+    assert g.state.gems == gems_before
+    assert g.state.dice == dice_before
+    assert all(g.registry.rooms[i].pool == "outer" for i in _outer_pending_room_idxs(g))
+
+
+def test_outer_hand_cannot_be_redrawn_without_any_source():
+    """With no dice, no Study placed, and no free-redraw source, the outer
+    hand's redraw stays refused in both the source lookup and the action
+    mask -- the fix must not make redraw unconditionally legal on an outer
+    hand."""
+    cfg = GameConfig(west_gate_unlatched=True)
+    g = Game(cfg, seed=9)
+    g.open_outer_draft()
+    g.state.dice = 0
+    g.state.study_placed = False
+    assert A._redraw_kind(g) is None
+    assert not A.action_mask(g)[A.REDRAW_ACTION]
+
+
+def test_outer_hand_redraw_is_deterministic_for_a_given_seed():
+    """Redrawing the outer hand via a die produces the same dealt hand every
+    time for the same seed -- the redraw must draw from its own seeded RNG
+    substream (rng.py's per-label determinism invariant), not from
+    unseeded/global randomness.
+    """
+    def _redrawn_hand(seed: int) -> list[int]:
+        cfg = GameConfig(west_gate_unlatched=True)
+        g = Game(cfg, seed=seed)
+        g.open_outer_draft()
+        g.state.dice = 1
+        g.redraw(RedrawKind.DIE)
+        return _outer_pending_room_idxs(g)
+
+    assert _redrawn_hand(9) == _redrawn_hand(9)
+
+
+def test_outer_hand_redraw_leaves_the_initial_deal_stream_untouched():
+    """A redraw must draw from its own RNG label, not the initial deal's
+    "outer_draft" label -- pinned by inspecting that label's substream state
+    directly (identical before and after a redraw), since two independent
+    Game instances can't otherwise distinguish a shared-label bug (each gets
+    its own fresh Rng regardless of what a *different* instance's redraw did).
+    Reusing "outer_draft" for redraws would shift every subsequent draw from
+    that label for the same seed -- the exact risk the brief calls out.
+    """
+    cfg = GameConfig(west_gate_unlatched=True)
+    g = Game(cfg, seed=9)
+    g.open_outer_draft()
+    state_after_initial_deal = g.rng.stream("outer_draft").getstate()
+
+    g.state.dice = 1
+    g.redraw(RedrawKind.DIE)
+    assert g.rng.stream("outer_draft").getstate() == state_after_initial_deal
 
 
 def test_return_costs_doorstep_to_eh():
