@@ -12,6 +12,7 @@ from .areas import GateContext, reachable
 from .decks import apply_upgrade, build_decks, inject_rooms
 from .draft import deal_draft, redeal
 from .effects import Hook
+from .effects.rooms import dovecote, great_hall, secret_garden, throne_room, weight_room
 from .grid import (ADJACENT, DIRS, E, ENTRANCE_CELL, N, N_CELLS, OPPOSITE, W,
                    neighbor, rank_of, rotate_mask)
 from .items import roll_room_items
@@ -98,6 +99,7 @@ class Game:
         self.bedroom_bonus = 0
         self.red_negations = 0
         self.hovel_placed = False
+        self.rotunda_placed = False  # Rotunda: free floorplan rotation while placed
         self.doorway_drafts: dict[tuple[int, int], PendingDraft] = {}
         self.phase = Phase.NAVIGATE
         self.termination_reason = ""
@@ -670,12 +672,14 @@ class Game:
         if pending is None:
             pending = deal_draft(st, self.registry, self.cfg, self.rng,
                                  self.placed_ids, cell, direction, target)
+            # Visible to ON_DRAFT_FROM handlers below (the Classroom's free-redraw
+            # grant reads/adds to pending.redraws_left, which defaults to 0).
+            st.pending = pending
             # ON_DRAFT_FROM fires once, on the initial deal only -- not on
             # redraws (see redraw(), which deliberately does not re-fire it).
             effects.fire(self, self.registry.rooms[st.grid[cell]], Hook.ON_DRAFT_FROM)
             for opt in pending.options:
                 effects.fire(self, self.registry.rooms[opt.room_idx], Hook.ON_HAND_DEALT)
-            pending.redraws_left = st.drafting_room_count if self._in_classroom_context() else 0
             # Paper Crown: +1 free redraw on an all-non-red initial deal.
             # Hidden options are treated as potentially red (no crown bonus if any hidden).
             if (self.cfg.special_items and special_items.has(st, "paper_crown")
@@ -702,11 +706,6 @@ class Game:
         if self.phase is not Phase.NAVIGATE:
             return None
         return self.open_door(cell, direction)
-
-    def _in_classroom_context(self) -> bool:
-        """Is the player drafting from inside the Classroom (grants free redraws)?"""
-        room_idx = self.state.grid[self.state.pos]
-        return room_idx >= 0 and self.registry.rooms[room_idx].id == "classroom"
 
     # --------------------------------------------------------- outer rooms
 
@@ -1261,10 +1260,9 @@ class Game:
             return False
         if st.pending.target_cell == -1:  # outer-room draft: no doorway to rotate against
             return False
-        if special_items.ornate_compass_active(self) or "rotunda" in self.placed_ids:
+        if special_items.ornate_compass_active(self) or self.rotunda_placed:
             return True
-        return any(self.registry.rooms[o.room_idx].id == "dovecote"
-                   for o in st.pending.options)
+        return dovecote.in_current_hand(self)
 
     def rotation_available(self) -> bool:
         """Can the current hand's floorplans be freely rotated?
@@ -1486,13 +1484,6 @@ class Game:
             return
         st.entered[cell] = True
         room = self.registry.rooms[st.grid[cell]]
-        # Boiler Room: entering it permanently opens the "boiler_room_steam" gate
-        # (Underpass -> Upper Rotating Gear). Owner decision, docs/open_tasks.md
-        # decisions log 2026-08-06: unlocked permanently after entering the room,
-        # unconditional on any other config toggle. Recorded on STATE, never on
-        # cfg -- same shape as west_gate_unlatched.
-        if room.id == "boiler_room":
-            st.boiler_room_steam = True
         effects.fire(self, room, Hook.ON_ENTER)
         roll_room_items(st, self.registry, room, self.rng)
         if self.cfg.special_items:
@@ -1500,11 +1491,6 @@ class Game:
             if room.category == "shop" or room.id == "workshop":  # workshop needs first-entry roll
                 shops.on_enter_shop(self, room)
         if self.cfg.door_locks:
-            if room.id == "security":
-                # Assume the player always flips the terminal's offline mode
-                # to Unlocked when visiting Security: from now on, cutting the
-                # power at the Utility Closet swings every security door open.
-                st.offline_unlocked = True
             kc = self.registry.lock_rules["keycard"]
             if (not st.has_keycard and room.id in kc["source_rooms"]
                     and self.rng.chance("keycard", kc["chance"] / 100.0)):
@@ -1518,56 +1504,22 @@ class Game:
             self._enter_lever_room(room, cell)
 
     def _enter_lever_room(self, room, cell: int) -> None:
-        """Open the sealed Antechamber segment for a lever room, if eligible.
+        """Route to a lever room's on-entry Antechamber-segment pull, if any.
 
-        Lever rooms and their segments (design doc antechamber-lever-design.md):
-        - Weight Room -> South (37, N): requires power_hammer held OR the
-          wall already broken (weight_room_wall_broken carry-over).
-        - Secret Garden -> West (41, E): no extra cost beyond entering.
-        - Great Hall -> East (43, W): costs 1 key (the prize-room side door);
-          if no key in hand, the lever is not pulled.
-        The Greenhouse -> South path is handled by special_items.install_lever.
-        Only rooms whose sealed segment is still DOOR_SEALED are acted on.
+        Each room's own eligibility and cost logic lives in its
+        effects/rooms module (design doc antechamber-lever-design.md); this
+        only dispatches by id. The Greenhouse's South lever is a separate
+        path, handled entirely by special_items.install_lever.
         """
-        st = self.state
         match room.id:
             case "weight_room":
-                seg = segment_key(37, N)  # South: cell 37 north face -> antechamber
-                if st.door_state.get(seg) != DOOR_SEALED:
-                    return
-                can_break = (
-                    self.cfg.weight_room_wall_broken
-                    or st.shops.weight_room_wall_broken
-                    or (self.cfg.special_items
-                        and special_items.has(st, "power_hammer"))
-                )
-                if not can_break:
-                    return
-                # Record the wall break for carryover (permanent on future days).
-                st.shops.weight_room_wall_broken = True
-                self._open_segment(37, N)
+                weight_room.pull_south_lever(self, cell)
             case "secret_garden":
-                seg = segment_key(41, E)  # West: cell 41 east face -> antechamber
-                if st.door_state.get(seg) != DOOR_SEALED:
-                    return
-                self._open_segment(41, E)
+                secret_garden.pull_west_lever(self, cell)
             case "great_hall":
-                seg = segment_key(43, W)  # East: cell 43 west face -> antechamber
-                if st.door_state.get(seg) != DOOR_SEALED:
-                    return
-                # Lever sits behind a locked side door; no key means no pull.
-                cost = self.lever_key_cost(cell)
-                if st.keys < cost:
-                    return
-                st.keys -= cost
-                self._open_segment(43, W)
+                great_hall.pull_east_lever(self, cell)
             case "throne_room":
-                # Backup north-door lever (studio addition). Entering the Throne Room
-                # pulls the north lever; no extra cost beyond entering.
-                seg = segment_key(ANTECHAMBER_CELL, N)
-                if st.door_state.get(seg) != DOOR_SEALED:
-                    return
-                self._open_north_door()
+                throne_room.pull_north_lever(self, cell)
 
     def lever_key_cost(self, cell: int) -> int:
         """Keys that pulling ``cell``'s Antechamber lever would spend right now.
