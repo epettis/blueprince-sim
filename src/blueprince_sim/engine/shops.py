@@ -1124,6 +1124,18 @@ def carryover(game) -> dict:
         # The payout (lighting the altar) clears chapel_tithes to 0 in state;
         # the carryover sum stays 0 after that event, which is correct.
         "chapel_tithes": state.special.chapel_tithes,
+        # Allowance: running permanent total (yesterday's total plus any gains
+        # today from Allowance Tokens / Cloister of Lydia). Replaces cfg.allowance
+        # wholesale next day -- the same shape as chapel_tithes/foundation_cell,
+        # not an OR-merge, since state.allowance already IS the accumulated value.
+        "allowance": state.allowance,
+        # Fixed-source Allowance Token ids collected today (a Mora Jai box or
+        # the Cloister's own token): accumulated union across all days, the
+        # same shape as collected_disks.
+        "collected_allowance_tokens": sorted(
+            set(getattr(cfg, "collected_allowance_tokens", frozenset()))
+            | si_mod.fixed_allowance_tokens_collected_today(state, game.registry)
+        ),
         # The Foundation's permanent placement: once cfg.foundation_cell is set (drafted
         # on an earlier day) it always wins - the placement never moves. Otherwise report
         # state's value, which is >= 0 only if it was drafted today.

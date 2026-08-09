@@ -1455,18 +1455,167 @@
    "name": "Allowance Token",
    "kind": "unique",
    "tier": null,
-   "unique": true,
-   "persistence": "permanent",
+   "unique": false,
+   "persistence": "day",
    "spawn_rooms": [],
    "spawn_rooms_high_luck": [],
    "guaranteed_in": [],
-   "effects": [],
-   "implemented": false,
+   "effects": [
+    {
+     "tag": "allowance",
+     "amount": 2
+    }
+   ],
+   "implemented": true,
    "meta": {
     "source": "https://blueprince.wiki.gg/wiki/Allowance_Token",
     "confidence": "wiki",
     "absent_spawn_areas": [],
-    "blocked_on": "allowance_not_modeled"
+    "blocked_on": null,
+    "notes": "The repeatable-source id: Trading Post tier-5 trades and Jack Hammer digging can each yield another one, and the Vault 149/233 boxes also grant this id (their own key-tracked one-shot open already makes them one-time, so no per-source id is needed there). Not unique -- multiple grants the same day must each pay out. Converts straight to allowance on pickup (special_items.py::_on_pickup) rather than sitting in inventory. Fixed one-time-only sources (a Mora Jai box, the Cloister's own token) use their own dedicated ids instead -- see allowance_token_cloister etc."
+   }
+  },
+  {
+   "id": "allowance_token_cloister",
+   "name": "Allowance Token (Cloister)",
+   "kind": "unique",
+   "tier": null,
+   "unique": true,
+   "persistence": "day",
+   "spawn_rooms": [],
+   "spawn_rooms_high_luck": [],
+   "guaranteed_in": [
+    "cloister",
+    "cloister_of_rynna__ix29",
+    "cloister_of_joya__ix30",
+    "cloister_of_dauja__ix31",
+    "cloister_of_veia__ix32",
+    "cloister_of_mila__ix33",
+    "cloister_of_lydia__ix34",
+    "cloister_of_orinda__ix35",
+    "cloister_of_draxus__ix36"
+   ],
+   "effects": [
+    {
+     "tag": "allowance",
+     "amount": 2
+    }
+   ],
+   "implemented": true,
+   "meta": {
+    "source": "https://blueprince.wiki.gg/wiki/Allowance",
+    "confidence": "wiki",
+    "absent_spawn_areas": [],
+    "blocked_on": null,
+    "notes": "\"Always present in the room until it is collected\" -- a single findable token, one-time across the whole attempt (a floor has at most one Cloister, whichever named variant it becomes; room effects are not inherited through variant_of, so the base id plus all 8 named variants are each listed). One unique id per one-time source, same convention as the fixed-location Upgrade Disks: gated permanently across days via GameConfig.collected_allowance_tokens, not by holding the item (see fixed_allowance_tokens_collected_today)."
+   }
+  },
+  {
+   "id": "allowance_token_master_bedroom",
+   "name": "Allowance Token (Master Bedroom Mora Jai Box)",
+   "kind": "unique",
+   "tier": null,
+   "unique": true,
+   "persistence": "day",
+   "spawn_rooms": [],
+   "spawn_rooms_high_luck": [],
+   "guaranteed_in": [
+    "master_bedroom"
+   ],
+   "effects": [
+    {
+     "tag": "allowance",
+     "amount": 2
+    }
+   ],
+   "implemented": true,
+   "meta": {
+    "source": "https://blueprince.wiki.gg/wiki/Mora_Jai_Box",
+    "confidence": "wiki",
+    "absent_spawn_areas": [],
+    "blocked_on": null,
+    "notes": "The Master Bedroom's Mora Jai box gives one Allowance Token when completed. Assumed-solved doctrine: granted on first entry. Mora Jai boxes do not respawn once solved, so this is a one-time source gated via GameConfig.collected_allowance_tokens (see allowance_token_cloister)."
+   }
+  },
+  {
+   "id": "allowance_token_solarium",
+   "name": "Allowance Token (Solarium Mora Jai Box)",
+   "kind": "unique",
+   "tier": null,
+   "unique": true,
+   "persistence": "day",
+   "spawn_rooms": [],
+   "spawn_rooms_high_luck": [],
+   "guaranteed_in": [
+    "solarium"
+   ],
+   "effects": [
+    {
+     "tag": "allowance",
+     "amount": 2
+    }
+   ],
+   "implemented": true,
+   "meta": {
+    "source": "https://blueprince.wiki.gg/wiki/Mora_Jai_Box",
+    "confidence": "wiki",
+    "absent_spawn_areas": [],
+    "blocked_on": null,
+    "notes": "The Solarium's Mora Jai box gives an Allowance Token. Assumed-solved doctrine: granted on first entry. One-time source, same shape as allowance_token_master_bedroom."
+   }
+  },
+  {
+   "id": "allowance_token_trading_post",
+   "name": "Allowance Token (Trading Post Mora Jai Box)",
+   "kind": "unique",
+   "tier": null,
+   "unique": true,
+   "persistence": "day",
+   "spawn_rooms": [],
+   "spawn_rooms_high_luck": [],
+   "guaranteed_in": [
+    "trading_post"
+   ],
+   "effects": [
+    {
+     "tag": "allowance",
+     "amount": 2
+    }
+   ],
+   "implemented": true,
+   "meta": {
+    "source": "https://blueprince.wiki.gg/wiki/Mora_Jai_Box",
+    "confidence": "wiki",
+    "absent_spawn_areas": [],
+    "blocked_on": null,
+    "notes": "Owner-confirmed from play: the Trading Post has a Mora Jai box containing a +2 Allowance Token, openable exactly once. The wiki's Mora Jai Box page does not itself state this room's contents. Assumed-solved doctrine: granted on first entry. One-time source, same shape as allowance_token_master_bedroom."
+   }
+  },
+  {
+   "id": "allowance_token_closed_exhibit",
+   "name": "Allowance Token (Closed Exhibit Mora Jai Box)",
+   "kind": "unique",
+   "tier": null,
+   "unique": true,
+   "persistence": "day",
+   "spawn_rooms": [],
+   "spawn_rooms_high_luck": [],
+   "guaranteed_in": [
+    "closed_exhibit"
+   ],
+   "effects": [
+    {
+     "tag": "allowance",
+     "amount": 2
+    }
+   ],
+   "implemented": true,
+   "meta": {
+    "source": "https://blueprince.wiki.gg/wiki/Mora_Jai_Box",
+    "confidence": "wiki",
+    "absent_spawn_areas": [],
+    "blocked_on": null,
+    "notes": "Owner-confirmed from play: the Closed Exhibit has a Mora Jai box with a +2 Allowance Token. The wiki's Mora Jai Box page does not itself state this room's contents. This is a separate incidental pickup from the room's own security-lock puzzle (2026-08-09 ruling excludes the Closed Exhibit's OWN reward from the puzzle-reward doctrine because the lock system is the mechanic); the box is unrelated to that lock. Assumed-solved doctrine: granted on first entry. One-time source, same shape as allowance_token_master_bedroom."
    }
   },
   {

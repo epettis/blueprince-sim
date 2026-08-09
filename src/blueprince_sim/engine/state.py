@@ -139,6 +139,14 @@ class GameState:
     gems: int = 0  # spent to draft gem-cost rooms and on Study redraws
     keys: int = 0  # spendable keys; opening a locked door costs one
     coins: int = 0  # money from coin piles etc.; only feeds resource_value (shops not modeled)
+    # Permanent allowance total (the wiki's "packet" that appears at Entrance Hall
+    # every day it's nonzero). Seeded from cfg.allowance at reset(); grown in-run
+    # by Allowance Tokens (+2 each, special_items.py) and Cloister of Lydia (+2
+    # per Shop drafted from it, effects/rooms/cloister.py). Reported by
+    # carryover() and replaced wholesale into cfg.allowance by DayChain each
+    # advance() -- the same shape as chapel_tithes. Never itself spent; its
+    # value is what gets folded into coins at the start of every future day.
+    allowance: int = 0
     dice: int = 0  # redraw dice: spend one to redraw the current draft hand
     luck: int = 10  # scales bonus-item odds between items.json floor and max_effect_at
 

@@ -34,6 +34,8 @@ def _grant(game, resource: str, amount: int) -> None:
             st.dice = max(0, st.dice + amount)
         case "luck":
             st.luck += amount
+        case "allowance":
+            st.allowance = max(0, st.allowance + amount)
         # "stars" and other out-of-scope currencies are tracked nowhere; no-op.
 
 

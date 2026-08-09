@@ -151,6 +151,12 @@ def observation_space(n_rooms: int, n_items: int, n_recipes: int,
         # is unpriceable to the agent unless V(s) can see how much of the lifetime
         # 160-coin budget is already earned.
         "treasure_trove_piles": spaces.Box(0, 32, shape=(1,), dtype=np.int16),
+        # allowance: the permanent allowance total (state.allowance), separate
+        # from today's already-spent "resources" coins figure -- the size of
+        # the permanent income stream the attempt has banked so far, same
+        # rationale as disks_spent/treasure_trove_piles/upgrade_slots: V(s)
+        # cannot price a cross-day investment it cannot see.
+        "allowance": spaces.Box(0, 9999, shape=(1,), dtype=np.int16),
     })
 
 
@@ -461,6 +467,9 @@ def encode(game: Game, day_chain: DayChain | None = None) -> dict:
         [min(st.draft_counts.get("treasure_trove", 0), 32)], dtype=np.int16
     )
 
+    # allowance: the permanent total banked so far this attempt, clamped to the space bound.
+    allowance_obs = np.array([min(st.allowance, 9999)], dtype=np.int16)
+
     return {
         "grid_room": grid_room,
         "grid_doors": grid_doors,
@@ -493,4 +502,5 @@ def encode(game: Game, day_chain: DayChain | None = None) -> dict:
         "upgrade_slots": upgrade_slots_obs,
         "disks_spent": disks_spent_obs,
         "treasure_trove_piles": treasure_trove_piles_obs,
+        "allowance": allowance_obs,
     }

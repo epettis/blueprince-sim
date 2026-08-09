@@ -54,6 +54,7 @@ KNOWN_ITEM_EFFECT_TAGS = {
     "compass", "ornate_compass", "emerald_bracelet", "dig_tool", "treasure_map",
     "metal_detector_spawns", "auto_collect", "mask_red_room", "paper_crown",
     "set_steps_on_pickup", "steps_at_rank", "negate_red_once_per_day",
+    "allowance",
     # PR2+ / inert tags
     "shop_discount", "smash", "repellent", "scepter", "chronograph",
     "crown_of_blueprints", "gear_wrench", "dowsing_rod", "locksmith_rob",

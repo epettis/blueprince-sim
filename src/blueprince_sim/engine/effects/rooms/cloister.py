@@ -21,6 +21,8 @@ Implemented:
     and is out of this module's scope, so only the reward half is modeled
     here -- it pays out for whatever Dead End is actually drafted rather than
     guaranteeing every draft is one.
+  - cloister_of_lydia__ix34 -- 2 permanent allowance for each Shop drafted
+    from this Cloister.
 
 Not modeled, and why:
   - cloister_of_joya__ix30: the Dining Room's "main course" bonus has no
@@ -31,8 +33,6 @@ Not modeled, and why:
     (effects/tier1.py::_grant no-ops "stars" explicitly).
   - cloister_of_veia__ix32: "room with a fireplace" is not a category or flag
     anywhere in rooms.json.
-  - cloister_of_lydia__ix34: allowance is unmodeled (special_items.json's
-    allowance_token carries blocked_on: "allowance_not_modeled").
 """
 
 from __future__ import annotations
@@ -48,6 +48,7 @@ ANTECHAMBER_CELL = 42  # rank 9, center column
 # activation." The record's own effect_text carries no number.
 LUCK_PER_GREEN_ROOM = 6
 DICE_PER_DEAD_END = 4  # cloister_of_draxus__ix36, per meta.glyph_resolution icon "dice"
+ALLOWANCE_PER_SHOP = 2  # cloister_of_lydia__ix34, from its own effect_text
 
 # The Antechamber's four doorway segments, as (cell, direction) pairs -- matches
 # the SEALED assignment Game.reset makes when antechamber_levers is True.
@@ -134,3 +135,10 @@ def grant_dice_for_dead_ends(game, room, ctx_room) -> None:
     (see the module docstring for the "WILL draft" gap)."""
     if ctx_room is not None and ctx_room.layout == "dead_end" and _drafted_from(game, room):
         _grant(game, "dice", DICE_PER_DEAD_END)
+
+
+@room_hook("cloister_of_lydia__ix34", Hook.ON_DRAFT_ROOM)
+def raise_allowance_for_shops(game, room, ctx_room) -> None:
+    """"Add 2[coin] to your allowance for each SHOP you draft from this CLOISTER"."""
+    if ctx_room is not None and ctx_room.category == "shop" and _drafted_from(game, room):
+        _grant(game, "allowance", ALLOWANCE_PER_SHOP)
