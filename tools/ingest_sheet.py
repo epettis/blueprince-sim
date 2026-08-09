@@ -132,7 +132,7 @@ GLYPH_MAP: dict[str, list[tuple[str, str]]] = {
 }
 
 # Per-variant overrides for the ambiguous-glyph list, keyed by suffixed record id.
-# Mirrors VARIANT_EFFECT_MAP: used when a variant's Effect text differs from its base
+# Mirrors EFFECT_OVERRIDE: used when a variant's Effect text differs from its base
 # (different number of bare ð glyphs, or a different icon). Also used for variants
 # whose text has NO bare glyphs (empty list) so resolve_glyphs sees no leftovers.
 # Bunk Room: base has no glyphs; ix20 doubles keys, ix21 doubles gems, ix22 doubles
@@ -233,19 +233,106 @@ EFFECT_MAP: dict[str, dict] = {
     "the_foundation": {"items": {"dig_spots": 2}},
 }
 
-# Per-variant overrides, keyed by the suffixed id (e.g. "parlor__ix108").
-# Applied AFTER EFFECT_MAP so these override the base-slug entry.
-VARIANT_EFFECT_MAP: dict[str, dict] = {
+# Per-record overrides for the room-fidelity audit, keyed by the FINAL record id
+# (unsuffixed for base-pool rooms like "vault", "__ix"-suffixed for upgrade
+# variants like "parlor__ix108"). Applied AFTER EFFECT_MAP, so an entry here
+# always wins regardless of what EFFECT_MAP produced from the base slug — this
+# is the one place to add the next audited effects/items.guaranteed fix,
+# whether the record is base-pool or a variant. Each entry sets "effects"
+# and/or "items" (with "guaranteed" only; other item keys like dig_spots stay
+# whatever EFFECT_MAP set); a field left out of an entry keeps its pre-override
+# value rather than being cleared. validate_effect_override() (called from
+# main()) raises if a key here is not among the ids the sheet actually
+# produces, so a typo'd id fails the ingest instead of silently doing nothing.
+EFFECT_OVERRIDE: dict[str, dict] = {
     # ix108: "3ð Prize" — the upgrade variant that increases the Parlor box to 3 gems.
     "parlor__ix108": {"items": {"guaranteed": [{"item": "gem", "count": 3}]}},
     # Boudoir's safe is a fixture of the room, so it survives every upgrade. Room
     # effects are NOT inherited through variant_of (each record is an independent
     # frozen Room), so the grant has to be repeated per variant rather than left
-    # to the base entry.
-    "boudoir__ix16": {"effects": [{"tag": "grant", "resource": "gems", "amount": 1}]},
-    "boudoir__ix17": {"effects": [{"tag": "grant", "resource": "gems", "amount": 1}]},
-    "boudoir__ix18": {"effects": [{"tag": "grant", "resource": "gems", "amount": 1}]},
+    # to the base entry. Each variant also adds its own upgrade effect.
+    "boudoir__ix16": {"effects": [
+        {"tag": "grant", "resource": "gems", "amount": 1},
+        {"tag": "grant", "resource": "gems", "amount": 1}]},
+    "boudoir__ix17": {"effects": [
+        {"tag": "grant", "resource": "gems", "amount": 1},
+        {"tag": "grant", "resource": "dice", "amount": 2}]},
+    "boudoir__ix18": {"effects": [
+        {"tag": "grant", "resource": "gems", "amount": 1},
+        {"tag": "grant", "resource": "gems", "amount": 3}]},
+    # Exact coin piles (room-fidelity audit): the raw sheet's Effect text gives a
+    # specific coin count per room, but EFFECT_MAP's base entries only emit a
+    # generic "coins" pile. "coins_exact" is a plain item kind, not something
+    # the ingest pipeline resolves — it is just written here verbatim.
+    "vault": {"items": {"guaranteed": [{"item": "coins_exact", "count": 40}]}},
+    "rumpus_room": {"items": {"guaranteed": [{"item": "coins_exact", "count": 8}]}},
+    "pantry": {"items": {"guaranteed": [{"item": "coins_exact", "count": 4}]}},
+    # Storeroom upgrade variants each roll a different key/gem/coin mix; ix146's
+    # coin pile is also exact rather than a generic pile.
+    "storeroom__ix144": {"items": {"guaranteed": [
+        {"item": "key", "count": 2}, {"item": "gem", "count": 1}, {"item": "coins", "count": 1}]}},
+    "storeroom__ix145": {"items": {"guaranteed": [
+        {"item": "key", "count": 1}, {"item": "gem", "count": 2}, {"item": "coins", "count": 1}]}},
+    "storeroom__ix146": {"items": {"guaranteed": [
+        {"item": "key", "count": 1}, {"item": "gem", "count": 1},
+        {"item": "coins_exact", "count": 10}]}},
+    # Nook-family variants each have their own name (so EFFECT_MAP's "nook"
+    # entry, keyed by base slug, only matches the plain "Nook" record) and their
+    # own key count.
+    "nook__ix97": {"items": {"guaranteed": [{"item": "key", "count": 2}]}},
+    "reading_nook__ix99": {"items": {"guaranteed": [{"item": "key", "count": 1}]}},
+    "breakfast_nook__ix98": {"items": {"guaranteed": [{"item": "key", "count": 1}]}},
+    # Hallway upgrade variant grants a key; the base Hallway does not.
+    "hallway__ix74": {"items": {"guaranteed": [{"item": "key", "count": 1}]}},
+    # Closet-family variants each have their own name, so EFFECT_MAP's "closet"
+    # entry (keyed by base slug) does not match; they grant the same 2 random
+    # items as the base Closet.
+    "hallway_closet__ix39": {"items": {"guaranteed": [{"item": "random", "count": 2}]}},
+    "bedroom_closet__ix40": {"items": {"guaranteed": [{"item": "random", "count": 2}]}},
+    # Nursery-family variants each have their own name, so EFFECT_MAP's
+    # "nursery" entry does not match; each variant has its own upgrade effect.
+    "indoor_nursery__ix103": {"effects": [
+        {"tag": "grant_on_draft_category", "resource": "gems", "amount": 2, "category": "green"}]},
+    "nurses_station__ix102": {"effects": [
+        {"tag": "set_resource_on_enter", "resource": "steps", "value": 20, "if_below": 10}]},
+    # Second-level variants (upgrades of an upgrade): each has its own name, so
+    # EFFECT_MAP's base-slug entry does not match.
+    "spare_master_bedroom__ix136": {"effects": [
+        {"tag": "grant_per_category", "resource": "steps", "amount": 1, "category": "any"}]},
+    "spare_terrace__ix141": {"effects": [{"tag": "free_green_drafts"}]},
+    "pool_hall__ix12": {"effects": [
+        {"tag": "inject_pool", "rooms": ["great_hall", "foyer", "secret_passage"]}]},
 }
+
+
+def apply_effect_override(entry: dict) -> None:
+    """Apply EFFECT_OVERRIDE to *entry* in place, keyed by its final ``id``.
+
+    Sets ``entry["effects"]`` and/or ``entry["items"]["guaranteed"]`` from the
+    matching override entry, fully replacing rather than merging each field,
+    so it is safe to call regardless of what EFFECT_MAP already set. A field
+    the override entry omits is left untouched.
+    """
+    override = EFFECT_OVERRIDE.get(entry["id"])
+    if override:
+        if "effects" in override:
+            entry["effects"] = override["effects"]
+        if "items" in override:
+            entry["items"].update(override["items"])
+
+
+def validate_effect_override(seen_ids: set[str]) -> None:
+    """Raise if EFFECT_OVERRIDE keys an id the sheet parse did not produce.
+
+    *seen_ids* is the set of ids assembled from the parsed sheet rows only
+    (tools/supplemental_rooms.json is merged in separately and EFFECT_OVERRIDE
+    does not apply to it). A key absent from *seen_ids* would otherwise never
+    be looked up by apply_effect_override and would silently do nothing.
+    """
+    unknown = sorted(set(EFFECT_OVERRIDE) - seen_ids)
+    if unknown:
+        raise ValueError(f"EFFECT_OVERRIDE has id(s) not produced by the sheet: {unknown}")
+
 
 # Per-category default for luck-scaled extra items (Item Spawns table is
 # Cloudflare-blocked; these are community-informed estimates, confidence
@@ -425,13 +512,8 @@ def build_room(row: dict) -> dict | None:
             entry["effects"] = overrides["effects"]
         if "items" in overrides:
             entry["items"].update(overrides["items"])
-    # Per-variant overrides applied after base EFFECT_MAP (may tighten, e.g. gem count).
-    variant_overrides = VARIANT_EFFECT_MAP.get(entry["id"])
-    if variant_overrides:
-        if "effects" in variant_overrides:
-            entry["effects"] = variant_overrides["effects"]
-        if "items" in variant_overrides:
-            entry["items"].update(variant_overrides["items"])
+    # Per-record audit overrides applied after base EFFECT_MAP (may tighten, e.g. gem count).
+    apply_effect_override(entry)
     # Resolve glyphs per-record: id-keyed override takes precedence over name-keyed map.
     # VARIANT_GLYPH_MAP entries with an empty list signal "no bare glyphs in this variant"
     # and resolve to [] (no glyph_resolution key written). The name-keyed GLYPH_MAP only
@@ -482,6 +564,8 @@ def main() -> None:
             continue
         seen.add(r["id"])
         rooms.append(r)
+
+    validate_effect_override(seen)
 
     # Second-level upgrades name their parent variant by plain slug; resolve
     # to the actual (suffixed) id so variant chains reference real records.
