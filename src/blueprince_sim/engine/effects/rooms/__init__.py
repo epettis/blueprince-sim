@@ -11,6 +11,7 @@ from __future__ import annotations
 from . import boiler_room  # noqa: F401  (registers room_hook handlers on import)
 from . import bunk_room  # noqa: F401
 from . import classroom  # noqa: F401
+from . import closet  # noqa: F401
 from . import cloister  # noqa: F401
 from . import conservatory  # noqa: F401
 from . import dovecote  # noqa: F401  (no handler; imported for the predicate helper)
