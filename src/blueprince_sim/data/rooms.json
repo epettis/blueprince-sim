@@ -1322,8 +1322,8 @@
       "count": 1
      },
      {
-      "item": "coins",
-      "count": 1
+      "item": "coins_exact",
+      "count": 10
      }
     ],
     "additional_max": 1,
@@ -1840,8 +1840,8 @@
    "items": {
     "guaranteed": [
      {
-      "item": "coins",
-      "count": 1
+      "item": "coins_exact",
+      "count": 4
      }
     ],
     "additional_max": 1,
@@ -1882,8 +1882,8 @@
    "items": {
     "guaranteed": [
      {
-      "item": "coins",
-      "count": 2
+      "item": "coins_exact",
+      "count": 8
      }
     ],
     "additional_max": 1,
@@ -1924,8 +1924,8 @@
    "items": {
     "guaranteed": [
      {
-      "item": "coins",
-      "count": 8
+      "item": "coins_exact",
+      "count": 40
      }
     ],
     "additional_max": 1,
