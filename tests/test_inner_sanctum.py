@@ -16,6 +16,7 @@ from __future__ import annotations
 from blueprince_sim.config import GameConfig
 from blueprince_sim.engine import special_items as si
 from blueprince_sim.engine.game import Game
+from blueprince_sim.env import obs as O
 from blueprince_sim.env.actions import OPEN_SIGIL_DOOR_BASE, action_mask
 from blueprince_sim.env.multiday import DayChain
 
@@ -190,3 +191,22 @@ def test_sigil_door_action_masked_on_for_sealed_doors_with_a_key(registry):
     opened_index = sorted(si.SIGIL_REALMS).index("arch_aries")
     assert mask2[OPEN_SIGIL_DOOR_BASE + opened_index] is False
     assert sum(mask2[OPEN_SIGIL_DOOR_BASE:OPEN_SIGIL_DOOR_BASE + 8]) == 7
+
+
+# -------------------------------------------------------------------- obs
+
+
+def test_sigil_doors_open_observation_reflects_todays_and_carried_openings(registry):
+    """The sigil_doors_open observation bit flips on for a door opened earlier
+    today AND for one carried in from an earlier day (cfg), sorted realm order."""
+    cfg = GameConfig(special_items=True, room46_reached=True)
+    g = _game_at_sanctum(cfg, registry=registry)
+    obs_before = O.encode(g)
+    assert obs_before["sigil_doors_open"].sum() == 0
+
+    si.grant(g.state, g.registry, "sanctum_key_vault", source="test")
+    g.open_sigil_door("arch_aries")
+    obs_after = O.encode(g)
+    realm_order = sorted(si.SIGIL_REALMS)
+    assert obs_after["sigil_doors_open"][realm_order.index("arch_aries")] == 1
+    assert obs_after["sigil_doors_open"].sum() == 1
