@@ -488,13 +488,17 @@ def action_mask(game: Game, prev_action: int | None = None) -> list[bool]:
 def _redraw_kind(game: Game) -> RedrawKind | None:
     """Cheapest redraw source available right now (free > die > study), or None.
 
-    Outer-room drafts (``pending.target_cell == -1``) can never be redrawn;
-    the Study source costs a gem and is capped at 8 uses per hand.
+    Applies to outer-room drafts (``pending.target_cell == -1``) the same as
+    grid drafts (owner-ruled, externally corroborated -- see Game.redraw).
+    The Study source costs a gem and is capped at 8 uses per hand; FREE
+    (Classroom) redraws are only ever nonzero when drafting from inside the
+    Classroom, which is impossible for an outer hand (no from-cell), so FREE
+    naturally never applies there without any outer-specific carve-out.
     """
     st = game.state
     pending = st.pending
-    if pending is None or pending.target_cell == -1:
-        return None  # outer-room drafts cannot be redrawn
+    if pending is None:
+        return None
     if pending.redraws_left > 0:
         return RedrawKind.FREE
     if st.dice >= 1:
