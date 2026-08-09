@@ -1,11 +1,9 @@
-"""Storeroom coin grants: one upgrade variant switched to an exact figure by the
-2026-08-09 ruling (docs/open_tasks.md), the rest left on the original pile roll.
+"""Storeroom guaranteed items, for the base room and its three upgrade variants.
 
-storeroom__ix146's effect_text states "+10 coins"; its items.guaranteed used to
-spend that as a single PILE (rolling 1-5). This file pins the fix for ix146
-and, separately, confirms the base Storeroom (whose effect_text has no exact
-coin figure) still rolls a pile -- proving the exact-grant flag is opt-in, not
-a change to the pile-roll default.
+Nothing is inherited through ``variant_of``, so each record states its own
+key/gem/coin counts and each is pinned separately here. The coin entries differ
+in kind: ``storeroom__ix146`` grants a literal amount, while the base room and
+the other two variants grant coin PILES whose sizes roll per pile.
 """
 
 from __future__ import annotations
@@ -13,47 +11,74 @@ from __future__ import annotations
 from blueprince_sim.config import GameConfig
 from blueprince_sim.engine.game import Game
 
+PILE_MIN, PILE_MAX = 1, 5
 
-def _game_with_room(room_id: str, cell: int, seed: int = 0) -> Game:
-    """Return a Game with ``room_id`` placed at ``cell``, not yet entered."""
-    g = Game(GameConfig(), seed=seed)
+
+def _game_with_room(room_id: str, cell: int, seed: int = 0, **cfg_kwargs) -> Game:
+    """Return a Game with ``room_id`` placed at ``cell``, not yet entered.
+
+    Luck is floored so the room's ``additional_max`` extra-item roll never
+    fires, keeping the guaranteed-item assertions deterministic.
+    """
+    g = Game(GameConfig(**cfg_kwargs), seed=seed)
+    g.state.luck = 0
     room = g.registry.by_id[room_id]
     g.state.grid[cell] = room.idx
     g.state.placed_doors[cell] = room.door_mask
     return g
 
 
-def test_storeroom_ix146_entry_grants_exactly_10_coins_every_seed():
-    """storeroom__ix146's guaranteed grant is a literal 10 coins, not a 1-5 pile roll.
+def test_storeroom_ix144_grants_two_keys_one_gem_one_coin():
+    """storeroom__ix144 grants +2 keys, +1 gem and one coin pile on first entry.
 
-    Luck is pinned to the floor so the room's additional_max=1 luck-rolled
-    bonus item never fires, isolating the guaranteed coins_exact grant from an
-    unrelated (and still probabilistic) extra-item roll. Checked across many
-    seeds because under the old pile-roll code this ranged 1-5.
-    """
+    The coin assertion is a lower bound because the pile size rolls."""
+    cell = 5
+    g = _game_with_room("storeroom__ix144", cell, special_items=True)
+    keys0, gems0, coins0 = g.state.keys, g.state.gems, g.state.coins
+
+    g._enter(cell)
+    assert g.state.keys == keys0 + 2
+    assert g.state.gems == gems0 + 1
+    assert g.state.coins > coins0
+
+
+def test_storeroom_ix145_grants_one_key_two_gems_one_coin():
+    """storeroom__ix145 grants +1 key, +2 gems and one coin pile on first entry.
+
+    The coin assertion is a lower bound because the pile size rolls."""
+    cell = 5
+    g = _game_with_room("storeroom__ix145", cell, special_items=True)
+    keys0, gems0, coins0 = g.state.keys, g.state.gems, g.state.coins
+
+    g._enter(cell)
+    assert g.state.keys == keys0 + 1
+    assert g.state.gems == gems0 + 2
+    assert g.state.coins > coins0
+
+
+def test_storeroom_ix146_entry_grants_exactly_10_coins_every_seed():
+    """storeroom__ix146 grants a literal 10 coins on entry, identically on every seed.
+
+    Swept across seeds because the property is the absence of variance: a pile
+    roll would land on a range instead of a single value."""
     cell = 5
     for seed in range(1, 31):
         g = _game_with_room("storeroom__ix146", cell, seed=seed)
-        g.state.luck = 0
         g._enter(cell)
         assert g.state.coins == 10, f"seed {seed}: expected exactly 10 coins, got {g.state.coins}"
 
 
 def test_base_storeroom_coins_still_roll_a_pile_range():
-    """The base Storeroom (no exact coin figure in its effect_text) still rolls
-    a 1-5 coin pile on entry -- the exact-grant flag is opt-in per room, not a
-    blanket change to how "coins" behaves.
+    """The base Storeroom's coin entry is a pile, so its payout is a distribution.
 
-    Asserts both that every seed lands in [1, 5] and that at least two
-    different totals appear across 30 seeds, proving this is still a
-    distribution and not (accidentally) pinned to one value.
-    """
+    Asserts every seed lands within the pile range and that at least two totals
+    appear, which distinguishes a live roll from a value pinned by accident."""
     cell = 5
     totals = set()
     for seed in range(1, 31):
         g = _game_with_room("storeroom", cell, seed=seed)
-        g.state.luck = 0  # isolate the guaranteed pile from the luck-rolled extra item
         g._enter(cell)
-        assert 1 <= g.state.coins <= 5, f"seed {seed}: coins {g.state.coins} outside pile range 1-5"
+        assert PILE_MIN <= g.state.coins <= PILE_MAX, (
+            f"seed {seed}: coins {g.state.coins} outside pile range {PILE_MIN}-{PILE_MAX}")
         totals.add(g.state.coins)
     assert len(totals) >= 2, f"expected a spread of pile rolls across seeds, got only {totals}"
