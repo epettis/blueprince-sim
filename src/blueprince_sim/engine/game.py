@@ -12,7 +12,7 @@ from .areas import GateContext, reachable
 from .decks import apply_upgrade, build_decks, inject_rooms
 from .draft import deal_draft, redeal
 from .effects import Hook
-from .effects.rooms import dovecote
+from .effects.rooms import dovecote, great_hall, secret_garden, throne_room, weight_room
 from .grid import (ADJACENT, DIRS, E, ENTRANCE_CELL, N, N_CELLS, OPPOSITE, W,
                    neighbor, rank_of, rotate_mask)
 from .items import roll_room_items
@@ -1516,56 +1516,22 @@ class Game:
             self._enter_lever_room(room, cell)
 
     def _enter_lever_room(self, room, cell: int) -> None:
-        """Open the sealed Antechamber segment for a lever room, if eligible.
+        """Route to a lever room's on-entry Antechamber-segment pull, if any.
 
-        Lever rooms and their segments (design doc antechamber-lever-design.md):
-        - Weight Room -> South (37, N): requires power_hammer held OR the
-          wall already broken (weight_room_wall_broken carry-over).
-        - Secret Garden -> West (41, E): no extra cost beyond entering.
-        - Great Hall -> East (43, W): costs 1 key (the prize-room side door);
-          if no key in hand, the lever is not pulled.
-        The Greenhouse -> South path is handled by special_items.install_lever.
-        Only rooms whose sealed segment is still DOOR_SEALED are acted on.
+        Each room's own eligibility and cost logic lives in its
+        effects/rooms module (design doc antechamber-lever-design.md); this
+        only dispatches by id. The Greenhouse's South lever is a separate
+        path, handled entirely by special_items.install_lever.
         """
-        st = self.state
         match room.id:
             case "weight_room":
-                seg = segment_key(37, N)  # South: cell 37 north face -> antechamber
-                if st.door_state.get(seg) != DOOR_SEALED:
-                    return
-                can_break = (
-                    self.cfg.weight_room_wall_broken
-                    or st.shops.weight_room_wall_broken
-                    or (self.cfg.special_items
-                        and special_items.has(st, "power_hammer"))
-                )
-                if not can_break:
-                    return
-                # Record the wall break for carryover (permanent on future days).
-                st.shops.weight_room_wall_broken = True
-                self._open_segment(37, N)
+                weight_room.pull_south_lever(self, cell)
             case "secret_garden":
-                seg = segment_key(41, E)  # West: cell 41 east face -> antechamber
-                if st.door_state.get(seg) != DOOR_SEALED:
-                    return
-                self._open_segment(41, E)
+                secret_garden.pull_west_lever(self, cell)
             case "great_hall":
-                seg = segment_key(43, W)  # East: cell 43 west face -> antechamber
-                if st.door_state.get(seg) != DOOR_SEALED:
-                    return
-                # Lever sits behind a locked side door; no key means no pull.
-                cost = self.lever_key_cost(cell)
-                if st.keys < cost:
-                    return
-                st.keys -= cost
-                self._open_segment(43, W)
+                great_hall.pull_east_lever(self, cell)
             case "throne_room":
-                # Backup north-door lever (studio addition). Entering the Throne Room
-                # pulls the north lever; no extra cost beyond entering.
-                seg = segment_key(ANTECHAMBER_CELL, N)
-                if st.door_state.get(seg) != DOOR_SEALED:
-                    return
-                self._open_north_door()
+                throne_room.pull_north_lever(self, cell)
 
     def lever_key_cost(self, cell: int) -> int:
         """Keys that pulling ``cell``'s Antechamber lever would spend right now.
