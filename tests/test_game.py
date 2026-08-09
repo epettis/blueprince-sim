@@ -1,4 +1,12 @@
-"""Game loop, effects, determinism, and full-episode behavior."""
+"""Game loop, effects, determinism, and full-episode behavior.
+
+Room-specific behaviour has moved out to tests/rooms/: Archives and Darkroom
+mystery drafts, the Weight Room's halved steps, Hovel/Nursery/The Pool/
+Solarium/Maid's Chamber. The outer-draft and Garage-route tests below stay
+here because they exercise the outer-area travel SYSTEM (west_gate,
+area-graph routing, off-grid redraws), using whichever room is drafted or
+the Garage/Utility Closet breaker only as vehicles.
+"""
 
 import random
 
@@ -40,96 +48,12 @@ def test_cannot_decline_a_draft(cfg):
     assert any(o.slot == 0 for o in g.state.pending.options)
 
 
-def test_archives_hides_a_draftable_mystery(registry, cfg):
-    """Drafting out of the Archives conceals exactly one option's identity;
-    the mystery is still a real room that places normally at no step cost."""
-    g = Game(cfg, seed=3)
-    # Stand in the Archives and draft out of its north door.
-    g._place_room(registry.by_id["archives"], 7, N | S)
-    g.state.pos = 7
-    g.state.entered[7] = True
-    g.state.gems = 9  # afford whatever the mystery turns out to be
-    pending = g.open_door(7, N)
-    hidden = [o for o in pending.options if o.hidden]
-    assert len(hidden) == 1                       # exactly one mystery option
-    assert not pending.options[0].hidden          # a visible option remains
-    # the mystery is still a real, placeable room
-    steps_before = g.state.steps
-    g.choose(hidden[0].slot)
-    assert g.state.grid[12] >= 0                   # room placed at the north cell
-    assert g.phase is Phase.NAVIGATE
-    assert g.state.steps == steps_before           # placing costs no step
-
-
-def test_archives_mystery_still_shows_gem_cost(registry, cfg):
-    """A hidden (mystery) option's room identity is concealed in the obs, but
-    its gem cost stays visible so the agent can budget for it."""
-    from blueprince_sim.engine.state import PendingDraft
-    from blueprince_sim.env import obs as O
-
-    g = Game(cfg, seed=1)
-    gem_room = next(r for r in registry.rooms if r.gem_cost > 0 and r.rarity)
-    g.state.pos = 2
-    g.phase = Phase.DRAFTING
-    pd = PendingDraft(from_cell=2, direction=N, target_cell=7)
-    pd.options = [DraftOption(room_idx=gem_room.idx, orientation=gem_room.door_mask,
-                              gem_cost=gem_room.gem_cost, slot=2, hidden=True)]
-    g.state.gems = 9
-    g.state.pending = pd
-    row = O.encode(g)["options"][2]                 # obs row for slot 2
-    assert row[0] == 0                              # identity (room id) concealed
-    assert row[2] == g._effective_cost(gem_room, pd.options[0])  # gem cost visible
-    assert row[2] > 0
-
-
-def test_darkroom_hides_all_three_options(registry, cfg):
-    """Drafting out of the Darkroom hides every option's identity; the hidden
-    options remain real, placeable rooms."""
-    g = Game(cfg, seed=3)
-    # Stand in the Darkroom and draft out of its north door.
-    # Darkroom layout is "t"; place it so a north doorway is available.
-    darkroom = registry.by_id["darkroom"]
-    # Use a t-orientation that opens N/E/S (mask 7 = N|E|S)
-    g._place_room(darkroom, 7, N | E | S)
-    g.state.pos = 7
-    g.state.entered[7] = True
-    g.state.gems = 9  # afford whatever comes up
-    pending = g.open_door(7, N)
-    hidden = [o for o in pending.options if o.hidden]
-    assert len(hidden) == len(pending.options)      # every option is hidden
-    assert all(o.hidden for o in pending.options)   # no visible option remains
-    # all hidden options are still real, placeable rooms
-    steps_before = g.state.steps
-    g.choose(hidden[0].slot)
-    assert g.state.grid[12] >= 0                    # room placed at the north cell
-    assert g.phase is Phase.NAVIGATE
-    assert g.state.steps == steps_before            # placing costs no step
-
-
 def test_without_darkroom_no_extra_hidden(registry, cfg):
     """Baseline: drafting from a plain room hides nothing."""
     g = Game(cfg, seed=3)
     # Stand at the Entrance Hall (rank-1 center, always placed) and draft north.
     pending = g.open_door(2, N)
     assert not any(o.hidden for o in pending.options)
-
-
-def test_darkroom_obs_hides_identity_for_all_slots(registry, cfg):
-    """When drafting from the Darkroom, the obs zeroes the room id of every
-    option slot (nothing leaks to the agent)."""
-    from blueprince_sim.env import obs as O
-
-    g = Game(cfg, seed=3)
-    darkroom = registry.by_id["darkroom"]
-    g._place_room(darkroom, 7, N | E | S)
-    g.state.pos = 7
-    g.state.entered[7] = True
-    g.state.gems = 9
-    pending = g.open_door(7, N)
-    g.state.pending = pending
-    obs = O.encode(g)["options"]
-    for slot_idx in range(len(pending.options)):
-        assert obs[slot_idx][0] == 0                # room identity concealed
 
 
 def test_option_obs_exposes_door_directions(registry, cfg):
@@ -237,15 +161,6 @@ def test_all_policies_terminate(cfg):
             assert result["reason"] in ("antechamber", "out_of_steps", "dead_end")
 
 
-def test_weight_room_halves_steps(registry, cfg):
-    """Placing the Weight Room (a red room) halves the remaining steps."""
-    g = Game(cfg, seed=1)
-    g.state.steps = 40
-    room = registry.by_id["weight_room"]
-    g._place_room(room, 7, 4)
-    assert g.state.steps == 20
-
-
 def test_shelter_negates_red_rooms(registry, cfg):
     """A Shelter negation cancels one red room's penalty and is then
     consumed - the next red room hits normally."""
@@ -257,33 +172,6 @@ def test_shelter_negates_red_rooms(registry, cfg):
     g._place_room(registry.by_id["gymnasium"], 8, 4)
     g._enter(8)
     assert g.state.steps == 38  # negation exhausted
-
-
-def test_hovel_pays_gem_costs_with_steps(registry, cfg):
-    """With the Hovel placed, gem costs are paid in steps at 3 steps per gem
-    and the gem balance is left untouched."""
-    g = Game(cfg, seed=1)
-    g._place_room(registry.by_id["hovel"], 7, N | S)  # ON_PLACE sets the flag
-    assert g.hovel_placed
-    room = next(r for r in registry.rooms if r.gem_cost > 0 and r.rarity)
-    opt = DraftOption(room_idx=room.idx, orientation=room.door_mask,
-                      gem_cost=room.gem_cost, slot=1)
-    cost = g._effective_cost(room, opt)
-    assert cost > 0
-    g.state.steps, g.state.gems = 40, 5
-    assert g.affordable(room, opt)          # 40 > 3*cost
-    g._pay(room, opt)
-    assert g.state.steps == 40 - 3 * cost   # paid in steps
-    assert g.state.gems == 5                # gems untouched
-
-
-def test_nursery_grants_on_bedroom_draft(registry, cfg):
-    """A placed Nursery grants 5 steps whenever a bedroom is drafted."""
-    g = Game(cfg, seed=1)
-    g._place_room(registry.by_id["nursery"], 7, 4)
-    steps0 = g.state.steps
-    g._place_room(registry.by_id["guest_bedroom"], 8, 4)
-    assert g.state.steps == steps0 + 5
 
 
 def test_outer_draft_once_per_day(registry):
@@ -703,48 +591,3 @@ def test_travel_via_garage_from_outer_fires_entry(registry):
     assert g.state.entered[garage_cell]
 
 
-def test_the_pool_injects_rooms(registry, cfg):
-    """Placing The Pool injects its 3 temp rooms (Locker Room, Sauna, Pump
-    Room) into the draft decks."""
-    g = Game(cfg, seed=2)
-    pool_room = registry.by_id["the_pool"]
-    sizes0 = [d.size() for d in g.state.decks]
-    g._place_room(pool_room, 7, 4)
-    sizes1 = [d.size() for d in g.state.decks]
-    assert sum(sizes1) == sum(sizes0) + 3  # locker room, sauna, pump room
-
-
-def test_solarium_flag_set_on_place(registry):
-    """Placing the Solarium sets the flag that keys the slot-2/3 rarity
-    flattening for the rest of the day."""
-    cfg = GameConfig(studio_additions=frozenset({"solarium"}))
-    g = Game(cfg, seed=2)
-    assert not g.state.solarium_placed
-    g._place_room(registry.by_id["solarium"], 7, 4)
-    assert g.state.solarium_placed
-
-
-def test_maids_chamber_reduces_luck_on_place(registry, cfg):
-    """Placing Maid's Chamber applies -3 luck immediately (ON_PLACE)."""
-    g = Game(cfg, seed=1)
-    luck_before = g.state.luck
-    g._place_room(registry.by_id["maids_chamber"], 7, S | E)
-    assert g.state.luck == luck_before - 3
-
-
-def test_maids_chamber_luck_clamps_at_zero(registry, cfg):
-    """anti_luck never drives luck below 0."""
-    g = Game(cfg, seed=1)
-    g.state.luck = 1
-    g._place_room(registry.by_id["maids_chamber"], 7, S | E)
-    assert g.state.luck == 0
-
-
-def test_maids_chamber_luck_negated_by_shelter(registry, cfg):
-    """Shelter negates the Maid's Chamber red-room penalty."""
-    g = Game(cfg, seed=1)
-    g.red_negations = 1
-    luck_before = g.state.luck
-    g._place_room(registry.by_id["maids_chamber"], 7, S | E)
-    assert g.state.luck == luck_before  # penalty negated
-    assert g.red_negations == 0  # one negation consumed

@@ -1,8 +1,15 @@
-"""Tests for the Garage's Forced Draw (data/priority_draws.json "forced_draws";
-blueprince.wiki.gg/wiki/Garage). See draft.py's ``_forced_draw_garage`` /
+"""Tests for the Garage's Forced Draw and its car trunk.
+
+The Forced Draw tests cover data/priority_draws.json "forced_draws"
+(blueprince.wiki.gg/wiki/Garage). See draft.py's ``_forced_draw_garage`` /
 ``_garage_dead_end_gate``. Distinct from the pre-existing ``_priority_draw``
 mechanism (patio group / commissary-observatory / classroom), which this does
 not touch.
+
+The car trunk tests are split out of the old test_containers.py, which keeps
+the generic container-kind system (trunks/chests/lockers) that uses other
+rooms (Attic, Locker Room) as vehicles; the car trunk is a Garage-only
+mechanic, so it belongs here instead.
 """
 
 from __future__ import annotations
@@ -10,9 +17,13 @@ from __future__ import annotations
 from scipy import stats
 
 from blueprince_sim.config import GameConfig
+from blueprince_sim.engine import special_items as si
 from blueprince_sim.engine.game import Game
 from blueprince_sim.engine.grid import N, S
 from blueprince_sim.engine.model import Registry
+from blueprince_sim.engine.rng import Rng
+from blueprince_sim.engine.state import GameState
+from blueprince_sim.env.actions import OPEN_CAR_TRUNK_ACTION, action_mask
 
 GARAGE_ID = "garage"
 
@@ -169,3 +180,146 @@ def test_forced_draw_is_deterministic_for_a_given_seed(registry: Registry):
 
     for seed in (1, 2, 3, 42):
         assert _snapshot(seed) == _snapshot(seed), f"seed {seed} was not deterministic"
+
+
+# ---------------------------------------------------------------------------
+# car trunk
+# ---------------------------------------------------------------------------
+
+def _state_with_registry():
+    reg = Registry.load()
+    st = GameState()
+    st.special.enabled = True
+    return st, reg
+
+
+def _fake_game(state, registry, seed=0, cfg=None):
+    class _FG:
+        pass
+    g = _FG()
+    g.state = state
+    g.registry = registry
+    g.rng = Rng(seed)
+    g.cfg = cfg or GameConfig()
+    g._garage_ids = tuple(r.id for r in registry.rooms if r.id.startswith("garage"))
+    return g
+
+
+def _place_room(state, registry, room_id: str, cell: int) -> None:
+    room = registry.by_id[room_id]
+    state.grid[cell] = room.idx
+    state.placed_doors[cell] = room.door_mask
+
+
+def test_garage_car_first_use_grants_upgrade_disk():
+    """Car Keys first use () grants upgrade_disk_garage (unique per source)."""
+    st, reg = _state_with_registry()
+    si.grant(st, reg, "car_keys", source="test")
+    _place_room(st, reg, "garage", 5)
+    st.pos = 5
+
+    game = _fake_game(st, reg, seed=0, cfg=GameConfig())
+    assert si.can_open_car_trunk(game)
+    granted = si.open_car_trunk(game)
+    assert "upgrade_disk_garage" in granted or st.inventory.get("upgrade_disk_garage", 0) > 0, \
+        "first car trunk use must grant upgrade_disk_garage"
+
+
+def test_garage_car_later_use_regranted_disk_when_not_spent():
+    """Trunk opened on an earlier day but disk NOT spent: re-grants upgrade_disk_garage.
+
+    The trunk re-locks nightly, so this re-open still costs Car Keys; what carries
+    over is the disk, which returns until the player spends it (inserts at a
+    terminal). Without the disk in collected_disks the engine re-grants it.
+    """
+    st, reg = _state_with_registry()
+    si.grant(st, reg, "car_keys", source="test")
+    _place_room(st, reg, "garage", 5)
+    st.pos = 5
+
+    cfg = GameConfig()
+    game = _fake_game(st, reg, seed=1, cfg=cfg)
+    si.configure(st, cfg)
+    si.open_car_trunk(game)
+    assert st.inventory.get("upgrade_disk_garage", 0) == 1, (
+        "trunk opened before but disk not spent -> disk re-granted from open trunk"
+    )
+
+
+def test_garage_car_draws_from_pool_after_disk_spent():
+    """Once upgrade_disk_garage is spent, later trunk uses draw from the later_pool.
+
+    With the disk id in collected_disks, the engine treats the disk as permanently
+    gone and falls through to the pool-draw path (items + coins).
+    """
+    st, reg = _state_with_registry()
+    si.grant(st, reg, "car_keys", source="test")
+    _place_room(st, reg, "garage", 5)
+    st.pos = 5
+
+    cfg = GameConfig(
+        collected_disks=frozenset({"upgrade_disk_garage"}),
+    )
+    game = _fake_game(st, reg, seed=1, cfg=cfg)
+    si.configure(st, cfg)
+    granted = si.open_car_trunk(game)
+    later_pool = reg.special.containers.get("garage_car", {}).get("later_pool", [])
+    later_gold = reg.special.containers.get("garage_car", {}).get("later_gold", 5)
+    coins_granted = st.coins >= later_gold
+    items_granted = any(iid in later_pool for iid in granted)
+    assert coins_granted or items_granted, (
+        "after disk spent, later trunk use must grant gold and/or pool items"
+    )
+
+
+def test_garage_car_once_per_day():
+    """Car trunk can only be opened once per day; second call is blocked."""
+    st, reg = _state_with_registry()
+    si.grant(st, reg, "car_keys", source="test")
+    _place_room(st, reg, "garage", 5)
+    st.pos = 5
+
+    game = _fake_game(st, reg, seed=0, cfg=GameConfig())
+    si.open_car_trunk(game)
+    assert st.special.garage_car_opened is True
+    assert not si.can_open_car_trunk(game), "car trunk already opened today"
+
+
+def test_garage_car_requires_car_keys():
+    """can_open_car_trunk is False without Car Keys even when standing in the Garage."""
+    st, reg = _state_with_registry()
+    _place_room(st, reg, "garage", 5)
+    st.pos = 5
+
+    game = _fake_game(st, reg, seed=0)
+    assert not si.can_open_car_trunk(game), "must hold Car Keys to open car trunk"
+
+
+def test_open_car_trunk_action_masked():
+    """OPEN_CAR_TRUNK_ACTION is True when Car Keys held in the Garage."""
+    g = Game(GameConfig(starting_items=frozenset({"car_keys"})), seed=42)
+    garage = g.registry.by_id["garage"]
+    cell = 5
+    g.state.grid[cell] = garage.idx
+    g.state.placed_doors[cell] = garage.door_mask
+    g.state.entered[cell] = True
+    g.state.pos = cell
+    mask = action_mask(g)
+    assert mask[OPEN_CAR_TRUNK_ACTION]
+
+
+def test_garage_disk_is_not_marked_collected_by_opening_alone():
+    """Opening the trunk without inserting the disk leaves collected_disks empty.
+
+    Only spending a disk at a terminal retires it. Opening the container is not
+    itself consumption, so the next day must still be able to offer the disk.
+    """
+    from blueprince_sim.env.multiday import DayChain
+    base = GameConfig(starting_items=frozenset({"car_keys"}))
+    chain = DayChain(base, n_days=5)
+    game = Game(chain.next_config(), seed=4)
+    game.state.special.garage_car_opened = True  # the trunk was opened today
+    chain.advance(game.carryover())
+    assert "upgrade_disk_garage" not in chain.next_config().collected_disks, (
+        "opening the trunk must not retire the disk; only spending it does"
+    )

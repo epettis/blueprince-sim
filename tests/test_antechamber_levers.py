@@ -1,14 +1,15 @@
-"""Antechamber lever gate: observable behavior of sealed doors and lever rooms.
+"""Antechamber lever gate: cross-cutting invariants of the sealed-door system.
 
-Covers: sealed segments start sealed and block traversal; entering lever rooms
-(Weight Room, Secret Garden, Great Hall) opens the correct segment; the Weight
-Room power_hammer requirement and carry-over wall break; Great Hall key cost;
-sealed-vs-locked distinction; overnight reset; antechamber_levers=False
-regression guard; termination with a sealed antechamber; Greenhouse
-broken_lever path regression; and that the Great Hall's on-arrival lever key
-spend is charged to the walk itself, not just to the door being opened
-(key_cost_map, the action mask's key budget, and end-to-end masked play all
-agree with what move_to actually deducts).
+Covers: sealed segments start sealed and block traversal; sealed-vs-locked
+distinction; the overnight reset (segments opened on day N are sealed again on
+day N+1 -- the single most important invariant of the lever gate design, shown
+here via the Weight Room but not itself a Weight Room property); the
+antechamber_levers=False regression guard; termination with a sealed
+antechamber; and end-to-end masked random play never hitting an engine
+assertion.
+
+Individual lever rooms' own behaviour (Weight Room, Secret Garden, Great Hall,
+Greenhouse) lives in their own files under tests/rooms/.
 """
 
 from __future__ import annotations
@@ -18,8 +19,7 @@ import random
 from blueprince_sim.config import GameConfig
 from blueprince_sim.engine.game import ANTECHAMBER_CELL, Game
 from blueprince_sim.engine.grid import E, N, S, W
-from blueprince_sim.engine.locks import DOOR_LOCKED, DOOR_OPEN, DOOR_SEALED, segment_key
-from blueprince_sim.env import actions as A
+from blueprince_sim.engine.locks import DOOR_OPEN, DOOR_SEALED, segment_key
 from blueprince_sim.env.blueprince_env import BluePrinceEnv
 from blueprince_sim.env.multiday import DayChain
 from blueprince_sim.rl.train import fresh_save_config
@@ -73,87 +73,6 @@ def test_sealed_segments_start_sealed(registry):
     assert g.door_state_of(ANTECHAMBER_CELL, E) == DOOR_SEALED
     # North is off-grid (rank 9 has no rank 10); not a segment we seal.
     assert ANTECHAMBER_CELL not in g.reachable_cells()
-
-
-# Test 2: Weight Room with power_hammer opens South and only South
-
-def test_weight_room_with_hammer_opens_south(registry):
-    """Entering the Weight Room while holding power_hammer opens the south
-    Antechamber segment (37, N) and leaves west and east sealed."""
-    g = _game(levers=True, items=frozenset({"power_hammer"}), registry=registry)
-    # Place the Weight Room at rank 8 center (cell 37) with N and S doors
-    _place_at(g, "weight_room", 37, N | S)
-    _enter_at(g, 37)
-
-    # South segment should now be open
-    assert g.door_state_of(ANTECHAMBER_CELL, S) == DOOR_OPEN
-    # West and East segments remain sealed
-    assert g.door_state_of(ANTECHAMBER_CELL, W) == DOOR_SEALED
-    assert g.door_state_of(ANTECHAMBER_CELL, E) == DOOR_SEALED
-
-
-# Test 3: Weight Room without hammer and without wall-break flag does NOT open
-
-def test_weight_room_no_hammer_no_break_stays_sealed(registry):
-    """Entering the Weight Room without power_hammer and without the permanent
-    wall-break flag leaves the south segment sealed (no lever pull)."""
-    g = _game(levers=True, registry=registry)  # no power_hammer, no wall_broken flag
-    _place_at(g, "weight_room", 37, N | S)
-    _enter_at(g, 37)
-
-    assert g.door_state_of(ANTECHAMBER_CELL, S) == DOOR_SEALED
-
-
-# Test 4: wall-break carry-over lets Weight Room open South on a later day
-
-def test_weight_room_wall_broken_carryover_opens_south(registry):
-    """Once weight_room_wall_broken is carried over, entering the Weight Room on
-    a future day opens the south segment without needing the hammer again."""
-    g = _game(levers=True, weight_room_wall_broken=True, registry=registry)
-    _place_at(g, "weight_room", 37, N | S)
-    _enter_at(g, 37)
-
-    assert g.door_state_of(ANTECHAMBER_CELL, S) == DOOR_OPEN
-
-
-# Test 5a: Secret Garden opens West; 5b: Great Hall opens East and consumes a key
-
-def test_secret_garden_opens_west(registry):
-    """Entering the Secret Garden opens the west Antechamber segment (41, E)."""
-    g = _game(levers=True, registry=registry,
-              satisfied_conditions=frozenset({"secret_garden_key"}))
-    _place_at(g, "secret_garden", 41, E | W)
-    _enter_at(g, 41)
-
-    assert g.door_state_of(ANTECHAMBER_CELL, W) == DOOR_OPEN
-    # South and East remain sealed
-    assert g.door_state_of(ANTECHAMBER_CELL, S) == DOOR_SEALED
-    assert g.door_state_of(ANTECHAMBER_CELL, E) == DOOR_SEALED
-
-
-def test_great_hall_opens_east_costs_key(registry):
-    """Entering the Great Hall with a key opens the east Antechamber segment
-    (43, W) and consumes exactly one key."""
-    g = _game(levers=True, keys=3, registry=registry)
-    _place_at(g, "great_hall", 43, E | W)
-    _enter_at(g, 43)
-
-    assert g.door_state_of(ANTECHAMBER_CELL, E) == DOOR_OPEN
-    assert g.state.keys == 2  # one key spent
-    # South and West remain sealed
-    assert g.door_state_of(ANTECHAMBER_CELL, S) == DOOR_SEALED
-    assert g.door_state_of(ANTECHAMBER_CELL, W) == DOOR_SEALED
-
-
-def test_great_hall_no_key_stays_sealed(registry):
-    """Entering the Great Hall with zero keys does not open the east segment:
-    the lever requires a key to access and cannot be pulled without one."""
-    g = _game(levers=True, keys=0, registry=registry)
-    _place_at(g, "great_hall", 43, E | W)
-    _enter_at(g, 43)
-
-    assert g.door_state_of(ANTECHAMBER_CELL, E) == DOOR_SEALED
-    assert g.state.keys == 0  # no key spent
 
 
 # Test 6: sealed door is NOT key-openable
@@ -270,98 +189,6 @@ def test_dead_end_fires_when_no_frontier_and_antechamber_unreachable(registry):
     done, reason = g.is_done()
     assert done
     assert reason == "dead_end"
-
-
-# Test 10: Greenhouse broken_lever path regression
-
-def test_greenhouse_lever_still_opens_south(registry):
-    """Installing a Broken Lever in the Greenhouse still opens the south segment
-    (37, N), with antechamber_levers=True, exactly as before."""
-    from blueprince_sim.engine import special_items
-    g = _game(levers=True, items=frozenset({"broken_lever"}), registry=registry)
-    # Place the Greenhouse in a wing position (it requires west_or_east_wing)
-    greenhouse = g.registry.by_id["greenhouse"]
-    g._place_room(greenhouse, 5, E | W | N | S & greenhouse.door_mask)
-    g.state.pos = 5
-    g.state.entered[5] = True
-
-    # Even though segment starts SEALED, install_lever opens it via _open_segment
-    assert special_items.can_install_lever(g)
-    special_items.install_lever(g)
-
-    assert g.door_state_of(ANTECHAMBER_CELL, S) == DOOR_OPEN
-
-
-# Test 11: the Great Hall's lever key is charged to the route, not just the door
-
-def test_walking_into_the_great_hall_is_charged_to_the_route(registry):
-    """key_cost_map() prices in the Great Hall's on-arrival lever key spend
-    before the caller ever walks - and move_to actually deducts exactly that
-    many keys - so a caller budgeting off key_cost_map is never surprised."""
-    g = Game(GameConfig(door_locks=True, antechamber_levers=True), seed=1, registry=registry)
-    hall = registry.by_id["great_hall"]
-    g._place_room(hall, 7, hall.door_mask)
-    # Force the entrance -> Great Hall segment open so the only key spend on
-    # this walk is the lever, not a locked door on the way in.
-    g.state.door_state[segment_key(2, N)] = DOOR_OPEN
-    g.state.door_version += 1
-    g.state.keys = 1
-
-    # Setup assertion: the lever has not been pulled yet, so the test can't
-    # silently stop testing anything.
-    assert g.door_state_of(ANTECHAMBER_CELL, E) == DOOR_SEALED
-
-    assert g.key_cost_map()[7] == 1  # the route to the Great Hall spends the lever key
-
-    g.move_to(7)
-    assert g.state.keys == 0  # the map matched what the walk actually spent
-
-
-def test_the_nav_cache_notices_a_lever_room_that_has_already_been_entered(registry):
-    """The nav memo must key on state.entered: an already-entered Great Hall
-    charges nothing, because its lever only ever fires on first entry, and a
-    map cached from before that entry would over-charge the route and could
-    strand the player behind a road it wrongly reads as unaffordable."""
-    g = Game(GameConfig(door_locks=True, antechamber_levers=True), seed=1, registry=registry)
-    hall = registry.by_id["great_hall"]
-    g._place_room(hall, 7, hall.door_mask)
-    g.state.door_state[segment_key(2, N)] = DOOR_OPEN
-    g.state.door_version += 1
-    g.state.keys = 1
-
-    assert g.door_state_of(ANTECHAMBER_CELL, E) == DOOR_SEALED  # setup: lever unpulled
-    assert g.key_cost_map()[7] == 1  # unentered: walking in will pull the lever
-
-    # Entry is the only thing that changes here, and the lever cannot fire twice.
-    g.state.entered[7] = True
-    assert g.key_cost_map()[7] == 0
-
-
-# Test 12: the mask budgets the lever key AND the locked door behind it
-
-def test_the_mask_never_offers_a_draft_the_lever_key_has_already_paid_for(registry):
-    """A locked frontier doorway past the Great Hall needs two keys: one the
-    walk itself spends pulling the lever, one for the door. The mask must
-    not let the lever spend ride free on the door's own key budget."""
-    g = Game(GameConfig(door_locks=True, antechamber_levers=True), seed=1, registry=registry)
-    hall = registry.by_id["great_hall"]
-    g._place_room(hall, 7, hall.door_mask)
-    g.state.door_state[segment_key(2, N)] = DOOR_OPEN
-    # Lock one of the Great Hall's own frontier doorways.
-    g.state.door_state[segment_key(7, E)] = DOOR_LOCKED
-    g.state.door_version += 1
-
-    assert g.door_state_of(ANTECHAMBER_CELL, E) == DOOR_SEALED  # setup: lever unpulled
-
-    action = A.OPEN_BASE + 7 * 4 + A.DIR_INDEX[E]
-
-    g.state.keys = 1
-    mask = A.action_mask(g)
-    assert not mask[action], "1 key covers only the lever pull, not the locked door too"
-
-    g.state.keys = 2
-    mask = A.action_mask(g)  # _maps() fingerprints on st.keys, so this recomputes
-    assert mask[action], "2 keys cover both the lever pull and the locked door"
 
 
 # Test 13: end-to-end - masked random play never hits an engine assertion
