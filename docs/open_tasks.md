@@ -1020,6 +1020,47 @@ breaks, the Sanctum keys.
   now does hold something: a permanent step bonus. The step-share measurement
   that rule exists to protect should be re-checked after it lands.
 
+- **2026-08-08, the win rate is probably a CONTENT problem, not a learning
+  problem.** Owner hypothesis, from playing: "the game is struggling to achieve
+  the victory condition because there are exceedingly few implemented paths to
+  victory." Measured, and it holds up.
+
+  Reaching Room 46 needs an Antechamber door opened, which needs a lever room
+  drafted AND entered. Over **400 `greedy_rank` days** on `all_unlocks_config`
+  (mean 8.43 rooms placed):
+
+  | lever room | placed |
+  |---|---|
+  | `weight_room` | 6.8% |
+  | `great_hall` | 3.3% |
+  | `greenhouse` | 1.3% |
+  | `secret_garden` | 0.0% |
+  | `throne_room` | 0.0% |
+  | **any of them** | **11.0%** |
+
+  `P(antechamber reached) = 0.000`, `P(room 46) = 0.000`.
+
+  **So on ~89% of days no lever room is placed at all, and victory is
+  structurally unreachable before the policy makes a single decision.** No
+  amount of reward shaping fixes a day where the win condition cannot be
+  opened. This reframes the standing `p_antechamber = 0.000` question, which
+  three separate investigations have attacked from the reward side.
+
+  Caveat, stated so the number is not over-read: `greedy_rank` pushes north and
+  does not *seek* lever rooms, so 11.0% is "how often one turns up incidentally",
+  not "how often a determined player could get one". `secret_garden` reads 0.0%
+  because its key must first be found in the Attic or Music Room and this policy
+  never pursues items — the key mechanism itself works (verified: holding
+  `secret_garden_key` flips `satisfies_draft_conditions` from False to True).
+
+  Act on this cold as: **before tuning the reward again, check whether the
+  objective was reachable at all that day.** A win-rate denominator that
+  includes structurally-unwinnable days is measuring room availability, not
+  policy skill.
+
+  Owner's plan is to re-measure after the Pump Room lands, since that opens
+  routes the sim currently closes.
+
 ## 5. Throttle the training terminal output — DONE
 
 The trainer currently refreshes the dashboard after every completed seed, which
