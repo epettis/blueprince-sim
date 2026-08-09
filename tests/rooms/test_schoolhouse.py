@@ -173,3 +173,47 @@ def test_schoolhouse_category_does_not_activate_the_outer_shop_dead_branch():
 
     assert g.state.outer_room_entered
     assert shops.current_shop_id(g) is None
+
+
+def test_schoolhouse_does_not_increment_drafting_room_count():
+    """The owner reports the real room grants a free reroll for every
+    Schoolhouse drafted so far when drawing from the Schoolhouse. The engine's
+    only free-redraw mechanism is state.drafting_room_count (incremented by
+    the counts_as_drafting_room effect tag, e.g. on Classroom and Drawing
+    Room -- see tests/rooms/test_classroom.py and test_drawing_room.py) and
+    consumed by Game._in_classroom_context, which hardcodes the room id
+    "classroom" (game.py:678). The Schoolhouse record carries only
+    inject_pool and schoolhouse_bias, no counts_as_drafting_room tag -- so
+    placing it never touches drafting_room_count at all. This pins that gap
+    directly: it is NOT a rounding or threshold issue, the count never moves."""
+    cfg = GameConfig()
+    game = Game(cfg, seed=0)
+    schoolhouse = game.registry.by_id["schoolhouse"]
+    assert [eff.tag for eff in schoolhouse.effects] == ["inject_pool", "schoolhouse_bias"], (
+        "setup: Schoolhouse must not carry counts_as_drafting_room"
+    )
+    count_before = game.state.drafting_room_count
+    game._place_room(schoolhouse, SCHOOLHOUSE_CELL, S)
+    assert game.state.drafting_room_count == count_before, (
+        "documents a gap: placing the Schoolhouse never raises drafting_room_count"
+    )
+
+
+def test_outer_draft_never_grants_free_redraws_even_with_a_high_drafting_room_count():
+    """Even setting drafting_room_count directly (as if the missing Schoolhouse
+    tag above existed), the once-per-day outer-room draft that deals the
+    Schoolhouse itself (Game.open_outer_draft, target_cell == -1) never reads
+    it: PendingDraft.redraws_left is only ever seeded from drafting_room_count
+    inside open_door's ON-GRID branch (game.py:647), gated by
+    _in_classroom_context, which requires state.pos to sit on a grid cell
+    whose room id is "classroom". Outer rooms never touch state.grid or
+    state.pos (they live on the off-grid area graph), so no on-grid "standing
+    in the Schoolhouse" state can ever exist for that check to pass either.
+    A real fix needs both the missing effect tag AND a way to key the outer
+    draft's redraws_left off Schoolhouses drafted so far, since the current
+    mechanism structurally cannot reach an off-grid draft at all."""
+    cfg = GameConfig(west_gate_unlatched=True, special_items=False)
+    game = Game(cfg, seed=0)
+    game.state.drafting_room_count = 99  # simulate "many Schoolhouses drafted"
+    pending = game.open_outer_draft()
+    assert pending.redraws_left == 0

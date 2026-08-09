@@ -3,6 +3,11 @@
 See tests/rooms/test_the_kennel.py for the full write-up of this technique
 (a hand-built single-card deck plus a forced-chance category bias, so the
 proof is deterministic rather than statistical).
+
+Clock Tower's real effect ("Tomorrow room: next day's starting keys +1 per
+Tomorrow room") is cross-day and out of this sim's single-day scope, per its
+meta.effect_text -- its rooms.json effects list is empty, so there is no
+other room-specific behaviour to pin here.
 """
 
 from __future__ import annotations
