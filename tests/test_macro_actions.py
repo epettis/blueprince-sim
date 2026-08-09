@@ -218,6 +218,7 @@ def test_every_action_kind_has_a_masking_site():
         "SMASH_VASE_ACTION", "OPEN_CONTAINER_ACTION", "OPEN_CAR_TRUNK_ACTION",
         "OPEN_VAULT_BOX_ACTION", "LIGHT_ACTION", "INSTALL_LEVER_ACTION",
         "INSERT_DISK_ACTION", "CHOOSE_UPGRADE_BASE", "TRAVEL_BASE",
+        "OPEN_SIGIL_DOOR_BASE",
     ]
     for name in action_kind_names:
         assert re.search(rf"mask\[{name}\b", src), (

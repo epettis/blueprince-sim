@@ -60,6 +60,12 @@ Layout (Discrete(311)):
            it is additionally gated on that cell being worth entering (see
            _cell_worth_entering) -- unconditional off-grid, since that is the
            only way back onto the grid.
+  311..318 use a held Sanctum Key on one of the Inner Sanctum's eight realm
+           doors (special_items.SIGIL_REALMS order: arch_aries, corarica,
+           eraja, fenn_aries, mora_jai, nuance, orinda_aries, verra).
+           Standing at the inner_sanctum area node holding an unspent Sanctum
+           Key, with that realm's door still sealed. Permanently unlocks the
+           door and grants its one-time +2 allowance immediately.
 """
 
 from __future__ import annotations
@@ -110,13 +116,19 @@ INSERT_DISK_ACTION = 269     # insert an Upgrade Disk at a disk reader (NAVIGATE
 CHOOSE_UPGRADE_BASE = 270    # 270..272: choose upgrade variant slot 0/1/2 (UPGRADE_PENDING)
 TRAVEL_BASE = 273            # 273..310: travel to area-graph node (38 nodes)
 
-# N_ACTIONS = first slot after TRAVEL_BASE + one slot per area node (38)
-# Derived so that adding a node to areas.json expands the space automatically.
-# The test suite pins mask-length == N_ACTIONS, not a bare count, so the only
-# invariant that matters is that this equals TRAVEL_BASE + len(area_node_ids)
-# for the committed graph.
-_N_AREA_NODES = 38  # asserted by tests via mask length, not literal comparison
-N_ACTIONS = TRAVEL_BASE + _N_AREA_NODES  # 273 + 38 = 311
+# N_AREA_NODES: one travel slot per area-graph node. Asserted by tests via
+# mask length, not a literal comparison.
+_N_AREA_NODES = 38
+
+# 311..318: use a held Sanctum Key on one of the Inner Sanctum's eight realm
+# doors (special_items.SIGIL_REALMS order, sorted for determinism). Standing
+# at the inner_sanctum area node holding an unspent key; permanently unlocks
+# that realm's door and grants its one-time +2 allowance (game.open_sigil_door).
+OPEN_SIGIL_DOOR_BASE = TRAVEL_BASE + _N_AREA_NODES  # 273 + 38 = 311
+_N_SIGIL_REALMS = 8
+
+# N_ACTIONS = first slot after the Sigil Chamber block.
+N_ACTIONS = OPEN_SIGIL_DOOR_BASE + _N_SIGIL_REALMS  # 311 + 8 = 319
 
 DIR_INDEX = {d: i for i, d in enumerate(DIRS)}
 
@@ -379,6 +391,13 @@ def action_mask(game: Game, prev_action: int | None = None) -> list[bool]:
             if st.steps > cost:
                 mask[TRAVEL_BASE + i] = True
 
+        # Sigil Chamber doors: legal at the Inner Sanctum with an unspent
+        # Sanctum Key, per sealed realm. can_open_sigil_door already checks
+        # off_grid/area/inventory/already-open, so no extra guard is needed here.
+        for i, realm in enumerate(_si.SIGIL_REALMS):
+            if game.can_open_sigil_door(realm):
+                mask[OPEN_SIGIL_DOOR_BASE + i] = True
+
         if game.off_grid:
             # Off-grid: only outer-area actions are legal (besides travel above).
             # Buy actions are valid inside any outer shop (inside_outer_room)
@@ -561,11 +580,14 @@ def apply_action(game: Game, action: int) -> None:
         game.insert_disk()
     elif CHOOSE_UPGRADE_BASE <= action < CHOOSE_UPGRADE_BASE + 3:
         game.choose_upgrade(action - CHOOSE_UPGRADE_BASE)
-    elif TRAVEL_BASE <= action < N_ACTIONS:
+    elif TRAVEL_BASE <= action < OPEN_SIGIL_DOOR_BASE:
         node_ids = _build_area_node_ids(game.registry)
         node_id = node_ids[action - TRAVEL_BASE]
         game.travel_to(node_id)
         # A grid walk inside travel_to can end the day; caller must check phase.
+    elif OPEN_SIGIL_DOOR_BASE <= action < N_ACTIONS:
+        realm = _si.SIGIL_REALMS[action - OPEN_SIGIL_DOOR_BASE]
+        game.open_sigil_door(realm)
     else:
         raise ValueError(f"unimplemented action {action}")
 
@@ -664,7 +686,7 @@ def describe_action(game: Game, action: int) -> str:
         opts = game.state.pending_upgrade_options
         variant = opts[i] if i < len(opts) else "?"
         return f"choose upgrade #{i} ({variant})"
-    if TRAVEL_BASE <= action < N_ACTIONS:
+    if TRAVEL_BASE <= action < OPEN_SIGIL_DOOR_BASE:
         node_ids = _build_area_node_ids(game.registry)
         node_id = node_ids[action - TRAVEL_BASE]
         node = game.registry.area_graph.nodes.get(node_id)
@@ -672,4 +694,7 @@ def describe_action(game: Game, action: int) -> str:
         result = game.area_route_cost(node_id)
         cost = result[0] if result is not None else "?"
         return f"travel to {name} ({cost} steps)"
+    if OPEN_SIGIL_DOOR_BASE <= action < N_ACTIONS:
+        realm = _si.SIGIL_REALMS[action - OPEN_SIGIL_DOOR_BASE]
+        return f"open Sigil Chamber door: {realm.replace('_', ' ').title()}"
     return f"action {action}"
