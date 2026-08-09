@@ -10,18 +10,15 @@ these rooms just hands over a gem the moment the player walks in - see
 docs/open_tasks.md task 3.
 """
 
-import pytest
-
 from blueprince_sim.engine.game import Game, Phase, RedrawKind
 from blueprince_sim.engine.grid import N, S
 
 
-@pytest.mark.parametrize("room_id", ["study"])
-def test_entering_the_safe_room_grants_a_gem(registry, cfg, room_id):
-    """Walking into a gem-safe room for the first time leaves the player with
-    one more gem than before, regardless of which of the three rooms it is."""
+def test_entering_the_safe_room_grants_a_gem(registry, cfg):
+    """First entry into the Study banks its safe, leaving the player one gem
+    up. The sim assumes the puzzle is solved, so entry alone is the trigger."""
     g = Game(cfg, seed=1)
-    room = registry.by_id[room_id]
+    room = registry.by_id["study"]
     g._place_room(room, 7, N | S)  # placed north of the Entrance Hall
     gems0 = g.state.gems
     g.move(N)
@@ -29,13 +26,11 @@ def test_entering_the_safe_room_grants_a_gem(registry, cfg, room_id):
     assert g.state.gems == gems0 + 1
 
 
-@pytest.mark.parametrize("room_id", ["study"])
-def test_gem_grant_fires_only_on_first_entry(registry, cfg, room_id):
-    """Leaving a gem-safe room and walking back in does not grant a second
-    gem - the safe was already emptied on the first visit, same as any other
-    ON_ENTER grant gated on ``state.entered``."""
+def test_gem_grant_fires_only_on_first_entry(registry, cfg):
+    """Re-entering the Study grants nothing: the safe was emptied on the first
+    visit, like every other ON_ENTER grant gated on ``state.entered``."""
     g = Game(cfg, seed=1)
-    room = registry.by_id[room_id]
+    room = registry.by_id["study"]
     g._place_room(room, 7, N | S)
     g.move(N)  # first entry: grants the gem
     gems_after_first_entry = g.state.gems

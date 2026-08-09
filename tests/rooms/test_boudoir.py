@@ -28,8 +28,9 @@ BOUDOIR_IDS = ["boudoir"] + BOUDOIR_VARIANT_IDS
 
 @pytest.mark.parametrize("room_id", BOUDOIR_IDS)
 def test_entering_the_safe_room_grants_a_gem(registry, cfg, room_id):
-    """Walking into a gem-safe room for the first time leaves the player with
-    one more gem than before, regardless of which of the three rooms it is."""
+    """First entry banks the safe for the Boudoir and for each of its upgrade
+    variants. A safe is a fixture of the room, and effects are NOT inherited
+    through ``variant_of``, so every variant must carry the grant itself."""
     g = Game(cfg, seed=1)
     room = registry.by_id[room_id]
     g._place_room(room, 7, N | S)  # placed north of the Entrance Hall
