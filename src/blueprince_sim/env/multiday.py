@@ -113,6 +113,16 @@ class DayChain:
         # (and in advance()/next_config()) rather than through _CARRYOVER_KEYS.
         self.foundation_cell: int = base_cfg.foundation_cell
         self.foundation_doors: int = base_cfg.foundation_doors
+        # One-day-pulse room bonuses (Sauna/Morning Room/Break Room/Freezer): each
+        # is REPLACED (not OR-merged) from that day's own carryover every advance(),
+        # so the bonus lands on exactly the following day and lapses again unless
+        # re-earned. Not bool-valued-forever like _CARRYOVER_KEYS, so handled
+        # explicitly here (same shape as chapel_tithes/foundation_cell).
+        self.sauna_bonus: bool = False          # Sauna entered yesterday: +20 steps today
+        self.morning_room_bonus: bool = False   # Morning Room entered yesterday: +2 gems today
+        self.break_room_keycard: bool = False   # day ended in Break Room yesterday: keycard today
+        self.frozen_coins: int = 0              # Freezer carry: coins to start today with (0 = none)
+        self.frozen_gems: int = 0               # Freezer carry: gems to start today with (0 = none)
 
     def next_config(self) -> GameConfig:
         """Return the ``GameConfig`` for the current day.
@@ -140,6 +150,11 @@ class DayChain:
             draft_counts=dict(self.draft_counts),
             foundation_cell=self.foundation_cell,
             foundation_doors=self.foundation_doors,
+            sauna_bonus=self.sauna_bonus,
+            morning_room_bonus=self.morning_room_bonus,
+            break_room_keycard=self.break_room_keycard,
+            frozen_coins=self.frozen_coins,
+            frozen_gems=self.frozen_gems,
             **self.carried_flags,          # unpack only the True flags
         )
 
@@ -159,6 +174,12 @@ class DayChain:
           (larger) value.  The 3-ban cap is enforced after merging: if more
           than 3 distinct room ids are active, the oldest (``_ban_order``-order)
           is evicted until the count is at most 3.
+        - **one-day-pulse keys** (``sauna_bonus``, ``morning_room_bonus``,
+          ``break_room_keycard``, ``frozen_coins``, ``frozen_gems``): REPLACED
+          from this day's own value every call, never merged with the running
+          total — each reports only whether TODAY earned the bonus, so a day
+          that doesn't re-earn it clears what the previous day set. This is
+          what keeps them one-day pulses instead of permanent unlocks.
 
         After merging, all surviving ban counters are decremented by 1 and
         any counter reaching 0 is dropped (the ban expires).
@@ -220,6 +241,17 @@ class DayChain:
         if fd_val is not None:
             self.foundation_doors = fd_val
 
+        # --- one-day-pulse room bonuses (Sauna/Morning Room/Break Room/Freezer) ---
+        # Unconditional REPLACE (not OR-merge): each key reports only whether TODAY
+        # earned the bonus, so a day that does not re-earn it must clear the running
+        # value rather than keep yesterday's True forever (that would make the
+        # bonus permanent, which none of these four rooms are).
+        self.sauna_bonus = bool(carryover.get("sauna_bonus"))
+        self.morning_room_bonus = bool(carryover.get("morning_room_bonus"))
+        self.break_room_keycard = bool(carryover.get("break_room_keycard"))
+        self.frozen_coins = carryover.get("frozen_coins") or 0
+        self.frozen_gems = carryover.get("frozen_gems") or 0
+
         # --- banned_rooms (Repellent bans from this day) ---
         # Decrement PRE-EXISTING bans first (one day has elapsed for them),
         # then merge the NEW bans from this day.  New bans are not decremented
@@ -261,6 +293,11 @@ class DayChain:
             self.chapel_tithes = 0            # fresh attempt; tithe bank reset
             self.repellent_bans = {}
             self._ban_order = []
+            self.sauna_bonus = False          # fresh attempt; no "yesterday" to carry a pulse from
+            self.morning_room_bonus = False
+            self.break_room_keycard = False
+            self.frozen_coins = 0
+            self.frozen_gems = 0
             # Fresh attempt: drop everything earned in-run, but keep whatever the
             # base config presets, which is the same baseline day 1 started from.
             self.applied_upgrades = frozenset(self.base_cfg.upgrade_disks)

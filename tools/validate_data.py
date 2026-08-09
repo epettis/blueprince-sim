@@ -60,7 +60,7 @@ KNOWN_EFFECT_TAGS = {"grant", "grant_per_category", "grant_on_draft_category",
                      "free_green_drafts", "halve_steps", "coins_per_deadend",
                      "coins_per_draft",
                      "negate_red_rooms", "pay_gems_with_steps", "reduce_draft_options",
-                     "anti_luck"}
+                     "anti_luck", "mark_visited"}
 
 
 def main() -> int:

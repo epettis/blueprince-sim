@@ -2481,7 +2481,12 @@
     "disk_reader": false
    },
    "deck_copies": 1,
-   "effects": [],
+   "effects": [
+    {
+     "tag": "mark_visited",
+     "flag": "sauna_visited"
+    }
+   ],
    "items": {
     "guaranteed": [],
     "additional_max": 1,
@@ -2679,7 +2684,12 @@
     "disk_reader": false
    },
    "deck_copies": 1,
-   "effects": [],
+   "effects": [
+    {
+     "tag": "mark_visited",
+     "flag": "freezer_frozen"
+    }
+   ],
    "items": {
     "guaranteed": [],
     "additional_max": 1,
@@ -4897,7 +4907,12 @@
     "disk_reader": false
    },
    "deck_copies": 1,
-   "effects": [],
+   "effects": [
+    {
+     "tag": "mark_visited",
+     "flag": "morning_room_visited"
+    }
+   ],
    "items": {
     "guaranteed": [
      {

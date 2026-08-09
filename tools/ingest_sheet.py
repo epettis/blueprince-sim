@@ -245,6 +245,18 @@ EFFECT_MAP: dict[str, dict] = {
 # main()) raises if a key here is not among the ids the sheet actually
 # produces, so a typo'd id fails the ingest instead of silently doing nothing.
 EFFECT_OVERRIDE: dict[str, dict] = {
+    # The Gallery's chests pay a fixed 4 coins, so the entry is coins_exact
+    # rather than a pile count; Key 8 arrives separately via guaranteed_in.
+    "gallery": {"items": {"guaranteed": [
+        {"item": "gem", "count": 2},
+        {"item": "coins_exact", "count": 4}]}},
+    # Tomorrow Rooms: mark_visited records the visit; the bonus is paid at the
+    # next day's reset. The Morning Room also pays 2 gems the same day.
+    "sauna": {"effects": [{"tag": "mark_visited", "flag": "sauna_visited"}]},
+    "freezer": {"effects": [{"tag": "mark_visited", "flag": "freezer_frozen"}]},
+    "morning_room": {
+        "effects": [{"tag": "mark_visited", "flag": "morning_room_visited"}],
+        "items": {"guaranteed": [{"item": "gem", "count": 2}]}},
     # ix108: "3ð Prize" — the upgrade variant that increases the Parlor box to 3 gems.
     "parlor__ix108": {"items": {"guaranteed": [{"item": "gem", "count": 3}]}},
     # Boudoir's safe is a fixture of the room, so it survives every upgrade. Room

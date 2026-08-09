@@ -105,6 +105,18 @@ def set_resource_on_enter(game, room, eff, ctx_room) -> None:
     setattr(st, resource, value)
 
 
+@effect("mark_visited", Hook.ON_ENTER)
+def mark_visited(game, room, eff, ctx_room) -> None:
+    """Sauna / Morning Room / Freezer: set a per-day GameState bool flag on entry.
+
+    The flag is read back out through Game.carryover() at day end and turned
+    into next day's starting bonus by DayChain -- see the flag fields on
+    GameState (sauna_visited, morning_room_visited, freezer_frozen) for what
+    each one means.
+    """
+    setattr(game.state, eff.param("flag"), True)
+
+
 # --- drafting-time relational grants ---
 
 @effect("grant_on_draft_category", Hook.ON_DRAFT_ROOM)

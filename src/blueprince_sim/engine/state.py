@@ -242,6 +242,27 @@ class GameState:
     # top up steps already spent this attempt, since st.steps is only set once
     # at reset().
     orchard_unlocked: bool = False
+    # Set the first time the player enters a Sauna today. Unlike orchard_unlocked
+    # this is a ONE-DAY pulse, not a permanent unlock: carryover() reports only
+    # today's own value (never ORed with cfg.sauna_bonus), and DayChain replaces
+    # sauna_bonus each advance() instead of merging it forever, so the +20 starting
+    # steps land on exactly the FOLLOWING day and require a fresh Sauna visit to
+    # repeat.
+    sauna_visited: bool = False
+    # Set the first time the player enters a Morning Room today. Same one-day
+    # pulse shape as sauna_visited; grants +2 starting gems on the FOLLOWING day
+    # only. The same-day +2 gems is a separate, already-modelled mechanic
+    # (items.guaranteed on the room record).
+    morning_room_visited: bool = False
+    # Set the first time the player enters the Freezer today. Same one-day pulse
+    # shape as sauna_visited: today's ending coins/gems (read by carryover() at
+    # day end) carry into tomorrow's starting balance instead of resetting to the
+    # normal day-start amount. See GameConfig.frozen_coins/frozen_gems.
+    freezer_frozen: bool = False
+    # Set by Game._terminate when the day ends while the player is standing in
+    # Break Room. Same one-day pulse shape as sauna_visited; grants a starting
+    # keycard on the FOLLOWING day only.
+    break_room_keycard: bool = False
     # chronological (item id, count) pickups this run, for CLI/replay reporting
     items_found_log: list[tuple[str, int]] = field(default_factory=list)
 
