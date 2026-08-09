@@ -1181,6 +1181,111 @@ discarded for exactly that reason.
   interruptions spread over hours. This is a process ruling with teeth: an agent
   that hits a discrepancy mid-implementation has already sequenced the work wrong.
 
+- **2026-08-09, cross-day room mechanics are IN scope; "out of single-day scope"
+  is retired as stale doctrine.** Owner, on being shown that seven rooms are
+  unimplemented only because their own `meta.effect_text` annotates the mechanic
+  as spanning days: `sauna`, `morning_room`, `master_bedroom`, `clock_tower`,
+  `mail_room`, `freezer`, `break_room__ix11`.
+
+  The annotation describes the simulator's past, not its present.
+  `env/multiday.py:30` already carries 13 boolean flags across days plus
+  `applied_upgrades`, `draft_counts`, `foundation_cell`/`foundation_doors`,
+  `repellent_bans` and `carried_items`. The decisive precedent is one line in
+  that same list, merged the previous day in PR #84:
+
+      "orchard_unlocked",   # grants +20 starting steps next day
+
+  which is exactly the shape `morning_room` ("+2 gems tomorrow") and `sauna`
+  ("+20 coins tomorrow") need. All seven are implemented on that pattern.
+  `mail_room` and `clock_tower` additionally need a small day-counter rather
+  than a bool, which is new but shallow.
+
+  **The stale annotations are corrected in the same work**, deliberately: an
+  effect_text that wrongly says "out of scope" does not merely mislead a reader,
+  it suppressed these rooms from THIS audit — several batches accepted the
+  annotation and marked the room blocked. Two more of the same kind were found
+  and are corrected with them: `throne_room` claims "entirely out of scope, no
+  effect modeled" while `game.py:1510-1517` implements its north Antechamber
+  lever, and `lost_and_found` claims the same while `special_items.py:499-668`
+  implements its steal/gift. `trading_post` is a third (`shops.py` implements
+  the full tier graph its metadata calls out of scope).
+
+  Act on this cold as: **a scope annotation is a claim with an expiry date.**
+  When the engine grows a capability, sweep the annotations that denied it.
+
+- **2026-08-09, a room stating an exact coin amount grants exactly that amount.**
+  Owner. `items.guaranteed`'s `coins` count means *piles*, each rolling 1-5
+  (`engine/items.py:92-106`, `items.json` `pile_min: 1, pile_max: 5`), so every
+  room whose text promises a specific figure systematically misses it:
+
+  | room | piles | range | mean | effect_text |
+  |---|---|---|---|---|
+  | `vault` | 8 | 8-40 | 24.0 | +40 coins |
+  | `rumpus_room` | 2 | 2-10 | 6.0 | +8 coins |
+  | `pantry` | 1 | 1-5 | 3.0 | +4 coins |
+
+  The Vault is the case that decided it: a room the player spends keys to open,
+  quietly worth **60%** of its advertised value. This needs a schema addition
+  distinguishing "N coins" from "N piles"; the pile roll stays for rooms that
+  genuinely scatter piles.
+
+  **Note this is the sim disagreeing with BOTH sources, not a source conflict** —
+  the wiki and the datamined effect_text agree on the numbers. It is therefore
+  not covered by the 2026-08-06 "datamined beats the wiki" ruling, which
+  arbitrates between sources and has nothing to say when they concur.
+
+  Recorded because an earlier audit pass misread this as a data-entry slip
+  ("count 2 against +8 coins, a fourfold under-grant"). It is not: 2 piles
+  average 6, not 2. Act on this cold as: check what a count counts before
+  calling it wrong.
+
+- **2026-08-09, all 16 pool-name categories are corrected to real colours.**
+  Owner. Task 15 recorded eight rooms carrying `category: "studio_addition"`;
+  there are **sixteen** — the eight outer rooms carry `category: "outer"`, the
+  identical fault.
+
+      studio_addition: solarium, classroom, clock_tower, dormitory,
+                       vestibule, casino, dovecote, the_kennel
+      outer:           tomb, toolshed, root_cellar, shelter, hovel,
+                       schoolhouse, shrine, trading_post
+
+  The exclusion mechanism is `draft.py:302`, the category-targeted draw filter:
+  a room whose category is a pool name can never be drawn by a category-targeted
+  draw, which silently removes all 16 from the Secret Passage colour choice,
+  scepter colours, `grant_per_category`, the Cloister/Terrace green boosts and
+  every category bias.
+
+  **It also left two branches unreachable**: `game.py:994` and `shops.py:359`
+  both gate outer-room shop behaviour on `outer_room.category == "shop"`, which
+  no outer room can satisfy. Verified behaviourally rather than by grep, per the
+  standing lesson: all eight shops declared in `shops.json` are on-grid base
+  rooms already carrying `category: "shop"`, and no outer room is a declared
+  shop. This is the `forced_draw_precedence` shape again — a branch written for
+  a condition the data never produces, silent in both directions. The Trading
+  Post is the room it most likely concerns; its own effect_text opens "Counts as
+  a Shop."
+
+  Lands as its own PR: `Room.category` has 22 read sites, and this changes
+  behaviour at `draft.py`, `tier1.py`, `state.py`, `special_items.py` and the
+  `env/obs.py` category feature. **`CATEGORIES` in `env/obs.py` is left alone** —
+  removing the now-inert `studio_addition`/`outer` slots would renumber every
+  later category for no behavioural gain. `test_draft_stats.py` keys on rarity,
+  not category, so it should be unaffected — confirm rather than assume.
+
+- **2026-08-09, the assumed-solved doctrine extends to puzzle-reward rooms.**
+  Owner. `gallery`, `room_8` and `parlor` grant their documented rewards on
+  entry with no puzzle modelled, exactly as the room safes and the Shelter's
+  real-time timed safe were ruled on 2026-08-06.
+
+  **`great_hall` and `closed_exhibit` are deliberately excluded.** The
+  distinction that decides it: in the three included rooms the reward IS the
+  mechanic, so granting it loses nothing. The Great Hall's interior subchambers
+  are a randomised *spatial* system behind Silver/Prism Key doors, and the
+  Closed Exhibit's is a *lock* system — in both, flattening the mechanic to a
+  constant would delete the structure, not approximate it. The Great Hall is
+  a lever room at 3.3% placement, so the temptation to inflate it is real and
+  is being declined on purpose.
+
 ## 5. Throttle the training terminal output — DONE
 
 The trainer currently refreshes the dashboard after every completed seed, which
