@@ -87,12 +87,63 @@ def test_describe_action_navigate_and_draft():
     open_actions = [i for i, ok in enumerate(env.action_masks()) if ok and i < A.CHOOSE_BASE]
     assert open_actions
     desc = A.describe_action(game, open_actions[0])
-    assert desc.startswith("draft ") and "@ r" in desc
+    assert desc.startswith("draft ") and "door from " in desc and "(r" in desc
     env.step(open_actions[0])  # now drafting
     desc = A.describe_action(game, A.CHOOSE_BASE)
     assert desc.startswith("choose #1 ")
     assert A.describe_action(game, A.REDRAW_ACTION) == "redraw"
     assert A.describe_action(game, A.ROTATE_ACTION) == "rotate options"
+
+
+def test_describe_action_draft_names_source_room():
+    """A draft action's label names the room it is opened from (plus the grid
+    coordinate), not a bare coordinate -- players draft standing inside a
+    room, and translating r1c2 back into "which room am I in" was the
+    reported confusion this label exists to resolve."""
+    env = BluePrinceEnv(cfg=all_unlocks_config("shaped"))
+    env.reset(seed=42)
+    game = env.game
+    open_actions = [i for i, ok in enumerate(env.action_masks()) if ok and i < A.CHOOSE_BASE]
+    cell, _dir_idx = divmod(open_actions[0], 4)
+    room = game.registry.rooms[game.state.grid[cell]]
+    desc = A.describe_action(game, open_actions[0])
+    # The room's name is present, and the coordinate is still there too --
+    # room names can repeat across a house (allow_duplicates rooms), so the
+    # coordinate remains the only unique reference to this exact cell.
+    assert room.name in desc
+    assert A._cell_name(cell) in desc
+
+
+def test_describe_action_draft_empty_source_cell_degrades_gracefully():
+    """A doorway action built for a source cell holding no room falls back to
+    the bare coordinate instead of crashing or fabricating a room name --
+    defensive, mirroring the guard describe_action's move_to branch already
+    has for an empty grid[cell]."""
+    env = BluePrinceEnv(cfg=all_unlocks_config("shaped"))
+    env.reset(seed=42)
+    game = env.game
+    empty_cell = next(c for c in range(45) if game.state.grid[c] < 0)
+    action_id = empty_cell * 4  # direction N; legality doesn't matter here
+    desc = A.describe_action(game, action_id)
+    assert desc == f"draft N door from {A._cell_name(empty_cell)}"
+
+
+def test_pending_dict_outer_draft_has_no_source_room():
+    """The outer-room draft is opened from the West Path doorstep, off-grid --
+    its pending dict reports from_room=None rather than fabricating a room
+    name, since from_cell=-1 has no grid room behind it."""
+    env = BluePrinceEnv(cfg=all_unlocks_config("shaped"))
+    game = env.game
+    for seed in range(1, 200):
+        env.reset(seed=seed)
+        if game.outer_draft_available():
+            break
+    else:
+        raise AssertionError("no seed in range gave an available outer draft")
+    game.open_outer_draft()
+    pending = replay._pending_dict(game)
+    assert pending["from_cell"] == -1
+    assert pending["from_room"] is None
 
 
 def test_recorder_sampling_and_top_window(tmp_path: Path):
