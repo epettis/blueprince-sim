@@ -1400,6 +1400,52 @@ Two things NOT to strip, so the sweep does not overshoot:
   cheapest time to know that is when it happens, not when a checkpoint fails to
   load.
 
+- **2026-08-09, "tomorrow" bonuses are ONE-DAY PULSES; the Apple Orchard and the
+  Gemstone Cavern are the permanent ones.** This corrects a framing error of
+  mine, found by research rather than by review.
+
+  I briefed the cross-day rooms as "the same shape as `orchard_unlocked`",
+  meaning earned once and true forever. The wiki contradicts that for every one
+  of them: the Sauna, the Morning Room's next-day half, the Freezer's carryover
+  and the Break Room's keycard are **Tomorrow Rooms**, applying only to the
+  single following day and needing to be re-earned. Each room's own
+  `effect_text` says so plainly -- "**Tomorrow**, you will start the day with
+  ..." -- and the wiki contrasts them explicitly against the Apple Orchard,
+  which it singles out as genuinely permanent.
+
+  Implementing my instruction literally would have made one Sauna visit worth
+  +20 steps on every remaining day of a 200-day attempt.
+
+  So the sim now has **two distinct cross-day shapes**, and picking the wrong
+  one is a silent balance error rather than a crash:
+
+  - **One-day pulse** -- a replace-per-day carry, the shape of `chapel_tithes`
+    and `foundation_cell`. Sauna, Morning Room, Freezer, Break Room.
+  - **Permanent once earned** -- an OR-forever flag in
+    `DayChain._CARRYOVER_KEYS`. `orchard_unlocked`, `west_gate_unlatched`,
+    `sealed_entrance_broken`, and now the Gemstone Cavern.
+
+  **The Gemstone Cavern is permanent: +2 gems per day, beginning the day after
+  it is first reached** (owner, from play). It is an area node, not a room --
+  `gemstone_cavern` in `areas.json`, whose own name already records the mechanic
+  ("Gemstone Cavern (2 gems/day - torch on ENTRY)") -- and it is
+  `modelled: false`, so nothing has ever offered it as a destination. Its only
+  approach, `campsite -> gemstone_cavern`, is gated on `vac_puzzle_lever`, a
+  `kind: puzzle` gate that passes under the assumed-solved doctrine, and
+  `campsite` became a modelled destination in PR #84. So the Cavern is reachable
+  today and simply invisible.
+
+  This is the exact shape of `orchard_unlocked`: flag set on first arrival in
+  `Game.travel_to`, carried by `DayChain`, consulted in `Game.reset()`. It also
+  satisfies the 2026-08-04 rule that a node only goes `modelled: true` when it
+  "holds something worth walking to" -- a permanent per-day gem income
+  qualifies, the same way the Orchard's step bonus did.
+
+  Act on this cold as: **"tomorrow" in an effect text means exactly one
+  tomorrow.** Before modelling any cross-day bonus, establish which of the two
+  shapes it is; the wiki's Tomorrow Rooms category is the discriminator, and the
+  Orchard and the Cavern are the known exceptions.
+
 ## 5. Throttle the training terminal output — DONE
 
 The trainer currently refreshes the dashboard after every completed seed, which
