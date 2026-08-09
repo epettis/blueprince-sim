@@ -335,6 +335,43 @@ Two things NOT to strip, so the sweep does not overshoot:
   `rooms.json` round-trips at 1-space indent, or that `_CARRYOVER_KEYS` is
   sorted because Python randomises string hashing per process. Keep those.
 
+## 17. Room behaviour: registry migration
+
+Opened 2026-08-10 from the architecture memo (see the decisions log entry of the
+same date for the reasoning and the measurements). Runs alongside task 15 rather
+than blocking it -- task 15 authors what a room does, task 17 changes where that
+lives.
+
+| Phase | Content |
+|---|---|
+| 0 | Divergence validator in `validate_data.py` |
+| 1 | Widen `Hook`: `ON_DRAFT_FROM`, `ON_HAND_DEALT`, `ON_ARRIVE`, `ON_DAY_END` |
+| 2 | `room_hook` registry with opt-in `inherit` |
+| 3 | Migrate the 13 singleton tags to `engine/effects/rooms/` |
+| 4 | Relocate room-behaviour branches out of `game.py` / `draft.py` |
+| 5 | Retire the behaviour half of the ingest tables |
+
+The 13 singleton tags, which are the phase-3 worklist: `study_redraws`,
+`allow_duplicates`, `greenhouse_bias`, `anti_luck`, `halve_steps`,
+`furnace_bias`, `solarium_weights`, `coins_per_deadend`, `negate_red_rooms`,
+`pay_gems_with_steps`, `schoolhouse_bias`, `conservatory_rerolls`,
+`coins_per_draft`.
+
+**Two effects draw from the RNG** -- `conservatory_rerolls` and `inject_pool` --
+so migrating them can shift seed-stream consumption order. Keep each handler
+firing at the same point in `fire()` and re-run `test_draft_stats.py`; a move
+there is evidence the draft math regressed, not a flaky test.
+
+**What stays in data, deliberately**: the 9 shared parametric tags -- `grant`,
+`grant_per_category`, `grant_on_draft_category`, `set_resource_on_enter`,
+`counts_as_bedrooms`, `counts_as_drafting_room`, `inject_pool`,
+`free_green_drafts`, `reduce_draft_options`. They carry 44 of 57 effect instances
+and are everything `items.py::expected_yields` introspects.
+
+**CLAUDE.md's "prefer changing behavior by editing data over editing code" needs
+rewording when phase 3 lands.** It remains correct for stats and for the shared
+parametric tags; it has been quietly wrong for singleton behaviour for a while.
+
 ## Decisions log
 
 - **2026-07-26, lockers**: locked lockers cost exactly one BASIC key — the wiki is
@@ -1445,6 +1482,85 @@ Two things NOT to strip, so the sweep does not overshoot:
   tomorrow.** Before modelling any cross-day bonus, establish which of the two
   shapes it is; the wiki's Tomorrow Rooms category is the discriminator, and the
   Orchard and the Cavern are the known exceptions.
+
+- **2026-08-10, room behaviour moves to a room-id-keyed registry in Python; NOT
+  to a class per room.** Owner asked for research on giving every room a class
+  derived from the JSON, with `when_drawn` / `when_drafted` / `when_entered` /
+  `when_room_drafted` hooks over a base class, on the premise that "we have
+  moved past the point where we can represent functionality in data files".
+  Owner explicitly invited a negative answer. The memo accepts the diagnosis and
+  rejects the prescription; owner ruled to execute it.
+
+  **The diagnosis holds, measurably.** 56 distinct room ids are hardcoded across
+  20 Python files; 18 rooms have their behaviour split across data AND Python;
+  16 base-pool rooms have an effect text, no data behaviour, and their whole
+  implementation in Python. And **13 of the 22 effect tags are used by exactly
+  one room**, most named after that room -- `solarium_weights`, `study_redraws`,
+  `coins_per_deadend`, `pay_gems_with_steps`. The codebase had already converged
+  on per-room handlers; it just keyed them by a tag string that is a synonym for
+  the room and routed the call through a JSON file to get there.
+
+  **The inheritance argument -- the part that looks most obviously right -- is
+  refuted by the data.** Of the 56 upgrade variants that have both a parent and
+  an `effect_text`, **zero** share their parent's text. Of the six variants that
+  model nothing while their parent models something, inheritance would be correct
+  for exactly one; `empty_closet__ix41`'s text is literally "0 items" and would
+  have silently inherited the Closet's two. PR #90's bug was **unauthored
+  records**, and inheritance would have hidden it behind plausible numbers
+  instead of exposing it as conspicuous zeros.
+
+  **Three costs the class proposal does not account for.** Six sites read
+  `room.effects` *generically* rather than executing it -- including
+  `items.py::expected_yields`, which feeds both the greedy policy and the Play
+  tab -- so opaque methods would need a duplicate second method surface. `Room`
+  is frozen and the `Registry` is shared across episodes
+  (`blueprince_env.py:132`), so room *instances* with methods invite a
+  per-episode state leak that room-keyed *functions* cannot. And a base class
+  would need ~14 hooks to cover the five distinct query signatures the engine
+  already fires (`_in_classroom_context`, two different rotation predicates,
+  drafting-from-Library, placement legality, action masking), leaving 169
+  subclasses inheriting a dozen no-ops each.
+
+  **Performance is not a factor in either direction**: `effects.fire` measured at
+  **0.2%** of runtime (1,401 calls, 0.003s cumulative of 1.40s). The hot path is
+  `obs.encode` at 31% and `action_mask` at 27%.
+
+  **What ships instead**, in this order, each green at every commit:
+
+  0. A **divergence validator** in `validate_data.py` -- flag any variant that
+     models exactly its parent while its effect text differs, and any record with
+     an effect text that models nothing. Emits ~112 findings today, which is a
+     machine-generated task-15 worklist and strictly better than the current
+     "absence of a test file" progress bar. **Ships first and stands alone**,
+     independent of every other decision here.
+  1. **Widen `Hook`**: `ON_DRAFT_FROM`, `ON_HAND_DEALT`, `ON_ARRIVE`,
+     `ON_DAY_END`. Four members today is why the Classroom and Dovecote branches
+     are hardcoded in `game.py` -- there is no hook for "drafting FROM this room"
+     or "this room is in the current hand".
+  2. A **room-id-keyed handler registry** alongside the existing tag registry,
+     with per-handler opt-in inheritance (`inherit=True`) rather than a blanket
+     loader rule, so the Boudoir's fixture safe inherits and the Closet's items
+     do not.
+  3. Migrate the **13 singleton tags** to room modules under
+     `engine/effects/rooms/`, mirroring `tests/rooms/` one-to-one.
+  4. Relocate the genuine room-behaviour branches out of `game.py`/`draft.py`.
+     Placement conditions, deck membership, shop stock, upgrade slots and action
+     masking deliberately stay put -- those are subsystem concerns keyed by room,
+     not room behaviour.
+  5. Retire the behaviour half of `ingest_sheet.py`'s tables.
+
+  **The mixed-ownership boundary is the shared/singleton split**, and drawing it
+  anywhere else is the failure mode: the 9 shared parametric tags (44 of 57
+  effect instances, and everything `expected_yields` introspects) stay in data. A
+  tag lives in data or in code, **never both** -- leaving `effects` in
+  `rooms.json` while Python handlers also exist creates exactly the second source
+  of truth this is meant to remove.
+
+  Act on this cold as: **the JSON is a cache of a Python source of truth
+  already.** `EFFECT_MAP` and `EFFECT_OVERRIDE` are hand-authored Python dicts,
+  `rooms.json` is their build artifact, and `test_ingest_overrides.py` exists
+  solely to prove the two agree. Moving behaviour into code deletes that whole
+  apparatus -- but only if the field moves out of the JSON entirely.
 
 ## 5. Throttle the training terminal output — DONE
 
