@@ -103,3 +103,14 @@ def test_tomb_grants_nothing_for_a_non_dead_end_drafted_after_it(registry, cfg):
     coins_before = g.state.coins
     g._place_room(not_dead_end, 11, not_dead_end.door_mask)
     assert g.state.coins == coins_before
+
+
+def test_tomb_grants_coins_for_its_own_placement(registry, cfg):
+    """The Tomb's own layout is a Dead End, so placing it grants +5 coins
+    immediately for itself, not only for Dead Ends drafted afterward."""
+    g = Game(cfg, seed=1)
+    g.state.luck = 0
+    tomb = registry.by_id["tomb"]
+    coins_before = g.state.coins
+    g._place_room(tomb, 6, tomb.door_mask)
+    assert g.state.coins == coins_before + 5

@@ -295,6 +295,14 @@ EFFECT_OVERRIDE: dict[str, dict] = {
         {"tag": "grant_on_draft_category", "resource": "gems", "amount": 2, "category": "green"}]},
     "nurses_station__ix102": {"effects": [
         {"tag": "set_resource_on_enter", "resource": "steps", "value": 20, "if_below": 10}]},
+    # nursery and nursery__ix101 both grant on their own draft (own category is
+    # bedroom), unlike indoor_nursery__ix103 above whose text says "another".
+    "nursery": {"effects": [
+        {"tag": "grant_on_draft_category", "resource": "steps", "amount": 5,
+         "category": "bedroom", "include_self": True}]},
+    "nursery__ix101": {"effects": [
+        {"tag": "grant_on_draft_category", "resource": "steps", "amount": 8,
+         "category": "bedroom", "include_self": True}]},
     # Second-level variants (upgrades of an upgrade): each has its own name, so
     # EFFECT_MAP's base-slug entry does not match.
     "spare_master_bedroom__ix136": {"effects": [

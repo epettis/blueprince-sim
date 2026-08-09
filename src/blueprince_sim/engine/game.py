@@ -1385,9 +1385,10 @@ class Game:
 
         Rolls lock state for its fresh door segments, updates the placed-id /
         room-cell indexes and progress counters, then fires the room's
-        ON_PLACE hook plus ON_DRAFT_ROOM on every other placed room
-        (relational effects like the Nursery). ``entered=True`` is only used
-        for the Entrance Hall at day start.
+        ON_PLACE hook, its own ON_DRAFT_ROOM hook (effects opted in via
+        include_self react to their own draft), and ON_DRAFT_ROOM on every
+        other placed room (relational effects like the Nursery).
+        ``entered=True`` is only used for the Entrance Hall at day start.
         """
         st = self.state
         st.grid[cell] = room.idx
@@ -1413,6 +1414,12 @@ class Game:
         effects.fire(self, room, Hook.ON_PLACE)
         if self.cfg.special_items:
             special_items.on_place(self, room, cell)
+        # The room's own reaction to its own draft (Tomb's own Dead End,
+        # Nursery's own Bedroom category) fires before the broadcast to other
+        # rooms below. Passing context_room=room lets each ON_DRAFT_ROOM
+        # handler tell a self-fire (room is ctx_room) from a relational one
+        # and gate on the effect's include_self param.
+        effects.fire(self, room, Hook.ON_DRAFT_ROOM, context_room=room)
         # Relational draft hooks on every other placed room (Nursery etc.).
         for other_cell, idx in enumerate(st.grid):
             if idx >= 0 and other_cell != cell:

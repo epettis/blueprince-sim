@@ -109,7 +109,15 @@ def set_resource_on_enter(game, room, eff, ctx_room) -> None:
 
 @effect("grant_on_draft_category", Hook.ON_DRAFT_ROOM)
 def grant_on_draft_category(game, room, eff, ctx_room) -> None:
-    """Nursery: whenever you draft a Bedroom, gain N steps."""
+    """Nursery: whenever you draft a Bedroom, gain N steps.
+
+    ``room is ctx_room`` identifies the room's own draft (see
+    Game._place_room's self-fire); that case only proceeds when the effect's
+    include_self param is set, so e.g. Indoor Nursery's "another Green Room"
+    wording does not grant on its own draft.
+    """
+    if room is ctx_room and not eff.param("include_self", False):
+        return
     if ctx_room is not None and ctx_room.category == eff.param("category"):
         _grant(game, eff.param("resource"), eff.param("amount", 0))
 
@@ -186,7 +194,12 @@ def halve_steps(game, room, eff, ctx_room) -> None:
 
 @effect("coins_per_deadend", Hook.ON_DRAFT_ROOM)
 def coins_per_deadend(game, room, eff, ctx_room) -> None:
-    """Tomb: each Dead End drafted in the house spreads gold into the Tomb."""
+    """Tomb: each Dead End drafted in the house spreads gold into the Tomb,
+    including the Tomb itself (its own layout is a Dead End) when the
+    effect's include_self param is set.
+    """
+    if room is ctx_room and not eff.param("include_self", False):
+        return
     if ctx_room is not None and ctx_room.layout == "dead_end":
         _grant(game, "coins", eff.param("amount", 5))
 
