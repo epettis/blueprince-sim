@@ -1,10 +1,8 @@
-"""Nurse's Station (an upgrade variant of the Nursery): sets steps to 20 on
-entry if the player has fewer than 10.
+"""Nurse's Station, an upgrade variant of the Nursery.
 
-Restored per the room fidelity audit (docs/open_tasks.md task 15) using the
-``set_resource_on_enter`` primitive, whose own docstring already named
-"Nurse's Station" -- the primitive was written for this room and never wired
-up until now.
+Entering with fewer than 10 steps sets steps to 20; entering with 10 or more
+leaves them untouched. Driven by the ``set_resource_on_enter`` effect with an
+``if_below`` threshold.
 """
 
 from __future__ import annotations

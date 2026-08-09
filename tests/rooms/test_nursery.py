@@ -16,10 +16,9 @@ def test_nursery_grants_on_bedroom_draft(registry, cfg):
 
 
 def test_indoor_nursery_grants_gems_on_green_room_draft(registry, cfg):
-    """Indoor Nursery (an upgrade variant of the Nursery, restored per the room
-    fidelity audit) grants 2 gems whenever another Green Room is drafted -
-    mirroring the base Nursery's grant_on_draft_category shape but keyed to
-    the green category and paying gems instead of steps."""
+    """Indoor Nursery, an upgrade variant of the Nursery, grants 2 gems whenever
+    another Green Room is drafted. It uses the same grant_on_draft_category
+    shape as the base Nursery, keyed to the green category and paying gems."""
     g = Game(cfg, seed=1)
     g._place_room(registry.by_id["indoor_nursery__ix103"], 7, 4)
     gems0 = g.state.gems

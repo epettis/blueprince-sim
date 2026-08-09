@@ -1,10 +1,8 @@
-"""Spare Master Bedroom (an upgrade variant of the Spare Bedroom): grants 1
-step for every room currently in the house.
+"""Spare Master Bedroom, an upgrade variant of the Spare Bedroom.
 
-Restored per the room fidelity audit (docs/open_tasks.md task 15), mirroring
-the base Master Bedroom's identical ``grant_per_category`` shape (category
-"any", which the effect handler sums over every placed room regardless of
-category -- see tier1.py's grant_per_category and its "any" branch).
+Entering grants 1 step for every room currently placed in the house, via
+``grant_per_category`` with category "any", which sums over every placed room
+regardless of category.
 """
 
 from __future__ import annotations

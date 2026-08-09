@@ -1,8 +1,8 @@
-"""Hallway upgrade variant: guaranteed key count restored per the room
-fidelity audit (docs/open_tasks.md task 15).
+"""Hallway upgrade variant guaranteed items.
 
-hallway__ix74's "+1 key" had regressed to an empty ``items.guaranteed`` list
-because upgrade variants do not inherit items through ``variant_of``.
+``hallway__ix74`` grants 1 key on first entry. Items are not inherited through
+``variant_of``, so the variant carries its own ``items.guaranteed`` entry
+rather than picking up the base Hallway's.
 """
 
 from __future__ import annotations

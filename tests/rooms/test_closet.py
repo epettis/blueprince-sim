@@ -1,16 +1,12 @@
-"""Closet upgrade variants: guaranteed random-item counts restored per the
-room fidelity audit (docs/open_tasks.md task 15).
+"""Closet guaranteed items, for the base room and its three upgrade variants.
 
-The base Closet grants 2 random items on first entry. Its upgrade variants
-(Hallway Closet, Bedroom Closet) promise "2 items" as their own baseline text
-but had regressed to zero -- an upgrade making the Closet strictly *worse*,
-which matters because the Closet is the drafting engine's guaranteed
-fallback room. The variants' "+N extra items if drafted adjoined to X" is a
-new adjacency mechanic and stays out of scope; only the flat 2-item baseline
-is restored here.
+The base Closet and both the Hallway and Bedroom variants grant 2 random items
+on first entry; Empty Closet grants none. Nothing is inherited through
+``variant_of``, so each record carries its own count.
 
-Empty Closet's "0 items" is correct as-is and needs no fix; it is pinned here
-to guard against a future regression reintroducing items where none belong.
+The variants' "+N extra items if drafted adjoined to a Hallway/Bedroom/Red
+Room" is an adjacency mechanic the sim does not model, so only the flat
+baseline is asserted here.
 """
 
 from __future__ import annotations

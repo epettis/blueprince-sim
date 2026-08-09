@@ -15,11 +15,9 @@ The Boudoir's safe is a fixture of the room, so it survives every upgrade -
 and room effects are NOT inherited through variant_of, so each variant record
 carries the grant in its own right. That is what BOUDOIR_VARIANT_IDS pins.
 
-Each upgrade variant's own text bonus ("+1 gem" / "+2 dice" / "+3 gems") is a
-SECOND grant stacked on top of the safe, per the 2026-08-06 owner ruling that
-the safe survives upgrades: ix16 ends up with two +1-gem grants (+2 total),
-ix17 keeps the safe's +1 gem and adds +2 dice, ix18 keeps the safe's +1 gem
-and adds +3 more (+4 total). EXPECTED_GEMS/EXPECTED_DICE pin those totals.
+Each variant carries two grants: the safe, which is a fixture of the room, and
+the variant's own bonus. So ix16 grants 2 gems, ix17 grants 1 gem and 2 dice,
+and ix18 grants 4 gems. EXPECTED_GEMS/EXPECTED_DICE pin those totals.
 """
 
 import pytest
@@ -31,8 +29,8 @@ from blueprince_sim.engine.grid import N, S
 BOUDOIR_VARIANT_IDS = ["boudoir__ix16", "boudoir__ix17", "boudoir__ix18"]
 BOUDOIR_IDS = ["boudoir"] + BOUDOIR_VARIANT_IDS
 
-# Net resource gain on first entry, per room id: the base safe's +1 gem, plus
-# each variant's own upgrade bonus (see module docstring).
+# Net resource gain on first entry, per room id: the safe's gem plus the
+# variant's own bonus.
 EXPECTED_GEMS = {"boudoir": 1, "boudoir__ix16": 2, "boudoir__ix17": 1, "boudoir__ix18": 4}
 EXPECTED_DICE = {"boudoir": 0, "boudoir__ix16": 0, "boudoir__ix17": 2, "boudoir__ix18": 0}
 

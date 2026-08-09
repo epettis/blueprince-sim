@@ -1,8 +1,8 @@
-"""Spare Terrace (an upgrade variant of the Spare Greenroom): Green Rooms
-cost no gems to draft, identical text to the base Terrace.
+"""Spare Terrace, an upgrade variant of the Spare Greenroom.
 
-Restored per the room fidelity audit (docs/open_tasks.md task 15) by reusing
-the base Terrace's own ``free_green_drafts`` tag.
+Placing it makes Green Rooms free to draft, through the same
+``free_green_drafts`` tag the base Terrace carries. Effects are not inherited
+through ``variant_of``, so the variant carries the tag itself.
 """
 
 from __future__ import annotations

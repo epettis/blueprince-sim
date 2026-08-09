@@ -1,11 +1,12 @@
-"""Nook upgrade variants: guaranteed key counts restored per the room fidelity
-audit (docs/open_tasks.md task 15).
+"""Nook guaranteed key grants, for the base room and its three upgrade variants.
 
-nook__ix97 ("+2 key") had regressed to the base Nook's single key because
-upgrade variants do not inherit ``items.guaranteed`` through ``variant_of``.
-reading_nook__ix99 and breakfast_nook__ix98 each promise "+1 key" alongside a
-new mechanic (always drawing LIBRARY, and Bacon & Eggs respectively) that is
-out of scope here -- only the key half is restored.
+``nook__ix97`` grants 2 keys; ``reading_nook__ix99`` and
+``breakfast_nook__ix98`` grant 1 each. Items are not inherited through
+``variant_of``, so each record carries its own count.
+
+Reading Nook's guaranteed LIBRARY draw and Breakfast Nook's Bacon & Eggs are
+not modelled -- ``items.guaranteed`` has no way to name a specific dish -- so
+only the key grants are asserted here.
 """
 
 from __future__ import annotations

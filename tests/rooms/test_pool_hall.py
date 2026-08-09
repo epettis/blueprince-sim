@@ -1,12 +1,9 @@
-"""Pool Hall (an upgrade variant of the Billiard Room): injects the Great
-Hall, Foyer and Secret Passage into today's draft pool.
+"""Pool Hall, an upgrade variant of the Billiard Room.
 
-Restored per the room fidelity audit (docs/open_tasks.md task 15) -- the
-variant's ``effects`` list had regressed to empty. This is the highest-value
-fix in the audit: the Great Hall is an Antechamber lever room, and the
-project measured victory as structurally unreachable on ~89% of days for
-lack of lever rooms. Mirrors The Pool's already-working ``inject_pool``
-pattern (see tests/rooms/test_the_pool.py).
+Placing it injects the Great Hall, Foyer and Secret Passage into the day's
+draft pool via ``inject_pool``, which adds each room's ``deck_copies`` to the
+live deck for its rarity. All three are ordinary base-pool rooms, so this
+raises their draw odds for the day rather than making them draftable.
 """
 
 from __future__ import annotations
