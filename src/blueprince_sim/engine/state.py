@@ -289,6 +289,11 @@ class GameState:
     # Break Room. Same one-day pulse shape as sauna_visited; grants a starting
     # keycard on the FOLLOWING day only.
     break_room_keycard: bool = False
+    # Set the first time a No Contact Delivery Mail Room (mail_room__ix90) is
+    # drafted today. Same one-day pulse shape as sauna_visited; carryover()
+    # reports this as GameConfig.no_contact_due, which grants the package
+    # outright at the start of the FOLLOWING day.
+    no_contact_drafted: bool = False
     # chronological (item id, count) pickups this run, for CLI/replay reporting
     items_found_log: list[tuple[str, int]] = field(default_factory=list)
 
@@ -354,6 +359,15 @@ class GameState:
     # (the package's contents are rolled and granted then). Per-day only: an
     # uncollected package does not survive to the next day's fresh floorplan.
     mail_package_cell: int = -1
+    # Same Day Delivery (mail_room__ix89): the cell of a Same Day Mail Room
+    # drafted today, armed to deliver into mail_package_cell the moment Rank 8
+    # is reached; -1 = not armed (not drafted today, delivered immediately at
+    # draft time, or already delivered on Rank 8 arrival). Set by
+    # effects/rooms/mail_room.py::same_day_arm, consumed by ::reach_rank8.
+    mail_same_day_armed_cell: int = -1
+    # True once the player has entered a Rank >= 8 cell today (Same Day
+    # Delivery's trigger). Set by Game._enter; per-day only.
+    rank8_reached: bool = False
 
     def deck(self, rarity_idx: int, is_gem: bool) -> DeckState:
         return self.decks[rarity_idx * 2 + (1 if is_gem else 0)]

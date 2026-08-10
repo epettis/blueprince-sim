@@ -12,7 +12,7 @@ from .areas import GateContext, reachable
 from .decks import apply_upgrade, build_decks, inject_rooms
 from .draft import deal_draft, redeal
 from .effects import Hook
-from .effects.rooms import dovecote, great_hall, secret_garden, throne_room, weight_room
+from .effects.rooms import dovecote, great_hall, mail_room, secret_garden, throne_room, weight_room
 from .grid import (ADJACENT, DIRS, E, ENTRANCE_CELL, N, N_CELLS, OPPOSITE, W,
                    neighbor, rank_of, rotate_mask)
 from .items import EXTRA_ITEM_TABLE, grant_item, roll_room_items
@@ -669,7 +669,8 @@ class Game:
         }
 
     def _room_pulse_carryover(self) -> dict:
-        """One-day-pulse cross-day bonuses: Sauna, Morning Room, Freezer, Break Room.
+        """One-day-pulse cross-day bonuses: Sauna, Morning Room, Freezer, Break Room,
+        No Contact Delivery.
 
         Unlike the permanent flags in ``shops.carryover`` (ORed with cfg so a
         discovery, once made, holds forever), these report only TODAY's own
@@ -686,6 +687,7 @@ class Game:
             # frozen is a real, distinct value from "not frozen at all".
             "frozen_coins": st.coins if st.freezer_frozen else None,
             "frozen_gems": st.gems if st.freezer_frozen else None,
+            "no_contact_due": st.no_contact_drafted,
         }
 
     def open_door(self, cell: int, direction: int) -> PendingDraft:
@@ -1550,7 +1552,11 @@ class Game:
         st = self.state
         if cell == ANTECHAMBER_CELL:
             st.antechamber_reached = True  # milestone: first arrival at rank 9 center
-        self._collect_spread(cell)  # parked resources pay out on every arrival, not just first entry
+        # Parked resources pay out on every arrival, not just first entry.
+        self._collect_spread(cell)
+        if rank_of(cell) >= 8:
+            # Same Day Delivery's trigger; idempotent after the first Rank 8 arrival.
+            mail_room.reach_rank8(self)
         if st.entered[cell]:
             return
         st.entered[cell] = True
@@ -1727,6 +1733,8 @@ class Game:
         self.phase = Phase.TERMINAL
         self.termination_reason = reason
         st = self.state
+        # An undelivered Same Day package falls back to AWAITING for a later day.
+        mail_room.resolve_same_day_end(self)
         # The "current room" for day-end effects (Tomorrow Rooms): the
         # drafted outer room while standing inside it, otherwise the on-grid
         # room at the player's position. Off-grid but not inside the outer
