@@ -354,11 +354,21 @@ class GameState:
     # delivers it). Seeded each day from GameConfig.mail_cycle by
     # special_items.configure(); advanced by effects/rooms/mail_room.py.
     mail_cycle: str = "empty"
+    # Freight Shipping (mail_room__ix91): days remaining in the "transit"
+    # cycle state, counting down to 0 (package ready). Seeded each day from
+    # GameConfig.mail_transit_days by special_items.configure(); decremented
+    # by env/multiday.py::DayChain.advance() at each day boundary. 0 outside
+    # of a transit order.
+    mail_transit_days: int = 0
     # Grid cell holding a delivered, uncollected package today; -1 = none.
     # Set when the cycle above delivers; cleared on that cell's first entry
     # (the package's contents are rolled and granted then). Per-day only: an
     # uncollected package does not survive to the next day's fresh floorplan.
     mail_package_cell: int = -1
+    # Freight Shipping's package contents, rolled at draft time (not entry
+    # time) and held here until the player enters mail_package_cell. Empty
+    # when no Freight delivery is pending.
+    mail_freight_grants: list[dict] = field(default_factory=list)
     # Same Day Delivery (mail_room__ix89): the cell of a Same Day Mail Room
     # drafted today, armed to deliver into mail_package_cell the moment Rank 8
     # is reached; -1 = not armed (not drafted today, delivered immediately at

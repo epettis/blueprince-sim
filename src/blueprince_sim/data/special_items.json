@@ -3665,6 +3665,48 @@
    "confidence": "datamined"
   }
  },
+ "freight_packages": {
+  "package_size": 8,
+  "specials_target": 4,
+  "keys_top_up_cap": 4,
+  "special_item_pool": [
+   "lock_pick_kit",
+   "metal_detector",
+   "running_shoes",
+   "shovel",
+   "sledge_hammer"
+  ],
+  "drop_one_pair": [
+   "lock_pick_kit",
+   "sledge_hammer"
+  ],
+  "resource_configs": [
+   {
+    "keys": 4,
+    "gems": 0,
+    "weight": 1
+   },
+   {
+    "keys": 2,
+    "gems": 2,
+    "weight": 1
+   },
+   {
+    "keys": 0,
+    "gems": 4,
+    "weight": 1
+   }
+  ],
+  "meta": {
+   "source": "https://blueprince.wiki.gg/wiki/Mail_Room",
+   "confidence": "wiki",
+   "note": "special_item_pool, drop_one_pair (50/50) sourced from the wiki, which itself flags the 50/50 split as coming from an unverified off-wiki TFMurphy forum post."
+  },
+  "resource_configs_meta": {
+   "confidence": "inferred",
+   "note": "Only the set of three configurations (4 keys / 2 keys+2 gems / 4 gems) is wiki-sourced; their relative weights are unpublished. Assumed uniform (equal weight) pending better data."
+  }
+ },
  "ignition": {
   "tools": [
    "torch",

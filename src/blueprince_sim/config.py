@@ -171,6 +171,11 @@ class GameConfig:
     # way as chapel_tithes/allowance, since state.mail_cycle already IS the
     # day's ending value.
     mail_cycle: str = "empty"
+    # Freight Shipping (mail_room__ix91) transit countdown carried into the next
+    # day: days remaining in the "transit" cycle state, 0 outside of one. Replaced
+    # wholesale each advance() (mechanical decay lives in DayChain.advance()), the
+    # same shape as mail_cycle.
+    mail_transit_days: int = 0
     # Sanctum Key source ids permanently spent (ever, across all days): opening a
     # Sigil Chamber door consumes one key and its own source id (e.g.
     # "sanctum_key_vault") is recorded here, so that source never spawns another

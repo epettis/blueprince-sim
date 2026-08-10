@@ -106,6 +106,13 @@ class DayChain:
         # allowance/chapel_tithes -- state.mail_cycle already IS the day's
         # ending value ("empty" or "awaiting").
         self.mail_cycle: str = base_cfg.mail_cycle
+        # Freight Shipping (mail_room__ix91) transit countdown: REPLACED from
+        # each day's own carryover value every advance(), the same shape as
+        # mail_cycle, then mechanically decayed by 1 (floored at 0) -- this
+        # class does not interpret what the count means for the mail cycle,
+        # only carries and decays it (see effects/rooms/mail_room.py for the
+        # readiness decision).
+        self.mail_transit_days: int = base_cfg.mail_transit_days
         # Fixed-source Allowance Token ids collected (ever, across all days):
         # a Mora Jai box or the Cloister's own token, each with its own id.
         # Union-merged across days, same shape as collected_disks.
@@ -173,6 +180,7 @@ class DayChain:
             chapel_tithes=self.chapel_tithes,
             allowance=self.allowance,
             mail_cycle=self.mail_cycle,
+            mail_transit_days=self.mail_transit_days,
             collected_allowance_tokens=self.collected_allowance_tokens,
             collected_sanctum_keys=self.collected_sanctum_keys,
             sigil_doors_open=self.sigil_doors_open,
@@ -261,6 +269,15 @@ class DayChain:
         mc_val = carryover.get("mail_cycle")
         if mc_val is not None:
             self.mail_cycle = mc_val
+
+        # --- mail_transit_days (Freight Shipping transit countdown) ---
+        # Replace with today's ending value, then one day elapses: decrement by
+        # 1, floored at 0 -- the same decrementing-counter shape as
+        # repellent_bans, applied to a single running count instead of a dict.
+        mtd_val = carryover.get("mail_transit_days")
+        if mtd_val is not None:
+            self.mail_transit_days = mtd_val
+        self.mail_transit_days = max(0, self.mail_transit_days - 1)
 
         # --- collected_allowance_tokens (fixed one-time sources; accumulate as union) ---
         cat_val = carryover.get("collected_allowance_tokens")
@@ -351,6 +368,7 @@ class DayChain:
             self.chapel_tithes = 0            # fresh attempt; tithe bank reset
             self.allowance = self.base_cfg.allowance  # fresh attempt; back to the base preset
             self.mail_cycle = self.base_cfg.mail_cycle  # fresh attempt; back to the base preset
+            self.mail_transit_days = self.base_cfg.mail_transit_days  # fresh attempt; back to base
             self.collected_allowance_tokens = frozenset(
                 self.base_cfg.collected_allowance_tokens
             )

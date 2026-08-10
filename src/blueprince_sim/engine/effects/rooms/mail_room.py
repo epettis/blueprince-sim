@@ -26,6 +26,25 @@ draft places an order. Modelled as a day-start grant rather than a physical
 pickup -- the package is rolled and added to the inventory outright at the
 start of the following day, so it cannot be missed or left uncollected.
 
+Freight Shipping (mail_room__ix91) card text: "A very large package will be
+delivered here 3 days after drafting this room." Wiki: drafting on an empty
+cycle places an order and starts a two-day TRANSIT state, during which
+drafting the room has no effect at all (no re-order, no delivery). Once the
+two transit days have elapsed, the package is ready and -- like the base
+cycle's AWAITING state -- waits any number of days for the room to be
+drafted again, which delivers it into that draft's own cell. Freight's
+contents are rolled at draft time (not entry time), since "the items are
+immediately available."
+
+  - EMPTY + draft -> an order is placed; the cycle becomes TRANSIT with
+    ``FREIGHT_TRANSIT_DAYS`` remaining.
+  - TRANSIT + draft -> no effect.
+  - TRANSIT, transit days exhausted -> next_mail_cycle promotes the cycle to
+    AWAITING (computed once per day in shops.carryover(), the same cadence
+    as the transit-day decrement in DayChain.advance()).
+  - AWAITING + draft -> the package's contents are rolled and delivered into
+    that draft's own cell; the cycle returns to EMPTY.
+
 Implemented:
   - advance_mail_cycle (ON_PLACE, "mail_room") -- the base cycle above.
   - deliver_package (ON_ENTER, "mail_room") -- rolls and grants the
@@ -44,10 +63,17 @@ Implemented:
   - no_contact_order (ON_PLACE, "mail_room__ix90") -- records today's order.
   - resolve_no_contact_delivery (called from shops.on_day_start) -- grants
     yesterday's No Contact order at the start of today.
+  - freight_order (ON_PLACE, "mail_room__ix91") -- the transit/deliver cycle
+    above; rolls and stores the package's contents
+    (special_items.roll_freight_package) at draft time.
+  - freight_deliver_package (ON_ENTER, "mail_room__ix91") -- grants the
+    already-rolled contents on first entry into the delivered cell.
+  - next_mail_cycle (called from shops.carryover()) -- the readiness
+    decision: promotes a TRANSIT cycle to AWAITING once its transit days
+    are spent.
 
 Not modelled: a waiting package sets the Mail Room's Dynamic Rarity to
-Commonplace for the day. decks.py has no rarity-override channel. Freight
-(mail_room__ix91) is a separate variant, not covered by this module.
+Commonplace for the day. decks.py has no rarity-override channel.
 """
 
 from __future__ import annotations
@@ -57,9 +83,13 @@ from .. import Hook, room_hook
 
 MAIL_EMPTY = "empty"
 MAIL_AWAITING = "awaiting"
+MAIL_TRANSIT = "transit"
 
 SAME_DAY_ID = "mail_room__ix89"
 NO_CONTACT_ID = "mail_room__ix90"
+FREIGHT_ID = "mail_room__ix91"
+
+FREIGHT_TRANSIT_DAYS = 2  # wiki: two days of transit after an order is placed
 
 
 def _deliver_into_cell(game, room) -> None:
@@ -179,3 +209,55 @@ def resolve_no_contact_delivery(game) -> None:
     si.configure(game.state, game.cfg)
     grants = si.roll_mail_package(game.state, game.registry, game.rng)
     si.apply_grant_list(game.state, game.registry, game, grants)
+
+
+# -------------------------------------------------------------- Freight Shipping
+
+@room_hook(FREIGHT_ID, Hook.ON_PLACE)
+def freight_order(game, room, ctx_room) -> None:
+    """Freight Shipping's order/transit/deliver cycle.
+
+    EMPTY + draft -> an order is placed; the cycle enters TRANSIT for
+    ``FREIGHT_TRANSIT_DAYS``. TRANSIT + draft -> no effect at all: no
+    re-order, no delivery, no counter change. AWAITING + draft (transit
+    already spent, promoted by ``next_mail_cycle``) -> the package's
+    contents are rolled now and delivered into this cell; the cycle returns
+    to EMPTY.
+    """
+    si.configure(game.state, game.cfg)
+    st = game.state
+    if st.mail_cycle == MAIL_EMPTY:
+        st.mail_cycle = MAIL_TRANSIT
+        st.mail_transit_days = FREIGHT_TRANSIT_DAYS
+        return
+    if st.mail_cycle == MAIL_TRANSIT:
+        return
+    cell = game.room_cells.get(room.id, -1)
+    if cell < 0:
+        return
+    st.mail_freight_grants = si.roll_freight_package(st, game.registry, game.rng)
+    st.mail_package_cell = cell
+    st.mail_cycle = MAIL_EMPTY
+
+
+@room_hook(FREIGHT_ID, Hook.ON_ENTER)
+def freight_deliver_package(game, room, ctx_room) -> None:
+    """Grants the already-rolled package contents on first entry into its cell."""
+    st = game.state
+    cell = game.room_cells.get(room.id, -1)
+    if cell < 0 or st.mail_package_cell != cell:
+        return
+    si.apply_grant_list(st, game.registry, game, st.mail_freight_grants)
+    st.mail_package_cell = -1
+    st.mail_freight_grants = []
+
+
+def next_mail_cycle(state) -> str:
+    """Tomorrow's mail cycle value (called from shops.carryover()).
+
+    Promotes a Freight order from TRANSIT to AWAITING once its transit days
+    are spent; every other cycle value passes through unchanged.
+    """
+    if state.mail_cycle == MAIL_TRANSIT and state.mail_transit_days <= 0:
+        return MAIL_AWAITING
+    return state.mail_cycle

@@ -101,6 +101,7 @@ class SpecialItemsRegistry:
     ignition: dict = field(default_factory=dict)   # "ignition" section from special_items.json
     machines: dict = field(default_factory=dict)   # "machines" section from special_items.json
     mail_packages: dict = field(default_factory=dict)  # "mail_packages" section: slot1/slot2/slot3
+    freight_packages: dict = field(default_factory=dict)  # "freight_packages" section (ix91)
     # room id -> item ids that can spawn there (derived; excludes guaranteed_in)
     spawn_pool_by_room: dict[str, tuple[str, ...]] = field(default_factory=dict)
     spawn_pool_high_luck: dict[str, tuple[str, ...]] = field(default_factory=dict)
@@ -159,6 +160,7 @@ def load_special_items(data_dir: Path) -> SpecialItemsRegistry:
         ignition=raw.get("ignition", {}),
         machines=raw.get("machines", {}),
         mail_packages=raw.get("mail_packages", {}),
+        freight_packages=raw.get("freight_packages", {}),
         spawn_pool_by_room={k: tuple(v) for k, v in pool.items()},
         spawn_pool_high_luck={k: tuple(v) for k, v in pool_hl.items()},
         guaranteed_by_room={k: tuple(v) for k, v in guaranteed.items()},
@@ -429,6 +431,9 @@ def configure(state, cfg) -> None:
     # Mail Room order/delivery cycle: seed from the carried config value so a
     # pending order survives the day boundary.
     state.mail_cycle = getattr(cfg, "mail_cycle", "empty")
+    # Freight Shipping (mail_room__ix91) transit countdown: seed from the
+    # carried config value alongside mail_cycle.
+    state.mail_transit_days = getattr(cfg, "mail_transit_days", 0)
 
 
 # ------------------------------------------------------------- spawn pipeline
@@ -1595,6 +1600,56 @@ def roll_mail_package(state, registry, rng) -> list[dict]:
             grants.append({"kind": "keys", "amount": row["amount"]})
         case _:
             pass  # "none": no third grant
+
+    return grants
+
+
+def roll_freight_package(state, registry, rng) -> list[dict]:
+    """Roll one Freight Shipping package (mail_room__ix91), using
+    ``data/special_items.json``'s ``freight_packages`` table.
+
+    Special items: ``special_item_pool`` filtered by current availability. If
+    all of the pool is available, one of ``drop_one_pair`` is dropped at
+    random, leaving ``specials_target`` items; otherwise every available item
+    is included as-is.
+
+    Resources: one of ``resource_configs`` is rolled, then topped up with
+    keys (up to ``keys_top_up_cap``) and then gems until the special items
+    plus resources reach ``specials_target`` resource items -- i.e. the
+    package always totals ``package_size`` items.
+
+    Returns the resolved grants in ``_apply_grant``'s vocabulary: one entry
+    per included special item, plus at most one keys entry and one gems entry.
+    """
+    tables = registry.special.freight_packages
+    grants: list[dict] = []
+
+    pool = tables["special_item_pool"]
+    available = [
+        item_id for item_id in pool
+        if state.special.enabled and _is_available(state, item_id, registry)
+    ]
+    if len(available) == len(pool):
+        dropped = rng.choice("freight_package_drop", list(tables["drop_one_pair"]))
+        included = [item_id for item_id in available if item_id != dropped]
+    else:
+        included = available
+    grants.extend({"kind": "item", "id": item_id} for item_id in included)
+
+    configs = tables["resource_configs"]
+    weights = tuple(c["weight"] for c in configs)
+    chosen = configs[rng.roll_weighted("freight_package_resource_config", weights)]
+    keys, gems = chosen["keys"], chosen["gems"]
+
+    shortfall = max(0, tables["specials_target"] - len(included))
+    add_keys = min(shortfall, max(0, tables["keys_top_up_cap"] - keys))
+    keys += add_keys
+    gems += shortfall - add_keys
+
+    if keys:
+        grants.append({"kind": "keys", "amount": keys})
+    if gems:
+        grants.append({"kind": "gems", "amount": gems})
 
     return grants
 
