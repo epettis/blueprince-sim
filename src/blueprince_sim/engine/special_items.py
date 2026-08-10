@@ -563,9 +563,19 @@ def on_area_arrival(game, area_id: str) -> None:
 
 
 def on_enter(game, room, cell: int) -> None:
-    """First-entry hooks: guaranteed spawns, Lost & Found, Sleeping Mask,
-    Watering Can, Dining Room main course. Called from Game._enter after
-    roll_room_items. Tasks B (spawns, Lost & Found) and C (mask, can).
+    """First-entry hooks: guaranteed spawns, Dining Room main course and Lunch
+    Box, Lost & Found, Sleeping Mask, Watering Can. Called from Game._enter
+    after roll_room_items runs for ``room``, and after this room's own
+    guaranteed items (if any) have already been granted above. Both the Lunch
+    Box grant and the Lost & Found steal depend on that ordering rather than
+    on a ``room_hook`` at ``Hook.ON_ENTER`` (which fires earlier, before
+    roll_room_items and before this function even starts): Lunch Box is in
+    the Dining Room's own luck-spawn pool, so granting it any earlier would
+    remove it from that pool before the room's own luck roll sees it; the
+    Lost & Found's own guaranteed Allowance Token needs to already be in
+    inventory so the steal below can draw it like any other held item. Coat
+    Check carries no such dependency and is dispatched from its own
+    room_hook instead (``effects/rooms/coat_check.py``).
     """
     state = game.state
     registry = game.registry
@@ -616,18 +626,11 @@ def on_enter(game, room, cell: int) -> None:
             if _is_available(state, "lunch_box", registry):
                 grant(state, registry, "lunch_box", source="guaranteed")
 
-    # Lost & Found: steal one held item and grant two draws from the pool
+    # Lost & Found: steal one held item and grant two draws from the pool. Fires
+    # after the guaranteed-items loop above, so this room's own guaranteed
+    # Allowance Token is already in inventory and can itself be the steal target.
     if room.id == "lost_and_found":
         lost_and_found_on_enter(game)
-
-    # Coat Check: store the most valuable held item overnight.
-    # The real game lets the player choose which item to store and retrieve it on
-    # any later day; we auto-store the highest-tier item (ties broken by id for
-    # determinism) and auto-return it at the start of the NEXT day.  Only fires
-    # if the player holds at least one non-excluded item and no item is already
-    # stored this day.  (Simplification documented in docs/special-items-design.md.)
-    if room.id == "coat_check" and state.special.coat_check_item is None:
-        coat_check_on_enter(game)
 
     # Sleeping Mask: grant steps when entering a bedroom (including Bunk Room x2)
     for item_id, cnt in state.inventory.items():
@@ -795,7 +798,8 @@ def coat_check_on_enter(game) -> None:
     Picks the highest-tier item from inventory (untradeable/no tier counts as 0;
     ties broken alphabetically by id for determinism).  The stored item is NOT
     removed from today's inventory — the player keeps it for the rest of the day.
-    It is returned by end_of_day_carry() as a starting_item for tomorrow.
+    It is returned by end_of_day_carry() as a starting_item for tomorrow.  A
+    no-op if an item is already stored this day (one Coat Check use per day).
 
     Simplification: the real game lets the player choose which item to store
     and retrieve it on any later day.  We auto-store the best item and
@@ -803,6 +807,8 @@ def coat_check_on_enter(game) -> None:
     """
     state = game.state
     registry = game.registry
+    if state.special.coat_check_item is not None:
+        return
 
     # Collect all held items that are not excluded from the pipeline
     held = [

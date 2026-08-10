@@ -99,12 +99,17 @@ _AUDIT_COMMERCE_EXTRA_IDS = {"trading_post", "workshop"}
 _AUDIT_PYTHON_EXEMPT_IDS = {
     "break_room__ix11": "engine/game.py",        # day-end keycard pulse
     "chamber_of_mirrors": "engine/draft.py",     # duplicate-room drafting
-    "coat_check": "engine/special_items.py",     # overnight item storage
     # Absorbing a spread is implemented by each spreader's own branch rather
     # than by the Conference Room; the Patio's is the representative one.
     "conference_room": "engine/effects/rooms/patio.py",
+    # The main course is rank-8 gated and re-checked on every arrival, not
+    # just first entry, so it stays a hand-written branch rather than a
+    # room_hook (which only fires once, on first entry).
     "dining_room": "engine/special_items.py",    # rank-8 main course
     "dovecote": "engine/effects/rooms/dovecote.py",  # rotation while drawn
+    # The steal must be able to draw the room's own guaranteed Allowance
+    # Token, granted earlier in the same on_enter call, so it stays ordered
+    # against that grant rather than moving to an earlier-firing room_hook.
     "lost_and_found": "engine/special_items.py",  # steal one item, grant two
     "reading_nook__ix99": "engine/draft.py",     # LIBRARY forced into slot 2
     "the_foundation": "engine/game.py",          # persists across days
