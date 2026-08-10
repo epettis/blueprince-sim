@@ -89,6 +89,51 @@ _AUDIT_STRUCTURAL_EXEMPT_IDS = {"corridor", "corriyard__ix50"}
 #   workshop     -- fabrication recipes (shops.py::fabricate)
 _AUDIT_COMMERCE_EXTRA_IDS = {"trading_post", "workshop"}
 
+# Rooms whose effect_text is implemented in Python that the audit cannot
+# introspect -- a hand-written branch keyed on the room id, rather than an
+# effects tag, an items.guaranteed entry or a room_hook. Each value is the
+# module the behaviour lives in, relative to src/blueprince_sim/;
+# _assert_python_exemptions_live checks the id still appears there, so deleting
+# an implementation trips the check instead of leaving the room silently
+# "modelled".
+_AUDIT_PYTHON_EXEMPT_IDS = {
+    "break_room__ix11": "engine/game.py",        # day-end keycard pulse
+    "chamber_of_mirrors": "engine/draft.py",     # duplicate-room drafting
+    "coat_check": "engine/special_items.py",     # overnight item storage
+    "dining_room": "engine/special_items.py",    # rank-8 main course
+    "dovecote": "engine/effects/rooms/dovecote.py",  # rotation while drawn
+    "lost_and_found": "engine/special_items.py",  # steal one item, grant two
+    "the_foundation": "engine/game.py",          # persists across days
+    "utility_closet": "engine/game.py",          # breaker box
+}
+
+# Rooms whose effect_text merely restates a value already carried in their own
+# record, so there is nothing to implement. Listed by exact id rather than
+# matched on the field, because a generic "has dig_spots" or "has a flag" rule
+# wrongly clears rooms whose text promises something beyond the field.
+_AUDIT_DATA_EXEMPT_IDS = {
+    "courtyard__ix49": "items.dig_spots",        # "5 dig spots"
+    "electric_eel_aquarium__ix4": "flags.powered",  # "Power Source"
+    "lavatory": "items.additional_max",          # "Has no items (never spawns loot)"
+}
+
+
+def _assert_python_exemptions_live(src_root: Path) -> None:
+    """Fail if a Python-exempt room's id no longer appears in its named module.
+
+    The exemption asserts that a room is modelled somewhere the audit cannot
+    see. That claim rots the moment the implementation moves or is deleted, and
+    nothing else would notice -- the room would simply stay off the worklist.
+    """
+    for rid, rel in sorted(_AUDIT_PYTHON_EXEMPT_IDS.items()):
+        path = src_root / rel
+        assert path.exists(), f"_AUDIT_PYTHON_EXEMPT_IDS: {rid} names missing module {rel}"
+        if rid.lower() not in path.read_text(encoding="utf-8").lower():
+            raise AssertionError(
+                f"_AUDIT_PYTHON_EXEMPT_IDS: {rid!r} no longer appears in {rel}; "
+                f"either the implementation moved or the exemption is stale"
+            )
+
 
 def find_divergences(
     rooms: list[dict],
@@ -124,8 +169,11 @@ def find_divergences(
     effect text. ``registered_room_ids`` defaults to the live ``room_hook``
     registry (``engine.effects``); tests may pass an explicit set instead.
 
-    Both kinds exclude ``_AUDIT_STRUCTURAL_EXEMPT_IDS``: rooms whose "always
-    unlocked" text is implemented in locks.json rather than effects/items.
+    Both kinds exclude three exemption sets, each covering a channel the audit
+    cannot introspect: ``_AUDIT_STRUCTURAL_EXEMPT_IDS`` (implemented in
+    locks.json), ``_AUDIT_PYTHON_EXEMPT_IDS`` (a hand-written branch keyed on
+    the room id, in the module each entry names) and ``_AUDIT_DATA_EXEMPT_IDS``
+    (the text merely restates a field the record already carries).
 
     Both kinds also exclude commerce rooms, whose behaviour lives in
     ``engine/shops.py``: the ids in ``shop_rules``'s "shops" table plus
@@ -135,17 +183,20 @@ def find_divergences(
     than the sim's. ``shop_rules`` defaults to no shops, which keeps every
     caller that does not pass it on the pre-existing behaviour.
     """
-    structural = frozenset(rid for rid in _AUDIT_STRUCTURAL_EXEMPT_IDS if rid in by_id)
+    locks_backed = frozenset(rid for rid in _AUDIT_STRUCTURAL_EXEMPT_IDS if rid in by_id)
+    # Sanity-check the locks-backed list so it can't silently rot: every id in
+    # it must actually be exempt from locks.json's own always_unlocked table.
+    lock_exempt = set(lock_rules.get("always_unlocked_rooms", {}).get("rooms", []))
+    assert locks_backed <= lock_exempt, (
+        f"_AUDIT_STRUCTURAL_EXEMPT_IDS has ids not in locks.json "
+        f"always_unlocked_rooms: {locks_backed - lock_exempt}"
+    )
+    structural = locks_backed | frozenset(
+        rid for rid in set(_AUDIT_PYTHON_EXEMPT_IDS) | set(_AUDIT_DATA_EXEMPT_IDS)
+        if rid in by_id)
     priced_shops = set((shop_rules or {}).get("shops", {}))
     commerce = frozenset(
         rid for rid in priced_shops | _AUDIT_COMMERCE_EXTRA_IDS if rid in by_id)
-    # Sanity-check the exemption list itself so it can't silently rot: every id
-    # in it must actually be exempt from locks.json's own always_unlocked table.
-    lock_exempt = set(lock_rules.get("always_unlocked_rooms", {}).get("rooms", []))
-    assert structural <= lock_exempt, (
-        f"_AUDIT_STRUCTURAL_EXEMPT_IDS has ids not in locks.json "
-        f"always_unlocked_rooms: {structural - lock_exempt}"
-    )
 
     if registered_room_ids is None:
         registered_room_ids = registered_rooms()
@@ -1194,6 +1245,7 @@ def main(argv: list[str] | None = None) -> int:
     # Room-fidelity divergence audit: its own channel, always computed so the
     # summary line can advertise the count, but only printed under --audit and
     # never folded into errors/warnings -- see find_divergences' docstring.
+    _assert_python_exemptions_live(DATA.parent)
     audit_kind1, audit_kind2 = find_divergences(rooms, by_id, lock_rules,
                                                 shop_rules=shops_doc)
     n_audit = len(audit_kind1) + len(audit_kind2)

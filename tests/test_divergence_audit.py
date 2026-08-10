@@ -18,7 +18,10 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from tools.validate_data import (  # noqa: E402
     _AUDIT_COMMERCE_EXTRA_IDS,
+    _AUDIT_DATA_EXEMPT_IDS,
+    _AUDIT_PYTHON_EXEMPT_IDS,
     _AUDIT_STRUCTURAL_EXEMPT_IDS,
+    _assert_python_exemptions_live,
     find_divergences,
     main,
 )
@@ -269,6 +272,44 @@ def test_omitting_shop_rules_exempts_only_the_by_id_commerce_rooms():
     _kind1, kind2 = find_divergences([room], by_id, EMPTY_LOCKS)
 
     assert any("locksmith" in f for f in kind2)
+
+
+def test_python_and_data_exempt_rooms_are_excluded_from_both_kinds():
+    """A room modelled by a hand-written branch keyed on its id, or one whose
+    text merely restates a field it already carries, is not a finding -- those
+    are channels the audit cannot introspect, not gaps in the sim."""
+    for rid in list(_AUDIT_PYTHON_EXEMPT_IDS) + list(_AUDIT_DATA_EXEMPT_IDS):
+        room = _room(rid, text="Something this room does.")
+        by_id = {rid: room}
+
+        kind1, kind2 = find_divergences([room], by_id, EMPTY_LOCKS)
+
+        assert not any(rid in f for f in kind1), rid
+        assert not any(rid in f for f in kind2), rid
+
+
+def test_python_exemption_liveness_check_fires_when_the_id_is_gone(tmp_path):
+    """The liveness check must fail when an exempt room's id no longer appears
+    in the module it names.
+
+    The exemption is a claim that the room is modelled somewhere the audit
+    cannot see, and that claim rots silently the moment the implementation
+    moves or is deleted -- the room would simply stay off the worklist. This
+    pins that the guard actually catches it."""
+    rid, rel = next(iter(sorted(_AUDIT_PYTHON_EXEMPT_IDS.items())))
+    stub = tmp_path / rel
+    stub.parent.mkdir(parents=True, exist_ok=True)
+    stub.write_text("# an implementation that no longer mentions the room\n", encoding="utf-8")
+
+    with pytest.raises(AssertionError, match=rid):
+        _assert_python_exemptions_live(tmp_path)
+
+
+def test_python_exemption_liveness_check_passes_on_the_real_tree():
+    """Every Python-exempt id really does still appear in the module it names,
+    so the shipped exemption list is not already stale."""
+    src_root = Path(__file__).resolve().parent.parent / "src" / "blueprince_sim"
+    _assert_python_exemptions_live(src_root)
 
 
 def test_default_validate_data_run_reports_zero_warnings():
