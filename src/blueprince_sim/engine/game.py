@@ -12,7 +12,8 @@ from .areas import GateContext, reachable
 from .decks import apply_upgrade, build_decks, inject_rooms
 from .draft import deal_draft, redeal
 from .effects import Hook
-from .effects.rooms import dovecote, great_hall, mail_room, secret_garden, throne_room, weight_room
+from .effects.rooms import (dovecote, foyer, great_hall, mail_room, secret_garden,
+                            throne_room, weight_room)
 from .grid import (ADJACENT, DIRS, E, ENTRANCE_CELL, N, N_CELLS, OPPOSITE, W,
                    neighbor, rank_of, rotate_mask)
 from .items import EXTRA_ITEM_TABLE, grant_item, roll_room_items
@@ -452,6 +453,11 @@ class Game:
         self.state.door_state[segment_key(cell, direction)] = DOOR_OPEN
         self.state.door_version += 1
 
+    def _lock_segment(self, cell: int, direction: int) -> None:
+        """Set the segment to DOOR_LOCKED, bumping door_version to invalidate nav caches."""
+        self.state.door_state[segment_key(cell, direction)] = DOOR_LOCKED
+        self.state.door_version += 1
+
     def _open_north_door(self) -> None:
         """Open the Antechamber's north segment and record the per-day reward event.
 
@@ -742,12 +748,19 @@ class Game:
         A macro over :meth:`move_to` + :meth:`open_door`: the walk pays the
         normal one-step-per-room cost and collects first-entry pickups along
         the way, so the RNG stream is identical to issuing the moves by hand.
-        Returns None if the walk ends the day before the draft can happen.
+        Returns None if the walk ends the day before the draft can happen, if
+        the walk itself gets stranded short of ``cell`` (see
+        :meth:`move_to`), or if arriving at ``cell`` changed the
+        ``direction`` doorway's own lock state out from under the caller's
+        plan (the Vestibule can do this on its own arrival) so that it is no
+        longer affordable.
         """
         assert self.phase is Phase.NAVIGATE
         if cell != self.state.pos:
             self.move_to(cell)
         if self.phase is not Phase.NAVIGATE:
+            return None
+        if self.state.pos != cell or not self.doorway_passable(cell, direction):
             return None
         return self.open_door(cell, direction)
 
@@ -982,6 +995,8 @@ class Game:
                 self.move_to(anchor_cell)
             if self.phase is not Phase.NAVIGATE:
                 return  # walk ended the day; caller must check phase
+            if st.pos != anchor_cell:
+                return  # move_to got stranded short of the anchor (see move_to)
             origin = anchor_id
 
         # Recomputed after the walk, because move_to may have entered rooms and so
@@ -1419,14 +1434,31 @@ class Game:
         self._check_termination()
 
     def move_to(self, cell: int) -> None:
-        """Walk the shortest connected path to ``cell``, one step per room."""
+        """Walk to ``cell``, one step per room, re-routing after every hop.
+
+        The route is recomputed before each step rather than planned once
+        and replayed: the Vestibule re-locks one of its own doors on every
+        arrival, including possibly the very door a plan made before that
+        arrival meant to use next, so a stale multi-hop plan can no longer
+        be trusted past the first room that might do that. ``cell`` must be
+        reachable right now (asserted, same contract as before); if a later
+        hop's own arrival strands the walk before it gets there -- the only
+        way that can happen is the same Vestibule re-lock, closing the one
+        remaining way through -- this stops in place instead of asserting,
+        leaving ``state.pos`` short of ``cell``. Callers that need the walk
+        to have actually arrived must check ``state.pos`` themselves.
+        """
         assert self.phase is Phase.NAVIGATE
-        path = self._path_dirs(cell)
-        assert path is not None, "cell not reachable"
-        for d in path:
+        first = True
+        while self.state.pos != cell:
+            path = self._path_dirs(cell)
+            if path is None:
+                assert not first, "cell not reachable"
+                return
+            first = False
+            self.move(path[0])
             if self.phase is not Phase.NAVIGATE:
-                break
-            self.move(d)
+                return
 
     def _path_dirs(self, target: int) -> list[int] | None:
         """Directions of the shortest passable path from pos to target.
@@ -1513,6 +1545,12 @@ class Game:
             root_id = root_base_id(self.registry, room)
             self.state.draft_counts[root_id] = self.state.draft_counts.get(root_id, 0) + 1
         effects.fire(self, room, Hook.ON_PLACE)
+        if self.state.foyer_placed:
+            # Covers a Hallway placed AFTER the Foyer: its own fresh segments
+            # (just rolled above) come out unlocked too. A Hallway placed
+            # BEFORE the Foyer is swept retroactively by foyer.py's own
+            # ON_PLACE handler when the Foyer itself lands.
+            foyer.unlock_hallway_segments(self, cell)
         if self.cfg.special_items:
             special_items.on_place(self, room, cell)
         # The room's own reaction to its own draft (Tomb's own Dead End,

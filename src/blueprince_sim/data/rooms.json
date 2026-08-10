@@ -5640,7 +5640,7 @@
    "meta": {
     "source": "wiki",
     "confidence": "wiki",
-    "effect_text": "On enter, 3 doors unlock and the 4th locks (lock system out of scope)."
+    "effect_text": "On enter, all four doors close: one relocks at random and the other three unlock, regardless of prior state."
    }
   },
   {
@@ -5729,7 +5729,7 @@
    "meta": {
     "source": "wiki (effect); gem cost inferred",
     "confidence": "wiki",
-    "effect_text": "Digging in rooms with locked doors unlocks them (lock system out of scope)."
+    "effect_text": "Digging in any room with locked doors immediately unlocks them, including security doors."
    }
   },
   {
