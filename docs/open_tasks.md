@@ -460,6 +460,122 @@ All 62 findings were triaged in one pass. Three classes:
   going deep on one subsystem. Maximum findings cleared per unit of risk, and
   each PR stays reviewable.
 
+## 19. Laboratory / Experiments -- scoping (2026-08-10)
+
+Owner picked the Laboratory as the big subsystem. Full scoping done; the
+headline finding is that **it is not one subsystem.**
+
+An experiment pairs an **experimental trigger** with an **experimental
+effect**, set up at the Laboratory terminal: three of each are drawn uniformly
+and the player picks one from each column. One experiment at a time, lasting
+the day, pausable. Twelve triggers and twelve effects at base; the Satellite
+Dish data packet permanently adds eight more of each.
+
+**Phases 0-4 are the real subsystem** (~4-5 days) and deliver a playable,
+trainable Laboratory: the data file, the core (offer/choose/start/pause/fire),
+the eight pure-resource effects, the draft-site triggers, the interaction
+triggers, and the persistence/availability layer. Phase 3 is what the
+apple-eating trigger elsewhere in this file is waiting on.
+
+**Phases 5-8 are four separate subsystems wearing an experiment costume** --
+"model the Grounds' dig spots", "model Pantry stock", "model Dynamic Rarity",
+"model the Satellite Dish unlock chain". Each is more honest as its own line
+item. **Recommendation, awaiting the owner: commit to 0-4 as the Laboratory
+work and re-scope 5-8 individually.**
+
+Costs: action space **319 -> 327** plus a new `Phase.EXPERIMENT_PENDING`;
+observation gains an `experiment` key, `phase` widens 4 -> 5, and `carryover`
+widens 14 -> 16. That is three further width changes.
+
+**Never model, recorded deliberately**: the 40-second real-time trigger and the
+view-map trigger (meaningless in a simulator), the setup-reroll timing exploit,
+Blessing of the Tinkerer cross-triggers, radiation level, Dare Mode, Research
+Logs. Also **do not implement** the two rules the wiki has *commented out*
+(a 30% crates-removal filter, a set-dice exclusion) -- its own editor note says
+"a lot of the datamined info on experiments has been off or just straight up
+wrong."
+
+**Numbers the wiki does not give** -- flag, never invent: the key/gem/die
+split; the 2/3/4 dig-spot distribution; the Antechamber-door preference
+weights; the Pantry fruit mix (ordinal only); lockpicking skill magnitude; the
+"gain 1 random item" pool (a live Cargo query, not in wikitext).
+
+## 20. Research outcomes feeding the worklist (2026-08-10)
+
+### Sourced room lists, previously thought unpublished
+
+- **Cloister of Dauja's "rooms with an animal" -- six, enumerated**: Rumpus
+  Room, Aquarium, Nursery, Bunk Room (**once only**, despite counting as two
+  bedrooms elsewhere), Dovecote, The Kennel. Grants **2 stars** on draft.
+  It is an **ad-hoc id list, not a room type** -- the wiki itself cannot
+  explain why the Rumpus Room (a mounted fish) and Nursery (plushies) qualify
+  while taxidermy rooms like the Trophy Room do not. **Do not derive membership
+  from a semantic rule**; it gets both of those wrong.
+- **Cloister of Veia's "rooms with a fireplace" -- seven draftable**: Parlor,
+  Den, Trophy Room, Drawing Room, Furnace, The Armory, and the Dining Room
+  **only when placed in the centre columns or on Rank 9** (on the wings or Rank
+  1 it has windows instead). A dirt pile IS our `dig_spots`, and the grant is
+  **+8 additive**, not "set to 8" -- which matters only for the Furnace, whose
+  baseline is 1, so it reaches 9.
+
+The Dining Room condition is placement-dependent, so `has_fireplace` cannot be
+a static room flag for it.
+
+### Conflicts found, unresolved
+
+- **The trunk loot table diverges from the datamined one in two ways.** We
+  carry coin totals **11, 13 and 14, which do not exist in the game**, and we
+  make the key+gem+coin outcome **three times rarer** than it is (one entry at
+  5% against the game's three at 1/20 each). We also do not model the wiki's
+  "fall back to the option directly below" rule for already-owned items.
+- **The Clock Tower's wiki page contradicts itself**: its infobox says "for
+  each Tomorrow room **you draft today**", its prose says "for every Tomorrow
+  room **present in the mansion**". Our own text picks neither and omits that
+  the Clock Tower counts itself.
+- **`spare_great_hall__ix139` has text byte-identical to `great_hall` but a
+  different mechanic**: its 7th door is not necessarily locked, it has no side
+  doorways, no Antechamber lever and no Upgrade Disk, and a different prize
+  table. **They must not share an implementation.**
+- **The Funeral Parlor's 30-step penalty applies only to the FIRST box opened**,
+  not per empty box, and its gem count is read **when the box is opened**, not
+  at draft. Our text implies otherwise on both counts.
+- **`her_ladyships_chamber` omits a second effect entirely**: drafting it sets
+  the Boudoir's and Walk-In Closet's Dynamic Rarity to Commonplace.
+
+### Resolved, needing no owner call
+
+- **`guess_bedroom__ix70` is fully documented** -- the trailing "?" is in-game
+  flavour ("Your guess is as good as mine."), not datamine uncertainty, and
+  "Guess Bedroom" is the canonical pun name beside Quest and Geist, not a typo.
+  It mimics a random Bedroom in the draft pool, excluding itself, Her
+  Ladyship's Chamber, the Master Bedroom and the Spare Bedroom line, and adds a
+  once-per-day quiz-sheet guess for a random resource prize.
+  **Deferred anyway**: it needs runtime effect and type inheritance from an
+  arbitrary other room, which the engine has no mechanism for. The wiki itself
+  records that the mimicry is inconsistent in-game.
+- **The Aquarium is every room TYPE, not merely every colour** -- Red, Green,
+  Hallway, Bedroom, Shop and Blackprint on top of its native Blueprint -- and
+  it counts for **penalties as well as bonuses** (cursed, it loses 2 of every
+  resource; the Dare Mode shop dare auto-fails on it).
+  `electric_eel_aquarium__ix4` **additionally gains the Mechanical type**,
+  which our record does not encode.
+- **The Speakeasy is a genuine no-op in our model.** "Basic Addition" only
+  makes the Dartboard Puzzle easier (one board, one ring, two numbers, addition
+  only). We do not model the Dartboard Puzzle and we assume puzzles are solved,
+  so there is nothing to implement.
+- **The Vestibule's effect is rerollable for 2 steps** by leaving and
+  re-entering, and the wiki frames that as the intended strategy. Worth
+  watching as a farming incentive once it lands.
+
+### Open question for the owner
+
+- **Cloister of Joya's "permanent" Main Course bonus**: +5 steps to all five
+  main courses, cumulative and uncapped, surviving a change of the Cloister's
+  upgrade. The wiki never says whether "permanent" means the attempt or the
+  whole save. Defaulting to **per attempt**, consistent with every other
+  carry-over resetting on wrap -- flagged for confirmation rather than assumed
+  silently.
+
 ## Decisions log
 
 - **2026-07-26, lockers**: locked lockers cost exactly one BASIC key — the wiki is
