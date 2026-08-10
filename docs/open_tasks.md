@@ -656,6 +656,50 @@ the residual `game.py` branches.
 
 ## Decisions log
 
+- **2026-08-10, the Geist Bedroom's dice are picked up inside the room.**
+  Owner: "Dice are on the table inside. You have to enter to pick them up."
+  Confirms the entry-time reading the wiki only hinted at with the word
+  "spawns", and matches every other resource grant in the engine. No change
+  was needed; the open question is closed.
+
+- **2026-08-10, the Cloister of Joya's Main Course bonus is SAVE-scoped, not
+  attempt-scoped.** Owner: "permanently increases steps on the Dining Room's
+  main course for all days going forward in the save game, similar to an
+  allowance."
+
+  **This corrects what shipped.** It was first implemented as attempt-scoped,
+  resetting to the base preset on `DayChain`'s wrap like every other carried
+  total, and flagged in task 20 as an assumption pending confirmation. It now
+  survives the wrap.
+
+  **It is the only carried value that does.** `allowance`, `stars`,
+  `chapel_tithes`, `collected_disks`, `lit_targets` and the rest all reset to
+  their base preset on wrap, and a test pins that this exception did not
+  quietly loosen them.
+
+  Act on this cold as: this opens a real question the ruling does not settle.
+  Several other things the game treats as permanent across resets --
+  **stars** in particular, which the wiki calls "a permanent resource" that
+  "do not reset between each day", and arguably applied Upgrade Disks -- are
+  attempt-scoped here. That inconsistency is now visible rather than uniform.
+  **Do not change any of them on the strength of this entry**; ask, because
+  "similar to an allowance" was said of Joya specifically and our allowance
+  does reset on wrap.
+
+- **2026-08-10, the Speakeasy is a no-op and is exempt from the worklist.**
+  Owner: "speakeasy is a no-op because we assume they can solve puzzles."
+
+  `speakeasy__ix10`'s effect ("Basic Addition") only makes the Dartboard Puzzle
+  easier -- one board instead of two to five, one ring, two numbers, addition
+  only. The puzzle is not modelled and its reward is assumed won, so an easier
+  puzzle pays exactly what the Billiard Room already pays.
+
+  Recorded through a new `_AUDIT_DOCTRINE_EXEMPT_IDS` table rather than left on
+  the worklist, because "we model this as nothing, deliberately" is a claim
+  worth stating once, not a gap worth re-triaging every pass. That is now the
+  **fourth** exemption channel, alongside locks.json, hand-written Python
+  branches, and texts that merely restate a field.
+
 - **2026-08-10, the engine provides capabilities and rooms declare effects.**
   Owner, raised as a concern about "two radically different paths for room
   definitions" and settled in the same exchange: **tabular data stays tabular;

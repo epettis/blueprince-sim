@@ -19,6 +19,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from tools.validate_data import (  # noqa: E402
     _AUDIT_COMMERCE_EXTRA_IDS,
     _AUDIT_DATA_EXEMPT_IDS,
+    _AUDIT_DOCTRINE_EXEMPT_IDS,
     _AUDIT_PYTHON_EXEMPT_IDS,
     _AUDIT_STRUCTURAL_EXEMPT_IDS,
     _assert_python_exemptions_live,
@@ -280,6 +281,23 @@ def test_python_and_data_exempt_rooms_are_excluded_from_both_kinds():
     are channels the audit cannot introspect, not gaps in the sim."""
     for rid in list(_AUDIT_PYTHON_EXEMPT_IDS) + list(_AUDIT_DATA_EXEMPT_IDS):
         room = _room(rid, text="Something this room does.")
+        by_id = {rid: room}
+
+        kind1, kind2 = find_divergences([room], by_id, EMPTY_LOCKS)
+
+        assert not any(rid in f for f in kind1), rid
+        assert not any(rid in f for f in kind2), rid
+
+
+def test_doctrine_exempt_rooms_are_excluded_from_both_kinds():
+    """A room whose only effect is to make a puzzle easier is not a finding.
+
+    The sim takes the player to solve any puzzle in a room they enter, so an
+    easier puzzle pays exactly what the room already pays -- there is nothing
+    left to model, and carrying it on the worklist forever would misreport a
+    doctrine decision as an outstanding gap."""
+    for rid in _AUDIT_DOCTRINE_EXEMPT_IDS:
+        room = _room(rid, text="Basic Addition")
         by_id = {rid: room}
 
         kind1, kind2 = find_divergences([room], by_id, EMPTY_LOCKS)
