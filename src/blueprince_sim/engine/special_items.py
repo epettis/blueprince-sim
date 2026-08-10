@@ -100,6 +100,7 @@ class SpecialItemsRegistry:
     containers: dict = field(default_factory=dict)  # "containers" section: kinds/rooms/garage_car
     ignition: dict = field(default_factory=dict)   # "ignition" section from special_items.json
     machines: dict = field(default_factory=dict)   # "machines" section from special_items.json
+    mail_packages: dict = field(default_factory=dict)  # "mail_packages" section: slot1/slot2/slot3
     # room id -> item ids that can spawn there (derived; excludes guaranteed_in)
     spawn_pool_by_room: dict[str, tuple[str, ...]] = field(default_factory=dict)
     spawn_pool_high_luck: dict[str, tuple[str, ...]] = field(default_factory=dict)
@@ -157,6 +158,7 @@ def load_special_items(data_dir: Path) -> SpecialItemsRegistry:
         containers=raw.get("containers", {}),
         ignition=raw.get("ignition", {}),
         machines=raw.get("machines", {}),
+        mail_packages=raw.get("mail_packages", {}),
         spawn_pool_by_room={k: tuple(v) for k, v in pool.items()},
         spawn_pool_high_luck={k: tuple(v) for k, v in pool_hl.items()},
         guaranteed_by_room={k: tuple(v) for k, v in guaranteed.items()},
@@ -424,6 +426,9 @@ def configure(state, cfg) -> None:
     # Keeper of Tithes: seed the running tithe counter from config so the total
     # accumulates correctly across days.
     state.special.chapel_tithes = getattr(cfg, "chapel_tithes", 0)
+    # Mail Room order/delivery cycle: seed from the carried config value so a
+    # pending order survives the day boundary.
+    state.mail_cycle = getattr(cfg, "mail_cycle", "empty")
 
 
 # ------------------------------------------------------------- spawn pipeline
@@ -1465,12 +1470,17 @@ def can_open_container(game, cell: int) -> bool:
 def _apply_grant(state, registry, game, grant_entry: dict) -> str:
     """Apply one grant entry from a loot ``grants`` list; return a log tag.
 
-    Supported kinds: coins, keys, gems, dice, item, keycard.
+    Supported kinds: coins, keys, gems, dice, item, keycard, food.
     Unknown kinds are silently skipped and return "".
     """
     from . import items as items_mod  # deferred import to avoid cycles
     gkind = grant_entry.get("kind", "")
     match gkind:
+        case "food":
+            food_id = grant_entry.get("id", "banana")
+            amount = grant_entry.get("amount", 1)
+            eat_food(state, registry, food_id, amount)
+            return f"food:{food_id}:{amount}"
         case "coins":
             amount = grant_entry.get("amount", 1)
             bonus = on_coins_granted(state, registry, amount)
@@ -1510,6 +1520,83 @@ def _apply_grant(state, registry, game, grant_entry: dict) -> str:
             return item_id
         case _:
             return ""
+
+
+def apply_grant_list(state, registry, game, grants: list[dict]) -> None:
+    """Apply every entry of a resolved grants list, in order, via ``_apply_grant``.
+
+    Used by the Mail Room's package delivery (``roll_mail_package``); mirrors
+    how ``open_container`` walks a loot entry's own ``grants`` list.
+    """
+    for g in grants:
+        _apply_grant(state, registry, game, g)
+
+
+def _resolve_mail_chain(state, registry, chain: list[dict]) -> dict:
+    """Walk one mail_packages chain, returning its first available entry.
+
+    A non-item entry (dice/gems/food) is always available. Every shipped
+    chain ends on one of those, so this always returns before running out.
+    """
+    for entry in chain:
+        if entry.get("kind") != "item" or (
+            state.special.enabled and _is_available(state, entry["id"], registry)
+        ):
+            return entry
+    raise AssertionError("mail_packages chain has no available fallback entry")
+
+
+def roll_mail_package(state, registry, rng) -> list[dict]:
+    """Roll one Mail Room package: three slots from data/special_items.json's
+    ``mail_packages`` table, resolved against current item availability.
+
+    Slot 1: one of three ordered chains, chosen uniformly, resolved to its
+    first available entry. Slot 2: a flat chance of 2 gems, else one of five
+    chains chosen uniformly and resolved the same way. Slot 3: a weighted
+    table keyed by what slot 2 actually resolved to (its item id, or "gems"
+    for the flat-chance/fallback case), falling back to the table's
+    "default" entry for outcomes with no entry of their own; its "none"
+    result yields no third grant.
+
+    Item availability is state.special.enabled-gated on top of the usual
+    ``_is_available`` check, so every item entry is treated as unavailable
+    (falling through to its chain's guaranteed non-item fallback) while
+    special items are disabled.
+
+    Returns the resolved grants in ``mail_packages``'s grant vocabulary
+    (``_apply_grant``'s), one per slot that produced something -- slot 3 can
+    be absent.
+    """
+    tables = registry.special.mail_packages
+    grants: list[dict] = []
+
+    slot1_chains = tables["slot1"]["chains"]
+    chain1 = rng.choice("mail_room_slot1_chain", slot1_chains)
+    grants.append(_resolve_mail_chain(state, registry, chain1))
+
+    slot2 = tables["slot2"]
+    shortcut_chance = slot2["gems_shortcut_chance_pct"] / 100.0
+    if rng.chance("mail_room_slot2_shortcut", shortcut_chance):
+        slot2_grant = slot2["gems_shortcut_grant"]
+    else:
+        chain2 = rng.choice("mail_room_slot2_chain", slot2["chains"])
+        slot2_grant = _resolve_mail_chain(state, registry, chain2)
+    grants.append(slot2_grant)
+
+    outcome_key = slot2_grant["id"] if slot2_grant.get("kind") == "item" else slot2_grant.get("kind")
+    outcomes = tables["slot3"]["outcomes"]
+    table = outcomes.get(outcome_key, outcomes["default"])["table"]
+    weights = tuple(row["weight"] for row in table)
+    row = table[rng.roll_weighted("mail_room_slot3", weights)]
+    match row["result"]:
+        case "gems":
+            grants.append({"kind": "gems", "amount": row["amount"]})
+        case "keys":
+            grants.append({"kind": "keys", "amount": row["amount"]})
+        case _:
+            pass  # "none": no third grant
+
+    return grants
 
 
 def open_container(game, cell: int) -> str | None:

@@ -3451,6 +3451,220 @@
    }
   }
  },
+ "mail_packages": {
+  "slot1": {
+   "chains": [
+    [
+     {
+      "kind": "item",
+      "id": "compass"
+     },
+     {
+      "kind": "item",
+      "id": "lock_pick_kit"
+     },
+     {
+      "kind": "item",
+      "id": "sleeping_mask"
+     },
+     {
+      "kind": "dice",
+      "amount": 2
+     },
+     {
+      "kind": "item",
+      "id": "coin_purse"
+     },
+     {
+      "kind": "food",
+      "id": "banana",
+      "amount": 3
+     }
+    ],
+    [
+     {
+      "kind": "item",
+      "id": "lock_pick_kit"
+     },
+     {
+      "kind": "item",
+      "id": "sleeping_mask"
+     },
+     {
+      "kind": "dice",
+      "amount": 2
+     },
+     {
+      "kind": "item",
+      "id": "coin_purse"
+     },
+     {
+      "kind": "item",
+      "id": "compass"
+     },
+     {
+      "kind": "food",
+      "id": "banana",
+      "amount": 3
+     }
+    ],
+    [
+     {
+      "kind": "item",
+      "id": "sleeping_mask"
+     },
+     {
+      "kind": "dice",
+      "amount": 2
+     },
+     {
+      "kind": "item",
+      "id": "coin_purse"
+     },
+     {
+      "kind": "item",
+      "id": "compass"
+     },
+     {
+      "kind": "item",
+      "id": "lock_pick_kit"
+     },
+     {
+      "kind": "food",
+      "id": "banana",
+      "amount": 3
+     }
+    ]
+   ]
+  },
+  "slot2": {
+   "gems_shortcut_chance_pct": 50,
+   "gems_shortcut_grant": {
+    "kind": "gems",
+    "amount": 2
+   },
+   "chains": [
+    [
+     {
+      "kind": "item",
+      "id": "compass"
+     },
+     {
+      "kind": "item",
+      "id": "sleeping_mask"
+     },
+     {
+      "kind": "gems",
+      "amount": 2
+     }
+    ],
+    [
+     {
+      "kind": "item",
+      "id": "magnifying_glass"
+     },
+     {
+      "kind": "item",
+      "id": "coupon_book"
+     },
+     {
+      "kind": "gems",
+      "amount": 2
+     }
+    ],
+    [
+     {
+      "kind": "item",
+      "id": "silver_key"
+     },
+     {
+      "kind": "item",
+      "id": "coupon_book"
+     },
+     {
+      "kind": "gems",
+      "amount": 2
+     }
+    ],
+    [
+     {
+      "kind": "item",
+      "id": "sleeping_mask"
+     },
+     {
+      "kind": "gems",
+      "amount": 2
+     }
+    ],
+    [
+     {
+      "kind": "item",
+      "id": "coupon_book"
+     },
+     {
+      "kind": "gems",
+      "amount": 2
+     }
+    ]
+   ]
+  },
+  "slot3": {
+   "outcomes": {
+    "compass": {
+     "table": [
+      {
+       "result": "none",
+       "weight": 100
+      }
+     ]
+    },
+    "silver_key": {
+     "table": [
+      {
+       "result": "keys",
+       "amount": 2,
+       "weight": 100
+      }
+     ]
+    },
+    "gems": {
+     "table": [
+      {
+       "result": "keys",
+       "amount": 2,
+       "weight": 50
+      },
+      {
+       "result": "none",
+       "weight": 50
+      }
+     ]
+    },
+    "default": {
+     "table": [
+      {
+       "result": "gems",
+       "amount": 2,
+       "weight": 40
+      },
+      {
+       "result": "keys",
+       "amount": 2,
+       "weight": 40
+      },
+      {
+       "result": "none",
+       "weight": 20
+      }
+     ]
+    }
+   }
+  },
+  "meta": {
+   "source": "https://blueprince.wiki.gg/wiki/Mail_Room",
+   "confidence": "datamined"
+  }
+ },
  "ignition": {
   "tools": [
    "torch",
