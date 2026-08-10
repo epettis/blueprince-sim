@@ -69,6 +69,46 @@ def test_effect_override_reproduces_committed_record(room_id, rooms_by_id):
     assert entry["items"]["guaranteed"] == committed["items"]["guaranteed"]
 
 
+def test_flag_override_ids_all_exist_in_rooms_json(rooms_by_id):
+    """Every FLAG_OVERRIDE key names a record present in rooms.json - the typo guard."""
+    missing = sorted(set(ingest_sheet.FLAG_OVERRIDE) - set(rooms_by_id))
+    assert not missing, f"FLAG_OVERRIDE has id(s) absent from rooms.json: {missing}"
+
+
+@pytest.mark.parametrize("room_id", sorted(ingest_sheet.FLAG_OVERRIDE))
+def test_flag_override_reproduces_committed_flags(room_id, rooms_by_id):
+    """Applying FLAG_OVERRIDE reproduces the flags rooms.json actually carries.
+
+    The membership flags behind the Cloister of Dauja and Veia lists are there
+    only because a human put them there, so without this the committed record
+    and the ingest table could drift apart and a re-ingest would quietly drop a
+    room out of its list.
+    """
+    entry = {"id": room_id, "effects": [], "items": {"guaranteed": []}, "flags": {}}
+    ingest_sheet.apply_effect_override(entry)
+    committed_flags = rooms_by_id[room_id]["flags"]
+    assert entry["flags"], f"{room_id}: FLAG_OVERRIDE set nothing"
+    for flag, value in entry["flags"].items():
+        assert committed_flags.get(flag) == value, f"{room_id}: {flag}"
+
+
+def test_supplemental_member_rooms_carry_their_own_flags():
+    """The three supplemental-sourced member rooms carry their membership flag
+    in supplemental_rooms.json, which neither override table can reach.
+
+    FLAG_OVERRIDE is validated against the sheet's own ids, so putting one of
+    these there would raise rather than silently do nothing; this pins that the
+    other source covers them instead.
+    """
+    supplemental = json.loads(
+        (ROOT / "tools" / "supplemental_rooms.json").read_text(encoding="utf-8"))
+    records = supplemental["rooms"] if isinstance(supplemental, dict) else supplemental
+    by_id = {r["id"]: r for r in records}
+    assert by_id["furnace"]["flags"].get("has_fireplace") is True
+    assert by_id["dovecote"]["flags"].get("has_animal") is True
+    assert by_id["the_kennel"]["flags"].get("has_animal") is True
+
+
 def test_effect_override_raises_for_unknown_id():
     """validate_effect_override raises when an override id is missing from seen_ids.
 

@@ -1150,6 +1150,11 @@ def carryover(game) -> dict:
         # wholesale next day -- the same shape as allowance, not an OR-merge,
         # since state.stars already IS the accumulated value.
         "stars": state.stars,
+        # Main Course bonus (Cloister of Joya): running permanent total
+        # (yesterday's total plus 5 per Kitchen/Pantry/Furnace drafted from it
+        # today). Replaces cfg.main_course_bonus wholesale next day -- the
+        # same shape as allowance/stars, not an OR-merge.
+        "main_course_bonus": state.main_course_bonus,
         # Mail Room order/delivery cycle for tomorrow: "empty", "awaiting", or
         # "transit". mail_room.next_mail_cycle promotes a Freight order out of
         # "transit" to "awaiting" once its transit days are spent -- that

@@ -22,6 +22,7 @@ from . import great_hall  # noqa: F401  (no handler; imported for the lever help
 from . import greenhouse  # noqa: F401
 from . import guest_bedroom  # noqa: F401
 from . import hallway  # noqa: F401
+from . import her_ladyships_chamber  # noqa: F401
 from . import hovel  # noqa: F401
 from . import mail_room  # noqa: F401
 from . import nook  # noqa: F401

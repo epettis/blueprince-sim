@@ -475,7 +475,8 @@ def test_carryover_shape_is_complete():
         "lit_targets", "collected_disks", "chapel_tithes",
         "upgrade_disks", "draft_counts",
         "foundation_cell", "foundation_doors",
-        "allowance", "stars", "collected_allowance_tokens", "mail_cycle", "mail_transit_days",
+        "allowance", "stars", "main_course_bonus",
+        "collected_allowance_tokens", "mail_cycle", "mail_transit_days",
         "hallway_tomorrow_extra",
     }
     # Test a variety of configs
