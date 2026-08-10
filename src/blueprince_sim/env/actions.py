@@ -75,6 +75,7 @@ from ..engine.grid import DIR_NAMES, DIRS, N_CELLS, rank_of
 from ..engine.locks import DOOR_LOCKED, DOOR_SEALED, DOOR_SECURITY, SECURITY_LEVELS
 from ..engine import shops as _shops
 from ..engine import special_items as _si
+from ..engine.effects import Capability, provides_capability
 from ..engine.model import Registry
 
 # ---------------------------------------------------------------------------
@@ -153,7 +154,7 @@ def _cell_is_shop_re_enterable(game: Game, cell: int) -> bool:
             return False  # not yet entered
         return bool(game.fabricate_options())
 
-    if room.category == "shop":
+    if provides_capability(room.id, Capability.COMMERCE):
         # Regular shop: need a buyable (non-sold-out, affordable) entry
         if room.id not in st.shops.stock:
             return False  # not yet entered; stock not rolled

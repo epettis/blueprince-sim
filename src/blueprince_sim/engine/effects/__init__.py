@@ -18,6 +18,42 @@ from typing import Callable
 logger = logging.getLogger("blueprince_sim.effects")
 
 
+class Capability(Enum):
+    COMMERCE = "commerce"  # room can be bought from, traded with, or fabricated at
+
+
+_CAPABILITY_REGISTRY: set[tuple[str, Capability]] = set()
+
+
+def provides(room_id: str, capability: Capability) -> None:
+    """Register that ``room_id`` provides ``capability``.
+
+    Call at import time from a room module, the same way ``room_hook``
+    registers a handler -- except a capability carries no handler function,
+    just the fact that the room has it, so engine code can ask "does this
+    room provide X" without knowing which rooms exist.
+    """
+    _CAPABILITY_REGISTRY.add((room_id, capability))
+
+
+def provides_capability(room_id: str, capability: Capability) -> bool:
+    """Does ``room_id`` provide ``capability``? False for any unregistered id."""
+    return (room_id, capability) in _CAPABILITY_REGISTRY
+
+
+def validate_capability_registry(registry) -> list[str]:
+    """Return every room id registered via ``provides`` that ``registry`` lacks.
+
+    Mirrors ``validate_room_registry`` below: ``provides`` runs at import
+    time, before any ``Registry`` is loaded, so a typo'd room id cannot be
+    checked at registration -- it would otherwise just never match a real
+    room, silently. Callers run this once a ``Registry`` exists and treat a
+    nonempty result as a hard failure.
+    """
+    return sorted(
+        {room_id for room_id, _cap in _CAPABILITY_REGISTRY if room_id not in registry.by_id})
+
+
 class Hook(Enum):
     ON_PLACE = "on_place"          # room placed on the grid (drafted)
     ON_ENTER = "on_enter"          # player enters the room (first time)
