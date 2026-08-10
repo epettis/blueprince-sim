@@ -346,6 +346,11 @@ EFFECT_OVERRIDE: dict[str, dict] = {
     # Spare Veranda: second-level variant with its own name, so EFFECT_MAP's
     # "veranda" entry does not match; mirrors the base Veranda's luck grant.
     "spare_veranda__ix140": {"effects": [{"tag": "grant", "resource": "luck", "amount": 3}]},
+    # Geist Bedroom disables the base Guest Bedroom's random item spawn (and,
+    # by extension, its luck-penalty processing): additional_max 0 rather than
+    # the blueprint-category default of 1. Its dice grant is a room_hook
+    # (effects/rooms/guest_bedroom.py), not a data effect.
+    "geist_bedroom__ix69": {"items": {"additional_max": 0}},
 }
 
 

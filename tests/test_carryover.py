@@ -476,6 +476,7 @@ def test_carryover_shape_is_complete():
         "upgrade_disks", "draft_counts",
         "foundation_cell", "foundation_doors",
         "allowance", "stars", "collected_allowance_tokens", "mail_cycle", "mail_transit_days",
+        "hallway_tomorrow_extra",
     }
     # Test a variety of configs
     for cfg in [

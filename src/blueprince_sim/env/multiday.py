@@ -117,6 +117,11 @@ class DayChain:
         # only carries and decays it (see effects/rooms/mail_room.py for the
         # readiness decision).
         self.mail_transit_days: int = base_cfg.mail_transit_days
+        # Tomorrow Hallway (hallway__ix76) carry: REPLACED (not merged) from each
+        # day's own carryover value every advance(), the same shape as mail_cycle/
+        # mail_transit_days -- a one-day pulse of extra Hallway copies for the
+        # immediately following day's draft pool, not a running total.
+        self.hallway_tomorrow_extra: int = base_cfg.hallway_tomorrow_extra
         # Fixed-source Allowance Token ids collected (ever, across all days):
         # a Mora Jai box or the Cloister's own token, each with its own id.
         # Union-merged across days, same shape as collected_disks.
@@ -186,6 +191,7 @@ class DayChain:
             stars=self.stars,
             mail_cycle=self.mail_cycle,
             mail_transit_days=self.mail_transit_days,
+            hallway_tomorrow_extra=self.hallway_tomorrow_extra,
             collected_allowance_tokens=self.collected_allowance_tokens,
             collected_sanctum_keys=self.collected_sanctum_keys,
             sigil_doors_open=self.sigil_doors_open,
@@ -289,6 +295,11 @@ class DayChain:
             self.mail_transit_days = mtd_val
         self.mail_transit_days = max(0, self.mail_transit_days - 1)
 
+        # --- hallway_tomorrow_extra (Tomorrow Hallway pulse; replace each advance) ---
+        hte_val = carryover.get("hallway_tomorrow_extra")
+        if hte_val is not None:
+            self.hallway_tomorrow_extra = hte_val
+
         # --- collected_allowance_tokens (fixed one-time sources; accumulate as union) ---
         cat_val = carryover.get("collected_allowance_tokens")
         if cat_val is not None:
@@ -380,6 +391,7 @@ class DayChain:
             self.stars = self.base_cfg.stars  # fresh attempt; back to the base preset
             self.mail_cycle = self.base_cfg.mail_cycle  # fresh attempt; back to the base preset
             self.mail_transit_days = self.base_cfg.mail_transit_days  # fresh attempt; back to base
+            self.hallway_tomorrow_extra = self.base_cfg.hallway_tomorrow_extra  # fresh attempt
             self.collected_allowance_tokens = frozenset(
                 self.base_cfg.collected_allowance_tokens
             )

@@ -1161,6 +1161,10 @@ def carryover(game) -> dict:
         # count; DayChain.advance() decays it mechanically). Replaces
         # cfg.mail_transit_days wholesale next day, the same shape as mail_cycle.
         "mail_transit_days": state.mail_transit_days,
+        # Tomorrow Hallway (hallway__ix76) pulse: today's count of Tomorrow
+        # Hallways drafted, carried into tomorrow's GameConfig.hallway_tomorrow_extra
+        # (replaced wholesale, not accumulated -- the same shape as mail_transit_days).
+        "hallway_tomorrow_extra": state.hallway_tomorrow_count,
         # Fixed-source Allowance Token ids collected today (a Mora Jai box or
         # the Cloister's own token): accumulated union across all days, the
         # same shape as collected_disks.

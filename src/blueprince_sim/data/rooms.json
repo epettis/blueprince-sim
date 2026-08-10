@@ -3316,7 +3316,7 @@
    "effects": [],
    "items": {
     "guaranteed": [],
-    "additional_max": 1,
+    "additional_max": 0,
     "dig_spots": 0
    },
    "pool": "upgrade_variant",

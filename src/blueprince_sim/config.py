@@ -181,6 +181,13 @@ class GameConfig:
     # wholesale each advance() (mechanical decay lives in DayChain.advance()), the
     # same shape as mail_cycle.
     mail_transit_days: int = 0
+    # Tomorrow Hallway (hallway__ix76) carry: extra Hallway copies to inject into
+    # TODAY's draft pool at day start, from Tomorrow Hallways drafted YESTERDAY.
+    # A one-day pulse, not a running total -- replaced wholesale each advance()
+    # from that day's own count (state.hallway_tomorrow_count), the same shape
+    # as mail_cycle/mail_transit_days, so a day that drafts none clears the
+    # bonus rather than compounding it forever.
+    hallway_tomorrow_extra: int = 0
     # Sanctum Key source ids permanently spent (ever, across all days): opening a
     # Sigil Chamber door consumes one key and its own source id (e.g.
     # "sanctum_key_vault") is recorded here, so that source never spawns another
