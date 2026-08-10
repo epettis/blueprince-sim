@@ -656,6 +656,73 @@ the residual `game.py` branches.
 
 ## Decisions log
 
+- **2026-08-10, the Patio spreads exactly one gem to each Green Room.**
+  Owner, on a wiki that contradicts itself: the Gems page says it "spreads
+  1 gem to **each** Green Room", the general Spread page says every room "has a
+  **chance**" of receiving a spread item, and the Spare Patio page says it will
+  "**often**" spread a gem to itself. No rate is published anywhere.
+
+  Deterministic wins: every Green Room on the estate at the draft moment gets
+  exactly one gem, the Patio itself included, and rooms drafted later get
+  nothing. Gem colour is **mechanically inert** -- the wiki states the six
+  colours "are purely cosmetic and are lost once the gems are collected" -- so
+  the green-to-blue switch under a Conference Room needs no representation.
+
+  The Spare Patio is identical, and unusually this is affirmatively sourced
+  four separate ways rather than assumed from matching text. That matters
+  because `spare_great_hall__ix139` has text byte-identical to `great_hall`
+  and a materially different mechanic; identical text is not evidence.
+
+- **2026-08-10, the Locker Room's key spread reuses the Secret Garden's
+  room-count bucket.** Owner. The wiki publishes **no** count and no rate for
+  this spread; its only quantitative claim is relative and unanchored -- each
+  room has "a slightly lower chance of receiving a key than they do of
+  receiving items from other spread effects", with that comparison class
+  itself unquantified.
+
+  So the bucket (0-9 rooms -> 3, 10-24 -> 4, 25+ -> 6) is borrowed from the one
+  spreader that does have a published formula, marked `confidence: inferred`.
+
+  Act on this cold as: the wiki says keys are **rarer** than other spread
+  items, so this borrowed figure probably **overstates** the Locker Room. It is
+  a placeholder chosen for consistency, not a measurement -- replace it the
+  moment real play gives a number, and do not cite it as sourced.
+
+- **2026-08-10, the Conference Room absorbs a spreader's self-item too.**
+  Owner, on an asymmetry in the wiki: the Patio page explicitly says the
+  redirected gems "**include the gem that would spread in the Patio itself**",
+  while the Locker Room page says "any key that would be spread to **another
+  room**", which read literally would leave its own self-key behind.
+
+  Both spreaders behave the same way: everything they would have spread,
+  including their own self-item, lands in the Conference Room. The Locker
+  Room's wording is treated as loose rather than meaningful.
+
+  Still unstated and still unresolved: **how many** keys land there. The wiki
+  gives "a number of keys" with no quantity and, unlike the Patio, not even a
+  dependency hint. The bucket above supplies the number by default.
+
+- **2026-08-10, the Conservatory is a Green Room, and the Aquariums count as
+  every colour.** Owner, on a Patio spread having to decide what "Green Room"
+  means and our data disagreeing with the wiki twice.
+
+  The Conservatory is `MainType=Green Room` on the wiki and was `blueprint`
+  here -- a plain data error, now corrected. The four Aquarium records were
+  also `blueprint`, with the `counts_as_all_colors` flag ruled in on
+  2026-08-10 existing **only in prose**: a repo-wide grep found it in the
+  ruling itself and in one "Not modelled" note, nowhere in code or data. It is
+  now implemented, because a Patio spread is exactly the category-comparison
+  site that ruling described.
+
+  Measured before the fix: a Patio spread would have targeted **24** rooms
+  where the wiki implies **29**, understating the payout by up to 5 gems in a
+  large house.
+
+  Act on this cold as: a ruling recorded but never implemented is
+  indistinguishable from one never made. The `counts_as_all_colors` flag sat
+  in the decisions log for a day while every category-keyed mechanic quietly
+  ignored the Aquarium.
+
 - **2026-08-10, stars are SAVE-scoped and accumulate toward a reroll trade.**
   Owner, on being shown that stars were still attempt-scoped after the Joya
   ruling: "Stars do not reset between days. They accumulate until you get the
