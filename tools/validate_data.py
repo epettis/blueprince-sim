@@ -81,12 +81,21 @@ KNOWN_EFFECT_TAGS = {"grant", "grant_per_category", "grant_on_draft_category",
 # so any other room's unmodelled "always unlocked" claim still surfaces.
 _AUDIT_STRUCTURAL_EXEMPT_IDS = {"corridor", "corriyard__ix50"}
 
+# Commerce rooms whose behaviour lives in engine/shops.py, driven by shops.json,
+# rather than in effects/items. The eight priced shops come from shops.json's own
+# "shops" table, so that half of the set cannot drift from the data. These two
+# have no entry there and are listed by id:
+#   trading_post -- the tiered trade graph (shops.py::_inside_trading_post)
+#   workshop     -- fabrication recipes (shops.py::fabricate)
+_AUDIT_COMMERCE_EXTRA_IDS = {"trading_post", "workshop"}
+
 
 def find_divergences(
     rooms: list[dict],
     by_id: dict[str, dict],
     lock_rules: dict,
     registered_room_ids: set[str] | None = None,
+    shop_rules: dict | None = None,
 ) -> tuple[list[str], list[str]]:
     """Return (kind1, kind2) room-fidelity divergence findings (an audit worklist).
 
@@ -117,8 +126,19 @@ def find_divergences(
 
     Both kinds exclude ``_AUDIT_STRUCTURAL_EXEMPT_IDS``: rooms whose "always
     unlocked" text is implemented in locks.json rather than effects/items.
+
+    Both kinds also exclude commerce rooms, whose behaviour lives in
+    ``engine/shops.py``: the ids in ``shop_rules``'s "shops" table plus
+    ``_AUDIT_COMMERCE_EXTRA_IDS``. A shop's ``effect_text`` states only that it
+    trades ("Items for Sale", "Launder Currency"), which shops.py implements in
+    full, so counting them as unmodelled measures the audit's blind spot rather
+    than the sim's. ``shop_rules`` defaults to no shops, which keeps every
+    caller that does not pass it on the pre-existing behaviour.
     """
     structural = frozenset(rid for rid in _AUDIT_STRUCTURAL_EXEMPT_IDS if rid in by_id)
+    priced_shops = set((shop_rules or {}).get("shops", {}))
+    commerce = frozenset(
+        rid for rid in priced_shops | _AUDIT_COMMERCE_EXTRA_IDS if rid in by_id)
     # Sanity-check the exemption list itself so it can't silently rot: every id
     # in it must actually be exempt from locks.json's own always_unlocked table.
     lock_exempt = set(lock_rules.get("always_unlocked_rooms", {}).get("rooms", []))
@@ -134,7 +154,7 @@ def find_divergences(
     kind2: list[str] = []
     for r in rooms:
         rid = r["id"]
-        if rid in structural:
+        if rid in structural or rid in commerce:
             continue
         text = (r.get("meta", {}).get("effect_text") or "").strip()
         effects = r.get("effects", [])
@@ -1174,7 +1194,8 @@ def main(argv: list[str] | None = None) -> int:
     # Room-fidelity divergence audit: its own channel, always computed so the
     # summary line can advertise the count, but only printed under --audit and
     # never folded into errors/warnings -- see find_divergences' docstring.
-    audit_kind1, audit_kind2 = find_divergences(rooms, by_id, lock_rules)
+    audit_kind1, audit_kind2 = find_divergences(rooms, by_id, lock_rules,
+                                                shop_rules=shops_doc)
     n_audit = len(audit_kind1) + len(audit_kind2)
 
     base = [r for r in rooms if r.get("pool") == "base"]

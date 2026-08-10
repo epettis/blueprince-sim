@@ -17,6 +17,7 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from tools.validate_data import (  # noqa: E402
+    _AUDIT_COMMERCE_EXTRA_IDS,
     _AUDIT_STRUCTURAL_EXEMPT_IDS,
     find_divergences,
     main,
@@ -214,6 +215,60 @@ def test_structural_exemption_suppresses_locks_json_implemented_rooms():
     kind1, kind2 = find_divergences(rooms, by_id, lock_rules)
     assert not any(exempt_id in f for f in kind1)
     assert not any(exempt_id in f for f in kind2)
+
+
+def test_priced_shops_from_shops_json_are_exempt():
+    """A room named in shops.json's "shops" table is excluded from both finding
+    kinds: its effect_text says only that it trades, and engine/shops.py
+    implements that in full, so flagging it would measure the audit's blind
+    spot rather than a gap in the sim."""
+    room = _room("locksmith", text="Keys for Sale")
+    rooms = [room]
+    by_id = {r["id"]: r for r in rooms}
+
+    kind1, kind2 = find_divergences(rooms, by_id, EMPTY_LOCKS,
+                                    shop_rules={"shops": {"locksmith": {}}})
+
+    assert not any("locksmith" in f for f in kind1)
+    assert not any("locksmith" in f for f in kind2)
+
+
+def test_commerce_rooms_absent_from_the_shops_table_are_still_exempt():
+    """The Trading Post and Workshop have no shops.json "shops" entry but their
+    behaviour still lives in engine/shops.py, so they are exempt by id."""
+    for rid in _AUDIT_COMMERCE_EXTRA_IDS:
+        room = _room(rid, text="Combine inventory to create new items")
+        by_id = {rid: room}
+
+        kind1, kind2 = find_divergences([room], by_id, EMPTY_LOCKS, shop_rules={})
+
+        assert not any(rid in f for f in kind1), rid
+        assert not any(rid in f for f in kind2), rid
+
+
+def test_a_non_commerce_room_is_not_exempted_by_the_shops_table():
+    """The exemption keys off the room id, never off the effect text, so an
+    ordinary room claiming to sell something is still flagged -- otherwise a
+    genuinely unmodelled shop-like mechanic would vanish from the worklist."""
+    room = _room("some_other_room", text="Items for Sale")
+    by_id = {"some_other_room": room}
+
+    _kind1, kind2 = find_divergences([room], by_id, EMPTY_LOCKS,
+                                     shop_rules={"shops": {"locksmith": {}}})
+
+    assert any("some_other_room" in f for f in kind2)
+
+
+def test_omitting_shop_rules_exempts_only_the_by_id_commerce_rooms():
+    """With no shop_rules passed, a priced shop is flagged again -- the
+    exemption follows the data handed in, so a caller cannot silently inherit
+    a shops table it never supplied."""
+    room = _room("locksmith", text="Keys for Sale")
+    by_id = {"locksmith": room}
+
+    _kind1, kind2 = find_divergences([room], by_id, EMPTY_LOCKS)
+
+    assert any("locksmith" in f for f in kind2)
 
 
 def test_default_validate_data_run_reports_zero_warnings():
