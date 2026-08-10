@@ -351,6 +351,12 @@ class GameState:
     # Cells holding a Closet-family variant whose adjacency bonus condition held
     # at placement; popped when that cell is first entered and the bonus paid.
     closet_bonus_cells: set[int] = field(default_factory=set)
+    # Cells holding a Geist Bedroom (geist_bedroom__ix69) that already had a
+    # Tomb on the estate at the moment it was drafted -- "The additional 4
+    # dice only spawns if the Tomb was drafted before the Geist Bedroom"
+    # (effects/rooms/guest_bedroom.py). Marked at ON_PLACE, read at ON_ENTER;
+    # same shape as closet_bonus_cells/cloister_mila_bonus_cells above.
+    geist_bedroom_tomb_cells: set[int] = field(default_factory=set)
 
     # Resources parked in a cell, waiting for the player to walk in and collect them
     # (Secret Garden fruit spread today; Patio gems and Locker Room keys will reuse
@@ -391,6 +397,14 @@ class GameState:
     # True once the player has entered a Rank >= 8 cell today (Same Day
     # Delivery's trigger). Set by Game._enter; per-day only.
     rank8_reached: bool = False
+
+    # Tomorrow Hallways (hallway__ix76) drafted today; incremented by
+    # effects/rooms/hallway.py at ON_PLACE. Per-day only -- a fresh GameState
+    # resets it every day. Reported by shops.carryover() as
+    # "hallway_tomorrow_extra" and carried by DayChain into tomorrow's
+    # GameConfig.hallway_tomorrow_extra, which injects that many extra
+    # Hallway copies into tomorrow's draft pool at day start.
+    hallway_tomorrow_count: int = 0
 
     def deck(self, rarity_idx: int, is_gem: bool) -> DeckState:
         return self.decks[rarity_idx * 2 + (1 if is_gem else 0)]

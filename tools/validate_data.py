@@ -103,7 +103,9 @@ _AUDIT_PYTHON_EXEMPT_IDS = {
     "dining_room": "engine/special_items.py",    # rank-8 main course
     "dovecote": "engine/effects/rooms/dovecote.py",  # rotation while drawn
     "lost_and_found": "engine/special_items.py",  # steal one item, grant two
+    "reading_nook__ix99": "engine/draft.py",     # LIBRARY forced into slot 2
     "the_foundation": "engine/game.py",          # persists across days
+    "the_kennel": "engine/effects/rooms/the_kennel.py",  # digging unlocks that room
     "utility_closet": "engine/game.py",          # breaker box
 }
 

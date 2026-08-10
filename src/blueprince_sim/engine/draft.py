@@ -23,6 +23,8 @@ from .state import DraftOption, GameState, PendingDraft, resolve_gem_cost
 
 CLOSET_ID = "closet"
 TUNNEL_ID = "tunnel"
+READING_NOOK_ID = "reading_nook__ix99"
+LIBRARY_ID = "library"
 
 
 def _hidden_count(from_room: Room | None) -> int:
@@ -425,6 +427,30 @@ def _tunnel_chain_option(ctx: DraftContext, cell: int, entry_dir: int) -> DraftO
                        slot=0, forced=True)
 
 
+def _reading_nook_library_option(ctx: DraftContext, cell: int, entry_dir: int) -> DraftOption:
+    """Force LIBRARY into slot 2 for a hand dealt from the Reading Nook's own doorway.
+
+    "the floorplan in the third slot will always be the Library. This happens
+    even if floorplans are redrawn; even if the Library is no longer in the
+    draft pool due to being drafted elsewhere; even when using Silver Key or
+    Prism Key; and even if it has been removed entirely via Repellent."
+    (blueprince.wiki.gg/wiki/Nook/Upgrades)
+
+    A Library card is still pulled from its own rarity's decks when one
+    remains -- "drafting the Library this way will still pull it from the
+    draft pool" -- but the option itself is built unconditionally through
+    _make_option's forced-orientation fallback, so an empty deck (or a
+    Repellent ban, which only ever affects deck membership) never breaks the
+    guarantee.
+    """
+    library = ctx.registry.by_id[LIBRARY_ID]
+    for is_gem in (False, True):
+        deck = ctx.state.deck(library.rarity_idx, is_gem)
+        if deck.deal_next(lambda c: c == library.idx) is not None:
+            break
+    return _make_option(ctx, library, 2, cell, entry_dir, forced_draw=True)
+
+
 def _fill_options(ctx: DraftContext, pending: PendingDraft, from_room: Room | None) -> None:
     """Deal the three option slots, then mark mystery option(s) as hidden.
 
@@ -447,6 +473,15 @@ def _fill_options(ctx: DraftContext, pending: PendingDraft, from_room: Room | No
     ends naturally when the Tunnel is illegal at the target (rank 9 blocked by
     rank_lte_8, or the target already occupied) — slot 0 then falls back to an
     ordinary draw, so the hand is three ordinary options with no Tunnel.
+
+    Reading Nook: slot 2 is always LIBRARY when ``from_room`` is
+    reading_nook__ix99 (see _reading_nook_library_option), on both the
+    initial deal and every redraw (redeal() calls this same function). If an
+    earlier slot in the same hand fails to deal at all — the pre-existing,
+    exceedingly rare forced-Closet-already-excluded failure in draw_slot —
+    the guarantee still targets list index 2 specifically, which then lands
+    on a visually earlier option than "third"; that already-rare edge case is
+    not special-cased further here.
     """
     # Tunnel chain-draft: north exit of a placed Tunnel guarantees a Tunnel in
     # slot 0 of an otherwise-normal three-slot hand (see docstring above).
@@ -478,13 +513,19 @@ def _fill_options(ctx: DraftContext, pending: PendingDraft, from_room: Room | No
         if slot == 0 and tunnel_forced_option is not None:
             pending.options.append(tunnel_forced_option)
             continue
-        opt = None
-        if silver_key_bias:
-            opt = _deal_cross_t_biased(ctx, slot, pending.target_cell,
-                                       pending.direction, exclude)
-        if opt is None:
-            opt = draw_slot(ctx, slot, pending.target_cell, pending.direction, exclude,
-                            pending.options)
+        if slot == 2 and from_room is not None and from_room.id == READING_NOOK_ID:
+            # Reading Nook: slot 2 is always LIBRARY, ahead of (and instead
+            # of) the Silver Key bias, the Garage Forced Draw, and the
+            # priority draws -- see _reading_nook_library_option.
+            opt = _reading_nook_library_option(ctx, pending.target_cell, pending.direction)
+        else:
+            opt = None
+            if silver_key_bias:
+                opt = _deal_cross_t_biased(ctx, slot, pending.target_cell,
+                                           pending.direction, exclude)
+            if opt is None:
+                opt = draw_slot(ctx, slot, pending.target_cell, pending.direction, exclude,
+                                pending.options)
         if opt is not None:
             pending.options.append(opt)
             exclude.add(opt.room_idx)

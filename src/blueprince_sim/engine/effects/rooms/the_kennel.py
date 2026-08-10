@@ -19,10 +19,8 @@ Implemented:
     placed room regardless of whether it has been walked into.
   - Unlocks both DOOR_LOCKED and DOOR_SECURITY segments on the dug room's own
     placed doors.
-  - Registered at Hook.ON_PLACE purely as a marker: the Kennel arms nothing
-    at its own placement (game.placed_ids already reflects "drafted" with no
-    extra state needed), but a room_hook at its own id is what the
-    room-fidelity audit (tools/validate_data.py) recognizes as "modelled".
+  - Nothing is registered at a Hook: the Kennel arms no state of its own at
+    placement, since game.placed_ids already carries "drafted".
 
 Not modelled:
   - The wiki's own unexplained note that the effect "often does not work in
@@ -35,7 +33,6 @@ from __future__ import annotations
 
 from ...grid import DIRS
 from ...locks import DOOR_LOCKED, DOOR_SECURITY, segment_key
-from .. import Hook, room_hook
 
 
 def unlock_dug_room(game, cell: int) -> None:
@@ -52,6 +49,3 @@ def unlock_dug_room(game, cell: int) -> None:
             game._open_segment(cell, d)
 
 
-@room_hook("the_kennel", Hook.ON_PLACE)
-def mark_kennel_placed(game, room, ctx_room) -> None:
-    """No state to arm here -- see unlock_dug_room's docstring above."""
