@@ -30,6 +30,7 @@ def _fake_game(state, registry, seed=0):
     g.state = state
     g.registry = registry
     g.rng = Rng(seed)
+    g.placed_ids = set()
     return g
 
 

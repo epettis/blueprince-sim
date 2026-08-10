@@ -187,6 +187,12 @@ class GameState:
     drafting_room_count: int = 0  # grants that many free redraws when drafting from the Classroom
     study_placed: bool = False  # Study: pay 1 gem to redraw (max 8 per hand)
     library_placed: bool = False  # Library in the house (obs flag; Library draws key off position)
+    # Foyer/Spare Foyer: forces every Hallway-category room's doors unlocked for
+    # the rest of the day, including security doors and the Foyer's own doors.
+    # Set by effects/rooms/foyer.py's ON_PLACE handler and consulted by
+    # Game._place_room on every later placement, so a Hallway drafted after the
+    # Foyer comes out unlocked too. Per-day like solarium_placed/schoolhouse_placed.
+    foyer_placed: bool = False
 
     # --- door locks & security doors (see engine.locks) ---
     # segment (locks.segment_key) -> DOOR_LOCKED/DOOR_SECURITY; DOOR_OPEN

@@ -1295,6 +1295,8 @@ def dig_all(game, cell: int) -> None:
     Detector shovel table entries carry explicit coin amounts; other tables
     sub-roll coin_pile_split for the 1-4 coin spread.
     """
+    from .effects.rooms import the_kennel  # deferred: effects/rooms imports special_items
+
     state = game.state
     registry = game.registry
 
@@ -1366,6 +1368,7 @@ def dig_all(game, cell: int) -> None:
                         state.items_found_log.append(("coins", 1))
 
             state.special.dug[cell] = total_spots
+            the_kennel.unlock_dug_room(game, cell)
 
     # Treasure Map: one-per-day dig at the marked cell
     if (state.special.treasure_cell == cell
@@ -1383,6 +1386,7 @@ def dig_all(game, cell: int) -> None:
             state.gems += gems
             state.items_found_log.append(("gem", gems))
         state.special.treasure_dug = True
+        the_kennel.unlock_dug_room(game, cell)
 
 
 # ----------------------------------------------------------------- containers
