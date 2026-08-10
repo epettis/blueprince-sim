@@ -559,7 +559,10 @@ def build_room(row: dict) -> dict | None:
         layouts = [ov["layout"], *ov["alt_layouts"]]
         layout_note = ov["note"]
     category = CATEGORY_FROM_TYPE1.get(row["type1"].split("/")[0].strip(), "blueprint")
-    if row["type2"] == "Objective" or name in ("Antechamber", "Room 46"):
+    # The two rooms that ARE the objective. The sheet's own "Objective" type2 is
+    # wider than that: it also marks a room which merely pays out on reaching one,
+    # and such a room keeps its own colour.
+    if name in ("Antechamber", "Room 46"):
         category = "objective"
 
     conds = CONDITION_MAP.get(row["conditions"], []) if row["conditions"] not in ("-", "") else []

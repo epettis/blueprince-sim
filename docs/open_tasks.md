@@ -656,6 +656,58 @@ the residual `game.py` branches.
 
 ## Decisions log
 
+- **2026-08-10, a room's colour is a SET of categories, not one value.** Owner:
+  "It just means that color needs to be a set of enums instead of an enum.
+  Maid's Quarters is another room -- both red and purple."
+
+  `Room.extra_categories` is stored beside the primary `category`, and the
+  derived `categories` property is what `is_category()` answers from.
+  `counts_as_all_colors` -- a one-room escape hatch added hours earlier -- is
+  deleted, because a set makes it unnecessary.
+
+  **The evidence was already in our own data.** `maids_chamber`'s datamined
+  `effect_text` reads "Counts as red room AND bedroom" while the record stored
+  `category: "red"`, dropping the second membership silently. The raw sheet
+  carries a **colour column** distinct from its two type columns, and the
+  wiki's `Type=` field is a list -- the Aquarium's reads seven types.
+
+  `categories` is **derived, not stored**, so it cannot drift from `category`.
+  The first cut stored it, and `dataclasses.replace(room, category=X)` then
+  left membership stale -- caught by a real test that builds a deliberately
+  stale room exactly that way.
+
+  Populated for two rooms only: the four Aquariums and Maid's Chamber.
+  Enumerating every other multi-category room needs its own pass against the
+  wiki's `Type=` lists; guessing would be inventing data.
+
+- **2026-08-10, the Quest Bedroom is a Bedroom, not an objective room.** Owner:
+  "Quest Bedroom is a bedroom, not an objective room. It rewards on an
+  objective."
+
+  The raw sheet's row settles it: colour **Purple**, type1 **Bedroom**, type2
+  Objective. Our ingest let `type2 == "Objective"` override the real type, so
+  the room landed as `category: "objective"` and **every Bedroom-counting
+  mechanic silently skipped it** -- the per-Bedroom gem cost, Cloister of Mila,
+  the Sleeping Mask, bedroom category biases.
+
+  The ingest rule is now narrowed to the two rooms that *are* the objective,
+  Antechamber and Room 46, which a separate name check already covered. Nothing
+  else in the sheet changes category as a result.
+
+  Act on this cold as: "Objective" in the sheet marks *pays out on reaching the
+  objective*, which is a reward condition, not a room type. `objective` as a
+  category now means exactly two rooms.
+
+- **2026-08-10, 72 blueprints is correct, not a default bucket.** Owner, on my
+  flagging that `blueprint` holds 43% of all rooms and looked like the
+  catch-all bug task 15 found: "There are a lot of blueprints. That's why the
+  game is called Blue Prince. It's a pun."
+
+  Recorded so the count is not "fixed" later. The earlier task-15 finding was
+  genuinely different -- eight rooms carried the **pool name**
+  `studio_addition` where a colour belonged, which is not the same as a large,
+  legitimate colour.
+
 - **2026-08-10, the Patio spreads exactly one gem to each Green Room.**
   Owner, on a wiki that contradicts itself: the Gems page says it "spreads
   1 gem to **each** Green Room", the general Spread page says every room "has a

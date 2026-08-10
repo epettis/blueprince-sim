@@ -173,3 +173,34 @@ def test_quest_bedroom_placed_but_not_entered_pays_nothing(registry):
     g.move(N)  # arrive at the Antechamber; the Quest Bedroom was never entered
 
     assert g.state.allowance == before
+
+
+def test_quest_bedroom_is_a_bedroom_not_an_objective(registry):
+    """The Quest Bedroom counts as a Bedroom and not as the objective role.
+
+    It pays out on reaching the Antechamber, which is a reward condition rather
+    than a room type -- so every Bedroom-counting mechanic must see it, exactly
+    as they see the Geist and Guess Bedrooms beside it."""
+    room = registry.by_id["quest_bedroom__ix71"]
+
+    assert room.is_category("bedroom")
+    assert not room.is_category("objective")
+
+
+def test_quest_bedroom_counts_toward_the_per_bedroom_gem_cost(registry):
+    """A placed Quest Bedroom raises a plus_one_per_bedroom room's gem cost.
+
+    Pinned through a real mechanic rather than the predicate alone, because
+    the category was previously "objective" and every Bedroom count silently
+    skipped it."""
+    import dataclasses
+
+    from blueprince_sim.engine.state import resolve_gem_cost
+
+    g = _game(registry=registry)
+    priced = dataclasses.replace(registry.by_id["boudoir"], gem_cost_dynamic="plus_one_per_bedroom")
+    base = resolve_gem_cost(priced, g.state, g.registry.rooms)
+
+    _place_at(g, "quest_bedroom__ix71", 5, 0)
+
+    assert resolve_gem_cost(priced, g.state, g.registry.rooms) == base + 1
