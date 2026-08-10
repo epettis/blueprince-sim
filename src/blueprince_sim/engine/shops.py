@@ -22,6 +22,7 @@ from pathlib import Path
 # NOTE: engine.items must stay a deferred import (items -> state -> shops
 # would cycle at module load); special_items imports only model, so it's safe.
 from . import special_items as si
+from .effects import Capability, provides_capability
 
 
 # Scepter colors are floorplan categories; the bias entries in
@@ -348,7 +349,7 @@ def current_shop_id(game) -> str | None:
         if state.grid[cell] < 0:
             return None
         room = game.registry.rooms[state.grid[cell]]
-        if room.category == "shop":
+        if provides_capability(room.id, Capability.COMMERCE):
             return room.id
         return None
     elif game.inside_outer_room:
@@ -356,7 +357,7 @@ def current_shop_id(game) -> str | None:
         outer_room = next(
             (r for r in game.outer_rooms if r.id in game.placed_ids), None
         )
-        if outer_room is not None and outer_room.category == "shop":
+        if outer_room is not None and provides_capability(outer_room.id, Capability.COMMERCE):
             return outer_room.id
         return None
     return None

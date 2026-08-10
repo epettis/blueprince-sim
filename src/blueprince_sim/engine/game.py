@@ -11,7 +11,7 @@ from . import effects, shops, special_items
 from .areas import GateContext, reachable
 from .decks import apply_upgrade, build_decks, inject_rooms
 from .draft import deal_draft, redeal
-from .effects import Hook
+from .effects import Capability, Hook
 from .effects.rooms import (dovecote, foyer, great_hall, mail_room, secret_garden,
                             throne_room, weight_room)
 from .grid import (ADJACENT, DIRS, E, ENTRANCE_CELL, N, N_CELLS, OPPOSITE, W,
@@ -1097,7 +1097,7 @@ class Game:
                     # Outer rooms spawn special items too (Toolshed's Gear Wrench,
                     # the Trading Post pool); -1 = off-grid, no cell hooks apply.
                     special_items.on_enter(self, outer_room, -1)
-                    if outer_room.category == "shop":
+                    if effects.provides_capability(outer_room.id, Capability.COMMERCE):
                         shops.on_enter_shop(self, outer_room)
         self._check_termination()
 
@@ -1615,7 +1615,7 @@ class Game:
             grant_item(st, EXTRA_ITEM_TABLE[idx][0], 1, self.rng, self.registry)
         if self.cfg.special_items:
             special_items.on_enter(self, room, cell)
-            if room.category == "shop" or room.id == "workshop":  # workshop needs first-entry roll
+            if effects.provides_capability(room.id, Capability.COMMERCE):
                 shops.on_enter_shop(self, room)
         if self.cfg.door_locks:
             kc = self.registry.lock_rules["keycard"]

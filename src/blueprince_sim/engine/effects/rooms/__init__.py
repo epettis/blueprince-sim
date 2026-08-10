@@ -3,7 +3,10 @@
 One module per room, mirroring ``tests/rooms/``. Each module registers its
 handlers with ``room_hook`` on import, the same way ``effects/tier1.py``
 registers tag handlers with ``effect`` -- so landing a room module here only
-requires importing it from this file.
+requires importing it from this file. ``commerce.py`` is the exception: it
+registers the ``Capability.COMMERCE`` fact for eleven rooms via ``provides``
+rather than a per-room handler, so it lives as one shared module instead of
+eleven near-empty ones.
 """
 
 from __future__ import annotations
@@ -14,6 +17,7 @@ from . import bunk_room  # noqa: F401
 from . import classroom  # noqa: F401
 from . import closet  # noqa: F401
 from . import cloister  # noqa: F401
+from . import commerce  # noqa: F401  (registers commerce capability on import)
 from . import conservatory  # noqa: F401
 from . import dovecote  # noqa: F401  (no handler; imported for the predicate helper)
 from . import foyer  # noqa: F401

@@ -17,10 +17,14 @@ import dataclasses
 import pytest
 
 from blueprince_sim.engine.effects import (
+    Capability,
     Hook,
+    _CAPABILITY_REGISTRY,
     _ROOM_REGISTRY,
     fire,
+    provides,
     room_hook,
+    validate_capability_registry,
     validate_room_registry,
 )
 from blueprince_sim.engine.game import Game
@@ -141,3 +145,18 @@ def test_unknown_room_id_validator_rejects_a_bogus_id(registry, room_probe):
     room_probe("dovecot", Hook.ON_ENTER)
 
     assert "dovecot" in validate_room_registry(registry)
+
+
+def test_unknown_room_id_capability_validator_rejects_a_bogus_id(registry):
+    """validate_capability_registry flags a ``provides`` registration whose
+    room id does not exist in the Registry, the same class of typo bug
+    validate_room_registry catches for room_hook -- a bad id here would
+    otherwise just never match a real room, silently.
+    """
+    assert validate_capability_registry(registry) == []
+
+    provides("dovecot", Capability.COMMERCE)
+    try:
+        assert "dovecot" in validate_capability_registry(registry)
+    finally:
+        _CAPABILITY_REGISTRY.discard(("dovecot", Capability.COMMERCE))
