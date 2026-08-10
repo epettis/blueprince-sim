@@ -2066,6 +2066,65 @@ parametric tags; it has been quietly wrong for singleton behaviour for a while.
   uniform third each, `confidence: inferred`, with a note saying only the set is
   sourced. Replaceable by a data edit the moment a real weighting appears.
 
+- **2026-08-09, the `mail` observation went 2 -> 3 wide, a SECOND width change.**
+  Recorded under the standing every-width-change rule, and recorded as a
+  mispredicton: the base Mail Room PR sized the key at 2 (`[cycle, transit
+  days]`) explicitly claiming that would make it "one width change, not two".
+  That was wrong. No Contact Delivery's outstanding order is genuinely
+  independent of the cycle -- it is placed on every draft and never uses the
+  two-state machine -- so folding it into the cycle code would have made one
+  field mean two things.
+
+  Final shape: `[cycle code, transit days remaining, No Contact ordered]`.
+  Slot `[2]` reads the **forward-looking** flag (drafted today, package lands
+  tomorrow), not "a package arrived this morning" -- these keys exist so `V(s)`
+  can price a cross-day investment, and the investment is the order, not the
+  already-collected payout.
+
+  Act on this cold as: reserving a slot for a *known* future field works (slot
+  `[1]` absorbed Freight with no further change); reserving against an
+  *unanalysed* one does not. Cumulative since the last training run: two width
+  changes, `carryover` 13 -> 14 and `mail` 2 -> 3.
+
+- **2026-08-09, lazy `configure()` seeding has now caused three separate bugs.**
+  `special_items.configure()` is what seeds config-carried running values onto
+  `GameState`, and it is guarded to run once per episode. Its call sites have
+  repeatedly been too narrow:
+
+  - PR #122: reachable only from `on_enter`, so a day spent travelling off-grid
+    never seeded the one-time gates and area grants re-paid.
+  - PR #134: not called from `shops.carryover()`, so a day that never entered a
+    drafted room reported an unseeded `mail_cycle` at day end and silently
+    cancelled an outstanding Mail Room order.
+  - PR #136: not called at reset, so a day's **first** observation reported the
+    field default rather than the carried value -- an agent cannot learn from a
+    state vector that lies at the start of every day.
+
+  Fixed at the root in #136: `Game.reset` now calls it directly, alongside every
+  other field it seeds from config. Act on this cold as: **a lazily-seeded
+  value is a bug waiting for a code path that reads it early.** Anything added
+  to `configure()` from now on is seeded at reset and needs no new call site --
+  do not re-introduce a lazy one.
+
+- **2026-08-09, the Mail Room's cycle state is shared across all three variants
+  -- a known gap, not fixed.** `GameState.mail_cycle` and `mail_package_cell`
+  are a single global slot. If an `awaiting` cycle placed by one variant is
+  still standing when a *different* variant is drafted, that variant delivers
+  its own contents against the other's order.
+
+  Narrow: it needs two different Mail Room upgrades applied across one attempt,
+  and only one Mail Room variant is normally active at a time. Recorded rather
+  than patched so it is not rediscovered as a surprise. Fixing it means keying
+  the cycle by variant id, which is only worth doing if upgrade-swapping turns
+  out to be common in real play.
+
+- **2026-08-09, the Mail Room family is fully modelled: 7 audit findings -> 0.**
+  All four records (`mail_room`, `__ix89` Same Day, `__ix90` No Contact,
+  `__ix91` Freight) carried both kind-1 and kind-2 findings. The worklist went
+  79 -> 72 across four PRs. Note what cleared them: **a registered `room_hook`
+  at the record's own id clears BOTH kinds** -- the mechanic is pure Python, and
+  no `rooms.json` `effects` entry was added for any of the four.
+
 ## 5. Throttle the training terminal output — DONE
 
 The trainer currently refreshes the dashboard after every completed seed, which
