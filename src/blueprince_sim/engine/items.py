@@ -42,6 +42,14 @@ def expected_yields(room: Room, registry: Registry) -> dict[str, float]:
                            / (luck["max_effect_at"] - luck["floor"])))
     pile = registry.item_rules["coins"]
     pile_avg = (pile["pile_min"] + pile["pile_max"]) / 2
+    food_rules = registry.item_rules["food"]
+    default_steps = food_rules["default_steps"]
+    fruit_weights = food_rules["fruit_weights"]
+    fruit_total_w = sum(fruit_weights.values())
+    fruit_mean_steps = sum(
+        w * food_rules["dishes"].get(dish_id, {}).get("steps", default_steps)
+        for dish_id, w in fruit_weights.items()
+    ) / fruit_total_w
     y = {"steps": 0.0, "keys": 0.0, "gems": 0.0, "coins": 0.0, "luck": 0.0}
 
     def add(item: str, count: float) -> None:
@@ -56,6 +64,8 @@ def expected_yields(room: Room, registry: Registry) -> dict[str, float]:
                 y["coins"] += count * pile_avg
             case "coins_exact":  # a literal coin amount, no pile roll (see grant_item)
                 y["coins"] += count
+            case "fruit":  # weighted mean of food.fruit_weights dish steps
+                y["steps"] += count * fruit_mean_steps
             case "random":  # table-rolled items; count may be a fractional expectation
                 y["keys"] += count * p_item["key"]
                 y["gems"] += count * p_item["gem"]
@@ -99,8 +109,10 @@ def grant_item(state: GameState, item: str, count: int, rng: Rng, registry: Regi
     literal coin amount (``count`` IS the payout, no pile roll) for rooms
     whose effect text states an exact figure (see rooms.json's
     ``items.guaranteed`` entries for e.g. the Vault) - it still routes through
-    the same Coin Purse / Lucky Purse interest hook as "coins". Unknown item
-    ids grant nothing but are still logged.
+    the same Coin Purse / Lucky Purse interest hook as "coins". "fruit" rolls
+    ``count`` dishes from items.json's food.fruit_weights and eats each one
+    immediately via ``special_items.eat_food``. Unknown item ids grant
+    nothing but are still logged.
     """
     match item:
         case "coins" | "coins_exact":
@@ -125,6 +137,16 @@ def grant_item(state: GameState, item: str, count: int, rng: Rng, registry: Regi
             # Food restores steps; per-dish values and Salt Shaker / Silver
             # Spoon modifiers are eat_food's concern (it logs each item).
             special_items.eat_food(state, registry, "banana", count)
+            return
+        case "fruit":
+            # Each of count is its own weighted dish roll, eaten immediately;
+            # eat_food logs each pickup, so no items_found_log append below.
+            fruit_weights = registry.item_rules["food"]["fruit_weights"]
+            dish_ids = sorted(fruit_weights)
+            weights = tuple(fruit_weights[d] for d in dish_ids)
+            for _ in range(count):
+                idx = rng.roll_weighted("fruit_kind", weights)
+                special_items.eat_food(state, registry, dish_ids[idx], 1)
             return
     state.items_found_log.append((item, count))
 

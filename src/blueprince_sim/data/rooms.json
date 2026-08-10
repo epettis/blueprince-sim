@@ -1904,6 +1904,10 @@
      {
       "item": "coins_exact",
       "count": 4
+     },
+     {
+      "item": "fruit",
+      "count": 1
      }
     ],
     "additional_max": 1,
