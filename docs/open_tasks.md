@@ -1890,6 +1890,27 @@ parametric tags; it has been quietly wrong for singleton behaviour for a while.
   reasoning stands on its own -- it is about what an inherited handler can
   demonstrate, not about whether the parameter exists.
 
+- **2026-08-09, trophies are NOT modelled -- they are achievements only.**
+  Owner, asked directly whether Room 8's Trophy 8 should be a flag or an item:
+  "For Room 8, ignore the trophies. They are only intended as achievements."
+
+  This **unblocks Room 8**, which was the one `[BLOCKING]` item in the queued
+  work order. Room 8's completion reward is Trophy 8 plus Allowance Tokens, one
+  fewer token once the trophy is held; with trophies out of scope, the trophy
+  half is simply not represented and the "one fewer once held" clause becomes a
+  plain first-solve-versus-later-solve distinction on the token count. No
+  trophy flag, no trophy item, no trophy observation dimension.
+
+  Act on this cold as: an achievement is not game state. Do not add a trophy
+  concept later to "complete" Room 8 -- the reward that matters to a policy is
+  the allowance, and that is already modelled (`GameState.allowance`).
+
+  Note this also retires `tests/rooms/test_room_8.py`'s premise. Its docstring
+  asserts the room grants nothing because "Allowance Tokens feed the allowance
+  system, which this sim does not model" -- allowance has been modelled since
+  the 2026-08-09 allowance ruling, so that test now pins known-wrong behaviour
+  and must be replaced rather than kept green.
+
 ## 5. Throttle the training terminal output — DONE
 
 The trainer currently refreshes the dashboard after every completed seed, which
