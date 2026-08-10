@@ -103,15 +103,20 @@ def test_garage_placement(registry, cfg):
 
 
 def test_room8_placement(registry):
-    """Room 8 requires Key 8 and drafts only onto rank 8, via east-wing
-    northward or west-wing southward entries."""
+    """Room 8 requires Key 8 and drafts onto any Rank 8 cell, from any column
+    and any entry direction; other ranks stay illegal regardless of the key."""
     st = GameState()
-    room8 = registry.by_id["room_8"]  # Key 8, onto Rank 8 via E-wing north / W-wing south
+    room8 = registry.by_id["room_8"]  # Key 8, onto Rank 8 from any column/direction
     keyed = GameConfig(satisfied_conditions=frozenset({"room8_key"}))
     assert satisfies_draft_conditions(room8, 35, S, st, keyed, set(), False)      # col 0 rank 8 south
     assert satisfies_draft_conditions(room8, 39, N, st, keyed, set(), False)      # col 4 rank 8 north
-    assert not satisfies_draft_conditions(room8, 35, N, st, keyed, set(), False)  # west but northward
+    assert satisfies_draft_conditions(room8, 35, N, st, keyed, set(), False)      # col 0 rank 8 north
+    # Cell 37 is rank 8, col 2 -- the centre column the Great Hall's always-locked
+    # far door drafts through, which a wing-restricted rule would reject.
+    assert satisfies_draft_conditions(room8, 37, E, st, keyed, set(), False)
+    assert satisfies_draft_conditions(room8, 37, W, st, keyed, set(), False)
     assert not satisfies_draft_conditions(room8, 30, S, st, keyed, set(), False)  # rank 7, not 8
+    assert not satisfies_draft_conditions(room8, 40, N, st, keyed, set(), False)  # rank 9, not 8
     assert not satisfies_draft_conditions(room8, 35, S, st, GameConfig(), set(), False)  # no Key 8
 
 
@@ -310,16 +315,18 @@ def test_gated_conditions_via_config(registry):
 
 def test_key_8_in_inventory_satisfies_room8_key_gate(registry):
     """Holding the key_8 item grants the room8_key placement condition, allowing
-    Room 8 to be drafted; absence blocks it even if config has other conditions."""
+    Room 8 to be drafted on any Rank 8 cell; absence blocks it even if config
+    has other conditions, and the rank gate is unaffected by the key."""
     room8 = registry.by_id["room_8"]
     # Without key_8: gate blocks placement
     st_empty = GameState()
     assert not satisfies_draft_conditions(room8, 35, S, st_empty, GameConfig(), set(), False)
-    # With key_8 in inventory: gate satisfied (cell 35 = rank 8 west wing, southward)
+    # With key_8 in inventory: gate satisfied on any Rank 8 cell/direction
     st_with = GameState()
     st_with.inventory["key_8"] = 1
     assert satisfies_draft_conditions(room8, 35, S, st_with, GameConfig(), set(), False)
     assert satisfies_draft_conditions(room8, 39, N, st_with, GameConfig(), set(), False)
+    assert satisfies_draft_conditions(room8, 37, E, st_with, GameConfig(), set(), False)  # centre column
     # Wrong cell (rank 7, not 8): geometry gate still rejects
     assert not satisfies_draft_conditions(room8, 30, S, st_with, GameConfig(), set(), False)
 

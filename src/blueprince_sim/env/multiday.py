@@ -38,6 +38,7 @@ _CARRYOVER_KEYS: frozenset[str] = frozenset({
     "sealed_entrance_broken",  # set on sealed_entrance arrival; opens the Basement route
     "weight_room_wall_broken",  # Power Hammer wall break: permanent on future days
     "room46_reached",             # Room 46 first visited: permanent gem-deck gate
+    "room8_solved",             # Room 8 first solved: later solves pay the repeat-solve reward
     "boiler_room_steam",       # set on Boiler Room entry; opens the Upper Rotating Gear route
     "treasure_trove_blackprint",  # set on Upper Rotating Gear arrival; adds Treasure Trove to pool
     "orchard_unlocked",        # set on apple_orchard arrival; grants +20 starting steps next day
