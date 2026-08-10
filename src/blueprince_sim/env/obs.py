@@ -158,6 +158,10 @@ def observation_space(n_rooms: int, n_items: int, n_recipes: int,
         # rationale as disks_spent/treasure_trove_piles/upgrade_slots: V(s)
         # cannot price a cross-day investment it cannot see.
         "allowance": spaces.Box(0, 9999, shape=(1,), dtype=np.int16),
+        # stars: the permanent star total (state.stars), the same permanent
+        # cross-day accumulation as allowance -- V(s) cannot price the
+        # Observatory/Starfish Aquarium's investment without seeing it.
+        "stars": spaces.Box(0, 9999, shape=(1,), dtype=np.int16),
         # mail: [mail cycle state code, transit days remaining, No Contact ordered].
         # [0]: 0 = empty (no order outstanding), 1 = awaiting (next Mail Room
         # draft delivers), 2 = transit (Freight Shipping's order placed but not
@@ -485,6 +489,9 @@ def encode(game: Game, day_chain: DayChain | None = None) -> dict:
     # allowance: the permanent total banked so far this attempt, clamped to the space bound.
     allowance_obs = np.array([min(st.allowance, 9999)], dtype=np.int16)
 
+    # stars: the permanent star total banked so far this attempt, clamped to the space bound.
+    stars_obs = np.array([min(st.stars, 9999)], dtype=np.int16)
+
     # mail: [cycle state code, transit days remaining, No Contact ordered].
     _mail_cycle_code = {"empty": 0, "awaiting": 1, "transit": 2}.get(st.mail_cycle, 0)
     mail_obs = np.array(
@@ -533,6 +540,7 @@ def encode(game: Game, day_chain: DayChain | None = None) -> dict:
         "disks_spent": disks_spent_obs,
         "treasure_trove_piles": treasure_trove_piles_obs,
         "allowance": allowance_obs,
+        "stars": stars_obs,
         "sigil_doors_open": sigil_doors_open_obs,
         "mail": mail_obs,
     }

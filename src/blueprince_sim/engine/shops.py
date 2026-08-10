@@ -1145,6 +1145,11 @@ def carryover(game) -> dict:
         # wholesale next day -- the same shape as chapel_tithes/foundation_cell,
         # not an OR-merge, since state.allowance already IS the accumulated value.
         "allowance": state.allowance,
+        # Stars: running permanent total (yesterday's total plus any gains
+        # today from the Observatory / Starfish Aquarium). Replaces cfg.stars
+        # wholesale next day -- the same shape as allowance, not an OR-merge,
+        # since state.stars already IS the accumulated value.
+        "stars": state.stars,
         # Mail Room order/delivery cycle for tomorrow: "empty", "awaiting", or
         # "transit". mail_room.next_mail_cycle promotes a Freight order out of
         # "transit" to "awaiting" once its transit days are spent -- that

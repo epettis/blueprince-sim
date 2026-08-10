@@ -1,4 +1,4 @@
-"""Aquarium upgrade variants: exact coin grant, unmodelled star bonus, and the Power Source flag.
+"""Aquarium upgrade variants: exact coin grant, the star bonus, and the Power Source flag.
 
 Each of the three variants only ever repeats the base Aquarium's "AQUARIUM is
 every color of room" text plus one addition of its own. Every test below
@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from blueprince_sim.config import GameConfig
 from blueprince_sim.engine.game import Game
+from blueprince_sim.engine.grid import N, S
 
 
 def _game_with_room(room_id: str, cell: int, seed: int = 0) -> Game:
@@ -17,6 +18,9 @@ def _game_with_room(room_id: str, cell: int, seed: int = 0) -> Game:
 
     Luck is floored so ``additional_max``'s luck-rolled bonus item never
     fires, isolating each assertion from an unrelated probabilistic roll.
+    Placed directly on the grid rather than via ``_place_room``, so this
+    helper does not fire ON_PLACE -- callers that need the star grant use
+    ``_place_room`` instead (see test_starfish_aquarium_grants_one_star_on_draft).
     """
     g = Game(GameConfig(), seed=seed)
     g.state.luck = 0
@@ -47,26 +51,26 @@ def test_goldfish_aquarium_grants_exactly_10_coins_every_seed():
             f"seed {seed}: expected exactly 10 coins, got {goldfish.state.coins}")
 
 
-def test_starfish_aquarium_star_bonus_is_unmodelled():
-    """starfish_aquarium__ix3's "+1" star resource is out of scope for the engine.
-
-    engine/effects/tier1.py's _grant treats stars (and other currencies
-    outside steps/gems/keys/coins/dice/luck) as unmodelled and no-ops on
-    them, by design - not a bug to fix here. This pins that the Starfish
-    Aquarium therefore grants exactly what the base Aquarium grants
-    (nothing), so a future change is forced to touch this test if stars
-    ever become a modelled resource.
+def test_starfish_aquarium_grants_one_star_on_draft_without_entering():
+    """starfish_aquarium__ix3 grants exactly 1 star the moment it is drafted
+    (ON_PLACE), before it is ever entered -- "Entering the Starfish Aquarium
+    is not necessary to gain the star." The base Aquarium is placed the same
+    way and asserted to grant no star, so the two records cannot silently
+    converge.
     """
     cell = 5
     for seed in range(1, 31):
-        base = _game_with_room("aquarium", cell, seed=seed)
-        base._enter(cell)
-        starfish = _game_with_room("starfish_aquarium__ix3", cell, seed=seed)
-        starfish._enter(cell)
-        assert starfish.state.coins == base.state.coins == 0
-        assert starfish.state.gems == base.state.gems
-        assert starfish.state.keys == base.state.keys
-        assert starfish.state.steps == base.state.steps
+        base = Game(GameConfig(), seed=seed)
+        base_room = base.registry.by_id["aquarium"]
+        base._place_room(base_room, cell, N | S)
+        assert base.state.stars == 0, f"seed {seed}: base Aquarium should grant no star"
+
+        starfish = Game(GameConfig(), seed=seed)
+        starfish_room = starfish.registry.by_id["starfish_aquarium__ix3"]
+        starfish._place_room(starfish_room, cell, N | S)
+        assert starfish.state.stars == 1, (
+            f"seed {seed}: expected exactly 1 star, got {starfish.state.stars}")
+        assert not starfish.state.entered[cell], "the star must not require entering the room"
 
 
 def test_electric_eel_aquarium_is_powered_and_the_others_are_not():

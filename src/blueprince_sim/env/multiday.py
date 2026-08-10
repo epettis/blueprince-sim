@@ -101,6 +101,10 @@ class DayChain:
         # day's own carryover value every advance() -- state.allowance already
         # IS the accumulated figure by day end, the same shape as chapel_tithes.
         self.allowance: int = base_cfg.allowance
+        # Stars: running permanent total, replaced (not merged) from each
+        # day's own carryover value every advance() -- state.stars already IS
+        # the accumulated figure by day end, the same shape as allowance.
+        self.stars: int = base_cfg.stars
         # Mail Room order/delivery cycle: REPLACED (not merged) from each
         # day's own carryover value every advance(), the same shape as
         # allowance/chapel_tithes -- state.mail_cycle already IS the day's
@@ -179,6 +183,7 @@ class DayChain:
             collected_disks=self.collected_disks,
             chapel_tithes=self.chapel_tithes,
             allowance=self.allowance,
+            stars=self.stars,
             mail_cycle=self.mail_cycle,
             mail_transit_days=self.mail_transit_days,
             collected_allowance_tokens=self.collected_allowance_tokens,
@@ -264,6 +269,11 @@ class DayChain:
         av_val = carryover.get("allowance")
         if av_val is not None:
             self.allowance = av_val
+
+        # --- stars (running permanent total; replace each advance) ---
+        star_val = carryover.get("stars")
+        if star_val is not None:
+            self.stars = star_val
 
         # --- mail_cycle (Mail Room order/delivery state; replace each advance) ---
         mc_val = carryover.get("mail_cycle")
@@ -367,6 +377,7 @@ class DayChain:
             self.collected_disks = frozenset()  # fresh attempt; disks back in the house
             self.chapel_tithes = 0            # fresh attempt; tithe bank reset
             self.allowance = self.base_cfg.allowance  # fresh attempt; back to the base preset
+            self.stars = self.base_cfg.stars  # fresh attempt; back to the base preset
             self.mail_cycle = self.base_cfg.mail_cycle  # fresh attempt; back to the base preset
             self.mail_transit_days = self.base_cfg.mail_transit_days  # fresh attempt; back to base
             self.collected_allowance_tokens = frozenset(
