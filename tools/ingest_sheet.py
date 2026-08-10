@@ -270,6 +270,12 @@ EFFECT_OVERRIDE: dict[str, dict] = {
     "boudoir__ix18": {"effects": [
         {"tag": "grant", "resource": "gems", "amount": 1},
         {"tag": "grant", "resource": "gems", "amount": 3}]},
+    # Quest Bedroom keeps the base Guest Bedroom's +10 steps grant, for the same
+    # reason as the Boudoir variants above: room effects are not inherited
+    # through variant_of, so the grant has to be repeated here or the upgrade
+    # silently loses it. The Antechamber-allowance half of the card is handled
+    # by a room_hook, not a data effect.
+    "quest_bedroom__ix71": {"effects": [{"tag": "grant", "resource": "steps", "amount": 10}]},
     # Exact coin piles (room-fidelity audit): the raw sheet's Effect text gives a
     # specific coin count per room, but EFFECT_MAP's base entries only emit a
     # generic "coins" pile. "coins_exact" is a plain item kind, not something

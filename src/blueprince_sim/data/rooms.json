@@ -3387,7 +3387,13 @@
     "disk_reader": false
    },
    "deck_copies": 1,
-   "effects": [],
+   "effects": [
+    {
+     "tag": "grant",
+     "resource": "steps",
+     "amount": 10
+    }
+   ],
    "items": {
     "guaranteed": [],
     "additional_max": 0,

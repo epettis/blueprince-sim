@@ -236,6 +236,16 @@ class GameState:
     # granted. Per-day only -- deliberately NOT carried over (a fresh GameState
     # resets it every day, unlike the permanent flags above).
     upper_rotating_gear_gem_granted: bool = False
+    # True once a Quest Bedroom has been entered today, arming its Antechamber
+    # allowance effect. Per-day only -- deliberately NOT carried over (a fresh
+    # GameState resets it every day; the effect re-arms each day by re-entering
+    # a Quest Bedroom that day).
+    quest_bedroom_entered_today: bool = False
+    # True once today's single Quest Bedroom allowance payout has been granted,
+    # so a second Quest Bedroom or a later Antechamber arrival does not pay
+    # again. Per-day only -- deliberately NOT carried over, same shape as
+    # quest_bedroom_entered_today above.
+    quest_bedroom_allowance_paid_today: bool = False
     # Set on arrival at Upper Rotating Gear: the Treasure Trove blackprint has
     # been picked up. Same shape as west_gate_unlatched: recorded on STATE, never
     # written back to GameConfig. carryover() ORs this with
