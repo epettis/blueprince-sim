@@ -24,7 +24,6 @@ from tools.validate_data import (  # noqa: E402
 
 from blueprince_sim.engine.effects import (  # noqa: E402
     Hook,
-    _ROOM_INHERIT,
     _ROOM_REGISTRY,
     room_hook,
 )
@@ -50,23 +49,21 @@ EMPTY_LOCKS = {"always_unlocked_rooms": {"rooms": []}}
 def room_probe():
     """Register a temporary ``room_hook`` handler and remove it at teardown.
 
-    ``_ROOM_REGISTRY``/``_ROOM_INHERIT`` are module-global in
-    ``engine.effects``, shared with every other suite that imports it, so a
-    registration leaked past a test would silently change ``find_divergences``
-    (and ``fire()``) behaviour elsewhere. Mirrors the identical fixture in
-    ``tests/test_room_registry.py``.
+    ``_ROOM_REGISTRY`` is module-global in ``engine.effects``, shared with
+    every other suite that imports it, so a registration leaked past a test
+    would silently change ``find_divergences`` (and ``fire()``) behaviour
+    elsewhere. Mirrors the identical fixture in ``tests/test_room_registry.py``.
     """
     registered: list[tuple[str, Hook]] = []
 
-    def _register(room_id: str, hook: Hook = Hook.ON_ENTER, *, inherit: bool = False) -> None:
-        room_hook(room_id, hook, inherit=inherit)(lambda game, room, context_room: None)
+    def _register(room_id: str, hook: Hook = Hook.ON_ENTER) -> None:
+        room_hook(room_id, hook)(lambda game, room, context_room: None)
         registered.append((room_id, hook))
 
     yield _register
 
     for room_id, hook in registered:
         _ROOM_REGISTRY.pop((room_id, hook), None)
-        _ROOM_INHERIT.pop((room_id, hook), None)
 
 
 def test_variant_identical_to_parent_with_differing_text_is_flagged():
@@ -132,38 +129,21 @@ def test_record_without_any_handler_is_still_flagged():
     assert any("nobody_implements_this" in f for f in kind2)
 
 
-def test_variant_covered_by_inherited_root_handler_is_not_flagged(room_probe):
-    """An upgrade variant with no handler of its own is not a kind-2 finding
-    when its chain root has a room_hook registered with inherit=True --
-    that handler fires for every variant of the root, so the variant's
-    behaviour is modelled even though rooms.json shows nothing for it."""
-    base = _room("inheriting_root", text="")
-    variant = _room("inheriting_root__ix1", variant_of="inheriting_root",
+def test_variant_of_a_registered_root_is_still_flagged(room_probe):
+    """A variant whose chain root has a room_hook handler, but which has no
+    handler registered for its own id, stays a kind-2 finding -- a handler
+    only covers the exact room id it was registered for, so the variant's
+    own text is still unmodelled from this check's point of view."""
+    base = _room("registered_root", text="")
+    variant = _room("registered_root__ix1", variant_of="registered_root",
                      text="Whenever something happens, do a thing.")
     rooms = [base, variant]
     by_id = {r["id"]: r for r in rooms}
-    room_probe("inheriting_root", inherit=True)
+    room_probe("registered_root")
 
     kind1, kind2 = find_divergences(rooms, by_id, EMPTY_LOCKS)
 
-    assert not any("inheriting_root__ix1" in f for f in kind2)
-
-
-def test_variant_of_noninheriting_root_handler_is_still_flagged(room_probe):
-    """A variant of a room whose handler was registered with inherit=False
-    (the default) stays a kind-2 finding -- that handler only fires for the
-    root room itself, so the variant's own text is still unmodelled from
-    this check's point of view."""
-    base = _room("noninheriting_root", text="")
-    variant = _room("noninheriting_root__ix1", variant_of="noninheriting_root",
-                     text="Whenever something happens, do a thing.")
-    rooms = [base, variant]
-    by_id = {r["id"]: r for r in rooms}
-    room_probe("noninheriting_root", inherit=False)
-
-    kind1, kind2 = find_divergences(rooms, by_id, EMPTY_LOCKS)
-
-    assert any("noninheriting_root__ix1" in f for f in kind2)
+    assert any("registered_root__ix1" in f for f in kind2)
 
 
 def test_record_with_no_effect_text_is_not_flagged():
@@ -219,27 +199,6 @@ def test_variant_with_own_handler_is_not_a_kind1_finding(room_probe):
     kind1, kind2 = find_divergences(rooms, by_id, EMPTY_LOCKS)
 
     assert not any("var" in f for f in kind1)
-
-
-def test_variant_sharing_parents_inherited_handler_is_still_a_kind1_finding(room_probe):
-    """A variant covered only by its chain root's inherit=True handler --
-    the same handler the parent (the root itself) also runs -- stays a
-    kind-1 finding when effects/items.guaranteed match and effect_text
-    differs. Unlike kind 2's registry awareness, inherited coverage does not
-    exempt kind 1: the shared handler runs identical code for parent and
-    variant, so it cannot demonstrate that this variant's own step was
-    authored, and the variant's text still promises something the shared
-    handler doesn't implement."""
-    base = _room("inheriting_root", text="")
-    variant = _room("inheriting_root__ix1", variant_of="inheriting_root",
-                     text="Whenever something happens, do a thing.")
-    rooms = [base, variant]
-    by_id = {r["id"]: r for r in rooms}
-    room_probe("inheriting_root", inherit=True)
-
-    kind1, kind2 = find_divergences(rooms, by_id, EMPTY_LOCKS)
-
-    assert any("inheriting_root__ix1" in f for f in kind1)
 
 
 def test_structural_exemption_suppresses_locks_json_implemented_rooms():

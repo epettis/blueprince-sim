@@ -81,33 +81,11 @@ KNOWN_EFFECT_TAGS = {"grant", "grant_per_category", "grant_on_draft_category",
 _AUDIT_STRUCTURAL_EXEMPT_IDS = {"corridor", "corriyard__ix50"}
 
 
-def _root_base_id(rid: str, by_id: dict[str, dict]) -> str:
-    """Walk ``variant_of`` to the chain root, over raw rooms.json dicts.
-
-    Mirrors ``engine.upgrades.root_base_id``, which does the identical walk
-    over loaded ``Room`` objects -- reimplemented here rather than imported
-    because this module validates the raw JSON directly (deliberately: a
-    ``Registry.load()`` call presupposes the data is already valid, which is
-    what this tool is checking). ``seen`` guards a cyclic or dangling
-    ``variant_of`` from looping forever; validate_data's own referential-
-    integrity checks are what actually catch that as an error.
-    """
-    current = rid
-    seen = {current}
-    while True:
-        parent_id = by_id.get(current, {}).get("variant_of")
-        if parent_id is None or parent_id not in by_id or parent_id in seen:
-            return current
-        seen.add(parent_id)
-        current = parent_id
-
-
 def find_divergences(
     rooms: list[dict],
     by_id: dict[str, dict],
     lock_rules: dict,
     registered_room_ids: set[str] | None = None,
-    inherited_root_ids: set[str] | None = None,
 ) -> tuple[list[str], list[str]]:
     """Return (kind1, kind2) room-fidelity divergence findings (an audit worklist).
 
@@ -125,15 +103,7 @@ def find_divergences(
     registered directly at its own id (``registered_room_ids``) -- that
     handler is authored specifically for this variant's upgrade step,
     whatever ``effects``/``items.guaranteed`` say, so the record is modelled
-    even though the data comparison alone can't see it. Coverage through an
-    *inherited* handler (the chain root's ``inherit=True`` fallback,
-    ``inherited_root_ids``) does NOT exempt a kind-1 finding, unlike kind 2:
-    an inherited handler runs the exact same code for the variant as it does
-    for its parent (and every other descendant of the root), so it can never
-    demonstrate that this specific step was authored -- a variant and parent
-    sharing one inherited handler while their texts differ is still a
-    genuine gap, because the variant's own text promises something the
-    shared handler does not implement.
+    even though the data comparison alone can't see it.
 
     Kind 2: any record whose ``meta.effect_text`` is non-empty, which has no
     ``effects`` and no ``items.guaranteed``, AND whose behaviour is not covered
@@ -141,13 +111,8 @@ def find_divergences(
     room can be modelled entirely in Python rather than in data; a handler
     registered for the room's own id, at any hook, is enough to count as
     modelled -- this check does not try to match a specific hook against the
-    effect text. For an upgrade variant with no handler of its own, the chain
-    root (``_root_base_id``) counts too, but only if that root's handler was
-    registered with ``inherit=True``; ``inherit=False`` (the default) means the
-    root's handler is scoped to the root room only, so the variant is still an
-    unmodelled record from this check's point of view. ``registered_room_ids``
-    and ``inherited_root_ids`` default to the live ``room_hook`` registry
-    (``engine.effects``); tests may pass explicit sets instead.
+    effect text. ``registered_room_ids`` defaults to the live ``room_hook``
+    registry (``engine.effects``); tests may pass an explicit set instead.
 
     Both kinds exclude ``_AUDIT_STRUCTURAL_EXEMPT_IDS``: rooms whose "always
     unlocked" text is implemented in locks.json rather than effects/items.
@@ -161,12 +126,8 @@ def find_divergences(
         f"always_unlocked_rooms: {structural - lock_exempt}"
     )
 
-    if registered_room_ids is None or inherited_root_ids is None:
-        live_registered, live_inheriting = registered_rooms()
-        if registered_room_ids is None:
-            registered_room_ids = live_registered
-        if inherited_root_ids is None:
-            inherited_root_ids = live_inheriting
+    if registered_room_ids is None:
+        registered_room_ids = registered_rooms()
 
     kind1: list[str] = []
     kind2: list[str] = []
@@ -194,9 +155,6 @@ def find_divergences(
 
         if text and not effects and not guaranteed:
             if rid in registered_room_ids:
-                continue
-            root_id = _root_base_id(rid, by_id)
-            if root_id != rid and root_id in inherited_root_ids:
                 continue
             kind2.append(
                 f"{rid}: effect_text {text!r} present but no effects and no "

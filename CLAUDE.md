@@ -52,12 +52,6 @@ handler rather than invent a new single-use tag.
 `Hook` members: `ON_PLACE`, `ON_ENTER`, `ON_DRAFT_ROOM`, `ON_DAY_START`,
 `ON_DRAFT_FROM`, `ON_HAND_DEALT`, `ON_ARRIVE`, `ON_DAY_END`.
 
-`room_hook` takes `inherit=` (default `False`), which extends a handler to the
-room's upgrade variants. It is off by default because of the 56 upgrade variants
-that have both a parent and an `effect_text`, none shares its parent's text —
-reserve `inherit=True` for a fixture that genuinely survives every upgrade, such
-as the Boudoir's safe.
-
 Data files: `rooms.json` (room table), `weights.json` (rarity roll tables), `priority_draws.json`, `items.json`, `locks.json` (locked/security door tables), `special_items.json` (the ~76 inventory items: spawn pools, effects, dig tables, Lost & Found pool, fabrication recipes — see `docs/special-items-design.md`), `shops.json` (the 8 shops and the Trading Post trade graph), `areas.json` (the 36-node off-grid area graph driving `engine/areas.py` and the travel actions — see `docs/areas.md`), `upgrade_selection.json` (the Upgrade Disk selection tables — see `docs/upgrade-disks-design.md`). Every record carries `meta.source` + `meta.confidence` (`datamined > wiki > inferred > placeholder`).
 
 **The draft pipeline** (one option slot at a time): `decks.py` builds 8 solitaire decks (4 rarities × free/gem) from the enabled pools and does the rank/slot/stage/Solarium-keyed rarity roll → `draft.py` runs the 4-attempt draw procedure, priority draws, and forced-Closet fallback → `placement.py` filters by legality → `rotation.py` rolls the floorplan orientation. `items.py` handles the luck/item system; `special_items.py` holds the inventory-item system (spawning, per-item behavior, digging, Lost & Found) behind hook functions game.py calls at fixed sites; `effects/` holds Tier-1 room effects; `locks.py` rolls locked/security doors on doorway *segments* (state in `GameState.door_state` keyed by `locks.segment_key`; opening a locked door costs a key, security doors ride the keycard/power/offline-mode system worked from Security and the Utility Closet); `rng.py` provides seeded **named substreams** (determinism given a seed is a tested invariant).
