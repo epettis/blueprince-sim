@@ -242,6 +242,14 @@ class GameState:
     # cfg.treasure_trove_blackprint; DayChain carries the result, permanently
     # adding the Treasure Trove to the draft pool from the following day.
     treasure_trove_blackprint: bool = False
+    # Set the first time Room 8 is solved today (see effects/rooms/room_8.py).
+    # Same shape as west_gate_unlatched: an IN-RUN discovery recorded on
+    # STATE, never written back to GameConfig (one config object is shared by
+    # every episode of a worker, so mutating it would leak the flag into
+    # later episodes). carryover() ORs this with cfg.room8_solved; the room's
+    # own handler reads that same OR to tell a day's first solve from a later
+    # one, whether the flag came from today or from a carried-over attempt.
+    room8_solved: bool = False
     # Set the first time the player arrives at apple_orchard today. Same shape as
     # west_gate_unlatched: an IN-RUN discovery recorded on STATE, never written
     # back to GameConfig. carryover() ORs this with cfg.orchard_unlocked; DayChain

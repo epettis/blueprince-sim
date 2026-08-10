@@ -121,11 +121,9 @@ def satisfies_draft_conditions(room: Room, cell: int, entry_dir: int, state: Gam
                 if is_east_wing(cell) and entry_dir == S:
                     return False
             case "room8_placement":
-                # Key 8 drafts Room 8 onto Rank 8 only: northward from Rank 7
-                # in the East Wing, or southward from Rank 9 in the West Wing.
-                north_east = is_east_wing(cell) and entry_dir == N
-                south_west = is_west_wing(cell) and entry_dir == S
-                if not (rank_of(cell) == 8 and (north_east or south_west)):
+                # Key 8 opens any locked door leading onto Rank 8, from any
+                # column and any entry direction.
+                if rank_of(cell) != 8:
                     return False
             case "gift_shop":
                 # Never on Rank 9; and never drafted southward onto Rank 1.

@@ -463,6 +463,7 @@ def test_carryover_shape_is_complete():
         "west_gate_unlatched",
         "weight_room_wall_broken",
         "room46_reached",
+        "room8_solved",
         "mine_south_visited",
         "sealed_entrance_broken",
         "boiler_room_steam",

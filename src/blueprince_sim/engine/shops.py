@@ -1093,6 +1093,10 @@ def carryover(game) -> dict:
         ),
         # Room 46 first reached: permanent gem-deck gate; carries once True, forever.
         "room46_reached": cfg.room46_reached or state.room46_reached,
+        # room8_solved: earned the first time Room 8 is solved. ORed from state
+        # so the config is never mutated, same shape as west_gate_unlatched.
+        # Permanently switches later Room 8 solves to the repeat-solve reward.
+        "room8_solved": cfg.room8_solved or state.room8_solved,
         # orchard_unlocked: earned the first time the player arrives at
         # apple_orchard. ORed from state so the config is never mutated, same
         # shape as west_gate_unlatched. Permanently grants +20 starting steps
