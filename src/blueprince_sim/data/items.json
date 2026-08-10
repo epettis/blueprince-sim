@@ -20,8 +20,14 @@
  "food": {
   "default_steps": 3,
   "dishes": {
+   "apple": {
+    "steps": 2
+   },
    "banana": {
     "steps": 3
+   },
+   "orange": {
+    "steps": 5
    },
    "club_sandwich": {
     "steps": 15
@@ -75,10 +81,15 @@
    "country_stew_pie",
    "stuffed_wild_quail"
   ],
+  "fruit_weights": {
+   "apple": 50,
+   "banana": 30,
+   "orange": 20
+  },
   "meta": {
    "confidence": "wiki",
    "source": "https://blueprince.wiki.gg/wiki/Kitchen https://blueprince.wiki.gg/wiki/Dining_Room",
-   "notes": "main_course_cycle indexed by day % 5: index 0 = pizza (day%5==0), index 1 = salmon (day%5==1), etc."
+   "notes": "main_course_cycle indexed by day % 5: index 0 = pizza (day%5==0), index 1 = salmon (day%5==1), etc. fruit_weights ordering (apple > banana > orange) is sourced from the wiki's Pantry description; the exact weight values are not published and are inferred."
   }
  },
  "item_values": {

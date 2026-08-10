@@ -41,11 +41,12 @@ KNOWN_CONDITIONS = {"west_wing", "east_wing", "west_or_east_wing", "not_on_wing"
                     "knight_chess_piece", "secret_garden_key", "breakfast", "the_foundation"}
 # Item kinds engine/items.py::grant_item and roll_room_items actually handle
 # for a room's items.guaranteed list. "coins_exact" grants the literal count
-# as coins with no pile roll (2026-08-09 exact-coin-amount ruling); "coins"
-# rolls each of count PILES from items.json's pile_min..pile_max range;
-# "random" resolves count table-rolled items (Closet/Walk-In/Attic style).
+# as coins with no pile roll; "coins" rolls each of count PILES from
+# items.json's pile_min..pile_max range; "random" resolves count table-rolled
+# items (Closet/Walk-In/Attic style); "fruit" resolves count weighted rolls
+# from items.json's food.fruit_weights, each eaten as that dish immediately.
 KNOWN_GUARANTEED_ITEM_KINDS = {"coins", "coins_exact", "key", "gem", "die", "steps",
-                                "food", "random"}
+                                "food", "fruit", "random"}
 KNOWN_ITEM_EFFECT_TAGS = {
     # PR1 functional set
     "lockpick", "luck_bonus", "coin_interest", "coin_multiplier",
@@ -195,7 +196,7 @@ def main(argv: list[str] | None = None) -> int:
     rooms_doc = json.loads((DATA / "rooms.json").read_text())
     weights = json.loads((DATA / "weights.json").read_text())
     priority = json.loads((DATA / "priority_draws.json").read_text())
-    json.loads((DATA / "items.json").read_text())
+    items_doc = json.loads((DATA / "items.json").read_text())
     lock_rules = json.loads((DATA / "locks.json").read_text())
 
     rooms = rooms_doc["rooms"]
@@ -299,6 +300,20 @@ def main(argv: list[str] | None = None) -> int:
                 errors.append(f"forced draw {entry['room']}/{key} out of range: {entry[key]}")
         if "chance_with_west_gate" in entry and entry["chance_with_west_gate"] < entry["chance"]:
             errors.append(f"forced draw {entry['room']}: chance_with_west_gate below base chance")
+
+    # items.json: food.fruit_weights must only name real dishes, with
+    # positive weights -- a typo'd fruit id would otherwise silently fall
+    # back to food.default_steps forever (grant_item's "fruit" case).
+    fruit_weights = items_doc.get("food", {}).get("fruit_weights", {})
+    dishes = items_doc.get("food", {}).get("dishes", {})
+    if not fruit_weights:
+        # expected_yields divides by the weight total on every room it prices.
+        errors.append("food.fruit_weights: must name at least one dish")
+    for fruit_id, weight in fruit_weights.items():
+        if fruit_id not in dishes:
+            errors.append(f"food.fruit_weights: {fruit_id!r} not in food.dishes")
+        if not isinstance(weight, (int, float)) or weight <= 0:
+            errors.append(f"food.fruit_weights: {fruit_id!r} has non-positive weight {weight!r}")
 
     # locks.json: table shape, referential integrity, sane probabilities
     ew = lock_rules["lock_chance"]["ew_by_rank"]

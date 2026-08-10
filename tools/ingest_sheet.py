@@ -276,7 +276,11 @@ EFFECT_OVERRIDE: dict[str, dict] = {
     # the ingest pipeline resolves — it is just written here verbatim.
     "vault": {"items": {"guaranteed": [{"item": "coins_exact", "count": 40}]}},
     "rumpus_room": {"items": {"guaranteed": [{"item": "coins_exact", "count": 8}]}},
-    "pantry": {"items": {"guaranteed": [{"item": "coins_exact", "count": 4}]}},
+    # Pantry: the exact 4-coin pile, plus one weighted fruit pick
+    # (items.json food.fruit_weights) further down the countertop.
+    "pantry": {"items": {"guaranteed": [
+        {"item": "coins_exact", "count": 4},
+        {"item": "fruit", "count": 1}]}},
     # Goldfish Aquarium's "+10" is a literal coin figure, not a pile count.
     "goldfish_aquarium__ix2": {"items": {"guaranteed": [{"item": "coins_exact", "count": 10}]}},
     # Storeroom upgrade variants each roll a different key/gem/coin mix; ix146's
