@@ -2008,6 +2008,64 @@ parametric tags; it has been quietly wrong for singleton behaviour for a while.
   No run was live, so nothing was lost. Cumulative since the last training run:
   this is the only width change.
 
+- **2026-08-09, the Mail Room's package contents ARE fully datamined -- the
+  "implement timing only" fallback does not apply.** This retires the standing
+  `[ASSUMABLE]` open question, which assumed the contents were "a randomised
+  weighted tree" that might not be pinnable. The wiki publishes a datamined
+  per-slot algorithm with exact probabilities: three independently rolled
+  slots, slot 2 with a 50% chance of 2 gems, slot 3 conditioned on what slot 2
+  produced. Freight's construction is deterministic given availability. Every
+  item involved already exists in `special_items.json`.
+
+  Only one number is genuinely unsourced -- see the Freight entry below.
+
+- **2026-08-09, the base Mail Room's own effect text is wrong, and the wiki
+  wins.** The in-game string, faithfully copied into
+  `mail_room.meta.effect_text`, says a package "will be delivered here the day
+  after drafting this room". The wiki contradicts it flatly: *"Despite the
+  wording of the Mail Room's effect text, it does not have to be drafted the
+  day immediately after placing the order; the package can wait any number of
+  days for the Mail Room to be drafted again, and cannot be 'missed'."*
+
+  Owner decision, on interview: model the wiki's mechanic. So the base Mail
+  Room is **not a countdown at all** -- it is a persistent per-attempt state
+  (`empty` -> `awaiting delivery`) advanced by the next draft of a Mail Room,
+  whenever that happens.
+
+  Act on this cold as: an implementer coding to `effect_text` alone would build
+  a one-day timer that loses the package, which is a strictly harsher room than
+  the real one. The card text is a game string, not a spec.
+
+- **2026-08-09, No Contact Delivery arrives as a day-start inventory
+  injection.** Owner, on interview. The wiki has the package sitting "immediately
+  to the right of the starting position" in the Entrance Hall, openable. Rather
+  than model a physical container, the contents are injected through the
+  existing `GameConfig.starting_items` carry vehicle.
+
+  The simplification, stated plainly: the player cannot decline or fail to
+  collect a No Contact package, whereas in the real game they could in principle
+  walk past it. Since the sim has no "decline the loot" concept anywhere, that
+  difference is unobservable today.
+
+- **2026-08-09, the Mail Room's Dynamic Rarity effect is DEFERRED, explicitly.**
+  A waiting package sets the Mail Room's rarity to Commonplace for the day,
+  which makes the delivered room far easier to draw again -- a real strategic
+  effect, not flavour. `decks.py` has no rarity-override channel of any kind, so
+  building it is its own piece of work touching the draft hot path that
+  `test_draft_stats.py` guards.
+
+  Owner decision, on interview: ship the delivery mechanic without it and
+  record the gap here so the omission is visible rather than silent. Act on this
+  cold as: any measurement of how often a delivered package is actually
+  collected is an **under**estimate until this lands.
+
+- **2026-08-09, Freight's four resource items are a uniform 1/3 across the three
+  configurations.** The wiki states the set -- 4 keys, or 2 keys + 2 gems, or 4
+  gems -- and publishes **no weights**. This is the single genuine gap in an
+  otherwise fully datamined algorithm. Owner decision, on interview: encode a
+  uniform third each, `confidence: inferred`, with a note saying only the set is
+  sourced. Replaceable by a data edit the moment a real weighting appears.
+
 ## 5. Throttle the training terminal output — DONE
 
 The trainer currently refreshes the dashboard after every completed seed, which
