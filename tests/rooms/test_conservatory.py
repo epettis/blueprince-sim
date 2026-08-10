@@ -172,12 +172,12 @@ def test_no_per_hand_reroll_consumption():
 def test_conservatory_is_category_green():
     """The Conservatory's own ``category`` is "green" (a plain data fix: the
     wiki's infobox and the Green Rooms page both list it), so is_category
-    matches it on "green" without needing counts_as_all_colors."""
+    matches it on "green" without needing any extra_categories."""
     game = Game(GameConfig(), seed=0)
     conservatory = game.registry.by_id["conservatory"]
     assert conservatory.category == "green"
     assert conservatory.is_category("green")
-    assert not conservatory.counts_as_all_colors
+    assert conservatory.categories == frozenset({"green"})
 
 
 def test_conservatory_counts_as_green_for_indoor_nursery_bonus():

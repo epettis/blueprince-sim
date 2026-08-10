@@ -9,13 +9,14 @@ cannot let the two silently converge back to identical behaviour.
 from __future__ import annotations
 
 from blueprince_sim.config import GameConfig
+from blueprince_sim.engine import special_items as si
 from blueprince_sim.engine.game import Game
 from blueprince_sim.engine.grid import N, S
 from blueprince_sim.engine.state import DraftOption, PendingDraft
 
 # Every colour category the base Room.category field ever takes, other than
 # "objective" (a room role -- Antechamber, Room 46, Quest Bedroom -- not a
-# colour), so counts_as_all_colors never claims it.
+# colour), so the Aquarium's extra_categories never lists it.
 COLOR_CATEGORIES = ("blueprint", "bedroom", "hallway", "green", "red", "shop", "blackprint")
 
 
@@ -98,8 +99,8 @@ def test_electric_eel_aquarium_is_powered_and_the_others_are_not():
 def test_aquarium_is_category_matches_every_colour_but_not_objective():
     """"AQUARIUM is every color of room": Room.is_category() must return True
     for the Aquarium against every colour the ``category`` field ever takes,
-    and False against "objective" -- a room role, not a colour, so
-    counts_as_all_colors never claims it.
+    and False against "objective" -- a room role, not a colour, so the
+    Aquarium's extra_categories never lists it.
     """
     registry = Game(GameConfig(), seed=0).registry
     aquarium = registry.by_id["aquarium"]
@@ -109,11 +110,11 @@ def test_aquarium_is_category_matches_every_colour_but_not_objective():
 
 
 def test_ordinary_room_only_matches_its_own_category():
-    """A room without counts_as_all_colors matches only its own category, not
+    """A room with no extra_categories matches only its own category, not
     every colour -- the control case that pins is_category isn't a no-op."""
     registry = Game(GameConfig(), seed=0).registry
-    boudoir = registry.by_id["boudoir"]  # category: bedroom, no counts_as_all_colors
-    assert boudoir.counts_as_all_colors is False
+    boudoir = registry.by_id["boudoir"]  # category: bedroom, no extra_categories
+    assert boudoir.categories == frozenset({"bedroom"})
     assert boudoir.is_category("bedroom")
     for category in ("blueprint", "hallway", "green", "red", "shop", "blackprint", "objective"):
         assert not boudoir.is_category(category), f"Boudoir should not count as {category!r}"
@@ -121,7 +122,7 @@ def test_ordinary_room_only_matches_its_own_category():
 
 def test_paper_crown_treats_aquarium_as_red(monkeypatch):
     """Paper Crown's "no red room in hand" redraw bonus treats the Aquarium as
-    red too: counts_as_all_colors covers penalties -- here, a bonus the
+    red too: multi-category membership covers penalties -- here, a bonus the
     Aquarium's presence blocks -- as well as bonuses, so a hand containing
     only the Aquarium must not grant the free redraw the way an all-non-red
     hand would.
@@ -142,7 +143,7 @@ def test_paper_crown_treats_aquarium_as_red(monkeypatch):
 
 def test_cloister_of_mila_bonus_fires_for_aquarium():
     """Cloister of Mila's "extra item in each BEDROOM you draft from this
-    CLOISTER" fires for the Aquarium too, since counts_as_all_colors makes it
+    CLOISTER" fires for the Aquarium too, since its extra_categories make it
     a Bedroom as well as every other colour.
     """
     g = Game(GameConfig(), seed=0)
@@ -154,3 +155,33 @@ def test_cloister_of_mila_bonus_fires_for_aquarium():
     g._place_room(aquarium, aquarium_cell, aquarium.door_mask)
     assert aquarium_cell in g.state.cloister_mila_bonus_cells, (
         "Cloister of Mila should mark the Aquarium's cell for its Bedroom bonus item")
+
+
+def test_sleeping_mask_grants_steps_entering_aquarium():
+    """Sleeping Mask's bedroom bonus (special_items.py::on_enter) goes through
+    Room.is_category("bedroom") rather than a literal category match, so it
+    must fire on the Aquarium too, since bedroom is one of its colours.
+    """
+    g = Game(GameConfig(starting_items=frozenset({"sleeping_mask"})), seed=0)
+    aquarium = g.registry.by_id["aquarium"]
+    cell = 5
+    g.state.grid[cell] = aquarium.idx
+    g.state.placed_doors[cell] = aquarium.door_mask
+    steps_before = g.state.steps
+    si.on_enter(g, aquarium, cell)
+    assert g.state.steps == steps_before + 5
+
+
+def test_hall_pass_free_move_into_aquarium_from_hallway():
+    """Hall Pass's hallway-to-hallway free move (special_items.py::move_step_cost)
+    goes through Room.is_category("hallway"), so moving from an ordinary
+    Hallway into the Aquarium -- hallway is one of its colours too -- must
+    also cost 0 steps.
+    """
+    g = Game(GameConfig(starting_items=frozenset({"hall_pass"})), seed=0)
+    reg = g.registry
+    hallway = reg.by_id["hallway"]
+    aquarium = reg.by_id["aquarium"]
+    g.state.grid[7] = hallway.idx
+    cost = si.move_step_cost(g, 7, N, aquarium)
+    assert cost == 0

@@ -277,6 +277,11 @@ def _apply_category_bias(ctx: DraftContext, room: Room, slot: int, cell: int,
     remaining undealt cards.  If a matching room is found it replaces the
     original draw (the original stays consumed from its deck).  If no match is
     available the original draw is kept unchanged.
+
+    A target category is a colour identity check (Furnace/Greenhouse/King's
+    Chess Piece/Royal Scepter all bias toward drafting a room of that colour),
+    so it goes through ``Room.is_category`` and can match a multi-category
+    room such as the Aquarium or Maid's Chamber on any colour it counts as.
     """
     active = _active_conditions(ctx)
     if not active:
@@ -301,7 +306,7 @@ def _apply_category_bias(ctx: DraftContext, room: Room, slot: int, cell: int,
             r = rooms[card]
             if _tr and r.id not in _tr:
                 return False
-            if _tc and r.category != _tc:
+            if _tc and not r.is_category(_tc):
                 return False
             if _tl and r.layout != _tl:
                 return False

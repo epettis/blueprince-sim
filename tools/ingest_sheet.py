@@ -378,14 +378,9 @@ EFFECT_OVERRIDE: dict[str, dict] = {
 #
 # furnace, dovecote and the_kennel are supplemental-sourced, so they carry
 # their flag in tools/supplemental_rooms.json; this table never reaches them.
-#
-# counts_as_all_colors marks the four Aquarium records ("AQUARIUM is every
-# color of room"): Room.is_category() treats a flagged room as matching every
-# colour category (blueprint/bedroom/hallway/green/red/shop/blackprint), never
-# "objective".
 FLAG_OVERRIDE: dict[str, dict] = {
     "rumpus_room": {"has_animal": True},
-    "aquarium": {"has_animal": True, "counts_as_all_colors": True},
+    "aquarium": {"has_animal": True},
     "nursery": {"has_animal": True},
     "bunk_room": {"has_animal": True},
     "parlor": {"has_fireplace": True},
@@ -393,12 +388,23 @@ FLAG_OVERRIDE: dict[str, dict] = {
     "trophy_room": {"has_fireplace": True},
     "drawing_room": {"has_fireplace": True},
     "the_armory": {"has_fireplace": True},
-    # "AQUARIUM is every color of room": the flag is on the base record and its
-    # three upgrade variants alike, since each variant's own effect_text repeats
-    # the same sentence verbatim alongside its own addition.
-    "goldfish_aquarium__ix2": {"counts_as_all_colors": True},
-    "starfish_aquarium__ix3": {"counts_as_all_colors": True},
-    "electric_eel_aquarium__ix4": {"counts_as_all_colors": True},
+}
+
+# Extra category memberships, keyed by final record id, fully replacing
+# (not merging into) the record's "extra_categories" list -- unlike
+# FLAG_OVERRIDE's per-key flags dict, a room's extra-category set has no
+# per-key granularity to preserve. Room.categories (engine/model.py) is the
+# membership set built from "category" plus this list.
+#
+# "AQUARIUM is every color of room": the base record and its three upgrade
+# variants each list every colour but their own primary ("blueprint") and
+# "objective" (a room role, not a colour), since each variant's own
+# effect_text repeats the same sentence verbatim alongside its own addition.
+CATEGORY_OVERRIDE: dict[str, list[str]] = {
+    "aquarium": ["red", "green", "hallway", "bedroom", "shop", "blackprint"],
+    "goldfish_aquarium__ix2": ["red", "green", "hallway", "bedroom", "shop", "blackprint"],
+    "starfish_aquarium__ix3": ["red", "green", "hallway", "bedroom", "shop", "blackprint"],
+    "electric_eel_aquarium__ix4": ["red", "green", "hallway", "bedroom", "shop", "blackprint"],
 }
 
 
@@ -410,6 +416,8 @@ def apply_effect_override(entry: dict) -> None:
     field, so it is safe to call regardless of what EFFECT_MAP already set. A
     field the override entry omits is left untouched. FLAG_OVERRIDE is applied
     too, merging key by key so naming one flag leaves the room's others alone.
+    CATEGORY_OVERRIDE is applied last, replacing ``entry["extra_categories"]``
+    wholesale when the id has an entry.
     """
     override = EFFECT_OVERRIDE.get(entry["id"])
     if override:
@@ -418,19 +426,22 @@ def apply_effect_override(entry: dict) -> None:
         if "items" in override:
             entry["items"].update(override["items"])
     entry.setdefault("flags", {}).update(FLAG_OVERRIDE.get(entry["id"], {}))
+    if entry["id"] in CATEGORY_OVERRIDE:
+        entry["extra_categories"] = list(CATEGORY_OVERRIDE[entry["id"]])
 
 
 def validate_effect_override(seen_ids: set[str]) -> None:
-    """Raise if EFFECT_OVERRIDE or FLAG_OVERRIDE keys an id the sheet parse
-    did not produce.
+    """Raise if EFFECT_OVERRIDE, FLAG_OVERRIDE or CATEGORY_OVERRIDE keys an id
+    the sheet parse did not produce.
 
     *seen_ids* is the set of ids assembled from the parsed sheet rows only
-    (tools/supplemental_rooms.json is merged in separately and neither table
-    applies to it). A key absent from *seen_ids* would otherwise never be
+    (tools/supplemental_rooms.json is merged in separately and none of the
+    tables apply to it). A key absent from *seen_ids* would otherwise never be
     looked up by apply_effect_override and would silently do nothing.
     """
     for name, table in (("EFFECT_OVERRIDE", EFFECT_OVERRIDE),
-                        ("FLAG_OVERRIDE", FLAG_OVERRIDE)):
+                        ("FLAG_OVERRIDE", FLAG_OVERRIDE),
+                        ("CATEGORY_OVERRIDE", CATEGORY_OVERRIDE)):
         unknown = sorted(set(table) - seen_ids)
         if unknown:
             raise ValueError(f"{name} has id(s) not produced by the sheet: {unknown}")

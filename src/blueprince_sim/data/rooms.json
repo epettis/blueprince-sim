@@ -2827,6 +2827,7 @@
    "id": "aquarium",
    "name": "Aquarium",
    "category": "blueprint",
+   "extra_categories": ["red", "green", "hallway", "bedroom", "shop", "blackprint"],
    "rarity": "unusual",
    "gem_cost": 1,
    "layout": "t",
@@ -2837,8 +2838,7 @@
     "powered": false,
     "duct": false,
     "disk_reader": false,
-    "has_animal": true,
-    "counts_as_all_colors": true
+    "has_animal": true
    },
    "deck_copies": 1,
    "effects": [],
@@ -2860,6 +2860,7 @@
    "id": "goldfish_aquarium__ix2",
    "name": "Goldfish Aquarium",
    "category": "blueprint",
+   "extra_categories": ["red", "green", "hallway", "bedroom", "shop", "blackprint"],
    "rarity": "unusual",
    "gem_cost": 1,
    "layout": "t",
@@ -2869,8 +2870,7 @@
     "no_library_draft": false,
     "powered": false,
     "duct": false,
-    "disk_reader": false,
-    "counts_as_all_colors": true
+    "disk_reader": false
    },
    "deck_copies": 1,
    "effects": [],
@@ -2905,6 +2905,7 @@
    "id": "starfish_aquarium__ix3",
    "name": "Starfish Aquarium",
    "category": "blueprint",
+   "extra_categories": ["red", "green", "hallway", "bedroom", "shop", "blackprint"],
    "rarity": "unusual",
    "gem_cost": 1,
    "layout": "t",
@@ -2914,8 +2915,7 @@
     "no_library_draft": false,
     "powered": false,
     "duct": false,
-    "disk_reader": false,
-    "counts_as_all_colors": true
+    "disk_reader": false
    },
    "deck_copies": 1,
    "effects": [],
@@ -2940,6 +2940,7 @@
    "id": "electric_eel_aquarium__ix4",
    "name": "Electric Eel Aquarium",
    "category": "blueprint",
+   "extra_categories": ["red", "green", "hallway", "bedroom", "shop", "blackprint"],
    "rarity": "unusual",
    "gem_cost": 1,
    "layout": "t",
@@ -2949,8 +2950,7 @@
     "no_library_draft": false,
     "powered": true,
     "duct": false,
-    "disk_reader": false,
-    "counts_as_all_colors": true
+    "disk_reader": false
    },
    "deck_copies": 1,
    "effects": [],
@@ -5311,6 +5311,7 @@
    "id": "maids_chamber",
    "name": "Maid's Chamber",
    "category": "red",
+   "extra_categories": ["bedroom"],
    "rarity": "commonplace",
    "gem_cost": 0,
    "layout": "corner",

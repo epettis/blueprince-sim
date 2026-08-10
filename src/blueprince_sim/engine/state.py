@@ -454,7 +454,7 @@ def resolve_gem_cost(room: Room, state: GameState, registry_rooms) -> int:
     cost = room.gem_cost
     if room.gem_cost_dynamic == "plus_one_per_bedroom":
         n_bedrooms = sum(
-            1 for idx in state.grid if idx >= 0 and registry_rooms[idx].category == "bedroom"
+            1 for idx in state.grid if idx >= 0 and registry_rooms[idx].is_category("bedroom")
         )
         cost += n_bedrooms
     return cost
