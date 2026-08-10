@@ -147,6 +147,13 @@ class GameState:
     # advance() -- the same shape as chapel_tithes. Never itself spent; its
     # value is what gets folded into coins at the start of every future day.
     allowance: int = 0
+    # Permanent star total. Seeded from cfg.stars at reset(); grown in-run by
+    # the Observatory and Starfish Aquarium (both +1 per draft, effects/rooms/
+    # observatory.py and aquarium.py). Reported by carryover() and replaced
+    # wholesale into cfg.stars by DayChain each advance() -- the same shape as
+    # allowance. Never itself spent; stars are a pure permanent counter (the
+    # telescope/constellation system that would consume them is out of scope).
+    stars: int = 0
     dice: int = 0  # redraw dice: spend one to redraw the current draft hand
     luck: int = 10  # scales bonus-item odds between items.json floor and max_effect_at
 

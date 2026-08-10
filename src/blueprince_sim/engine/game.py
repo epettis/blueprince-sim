@@ -81,6 +81,7 @@ class Game:
         # separately from today's spendable coins.
         st.coins = cfg.frozen_coins + cfg.allowance
         st.allowance = cfg.allowance
+        st.stars = cfg.stars
         st.has_keycard = cfg.break_room_keycard
         st.day = cfg.day
         st.stage = cfg.resolved_stage()

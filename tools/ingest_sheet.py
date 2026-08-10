@@ -208,7 +208,7 @@ EFFECT_MAP: dict[str, dict] = {
                 "items": {"dig_spots": 1}},
     "courtyard": {"items": {"guaranteed": [], "dig_spots": 1}},
     "secret_garden": {"items": {"guaranteed": [{"item": "gem", "count": 2}], "dig_spots": 1}},
-    "observatory": {"effects": []},  # stars out of scope
+    "observatory": {"effects": []},  # star grant lives in a room_hook, not a data effect tag
     "dining_room": {"effects": []},
     "her_ladyships_chamber": {"effects": []},  # cross-room promise; Tier 2
     "freezer": {"effects": []},  # cross-day; out of scope

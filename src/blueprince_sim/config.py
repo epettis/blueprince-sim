@@ -158,6 +158,11 @@ class GameConfig:
     # (Game.reset).  Never spent itself.  Carried by DayChain as a running
     # total, replaced wholesale each advance() the same way as chapel_tithes.
     allowance: int = 0
+    # Permanent star total: grown by the Observatory and Starfish Aquarium
+    # (both +1 per draft, never per entry) and carried into every future day
+    # (Game.reset).  Never spent itself.  Carried by DayChain as a running
+    # total, replaced wholesale each advance() the same way as allowance.
+    stars: int = 0
     # Fixed-source Allowance Token ids collected (ever, across all days): each
     # one-time find spot (a Mora Jai box or the Cloister's token) has its own
     # item id, so this set gates exactly the sources already collected without

@@ -8,6 +8,7 @@ requires importing it from this file.
 
 from __future__ import annotations
 
+from . import aquarium  # noqa: F401
 from . import boiler_room  # noqa: F401  (registers room_hook handlers on import)
 from . import bunk_room  # noqa: F401
 from . import classroom  # noqa: F401
@@ -20,6 +21,7 @@ from . import great_hall  # noqa: F401  (no handler; imported for the lever help
 from . import greenhouse  # noqa: F401
 from . import hovel  # noqa: F401
 from . import mail_room  # noqa: F401
+from . import observatory  # noqa: F401
 from . import quest_bedroom  # noqa: F401
 from . import room_8  # noqa: F401
 from . import rotunda  # noqa: F401
