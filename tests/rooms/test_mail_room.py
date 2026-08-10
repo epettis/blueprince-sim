@@ -8,6 +8,7 @@ from blueprince_sim.engine.game import Game
 from blueprince_sim.env.multiday import DayChain
 
 CELL = 5
+RANK8_CELL = 35  # rank 8, col 0 -- (rank-1)*5+col with rank=8, col=0
 
 
 def _game(cfg: GameConfig | None = None, seed: int = 0) -> Game:
@@ -20,6 +21,24 @@ def _game(cfg: GameConfig | None = None, seed: int = 0) -> Game:
 def _place_mail_room(g: Game, cell: int = CELL) -> None:
     room = g.registry.by_id["mail_room"]
     g._place_room(room, cell, room.door_mask)
+
+
+def _place_same_day(g: Game, cell: int = CELL) -> None:
+    room = g.registry.by_id["mail_room__ix89"]
+    g._place_room(room, cell, room.door_mask)
+
+
+def _place_no_contact(g: Game, cell: int = CELL) -> None:
+    room = g.registry.by_id["mail_room__ix90"]
+    g._place_room(room, cell, room.door_mask)
+
+
+def _reach_rank8(g: Game, cell: int = RANK8_CELL) -> None:
+    """Places a neutral room at a Rank-8 cell and enters it, exercising Game._enter's
+    Rank >= 8 check the same way a real Rank 8 arrival would."""
+    room = g.registry.by_id["hallway"]
+    g._place_room(room, cell, room.door_mask)
+    g._enter(cell)
 
 
 # ------------------------------------------------------------- order/deliver cycle
@@ -105,6 +124,112 @@ def test_cycle_survives_multiple_days_before_being_drafted_again():
     assert g3.state.mail_package_cell == CELL
 
 
+# --------------------------------------------------------- Same Day Delivery (ix89)
+
+def test_same_day_armed_then_rank8_delivers():
+    """Drafted below Rank 8, the package waits armed until Rank 8 is reached,
+    then delivers into the Mail Room's own cell and entering grants it."""
+    g = _game()
+    _place_same_day(g)
+    assert g.state.mail_same_day_armed_cell == CELL
+    assert g.state.mail_package_cell == -1
+
+    _reach_rank8(g)
+    assert g.state.rank8_reached
+    assert g.state.mail_same_day_armed_cell == -1
+    assert g.state.mail_package_cell == CELL
+
+    before = len(g.state.items_found_log)
+    g._enter(CELL)
+    assert g.state.mail_package_cell == -1
+    assert len(g.state.items_found_log) > before
+
+
+def test_same_day_drafted_after_rank8_already_reached():
+    """Rank 8 already reached before the draft delivers the package
+    immediately, with no arming step and no second Rank 8 trigger needed."""
+    g = _game()
+    _reach_rank8(g)
+    assert g.state.rank8_reached
+
+    _place_same_day(g)
+    assert g.state.mail_same_day_armed_cell == -1
+    assert g.state.mail_package_cell == CELL
+
+
+def test_same_day_fallback_carries_and_blocks_double_delivery():
+    """An armed Same Day package that never sees Rank 8 falls back to the
+    base AWAITING cycle overnight: the next draft delivers immediately
+    without Rank 8, places no new order, and a later Rank 8 arrival does not
+    deliver a second package."""
+    chain = DayChain(GameConfig(special_items=True), n_days=5)
+
+    g1 = _game(chain.next_config(), seed=1)
+    _place_same_day(g1)  # day 1: armed, Rank 8 never reached
+    g1._terminate("test")  # day-end resolver: armed but undelivered -> AWAITING
+    assert g1.state.mail_cycle == "awaiting"
+    chain.advance(g1.carryover())
+    assert chain.next_config().mail_cycle == "awaiting"
+
+    g2 = _game(chain.next_config(), seed=2)
+    _place_same_day(g2)  # day 2: carried AWAITING -> delivers immediately, no arming
+    assert g2.state.mail_cycle == "empty"
+    assert g2.state.mail_package_cell == CELL
+    assert g2.state.mail_same_day_armed_cell == -1
+
+    _reach_rank8(g2)  # Rank 8 reached after the fallback delivery: no second package
+    assert g2.state.mail_package_cell == CELL
+
+    before = len(g2.state.items_found_log)
+    g2._enter(CELL)
+    assert len(g2.state.items_found_log) > before
+
+
+# -------------------------------------------------------- No Contact Delivery (ix90)
+
+def test_no_contact_draft_sets_due_flag_and_grants_nothing_today():
+    """Drafting No Contact Delivery marks tomorrow's order but grants
+    nothing today -- the package is a day-start grant, not an in-day one."""
+    g = _game()
+    before_inventory = dict(g.state.inventory)
+    _place_no_contact(g)
+    assert g.state.no_contact_drafted
+    assert g.state.inventory == before_inventory
+
+
+def test_no_contact_next_day_starts_with_package_granted():
+    """A No Contact order placed today is granted outright at the start of
+    the following day, driven through DayChain so the real carry is exercised."""
+    chain = DayChain(GameConfig(special_items=True), n_days=5)
+
+    g1 = _game(chain.next_config(), seed=1)
+    _place_no_contact(g1)  # day 1: order placed
+    chain.advance(g1.carryover())
+    assert chain.next_config().no_contact_due
+
+    g2 = _game(chain.next_config(), seed=2)
+    assert len(g2.state.items_found_log) > 0, "the package must be granted at reset()"
+
+
+def test_no_contact_redraft_on_delivery_day_places_a_new_order():
+    """Drafting No Contact again on the very day its package is delivered
+    still sets tomorrow's due flag, allowing daily packages."""
+    chain = DayChain(GameConfig(special_items=True), n_days=5)
+
+    g1 = _game(chain.next_config(), seed=1)
+    _place_no_contact(g1)
+    chain.advance(g1.carryover())
+
+    g2 = _game(chain.next_config(), seed=2)  # delivery day: package granted at reset()
+    assert len(g2.state.items_found_log) > 0
+    _place_no_contact(g2)  # drafted again the same day
+    chain.advance(g2.carryover())
+    assert chain.next_config().no_contact_due, "a same-day redraft must place a fresh order"
+
+    g3 = _game(chain.next_config(), seed=3)
+    assert len(g3.state.items_found_log) > 0, "the fresh order must also be granted"
+
+
 # --------------------------------------------------------------- package contents
 
 def test_every_package_has_slot1_and_slot2_grants_slot3_sometimes_absent():
@@ -116,7 +241,9 @@ def test_every_package_has_slot1_and_slot2_grants_slot3_sometimes_absent():
         grants = si.roll_mail_package(g.state, g.registry, g.rng)
         assert len(grants) in (2, 3)
         lengths.add(len(grants))
-    assert lengths == {2, 3}, f"expected both 2- and 3-grant packages across the sweep, got {lengths}"
+    assert lengths == {2, 3}, (
+        f"expected both 2- and 3-grant packages across the sweep, got {lengths}"
+    )
 
 
 def test_slot3_absent_when_slot2_is_compass():

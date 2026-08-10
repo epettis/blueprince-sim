@@ -147,6 +147,7 @@ class DayChain:
         self.break_room_keycard: bool = False   # day ended in Break Room yesterday: keycard today
         self.frozen_coins: int = 0              # Freezer carry: coins to start today with (0 = none)
         self.frozen_gems: int = 0               # Freezer carry: gems to start today with (0 = none)
+        self.no_contact_due: bool = False       # No Contact Delivery drafted yesterday: package today
 
     def next_config(self) -> GameConfig:
         """Return the ``GameConfig`` for the current day.
@@ -184,6 +185,7 @@ class DayChain:
             break_room_keycard=self.break_room_keycard,
             frozen_coins=self.frozen_coins,
             frozen_gems=self.frozen_gems,
+            no_contact_due=self.no_contact_due,
             **self.carried_flags,          # unpack only the True flags
         )
 
@@ -295,16 +297,18 @@ class DayChain:
         if fd_val is not None:
             self.foundation_doors = fd_val
 
-        # --- one-day-pulse room bonuses (Sauna/Morning Room/Break Room/Freezer) ---
+        # --- one-day-pulse room bonuses (Sauna/Morning Room/Break Room/Freezer/
+        #     No Contact Delivery) ---
         # Unconditional REPLACE (not OR-merge): each key reports only whether TODAY
         # earned the bonus, so a day that does not re-earn it must clear the running
         # value rather than keep yesterday's True forever (that would make the
-        # bonus permanent, which none of these four rooms are).
+        # bonus permanent, which none of these rooms are).
         self.sauna_bonus = bool(carryover.get("sauna_bonus"))
         self.morning_room_bonus = bool(carryover.get("morning_room_bonus"))
         self.break_room_keycard = bool(carryover.get("break_room_keycard"))
         self.frozen_coins = carryover.get("frozen_coins") or 0
         self.frozen_gems = carryover.get("frozen_gems") or 0
+        self.no_contact_due = bool(carryover.get("no_contact_due"))
 
         # --- banned_rooms (Repellent bans from this day) ---
         # Decrement PRE-EXISTING bans first (one day has elapsed for them),
@@ -359,6 +363,7 @@ class DayChain:
             self.break_room_keycard = False
             self.frozen_coins = 0
             self.frozen_gems = 0
+            self.no_contact_due = False
             # Fresh attempt: drop everything earned in-run, but keep whatever the
             # base config presets, which is the same baseline day 1 started from.
             self.applied_upgrades = frozenset(self.base_cfg.upgrade_disks)

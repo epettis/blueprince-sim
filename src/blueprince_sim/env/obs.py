@@ -158,11 +158,13 @@ def observation_space(n_rooms: int, n_items: int, n_recipes: int,
         # rationale as disks_spent/treasure_trove_piles/upgrade_slots: V(s)
         # cannot price a cross-day investment it cannot see.
         "allowance": spaces.Box(0, 9999, shape=(1,), dtype=np.int16),
-        # mail: [mail cycle state code, transit days remaining].
+        # mail: [mail cycle state code, transit days remaining, No Contact ordered].
         # [0]: 0 = empty (no order outstanding), 1 = awaiting (next Mail Room
-        # draft delivers). [1]: always 0 in the base Mail Room; reserved for
-        # the Freight variant's multi-day transit counter at this same width.
-        "mail": spaces.Box(0, 99, shape=(2,), dtype=np.int16),
+        # draft delivers). [1]: always 0 for now; reserved for the Freight
+        # variant's multi-day transit counter. [2]: 1 = a No Contact Delivery
+        # (mail_room__ix90) was drafted today, so its package lands at the start
+        # of TOMORROW -- the cross-day investment V(s) has to be able to price.
+        "mail": spaces.Box(0, 99, shape=(3,), dtype=np.int16),
         # sigil_doors_open: 1 bit per Inner Sanctum realm door, in SIGIL_REALMS
         # (sorted) order, 1 = permanently unlocked (state.special.sigil_doors_opened
         # union cfg.sigil_doors_open). A door never re-seals, so this is another
@@ -481,8 +483,11 @@ def encode(game: Game, day_chain: DayChain | None = None) -> dict:
     # allowance: the permanent total banked so far this attempt, clamped to the space bound.
     allowance_obs = np.array([min(st.allowance, 9999)], dtype=np.int16)
 
-    # mail: [cycle state code, transit days remaining (always 0 here)].
-    mail_obs = np.array([1 if st.mail_cycle == "awaiting" else 0, 0], dtype=np.int16)
+    # mail: [cycle state code, transit days remaining (always 0 here), No Contact ordered].
+    mail_obs = np.array(
+        [1 if st.mail_cycle == "awaiting" else 0, 0, 1 if st.no_contact_drafted else 0],
+        dtype=np.int16,
+    )
 
     # sigil_doors_open: which Inner Sanctum realm doors are permanently unlocked.
     # Union of cfg (carried from earlier days) and today's own openings, same

@@ -66,6 +66,11 @@ class GameConfig:
     # own carryover -- entering the Freezer again is required to keep carrying.
     frozen_coins: int = 0
     frozen_gems: int = 0
+    # No Contact Delivery (mail_room__ix90) drafted on the previous day: its
+    # package grants outright at the start of today (Game.reset via
+    # shops.on_day_start). Same one-day pulse shape as sauna_bonus -- a day
+    # that does not draft it again does not inherit yesterday's order.
+    no_contact_due: bool = False
     mine_unlocked: bool = False                      # Gemstone Cavern: +2 gems at day start (wiki)
     upgrade_disks: frozenset[str] = frozenset()      # applied variant room ids (e.g. "pool_hall__ix12")
     # Veteran Mode (New Game+). Default TRUE: this project models expert play.

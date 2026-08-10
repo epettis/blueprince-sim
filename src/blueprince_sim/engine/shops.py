@@ -885,7 +885,10 @@ def fabricate(game, output_id: str) -> None:
 
 def on_day_start(game) -> None:
     """Reset-time carry-over grants: Royal Scepter (royal_scepter_found),
-    Entrance Hall microchip (entrance_vase_broken). Task D."""
+    Entrance Hall microchip (entrance_vase_broken), No Contact Delivery's
+    package (no_contact_due). Task D."""
+    from .effects.rooms import mail_room
+
     cfg = game.cfg
     state = game.state
     registry = game.registry
@@ -898,6 +901,9 @@ def on_day_start(game) -> None:
     # Entrance Hall vase chip: granted at day start when the vase was previously broken.
     if cfg.entrance_vase_broken:
         si.grant(state, registry, "microchip", source="day_start")
+
+    # No Contact Delivery: yesterday's order, granted outright.
+    mail_room.resolve_no_contact_delivery(game)
 
 
 def on_doorstep(game) -> None:
