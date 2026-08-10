@@ -1520,6 +1520,26 @@ class Game:
                 effects.fire(self, self.registry.rooms[idx], Hook.ON_DRAFT_ROOM,
                              context_room=room)
 
+    def _collect_spread(self, cell: int) -> None:
+        """Grant every resource parked in ``cell`` by GameState.spread_pending.
+
+        Fires on EVERY arrival at ``cell``, including re-entry, not only first
+        entry -- a room walked through before the Secret Garden spread into it
+        must still pay out on the player's next arrival. Each entry's ``what``
+        is either a food.dishes id, eaten via special_items.eat_food, or a
+        grant_item item kind; the two namespaces never collide, so a plain
+        membership check on the dish table decides the branch.
+        """
+        entries = self.state.spread_pending.pop(cell, None)
+        if not entries:
+            return
+        dishes = self.registry.item_rules["food"]["dishes"]
+        for what, count in entries:
+            if what in dishes:
+                special_items.eat_food(self.state, self.registry, what, count)
+            else:
+                grant_item(self.state, what, count, self.rng, self.registry)
+
     def _enter(self, cell: int) -> None:
         """First-entry bookkeeping for ``cell``; no-op if already entered.
 
@@ -1530,6 +1550,7 @@ class Game:
         st = self.state
         if cell == ANTECHAMBER_CELL:
             st.antechamber_reached = True  # milestone: first arrival at rank 9 center
+        self._collect_spread(cell)  # parked resources pay out on every arrival, not just first entry
         if st.entered[cell]:
             return
         st.entered[cell] = True

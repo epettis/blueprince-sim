@@ -316,6 +316,16 @@ class GameState:
     # at placement; popped when that cell is first entered and the bonus paid.
     closet_bonus_cells: set[int] = field(default_factory=set)
 
+    # Resources parked in a cell, waiting for the player to walk in and collect them
+    # (Secret Garden fruit spread today; Patio gems and Locker Room keys will reuse
+    # this later). Cell -> list of (what, count) entries, drained in full on the
+    # player's next arrival at that cell (Game._collect_spread), not gated on first
+    # entry. ``what`` is either a food.dishes id ("apple", "orange", ...) or a
+    # grant_item item kind ("key", "gem", "coins", ...) -- the two namespaces never
+    # collide. Per-day only: a fresh GameState clears it every day, since spread
+    # fruit does not survive the night.
+    spread_pending: dict[int, list[tuple[str, int]]] = field(default_factory=dict)
+
     def deck(self, rarity_idx: int, is_gem: bool) -> DeckState:
         return self.decks[rarity_idx * 2 + (1 if is_gem else 0)]
 
