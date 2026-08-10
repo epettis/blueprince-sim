@@ -656,6 +656,56 @@ the residual `game.py` branches.
 
 ## Decisions log
 
+- **2026-08-10, the Laboratory is GO for phases 0-4 only.** Owner. That
+  delivers a playable, trainable Laboratory: the data file, the
+  offer/choose/start/pause core, the eight pure-resource effects, the
+  draft-site triggers and the interaction triggers -- the last of which is what
+  the apple-eating trigger elsewhere in this file has been waiting on.
+
+  **Phases 5-8 are explicitly NOT authorised.** They are four separate
+  subsystems wearing an experiment costume ("model the Grounds' dig spots",
+  "model Pantry stock", "model Dynamic Rarity", "model the Satellite Dish
+  unlock chain") and each comes back as its own line item.
+
+  Budgeted costs, all recorded in advance: action space **319 -> 327**, a new
+  `Phase.EXPERIMENT_PENDING`, and three observation width changes (a new
+  `experiment` key, `phase` 4 -> 5, `carryover` 14 -> 16). See task 19.
+
+- **2026-08-10, the Clock Tower counts Tomorrow rooms PRESENT in the house.**
+  Owner, resolving a page that contradicts itself: the infobox says "for each
+  Tomorrow room **you draft today**", the prose says "for every Tomorrow room
+  **present in the mansion**". The prose wins -- an end-of-day tally over what
+  is actually standing, **including the Clock Tower itself**, which our own
+  effect text omits.
+
+  The two readings differ whenever a Tomorrow room enters the house without
+  being drafted, which the Foundation already does by persisting across days.
+
+- **2026-08-10, the Parlor's box is always the prize box.** Owner. The real
+  Parlor is a deterministic logic puzzle the wiki says is *always* uniquely
+  solvable, so there is no probability to sample: a perfect solver never opens
+  an empty box, a guesser is wrong two times in three.
+
+  The assumed-solved doctrine already governs every other puzzle room -- Mora
+  Jai boxes, the room safes, Room 8 -- so the Parlor follows it. Consequence,
+  stated rather than discovered later: **the Funeral Parlor's 30-step penalty
+  never fires**, because it only applies to opening an empty box.
+
+  This also unblocks the Parlor line without reviving the Wind-up Key, which
+  stays removed. `parlor__ix109` ("2 Wind-up Keys") remains a deliberate
+  permanent finding.
+
+- **2026-08-10, the Mechanarium is the next big subsystem, and its door count
+  is fixed at draft.** Owner, choosing it over the Closed Exhibit and the
+  Throne Room: "The number of doors is set when drafted. It does not add doors
+  later for newly drafted engineering rooms. Confirm this with the wiki."
+
+  That claim is the crux -- a Mechanarium whose doorways grew as more
+  Mechanical rooms were drafted would need live mutation of a placed room's
+  layout, which the engine has no mechanism for; a count frozen at draft time
+  is an ordinary placement-time decision. **Confirm against the wiki before
+  building, and surface any disagreement rather than resolving it.**
+
 - **2026-08-10, a room's colour is a SET of categories, not one value.** Owner:
   "It just means that color needs to be a set of enums instead of an enum.
   Maid's Quarters is another room -- both red and purple."
