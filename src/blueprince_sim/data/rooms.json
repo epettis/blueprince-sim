@@ -17,7 +17,8 @@
     "no_library_draft": false,
     "powered": false,
     "duct": false,
-    "disk_reader": false
+    "disk_reader": false,
+    "no_locker_keys": true
    },
    "deck_copies": 1,
    "effects": [],
@@ -79,7 +80,8 @@
     "no_library_draft": false,
     "powered": false,
     "duct": false,
-    "disk_reader": false
+    "disk_reader": false,
+    "no_locker_keys": true
    },
    "deck_copies": 1,
    "effects": [],
@@ -564,7 +566,8 @@
     "no_library_draft": false,
     "powered": false,
     "duct": false,
-    "disk_reader": false
+    "disk_reader": false,
+    "no_locker_keys": true
    },
    "deck_copies": 1,
    "effects": [],
@@ -2367,7 +2370,8 @@
     "no_library_draft": false,
     "powered": true,
     "duct": false,
-    "disk_reader": false
+    "disk_reader": false,
+    "no_locker_keys": true
    },
    "deck_copies": 1,
    "effects": [],
@@ -2696,7 +2700,8 @@
     "no_library_draft": false,
     "powered": false,
     "duct": false,
-    "disk_reader": false
+    "disk_reader": false,
+    "no_locker_keys": true
    },
    "deck_copies": 1,
    "effects": [
@@ -3011,7 +3016,8 @@
     "no_library_draft": false,
     "powered": false,
     "duct": false,
-    "disk_reader": false
+    "disk_reader": false,
+    "no_locker_keys": true
    },
    "deck_copies": 1,
    "effects": [],
@@ -3044,7 +3050,8 @@
     "no_library_draft": false,
     "powered": false,
     "duct": false,
-    "disk_reader": false
+    "disk_reader": false,
+    "no_locker_keys": true
    },
    "deck_copies": 1,
    "effects": [],
@@ -4212,7 +4219,8 @@
     "no_library_draft": false,
     "powered": true,
     "duct": true,
-    "disk_reader": false
+    "disk_reader": false,
+    "no_locker_keys": true
    },
    "deck_copies": 1,
    "effects": [],
@@ -5219,7 +5227,8 @@
     "no_library_draft": false,
     "powered": false,
     "duct": false,
-    "disk_reader": false
+    "disk_reader": false,
+    "no_locker_keys": true
    },
    "deck_copies": 1,
    "effects": [],
@@ -5253,7 +5262,8 @@
     "powered": false,
     "duct": false,
     "disk_reader": false,
-    "has_fireplace": true
+    "has_fireplace": true,
+    "no_locker_keys": true
    },
    "deck_copies": 1,
    "effects": [],
@@ -5283,7 +5293,8 @@
     "no_library_draft": false,
     "powered": false,
     "duct": false,
-    "disk_reader": false
+    "disk_reader": false,
+    "no_locker_keys": true
    },
    "deck_copies": 1,
    "effects": [],
@@ -5350,7 +5361,8 @@
     "no_library_draft": false,
     "powered": false,
     "duct": false,
-    "disk_reader": false
+    "disk_reader": false,
+    "no_locker_keys": true
    },
    "deck_copies": 1,
    "effects": [
@@ -5452,7 +5464,8 @@
     "no_library_draft": false,
     "powered": false,
     "duct": false,
-    "disk_reader": false
+    "disk_reader": false,
+    "no_locker_keys": true
    },
    "deck_copies": 1,
    "effects": [
@@ -5516,7 +5529,8 @@
     "powered": false,
     "duct": false,
     "disk_reader": false,
-    "has_fireplace": true
+    "has_fireplace": true,
+    "no_locker_keys": true
    },
    "deck_copies": 1,
    "effects": [],
@@ -5672,7 +5686,8 @@
     "no_library_draft": false,
     "powered": false,
     "duct": false,
-    "disk_reader": false
+    "disk_reader": false,
+    "no_locker_keys": true
    },
    "deck_copies": 1,
    "effects": [],
@@ -5734,7 +5749,8 @@
     "powered": false,
     "duct": false,
     "disk_reader": false,
-    "has_animal": true
+    "has_animal": true,
+    "no_locker_keys": true
    },
    "deck_copies": 1,
    "effects": [],
@@ -6049,7 +6065,8 @@
     "no_library_draft": false,
     "powered": false,
     "duct": false,
-    "disk_reader": false
+    "disk_reader": false,
+    "no_locker_keys": true
    },
    "deck_copies": 1,
    "effects": [],
@@ -6111,7 +6128,8 @@
     "no_library_draft": false,
     "powered": false,
     "duct": false,
-    "disk_reader": false
+    "disk_reader": false,
+    "no_locker_keys": true
    },
    "deck_copies": 1,
    "effects": [],

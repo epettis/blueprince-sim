@@ -100,6 +100,9 @@ _AUDIT_PYTHON_EXEMPT_IDS = {
     "break_room__ix11": "engine/game.py",        # day-end keycard pulse
     "chamber_of_mirrors": "engine/draft.py",     # duplicate-room drafting
     "coat_check": "engine/special_items.py",     # overnight item storage
+    # Absorbing a spread is implemented by each spreader's own branch rather
+    # than by the Conference Room; the Patio's is the representative one.
+    "conference_room": "engine/effects/rooms/patio.py",
     "dining_room": "engine/special_items.py",    # rank-8 main course
     "dovecote": "engine/effects/rooms/dovecote.py",  # rotation while drawn
     "lost_and_found": "engine/special_items.py",  # steal one item, grant two
@@ -984,6 +987,26 @@ def main(argv: list[str] | None = None) -> int:
         extra = actual_fireplace - HAS_FIREPLACE_ROOMS
         errors.append(
             f"has_fireplace flag mismatch: missing {sorted(missing)}, unexpected {sorted(extra)}"
+        )
+
+    # ── no_locker_keys flag ───────────────────────────────────────────────────
+    # effects/rooms/locker_room.py's key spread excludes these 18 rooms, an
+    # exact wiki enumeration, from ever receiving a spread key. Carried as
+    # flags.no_locker_keys per room (not a Python list in the engine) so the
+    # set stays data and editable; this check is what catches the two
+    # drifting apart, or a flag being dropped from a record.
+    NO_LOCKER_KEYS_ROOMS = {"antechamber", "room_46", "the_foundation", "spare_room",
+                            "gift_shop", "passageway", "dovecote", "the_armory",
+                            "rotunda", "darkroom", "pump_room", "vestibule",
+                            "mechanarium", "maids_chamber", "lavatory", "furnace",
+                            "freezer", "bookshop"}
+    actual_no_locker_keys = {r["id"] for r in rooms if r.get("flags", {}).get("no_locker_keys")}
+    if actual_no_locker_keys != NO_LOCKER_KEYS_ROOMS:
+        missing = NO_LOCKER_KEYS_ROOMS - actual_no_locker_keys
+        extra = actual_no_locker_keys - NO_LOCKER_KEYS_ROOMS
+        errors.append(
+            f"no_locker_keys flag mismatch: missing {sorted(missing)}, "
+            f"unexpected {sorted(extra)}"
         )
 
     # ── extra_categories (multi-category membership) ─────────────────────────

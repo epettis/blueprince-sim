@@ -74,6 +74,7 @@ class Room:
     unlocks_catacombs: bool  # True when entering this room grants same-day Catacombs access (Tomb only)
     has_animal: bool  # True when this room houses an animal (Cloister of Dauja membership)
     has_fireplace: bool  # True when this room has a static fireplace (Cloister of Veia membership)
+    no_locker_keys: bool  # True when the Locker Room's key spread never reaches this room
     deck_copies: int  # copies shuffled into this room's deck at day start
     effects: tuple[Effect, ...]  # Tier-1 room effects (dispatched via the effects/ hook registry)
     items: ItemSpec  # items granted/rolled when the room is first entered
@@ -161,6 +162,7 @@ def _parse_room(idx: int, raw: dict) -> Room:
         unlocks_catacombs=bool(raw.get("flags", {}).get("unlocks_catacombs", False)),
         has_animal=bool(raw.get("flags", {}).get("has_animal", False)),
         has_fireplace=bool(raw.get("flags", {}).get("has_fireplace", False)),
+        no_locker_keys=bool(raw.get("flags", {}).get("no_locker_keys", False)),
         deck_copies=int(raw.get("deck_copies", 1)),
         effects=_parse_effects(raw.get("effects", [])),
         items=ItemSpec(

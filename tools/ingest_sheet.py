@@ -376,8 +376,13 @@ EFFECT_OVERRIDE: dict[str, dict] = {
 # Room is deliberately absent: its fireplace depends on where it is placed,
 # so cloister.py decides it per cell.
 #
-# furnace, dovecote and the_kennel are supplemental-sourced, so they carry
-# their flag in tools/supplemental_rooms.json; this table never reaches them.
+# no_locker_keys backs effects/rooms/locker_room.py's spread exclusion: the
+# 18 rooms the wiki names as never receiving a spread key from the Locker
+# Room, again an ad-hoc wiki enumeration rather than a derivable category.
+#
+# furnace, dovecote, the_kennel, gift_shop, darkroom, vestibule, mechanarium,
+# maids_chamber and lavatory are supplemental-sourced, so they carry their
+# flags in tools/supplemental_rooms.json; this table never reaches them.
 FLAG_OVERRIDE: dict[str, dict] = {
     "rumpus_room": {"has_animal": True},
     "aquarium": {"has_animal": True},
@@ -387,7 +392,16 @@ FLAG_OVERRIDE: dict[str, dict] = {
     "den": {"has_fireplace": True},
     "trophy_room": {"has_fireplace": True},
     "drawing_room": {"has_fireplace": True},
-    "the_armory": {"has_fireplace": True},
+    "the_armory": {"has_fireplace": True, "no_locker_keys": True},
+    "antechamber": {"no_locker_keys": True},
+    "room_46": {"no_locker_keys": True},
+    "the_foundation": {"no_locker_keys": True},
+    "spare_room": {"no_locker_keys": True},
+    "passageway": {"no_locker_keys": True},
+    "rotunda": {"no_locker_keys": True},
+    "pump_room": {"no_locker_keys": True},
+    "freezer": {"no_locker_keys": True},
+    "bookshop": {"no_locker_keys": True},
 }
 
 # Extra category memberships, keyed by final record id, fully replacing

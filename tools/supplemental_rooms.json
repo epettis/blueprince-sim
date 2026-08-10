@@ -12,7 +12,8 @@
       "flags": {
         "no_library_draft": false,
         "powered": false,
-        "duct": false
+        "duct": false,
+        "no_locker_keys": true
       },
       "deck_copies": 1,
       "effects": [],
@@ -67,7 +68,9 @@
       "id": "maids_chamber",
       "name": "Maid's Chamber",
       "category": "red",
-      "extra_categories": ["bedroom"],
+      "extra_categories": [
+        "bedroom"
+      ],
       "rarity": "commonplace",
       "gem_cost": 0,
       "layout": "corner",
@@ -75,7 +78,8 @@
       "flags": {
         "no_library_draft": false,
         "powered": false,
-        "duct": false
+        "duct": false,
+        "no_locker_keys": true
       },
       "deck_copies": 1,
       "effects": [
@@ -174,7 +178,8 @@
       "flags": {
         "no_library_draft": false,
         "powered": false,
-        "duct": false
+        "duct": false,
+        "no_locker_keys": true
       },
       "deck_copies": 1,
       "effects": [
@@ -236,7 +241,8 @@
         "no_library_draft": false,
         "powered": false,
         "duct": false,
-        "has_fireplace": true
+        "has_fireplace": true,
+        "no_locker_keys": true
       },
       "deck_copies": 1,
       "effects": [],
@@ -382,7 +388,8 @@
       "flags": {
         "no_library_draft": false,
         "powered": false,
-        "duct": false
+        "duct": false,
+        "no_locker_keys": true
       },
       "deck_copies": 1,
       "effects": [],
@@ -442,7 +449,8 @@
         "no_library_draft": false,
         "powered": false,
         "duct": false,
-        "has_animal": true
+        "has_animal": true,
+        "no_locker_keys": true
       },
       "deck_copies": 1,
       "effects": [],
@@ -744,7 +752,8 @@
       "flags": {
         "no_library_draft": false,
         "powered": false,
-        "duct": false
+        "duct": false,
+        "no_locker_keys": true
       },
       "deck_copies": 1,
       "effects": [],
@@ -803,7 +812,8 @@
       "flags": {
         "no_library_draft": false,
         "powered": false,
-        "duct": false
+        "duct": false,
+        "no_locker_keys": true
       },
       "deck_copies": 1,
       "effects": [],
