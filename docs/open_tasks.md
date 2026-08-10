@@ -372,6 +372,94 @@ and are everything `items.py::expected_yields` introspects.
 rewording when phase 3 lands.** It remains correct for stats and for the shared
 parametric tags; it has been quietly wrong for singleton behaviour for a while.
 
+## 18. Divergence worklist triage (2026-08-10)
+
+All 62 findings were triaged in one pass. Three classes:
+
+- **False positives** -- behaviour modelled in a channel the audit cannot see
+  (`shops.py`, `special_items.py`, `locks.json`, `game.py`, a data flag). PR
+  #138 cleared ten of these (the commerce rooms). Remaining candidates:
+  `dovecote` (whose own effect_text names the engine functions that implement
+  it), `chamber_of_mirrors`, `coat_check`, `utility_closet`, `the_foundation`,
+  `lost_and_found`, `break_room__ix11`, `dining_room`, `lavatory`, plus the two
+  already-known ones (`courtyard__ix49`, `electric_eel_aquarium__ix4`).
+- **Stale annotations** -- see the ruling below.
+- **Real gaps**, roughly 26, most of them cheap.
+
+### Decisions log
+
+- **2026-08-10, expired scope annotations are re-opened as real work.** Nine
+  `meta.effect_text` values are not game text at all -- they are annotations
+  this project wrote, and several have expired:
+
+  | record | claims | why it is false now |
+  |---|---|---|
+  | `clock_tower` | "out of single-day scope" | multi-day has been in scope since `DayChain` |
+  | `shrine` | "out of single-day scope" | same |
+  | `the_kennel` | "lock system out of scope" | `locks.py` models locked doors |
+  | `vestibule` | "on enter, 3 doors unlock and the 4th locks (lock system out of scope)" | same |
+  | `lost_and_found` | "no effect modeled" | the steal/gift behaviour IS modelled (`special_items.py`), per CLAUDE.md |
+
+  Owner decision, on interview: **implement them, and rewrite each annotation to
+  say what is actually true.** This is the "a scope annotation is a claim with
+  an expiry date" lesson firing for the second time -- the first cost seven
+  rooms suppressed long after the sim grew multi-day support.
+
+  Act on this cold as: an annotation asserting something is out of scope must
+  be re-checked whenever that scope changes, because nothing else will
+  invalidate it. Prefer a dated task entry in this file over a scope claim
+  buried in a data record.
+
+- **2026-08-10, `parlor__ix109` stays unmodelled, and the reason is recorded.**
+  Its entire payload is "2 Wind-up Keys", and the Wind-up Key item was
+  deliberately **removed** from the sim (design doc simplification #17:
+  puzzle-only items are deleted and their payoff granted directly). So the
+  variant references a concept that no longer exists.
+
+  Owner decision, on interview: leave it inert rather than re-add the item or
+  invent a substitute payoff. Act on this cold as: this is a **deliberate**
+  permanent finding on the worklist, not an oversight -- do not "fix" it by
+  reintroducing the Wind-up Key.
+
+- **2026-08-10, the Aquarium counts as every colour via a data flag.** All three
+  Aquarium records say "AQUARIUM is every color of room." `Room.category` is a
+  single string, and category drives category biases, `grant_per_category`, the
+  Cloister/Terrace green boosts and scepter colours.
+
+  Owner decision, on interview: add a **`counts_as_all_colors`** flag honoured
+  at each category-comparison site, rather than widening `category` itself or
+  applying the rule only where convenient. One flag, consistent everywhere.
+
+- **2026-08-10, the Cloister of Dauja and Veia need sourced room lists first.**
+  Dauja pays "for each room with an animal", Veia gives dirt piles "in each room
+  with a fireplace". Neither an animal nor a fireplace concept exists in
+  `rooms.json`. Owner decision: research the wiki, then encode the result as
+  data flags -- and **if the wiki does not publish the lists, come back rather
+  than guessing which rooms qualify.**
+
+- **2026-08-10, `guess_bedroom__ix70` gets a research pass, then an owner call
+  if it is unsourced.** Its datamined text is "Hidden effect of a random BEDROOM
+  in your draft pool?" -- with a literal question mark, so the datamine itself
+  is unsure. Owner decision: research it; if the wiki is as vague as the
+  datamine, leave it unmodelled and record the gap rather than invent a
+  mechanic.
+
+- **2026-08-10, the Laboratory is the big subsystem to take on.** Of the four
+  large unmodelled subsystems on the worklist -- Throne Room (the "reclaim the
+  crown" objective), Closed Exhibit (security-lock puzzle), Mechanarium (dynamic
+  door count per Mechanical room) and Laboratory ("Experimental House Features")
+  -- the owner chose the **Laboratory**. It gates several other mechanics
+  already met elsewhere in this file: the Satellite Dish Pantry restock, the
+  experimental dig-spot spread to the Grounds, and the apple-eating trigger.
+
+  The other three stay unstarted; each needs its scope written up before it is
+  picked, not during.
+
+- **2026-08-10, work the cheap findings breadth-first.** Owner decision for an
+  unattended day: clear the many small findings in batched PRs rather than
+  going deep on one subsystem. Maximum findings cleared per unit of risk, and
+  each PR stays reviewable.
+
 ## Decisions log
 
 - **2026-07-26, lockers**: locked lockers cost exactly one BASIC key — the wiki is
