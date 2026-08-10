@@ -57,11 +57,11 @@ def _fill_cells(g: Game, n: int, *, exclude: set[int]) -> list[int]:
     """
     cells = []
     for cell in range(45):
+        if len(cells) >= n:  # checked first, so n == 0 fills nothing
+            break
         if cell in exclude or g.state.grid[cell] >= 0:
             continue
         cells.append(cell)
-        if len(cells) == n:
-            break
     for cell in cells:
         _place_at(g, "corridor", cell, 0)
     return cells

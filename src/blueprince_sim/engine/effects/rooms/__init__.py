@@ -24,9 +24,11 @@ from . import guest_bedroom  # noqa: F401
 from . import hallway  # noqa: F401
 from . import her_ladyships_chamber  # noqa: F401
 from . import hovel  # noqa: F401
+from . import locker_room  # noqa: F401
 from . import mail_room  # noqa: F401
 from . import nook  # noqa: F401
 from . import observatory  # noqa: F401
+from . import patio  # noqa: F401
 from . import quest_bedroom  # noqa: F401
 from . import room_8  # noqa: F401
 from . import rotunda  # noqa: F401
