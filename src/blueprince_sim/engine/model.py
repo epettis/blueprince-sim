@@ -51,7 +51,15 @@ class Room:
     idx: int  # dense index into Registry.rooms
     id: str  # stable snake_case identifier, unique across rooms.json (e.g. "entrance_hall")
     name: str  # human-readable display name
-    category: str  # blueprint|bedroom|hallway|green|shop|red|blackprint|studio_addition|outer|objective|tomorrow|mechanical
+    # primary/display category: blueprint|bedroom|hallway|green|shop|red|blackprint|
+    # studio_addition|outer|objective|tomorrow|mechanical. Observation encoding, replay
+    # records and the web UI all read this single value; membership questions (does this
+    # room count as X) go through is_category()/categories instead, not this field.
+    category: str
+    # categories this room counts as BEYOND its primary one; empty for most rooms. The
+    # Aquarium family carries every other colour, Maid's Chamber carries bedroom beside
+    # its primary red. Membership questions read the `categories` property, not this.
+    extra_categories: frozenset[str]
     rarity: str | None  # None = never appears in decks (Entrance Hall, forced-only rooms)
     gem_cost: int  # base gem price to draft (0 = free-deck card)
     gem_cost_dynamic: str | None  # cost modifier tag (e.g. "plus_one_per_bedroom"), None = static
@@ -66,7 +74,6 @@ class Room:
     unlocks_catacombs: bool  # True when entering this room grants same-day Catacombs access (Tomb only)
     has_animal: bool  # True when this room houses an animal (Cloister of Dauja membership)
     has_fireplace: bool  # True when this room has a static fireplace (Cloister of Veia membership)
-    counts_as_all_colors: bool  # Aquarium family: "is every color of room" (see is_category)
     deck_copies: int  # copies shuffled into this room's deck at day start
     effects: tuple[Effect, ...]  # Tier-1 room effects (dispatched via the effects/ hook registry)
     items: ItemSpec  # items granted/rolled when the room is first entered
@@ -83,18 +90,24 @@ class Room:
         """Index into RARITIES, or -1 for rooms with no rarity (never in decks)."""
         return RARITY_INDEX[self.rarity] if self.rarity else -1
 
+    @property
+    def categories(self) -> frozenset[str]:
+        """Every category this room counts as: its primary plus any extras.
+
+        Derived rather than stored so it cannot drift from ``category`` —
+        ``dataclasses.replace(room, category=...)`` yields a room whose
+        membership matches the category it was just given.
+        """
+        return frozenset({self.category}) | self.extra_categories
+
     def is_category(self, category: str) -> bool:
         """True when this room counts as ``category`` for colour-membership checks.
 
-        True on a literal ``self.category`` match, or when this room has
-        ``counts_as_all_colors`` (the Aquarium family: "AQUARIUM is every
-        color of room") and ``category`` is any colour other than
-        "objective" -- a room role (Antechamber, Room 46, Quest Bedroom),
-        not a colour, so counts_as_all_colors never claims it.
+        Membership in ``self.categories``: the room's primary category plus any
+        extras it carries (the Aquarium family counts as every colour; Maid's
+        Chamber counts as bedroom alongside its primary red).
         """
-        if self.category == category:
-            return True
-        return self.counts_as_all_colors and category != "objective"
+        return category in self.categories
 
 
 def _parse_effects(raw: list[dict]) -> tuple[Effect, ...]:
@@ -127,11 +140,13 @@ def _parse_room(idx: int, raw: dict) -> Room:
     else:
         gem_base, gem_dyn = gem, None
     items = raw.get("items", {})
+    category = raw["category"]
     return Room(
         idx=idx,
         id=raw["id"],
         name=raw["name"],
-        category=raw["category"],
+        category=category,
+        extra_categories=frozenset(raw.get("extra_categories", ())) - {category},
         rarity=raw.get("rarity"),
         gem_cost=gem_base,
         gem_cost_dynamic=gem_dyn,
@@ -146,7 +161,6 @@ def _parse_room(idx: int, raw: dict) -> Room:
         unlocks_catacombs=bool(raw.get("flags", {}).get("unlocks_catacombs", False)),
         has_animal=bool(raw.get("flags", {}).get("has_animal", False)),
         has_fireplace=bool(raw.get("flags", {}).get("has_fireplace", False)),
-        counts_as_all_colors=bool(raw.get("flags", {}).get("counts_as_all_colors", False)),
         deck_copies=int(raw.get("deck_copies", 1)),
         effects=_parse_effects(raw.get("effects", [])),
         items=ItemSpec(

@@ -47,7 +47,7 @@ def unlock_hallway_segments(game, cell: int) -> None:
     ``cell`` open. A no-op for any other room's category."""
     st = game.state
     room = game.registry.rooms[st.grid[cell]]
-    if room.category != "hallway":
+    if not room.is_category("hallway"):
         return
     doors = st.placed_doors[cell]
     for d in DIRS:

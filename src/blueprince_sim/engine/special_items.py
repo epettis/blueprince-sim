@@ -637,7 +637,7 @@ def on_enter(game, room, cell: int) -> None:
         if item is None:
             continue
         e = item.effect("sleeping_mask")
-        if e is not None and room.category == "bedroom":
+        if e is not None and room.is_category("bedroom"):
             steps_per = e.param("steps", 5)
             bed_count_effect = next(
                 (ef for ef in room.effects if ef.tag == "counts_as_bedrooms"), None)
@@ -652,7 +652,7 @@ def on_enter(game, room, cell: int) -> None:
         item = registry.special.by_id.get(item_id)
         if item is None:
             continue
-        if item.effect("watering_can") is not None and room.category == "green":
+        if item.effect("watering_can") is not None and room.is_category("green"):
             if state.special.water > 0:
                 state.special.water -= 1
                 state.gems += 1
@@ -891,7 +891,7 @@ def move_step_cost(game, from_cell: int, direction: int, to_room) -> int:
     from_idx = state.grid[from_cell]
     if from_idx >= 0:
         from_room = registry.rooms[from_idx]
-        if (from_room.category == "hallway" and to_room.category == "hallway"
+        if (from_room.is_category("hallway") and to_room.is_category("hallway")
                 and _has_item_effect(state, registry, "free_hallway_moves")):
             return 0
 
@@ -999,11 +999,11 @@ def gem_cost_modifier(game, room, cost: int) -> int:
         return 0
 
     # Hall Pass: waive if drafting a hallway room from a hallway room
-    if room.category == "hallway" and state.pending is not None:
+    if room.is_category("hallway") and state.pending is not None:
         from_cell = state.pending.from_cell
         if from_cell >= 0 and state.grid[from_cell] >= 0:
             from_room = registry.rooms[state.grid[from_cell]]
-            if (from_room.category == "hallway"
+            if (from_room.is_category("hallway")
                     and _has_item_effect(state, registry, "free_hallway_moves")):
                 return 0
 
@@ -1169,7 +1169,7 @@ def _resolve_food_base(state, registry, food_id: str) -> int:
         for cat, per_room in dish["steps_per_category"].items():
             n = sum(
                 1 for idx in state.grid if idx >= 0
-                and registry.rooms[idx].category == cat
+                and registry.rooms[idx].is_category(cat)
             )
             total += n * per_room
         return total

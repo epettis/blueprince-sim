@@ -92,6 +92,27 @@ def test_flag_override_reproduces_committed_flags(room_id, rooms_by_id):
         assert committed_flags.get(flag) == value, f"{room_id}: {flag}"
 
 
+def test_category_override_ids_all_exist_in_rooms_json(rooms_by_id):
+    """Every CATEGORY_OVERRIDE key names a record present in rooms.json - the typo guard."""
+    missing = sorted(set(ingest_sheet.CATEGORY_OVERRIDE) - set(rooms_by_id))
+    assert not missing, f"CATEGORY_OVERRIDE has id(s) absent from rooms.json: {missing}"
+
+
+@pytest.mark.parametrize("room_id", sorted(ingest_sheet.CATEGORY_OVERRIDE))
+def test_category_override_reproduces_committed_extra_categories(room_id, rooms_by_id):
+    """Applying CATEGORY_OVERRIDE reproduces the extra_categories rooms.json actually carries.
+
+    The Aquarium family's "every colour" membership is there only because a
+    human put it there, so without this the committed record and the ingest
+    table could drift apart and a re-ingest would quietly drop a colour.
+    """
+    entry = {"id": room_id, "effects": [], "items": {"guaranteed": []}, "flags": {}}
+    ingest_sheet.apply_effect_override(entry)
+    committed = rooms_by_id[room_id]
+    assert entry["extra_categories"], f"{room_id}: CATEGORY_OVERRIDE set nothing"
+    assert set(entry["extra_categories"]) == set(committed["extra_categories"]), room_id
+
+
 def test_supplemental_member_rooms_carry_their_own_flags():
     """The three supplemental-sourced member rooms carry their membership flag
     in supplemental_rooms.json, which neither override table can reach.
@@ -107,6 +128,19 @@ def test_supplemental_member_rooms_carry_their_own_flags():
     assert by_id["furnace"]["flags"].get("has_fireplace") is True
     assert by_id["dovecote"]["flags"].get("has_animal") is True
     assert by_id["the_kennel"]["flags"].get("has_animal") is True
+
+
+def test_maids_chamber_carries_its_own_extra_categories():
+    """Maid's Chamber is supplemental-sourced, so its "counts as bedroom too"
+    membership lives directly in supplemental_rooms.json rather than in
+    CATEGORY_OVERRIDE (which is validated against the sheet's own ids and
+    would raise on a supplemental-only id rather than silently do nothing).
+    """
+    supplemental = json.loads(
+        (ROOT / "tools" / "supplemental_rooms.json").read_text(encoding="utf-8"))
+    records = supplemental["rooms"] if isinstance(supplemental, dict) else supplemental
+    by_id = {r["id"]: r for r in records}
+    assert by_id["maids_chamber"]["extra_categories"] == ["bedroom"]
 
 
 def test_effect_override_raises_for_unknown_id():

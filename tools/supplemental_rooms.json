@@ -67,6 +67,7 @@
       "id": "maids_chamber",
       "name": "Maid's Chamber",
       "category": "red",
+      "extra_categories": ["bedroom"],
       "rarity": "commonplace",
       "gem_cost": 0,
       "layout": "corner",

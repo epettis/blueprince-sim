@@ -305,6 +305,12 @@ def main(argv: list[str] | None = None) -> int:
                 errors.append(f"{where}: bad alt layout {alt}")
         if r["category"] not in VALID_CATEGORIES:
             errors.append(f"{where}: bad category {r['category']}")
+        for extra_cat in r.get("extra_categories", []):
+            if extra_cat not in VALID_CATEGORIES:
+                errors.append(f"{where}: extra_categories has unknown category {extra_cat!r}")
+            if extra_cat == r["category"]:
+                warnings.append(
+                    f"{where}: extra_categories restates the primary category {extra_cat!r}")
         if r.get("pool", "base") not in VALID_POOLS:
             errors.append(f"{where}: bad pool {r.get('pool')}")
         conf = r.get("meta", {}).get("confidence")
@@ -980,21 +986,35 @@ def main(argv: list[str] | None = None) -> int:
             f"has_fireplace flag mismatch: missing {sorted(missing)}, unexpected {sorted(extra)}"
         )
 
-    # ── counts_as_all_colors flag ─────────────────────────────────────────────
+    # ── extra_categories (multi-category membership) ─────────────────────────
     # "AQUARIUM is every color of room": the base Aquarium and its three
-    # upgrade variants all carry the flag, since each variant's own
-    # effect_text repeats the sentence verbatim. Room.is_category() (engine/
-    # model.py) is what actually honours it. Mirrored in tools/ingest_sheet.py's
-    # FLAG_OVERRIDE.
-    COUNTS_AS_ALL_COLORS_ROOMS = {"aquarium", "goldfish_aquarium__ix2",
-                                  "starfish_aquarium__ix3", "electric_eel_aquarium__ix4"}
-    actual_all_colors = {r["id"] for r in rooms if r.get("flags", {}).get("counts_as_all_colors")}
-    if actual_all_colors != COUNTS_AS_ALL_COLORS_ROOMS:
-        missing = COUNTS_AS_ALL_COLORS_ROOMS - actual_all_colors
-        extra = actual_all_colors - COUNTS_AS_ALL_COLORS_ROOMS
+    # upgrade variants each list every colour but their own primary
+    # ("blueprint"). Maid's Chamber's own effect text has always said "Counts
+    # as red room AND bedroom" -- bedroom is its lone addition. Room.categories
+    # (engine/model.py) is what turns this into the membership set
+    # Room.is_category() checks. Mirrored in tools/ingest_sheet.py's
+    # CATEGORY_OVERRIDE (the Aquarium family only; Maid's Chamber is
+    # supplemental-sourced and carries its own extra_categories directly).
+    EXPECTED_EXTRA_CATEGORIES = {
+        "aquarium": {"red", "green", "hallway", "bedroom", "shop", "blackprint"},
+        "goldfish_aquarium__ix2": {"red", "green", "hallway", "bedroom", "shop", "blackprint"},
+        "starfish_aquarium__ix3": {"red", "green", "hallway", "bedroom", "shop", "blackprint"},
+        "electric_eel_aquarium__ix4": {"red", "green", "hallway", "bedroom", "shop", "blackprint"},
+        "maids_chamber": {"bedroom"},
+    }
+    actual_extra_categories = {
+        r["id"]: set(r["extra_categories"]) for r in rooms if r.get("extra_categories")
+    }
+    if actual_extra_categories != EXPECTED_EXTRA_CATEGORIES:
+        missing = set(EXPECTED_EXTRA_CATEGORIES) - set(actual_extra_categories)
+        extra = set(actual_extra_categories) - set(EXPECTED_EXTRA_CATEGORIES)
+        mismatched = {
+            rid for rid in set(EXPECTED_EXTRA_CATEGORIES) & set(actual_extra_categories)
+            if EXPECTED_EXTRA_CATEGORIES[rid] != actual_extra_categories[rid]
+        }
         errors.append(
-            f"counts_as_all_colors flag mismatch: missing {sorted(missing)}, "
-            f"unexpected {sorted(extra)}"
+            f"extra_categories mismatch: missing {sorted(missing)}, "
+            f"unexpected {sorted(extra)}, mismatched {sorted(mismatched)}"
         )
 
     # ── Upgrade Disk persistence ──────────────────────────────────────────────
