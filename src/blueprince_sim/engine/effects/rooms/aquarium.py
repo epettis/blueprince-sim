@@ -10,8 +10,10 @@ Not modelled:
   - The telescope/constellation system that stars gate: no activation
     source exists in the sim for southern_cross_active / draxus_active, so
     the accumulated star count has nothing downstream to spend it on here.
-  - "AQUARIUM is every color of room": a separate ruled `counts_as_all_colors`
-    flag, out of scope for this room's star grant.
+
+"AQUARIUM is every color of room" is not handled here: it lives on
+``Room.counts_as_all_colors`` / ``Room.is_category()`` (engine/model.py),
+out of scope for this room's star grant specifically.
 """
 
 from __future__ import annotations

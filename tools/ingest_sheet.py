@@ -368,18 +368,24 @@ EFFECT_OVERRIDE: dict[str, dict] = {
 # "effects" wholesale, so adding a flag to a room that already has effects
 # there would mean restating them.
 #
-# Both lists back a Cloister variant (effects/rooms/cloister.py): Dauja pays
-# stars for each "room with an animal" drafted from it, Veia adds dig spots to
-# each "room with a fireplace". They are ad-hoc enumerations from the wiki
-# rather than derivable categories, which is why membership is stored per room
-# rather than computed. The Dining Room is deliberately absent: its fireplace
-# depends on where it is placed, so cloister.py decides it per cell.
+# The has_animal/has_fireplace lists back a Cloister variant
+# (effects/rooms/cloister.py): Dauja pays stars for each "room with an animal"
+# drafted from it, Veia adds dig spots to each "room with a fireplace". They
+# are ad-hoc enumerations from the wiki rather than derivable categories,
+# which is why membership is stored per room rather than computed. The Dining
+# Room is deliberately absent: its fireplace depends on where it is placed,
+# so cloister.py decides it per cell.
 #
 # furnace, dovecote and the_kennel are supplemental-sourced, so they carry
 # their flag in tools/supplemental_rooms.json; this table never reaches them.
+#
+# counts_as_all_colors marks the four Aquarium records ("AQUARIUM is every
+# color of room"): Room.is_category() treats a flagged room as matching every
+# colour category (blueprint/bedroom/hallway/green/red/shop/blackprint), never
+# "objective".
 FLAG_OVERRIDE: dict[str, dict] = {
     "rumpus_room": {"has_animal": True},
-    "aquarium": {"has_animal": True},
+    "aquarium": {"has_animal": True, "counts_as_all_colors": True},
     "nursery": {"has_animal": True},
     "bunk_room": {"has_animal": True},
     "parlor": {"has_fireplace": True},
@@ -387,6 +393,12 @@ FLAG_OVERRIDE: dict[str, dict] = {
     "trophy_room": {"has_fireplace": True},
     "drawing_room": {"has_fireplace": True},
     "the_armory": {"has_fireplace": True},
+    # "AQUARIUM is every color of room": the flag is on the base record and its
+    # three upgrade variants alike, since each variant's own effect_text repeats
+    # the same sentence verbatim alongside its own addition.
+    "goldfish_aquarium__ix2": {"counts_as_all_colors": True},
+    "starfish_aquarium__ix3": {"counts_as_all_colors": True},
+    "electric_eel_aquarium__ix4": {"counts_as_all_colors": True},
 }
 
 

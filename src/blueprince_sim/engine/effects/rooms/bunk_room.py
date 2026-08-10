@@ -29,7 +29,7 @@ def _category_count(game, category: str) -> int:
     """Number of rooms of ``category`` currently placed on the grid."""
     return sum(
         1 for idx in game.state.grid
-        if idx >= 0 and game.registry.rooms[idx].category == category
+        if idx >= 0 and game.registry.rooms[idx].is_category(category)
     )
 
 

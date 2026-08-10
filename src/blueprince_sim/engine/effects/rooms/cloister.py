@@ -108,7 +108,7 @@ def _dining_room_has_fireplace(cell: int) -> bool:
 @room_hook("cloister_of_rynna__ix29", Hook.ON_DRAFT_ROOM)
 def raise_luck_for_green_rooms(game, room, ctx_room) -> None:
     """"Raise your LUCK with each GREEN ROOM you draft from this CLOISTER"."""
-    if ctx_room is not None and ctx_room.category == "green" and _drafted_from(game, room):
+    if ctx_room is not None and ctx_room.is_category("green") and _drafted_from(game, room):
         _grant(game, "luck", LUCK_PER_GREEN_ROOM)
 
 
@@ -119,7 +119,7 @@ def mark_bedroom_bonus_item(game, room, ctx_room) -> None:
     Marks the drafted Bedroom's cell so Game._enter grants the extra item
     once the player actually walks in.
     """
-    if ctx_room is not None and ctx_room.category == "bedroom" and _drafted_from(game, room):
+    if ctx_room is not None and ctx_room.is_category("bedroom") and _drafted_from(game, room):
         game.state.cloister_mila_bonus_cells.add(game.state.pending.target_cell)
 
 
@@ -152,7 +152,7 @@ def _open_random_antechamber_door(game) -> None:
 def open_door_per_blackprint(game, room, ctx_room) -> None:
     """"Open a random door of the ANTECHAMBER for each BLACKPRINT you draft
     from this CLOISTER"."""
-    if ctx_room is not None and ctx_room.category == "blackprint" and _drafted_from(game, room):
+    if ctx_room is not None and ctx_room.is_category("blackprint") and _drafted_from(game, room):
         _open_random_antechamber_door(game)
 
 
@@ -167,7 +167,7 @@ def grant_dice_for_dead_ends(game, room, ctx_room) -> None:
 @room_hook("cloister_of_lydia__ix34", Hook.ON_DRAFT_ROOM)
 def raise_allowance_for_shops(game, room, ctx_room) -> None:
     """"Add 2[coin] to your allowance for each SHOP you draft from this CLOISTER"."""
-    if ctx_room is not None and ctx_room.category == "shop" and _drafted_from(game, room):
+    if ctx_room is not None and ctx_room.is_category("shop") and _drafted_from(game, room):
         _grant(game, "allowance", ALLOWANCE_PER_SHOP)
 
 

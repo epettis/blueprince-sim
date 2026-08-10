@@ -167,3 +167,31 @@ def test_no_per_hand_reroll_consumption():
         "dealing a hand consumed the conservatory_reroll substream; "
         "the effect must fire only when the Conservatory is drafted"
     )
+
+
+def test_conservatory_is_category_green():
+    """The Conservatory's own ``category`` is "green" (a plain data fix: the
+    wiki's infobox and the Green Rooms page both list it), so is_category
+    matches it on "green" without needing counts_as_all_colors."""
+    game = Game(GameConfig(), seed=0)
+    conservatory = game.registry.by_id["conservatory"]
+    assert conservatory.category == "green"
+    assert conservatory.is_category("green")
+    assert not conservatory.counts_as_all_colors
+
+
+def test_conservatory_counts_as_green_for_indoor_nursery_bonus():
+    """Indoor Nursery's "+2 gems for each GREEN ROOM you draft" (not counting
+    its own draft) fires when the Conservatory is drafted, now that green
+    membership is honoured wherever it matters, not just where convenient.
+    """
+    cfg = GameConfig()
+    game = Game(cfg, seed=0)
+    indoor_nursery = game.registry.by_id["indoor_nursery__ix103"]
+    conservatory = game.registry.by_id["conservatory"]
+    game._place_room(indoor_nursery, 1, indoor_nursery.door_mask)
+    before = game.state.gems
+    game._place_room(conservatory, CONSERVATORY_CELL, S)
+    assert game.state.gems == before + 2, (
+        "drafting the Conservatory should grant Indoor Nursery's per-green-room bonus"
+    )

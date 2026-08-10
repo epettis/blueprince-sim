@@ -47,7 +47,7 @@ def _red_negated(game, room) -> bool:
     Shelter decrements its counter on each negate. Knight's Shield fires once
     per day (simplification #6: auto-applied, no player choice).
     """
-    if room.category != "red":
+    if not room.is_category("red"):
         return False
     if game.red_negations > 0:
         game.red_negations -= 1
@@ -90,7 +90,7 @@ def grant_per_category(game, room, eff, ctx_room) -> None:
         n = sum(1 for idx in game.state.grid if idx >= 0)
     else:
         n = sum(1 for idx in game.state.grid
-                if idx >= 0 and game.registry.rooms[idx].category == category)
+                if idx >= 0 and game.registry.rooms[idx].is_category(category))
         n += game.bedroom_bonus if category == "bedroom" else 0
     _grant(game, eff.param("resource"), eff.param("amount", 1) * n)
 
@@ -132,7 +132,7 @@ def grant_on_draft_category(game, room, eff, ctx_room) -> None:
     """
     if room is ctx_room and not eff.param("include_self", False):
         return
-    if ctx_room is not None and ctx_room.category == eff.param("category"):
+    if ctx_room is not None and ctx_room.is_category(eff.param("category")):
         _grant(game, eff.param("resource"), eff.param("amount", 0))
 
 

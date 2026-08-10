@@ -734,7 +734,7 @@ class Game:
             # Hidden options are treated as potentially red (no crown bonus if any hidden).
             if (self.cfg.special_items and special_items.has(st, "paper_crown")
                     and not any(o.hidden for o in pending.options)
-                    and all(self.registry.rooms[o.room_idx].category != "red"
+                    and all(not self.registry.rooms[o.room_idx].is_category("red")
                             for o in pending.options)):
                 pending.redraws_left += 1
             self.doorway_drafts[key] = pending
@@ -1240,7 +1240,7 @@ class Game:
         Hall Pass, Stopwatch — see special_items.gem_cost_modifier)."""
         if opt.slot == 0:
             return 0
-        if room.category in self.free_categories:
+        if any(room.is_category(c) for c in self.free_categories):
             return 0
         cost = resolve_gem_cost(room, self.state, self.registry.rooms)
         if self.cfg.special_items:
