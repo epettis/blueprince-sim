@@ -583,6 +583,56 @@ def main(argv: list[str] | None = None) -> int:
             if row.get("result") not in ("gems", "keys", "none"):
                 errors.append(f"{where}: unknown result {row.get('result')!r}")
 
+    # freight_packages: Freight Shipping's (mail_room__ix91) special-item pool,
+    # drop-one-of-two rule, and resource top-up table.
+    freight = si_doc.get("freight_packages", {})
+    if freight:
+        where = "special_items/freight_packages"
+        f_pool = freight.get("special_item_pool", [])
+        for iid in f_pool:
+            if iid not in si_by_id:
+                errors.append(f"{where}/special_item_pool: unknown item id {iid!r}")
+        f_drop = freight.get("drop_one_pair", [])
+        if len(f_drop) != 2:
+            errors.append(f"{where}/drop_one_pair: must have exactly 2 entries, got {len(f_drop)}")
+        for iid in f_drop:
+            if iid not in f_pool:
+                errors.append(f"{where}/drop_one_pair: {iid!r} not in special_item_pool")
+        specials_target = freight.get("specials_target")
+        package_size = freight.get("package_size")
+        keys_top_up_cap = freight.get("keys_top_up_cap")
+        if not isinstance(specials_target, int) or specials_target <= 0:
+            errors.append(f"{where}: specials_target {specials_target!r} must be a positive int")
+        if not isinstance(package_size, int) or package_size <= 0:
+            errors.append(f"{where}: package_size {package_size!r} must be a positive int")
+        if not isinstance(keys_top_up_cap, int) or keys_top_up_cap < 0:
+            errors.append(
+                f"{where}: keys_top_up_cap {keys_top_up_cap!r} must be a non-negative int"
+            )
+        configs = freight.get("resource_configs", [])
+        if not configs:
+            errors.append(f"{where}/resource_configs: must be non-empty")
+        base_resource_count = (
+            (package_size - specials_target)
+            if isinstance(package_size, int) and isinstance(specials_target, int)
+            else None
+        )
+        for i, cfg_row in enumerate(configs):
+            row_where = f"{where}/resource_configs[{i}]"
+            keys, gems = cfg_row.get("keys"), cfg_row.get("gems")
+            if not isinstance(keys, int) or keys < 0:
+                errors.append(f"{row_where}: keys {keys!r} must be a non-negative int")
+            if not isinstance(gems, int) or gems < 0:
+                errors.append(f"{row_where}: gems {gems!r} must be a non-negative int")
+            if cfg_row.get("weight", 0) <= 0:
+                errors.append(f"{row_where}: weight {cfg_row.get('weight')!r} must be > 0")
+            if (base_resource_count is not None and isinstance(keys, int) and isinstance(gems, int)
+                    and keys + gems != base_resource_count):
+                errors.append(
+                    f"{row_where}: keys+gems={keys + gems} != "
+                    f"package_size-specials_target={base_resource_count}"
+                )
+
     # ignition section: tools and targets exist. A target is either a rooms.json
     # room id (default) or, when marked "area": true, an areas.json node id
     # (e.g. mine_south, which has no rooms.json record) -- checked against

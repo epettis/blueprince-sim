@@ -33,6 +33,11 @@ def _place_no_contact(g: Game, cell: int = CELL) -> None:
     g._place_room(room, cell, room.door_mask)
 
 
+def _place_freight(g: Game, cell: int = CELL) -> None:
+    room = g.registry.by_id["mail_room__ix91"]
+    g._place_room(room, cell, room.door_mask)
+
+
 def _reach_rank8(g: Game, cell: int = RANK8_CELL) -> None:
     """Places a neutral room at a Rank-8 cell and enters it, exercising Game._enter's
     Rank >= 8 check the same way a real Rank 8 arrival would."""
@@ -283,3 +288,173 @@ def test_availability_fallback_when_compass_already_held():
     resolved = si._resolve_mail_chain(g.state, g.registry, chain)
     assert resolved["id"] != "compass"
     assert resolved["id"] == "lock_pick_kit"
+
+
+# ------------------------------------------------------ Freight Shipping (ix91)
+
+FREIGHT_SPECIALS = ("lock_pick_kit", "metal_detector", "running_shoes", "shovel", "sledge_hammer")
+FREIGHT_GUARANTEED = ("metal_detector", "running_shoes", "shovel")
+FREIGHT_DROP_PAIR = ("lock_pick_kit", "sledge_hammer")
+
+
+def _grant_count(grants: list[dict]) -> int:
+    """Total item count a resolved grants list represents (items=1 each, keys/gems=amount)."""
+    total = 0
+    for g in grants:
+        total += 1 if g["kind"] == "item" else g["amount"]
+    return total
+
+
+def test_freight_draft_on_empty_cycle_starts_transit_and_grants_nothing():
+    """Drafting Freight from the empty cycle places an order and starts a
+    two-day transit -- no package is delivered or granted yet."""
+    g = _game()
+    before_inventory = dict(g.state.inventory)
+    _place_freight(g)
+    assert g.state.mail_cycle == "transit"
+    assert g.state.mail_transit_days == 2
+    assert g.state.mail_package_cell == -1
+    assert g.state.inventory == before_inventory
+
+
+def test_freight_draft_during_transit_has_no_effect():
+    """Drafting Freight while its order is still in transit does not re-order,
+    does not deliver, and does not reset the transit counter."""
+    g = _game(GameConfig(special_items=True, mail_cycle="transit", mail_transit_days=1))
+    _place_freight(g)
+    assert g.state.mail_cycle == "transit"
+    assert g.state.mail_transit_days == 1
+    assert g.state.mail_package_cell == -1
+
+
+def test_freight_full_cycle_through_daychain_matches_wiki_timeline():
+    """Driven through DayChain, a Freight order placed on day N is still in
+    transit for the next two days and is collectable starting the day after
+    that -- the wiki's worked example (order day 10 -> ready day 13)."""
+    chain = DayChain(GameConfig(special_items=True), n_days=10)
+
+    g1 = _game(chain.next_config(), seed=1)
+    _place_freight(g1)  # day 1: order placed
+    chain.advance(g1.carryover())
+    assert chain.next_config().mail_cycle == "transit"
+    assert chain.next_config().mail_transit_days == 1
+
+    g2 = _game(chain.next_config(), seed=2)
+    _place_freight(g2)  # day 2 (first transit day): draft is a no-op
+    assert g2.state.mail_cycle == "transit"
+    chain.advance(g2.carryover())
+    assert chain.next_config().mail_cycle == "transit"
+    assert chain.next_config().mail_transit_days == 0
+
+    g3 = _game(chain.next_config(), seed=3)
+    _place_freight(g3)  # day 3 (second transit day): draft is still a no-op
+    assert g3.state.mail_cycle == "transit"
+    chain.advance(g3.carryover())
+    assert chain.next_config().mail_cycle == "awaiting", "transit spent -> package ready"
+
+    g4 = _game(chain.next_config(), seed=4)
+    _place_freight(g4)  # day 4: ready -> delivers into its own cell
+    assert g4.state.mail_cycle == "empty"
+    assert g4.state.mail_package_cell == CELL
+    assert len(g4.state.mail_freight_grants) > 0
+
+    before = len(g4.state.items_found_log)
+    g4._enter(CELL)
+    assert g4.state.mail_package_cell == -1
+    assert len(g4.state.items_found_log) > before
+
+
+def test_freight_ready_package_waits_any_number_of_days():
+    """A ready (post-transit) package is not lost by the passage of time --
+    it waits for a draft however many days that takes, the same as the base
+    cycle's AWAITING state."""
+    chain = DayChain(GameConfig(special_items=True, mail_cycle="awaiting"), n_days=10)
+
+    # Several days pass with no Freight draft at all.
+    for seed in (1, 2, 3):
+        g = _game(chain.next_config(), seed=seed)
+        chain.advance(g.carryover())
+        assert chain.next_config().mail_cycle == "awaiting", (
+            "a day with no Freight draft must not lose the ready package"
+        )
+
+    g_final = _game(chain.next_config(), seed=4)
+    _place_freight(g_final)
+    assert g_final.state.mail_cycle == "empty"
+    assert g_final.state.mail_package_cell == CELL
+
+
+def test_freight_delivery_resets_cycle_for_a_fresh_order():
+    """Delivering a Freight package returns the cycle to empty, so drafting
+    Freight again afterward starts a brand new transit order."""
+    g = _game(GameConfig(special_items=True, mail_cycle="awaiting"))
+    _place_freight(g)
+    assert g.state.mail_cycle == "empty"
+
+    _place_freight(g, cell=CELL)
+    assert g.state.mail_cycle == "transit"
+    assert g.state.mail_transit_days == 2
+
+
+def test_freight_package_totals_eight_and_always_includes_the_guaranteed_three():
+    """With all five specials available, every rolled package totals exactly
+    8 items' worth of grants, and the Shovel, Running Shoes and Metal
+    Detector are always among the granted specials."""
+    for seed in range(60):
+        g = _game(seed=seed)
+        grants = si.roll_freight_package(g.state, g.registry, g.rng)
+        assert _grant_count(grants) == 8
+        granted_items = {gr["id"] for gr in grants if gr["kind"] == "item"}
+        assert set(FREIGHT_GUARANTEED) <= granted_items
+
+
+def test_freight_drops_exactly_one_of_sledge_hammer_or_lock_pick_kit():
+    """With all five specials available, exactly one of the Sledge Hammer /
+    Lock Pick Kit is absent from every package, and across enough seeds both
+    of them are dropped at least once."""
+    absences = set()
+    for seed in range(60):
+        g = _game(seed=seed)
+        grants = si.roll_freight_package(g.state, g.registry, g.rng)
+        granted_items = {gr["id"] for gr in grants if gr["kind"] == "item"}
+        present = granted_items & set(FREIGHT_DROP_PAIR)
+        assert len(present) == 1, "exactly one of the drop pair must be present"
+        absent = (set(FREIGHT_DROP_PAIR) - present).pop()
+        absences.add(absent)
+    assert absences == set(FREIGHT_DROP_PAIR), (
+        f"expected both drop-pair members to be absent across the sweep, got {absences}"
+    )
+
+
+def test_freight_shortfall_tops_up_keys_before_gems():
+    """With three specials unavailable (two remain: Running Shoes, Shovel),
+    the package still totals 8. The resulting keys/gems split depends on
+    which resource configuration was rolled, but across enough seeds it is
+    always (4, 2) or (2, 4) -- never (0, 6), which would mean the shortfall
+    spilled into gems before keys reached the top-up cap of 4."""
+    outcomes = set()
+    for seed in range(60):
+        g = _game(seed=seed)
+        for iid in ("lock_pick_kit", "metal_detector", "sledge_hammer"):
+            si.grant(g.state, g.registry, iid, source="test")
+        grants = si.roll_freight_package(g.state, g.registry, g.rng)
+        assert _grant_count(grants) == 8
+        granted_items = {gr["id"] for gr in grants if gr["kind"] == "item"}
+        assert granted_items == {"running_shoes", "shovel"}
+        keys = next((gr["amount"] for gr in grants if gr["kind"] == "keys"), 0)
+        gems = next((gr["amount"] for gr in grants if gr["kind"] == "gems"), 0)
+        assert keys + gems == 6, "2 specials + 6 resources = 8"
+        outcomes.add((keys, gems))
+    assert outcomes == {(4, 2), (2, 4)}, (
+        f"expected only (4,2) and (2,4) across the sweep, got {outcomes}"
+    )
+
+
+def test_freight_no_specials_available_yields_four_keys_and_four_gems():
+    """The extreme case: with all five specials already held (so none are
+    available), the package falls back to exactly 4 keys and 4 gems."""
+    g = _game()
+    for iid in FREIGHT_SPECIALS:
+        si.grant(g.state, g.registry, iid, source="test")
+    grants = si.roll_freight_package(g.state, g.registry, g.rng)
+    assert grants == [{"kind": "keys", "amount": 4}, {"kind": "gems", "amount": 4}]

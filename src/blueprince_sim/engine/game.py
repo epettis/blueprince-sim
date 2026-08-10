@@ -92,6 +92,10 @@ class Game:
         st.pending_upgrade_slot = None
         st.pending_upgrade_options = ()
         self.state = st
+        # Seed the config-carried running values (mail cycle and transit days,
+        # tithes, permanently gated item ids) before anything reads them, so the
+        # day's first observation reports what was carried, not the field defaults.
+        special_items.configure(st, cfg)
         if cfg.special_items:
             for item_id in sorted(cfg.starting_items):
                 special_items.grant(st, self.registry, item_id, source="config")

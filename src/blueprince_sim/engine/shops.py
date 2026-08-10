@@ -1051,6 +1051,7 @@ def carryover(game) -> dict:
     bans, storing starting_items).  Task D.
     """
     from . import special_items as si_mod
+    from .effects.rooms import mail_room
     cfg = game.cfg
     state = game.state
     # Idempotent: guarantees config-seeded running totals (chapel_tithes,
@@ -1144,10 +1145,17 @@ def carryover(game) -> dict:
         # wholesale next day -- the same shape as chapel_tithes/foundation_cell,
         # not an OR-merge, since state.allowance already IS the accumulated value.
         "allowance": state.allowance,
-        # Mail Room order/delivery cycle: today's ending value ("empty" or
-        # "awaiting"). Replaces cfg.mail_cycle wholesale next day, the same
-        # shape as chapel_tithes/allowance.
-        "mail_cycle": state.mail_cycle,
+        # Mail Room order/delivery cycle for tomorrow: "empty", "awaiting", or
+        # "transit". mail_room.next_mail_cycle promotes a Freight order out of
+        # "transit" to "awaiting" once its transit days are spent -- that
+        # readiness decision lives with the room's own effect module, not here.
+        # Replaces cfg.mail_cycle wholesale next day, the same shape as
+        # chapel_tithes/allowance.
+        "mail_cycle": mail_room.next_mail_cycle(state),
+        # Freight Shipping transit countdown: today's ending value (raw day
+        # count; DayChain.advance() decays it mechanically). Replaces
+        # cfg.mail_transit_days wholesale next day, the same shape as mail_cycle.
+        "mail_transit_days": state.mail_transit_days,
         # Fixed-source Allowance Token ids collected today (a Mora Jai box or
         # the Cloister's own token): accumulated union across all days, the
         # same shape as collected_disks.

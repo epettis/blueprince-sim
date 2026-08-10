@@ -108,12 +108,10 @@ def test_lit_stairway_persists_across_days_via_carryover(registry):
 
     g2 = Game(cfg_day2, seed=2, registry=registry)
     g2.state.steps = 200
-    # Checked immediately, before any room entry: special_items.configure()
-    # (which seeds state.special.lit_targets from cfg.lit_targets) only runs
-    # lazily on the first real ON_ENTER, so _gate_ctx() must also read
-    # self.cfg.lit_targets directly -- otherwise a mask built before that
-    # first entry would wrongly see the stairway as unlit on day 2.
-    assert not g2.state.special.configured, "setup: no room entered yet this day"
+    # Emptied deliberately: with today's own lit_targets bare, cfg.lit_targets is
+    # the only place the flag can come from, so this pins that _gate_ctx() reads
+    # the carried config directly rather than leaning on seeded per-day state.
+    g2.state.special.lit_targets.clear()
     assert "candlestick_stairway_lit" in g2._gate_ctx().flags, (
         "the flag must be live on day 2 from carried-over cfg.lit_targets alone"
     )
