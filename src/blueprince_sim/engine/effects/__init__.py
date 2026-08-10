@@ -15,8 +15,6 @@ import logging
 from enum import Enum
 from typing import Callable
 
-from ..upgrades import root_base_id
-
 logger = logging.getLogger("blueprince_sim.effects")
 
 
@@ -54,44 +52,27 @@ def effect(tag: str, hook: Hook):
 
 RoomHandler = Callable  # (game, room, context_room) -> None
 _ROOM_REGISTRY: dict[tuple[str, Hook], RoomHandler] = {}
-# Per (room_id, hook): whether the handler also applies to upgrade variants
-# whose root base is room_id (see room_hook).
-_ROOM_INHERIT: dict[tuple[str, Hook], bool] = {}
 
 
-def room_hook(room_id: str, hook: Hook, *, inherit: bool = False):
+def room_hook(room_id: str, hook: Hook):
     """Decorator registering a handler for one room id at one hook.
 
-    ``inherit=False`` (the default) means the handler fires only for
-    ``room_id`` itself. ``inherit=True`` also applies it to every upgrade
-    variant whose root base (``upgrades.root_base_id``) is ``room_id`` --
-    covering variants at any chain depth, e.g. both stages of the Spare
-    Room's two-level chain -- unless the variant has its own registration
-    at the same hook, which shadows the inherited one. Default False because
-    of the 56 upgrade variants with both a parent and an effect_text, zero
-    share their parent's text; blanket inheritance would be wrong far more
-    often than right. Use inherit=True for a fixture that genuinely survives
-    every upgrade, e.g. the Boudoir's safe.
+    The handler fires only for ``room_id`` itself, never for its upgrade
+    variants.
     """
     def deco(fn: RoomHandler) -> RoomHandler:
         _ROOM_REGISTRY[(room_id, hook)] = fn
-        _ROOM_INHERIT[(room_id, hook)] = inherit
         return fn
     return deco
 
 
-def registered_rooms() -> tuple[frozenset[str], frozenset[str]]:
-    """Room ids with a ``room_hook`` handler, and those whose handler inherits.
+def registered_rooms() -> frozenset[str]:
+    """Room ids with a ``room_hook`` handler at any hook.
 
-    The first set is every room id registered at any hook. The second is the
-    subset registered with ``inherit=True``, which also covers upgrade
-    variants whose root base is that id. Callers outside this module use this
-    rather than reading the registries directly.
+    Callers outside this module use this rather than reading the registry
+    directly.
     """
-    registered = frozenset(room_id for room_id, _hook in _ROOM_REGISTRY)
-    inheriting = frozenset(
-        room_id for (room_id, _hook), inherit in _ROOM_INHERIT.items() if inherit)
-    return registered, inheriting
+    return frozenset(room_id for room_id, _hook in _ROOM_REGISTRY)
 
 
 def validate_room_registry(registry) -> list[str]:
@@ -126,10 +107,6 @@ def fire(game, room, hook: Hook, context_room=None) -> None:
             handler(game, room, eff, context_room)
 
     room_handler = _ROOM_REGISTRY.get((room.id, hook))
-    if room_handler is None:
-        root_id = root_base_id(game.registry, room)
-        if root_id != room.id and _ROOM_INHERIT.get((root_id, hook), False):
-            room_handler = _ROOM_REGISTRY.get((root_id, hook))
     if room_handler is not None:
         room_handler(game, room, context_room)
 
