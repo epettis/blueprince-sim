@@ -109,6 +109,9 @@ class DayChain:
         # replaced (not merged) from each day's own carryover value every
         # advance() -- state.main_course_bonus already IS the accumulated
         # figure by day end, the same shape as allowance/stars.
+        # SAVE-scoped, not attempt-scoped: alone among the carried values it
+        # survives the attempt wrap below, so the bonus applies to every later
+        # day of the save rather than resetting with a fresh attempt.
         self.main_course_bonus: int = base_cfg.main_course_bonus
         # Mail Room order/delivery cycle: REPLACED (not merged) from each
         # day's own carryover value every advance(), the same shape as
@@ -400,8 +403,9 @@ class DayChain:
             self.chapel_tithes = 0            # fresh attempt; tithe bank reset
             self.allowance = self.base_cfg.allowance  # fresh attempt; back to the base preset
             self.stars = self.base_cfg.stars  # fresh attempt; back to the base preset
-            # fresh attempt; Joya's bonus resets to the base preset
-            self.main_course_bonus = self.base_cfg.main_course_bonus
+            # main_course_bonus is deliberately absent here: Cloister of Joya's
+            # bonus is save-scoped and carries through the wrap into the next
+            # attempt, unlike every other value reset above.
             self.mail_cycle = self.base_cfg.mail_cycle  # fresh attempt; back to the base preset
             self.mail_transit_days = self.base_cfg.mail_transit_days  # fresh attempt; back to base
             self.hallway_tomorrow_extra = self.base_cfg.hallway_tomorrow_extra  # fresh attempt

@@ -109,6 +109,18 @@ _AUDIT_PYTHON_EXEMPT_IDS = {
     "utility_closet": "engine/game.py",          # breaker box
 }
 
+# Rooms whose real effect is a no-op under the sim's assumed-solved doctrine:
+# the player is taken to solve any puzzle in a room they enter, so an effect
+# that only changes a puzzle's difficulty changes nothing here. Listed by exact
+# id with its reason, because "modelled as nothing" is a claim worth stating
+# rather than a gap worth carrying on the worklist forever.
+_AUDIT_DOCTRINE_EXEMPT_IDS = {
+    # "Basic Addition" drops the Dartboard Puzzle to one board, one ring and
+    # two numbers. The puzzle is not modelled and its reward is assumed won, so
+    # an easier puzzle pays exactly what the Billiard Room already pays.
+    "speakeasy__ix10": "Dartboard Puzzle difficulty only",
+}
+
 # Rooms whose effect_text merely restates a value already carried in their own
 # record, so there is nothing to implement. Listed by exact id rather than
 # matched on the field, because a generic "has dig_spots" or "has a flag" rule
@@ -171,11 +183,13 @@ def find_divergences(
     effect text. ``registered_room_ids`` defaults to the live ``room_hook``
     registry (``engine.effects``); tests may pass an explicit set instead.
 
-    Both kinds exclude three exemption sets, each covering a channel the audit
+    Both kinds exclude four exemption sets, each covering a channel the audit
     cannot introspect: ``_AUDIT_STRUCTURAL_EXEMPT_IDS`` (implemented in
     locks.json), ``_AUDIT_PYTHON_EXEMPT_IDS`` (a hand-written branch keyed on
-    the room id, in the module each entry names) and ``_AUDIT_DATA_EXEMPT_IDS``
-    (the text merely restates a field the record already carries).
+    the room id, in the module each entry names), ``_AUDIT_DATA_EXEMPT_IDS``
+    (the text merely restates a field the record already carries) and
+    ``_AUDIT_DOCTRINE_EXEMPT_IDS`` (the effect is a no-op under the
+    assumed-solved doctrine).
 
     Both kinds also exclude commerce rooms, whose behaviour lives in
     ``engine/shops.py``: the ids in ``shop_rules``'s "shops" table plus
@@ -194,7 +208,8 @@ def find_divergences(
         f"always_unlocked_rooms: {locks_backed - lock_exempt}"
     )
     structural = locks_backed | frozenset(
-        rid for rid in set(_AUDIT_PYTHON_EXEMPT_IDS) | set(_AUDIT_DATA_EXEMPT_IDS)
+        rid for rid in (set(_AUDIT_PYTHON_EXEMPT_IDS) | set(_AUDIT_DATA_EXEMPT_IDS)
+                        | set(_AUDIT_DOCTRINE_EXEMPT_IDS))
         if rid in by_id)
     priced_shops = set((shop_rules or {}).get("shops", {}))
     commerce = frozenset(

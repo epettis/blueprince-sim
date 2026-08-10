@@ -478,11 +478,27 @@ def test_joya_bonus_survives_a_day_boundary_via_daychain(registry):
     assert g2.state.main_course_bonus == 5
 
 
-def test_joya_bonus_clears_on_attempt_wrap():
-    """A fresh attempt (DayChain wrap past n_days) drops the Main Course
-    bonus back to the base preset, the same as every other carry-over total."""
+def test_joya_bonus_survives_an_attempt_wrap():
+    """The Main Course bonus is save-scoped: it carries through a fresh attempt
+    rather than resetting with it.
+
+    This is the one carried total that behaves this way -- every other one is
+    attempt-scoped and returns to its base preset on wrap -- so it is worth
+    pinning directly rather than inferring from the day-boundary test."""
     chain = DayChain(GameConfig(), n_days=1)
     chain.advance({"main_course_bonus": 15})  # day 1 -> wraps immediately
 
     assert chain.current_day == 1
-    assert chain.next_config().main_course_bonus == 0
+    assert chain.next_config().main_course_bonus == 15
+
+
+def test_attempt_wrap_still_clears_the_attempt_scoped_totals():
+    """Joya's save-scoped bonus is a deliberate exception, not a general
+    loosening: allowance and stars still reset to their base preset on wrap."""
+    chain = DayChain(GameConfig(), n_days=1)
+    chain.advance({"main_course_bonus": 15, "allowance": 30, "stars": 4})
+
+    cfg = chain.next_config()
+    assert cfg.main_course_bonus == 15
+    assert cfg.allowance == 0
+    assert cfg.stars == 0
