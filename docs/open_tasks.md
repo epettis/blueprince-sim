@@ -576,7 +576,111 @@ a static room flag for it.
   carry-over resetting on wrap -- flagged for confirmation rather than assumed
   silently.
 
+## 21. Capability architecture: the engine provides, rooms declare
+
+Opened 2026-08-10 on an owner ruling (see the decisions log entry of the same
+date). **Queued behind the cheap-findings batch**, not started.
+
+The target is three layers:
+
+1. **Data (JSON)** -- tabular facts only. Room stats (rarity, layout, gem cost,
+   category, deck copies, draft conditions, dig spots, flags) and subsystem
+   tables (`shops.json` prices and stock, `locks.json` chances, container loot,
+   `mail_packages`). Generated from the datamine wherever it can be.
+2. **Engine capabilities** -- mechanisms that know nothing about specific rooms:
+   drafting, locks, containers, commerce, digging, food, carry-over, terminals.
+3. **Room modules** -- one per room at `effects/rooms/<id>.py`, declaring which
+   capabilities the room uses and with what parameters, plus anything bespoke.
+
+**The invariant: no engine module may branch on a room id.** Everything
+room-specific is a registration.
+
+The Shop is the pattern-setter. Today `game.py` reads:
+
+```python
+if room.category == "shop" or room.id == "workshop":
+    shops.on_enter_shop(self, room)
+```
+
+which is the engine knowing which rooms are shops. Under the capability model
+`shops.py` keeps the mechanism and `shops.json` keeps the table, but each shop
+room module *registers* commerce for itself, and the Workshop's special-case
+`or room.id == "workshop"` disappears.
+
+### Measured starting point (2026-08-10)
+
+Room ids are hardcoded in 20 modules outside `effects/rooms/`. The behaviour
+targets, worst first:
+
+| module | room ids |
+|---|---|
+| `engine/game.py` | 14 |
+| `engine/shops.py` | 12 |
+| `engine/special_items.py` | 9 |
+| `engine/draft.py` | 7 |
+| `engine/decks.py`, `engine/locks.py` | 2, 1 |
+
+**Not targets, and not debt** -- these legitimately name rooms:
+`engine/upgrades.py` (15, the disk selection tables), `engine/placement.py` (6,
+where the ids are fixtures and named conditions and the tags are already
+room-agnostic), `env/actions.py` / `env/obs.py` / `web/play.py` /
+`cli/render.py` (env and UI wiring), `config.py` / `rl/train.py` (presets).
+
+Only **27** rooms have a discoverable `effects/rooms/<id>.py` module today.
+
+### Enforcement
+
+A conventions test scanning engine modules for room-id literals against an
+explicit allowlist, in the same spirit as `tests/test_conventions.py`'s
+docstring rule. **The allowlist starts at today's count and may only shrink.**
+That is what stops the architecture rotting back, and it turns "are we done?"
+into a number rather than a judgement call.
+
+### Sequencing
+
+Capability by capability, each PR independently green, cheapest first:
+commerce (12 ids, and the pattern-setter) -> containers and digging -> locks ->
+the residual `game.py` branches.
+
+### What it buys
+
+- **`_AUDIT_PYTHON_EXEMPT_IDS` disappears.** That hand-maintained id-to-module
+  map, added 2026-08-10 with a staleness guard, exists only because behaviour
+  hides where the audit cannot see it. With every room registering,
+  `registered_rooms()` is complete and the audit credits Python automatically.
+- **The "four channels" gotcha collapses to two.** `effects: []` stops being
+  ambiguous: stats and shared parametric tags in data, everything bespoke in
+  one module per room.
+- 24 of the 62 findings triaged on 2026-08-10 were false positives caused
+  precisely by this scatter.
+
 ## Decisions log
+
+- **2026-08-10, the engine provides capabilities and rooms declare effects.**
+  Owner, raised as a concern about "two radically different paths for room
+  definitions" and settled in the same exchange: **tabular data stays tabular;
+  complex functions belong in code.**
+
+  So `rooms.json` is NOT converted to Python. Four reasons, recorded so the
+  question does not reopen: it is **generated** by `tools/ingest_sheet.py` from
+  the datamined dump, and converting it would break the re-ingest path that
+  absorbs a future datamine and carries `meta.source`/`meta.confidence`; the
+  content is densely tabular (169 rooms, with 47 carrying effects tags, 43
+  flags, 37 draft conditions, 32 dig spots, 31 guaranteed items);
+  `validate_data.py`'s cross-record schema and referential checks are natural
+  over one document and awkward over 169 modules; and
+  `test_ingest_overrides.py`'s round-trip guarantee only exists because the
+  data is data.
+
+  What the ruling *does* change is where **behaviour** lives -- see task 21 for
+  the three layers, the measured starting point, the enforcement test and the
+  sequencing.
+
+  Act on this cold as: the inconsistency the owner named is real but sits one
+  layer below where it first appears. It is not JSON versus Python -- it is
+  that Python room behaviour is scattered across 20 modules while only 27 rooms
+  have a discoverable module of their own. The fix is an invariant ("no engine
+  module branches on a room id"), not a file-format migration.
 
 - **2026-07-26, lockers**: locked lockers cost exactly one BASIC key — the wiki is
   explicit that lockers are not doors, so the Lock Pick Kit, Master Key, Stopwatch
