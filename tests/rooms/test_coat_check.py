@@ -96,6 +96,44 @@ def test_coat_check_empty_inventory_no_op():
     assert g.state.special.coat_check_item is None
 
 
+def _place_at(g: Game, room_id: str, cell: int, mask: int = 0) -> None:
+    """Place a room on the grid directly (test setup, no drafting)."""
+    room = g.registry.by_id[room_id]
+    g.state.grid[cell] = room.idx
+    g.state.placed_doors[cell] = mask
+    g.state.entered[cell] = False
+
+
+def _enter_at(g: Game, cell: int) -> None:
+    """Teleport the player to cell and fire ON_ENTER, without spending steps."""
+    g.state.pos = cell
+    g._enter(cell)
+
+
+def test_entering_coat_check_stores_best_item_via_game():
+    """A real Game entry into the Coat Check fires the auto-store dispatch."""
+    g = _game_with("telescope")
+    cell = 5
+    _place_at(g, "coat_check", cell)
+
+    _enter_at(g, cell)
+
+    assert g.state.special.coat_check_item == "telescope"
+
+
+def test_entering_a_different_room_does_not_store():
+    """Entering a room that is not the Coat Check leaves coat_check_item unset --
+    the store dispatch is scoped to the Coat Check's own id, not to entry in general.
+    """
+    g = _game_with("telescope")
+    cell = 5
+    _place_at(g, "corridor", cell)
+
+    _enter_at(g, cell)
+
+    assert g.state.special.coat_check_item is None
+
+
 def test_coat_check_carryover_in_daychain():
     """DayChain carries the Coat Check item into the next day's starting_items via carryover.
 

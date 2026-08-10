@@ -17,6 +17,7 @@ from . import bunk_room  # noqa: F401
 from . import classroom  # noqa: F401
 from . import closet  # noqa: F401
 from . import cloister  # noqa: F401
+from . import coat_check  # noqa: F401
 from . import commerce  # noqa: F401  (registers commerce capability on import)
 from . import conservatory  # noqa: F401
 from . import dovecote  # noqa: F401  (no handler; imported for the predicate helper)

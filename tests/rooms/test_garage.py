@@ -295,6 +295,28 @@ def test_garage_car_requires_car_keys():
     assert not si.can_open_car_trunk(game), "must hold Car Keys to open car trunk"
 
 
+def test_garage_car_trunk_recognized_via_garage_ids_membership():
+    """can_open_car_trunk keys off membership in game._garage_ids, not a literal
+    "garage" id comparison.
+
+    _garage_ids is built from every room id starting with "garage" (game.py),
+    which already includes "garage" itself -- so a future garage upgrade variant
+    id would be recognized purely by appearing in that tuple, with no extra
+    code. This stands a non-garage room in for such a variant by overriding
+    _garage_ids to include its id, proving the check is pure membership.
+    """
+    st, reg = _state_with_registry()
+    si.grant(st, reg, "car_keys", source="test")
+    _place_room(st, reg, "corridor", 5)
+    st.pos = 5
+
+    game = _fake_game(st, reg, seed=0, cfg=GameConfig())
+    game._garage_ids = ("corridor",)  # stand-in for a garage variant id
+    assert si.can_open_car_trunk(game), (
+        "membership in _garage_ids must be sufficient regardless of the room's own id"
+    )
+
+
 def test_open_car_trunk_action_masked():
     """OPEN_CAR_TRUNK_ACTION is True when Car Keys held in the Garage."""
     g = Game(GameConfig(starting_items=frozenset({"car_keys"})), seed=42)
