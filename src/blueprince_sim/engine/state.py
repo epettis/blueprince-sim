@@ -344,6 +344,17 @@ class GameState:
     # fruit does not survive the night.
     spread_pending: dict[int, list[tuple[str, int]]] = field(default_factory=dict)
 
+    # Mail Room order/delivery cycle: "empty" (no order outstanding) or
+    # "awaiting" (an order has been placed and the next Mail Room draft
+    # delivers it). Seeded each day from GameConfig.mail_cycle by
+    # special_items.configure(); advanced by effects/rooms/mail_room.py.
+    mail_cycle: str = "empty"
+    # Grid cell holding a delivered, uncollected package today; -1 = none.
+    # Set when the cycle above delivers; cleared on that cell's first entry
+    # (the package's contents are rolled and granted then). Per-day only: an
+    # uncollected package does not survive to the next day's fresh floorplan.
+    mail_package_cell: int = -1
+
     def deck(self, rarity_idx: int, is_gem: bool) -> DeckState:
         return self.decks[rarity_idx * 2 + (1 if is_gem else 0)]
 

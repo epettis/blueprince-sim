@@ -101,6 +101,11 @@ class DayChain:
         # day's own carryover value every advance() -- state.allowance already
         # IS the accumulated figure by day end, the same shape as chapel_tithes.
         self.allowance: int = base_cfg.allowance
+        # Mail Room order/delivery cycle: REPLACED (not merged) from each
+        # day's own carryover value every advance(), the same shape as
+        # allowance/chapel_tithes -- state.mail_cycle already IS the day's
+        # ending value ("empty" or "awaiting").
+        self.mail_cycle: str = base_cfg.mail_cycle
         # Fixed-source Allowance Token ids collected (ever, across all days):
         # a Mora Jai box or the Cloister's own token, each with its own id.
         # Union-merged across days, same shape as collected_disks.
@@ -166,6 +171,7 @@ class DayChain:
             collected_disks=self.collected_disks,
             chapel_tithes=self.chapel_tithes,
             allowance=self.allowance,
+            mail_cycle=self.mail_cycle,
             collected_allowance_tokens=self.collected_allowance_tokens,
             collected_sanctum_keys=self.collected_sanctum_keys,
             sigil_doors_open=self.sigil_doors_open,
@@ -248,6 +254,11 @@ class DayChain:
         av_val = carryover.get("allowance")
         if av_val is not None:
             self.allowance = av_val
+
+        # --- mail_cycle (Mail Room order/delivery state; replace each advance) ---
+        mc_val = carryover.get("mail_cycle")
+        if mc_val is not None:
+            self.mail_cycle = mc_val
 
         # --- collected_allowance_tokens (fixed one-time sources; accumulate as union) ---
         cat_val = carryover.get("collected_allowance_tokens")
@@ -335,6 +346,7 @@ class DayChain:
             self.collected_disks = frozenset()  # fresh attempt; disks back in the house
             self.chapel_tithes = 0            # fresh attempt; tithe bank reset
             self.allowance = self.base_cfg.allowance  # fresh attempt; back to the base preset
+            self.mail_cycle = self.base_cfg.mail_cycle  # fresh attempt; back to the base preset
             self.collected_allowance_tokens = frozenset(
                 self.base_cfg.collected_allowance_tokens
             )

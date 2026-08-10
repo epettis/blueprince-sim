@@ -441,7 +441,7 @@ def main(argv: list[str] | None = None) -> int:
                     )
 
     # Valid grant kinds inside a loot entry's grants list
-    VALID_GRANT_KINDS = {"coins", "keys", "gems", "dice", "item", "keycard"}
+    VALID_GRANT_KINDS = {"coins", "keys", "gems", "dice", "item", "keycard", "food"}
 
     # containers section
     containers_doc = si_doc.get("containers", {})
@@ -515,6 +515,73 @@ def main(argv: list[str] | None = None) -> int:
             for grant_id in box_data.get("grants", []):
                 if grant_id not in si_resolvable:
                     errors.append(f"{where}: grant id {grant_id!r} not in special_items")
+
+    # mail_packages: the Mail Room's slot1/slot2/slot3 package tables.
+    mail_packages = si_doc.get("mail_packages", {})
+    mail_food_dishes = items_doc.get("food", {}).get("dishes", {})
+
+    def _check_mail_grant(where: str, g: dict) -> None:
+        gkind = g.get("kind")
+        if gkind not in VALID_GRANT_KINDS:
+            errors.append(f"{where}: grant kind {gkind!r} not in {sorted(VALID_GRANT_KINDS)}")
+            return
+        if gkind == "item" and g.get("id") not in si_by_id:
+            errors.append(f"{where}: grant item id {g.get('id')!r} not in special_items")
+        elif gkind == "food" and g.get("id") not in mail_food_dishes:
+            errors.append(f"{where}: grant food id {g.get('id')!r} not in items.json food.dishes")
+
+    def _check_mail_chain(where: str, chain: list) -> None:
+        # Every chain must end on a non-item entry: a special item can be
+        # unavailable (already held, gated out) but a resource/food grant
+        # cannot, so a chain that did not end this way could fail to resolve.
+        if not chain:
+            errors.append(f"{where}: empty chain")
+            return
+        for g in chain:
+            _check_mail_grant(where, g)
+        if chain[-1].get("kind") == "item":
+            errors.append(f"{where}: chain's last entry must be a non-item unconditional fallback")
+
+    for i, chain in enumerate(mail_packages.get("slot1", {}).get("chains", [])):
+        _check_mail_chain(f"special_items/mail_packages/slot1/chains[{i}]", chain)
+
+    mail_slot2 = mail_packages.get("slot2", {})
+    shortcut_pct = mail_slot2.get("gems_shortcut_chance_pct")
+    if not isinstance(shortcut_pct, (int, float)) or not 0 <= shortcut_pct <= 100:
+        errors.append(
+            f"special_items/mail_packages/slot2: gems_shortcut_chance_pct {shortcut_pct!r} "
+            f"out of range 0-100"
+        )
+    _check_mail_grant("special_items/mail_packages/slot2/gems_shortcut_grant",
+                       mail_slot2.get("gems_shortcut_grant", {}))
+    slot2_outcomes = {"gems"}  # the flat gems-shortcut always resolves to this outcome key
+    for i, chain in enumerate(mail_slot2.get("chains", [])):
+        _check_mail_chain(f"special_items/mail_packages/slot2/chains[{i}]", chain)
+        for g in chain:
+            slot2_outcomes.add(g["id"] if g.get("kind") == "item" else g.get("kind"))
+
+    slot3_outcomes = mail_packages.get("slot3", {}).get("outcomes", {})
+    if "default" not in slot3_outcomes:
+        errors.append("special_items/mail_packages/slot3/outcomes: missing required 'default' entry")
+    for outcome_id in slot2_outcomes:
+        if outcome_id not in slot3_outcomes and "default" not in slot3_outcomes:
+            errors.append(
+                f"special_items/mail_packages/slot3/outcomes: no coverage for "
+                f"slot2 outcome {outcome_id!r}"
+            )
+    for outcome_name, outcome_cfg in slot3_outcomes.items():
+        where = f"special_items/mail_packages/slot3/outcomes/{outcome_name}"
+        table = outcome_cfg.get("table", [])
+        if not table:
+            errors.append(f"{where}: empty table")
+        total_w = sum(row.get("weight", 0) for row in table)
+        if total_w <= 0:
+            errors.append(f"{where}: table weights sum to {total_w}, must be > 0")
+        for row in table:
+            if row.get("weight", 0) < 0:
+                errors.append(f"{where}: negative weight in table")
+            if row.get("result") not in ("gems", "keys", "none"):
+                errors.append(f"{where}: unknown result {row.get('result')!r}")
 
     # ignition section: tools and targets exist. A target is either a rooms.json
     # room id (default) or, when marked "area": true, an areas.json node id

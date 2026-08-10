@@ -160,6 +160,12 @@ class GameConfig:
     # gated_out at day start, accumulated as a union by DayChain, never
     # shrinks within an attempt.
     collected_allowance_tokens: frozenset[str] = frozenset()
+    # Mail Room order/delivery cycle carried into the next day: "empty" (no
+    # order outstanding) or "awaiting" (an order is placed; the next Mail
+    # Room draft delivers it). Replaced wholesale each advance() the same
+    # way as chapel_tithes/allowance, since state.mail_cycle already IS the
+    # day's ending value.
+    mail_cycle: str = "empty"
     # Sanctum Key source ids permanently spent (ever, across all days): opening a
     # Sigil Chamber door consumes one key and its own source id (e.g.
     # "sanctum_key_vault") is recorded here, so that source never spawns another

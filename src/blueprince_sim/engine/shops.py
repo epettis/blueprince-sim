@@ -1047,6 +1047,11 @@ def carryover(game) -> dict:
     from . import special_items as si_mod
     cfg = game.cfg
     state = game.state
+    # Idempotent: guarantees config-seeded running totals (chapel_tithes,
+    # mail_cycle) are seeded before being read below even on a day that
+    # never otherwise touched special items (no room entered, no area
+    # arrival) -- the only other call sites are on_enter/on_area_arrival.
+    si_mod.configure(state, cfg)
 
     # Item persistence carry
     carried_items = si_mod.end_of_day_carry(state, game.registry, game.rng)
@@ -1133,6 +1138,10 @@ def carryover(game) -> dict:
         # wholesale next day -- the same shape as chapel_tithes/foundation_cell,
         # not an OR-merge, since state.allowance already IS the accumulated value.
         "allowance": state.allowance,
+        # Mail Room order/delivery cycle: today's ending value ("empty" or
+        # "awaiting"). Replaces cfg.mail_cycle wholesale next day, the same
+        # shape as chapel_tithes/allowance.
+        "mail_cycle": state.mail_cycle,
         # Fixed-source Allowance Token ids collected today (a Mora Jai box or
         # the Cloister's own token): accumulated union across all days, the
         # same shape as collected_disks.
