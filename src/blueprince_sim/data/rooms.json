@@ -2827,7 +2827,14 @@
    "id": "aquarium",
    "name": "Aquarium",
    "category": "blueprint",
-   "extra_categories": ["red", "green", "hallway", "bedroom", "shop", "blackprint"],
+   "extra_categories": [
+    "red",
+    "green",
+    "hallway",
+    "bedroom",
+    "shop",
+    "blackprint"
+   ],
    "rarity": "unusual",
    "gem_cost": 1,
    "layout": "t",
@@ -2860,7 +2867,14 @@
    "id": "goldfish_aquarium__ix2",
    "name": "Goldfish Aquarium",
    "category": "blueprint",
-   "extra_categories": ["red", "green", "hallway", "bedroom", "shop", "blackprint"],
+   "extra_categories": [
+    "red",
+    "green",
+    "hallway",
+    "bedroom",
+    "shop",
+    "blackprint"
+   ],
    "rarity": "unusual",
    "gem_cost": 1,
    "layout": "t",
@@ -2905,7 +2919,14 @@
    "id": "starfish_aquarium__ix3",
    "name": "Starfish Aquarium",
    "category": "blueprint",
-   "extra_categories": ["red", "green", "hallway", "bedroom", "shop", "blackprint"],
+   "extra_categories": [
+    "red",
+    "green",
+    "hallway",
+    "bedroom",
+    "shop",
+    "blackprint"
+   ],
    "rarity": "unusual",
    "gem_cost": 1,
    "layout": "t",
@@ -2940,7 +2961,14 @@
    "id": "electric_eel_aquarium__ix4",
    "name": "Electric Eel Aquarium",
    "category": "blueprint",
-   "extra_categories": ["red", "green", "hallway", "bedroom", "shop", "blackprint"],
+   "extra_categories": [
+    "red",
+    "green",
+    "hallway",
+    "bedroom",
+    "shop",
+    "blackprint"
+   ],
    "rarity": "unusual",
    "gem_cost": 1,
    "layout": "t",
@@ -3386,7 +3414,7 @@
   {
    "id": "quest_bedroom__ix71",
    "name": "Quest Bedroom",
-   "category": "objective",
+   "category": "bedroom",
    "rarity": "commonplace",
    "gem_cost": 0,
    "layout": "dead_end",
@@ -5311,7 +5339,9 @@
    "id": "maids_chamber",
    "name": "Maid's Chamber",
    "category": "red",
-   "extra_categories": ["bedroom"],
+   "extra_categories": [
+    "bedroom"
+   ],
    "rarity": "commonplace",
    "gem_cost": 0,
    "layout": "corner",
