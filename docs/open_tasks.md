@@ -1849,6 +1849,47 @@ parametric tags; it has been quietly wrong for singleton behaviour for a while.
   Do not read a measured allowance figure from untrained play as representative
   -- none of it is reachable until Room 46 is.
 
+- **2026-08-09, do not work on making Room 46 reachable by the policy.** Owner,
+  asked directly whether the lever-room scarcity behind `P(room 46) = 0.000`
+  should become a work item now that the Inner Sanctum, +16 of the +36 allowance
+  and Room 8's reward all sit behind it. Answer: no -- keep authoring features so
+  there is more to demonstrate. The 11.0% lever-room measurement stays a recorded
+  fact rather than a task.
+
+  This follows from the "features are built to be PLAYED" ruling: the owner
+  reaches the late game by playing, so content value does not depend on the
+  policy finding it unaided.
+
+- **2026-08-09, work order and stop condition for unattended runs.** Owner, at a
+  save-state interview: fruit items first, then Room 8 and
+  `quest_bedroom__ix71`, then the Mail Room's three delivery variants, then drive
+  off the divergence worklist cheapest-first. **When the queue empties, take the
+  next item and keep going** -- do not stop and wait.
+
+  Fruit is first because it is the only queued item that unblocks two
+  owner-reported bugs at once: the Pantry's guaranteed fruit and the Secret
+  Garden's spread, the latter being a lever room.
+
+- **2026-08-09, `room_hook`'s `inherit=` parameter is removed.** It has had zero
+  users across the Cloister, Sanctum and Closet features, all of which plausibly
+  could have wanted it, and its docstring cites "the Boudoir's safe" as the
+  example -- which is in fact a repeated data `grant`, not an inherited handler.
+  So the parameter is unexercised and its only documentation points at code that
+  does not exist.
+
+  This is the `ALT_BASE` shape from 2026-08-07: an unused affordance that
+  survives long enough to be mistaken for a working feature. Re-add it when
+  something genuinely needs inheritance, with a real example.
+
+  Owner selected both "tighten the docstring" and "remove entirely"; removal is
+  the decisive reading and subsumes the other. Fall back to tightening only if
+  removal turns out to be load-bearing.
+
+  **Note the asymmetry this preserves**: the divergence audit's kind-1 check
+  deliberately does NOT treat inherited coverage as authorship, and that
+  reasoning stands on its own -- it is about what an inherited handler can
+  demonstrate, not about whether the parameter exists.
+
 ## 5. Throttle the training terminal output — DONE
 
 The trainer currently refreshes the dashboard after every completed seed, which
