@@ -1991,6 +1991,23 @@ parametric tags; it has been quietly wrong for singleton behaviour for a while.
   mirroring belongs in the orientation layer, not in
   `satisfies_draft_conditions`.
 
+- **2026-08-09, the `carryover` observation vector grew from 13 to 14.** Recorded
+  under the standing rule that model correctness outranks observation-space
+  stability while no run is live, **but that every width change is written
+  down**. The new entry is `room8_solved`, added to
+  `DayChain._CARRYOVER_KEYS` so Room 8's first-solve reward survives the day
+  boundary.
+
+  `env/obs.py` derives both the Box shape and the fill order from
+  `len(DayChain._CARRYOVER_KEYS)` and `sorted(...)`, so the width moved with no
+  edit to `obs.py` at all. That is convenient and also the hazard: **adding a
+  carry-over flag silently changes the observation space.** Act on this cold as:
+  any PR touching `_CARRYOVER_KEYS` is an observation-space change, whether or
+  not it touches `env/`, and it invalidates every checkpoint trained before it.
+
+  No run was live, so nothing was lost. Cumulative since the last training run:
+  this is the only width change.
+
 ## 5. Throttle the training terminal output — DONE
 
 The trainer currently refreshes the dashboard after every completed seed, which
