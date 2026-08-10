@@ -762,7 +762,7 @@
     {
       "id": "conservatory",
       "name": "Conservatory",
-      "category": "blueprint",
+      "category": "green",
       "rarity": null,
       "gem_cost": 0,
       "layout": "corner",

@@ -66,6 +66,7 @@ class Room:
     unlocks_catacombs: bool  # True when entering this room grants same-day Catacombs access (Tomb only)
     has_animal: bool  # True when this room houses an animal (Cloister of Dauja membership)
     has_fireplace: bool  # True when this room has a static fireplace (Cloister of Veia membership)
+    counts_as_all_colors: bool  # Aquarium family: "is every color of room" (see is_category)
     deck_copies: int  # copies shuffled into this room's deck at day start
     effects: tuple[Effect, ...]  # Tier-1 room effects (dispatched via the effects/ hook registry)
     items: ItemSpec  # items granted/rolled when the room is first entered
@@ -81,6 +82,19 @@ class Room:
     def rarity_idx(self) -> int:
         """Index into RARITIES, or -1 for rooms with no rarity (never in decks)."""
         return RARITY_INDEX[self.rarity] if self.rarity else -1
+
+    def is_category(self, category: str) -> bool:
+        """True when this room counts as ``category`` for colour-membership checks.
+
+        True on a literal ``self.category`` match, or when this room has
+        ``counts_as_all_colors`` (the Aquarium family: "AQUARIUM is every
+        color of room") and ``category`` is any colour other than
+        "objective" -- a room role (Antechamber, Room 46, Quest Bedroom),
+        not a colour, so counts_as_all_colors never claims it.
+        """
+        if self.category == category:
+            return True
+        return self.counts_as_all_colors and category != "objective"
 
 
 def _parse_effects(raw: list[dict]) -> tuple[Effect, ...]:
@@ -132,6 +146,7 @@ def _parse_room(idx: int, raw: dict) -> Room:
         unlocks_catacombs=bool(raw.get("flags", {}).get("unlocks_catacombs", False)),
         has_animal=bool(raw.get("flags", {}).get("has_animal", False)),
         has_fireplace=bool(raw.get("flags", {}).get("has_fireplace", False)),
+        counts_as_all_colors=bool(raw.get("flags", {}).get("counts_as_all_colors", False)),
         deck_copies=int(raw.get("deck_copies", 1)),
         effects=_parse_effects(raw.get("effects", [])),
         items=ItemSpec(

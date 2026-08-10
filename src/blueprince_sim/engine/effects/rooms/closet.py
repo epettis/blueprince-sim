@@ -53,7 +53,7 @@ def _has_adjacent_category(game, cell: int, category: str) -> bool:
     room of ``category`` (grid geometry only -- see module docstring)."""
     grid = game.state.grid
     rooms = game.registry.rooms
-    return any(grid[nb] >= 0 and rooms[grid[nb]].category == category
+    return any(grid[nb] >= 0 and rooms[grid[nb]].is_category(category)
                for _d, _od, nb in ADJACENT[cell])
 
 

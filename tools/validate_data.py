@@ -980,6 +980,23 @@ def main(argv: list[str] | None = None) -> int:
             f"has_fireplace flag mismatch: missing {sorted(missing)}, unexpected {sorted(extra)}"
         )
 
+    # ── counts_as_all_colors flag ─────────────────────────────────────────────
+    # "AQUARIUM is every color of room": the base Aquarium and its three
+    # upgrade variants all carry the flag, since each variant's own
+    # effect_text repeats the sentence verbatim. Room.is_category() (engine/
+    # model.py) is what actually honours it. Mirrored in tools/ingest_sheet.py's
+    # FLAG_OVERRIDE.
+    COUNTS_AS_ALL_COLORS_ROOMS = {"aquarium", "goldfish_aquarium__ix2",
+                                  "starfish_aquarium__ix3", "electric_eel_aquarium__ix4"}
+    actual_all_colors = {r["id"] for r in rooms if r.get("flags", {}).get("counts_as_all_colors")}
+    if actual_all_colors != COUNTS_AS_ALL_COLORS_ROOMS:
+        missing = COUNTS_AS_ALL_COLORS_ROOMS - actual_all_colors
+        extra = actual_all_colors - COUNTS_AS_ALL_COLORS_ROOMS
+        errors.append(
+            f"counts_as_all_colors flag mismatch: missing {sorted(missing)}, "
+            f"unexpected {sorted(extra)}"
+        )
+
     # ── Upgrade Disk persistence ──────────────────────────────────────────────
     # Every Upgrade Disk respawns at its source until spent, so each must carry
     # persistence "day" — that is the value fixed_disks_spent_today dispatches on

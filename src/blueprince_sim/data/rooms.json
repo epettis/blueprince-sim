@@ -2837,7 +2837,8 @@
     "powered": false,
     "duct": false,
     "disk_reader": false,
-    "has_animal": true
+    "has_animal": true,
+    "counts_as_all_colors": true
    },
    "deck_copies": 1,
    "effects": [],
@@ -2868,7 +2869,8 @@
     "no_library_draft": false,
     "powered": false,
     "duct": false,
-    "disk_reader": false
+    "disk_reader": false,
+    "counts_as_all_colors": true
    },
    "deck_copies": 1,
    "effects": [],
@@ -2912,7 +2914,8 @@
     "no_library_draft": false,
     "powered": false,
     "duct": false,
-    "disk_reader": false
+    "disk_reader": false,
+    "counts_as_all_colors": true
    },
    "deck_copies": 1,
    "effects": [],
@@ -2946,7 +2949,8 @@
     "no_library_draft": false,
     "powered": true,
     "duct": false,
-    "disk_reader": false
+    "disk_reader": false,
+    "counts_as_all_colors": true
    },
    "deck_copies": 1,
    "effects": [],
@@ -6033,7 +6037,7 @@
   {
    "id": "conservatory",
    "name": "Conservatory",
-   "category": "blueprint",
+   "category": "green",
    "rarity": null,
    "gem_cost": 0,
    "layout": "corner",
