@@ -938,6 +938,33 @@ def main(argv: list[str] | None = None) -> int:
         if val is not None and not isinstance(val, bool):
             errors.append(f"room {r['id']!r}: flags.unlocks_catacombs must be bool, got {val!r}")
 
+    # ── has_animal / has_fireplace flags ──────────────────────────────────────
+    # Cloister of Dauja/Veia (effects/rooms/cloister.py) key off these ad-hoc
+    # wiki enumerations, carried as flags.has_animal/flags.has_fireplace rather
+    # than a Python literal so the lists stay data and editable. This check is
+    # what catches the two drifting apart, or a flag being dropped from a record.
+    HAS_ANIMAL_ROOMS = {"rumpus_room", "aquarium", "nursery", "bunk_room",
+                        "dovecote", "the_kennel"}
+    actual_animal = {r["id"] for r in rooms if r.get("flags", {}).get("has_animal")}
+    if actual_animal != HAS_ANIMAL_ROOMS:
+        missing = HAS_ANIMAL_ROOMS - actual_animal
+        extra = actual_animal - HAS_ANIMAL_ROOMS
+        errors.append(
+            f"has_animal flag mismatch: missing {sorted(missing)}, unexpected {sorted(extra)}"
+        )
+    # The Dining Room's fireplace is cell-conditional (centre columns or Rank 9
+    # only; windows on the wings or Rank 1), decided in effects/rooms/cloister.py
+    # against the drafted cell -- it deliberately carries no static flag.
+    HAS_FIREPLACE_ROOMS = {"parlor", "den", "trophy_room", "drawing_room",
+                           "furnace", "the_armory"}
+    actual_fireplace = {r["id"] for r in rooms if r.get("flags", {}).get("has_fireplace")}
+    if actual_fireplace != HAS_FIREPLACE_ROOMS:
+        missing = HAS_FIREPLACE_ROOMS - actual_fireplace
+        extra = actual_fireplace - HAS_FIREPLACE_ROOMS
+        errors.append(
+            f"has_fireplace flag mismatch: missing {sorted(missing)}, unexpected {sorted(extra)}"
+        )
+
     # ── Upgrade Disk persistence ──────────────────────────────────────────────
     # Every Upgrade Disk respawns at its source until spent, so each must carry
     # persistence "day" — that is the value fixed_disks_spent_today dispatches on

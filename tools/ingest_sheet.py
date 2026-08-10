@@ -351,6 +351,42 @@ EFFECT_OVERRIDE: dict[str, dict] = {
     # the blueprint-category default of 1. Its dice grant is a room_hook
     # (effects/rooms/guest_bedroom.py), not a data effect.
     "geist_bedroom__ix69": {"items": {"additional_max": 0}},
+    "bunk_room": {"effects": [{"tag": "counts_as_bedrooms", "amount": 2}]},
+    # Parlor/Den/Trophy Room restate their EFFECT_MAP items.guaranteed here since
+    # EFFECT_OVERRIDE always wins wholesale over EFFECT_MAP for a given field --
+    # see apply_effect_override.
+    "parlor": {"items": {"guaranteed": [{"item": "gem", "count": 2}]}},
+    "den": {"items": {"guaranteed": [{"item": "gem", "count": 1}]}},
+    "trophy_room": {"items": {"guaranteed": [{"item": "gem", "count": 8}]}},
+    "drawing_room": {"effects": [
+        {"tag": "counts_as_drafting_room"},
+        {"tag": "grant", "resource": "gems", "amount": 1}]},
+}
+
+# Membership flags, keyed by final record id and merged into the record's
+# "flags" object. Kept apart from EFFECT_OVERRIDE because that table REPLACES
+# "effects" wholesale, so adding a flag to a room that already has effects
+# there would mean restating them.
+#
+# Both lists back a Cloister variant (effects/rooms/cloister.py): Dauja pays
+# stars for each "room with an animal" drafted from it, Veia adds dig spots to
+# each "room with a fireplace". They are ad-hoc enumerations from the wiki
+# rather than derivable categories, which is why membership is stored per room
+# rather than computed. The Dining Room is deliberately absent: its fireplace
+# depends on where it is placed, so cloister.py decides it per cell.
+#
+# furnace, dovecote and the_kennel are supplemental-sourced, so they carry
+# their flag in tools/supplemental_rooms.json; this table never reaches them.
+FLAG_OVERRIDE: dict[str, dict] = {
+    "rumpus_room": {"has_animal": True},
+    "aquarium": {"has_animal": True},
+    "nursery": {"has_animal": True},
+    "bunk_room": {"has_animal": True},
+    "parlor": {"has_fireplace": True},
+    "den": {"has_fireplace": True},
+    "trophy_room": {"has_fireplace": True},
+    "drawing_room": {"has_fireplace": True},
+    "the_armory": {"has_fireplace": True},
 }
 
 
@@ -358,9 +394,10 @@ def apply_effect_override(entry: dict) -> None:
     """Apply EFFECT_OVERRIDE to *entry* in place, keyed by its final ``id``.
 
     Sets ``entry["effects"]`` and/or ``entry["items"]["guaranteed"]`` from the
-    matching override entry, fully replacing rather than merging each field,
-    so it is safe to call regardless of what EFFECT_MAP already set. A field
-    the override entry omits is left untouched.
+    matching EFFECT_OVERRIDE entry, fully replacing rather than merging each
+    field, so it is safe to call regardless of what EFFECT_MAP already set. A
+    field the override entry omits is left untouched. FLAG_OVERRIDE is applied
+    too, merging key by key so naming one flag leaves the room's others alone.
     """
     override = EFFECT_OVERRIDE.get(entry["id"])
     if override:
@@ -368,19 +405,23 @@ def apply_effect_override(entry: dict) -> None:
             entry["effects"] = override["effects"]
         if "items" in override:
             entry["items"].update(override["items"])
+    entry.setdefault("flags", {}).update(FLAG_OVERRIDE.get(entry["id"], {}))
 
 
 def validate_effect_override(seen_ids: set[str]) -> None:
-    """Raise if EFFECT_OVERRIDE keys an id the sheet parse did not produce.
+    """Raise if EFFECT_OVERRIDE or FLAG_OVERRIDE keys an id the sheet parse
+    did not produce.
 
     *seen_ids* is the set of ids assembled from the parsed sheet rows only
-    (tools/supplemental_rooms.json is merged in separately and EFFECT_OVERRIDE
-    does not apply to it). A key absent from *seen_ids* would otherwise never
-    be looked up by apply_effect_override and would silently do nothing.
+    (tools/supplemental_rooms.json is merged in separately and neither table
+    applies to it). A key absent from *seen_ids* would otherwise never be
+    looked up by apply_effect_override and would silently do nothing.
     """
-    unknown = sorted(set(EFFECT_OVERRIDE) - seen_ids)
-    if unknown:
-        raise ValueError(f"EFFECT_OVERRIDE has id(s) not produced by the sheet: {unknown}")
+    for name, table in (("EFFECT_OVERRIDE", EFFECT_OVERRIDE),
+                        ("FLAG_OVERRIDE", FLAG_OVERRIDE)):
+        unknown = sorted(set(table) - seen_ids)
+        if unknown:
+            raise ValueError(f"{name} has id(s) not produced by the sheet: {unknown}")
 
 
 # Per-category default for luck-scaled extra items (Item Spawns table is

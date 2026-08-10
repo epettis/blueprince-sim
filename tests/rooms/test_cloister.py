@@ -1,8 +1,7 @@
 """Cloister variants: "...for each X you draft FROM THIS CLOISTER" tracking.
 
-Covers the five variants implemented in effects/rooms/cloister.py (Rynna,
-Mila, Orinda, Draxus, Lydia). Joya, Dauja and Veia are not modeled (see that
-module's docstring) and have no tests here.
+Covers all eight variants implemented in effects/rooms/cloister.py (Rynna,
+Mila, Orinda, Draxus, Lydia, Dauja, Veia, Joya).
 
 Every test bypasses the deal pipeline via Game._place_room directly (as the
 other room tests do), but reproduces exactly what Game.choose leaves in place
@@ -13,10 +12,14 @@ state the whole "drafted from THIS Cloister" primitive depends on.
 
 from __future__ import annotations
 
+from blueprince_sim.config import GameConfig
+from blueprince_sim.engine import special_items as si
 from blueprince_sim.engine.game import Game
 from blueprince_sim.engine.grid import E, N, W
 from blueprince_sim.engine.locks import DOOR_OPEN, DOOR_SEALED, segment_key
+from blueprince_sim.engine.shops import carryover
 from blueprince_sim.engine.state import PendingDraft
+from blueprince_sim.env.multiday import DayChain
 
 ANTECHAMBER_CELL = 42
 
@@ -261,3 +264,225 @@ def test_orinda_is_a_no_op_when_every_antechamber_door_is_open(registry, cfg):
     _draft_from(g, 10, 11, throne_room)
 
     assert all(g.state.door_state[s] == DOOR_OPEN for s in ANTECHAMBER_SEGMENTS)
+
+
+# --- cloister_of_dauja__ix31 -------------------------------------------------
+
+def test_dauja_grants_two_stars_for_each_animal_room_drafted_from_it(registry, cfg):
+    """cloister_of_dauja__ix31 grants 2 stars for each of the six wiki-listed
+    animal rooms dealt from its own doorway, accumulating across drafts."""
+    dauja = registry.by_id["cloister_of_dauja__ix31"]
+    animal_ids = ("rumpus_room", "aquarium", "nursery", "dovecote", "the_kennel")
+    g = Game(cfg, seed=1)
+    g._place_room(dauja, 10, dauja.door_mask)
+    assert g.state.stars == 0
+    for i, room_id in enumerate(animal_ids):
+        _draft_from(g, 10, 11 + i, registry.by_id[room_id])
+        assert g.state.stars == 2 * (i + 1), room_id
+
+
+def test_dauja_does_not_react_to_a_non_animal_room_from_its_own_doorway(registry, cfg):
+    """A non-animal room dealt from Dauja's own doorway grants no stars --
+    the trigger is the has_animal flag, not the doorway alone."""
+    g = Game(cfg, seed=1)
+    dauja = registry.by_id["cloister_of_dauja__ix31"]
+    closet = registry.by_id["closet"]  # no has_animal flag
+    g._place_room(dauja, 10, dauja.door_mask)
+    _draft_from(g, 10, 11, closet)
+    assert g.state.stars == 0
+
+
+def test_dauja_bunk_room_grants_two_stars_not_four(registry, cfg):
+    """The Bunk Room "does not activate twice": it counts as two Bedrooms
+    elsewhere in the engine, but Dauja still pays exactly one 2-star grant
+    per actual draft, never a doubled 4."""
+    g = Game(cfg, seed=1)
+    dauja = registry.by_id["cloister_of_dauja__ix31"]
+    bunk_room = registry.by_id["bunk_room"]
+    g._place_room(dauja, 10, dauja.door_mask)
+    _draft_from(g, 10, 11, bunk_room)
+    assert g.state.stars == 2
+
+
+def test_dauja_does_not_react_to_an_animal_room_drafted_from_elsewhere(registry, cfg):
+    """Stars stay put when an animal room's doorway is some other placed
+    room's, even with Cloister of Dauja elsewhere on the grid."""
+    g = Game(cfg, seed=1)
+    dauja = registry.by_id["cloister_of_dauja__ix31"]
+    closet = registry.by_id["closet"]
+    aquarium = registry.by_id["aquarium"]
+    g._place_room(dauja, 10, dauja.door_mask)
+    g._place_room(closet, 20, closet.door_mask)
+    _draft_from(g, 20, 21, aquarium)  # dealt from Closet's doorway, not Dauja's
+    assert g.state.stars == 0
+
+
+# --- cloister_of_veia__ix32 --------------------------------------------------
+
+def test_veia_grants_eight_extra_dig_spots_for_a_fireplace_room(registry, cfg):
+    """cloister_of_veia__ix32 adds 8 dig spots to a Parlor (baseline 0) dealt
+    from its own doorway, additive on top of the room's own items.dig_spots."""
+    g = Game(cfg, seed=1)
+    veia = registry.by_id["cloister_of_veia__ix32"]
+    parlor = registry.by_id["parlor"]
+    assert parlor.items.dig_spots == 0, "setup: Parlor's own baseline must be 0"
+    g._place_room(veia, 10, veia.door_mask)
+    _draft_from(g, 10, 11, parlor)
+    assert g.state.special.veia_dig_bonus[11] == 8
+
+
+def test_veia_furnace_reaches_nine_dig_spots_not_eight(registry, cfg):
+    """The Furnace's baseline 1 dig spot plus Veia's +8 reaches 9 total, not
+    a flat 8 -- the bonus is additive, proven by actually digging every spot
+    with a held tool rather than reading the data fields back."""
+    g = Game(cfg, seed=1)
+    veia = registry.by_id["cloister_of_veia__ix32"]
+    furnace = registry.by_id["furnace"]
+    assert furnace.items.dig_spots == 1, "setup: Furnace's own baseline must be 1"
+    g._place_room(veia, 10, veia.door_mask)
+    _draft_from(g, 10, 11, furnace)
+    si.grant(g.state, g.registry, "shovel", source="test")
+    si.dig_all(g, 11)
+    assert g.state.special.dug[11] == 9
+
+
+def test_veia_dining_room_in_a_centre_column_qualifies(registry, cfg):
+    """A Dining Room dealt from Veia's doorway into a centre-column, non-
+    Rank-1 cell has a fireplace and gets the +8 dig bonus."""
+    g = Game(cfg, seed=1)
+    veia = registry.by_id["cloister_of_veia__ix32"]
+    dining_room = registry.by_id["dining_room"]
+    g._place_room(veia, 10, veia.door_mask)
+    centre_cell = 22  # rank 5, col 2 (centre column)
+    _draft_from(g, 10, centre_cell, dining_room)
+    assert g.state.special.veia_dig_bonus.get(centre_cell) == 8
+
+
+def test_veia_dining_room_on_a_wing_does_not_qualify(registry, cfg):
+    """A Dining Room dealt from Veia's doorway into a wing cell (Rank != 9)
+    has windows, not a fireplace, so it gets no dig bonus."""
+    g = Game(cfg, seed=1)
+    veia = registry.by_id["cloister_of_veia__ix32"]
+    dining_room = registry.by_id["dining_room"]
+    g._place_room(veia, 10, veia.door_mask)
+    wing_cell = 20  # rank 5, col 0 (West Wing)
+    _draft_from(g, 10, wing_cell, dining_room)
+    assert wing_cell not in g.state.special.veia_dig_bonus
+
+
+def test_veia_dining_room_on_a_wing_at_rank_nine_still_qualifies(registry, cfg):
+    """Rank 9 is named as its own qualifying alternative alongside the centre
+    columns, so a Dining Room on a Rank-9 wing cell still gets the bonus."""
+    g = Game(cfg, seed=1)
+    veia = registry.by_id["cloister_of_veia__ix32"]
+    dining_room = registry.by_id["dining_room"]
+    g._place_room(veia, 10, veia.door_mask)
+    wing_rank9_cell = 40  # rank 9, col 0 (West Wing)
+    _draft_from(g, 10, wing_rank9_cell, dining_room)
+    assert g.state.special.veia_dig_bonus.get(wing_rank9_cell) == 8
+
+
+def test_veia_does_not_react_to_a_non_fireplace_room_from_its_own_doorway(registry, cfg):
+    """A room with no has_fireplace flag dealt from Veia's own doorway gets
+    no dig bonus."""
+    g = Game(cfg, seed=1)
+    veia = registry.by_id["cloister_of_veia__ix32"]
+    closet = registry.by_id["closet"]
+    g._place_room(veia, 10, veia.door_mask)
+    _draft_from(g, 10, 11, closet)
+    assert g.state.special.veia_dig_bonus == {}
+
+
+def test_veia_extra_dig_spots_are_actually_diggable(registry, cfg):
+    """The +8 bonus is not just a counter: digging a Parlor dealt from Veia's
+    doorway with a held tool actually turns up 8 results."""
+    g = Game(cfg, seed=1)
+    veia = registry.by_id["cloister_of_veia__ix32"]
+    parlor = registry.by_id["parlor"]
+    g._place_room(veia, 10, veia.door_mask)
+    _draft_from(g, 10, 11, parlor)
+    si.grant(g.state, g.registry, "shovel", source="test")
+    si.dig_all(g, 11)
+    assert g.state.special.dug[11] == 8
+
+
+# --- cloister_of_joya__ix30 --------------------------------------------------
+
+def test_joya_raises_main_course_bonus_for_kitchen_and_pantry_drafted_from_it(registry, cfg):
+    """cloister_of_joya__ix30 adds 5 to the running Main Course bonus for a
+    Kitchen dealt from its own doorway, and 5 more for a Pantry (10 total)."""
+    g = Game(cfg, seed=1)
+    joya = registry.by_id["cloister_of_joya__ix30"]
+    kitchen = registry.by_id["kitchen"]
+    pantry = registry.by_id["pantry"]
+    g._place_room(joya, 10, joya.door_mask)
+    assert g.state.main_course_bonus == 0
+    _draft_from(g, 10, 11, kitchen)
+    assert g.state.main_course_bonus == 5
+    _draft_from(g, 10, 12, pantry)
+    assert g.state.main_course_bonus == 10
+
+
+def test_joya_does_not_react_to_a_non_trigger_room_from_its_own_doorway(registry, cfg):
+    """A room that is not a Kitchen/Pantry/Furnace dealt from Joya's own
+    doorway raises no Main Course bonus."""
+    g = Game(cfg, seed=1)
+    joya = registry.by_id["cloister_of_joya__ix30"]
+    closet = registry.by_id["closet"]
+    g._place_room(joya, 10, joya.door_mask)
+    _draft_from(g, 10, 11, closet)
+    assert g.state.main_course_bonus == 0
+
+
+def test_joya_bonus_raises_each_main_course_dish_by_five(registry, cfg):
+    """The running bonus adds to every one of the five main-course dishes'
+    resolved steps, whether that dish's own boost room is on the estate or
+    not -- proven on two different dishes, not just one."""
+    g = Game(cfg, seed=1)
+    g.state.main_course_bonus = 5
+    steps_before = g.state.steps
+    si.eat_food(g.state, g.registry, "lemon_glazed_salmon")  # base 20, no aquarium on estate
+    assert g.state.steps == steps_before + 25
+
+    steps_before = g.state.steps
+    si.eat_food(g.state, g.registry, "wood_fired_pizza")  # base 20, no furnace on estate
+    assert g.state.steps == steps_before + 25
+
+
+def test_joya_bonus_does_not_affect_the_lunch_box(registry, cfg):
+    """The Lunch Box resolves its steps through food_steps directly (its own
+    item-effect base, not a food.dishes lookup), which Joya's bonus never
+    touches -- only main-course dishes eaten through eat_food do."""
+    g = Game(cfg, seed=1)
+    g.state.main_course_bonus = 5
+    assert si.food_steps(g.state, g.registry, 10) == 10  # the Lunch Box's own base steps param
+
+
+def test_joya_bonus_survives_a_day_boundary_via_daychain(registry):
+    """A Kitchen dealt from Cloister of Joya's doorway on day 1 shows up in
+    state.main_course_bonus on day 2 unchanged, with no new gain that day --
+    a permanent per-attempt total, not a one-day pulse."""
+    chain = DayChain(GameConfig(), n_days=200)
+
+    g1 = Game(chain.next_config(), seed=1, registry=registry)
+    joya = g1.registry.by_id["cloister_of_joya__ix30"]
+    kitchen = g1.registry.by_id["kitchen"]
+    g1._place_room(joya, 10, joya.door_mask)
+    _draft_from(g1, 10, 11, kitchen)
+    assert g1.state.main_course_bonus == 5
+    chain.advance(carryover(g1))
+
+    day2_cfg = chain.next_config()
+    assert day2_cfg.main_course_bonus == 5
+    g2 = Game(day2_cfg, seed=2, registry=registry)
+    assert g2.state.main_course_bonus == 5
+
+
+def test_joya_bonus_clears_on_attempt_wrap():
+    """A fresh attempt (DayChain wrap past n_days) drops the Main Course
+    bonus back to the base preset, the same as every other carry-over total."""
+    chain = DayChain(GameConfig(), n_days=1)
+    chain.advance({"main_course_bonus": 15})  # day 1 -> wraps immediately
+
+    assert chain.current_day == 1
+    assert chain.next_config().main_course_bonus == 0

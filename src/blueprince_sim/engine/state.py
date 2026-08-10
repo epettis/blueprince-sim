@@ -154,6 +154,16 @@ class GameState:
     # allowance. Never itself spent; stars are a pure permanent counter (the
     # telescope/constellation system that would consume them is out of scope).
     stars: int = 0
+    # Cloister of Joya's permanent Main Course bonus: +5 (from its own
+    # effect_text) for each Kitchen/Pantry/Furnace drafted from its own
+    # doorway (effects/rooms/cloister.py), added to every one of the five
+    # main-course dishes (special_items.py::_resolve_food_base), never to the
+    # Lunch Box. Seeded from cfg.main_course_bonus at reset(); reported by
+    # carryover() and replaced wholesale into cfg.main_course_bonus by
+    # DayChain each advance() -- the same "replace" shape as allowance/stars,
+    # per-ATTEMPT rather than a save-wide total (an owner-flagged reading of
+    # the wiki's "permanently", since it never says "across the save").
+    main_course_bonus: int = 0
     dice: int = 0  # redraw dice: spend one to redraw the current draft hand
     luck: int = 10  # scales bonus-item odds between items.json floor and max_effect_at
 
@@ -348,6 +358,21 @@ class GameState:
     # cell is never removed, but Game._enter's own entered[cell] guard already
     # prevents a second grant on re-entry, so nothing re-reads a stale entry.
     cloister_mila_bonus_cells: set[int] = field(default_factory=set)
+    # Her Ladyship's Chamber / Her Ladyship's Spare Room (her_ladyships_chamber__ix135):
+    # "Once drafted ... The first time the BOUDOIR is entered, gain 10 steps. The
+    # first time the WALK-IN CLOSET is entered, gain 3 gems." Each is armed True
+    # at its own draft (effects/rooms/her_ladyships_chamber.py, ON_PLACE) and
+    # cleared back to False the first time the matching room's ON_ENTER hook
+    # fires -- which the engine only ever fires once per cell (Game._enter), so
+    # a Boudoir/Walk-In Closet already entered before the Chamber is drafted
+    # never re-pays. The two sources are independent (both present pays both,
+    # sequentially) rather than a single shared flag, since the wiki states they
+    # stack. Per-day only: a fresh GameState resets every day like
+    # quest_bedroom_entered_today.
+    her_ladyships_chamber_boudoir_armed: bool = False
+    her_ladyships_chamber_closet_armed: bool = False
+    her_ladyships_spare_room_boudoir_armed: bool = False
+    her_ladyships_spare_room_closet_armed: bool = False
     # Cells holding a Closet-family variant whose adjacency bonus condition held
     # at placement; popped when that cell is first entered and the bonus paid.
     closet_bonus_cells: set[int] = field(default_factory=set)

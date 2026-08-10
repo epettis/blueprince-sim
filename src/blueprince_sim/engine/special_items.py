@@ -180,6 +180,11 @@ class SpecialItemsState:
     stopwatch_used: bool = False  # a Stopwatch already ran today (unobtainable again)
     moves_since_free: int = 0  # Running Shoes cadence counter
     dug: dict[int, int] = field(default_factory=dict)  # cell -> dig spots already dug
+    # Cloister of Veia: cell -> extra dig spots (+8, additive on top of the
+    # room's own items.dig_spots) for a room with a fireplace drafted from its
+    # own doorway (effects/rooms/cloister.py). Room is frozen, so a per-
+    # instance bonus needs this per-cell store rather than a Room field.
+    veia_dig_bonus: dict[int, int] = field(default_factory=dict)
     treasure_cell: int = -1  # Treasure Map X cell; -1 = no map read today
     treasure_dug: bool = False  # the map's one-per-day treasure dig happened
     silver_key_draft: bool = False  # next draw biased toward cross/t layouts
@@ -434,6 +439,11 @@ def configure(state, cfg) -> None:
     # Freight Shipping (mail_room__ix91) transit countdown: seed from the
     # carried config value alongside mail_cycle.
     state.mail_transit_days = getattr(cfg, "mail_transit_days", 0)
+    # Cloister of Joya's permanent Main Course bonus: seed from the carried
+    # config value, the same "replace wholesale" shape as allowance/stars
+    # (those are seeded directly in Game.reset(); this one is seeded here
+    # since configure() is this module's own reset-time entry point).
+    state.main_course_bonus = getattr(cfg, "main_course_bonus", 0)
 
 
 # ------------------------------------------------------------- spawn pipeline
@@ -1140,7 +1150,11 @@ def _resolve_food_base(state, registry, food_id: str) -> int:
       (chef_salad/tomato_soup; count taken at eat time, as the wiki states).
     - ``boost_room`` + ``boosted_steps``: boosted_steps when that room is
       anywhere on the estate (any cell in state.grid), else base steps
-      (main courses: salmon, steak, stew_pie, quail, pizza).
+      (main courses: salmon, steak, stew_pie, quail, pizza) -- PLUS
+      ``state.main_course_bonus`` (Cloister of Joya, effects/rooms/cloister.py),
+      the one thing that raises a main course's own step value; the Lunch Box
+      calls ``food_steps`` directly rather than through here, so it never sees
+      this bonus.
     Falls back to ``food.default_steps`` (3) for unknown dish ids.
     """
     food_rules = registry.item_rules.get("food", {})
@@ -1167,7 +1181,8 @@ def _resolve_food_base(state, registry, food_id: str) -> int:
             idx >= 0 and registry.rooms[idx].id == boost_id
             for idx in state.grid
         )
-        return dish["boosted_steps"] if on_estate else dish["steps"]
+        base = dish["boosted_steps"] if on_estate else dish["steps"]
+        return base + state.main_course_bonus
 
     return dish.get("steps", default_steps)
 
@@ -1316,7 +1331,7 @@ def dig_all(game, cell: int) -> None:
     # Dig remaining spots in the room at this cell
     if state.grid[cell] >= 0:
         room = registry.rooms[state.grid[cell]]
-        total_spots = room.items.dig_spots
+        total_spots = room.items.dig_spots + state.special.veia_dig_bonus.get(cell, 0)
         already_dug = state.special.dug.get(cell, 0)
         remaining = total_spots - already_dug
 

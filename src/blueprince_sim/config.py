@@ -163,6 +163,12 @@ class GameConfig:
     # (Game.reset).  Never spent itself.  Carried by DayChain as a running
     # total, replaced wholesale each advance() the same way as allowance.
     stars: int = 0
+    # Cloister of Joya's permanent Main Course bonus: +5 per Kitchen/Pantry/
+    # Furnace drafted from it, added to every one of the five main-course
+    # dishes and added to future days (Game.reset). Never spent itself.
+    # Carried by DayChain as a running total, replaced wholesale each
+    # advance() the same way as allowance/stars.
+    main_course_bonus: int = 0
     # Fixed-source Allowance Token ids collected (ever, across all days): each
     # one-time find spot (a Mora Jai box or the Cloister's token) has its own
     # item id, so this set gates exactly the sources already collected without

@@ -36,7 +36,9 @@ def _grant(game, resource: str, amount: int) -> None:
             st.luck += amount
         case "allowance":
             st.allowance = max(0, st.allowance + amount)
-        # "stars" and other out-of-scope currencies are tracked nowhere; no-op.
+        case "stars":
+            st.stars = max(0, st.stars + amount)
+        # other out-of-scope currencies are tracked nowhere; no-op.
 
 
 def _red_negated(game, room) -> bool:

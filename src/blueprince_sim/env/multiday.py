@@ -105,6 +105,11 @@ class DayChain:
         # day's own carryover value every advance() -- state.stars already IS
         # the accumulated figure by day end, the same shape as allowance.
         self.stars: int = base_cfg.stars
+        # Cloister of Joya's Main Course bonus: running permanent total,
+        # replaced (not merged) from each day's own carryover value every
+        # advance() -- state.main_course_bonus already IS the accumulated
+        # figure by day end, the same shape as allowance/stars.
+        self.main_course_bonus: int = base_cfg.main_course_bonus
         # Mail Room order/delivery cycle: REPLACED (not merged) from each
         # day's own carryover value every advance(), the same shape as
         # allowance/chapel_tithes -- state.mail_cycle already IS the day's
@@ -189,6 +194,7 @@ class DayChain:
             chapel_tithes=self.chapel_tithes,
             allowance=self.allowance,
             stars=self.stars,
+            main_course_bonus=self.main_course_bonus,
             mail_cycle=self.mail_cycle,
             mail_transit_days=self.mail_transit_days,
             hallway_tomorrow_extra=self.hallway_tomorrow_extra,
@@ -280,6 +286,11 @@ class DayChain:
         star_val = carryover.get("stars")
         if star_val is not None:
             self.stars = star_val
+
+        # --- main_course_bonus (running permanent total; replace each advance) ---
+        mcb_val = carryover.get("main_course_bonus")
+        if mcb_val is not None:
+            self.main_course_bonus = mcb_val
 
         # --- mail_cycle (Mail Room order/delivery state; replace each advance) ---
         mc_val = carryover.get("mail_cycle")
@@ -389,6 +400,8 @@ class DayChain:
             self.chapel_tithes = 0            # fresh attempt; tithe bank reset
             self.allowance = self.base_cfg.allowance  # fresh attempt; back to the base preset
             self.stars = self.base_cfg.stars  # fresh attempt; back to the base preset
+            # fresh attempt; Joya's bonus resets to the base preset
+            self.main_course_bonus = self.base_cfg.main_course_bonus
             self.mail_cycle = self.base_cfg.mail_cycle  # fresh attempt; back to the base preset
             self.mail_transit_days = self.base_cfg.mail_transit_days  # fresh attempt; back to base
             self.hallway_tomorrow_extra = self.base_cfg.hallway_tomorrow_extra  # fresh attempt

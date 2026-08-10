@@ -23,21 +23,30 @@ Implemented:
     guaranteeing every draft is one.
   - cloister_of_lydia__ix34 -- 2 permanent allowance for each Shop drafted
     from this Cloister.
+  - cloister_of_dauja__ix31 -- 2 stars for each of six specific "room with an
+    animal" ids drafted from this Cloister. The membership list is an ad-hoc
+    wiki enumeration (a mounted fish and stuffed plushies qualify, taxidermy
+    elsewhere does not), so it is carried as the has_animal flag on those six
+    records rather than derived from any semantic rule.
+  - cloister_of_veia__ix32 -- +8 dig spots (additive) in a room with a
+    fireplace drafted from this Cloister. Six of the seven fireplace rooms
+    carry a static has_fireplace flag; the Dining Room's fireplace instead
+    depends on the cell it lands on (see grant_dig_bonus_for_fireplace_rooms).
+  - cloister_of_joya__ix30 -- +5 steps, permanently and cumulatively, to every
+    one of the five Main Course dishes for each Kitchen/Pantry/Furnace
+    drafted from this Cloister (special_items.py::_resolve_food_base reads
+    the running total off GameState.main_course_bonus). "Permanently" is read
+    as per-attempt (carried by DayChain, cleared on attempt wrap), the same
+    shape as allowance/stars -- an owner-flagged assumption, since the wiki
+    never says "across the save".
 
-Not modeled, and why:
-  - cloister_of_joya__ix30: the Dining Room's "main course" bonus has no
-    representation anywhere in the engine (dining_room's effects list is
-    empty; nothing tracks or ever reads a meal value), so there is nowhere to
-    write a permanent bonus that anything would consume.
-  - cloister_of_dauja__ix31: stars are not a tracked resource
-    (effects/tier1.py::_grant no-ops "stars" explicitly).
-  - cloister_of_veia__ix32: "room with a fireplace" is not a category or flag
-    anywhere in rooms.json.
+Not modeled: nothing left in this file; see each handler's own docstring for
+what it does and does not cover.
 """
 
 from __future__ import annotations
 
-from ...grid import E, N, W
+from ...grid import E, N, W, is_center_column, rank_of
 from ...locks import DOOR_SEALED, segment_key
 from .. import Hook, room_hook
 from ..tier1 import _grant
@@ -49,6 +58,12 @@ ANTECHAMBER_CELL = 42  # rank 9, center column
 LUCK_PER_GREEN_ROOM = 6
 DICE_PER_DEAD_END = 4  # cloister_of_draxus__ix36, per meta.glyph_resolution icon "dice"
 ALLOWANCE_PER_SHOP = 2  # cloister_of_lydia__ix34, from its own effect_text
+STARS_PER_ANIMAL_ROOM = 2  # cloister_of_dauja__ix31, from its own effect_text
+DIG_BONUS_PER_FIREPLACE_ROOM = 8  # cloister_of_veia__ix32, from its own effect_text
+MAIN_COURSE_BONUS_PER_ROOM = 5  # cloister_of_joya__ix30, from its own effect_text
+# Kitchen/Pantry/Furnace, per Joya's own effect_text; matched on id or
+# variant_of the same way the Chapel's Keeper of Tithes matches "chapel".
+_JOYA_TRIGGER_IDS = frozenset({"kitchen", "pantry", "furnace"})
 
 # The Antechamber's four doorway segments, as (cell, direction) pairs -- matches
 # the SEALED assignment Game.reset makes when antechamber_levers is True.
@@ -76,6 +91,18 @@ def _drafted_from(game, room) -> bool:
     if pending is None or pending.from_cell < 0:
         return False
     return pending.from_cell == game.room_cells.get(room.id)
+
+
+def _dining_room_has_fireplace(cell: int) -> bool:
+    """Cloister of Veia's Dining Room case: fireplace in the centre columns or
+    on Rank 9; windows (no fireplace) on the wings or Rank 1.
+
+    Both conditions are literal ORs over the cell the room lands on: a centre-
+    column cell qualifies unless it is also Rank 1, and Rank 9 qualifies even
+    on a wing, since it is named as its own alternative alongside the centre
+    columns rather than as a subset of them.
+    """
+    return (is_center_column(cell) and rank_of(cell) != 1) or rank_of(cell) == 9
 
 
 @room_hook("cloister_of_rynna__ix29", Hook.ON_DRAFT_ROOM)
@@ -142,3 +169,54 @@ def raise_allowance_for_shops(game, room, ctx_room) -> None:
     """"Add 2[coin] to your allowance for each SHOP you draft from this CLOISTER"."""
     if ctx_room is not None and ctx_room.category == "shop" and _drafted_from(game, room):
         _grant(game, "allowance", ALLOWANCE_PER_SHOP)
+
+
+@room_hook("cloister_of_dauja__ix31", Hook.ON_DRAFT_ROOM)
+def grant_stars_for_animal_rooms(game, room, ctx_room) -> None:
+    """"Gain 2[stars] for each room with an animal you draft from this CLOISTER".
+
+    Fires once per draft event regardless of what else a room "counts as"
+    elsewhere (the Bunk Room counts as two Bedrooms for house-counting effects,
+    but that is a separate mechanism -- this handler grants exactly once per
+    room actually drafted, so the Bunk Room pays 2 stars here, never 4).
+    """
+    if (ctx_room is not None and ctx_room.has_animal
+            and _drafted_from(game, room)):
+        _grant(game, "stars", STARS_PER_ANIMAL_ROOM)
+
+
+@room_hook("cloister_of_veia__ix32", Hook.ON_DRAFT_ROOM)
+def grant_dig_bonus_for_fireplace_rooms(game, room, ctx_room) -> None:
+    """"Find 8 dirt piles in each room with a fireplace you draft from this
+    CLOISTER".
+
+    Additive on top of the room's own items.dig_spots (the Furnace's baseline
+    1 reaches 9, not a flat 8). Six of the seven fireplace rooms carry a
+    static has_fireplace flag; the Dining Room instead only has a fireplace
+    in the centre columns or on Rank 9 (windows elsewhere), so its case is
+    decided against the cell it actually lands on rather than the flag.
+    """
+    if ctx_room is None or not _drafted_from(game, room):
+        return
+    is_dining_room = ctx_room.id == "dining_room" or ctx_room.variant_of == "dining_room"
+    cell = game.state.pending.target_cell
+    qualifies = (_dining_room_has_fireplace(cell) if is_dining_room
+                 else ctx_room.has_fireplace)
+    if qualifies:
+        bonus = game.state.special.veia_dig_bonus
+        bonus[cell] = bonus.get(cell, 0) + DIG_BONUS_PER_FIREPLACE_ROOM
+
+
+@room_hook("cloister_of_joya__ix30", Hook.ON_DRAFT_ROOM)
+def raise_main_course_for_kitchen_pantry_furnace(game, room, ctx_room) -> None:
+    """"Permanently add an extra 5[steps] to the MAIN COURSE for each KITCHEN,
+    PANTRY, or FURNACE you draft from this CLOISTER".
+
+    Raises every one of the five main-course dishes by 5, cumulatively, each
+    time this fires (special_items.py::_resolve_food_base reads the running
+    total); never touches the Lunch Box. "Permanently" is read as per-attempt,
+    the same carry-over shape as allowance/stars (GameState.main_course_bonus).
+    """
+    if (ctx_room is not None and _drafted_from(game, room)
+            and (ctx_room.id in _JOYA_TRIGGER_IDS or ctx_room.variant_of in _JOYA_TRIGGER_IDS)):
+        game.state.main_course_bonus += MAIN_COURSE_BONUS_PER_ROOM
