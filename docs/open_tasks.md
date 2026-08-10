@@ -656,6 +656,31 @@ the residual `game.py` branches.
 
 ## Decisions log
 
+- **2026-08-10, stars are SAVE-scoped and accumulate toward a reroll trade.**
+  Owner, on being shown that stars were still attempt-scoped after the Joya
+  ruling: "Stars do not reset between days. They accumulate until you get the
+  ability to trade them for rerolls."
+
+  Day-to-day carry was already correct; what changed is the **attempt wrap**.
+  `DayChain` no longer resets the star total on wrap, so stars now behave like
+  the Cloister of Joya's Main Course bonus. Those two are the **only**
+  save-scoped carried values; allowance, `chapel_tithes`, `collected_disks`,
+  `lit_targets` and the rest are still attempt-scoped, and one test pins the
+  pair together so adding a third is a deliberate edit rather than a slip.
+
+  Act on this cold as: this settles stars but **not** the wider question. The
+  same argument plausibly applies to applied Upgrade Disks, which the game
+  treats as permanent progression and which we still clear on wrap. That is
+  unasked and unresolved -- do not change it on the strength of this entry.
+
+  **A sink now exists that we do not model.** The owner names trading stars for
+  rerolls, which is a spend the sim has no representation for; the wiki says
+  only that stars "are generally never spent" and gate which constellations
+  appear. So the counter currently accumulates with nothing to spend it on,
+  and any measurement of star totals is an upper bound on what a player would
+  actually be holding. Worth its own research pass before the reroll trade is
+  built.
+
 - **2026-08-10, the Geist Bedroom's dice are picked up inside the room.**
   Owner: "Dice are on the table inside. You have to enter to pick them up."
   Confirms the entry-time reading the wiki only hinted at with the word

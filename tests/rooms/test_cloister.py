@@ -493,12 +493,15 @@ def test_joya_bonus_survives_an_attempt_wrap():
 
 
 def test_attempt_wrap_still_clears_the_attempt_scoped_totals():
-    """Joya's save-scoped bonus is a deliberate exception, not a general
-    loosening: allowance and stars still reset to their base preset on wrap."""
+    """Save-scoped totals are a named pair, not a general loosening: Joya's
+    bonus and stars survive a wrap while allowance still resets to its preset.
+
+    Pinned together so adding a third save-scoped total is a deliberate edit
+    here rather than something that slips in unnoticed."""
     chain = DayChain(GameConfig(), n_days=1)
     chain.advance({"main_course_bonus": 15, "allowance": 30, "stars": 4})
 
     cfg = chain.next_config()
     assert cfg.main_course_bonus == 15
+    assert cfg.stars == 4
     assert cfg.allowance == 0
-    assert cfg.stars == 0

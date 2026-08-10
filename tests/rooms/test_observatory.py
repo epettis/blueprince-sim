@@ -79,11 +79,14 @@ def test_stars_survive_day_boundary_via_daychain(registry):
     assert g3.state.stars == 1
 
 
-def test_stars_reset_on_attempt_wrap():
-    """A fresh attempt (DayChain wrap past n_days) drops the star total back
-    to the base preset, the same as every other carry-over discovery."""
+def test_stars_survive_an_attempt_wrap():
+    """Stars accumulate across the whole save: a fresh attempt (DayChain wrap
+    past n_days) keeps the running total rather than dropping it to the preset.
+
+    They are earned a single star at a time and spent much later, so an
+    attempt-scoped reset would make the total unreachable in practice."""
     chain = DayChain(GameConfig(), n_days=1)
     chain.advance({"stars": 3})  # day 1 -> wraps immediately
 
     assert chain.current_day == 1
-    assert chain.next_config().stars == 0
+    assert chain.next_config().stars == 3
