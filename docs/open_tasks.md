@@ -1911,6 +1911,86 @@ parametric tags; it has been quietly wrong for singleton behaviour for a while.
   the 2026-08-09 allowance ruling, so that test now pins known-wrong behaviour
   and must be replaced rather than kept green.
 
+- **2026-08-09, apple = 2 steps, orange = 5 steps, banana = 3 -- the wiki
+  AGREES with the owner.** Recorded because the numbers were reported from play
+  and then independently confirmed, so neither source needs re-checking. The
+  Food page states each value directly, and the Pantry page derives the same
+  three from a note puzzle ("one apple, one banana, and one orange grant 10 in
+  total"). Our data already carried banana = 3.
+
+- **2026-08-09, the Secret Garden spreads apples and oranges, uniformly -- NOT
+  bananas.** Owner, from play, asked to check TFMurphy's datamining first.
+  Checked: `tools/raw/tfmurphy_room_table.md` is a room table only and carries
+  the effect *text* with no spread mechanics at all, and the datamined box
+  republished on the wiki's Secret Garden page gives only the **total** fruit
+  count -- room-count bucket plus soil bonus, capped at 10 -- and never a
+  per-type split. **So the datamining does not settle it in either direction.**
+
+  **This overrides the wiki**, whose Food page states: *"The effect of the
+  Secret Garden spreads all three fruits."* Owner play outranks the wiki; the
+  conflict is recorded here rather than resolved silently, so a later wiki
+  citation does not look like it contradicts a bug. Each spread fruit is a
+  50/50 apple-or-orange roll, mean 3.5 steps.
+
+  Note the one place bananas ARE datamined into a Secret Garden outcome is the
+  Conference Room case, and even there the fixed payout is **4 apples + 3
+  oranges** with no banana -- which is consistent with the owner's account and
+  mildly against the wiki's prose.
+
+- **2026-08-09, soil quality is a flat Good (+4) everywhere until a real map
+  exists.** The Secret Garden's spread total adds a soil term (Poor +2, Good
+  +4, Rich +6) keyed to the cell it was drafted on. **That map is not published
+  anywhere in wiki text** -- it exists only as an image in the Gardener's
+  Logbook, and "barren", named on the House page as the low end of the range,
+  has no published bonus value at all.
+
+  Owner decision, on interview: encode a single flat +4, marked
+  `confidence: inferred` in data, rather than block the feature or invent a
+  12-cell map. The Secret Garden is wing-only across ranks 3-8, so a real map
+  needs just 12 cells and can replace the constant with no code change.
+
+  Act on this cold as: every Secret Garden spread total measured before a real
+  soil map lands is an **estimate, not a bound** -- unlike the open stub gates,
+  it can err in either direction (a Poor cell would spread 2 fewer, a Rich cell
+  2 more).
+
+- **2026-08-09, Room 8 pays 2 Allowance Tokens on the first solve of an
+  attempt and 1 on every later solve.** Owner, on interview, following the
+  trophies-are-achievements ruling. The wiki's real discriminator is trophy
+  *possession*, not solve ordinality: *"If Room 8's puzzle is solved without
+  ever collecting the trophy, it awards two Allowance Tokens on every
+  completion."* With no trophy concept the sim cannot tell those branches
+  apart, so the owner picked the reading that matches how a real player
+  behaves -- the trophy is taken on the first solve, so the first solve pays
+  +4 allowance and each later one +2.
+
+  Room 8 is **repeatable per draft**, not once per save: *"Unlike the Gallery,
+  Room 8 resets each time it is drafted even after being solved."* Multiple
+  Key 8s allow multiple simultaneous Room 8s, each paying.
+
+  The first-solve flag is per **attempt**, matching every other carry-over.
+
+- **2026-08-09, `room8_placement` was wrong and is widened to any Rank-8
+  cell.** Owner, on interview, shown the mismatch. `placement.py` permitted
+  Room 8 on exactly **two cells** -- rank 8 col 4 entered northward, rank 8
+  col 0 entered southward -- and its comment stated that as the rule. The wiki
+  says Key 8 works on *"any locked door that leads to a room on Rank 8"*; the
+  two cases the code whitelisted are the wiki's enumeration of when the room is
+  **mirrored** (*"resulting in the corner room pointing left instead of
+  right"*), not of where it may be placed.
+
+  The decisive evidence is the wiki's own "reliable" route: Room 8 *"can be
+  reliably drafted from the far door in the Great Hall, as it is always
+  locked"*. The Great Hall is `layout: cross` with no draft conditions, so it
+  sits in any column including the centre three -- under the old rule that
+  route was impossible. Room 8 was very nearly undraftable, which is why the
+  reward being unmodelled never surfaced in play.
+
+  Act on this cold as: a `draft_conditions` tag that encodes an *orientation*
+  rule as a *legality* rule silently deletes most of a room's placements. The
+  mirroring belongs in the orientation layer, not in
+  `satisfies_draft_conditions`.
+
 ## 5. Throttle the training terminal output — DONE
 
 The trainer currently refreshes the dashboard after every completed seed, which
