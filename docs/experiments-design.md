@@ -124,8 +124,24 @@ a validation **error**, not a silent drift.
 
 ### `cap`
 
-A hard, wiki-*stated* trigger-count limit — `3` (chests), `10` (map views),
-`16` (letters), `17` (Entrance Hall trunks), `40` (tunnel crates) — or `null`.
+A hard, wiki-*stated* limit on how many times the record's own effect
+actually applies — `3` (chests), `10` (map views), `16` (letters), `17`
+(Entrance Hall trunks), `40` (tunnel crates) — or `null`. `cap` lives on both
+triggers and effects, and the two mean different things once past the limit,
+enforced at two different sites in `engine/experiments.py`:
+
+- A **trigger's** `cap` (`trunks_opened`, `map_view`) is checked in
+  `trigger_success` and suppresses the *whole fire*: the trigger no longer
+  succeeds at all, `success_count` stops advancing, and the trigger's own
+  `steps_lost` (if any) is not charged either.
+- An **effect's** `cap` (`entrance_hall_trunk`, `mail_room_letter`) is
+  checked in `apply_effect`, never in `trigger_success`: the trigger it is
+  paired with keeps succeeding (`success_count` still advances, `steps_lost`
+  is still charged) and only the effect itself goes silent. This matches each
+  id's own wiki wording ("will no longer have any effect" / "never offered
+  again" — neither says the *trigger* stops firing) — a capped-out letter
+  still displays its delivery message, a capped-out trunk effect just no-ops.
+
 Approximate figures the wiki hedges with "around" or "approximately" (the dig
 spots effect's "~100 spots after ~34 triggers") are **not** encoded as `cap`;
 they live in `meta.notes` instead, because a `cap` field implies an exact
@@ -334,15 +350,61 @@ twice for a Bunk Room by reading the same `counts_as_bedrooms`/`amount` tag
 drafted, veteran-bypassable) stays unbuilt, same as before — only `day_gate`
 is enforced, and it never applied to this trigger.
 
-**All twelve base triggers are now live; eight of the twelve base effects
-are.** Unimplemented base effects: `entrance_hall_trunk`, `spread_dig_spots`,
-`add_aquariums`, `mail_room_letter` — a live trigger can still be paired with
-one of these silent effects, a no-op the draw does not filter out.
+**All twelve base triggers are now live; ten of the twelve base effects
+are.** Unimplemented base effects: `spread_dig_spots`, `add_aquariums` — a
+live trigger can still be paired with one of these silent effects, a no-op
+the draw does not filter out.
 
-`draw_offers` samples the base pool uniformly (modulo the `day_gate` filter
-above) and still does not filter on `implemented`, so a setup can configure
-an experiment pairing a live trigger with a silent effect, or vice versa, or
-both silent — narrower now that every trigger and 8 of 12 effects have
+Most recently, the effect-side `cap` field landed (`ExperimentEffect.cap`,
+loaded but previously dropped on the floor — `tools/validate_data.py`
+validated its shape without ever wiring it into the engine, so the gap
+passed clean), enforced in `apply_effect` rather than `trigger_success` (see
+the `### cap` section above for why the two differ), plus the two effects it
+unblocks:
+
+- `entrance_hall_trunk` adds a `trunk` container to the Entrance Hall,
+  capped at 17 per day. The counter lives on `SpecialItemsState`
+  (`entrance_hall_trunks`), not `ExperimentState`, named for the room rather
+  than this experiment record because the wiki treats The Twins constellation
+  as sharing the same 17-trunk limit ("identical to triggering this effect
+  twice") — a future Twins hook can bump the same field.
+  `special_items.py::_container_kinds_at` gained an Entrance Hall branch
+  (`_entrance_hall_container_kinds`) alongside its existing Mechanarium
+  per-cell branch, so `_next_container_kind`/`can_open_container`/
+  `open_container` all pick the added trunks up automatically, including
+  the re-entrant case where opening one (with `trunks_opened` also
+  configured) adds another to the same room mid-call — safe, because the
+  container `kind` and its loot config are captured before the trigger
+  fires. `env/obs.py`'s `grid_containers` was also fixed to route through
+  `_container_kinds_at` instead of reading the static per-room table
+  directly, which had made the Mechanarium's own per-cell compartments (and
+  now these trunks) invisible to the observation space. Per the owner's
+  ruling from play, the 17 is a **daily** maximum: no `GameConfig` field, no
+  `carryover()` entry, no `DayChain` merge — `SpecialItemsState` being
+  rebuilt fresh with `GameState` every day already gives the right reset for
+  free.
+- `mail_room_letter` becomes a pure delivered-count bump
+  (`ExperimentState.letters_delivered`); the 16 letters' actual contents stay
+  deliberately unmodelled (owner ruling: they are flavour — safe codes, a
+  network password, a puzzle solution — and the assumed-solved doctrine
+  already grants what they convey, the same reasoning as the Speakeasy). Its
+  `day_or_packet_gate` availability is now enforced by a new
+  `_effect_offerable` (mirroring `_trigger_offerable`): excluded before day
+  11 (`or_packet` is permanently False, since the packet subsystem is
+  unauthorised) and excluded once `letters_delivered` reaches the cap.
+  **Known gap:** `letters_delivered` is day-scoped, like the rest of
+  `ExperimentState`, but `draw_offers` only ever runs once per day on fresh
+  state — so the "already delivered 16, never offered again" half of the
+  check cannot yet observe a *prior* day's deliveries. Making that true
+  needs a persistent cross-day total, the same shape as
+  `GameConfig.chapel_tithes` (seeded into per-day state, reported by
+  `carryover()`, merged by `DayChain`); that wiring is a follow-up.
+
+`draw_offers` samples the base pool uniformly (modulo the trigger-side
+`day_gate` filter and the effect-side `day_or_packet_gate`/cap filter above)
+and still does not filter on `implemented`, so a setup can configure an
+experiment pairing a live trigger with a silent effect, or vice versa, or
+both silent — narrower now that every trigger and 10 of 12 effects have
 firing sites, but still possible. Filtering the draw to fully-implemented
 records remains future work, not something addressed so far.
 

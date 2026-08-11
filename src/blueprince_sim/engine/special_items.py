@@ -232,6 +232,15 @@ class SpecialItemsState:
     # "today's list + cfg's permanent set" shape as vault_boxes_opened /
     # used_vault_keys.
     sigil_doors_opened: list[str] = field(default_factory=list)
+    # Extra 'trunk' containers added to the Entrance Hall today, capped at 17.
+    # Named for the room, not for the entrance_hall_trunk experiment effect
+    # that currently bumps it (experiments.py::apply_effect), because the
+    # wiki treats The Twins constellation as sharing the same 17-trunk limit
+    # ("identical to triggering this effect twice") -- a future Twins hook
+    # would bump this same counter. Per-day only: neither the trunks nor the
+    # count carry over (owner ruling: 17 is a daily maximum), which falls out
+    # for free from SpecialItemsState being rebuilt fresh with GameState.
+    entrance_hall_trunks: int = 0
 
 
 # --------------------------------------------------------------- inventory ops
@@ -1453,6 +1462,10 @@ def dig_all(game, cell: int) -> None:
 # to avoid a circular import between draft.py and special_items.py.
 MECHANARIUM_ROOM_ID = "mechanarium"
 
+# Room id for the Entrance Hall's per-day trunk overlay (entrance_hall_trunk
+# experiment effect). A literal for the same reason as MECHANARIUM_ROOM_ID.
+ENTRANCE_HALL_ROOM_ID = "entrance_hall"
+
 # The Mechanarium's diagonal-compartment kinds, in the wiki's fixed open
 # order (1st/2nd/3rd/4th corner). Each is a containers.kinds entry in
 # data/special_items.json with its own deterministic, priority-chain loot.
@@ -1466,7 +1479,9 @@ def containers_in(registry, room_id: str) -> dict[str, int]:
 
     Reads from registry.special.containers["rooms"]; returns e.g. {"trunk": 1}.
     The Mechanarium is never in that table -- its compartment count is
-    per-placement, not per-room (see ``_mechanarium_compartment_kinds``).
+    per-placement, not per-room (see ``_mechanarium_compartment_kinds``). The
+    Entrance Hall has no static entry either -- every trunk there is added
+    per-day by an experiment effect (see ``_entrance_hall_container_kinds``).
     """
     return dict(registry.special.containers.get("rooms", {}).get(room_id, {}))
 
@@ -1481,6 +1496,24 @@ def _mechanarium_compartment_kinds(state, cell: int) -> dict[str, int]:
     return {kind: 1 for kind in _MECHANARIUM_COMPARTMENT_KINDS[:n]}
 
 
+def _entrance_hall_container_kinds(state, registry) -> dict[str, int]:
+    """The Entrance Hall's container kinds: its static table plus today's overlay.
+
+    The static ``containers.rooms`` table carries no Entrance Hall entry --
+    every trunk here comes from ``state.special.entrance_hall_trunks``, bumped
+    by the entrance_hall_trunk experiment effect (experiments.py::apply_effect,
+    capped at 17). Reuses the existing ``trunk`` containers.kinds entry rather
+    than a distinct kind, per the wiki: "There is no difference between a
+    'small chest' and a regular trunk."
+    """
+    kinds = containers_in(registry, ENTRANCE_HALL_ROOM_ID)
+    extra = state.special.entrance_hall_trunks
+    if extra:
+        kinds = dict(kinds)
+        kinds["trunk"] = kinds.get("trunk", 0) + extra
+    return kinds
+
+
 def _container_kinds_at(state, registry, cell: int) -> list[tuple[str, int]]:
     """Remaining openable (kind, remaining_count) pairs at ``cell``.
 
@@ -1492,6 +1525,8 @@ def _container_kinds_at(state, registry, cell: int) -> list[tuple[str, int]]:
     room = registry.rooms[state.grid[cell]]
     if room.id == MECHANARIUM_ROOM_ID:
         all_kinds = _mechanarium_compartment_kinds(state, cell)
+    elif room.id == ENTRANCE_HALL_ROOM_ID:
+        all_kinds = _entrance_hall_container_kinds(state, registry)
     else:
         all_kinds = containers_in(registry, room.id)
     if not all_kinds:

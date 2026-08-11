@@ -1156,6 +1156,10 @@ def carryover(game) -> dict:
         # today). Replaces cfg.main_course_bonus wholesale next day -- the
         # same shape as allowance/stars, not an OR-merge.
         "main_course_bonus": state.main_course_bonus,
+        # Experiment letters delivered so far (running permanent total, already
+        # seeded from cfg at reset). Replaces cfg.letters_delivered wholesale
+        # next day, the same shape as stars/main_course_bonus.
+        "letters_delivered": state.experiment.letters_delivered,
         # Mail Room order/delivery cycle for tomorrow: "empty", "awaiting", or
         # "transit". mail_room.next_mail_cycle promotes a Freight order out of
         # "transit" to "awaiting" once its transit days are spent -- that

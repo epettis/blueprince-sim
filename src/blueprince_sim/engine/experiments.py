@@ -16,15 +16,29 @@ loader, and this module imports only model/rng-adjacent types.
 
 ## Not modelled (this phase)
 
-Eleven of the twenty effects stay inert (``implemented: false`` or, for
-``keys_per_30_steps``, undrawable — see below): ``entrance_hall_trunk``,
-``spread_dig_spots``, ``add_aquariums``, ``mail_room_letter`` (base pool);
-``pantry_fruit``, ``reservoir_water_level``, ``remove_tunnel_crate``,
-``unseal_antechamber_door``, ``permanent_lockpicking_skill``,
-``random_item_then_zero_keys``, ``half_steps_for_dice`` (packet pool).
+Nine of the twenty effects stay inert (``implemented: false`` or, for
+``keys_per_30_steps``, undrawable — see below): ``spread_dig_spots``,
+``add_aquariums`` (base pool); ``pantry_fruit``, ``reservoir_water_level``,
+``remove_tunnel_crate``, ``unseal_antechamber_door``,
+``permanent_lockpicking_skill``, ``random_item_then_zero_keys``,
+``half_steps_for_dice`` (packet pool).
 ``keys_per_30_steps`` (packet pool) IS implemented mechanically below, but
 stays undrawable until the packet subsystem (phases 5-8) is authorised,
 since :func:`draw_offers` only samples the base pool.
+
+Two effects carry a ``cap`` and both are now implemented: ``entrance_hall_trunk``
+(17, adds a trunk to the Entrance Hall -- see special_items.py's
+``_container_kinds_at`` for the per-cell overlay this reads) and
+``mail_room_letter`` (16, a pure delivered-count bump; the wiki-described
+letter contents are deliberately unmodelled under the assumed-solved
+doctrine -- see the id's own ``meta.notes``). An effect's cap is enforced in
+:func:`apply_effect`, not :func:`trigger_success`: a capped-out effect still
+lets its trigger succeed (``success_count`` advances, any ``steps_lost`` is
+still charged) and only the effect itself goes silent, per each id's own
+wiki wording ("will no longer have any effect" / "never offered again" --
+neither says the trigger stops firing). This is a different shape from a
+*trigger's* own cap (``trunks_opened``, ``map_view``), which suppresses the
+whole fire including the trigger's ``steps_lost``.
 
 All twelve base triggers are now implemented; the eight packet triggers stay
 unimplemented pending the packet subsystem (phases 5-8). ``immediately``
@@ -68,7 +82,12 @@ archived Drawing Room still counts, per the wiki's plain "drawn" wording.
 Two of the twelve base triggers carry a ``day_gate`` availability
 (``security_door``, ``drawing_room_drawn``): both are excluded from
 :func:`draw_offers`'s sampling pool before day 8 unless ``cfg.veteran_mode``
-is set (the default). No other availability kind is enforced yet.
+is set (the default). One of the twelve base effects carries a
+``day_or_packet_gate`` availability (``mail_room_letter``): excluded before
+day 11 (``or_packet`` is permanently False -- see :func:`_effect_offerable`);
+also excluded once its cap is spent, though see that function's docstring
+for why this half of the check cannot yet see a prior day's deliveries. No
+other availability kind, on either triggers or effects, is enforced yet.
 """
 
 from __future__ import annotations
@@ -99,6 +118,8 @@ class ExperimentEffect:
     pool: str  # base|packet
     implemented: bool  # False = inert; apply_effect no-ops for this id
     magnitude: dict = field(default_factory=dict)  # structured numbers, raw from JSON
+    cap: int | None = None  # max successful APPLICATIONS today, or None for unlimited
+    availability: dict | None = None  # gate on whether this can be offered, or None
     confidence: str = "wiki"  # data provenance: datamined > wiki > inferred > placeholder
 
 
@@ -135,6 +156,8 @@ def load_experiments(data_dir: Path) -> ExperimentsRegistry:
             pool=e["pool"],
             implemented=bool(e.get("implemented", False)),
             magnitude=e.get("magnitude") or {},
+            cap=e.get("cap"),
+            availability=e.get("availability"),
             confidence=e.get("meta", {}).get("confidence", "wiki"),
         )
 
@@ -164,12 +187,18 @@ class ExperimentState:
     trigger_id: str | None = None  # chosen trigger for today's experiment; None = not configured
     effect_id: str | None = None  # chosen effect for today's experiment; None = not configured
     paused: bool = False  # True = configured but the effect is not currently firing
-    success_count: int = 0  # times the trigger has succeeded (and the effect applied) today
+    success_count: int = 0  # times the trigger has succeeded (and apply_effect was called) today
     # Bedroom-equivalents drafted today (Bunk Room counts as 2), tracked from the
     # day's first Bedroom draft regardless of whether/when an experiment is
     # configured -- bedrooms_after_second's threshold counts all of today's
     # Bedrooms, not just ones drafted after the trigger became active.
     bedroom_draft_count: int = 0
+    # mail_room_letter deliveries actually applied today (not counted past its
+    # cap): distinct from success_count, which also counts a trigger fire whose
+    # effect no-opped past its own cap. Day-scoped only -- see
+    # _effect_offerable's docstring for why this can't yet enforce the wiki's
+    # cross-day "16 ever, never offered again" rule.
+    letters_delivered: int = 0
 
     @property
     def configured(self) -> bool:
@@ -201,7 +230,38 @@ def _trigger_offerable(trig: ExperimentTrigger, cfg) -> bool:
     return cfg.day >= gate.get("day", 0)
 
 
-def draw_offers(registry, rng, cfg) -> tuple[tuple[str, ...], tuple[str, ...]]:
+def _effect_offerable(effect: ExperimentEffect, cfg, ex: ExperimentState) -> bool:
+    """True unless an availability rule or a spent cap blocks this effect today.
+
+    Only ``day_or_packet_gate`` (mail_room_letter's day-11 gate) is enforced;
+    any other availability kind, or none, is always offerable -- entrance_hall_
+    trunk carries no availability record at all (it stays offerable forever
+    and simply no-ops past its cap in :func:`apply_effect`; the wiki never
+    says it stops being offered, unlike mail_room_letter's explicit "never
+    offered again"). ``or_packet`` is permanently False here: the packet
+    subsystem (phases 5-8) is not authorised, so no custom experiment packet
+    can ever exist to satisfy it.
+
+    mail_room_letter is also excluded once its cap has already been reached
+    -- but see ExperimentState.letters_delivered's own comment: that counter
+    is day-scoped, and draw_offers only ever runs once per day on fresh
+    state, so this half of the check cannot yet observe a PRIOR day's
+    deliveries. It is still applied (rather than left out entirely) so the
+    mechanism is correct and testable in isolation, ready for the day it is
+    seeded from a persistent cross-day total.
+    """
+    gate = effect.availability
+    if gate is not None and gate.get("kind") == "day_or_packet_gate":
+        or_packet = False  # packet subsystem (phases 5-8) unauthorised; never satisfiable
+        if not (cfg.day >= gate.get("day", 0) or or_packet):
+            return False
+    if effect.id == "mail_room_letter" and effect.cap is not None:
+        if ex.letters_delivered >= effect.cap:
+            return False
+    return True
+
+
+def draw_offers(registry, rng, cfg, state) -> tuple[tuple[str, ...], tuple[str, ...]]:
     """Draw 3 triggers and 3 effects uniformly from the base pool.
 
     Sampled without replacement via named RNG substreams (seed-deterministic),
@@ -213,14 +273,18 @@ def draw_offers(registry, rng, cfg) -> tuple[tuple[str, ...], tuple[str, ...]]:
     Only the base pool is ever drawn: the packet pool (Satellite Dish, phases
     5-8) is out of scope, so its 8 triggers and 8 effects are never offered.
     Triggers gated by a ``day_gate`` availability (see :func:`_trigger_offerable`)
-    are dropped from the sampling pool before the draw; effects carry no such
-    filter yet. The base trigger pool (12) has only 2 day-gated members, so
-    this can never shrink the pool below the 3 the draw needs.
+    and effects gated by their own availability/cap (see :func:`_effect_offerable`)
+    are dropped from their respective sampling pools before the draw. Neither
+    the 2 day-gated triggers nor the single gated/cappable effect (base pool
+    has only mail_room_letter) can ever shrink either pool below the 3 the
+    draw needs.
     """
     ex = registry.experiments
     trig_pool = [t for t in ex.base_trigger_ids if _trigger_offerable(ex.trigger_by_id[t], cfg)]
     assert len(trig_pool) >= 3, "day_gate filtering must never shrink the trigger pool below 3"
-    eff_pool = list(ex.base_effect_ids)
+    eff_pool = [e for e in ex.base_effect_ids
+                if _effect_offerable(ex.effect_by_id[e], cfg, state.experiment)]
+    assert len(eff_pool) >= 3, "effect availability filtering must never shrink the pool below 3"
     sampled_triggers = rng.stream("experiment_triggers").sample(trig_pool, 3)
     sampled_effects = rng.stream("experiment_effects").sample(eff_pool, 3)
     sampled_triggers.sort(key=trig_pool.index)
@@ -375,25 +439,61 @@ def _count_bedroom_draft(game, room, trigger_id: str | None) -> None:
         trigger_success(game)
 
 
+def _effect_apply_count(state, effect_id: str) -> int:
+    """Times ``effect_id`` has already applied (not no-opped) today, for cap checks.
+
+    entrance_hall_trunk counts against a dedicated Entrance-Hall counter
+    (SpecialItemsState.entrance_hall_trunks) rather than a generic experiment
+    counter, because it is designed to be shared with The Twins constellation
+    -- an unrelated future trigger for the same 17-trunk limit (wiki: "identical
+    to triggering this effect twice") -- so it must not live on ExperimentState,
+    which is specific to this one experiment record. mail_room_letter counts
+    against ExperimentState.letters_delivered. Neither is success_count, which
+    counts trigger fires and keeps advancing even once an effect caps out.
+    """
+    match effect_id:
+        case "entrance_hall_trunk":
+            return state.special.entrance_hall_trunks
+        case "mail_room_letter":
+            return state.experiment.letters_delivered
+        case _:
+            return 0
+
+
 def apply_effect(game, effect_id: str) -> None:
     """Apply one successful trigger's chosen effect.
 
-    No-ops for any effect_id whose record is not ``implemented`` (the eleven
+    No-ops for any effect_id whose record is not ``implemented`` (the nine
     inert effects listed in the module docstring) -- reachable only if a
     caller sets state.experiment.effect_id directly, since draw_offers only
     samples the base pool and every base effect marked "implemented: true" is
-    already one of the nine this module implements.
+    already one of the eleven this module implements.
+
+    Also no-ops, without touching state, once a ``cap``-carrying effect has
+    already applied that many times today (see :func:`_effect_apply_count`)
+    -- entrance_hall_trunk's 17th trunk, mail_room_letter's 16th letter. This
+    is deliberately NOT trigger_success's early return: the trigger that
+    called us has already succeeded (success_count advanced, any steps_lost
+    was already charged), and only the effect itself goes silent, matching
+    the wiki's own wording for both ("will no longer have any effect" /
+    "never offered again" -- neither says the trigger stops firing).
     """
     st = game.state
     registry = game.registry
     effect = registry.experiments.effect_by_id.get(effect_id)
     if effect is None or not effect.implemented:
         return
+    if effect.cap is not None and _effect_apply_count(st, effect_id) >= effect.cap:
+        return
     match effect_id:
         case "gain_key_gem_or_die":
             _apply_gain_key_gem_or_die(game, effect)
         case "set_steps":
             st.steps = effect.magnitude.get("steps", 40)
+        case "entrance_hall_trunk":
+            st.special.entrance_hall_trunks += 1
+        case "mail_room_letter":
+            st.experiment.letters_delivered += 1
         case "set_dice":
             st.dice = effect.magnitude.get("dice", 2)
         case "steps_for_gold":
