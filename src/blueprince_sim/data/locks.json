@@ -37,6 +37,16 @@
   "confidence": "wiki",
   "rooms": ["corridor", "corriyard__ix50"]
  },
+ "always_locked_rooms": {
+  "comment": "Doors of these rooms are guaranteed locked and bypass the bias system, mirroring always_unlocked_rooms (Great Hall: 'all seven of these doors are guaranteed to be locked'). The room's own entry doorway is never touched -- roll_segment only ever sees fresh, non-entry segments. side_search_cost prices the two side doorways: each hides its actual passage behind 3 inner doors (the far doorway has no such search). The wiki's theoretical per-door-type table (Doorway column, each half of the room): center 50%, each of 2 edges 25%. Opening doors in the optimal order (center first, an edge second, the last forced) costs 1 key on a correct first try (p=0.50), 2 on a correct second try (p=0.25), 3 when forced to the third (p=0.25) -- expectation 1.75 keys. side_search_cost stores that distribution as EXTRA keys beyond the base 1 already charged for opening a locked segment: 0 extra (found it first, p=0.50), 1 extra (found it second, p=0.25), 2 extra (forced third, p=0.25); 1*0.50 + 2*0.25 + 3*0.25 reproduces the 1.75 total. Rolled once per side doorway segment, like every other lock roll.",
+  "confidence": "wiki",
+  "rooms": ["great_hall"],
+  "side_search_cost": {
+   "comment": "Parallel arrays: extra_keys[i] is charged with probability weights[i] (weights need not sum to 100, but do here).",
+   "extra_keys": [0, 1, 2],
+   "weights": [50, 25, 25]
+  }
+ },
  "security": {
   "comment": "A freshly placed whitelisted room's doors may spawn as security doors: requires spawned-today < spawn_limit[level], door distance to the Antechamber center <= distance_cutoff (cell centers 10 units apart), a uniform(0, distance_roll_max) roll strictly above that distance, then the per-room chance (forced to 100 on high security). room_door_chance collapses the datamined per-door Left/Forward/Right table to each room's strongest door (confidence: datamined, simplified).",
   "cell_size": 10.0,

@@ -450,7 +450,7 @@ def action_mask(game: Game, prev_action: int | None = None) -> list[bool]:
                 seg = game.door_state_of(cell, d)
                 if seg == DOOR_SEALED:
                     continue  # sealed: no action can open it
-                if seg == DOOR_LOCKED and st.keys < key_cost[cell] + 1:
+                if seg == DOOR_LOCKED and st.keys < key_cost[cell] + game.lock_open_cost(cell, d):
                     continue
                 if seg == DOOR_SECURITY and not game.security_openable():
                     continue
