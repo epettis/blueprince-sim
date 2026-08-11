@@ -1,17 +1,23 @@
-"""Laboratory / Experiments (phase 1): setup/pause/resume core and the eight
-pure-resource effects.
+"""Laboratory / Experiments: setup/pause/resume core, the pure-resource
+effects, and the five placement-site draft triggers (shops, red_room_draft,
+hallway_from_hallway, bedrooms_after_second, gems_spent).
 
 Mirrors test_upgrade_env.py's shape (direct Game construction plus the flat
 action space) for the setup flow, and calls engine.experiments functions
 directly for the effect-math checks, the same "engine function, not full
-action loop" style test_special_items.py uses for its own effect pins.
+action loop" style test_special_items.py uses for its own effect pins. The
+draft-trigger tests mostly drive Game._place_room directly (like the
+existing _place helper), reaching for the real open_door/choose pipeline
+only where the threading between them matters (gem cost, Stopwatch, Study).
 """
 
 from __future__ import annotations
 
 from blueprince_sim.config import GameConfig
 from blueprince_sim.engine import experiments
-from blueprince_sim.engine.game import Game, Phase
+from blueprince_sim.engine.game import Game, Phase, RedrawKind
+from blueprince_sim.engine.grid import N, W
+from blueprince_sim.engine.state import DraftOption, PendingDraft
 from blueprince_sim.env import actions as A
 
 
@@ -19,9 +25,9 @@ from blueprince_sim.env import actions as A
 # Helpers
 # ---------------------------------------------------------------------------
 
-def _game_at_laboratory(seed: int = 0) -> Game:
+def _game_at_laboratory(seed: int = 0, cfg: GameConfig | None = None) -> Game:
     """Fresh game with the player standing in a placed Laboratory (the terminal room)."""
-    g = Game(GameConfig(), seed=seed)
+    g = Game(cfg or GameConfig(), seed=seed)
     lab = g.registry.by_id["laboratory"]
     g._place_room(lab, 7, lab.rotations[0])
     g.state.pos = 7
@@ -33,6 +39,12 @@ def _place(game: Game, room_id: str, cell: int) -> None:
     """Place ``room_id`` directly at ``cell`` with its canonical orientation."""
     room = game.registry.by_id[room_id]
     game._place_room(room, cell, room.rotations[0])
+
+
+def _configure(game: Game, trigger_id: str, effect_id: str) -> None:
+    """Configure today's experiment directly, bypassing the terminal's offer/choice flow."""
+    game.state.experiment.trigger_id = trigger_id
+    game.state.experiment.effect_id = effect_id
 
 
 # ---------------------------------------------------------------------------
@@ -299,6 +311,258 @@ def test_inert_effect_id_is_a_no_op():
     """apply_effect no-ops for an effect whose record is implemented=false."""
     g = _game_at_laboratory()
     before = (g.state.keys, g.state.gems, g.state.dice, g.state.coins, g.state.allowance)
-    experiments.apply_effect(g, "gain_star")  # implemented=false, requires >=3 stars/veteran/packet
+    experiments.apply_effect(g, "add_aquariums")  # implemented=false
     after = (g.state.keys, g.state.gems, g.state.dice, g.state.coins, g.state.allowance)
     assert before == after
+
+
+def test_gain_star_effect_adds_one_star():
+    """apply_effect('gain_star') adds 1 to the permanent star total."""
+    g = _game_at_laboratory()
+    g.state.stars = 2
+    experiments.apply_effect(g, "gain_star")
+    assert g.state.stars == 3
+
+
+# ---------------------------------------------------------------------------
+# Placement-site triggers: shops, red_room_draft, hallway_from_hallway,
+# bedrooms_after_second, gems_spent
+# ---------------------------------------------------------------------------
+
+def test_shops_trigger_fires_on_a_shop_room_not_on_a_hallway():
+    """shops fires for a Shop-category room (Bookshop) and not for a Hallway."""
+    g = _game_at_laboratory()
+    _configure(g, "shops", "permanent_allowance")
+    _place(g, "hallway", 10)
+    assert g.state.experiment.success_count == 0
+    _place(g, "bookshop", 11)
+    assert g.state.experiment.success_count == 1
+    assert g.state.allowance == 1
+
+
+def test_red_room_draft_trigger_fires_on_a_red_room_not_on_a_hallway():
+    """red_room_draft fires for a Red-category room (Lavatory) and not for a Hallway."""
+    g = _game_at_laboratory()
+    _configure(g, "red_room_draft", "permanent_allowance")
+    _place(g, "hallway", 10)
+    assert g.state.experiment.success_count == 0
+    _place(g, "lavatory", 11)
+    assert g.state.experiment.success_count == 1
+
+
+def test_red_room_draft_step_loss_lands_before_the_chosen_effect_and_floors_at_zero():
+    """red_room_draft's own 5-step loss (floored at 0) applies on top of whatever
+    effect is configured -- here with only 3 steps in hand, it floors instead of
+    going negative, and the chosen effect (unrelated to steps) still applies."""
+    g = _game_at_laboratory()
+    _configure(g, "red_room_draft", "permanent_allowance")
+    g.state.steps = 3
+    _place(g, "lavatory", 10)
+    assert g.state.steps == 0
+    assert g.state.allowance == 1
+
+
+def test_red_room_draft_step_loss_is_suppressed_while_paused():
+    """Both the trigger's own step loss and its chosen effect are no-ops while
+    the experiment is paused -- trigger_success's active gate covers the whole
+    red_room_draft branch, not just apply_effect."""
+    g = _game_at_laboratory()
+    _configure(g, "red_room_draft", "permanent_allowance")
+    g.state.experiment.paused = True
+    g.state.steps = 50
+    _place(g, "lavatory", 10)
+    assert g.state.steps == 50
+    assert g.state.allowance == 0
+    assert g.state.experiment.success_count == 0
+
+
+def test_weight_room_ordering_sets_steps_to_forty_then_halves_to_twenty():
+    """Wiki: 'If this effect is triggered by drafting the Weight Room, steps
+    are first set to 40, then halved to 20.' The experiment's set_steps effect
+    (fired from the new call site, before ON_PLACE) must resolve before the
+    Weight Room's own ON_PLACE step-halving."""
+    g = _game_at_laboratory()
+    _configure(g, "red_room_draft", "set_steps")
+    g.state.steps = 3
+    _place(g, "weight_room", 10)
+    assert g.state.steps == 20
+
+
+def test_hallway_from_hallway_fires_only_when_drafted_from_a_hallway():
+    """hallway_from_hallway fires when the new Hallway's entry doorway faces
+    another Hallway, and not when it faces a non-Hallway room."""
+    g = _game_at_laboratory()
+    hallway = g.registry.by_id["hallway"]
+    office = g.registry.by_id["office"]
+    _configure(g, "hallway_from_hallway", "permanent_allowance")
+
+    g._place_room(office, 10, office.rotations[0])
+    g._place_room(hallway, 11, hallway.rotations[0], entry_dir=W)  # from cell 10 (Office)
+    assert g.state.experiment.success_count == 0
+
+    g._place_room(hallway, 12, hallway.rotations[0], entry_dir=W)  # from cell 11 (Hallway)
+    assert g.state.experiment.success_count == 1
+
+
+def test_counting_effect_sees_the_room_that_triggered_it():
+    """Wiki: 'if there are three Hallways in the estate and the experiment is
+    triggered by drafting a fourth, then two keys will be gained' -- the
+    counting effect must see all four Hallways, including the one that just
+    triggered it, because the fire site runs after the grid write."""
+    g = _game_at_laboratory()
+    hallway = g.registry.by_id["hallway"]
+    for cell in (10, 11, 12):
+        g._place_room(hallway, cell, hallway.rotations[0])
+    _configure(g, "hallway_from_hallway", "keys_per_hallway_pair")
+    g.state.keys = 0
+    g._place_room(hallway, 13, hallway.rotations[0], entry_dir=W)  # from cell 12 (Hallway)
+    assert g.state.keys == 2
+
+
+def test_bunk_room_worked_example_counter_one_to_three_fires_once():
+    """Wiki worked example: with the counter already at 1 Bedroom, drafting a
+    Bunk Room (counts as 2) takes it to 3, crossing the 'after your second'
+    line exactly once, not twice."""
+    g = _game_at_laboratory()
+    bedroom = g.registry.by_id["bedroom"]
+    g._place_room(bedroom, 10, bedroom.rotations[0])  # counter -> 1, unconfigured
+    _configure(g, "bedrooms_after_second", "permanent_allowance")
+    bunk_room = g.registry.by_id["bunk_room"]
+    g._place_room(bunk_room, 11, bunk_room.rotations[0])
+    assert g.state.experiment.bedroom_draft_count == 3
+    assert g.state.experiment.success_count == 1
+
+
+def test_bedrooms_after_second_counts_bedrooms_drafted_before_the_experiment():
+    """All of today's Bedrooms count toward the two-Bedroom threshold, whether
+    drafted before or after the experiment started -- two Bedrooms drafted
+    while unconfigured still make the next one the third."""
+    g = _game_at_laboratory()
+    bedroom = g.registry.by_id["bedroom"]
+    for cell in (10, 11):
+        g._place_room(bedroom, cell, bedroom.rotations[0])  # counter -> 2, unconfigured
+    _configure(g, "bedrooms_after_second", "permanent_allowance")
+    g._place_room(bedroom, 12, bedroom.rotations[0])  # the 3rd Bedroom overall
+    assert g.state.experiment.success_count == 1
+
+
+def test_gems_spent_fires_at_two_or_more_gems_not_below():
+    """gems_spent fires for a >=2 gem_cost draft and not for a 1-gem draft --
+    driven by the gem_cost value Game._place_room receives, not the room id."""
+    g = _game_at_laboratory()
+    _configure(g, "gems_spent", "permanent_allowance")
+    office = g.registry.by_id["office"]
+    g._place_room(office, 10, office.rotations[0], gem_cost=1)
+    assert g.state.experiment.success_count == 0
+    g._place_room(office, 11, office.rotations[0], gem_cost=2)
+    assert g.state.experiment.success_count == 1
+
+
+def test_hovel_disables_gems_spent_even_at_a_high_gem_cost():
+    """With the Hovel placed, gems_spent never fires, since gem costs are paid
+    in steps rather than gems ('this trigger becomes useless with it on the
+    estate' -- wiki)."""
+    g = _game_at_laboratory()
+    _configure(g, "gems_spent", "permanent_allowance")
+    g.hovel_placed = True
+    office = g.registry.by_id["office"]
+    g._place_room(office, 10, office.rotations[0], gem_cost=5)
+    assert g.state.experiment.success_count == 0
+
+
+def test_gems_spent_fires_through_the_real_choose_pipeline():
+    """The open_door -> choose pipeline threads the actual gem cost paid into
+    the trigger: choosing a 2-gem room from a non-zero slot fires gems_spent
+    and deducts the gems."""
+    g = _game_at_laboratory()
+    _configure(g, "gems_spent", "permanent_allowance")
+    office = g.registry.by_id["office"]
+    g.phase = Phase.DRAFTING
+    g.state.pos = 7
+    pd = PendingDraft(from_cell=7, direction=N, target_cell=12)  # neighbor(7, N) == 12
+    pd.options = [DraftOption(room_idx=office.idx, orientation=office.door_mask,
+                              gem_cost=2, slot=1)]
+    g.doorway_drafts[(7, N)] = pd
+    g.state.pending = pd
+    g.state.gems = 5
+    g.choose(1)
+    assert g.state.gems == 3
+    assert g.state.experiment.success_count == 1
+
+
+def test_stopwatch_waiver_does_not_count_as_gems_spent():
+    """The Stopwatch's gem waiver does not count as spending (gems are
+    required in hand but never deducted), so gems_spent must not fire even
+    though the nominal cost is >= 2."""
+    g = _game_at_laboratory(cfg=GameConfig(special_items=True))
+    _configure(g, "gems_spent", "permanent_allowance")
+    office = g.registry.by_id["office"]
+    g.phase = Phase.DRAFTING
+    g.state.pos = 7
+    pd = PendingDraft(from_cell=7, direction=N, target_cell=12)
+    pd.options = [DraftOption(room_idx=office.idx, orientation=office.door_mask,
+                              gem_cost=2, slot=1)]
+    g.doorway_drafts[(7, N)] = pd
+    g.state.pending = pd
+    g.state.gems = 5
+    g.state.special.stopwatch_left = 3
+    g.choose(1)
+    assert g.state.gems == 5  # waived: gems left untouched
+    assert g.state.experiment.success_count == 0
+
+
+def test_study_redraw_gem_spend_never_fires_gems_spent(cfg):
+    """A Study redraw spends a gem through Game.redraw, which never calls
+    _place_room -- gems_spent's only firing site -- so it cannot fire even
+    though a gem was genuinely spent."""
+    g = Game(cfg, seed=5)
+    g.state.experiment.trigger_id = "gems_spent"
+    g.state.experiment.effect_id = "permanent_allowance"
+    g.open_door(2, N)
+    g.state.study_placed = True
+    g.state.gems = 3
+    g.redraw(RedrawKind.STUDY)
+    assert g.state.gems == 2
+    assert g.state.experiment.success_count == 0
+
+
+def test_entered_true_skips_draft_trigger_detection():
+    """entered=True (used only for the day-start Entrance Hall) skips the whole
+    draft-counting block in Game._place_room, including trigger detection --
+    even a would-be-qualifying gem_cost never reaches on_room_drafted."""
+    g = _game_at_laboratory()
+    _configure(g, "gems_spent", "permanent_allowance")
+    office = g.registry.by_id["office"]
+    g._place_room(office, 10, office.rotations[0], entered=True, gem_cost=5)
+    assert g.state.experiment.success_count == 0
+
+
+def test_aquarium_draft_fires_shops_red_room_and_bedrooms_after_second_triggers():
+    """The Aquarium's extra_categories (shop, red, hallway, bedroom, ...) mean
+    a single Aquarium draft qualifies for four of the five placement-site
+    triggers -- checked one trigger per fresh game so only one is active."""
+    for trigger_id in ("shops", "red_room_draft"):
+        g = _game_at_laboratory()
+        _configure(g, trigger_id, "permanent_allowance")
+        aquarium = g.registry.by_id["aquarium"]
+        g._place_room(aquarium, 10, aquarium.rotations[0])
+        assert g.state.experiment.success_count == 1, trigger_id
+
+    # bedrooms_after_second: needs to be the 3rd Bedroom-equivalent overall.
+    g = _game_at_laboratory()
+    bedroom = g.registry.by_id["bedroom"]
+    for cell in (10, 11):
+        g._place_room(bedroom, cell, bedroom.rotations[0])
+    _configure(g, "bedrooms_after_second", "permanent_allowance")
+    aquarium = g.registry.by_id["aquarium"]
+    g._place_room(aquarium, 12, aquarium.rotations[0])
+    assert g.state.experiment.success_count == 1
+
+    # hallway_from_hallway: needs to be drafted from a Hallway.
+    g = _game_at_laboratory()
+    hallway = g.registry.by_id["hallway"]
+    g._place_room(hallway, 10, hallway.rotations[0])
+    _configure(g, "hallway_from_hallway", "permanent_allowance")
+    aquarium = g.registry.by_id["aquarium"]
+    g._place_room(aquarium, 11, aquarium.rotations[0], entry_dir=W)
+    assert g.state.experiment.success_count == 1

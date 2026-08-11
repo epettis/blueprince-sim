@@ -16,21 +16,25 @@ loader, and this module imports only model/rng-adjacent types.
 
 ## Not modelled (this phase)
 
-Twelve of the twenty effects stay inert (``implemented: false`` or, for
+Eleven of the twenty effects stay inert (``implemented: false`` or, for
 ``keys_per_30_steps``, undrawable — see below): ``entrance_hall_trunk``,
-``gain_star``, ``spread_dig_spots``, ``add_aquariums``, ``mail_room_letter``
-(base pool); ``pantry_fruit``, ``reservoir_water_level``,
-``remove_tunnel_crate``, ``unseal_antechamber_door``,
-``permanent_lockpicking_skill``, ``random_item_then_zero_keys``,
-``half_steps_for_dice`` (packet pool). ``keys_per_30_steps`` (packet pool) IS
-implemented mechanically below, but stays undrawable until the packet
-subsystem (phases 5-8) is authorised, since :func:`draw_offers` only samples
-the base pool.
+``spread_dig_spots``, ``add_aquariums``, ``mail_room_letter`` (base pool);
+``pantry_fruit``, ``reservoir_water_level``, ``remove_tunnel_crate``,
+``unseal_antechamber_door``, ``permanent_lockpicking_skill``,
+``random_item_then_zero_keys``, ``half_steps_for_dice`` (packet pool).
+``keys_per_30_steps`` (packet pool) IS implemented mechanically below, but
+stays undrawable until the packet subsystem (phases 5-8) is authorised,
+since :func:`draw_offers` only samples the base pool.
 
-Every trigger except ``immediately`` stays unimplemented: the eleven other
-base triggers and all eight packet triggers need firing sites (draft hooks,
-move hooks, dig hooks, ...) that are a later phase's work. ``immediately``
-needs no firing site — it fires exactly once, when the experiment starts.
+Six of the twelve base triggers stay unimplemented: ``apples``,
+``security_door``, ``archived_floorplan``, ``trunks_opened``,
+``trash_while_digging``, and ``drawing_room_drawn`` need firing sites (apple
+pickup, security-door open, dig hooks, ...) that are later work, same as all
+eight packet triggers. ``immediately`` fires once, at setup completion, from
+:meth:`Game._maybe_finish_experiment_setup`. The other five --
+``shops``, ``gems_spent``, ``bedrooms_after_second``, ``hallway_from_hallway``,
+``red_room_draft`` -- are all detected by :func:`on_room_drafted`, called from
+``Game._place_room`` on every non-entrance draft.
 """
 
 from __future__ import annotations
@@ -38,6 +42,8 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass, field
 from pathlib import Path
+
+from .grid import neighbor
 
 
 @dataclass(frozen=True, slots=True)
@@ -121,6 +127,11 @@ class ExperimentState:
     effect_id: str | None = None  # chosen effect for today's experiment; None = not configured
     paused: bool = False  # True = configured but the effect is not currently firing
     success_count: int = 0  # times the trigger has succeeded (and the effect applied) today
+    # Bedroom-equivalents drafted today (Bunk Room counts as 2), tracked from the
+    # day's first Bedroom draft regardless of whether/when an experiment is
+    # configured -- bedrooms_after_second's threshold counts all of today's
+    # Bedrooms, not just ones drafted after the trigger became active.
+    bedroom_draft_count: int = 0
 
     @property
     def configured(self) -> bool:
@@ -165,28 +176,106 @@ def trigger_success(game) -> bool:
     Returns True and applies the chosen effect (incrementing success_count)
     when the experiment is configured and not paused; returns False and does
     nothing otherwise (no experiment configured, or paused). This is the
-    single fire site every trigger's own detection hook is meant to call --
-    today only the "immediately" trigger (fired once, at setup completion in
-    Game._maybe_finish_experiment_setup) actually calls it; later phases wire
-    the other eleven base triggers' own detection hooks (draft, move, dig,
-    apple-eat, ...) through this same function.
+    single fire site every trigger's own detection hook is meant to call:
+    "immediately" (fired once, at setup completion, from
+    Game._maybe_finish_experiment_setup) and the five draft-site triggers
+    detected by :func:`on_room_drafted` all route through here; the remaining
+    base and packet triggers still need their own detection hooks wired in.
+
+    A trigger carrying ``steps_lost`` in its magnitude (red_room_draft, and
+    map_view in the packet pool) takes that loss on top of whichever effect
+    the player chose, floored at its ``floor``. The loss is applied here,
+    after the active gate, so a paused experiment suppresses it the same way
+    it suppresses the effect -- and before apply_effect, so an effect that
+    writes steps outright (set_steps) lands last.
     """
     ex = game.state.experiment
     if not ex.active:
         return False
     ex.success_count += 1
+    trig = game.registry.experiments.trigger_by_id.get(ex.trigger_id)
+    steps_lost = trig.magnitude.get("steps_lost", 0) if trig is not None else 0
+    if steps_lost:
+        game.state.steps = max(trig.magnitude.get("floor", 0), game.state.steps - steps_lost)
     apply_effect(game, ex.effect_id)
     return True
+
+
+# ------------------------------------------------------------------ draft-site triggers
+
+def on_room_drafted(game, room, cell: int, entry_dir: int | None, gem_cost: int) -> None:
+    """Detect and fire the five placement-site triggers for a freshly-placed room.
+
+    Called from Game._place_room after the room is written to the grid and
+    before its ON_PLACE hook fires, for every non-entrance draft (never for
+    the day-start Entrance Hall, never for outer-room drafts). Only the
+    currently configured trigger's own branch can call trigger_success --
+    drafting a Shop while "gems_spent" is configured must not fire it.
+    ``gem_cost`` is the nominal gem cost paid (0 if free, or waived by a
+    Stopwatch, which does not count as spending).
+    """
+    ex = game.state.experiment
+    match ex.trigger_id:
+        case "shops" if room.is_category("shop"):
+            trigger_success(game)
+        case "red_room_draft" if room.is_category("red"):
+            trigger_success(game)
+        case "hallway_from_hallway" if room.is_category("hallway"):
+            if _drafted_from_hallway(game, cell, entry_dir):
+                trigger_success(game)
+        case "gems_spent" if gem_cost >= 2 and not game.hovel_placed:
+            trigger_success(game)
+    if room.is_category("bedroom"):
+        _count_bedroom_draft(game, room, ex.trigger_id)
+
+
+def _drafted_from_hallway(game, cell: int, entry_dir: int | None) -> bool:
+    """True when the room at ``cell`` was drafted through a doorway on a Hallway.
+
+    ``entry_dir`` is the direction the player would move to reach ``cell``, so
+    the from-room sits at its opposite neighbor -- the same derivation
+    Game._roll_new_segments and special_items.gem_cost_modifier's Hall Pass
+    check use, rather than threading PendingDraft.from_cell separately.
+    """
+    if entry_dir is None:
+        return False
+    from_cell = neighbor(cell, entry_dir)
+    if from_cell < 0:
+        return False
+    from_idx = game.state.grid[from_cell]
+    return from_idx >= 0 and game.registry.rooms[from_idx].is_category("hallway")
+
+
+def _count_bedroom_draft(game, room, trigger_id: str | None) -> None:
+    """Advance today's bedroom-equivalent counter and fire bedrooms_after_second.
+
+    The counter advances for every Bedroom drafted today regardless of
+    ``trigger_id``: all of today's Bedrooms count toward the two-Bedroom
+    threshold, including ones drafted before the trigger was configured; only
+    the fire count is gated on the trigger actually being configured. Firing
+    ``crossed`` times reproduces the Bunk Room worked example: counter 1 -> 3
+    crosses the "after your second" line once, not twice.
+    """
+    ex = game.state.experiment
+    bed_effect = next((e for e in room.effects if e.tag == "counts_as_bedrooms"), None)
+    amount = bed_effect.param("amount", 1) if bed_effect is not None else 1
+    before, after = ex.bedroom_draft_count, ex.bedroom_draft_count + amount
+    ex.bedroom_draft_count = after
+    if trigger_id != "bedrooms_after_second":
+        return
+    crossed = max(0, after - 2) - max(0, before - 2)
+    for _ in range(crossed):
+        trigger_success(game)
 
 
 def apply_effect(game, effect_id: str) -> None:
     """Apply one successful trigger's chosen effect.
 
-    No-ops for any effect_id whose record is not ``implemented`` (the twelve
+    No-ops for any effect_id whose record is not ``implemented`` (the eleven
     inert effects listed in the module docstring) -- reachable only if a
     caller sets state.experiment.effect_id directly, since draw_offers only
-    samples the base pool and every base effect below "implemented: true" is
-    already one of the eight this phase implements.
+    samples the base pool and every base effect marked "implemented: true" is
+    already one of the nine this module implements.
     """
     st = game.state
     registry = game.registry
@@ -216,6 +305,8 @@ def apply_effect(game, effect_id: str) -> None:
             st.coins += n_red * effect.magnitude.get("coins_per_red_room", 3)
         case "permanent_allowance":
             st.allowance += effect.magnitude.get("allowance_gold", 1)
+        case "gain_star":
+            st.stars += 1
         case "keys_per_30_steps":
             per = effect.magnitude.get("steps_per_key", 30)
             st.keys += st.steps // per
