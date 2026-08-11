@@ -152,6 +152,36 @@ _AUDIT_DATA_EXEMPT_IDS = {
     "lavatory": "items.additional_max",          # "Has no items (never spawns loot)"
 }
 
+# Rooms whose effect is genuinely unmodelled and deliberately deferred, with a
+# stated reason -- distinct from the other three channels, which all claim the
+# behaviour IS modelled somewhere the audit can't see. These four claim the
+# opposite: the gap is real, and staying on the worklist forever would just
+# make the audit noisy rather than actionable. _assert_deferred_exemptions_live
+# checks each id would still be flagged without this channel, so the entry
+# stays honest if the room is ever actually implemented.
+_AUDIT_DEFERRED_EXEMPT_IDS = {
+    "parlor__ix109": (
+        "Ruled deliberately permanent by the owner. Its effect ('2 Wind-up "
+        "Keys') has no grid-level representation."
+    ),
+    "pump_room": (
+        "Blocked on the Pump Room water model: six independent source "
+        "levels, two tanks, four pumps, permanent carryover and a new "
+        "action set."
+    ),
+    "closed_exhibit": (
+        "Blocked on the security-lock puzzle subsystem. Its own "
+        "effect_text already says the lock system is out of scope."
+    ),
+    "throne_room": (
+        "Blocked on cross-day meta-progression (reclaiming the crown, the "
+        "Throne of the Blue Prince transformation). Its Antechamber lever "
+        "IS modelled (effects/rooms/throne_room.py, dispatched by hand in "
+        "game.py rather than a room_hook the audit can see); only the "
+        "crown objective is missing."
+    ),
+}
+
 
 def _assert_python_exemptions_live(src_root: Path) -> None:
     """Fail if a Python-exempt room's id no longer appears in its named module.
@@ -176,6 +206,7 @@ def find_divergences(
     lock_rules: dict,
     registered_room_ids: set[str] | None = None,
     shop_rules: dict | None = None,
+    deferred_exempt_ids: dict[str, str] | None = None,
 ) -> tuple[list[str], list[str]]:
     """Return (kind1, kind2) room-fidelity divergence findings (an audit worklist).
 
@@ -204,13 +235,16 @@ def find_divergences(
     effect text. ``registered_room_ids`` defaults to the live ``room_hook``
     registry (``engine.effects``); tests may pass an explicit set instead.
 
-    Both kinds exclude four exemption sets, each covering a channel the audit
+    Both kinds exclude five exemption sets, each covering a channel the audit
     cannot introspect: ``_AUDIT_STRUCTURAL_EXEMPT_IDS`` (implemented in
     locks.json), ``_AUDIT_PYTHON_EXEMPT_IDS`` (a hand-written branch keyed on
     the room id, in the module each entry names), ``_AUDIT_DATA_EXEMPT_IDS``
-    (the text merely restates a field the record already carries) and
+    (the text merely restates a field the record already carries),
     ``_AUDIT_DOCTRINE_EXEMPT_IDS`` (the effect is a no-op under the
-    assumed-solved doctrine).
+    assumed-solved doctrine), and ``deferred_exempt_ids`` (the effect is
+    genuinely unmodelled and deliberately deferred, with a stated reason --
+    defaults to ``_AUDIT_DEFERRED_EXEMPT_IDS``; callers may pass ``{}`` to see
+    what the audit would report without that channel).
 
     Both kinds also exclude commerce rooms, whose behaviour lives in
     ``engine/shops.py``: the ids in ``shop_rules``'s "shops" table plus
@@ -220,6 +254,8 @@ def find_divergences(
     than the sim's. ``shop_rules`` defaults to no shops, which keeps every
     caller that does not pass it on the pre-existing behaviour.
     """
+    if deferred_exempt_ids is None:
+        deferred_exempt_ids = _AUDIT_DEFERRED_EXEMPT_IDS
     locks_backed = frozenset(rid for rid in _AUDIT_STRUCTURAL_EXEMPT_IDS if rid in by_id)
     # Sanity-check the locks-backed list so it can't silently rot: every id in
     # it must actually be exempt from locks.json's own always_unlocked/always_locked tables.
@@ -231,7 +267,7 @@ def find_divergences(
     )
     structural = locks_backed | frozenset(
         rid for rid in (set(_AUDIT_PYTHON_EXEMPT_IDS) | set(_AUDIT_DATA_EXEMPT_IDS)
-                        | set(_AUDIT_DOCTRINE_EXEMPT_IDS))
+                        | set(_AUDIT_DOCTRINE_EXEMPT_IDS) | set(deferred_exempt_ids))
         if rid in by_id)
     priced_shops = set((shop_rules or {}).get("shops", {}))
     commerce = frozenset(
@@ -273,6 +309,41 @@ def find_divergences(
             )
 
     return kind1, kind2
+
+
+def _assert_deferred_exemptions_live(
+    rooms: list[dict],
+    by_id: dict[str, dict],
+    lock_rules: dict,
+    shop_rules: dict | None,
+) -> None:
+    """Fail if a deferred-exempt room's id is gone, or the exemption no longer
+    suppresses anything.
+
+    Unlike the other three channels, a deferred exemption doesn't claim the
+    room is modelled somewhere the audit can't see -- it claims the opposite,
+    that the gap is real and deliberately postponed. That claim rots if the
+    room is deleted, or if it quietly becomes modelled (an effect/room_hook
+    lands) without the exemption being retired: the entry would then suppress
+    nothing, which is dead weight at best and, per prior incidents, a sign
+    someone added a no-op hook purely to dodge this audit rather than fixing
+    it. Reruns find_divergences with the deferred channel disabled (passing
+    ``{}``) and requires every exempted id to actually appear in the raw
+    kind1/kind2 findings -- the exact same rule the audit itself uses, so this
+    can't drift from what "would otherwise flag" means.
+    """
+    for rid in sorted(_AUDIT_DEFERRED_EXEMPT_IDS):
+        assert rid in by_id, f"_AUDIT_DEFERRED_EXEMPT_IDS: {rid} no longer exists in rooms.json"
+    raw_kind1, raw_kind2 = find_divergences(
+        rooms, by_id, lock_rules, shop_rules=shop_rules, deferred_exempt_ids={})
+    raw = raw_kind1 + raw_kind2
+    for rid in sorted(_AUDIT_DEFERRED_EXEMPT_IDS):
+        if not any(f.startswith(f"{rid}:") for f in raw):
+            raise AssertionError(
+                f"_AUDIT_DEFERRED_EXEMPT_IDS: {rid!r} is no longer flagged by the audit "
+                f"without this exemption; either it is now modelled (retire the entry) "
+                f"or the exemption is stale"
+            )
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -1483,6 +1554,7 @@ def main(argv: list[str] | None = None) -> int:
     # summary line can advertise the count, but only printed under --audit and
     # never folded into errors/warnings -- see find_divergences' docstring.
     _assert_python_exemptions_live(DATA.parent)
+    _assert_deferred_exemptions_live(rooms, by_id, lock_rules, shops_doc)
     audit_kind1, audit_kind2 = find_divergences(rooms, by_id, lock_rules,
                                                 shop_rules=shops_doc)
     n_audit = len(audit_kind1) + len(audit_kind2)

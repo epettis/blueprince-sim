@@ -8,6 +8,8 @@ worklist gets fixed.
 
 from __future__ import annotations
 
+import json
+import re
 import sys
 from pathlib import Path
 
@@ -17,11 +19,14 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from tools.validate_data import (  # noqa: E402
+    DATA,
     _AUDIT_COMMERCE_EXTRA_IDS,
     _AUDIT_DATA_EXEMPT_IDS,
+    _AUDIT_DEFERRED_EXEMPT_IDS,
     _AUDIT_DOCTRINE_EXEMPT_IDS,
     _AUDIT_PYTHON_EXEMPT_IDS,
     _AUDIT_STRUCTURAL_EXEMPT_IDS,
+    _assert_deferred_exemptions_live,
     _assert_python_exemptions_live,
     find_divergences,
     main,
@@ -306,6 +311,36 @@ def test_doctrine_exempt_rooms_are_excluded_from_both_kinds():
         assert not any(rid in f for f in kind2), rid
 
 
+def test_deferred_exempt_rooms_are_excluded_from_both_kinds():
+    """A room whose gap is real and deliberately postponed, with a stated
+    reason, is not a finding -- the deferred channel exists precisely so a
+    known, explained gap doesn't sit on the worklist alongside genuinely
+    undiscovered ones."""
+    for rid in _AUDIT_DEFERRED_EXEMPT_IDS:
+        room = _room(rid, text="Something this room does.")
+        by_id = {rid: room}
+
+        kind1, kind2 = find_divergences([room], by_id, EMPTY_LOCKS)
+
+        assert not any(rid in f for f in kind1), rid
+        assert not any(rid in f for f in kind2), rid
+
+
+def test_deferred_exempt_ids_are_flagged_when_the_channel_is_disabled():
+    """Passing deferred_exempt_ids={} reproduces the un-exempted worklist --
+    the four deferred rooms are only absent from the summary because of this
+    channel, not because they're otherwise unflaggable. Pins the mechanism
+    _assert_deferred_exemptions_live relies on to detect a stale entry."""
+    rooms = [_room(rid, text="Something this room does.")
+             for rid in _AUDIT_DEFERRED_EXEMPT_IDS]
+    by_id = {r["id"]: r for r in rooms}
+
+    kind1, kind2 = find_divergences(rooms, by_id, EMPTY_LOCKS, deferred_exempt_ids={})
+
+    for rid in _AUDIT_DEFERRED_EXEMPT_IDS:
+        assert any(f.startswith(f"{rid}:") for f in kind1 + kind2), rid
+
+
 def test_python_exemption_liveness_check_fires_when_the_id_is_gone(tmp_path):
     """The liveness check must fail when an exempt room's id no longer appears
     in the module it names.
@@ -328,6 +363,57 @@ def test_python_exemption_liveness_check_passes_on_the_real_tree():
     so the shipped exemption list is not already stale."""
     src_root = Path(__file__).resolve().parent.parent / "src" / "blueprince_sim"
     _assert_python_exemptions_live(src_root)
+
+
+def test_deferred_exemption_liveness_check_fires_when_the_id_is_gone():
+    """The liveness check must fail when a deferred-exempt room's id no
+    longer exists in the rooms passed in.
+
+    A deferred exemption's first claim is that the room still exists to be
+    deferred about -- if the record is deleted (or renamed) the exemption
+    would otherwise just silently stop suppressing anything."""
+    ids = sorted(_AUDIT_DEFERRED_EXEMPT_IDS)
+    missing = ids[0]
+    rooms = [_room(rid, text="Something this room does.") for rid in ids if rid != missing]
+    by_id = {r["id"]: r for r in rooms}
+
+    with pytest.raises(AssertionError, match=re.escape(missing)):
+        _assert_deferred_exemptions_live(rooms, by_id, EMPTY_LOCKS, shop_rules={})
+
+
+def test_deferred_exemption_liveness_check_fires_when_the_id_becomes_modelled():
+    """The liveness check must fail once an exempted room stops being
+    something the raw audit would flag -- e.g. it gains an ``effects`` entry.
+
+    A deferred exemption is a claim that the gap is real; once the gap is
+    closed the entry suppresses nothing and becomes dead weight, exactly the
+    shape of the no-op-hook-to-dodge-the-audit failure mode this guard exists
+    to catch."""
+    ids = sorted(_AUDIT_DEFERRED_EXEMPT_IDS)
+    now_modelled = ids[0]
+    rooms = [
+        _room(rid, text="Something this room does.",
+              effects=([{"tag": "grant", "resource": "steps", "amount": 1}]
+                       if rid == now_modelled else None))
+        for rid in ids
+    ]
+    by_id = {r["id"]: r for r in rooms}
+
+    with pytest.raises(AssertionError, match=re.escape(now_modelled)):
+        _assert_deferred_exemptions_live(rooms, by_id, EMPTY_LOCKS, shop_rules={})
+
+
+def test_deferred_exemption_liveness_check_passes_on_the_real_tree():
+    """Every deferred-exempt id in the shipped rooms.json still exists and is
+    still something the audit would flag without this channel, so the
+    shipped exemption list is not already stale."""
+    rooms_doc = json.loads((DATA / "rooms.json").read_text(encoding="utf-8"))
+    lock_rules = json.loads((DATA / "locks.json").read_text(encoding="utf-8"))
+    shops_doc = json.loads((DATA / "shops.json").read_text(encoding="utf-8"))
+    rooms = rooms_doc["rooms"]
+    by_id = {r["id"]: r for r in rooms}
+
+    _assert_deferred_exemptions_live(rooms, by_id, lock_rules, shops_doc)
 
 
 def test_default_validate_data_run_reports_zero_warnings():

@@ -301,6 +301,41 @@ def test_servants_quarters_under_the_cap_still_pays_per_bedroom(registry, cfg):
     assert g.state.keys == keys0 + 5, "4 fillers plus the Servant's Quarters itself"
 
 
+def test_real_servants_spare_quarters_caps_at_fifteen(registry, cfg):
+    """The upgraded Servant's Spare Quarters pays at most 15 keys, however many
+    Bedrooms stand -- the published cap applies to the upgrade variant too, not
+    only to the base room it was missed on."""
+    sq = registry.by_id["servants_spare_quarters__ix134"]
+    bedroom = registry.by_id["bedroom"]
+    g = Game(cfg, seed=0)
+    for cell in range(10, 30):  # 20 Bedrooms, well past the cap
+        g.state.grid[cell] = bedroom.idx
+        g.state.placed_doors[cell] = bedroom.door_mask
+    g._place_room(sq, 30, sq.door_mask)
+    keys0 = g.state.keys
+
+    g._enter(30)
+
+    assert g.state.keys == keys0 + 15, "Servant's Spare Quarters must stop paying at 15 keys"
+
+
+def test_servants_spare_quarters_under_the_cap_still_pays_per_bedroom(registry, cfg):
+    """Below the cap the Servant's Spare Quarters pays one key per Bedroom,
+    counting the room itself, the same as the base room's own uncapped range."""
+    sq = registry.by_id["servants_spare_quarters__ix134"]
+    bedroom = registry.by_id["bedroom"]
+    g = Game(cfg, seed=0)
+    for cell in range(10, 14):  # 4 Bedrooms, plus the Servant's Spare Quarters itself = 5
+        g.state.grid[cell] = bedroom.idx
+        g.state.placed_doors[cell] = bedroom.door_mask
+    g._place_room(sq, 30, sq.door_mask)
+    keys0 = g.state.keys
+
+    g._enter(30)
+
+    assert g.state.keys == keys0 + 5, "4 fillers plus the Servant's Spare Quarters itself"
+
+
 def test_bunk_room_mimic_counts_as_two_bedrooms(registry, cfg):
     """Bunk Room mimicry is a flat 2-Bedrooms count, read
     through bedroom_bonus like the real Bunk Room's counts_as_bedrooms tag."""
