@@ -256,6 +256,27 @@ state the player can never actually reach yet. The packet pool's *data* is
 transcribed now (phase 0) because the table is more reviewable complete than
 partial; its *behavior* waits for its own authorization.
 
+### Status
+
+Phases 0 and 1 have landed. `engine/experiments.py` holds the registry, the
+per-day `ExperimentState`, the uniform 3-of-12 setup draw, and effect
+application; `Game` exposes the terminal (`start_setup`,
+`choose_experiment_trigger`, `choose_experiment_effect`, `toggle_experiment`)
+gated on standing in the Laboratory, with `Phase.EXPERIMENT_PENDING` and
+actions 319–326.
+
+**Seven of the twelve base effects and one of the twelve base triggers are
+live.** `draw_offers` samples the base pool uniformly and does not filter on
+`implemented`, which is faithful to the game's own offer distribution but has a
+consequence worth knowing while phases 2–3 are outstanding: only `immediately`
+has a firing site, so a setup offers at least one live trigger 25% of the time
+(`1 - C(11,3)/C(12,3)`). The rest configure an experiment that stays silent for
+the day. Phases 2 and 3 are what close this — they add the draft-site and
+interaction firing sites for the other eleven base triggers.
+
+Filtering the draw to implemented records is not an option in the meantime:
+with one live trigger there is nothing to draw three from.
+
 ## Validation (`tools/validate_data.py`)
 
 - Every trigger/effect `id` is unique (checked across triggers and effects

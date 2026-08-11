@@ -97,8 +97,12 @@ def action_group(action_id: int) -> str:
         return "choose"
     if A.TRAVEL_BASE <= action_id < A.OPEN_SIGIL_DOOR_BASE:
         return "travel"
-    if A.OPEN_SIGIL_DOOR_BASE <= action_id < A.N_ACTIONS:
+    if A.OPEN_SIGIL_DOOR_BASE <= action_id <= A.START_SETUP_ACTION:
         return "use"
+    if A.EXP_TRIGGER_BASE <= action_id < A.TOGGLE_EXPERIMENT_ACTION:
+        return "choose"
+    if action_id == A.TOGGLE_EXPERIMENT_ACTION:
+        return "control"
     return "other"
 
 

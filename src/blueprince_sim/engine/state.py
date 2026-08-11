@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+from .experiments import ExperimentState
 from .model import Room
 from .shops import ShopsState
 from .special_items import SpecialItemsState
@@ -223,6 +224,8 @@ class GameState:
     special: SpecialItemsState = field(default_factory=SpecialItemsState)
     # commerce/discovery bookkeeping (shop stock, trades, scepter; see shops.py)
     shops: ShopsState = field(default_factory=ShopsState)
+    # Laboratory/Experiments bookkeeping (see engine/experiments.py); per-day only
+    experiment: ExperimentState = field(default_factory=ExperimentState)
 
     pending: PendingDraft | None = None  # in-flight draft hand; None outside the drafting phase
     outer_room_drafted: bool = False  # today's single outer-room draft has been used

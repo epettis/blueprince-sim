@@ -4,7 +4,7 @@
   "source": "https://blueprince.wiki.gg/wiki/Experiments, https://blueprince.wiki.gg/wiki/Experiments/Triggers, https://blueprince.wiki.gg/wiki/Experiments/Effects, https://blueprince.wiki.gg/wiki/Spoilers:Experiments/Triggers, https://blueprince.wiki.gg/wiki/Spoilers:Experiments/Effects",
   "confidence": "wiki",
   "notes": [
-   "Phase 0 of the Laboratory/Experiments subsystem: transcription and validation only. Every record below is 'implemented: false' -- see docs/experiments-design.md for the phase plan.",
+   "Phase 1 of the Laboratory/Experiments subsystem: engine/experiments.py implements the setup/pause/resume core, the 'immediately' trigger, and eight pure-resource effects (their records carry 'implemented: true'). Every other trigger and effect stays 'implemented: false' -- see docs/experiments-design.md for the phase plan.",
    "Deliberately never modelled, at any future phase (see docs/experiments-design.md): the 40-second real-time trigger and the map-view trigger (no wall-clock or interactive map action in this simulator); the setup-menu reroll timing exploit (revisiting the Experimental Setup menu before committing to reroll the three-of-each draw -- a UI-timing exploit, not a data rule); Blessing of the Tinkerer cross-triggers (any active experiment also triggers whenever a Mechanical Room is drafted, independent of the chosen trigger -- a global modifier on the whole subsystem, not a per-record rule); radiation level (a hidden daily counter, incremented by every successful trigger, that gates the Shelter terminal's unlock-all-doors ability -- Shelter/radiation are out of scope); Dare Mode (an alternate, harder experiments ruleset documented on a separate wiki subpage); Research Logs (an in-fiction in-game log of experiment activation history, not a mechanical system)."
   ]
  },
@@ -26,11 +26,11 @@
    "pool": "base",
    "availability": null,
    "cap": null,
-   "implemented": false,
+   "implemented": true,
    "meta": {
     "source": "https://blueprince.wiki.gg/wiki/Experiments/Triggers",
     "confidence": "wiki",
-    "blocked_on": "phase 0: no experiments engine exists yet (data/validation only)",
+    "blocked_on": null,
     "notes": [
      "Triggers exactly once, at the moment the experiment is started."
     ]
@@ -397,15 +397,15 @@
      "gem",
      "die"
     ],
-    "split": null
+    "split": [1, 1, 1]
    },
-   "implemented": false,
+   "implemented": true,
    "meta": {
     "source": "https://blueprince.wiki.gg/wiki/Experiments/Effects",
-    "confidence": "wiki",
-    "blocked_on": "phase 0: no experiments engine exists yet (data/validation only)",
+    "confidence": "inferred",
+    "blocked_on": null,
     "notes": [
-     "The key/gem/die selection split is not published by the wiki; magnitude.split left null (gap -- do not invent).",
+     "The key/gem/die selection split is not published by the wiki; magnitude.split is inferred as a uniform one-third-each roll, not sourced -- revisit if a source ever settles the real weights.",
      "Originally granted a coin instead of the die; the coin reward was replaced with an Ivory Die in Patch 1.04.5 (provenance only, not current behavior)."
     ]
    }
@@ -419,11 +419,11 @@
    "magnitude": {
     "steps": 40
    },
-   "implemented": false,
+   "implemented": true,
    "meta": {
     "source": "https://blueprince.wiki.gg/wiki/Experiments/Effects",
     "confidence": "wiki",
-    "blocked_on": "phase 0: no experiments engine exists yet (data/validation only)",
+    "blocked_on": null,
     "notes": [
      "Nullifies the Red Rooms trigger's own steps penalty. If triggered by drafting the Weight Room, steps are set to 40 THEN halved to 20 by the Weight Room's own effect."
     ]
@@ -456,11 +456,11 @@
     "keys": 1,
     "rounding": "floor"
    },
-   "implemented": false,
+   "implemented": true,
    "meta": {
     "source": "https://blueprince.wiki.gg/wiki/Experiments/Effects",
     "confidence": "wiki",
-    "blocked_on": "phase 0: no experiments engine exists yet (data/validation only)",
+    "blocked_on": null,
     "notes": [
      "If the Hallway trigger itself drafted the counted Hallway, that Hallway is included in the count."
     ]
@@ -498,11 +498,11 @@
    "magnitude": {
     "coins_per_red_room": 3
    },
-   "implemented": false,
+   "implemented": true,
    "meta": {
     "source": "https://blueprince.wiki.gg/wiki/Experiments/Effects",
     "confidence": "wiki",
-    "blocked_on": "phase 0: no experiments engine exists yet (data/validation only)",
+    "blocked_on": null,
     "notes": [
      "Triggers successfully with no effect if there are currently no Red Rooms in the estate."
     ]
@@ -546,13 +546,13 @@
    "magnitude": {
     "dice": 2
    },
-   "implemented": false,
+   "implemented": true,
    "meta": {
     "source": "https://blueprince.wiki.gg/wiki/Experiments/Effects",
     "confidence": "wiki",
-    "blocked_on": "phase 0: no experiments engine exists yet (data/validation only)",
+    "blocked_on": null,
     "notes": [
-     "UNPUBLISHED, DO NOT IMPLEMENT: the wiki source carries this rule commented out (not live text): 'This effect cannot be offered if the gain 1 key/gem/die effect is offered.' The editors have not confirmed it and flag the broader datamine as unreliable ('a lot of the datamined info on experiments has been off or just straight up wrong'). Recorded here for provenance only."
+     "UNPUBLISHED, DO NOT IMPLEMENT AS AN AVAILABILITY RULE: the wiki source carries this rule commented out (not live text): 'This effect cannot be offered if the gain 1 key/gem/die effect is offered.' The editors have not confirmed it and flag the broader datamine as unreliable ('a lot of the datamined info on experiments has been off or just straight up wrong'). Recorded here for provenance only -- the effect's own mechanics (set dice to 2) are unaffected and are implemented."
     ]
    }
   },
@@ -611,11 +611,11 @@
    "magnitude": {
     "allowance_gold": 1
    },
-   "implemented": false,
+   "implemented": true,
    "meta": {
     "source": "https://blueprince.wiki.gg/wiki/Experiments/Effects",
     "confidence": "wiki",
-    "blocked_on": "phase 0: no experiments engine exists yet (data/validation only)"
+    "blocked_on": null
    }
   },
   {
@@ -628,11 +628,11 @@
     "steps_lost": 10,
     "coins_gained": 20
    },
-   "implemented": false,
+   "implemented": true,
    "meta": {
     "source": "https://blueprince.wiki.gg/wiki/Experiments/Effects",
     "confidence": "wiki",
-    "blocked_on": "phase 0: no experiments engine exists yet (data/validation only)"
+    "blocked_on": null
    }
   },
   {
@@ -740,11 +740,14 @@
     "steps_per_key": 30,
     "rounding": "floor"
    },
-   "implemented": false,
+   "implemented": true,
    "meta": {
     "source": "https://blueprince.wiki.gg/wiki/Spoilers:Experiments/Effects",
     "confidence": "wiki",
-    "blocked_on": "phase 0: no experiments engine exists yet (data/validation only); the packet subsystem itself is phases 5-8, not yet authorised"
+    "blocked_on": null,
+    "notes": [
+     "Mechanically implemented (engine/experiments.py), but pool=\"packet\" keeps it undrawable in setup until the packet subsystem itself (phases 5-8) is authorised -- see the packet_note in this file's mechanic block."
+    ]
    }
   },
   {

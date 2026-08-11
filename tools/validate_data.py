@@ -114,6 +114,10 @@ _AUDIT_PYTHON_EXEMPT_IDS = {
     # generically by engine/special_items.py, so the guard points at the table
     # itself: deleting the entry is what should trip it.
     "hallway__ix75": "data/special_items.json",
+    # The Experimental Setup terminal is a hand-written room-id check
+    # (Game.at_laboratory_terminal), not an effects tag or room_hook -- the
+    # Laboratory itself carries no per-experiment data, only the disk_reader flag.
+    "laboratory": "engine/game.py",
     # The steal must be able to draw the room's own guaranteed Allowance
     # Token, granted earlier in the same on_enter call, so it stays ordered
     # against that grant rather than moving to an earlier-firing room_hook.
@@ -796,7 +800,7 @@ def main(argv: list[str] | None = None) -> int:
                 if iid not in si_by_id:
                     errors.append(f"{where}: grant item {iid!r} not in special_items")
 
-    # ── experiments.json (Laboratory/Experiments, phase 0: data + validation) ─────
+    # ── experiments.json (Laboratory/Experiments; see engine/experiments.py) ─────
     VALID_EXPERIMENT_POOLS = {"base", "packet"}
     experiments_doc = json.loads((DATA / "experiments.json").read_text())
     ex_triggers = experiments_doc.get("triggers", [])
@@ -827,10 +831,9 @@ def main(argv: list[str] | None = None) -> int:
         where = f"experiments/{kind}/{rec.get('id')}"
         if rec.get("pool") not in VALID_EXPERIMENT_POOLS:
             errors.append(f"{where}: invalid pool {rec.get('pool')!r}")
-        if rec.get("implemented", True) is not False:
-            errors.append(f"{where}: phase 0 requires implemented=false")
-        if not rec.get("meta", {}).get("blocked_on"):
-            errors.append(f"{where}: implemented=false requires meta.blocked_on")
+        if not rec.get("implemented", False):
+            if not rec.get("meta", {}).get("blocked_on"):
+                errors.append(f"{where}: implemented=false requires meta.blocked_on")
         conf = rec.get("meta", {}).get("confidence")
         if conf not in VALID_CONFIDENCE:
             errors.append(f"{where}: invalid confidence {conf!r}")
