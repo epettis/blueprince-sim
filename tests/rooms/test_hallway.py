@@ -1,5 +1,5 @@
-"""Hallway upgrade variant guaranteed items, plus the Tomorrow Hallway's
-cross-day extra-copy carry.
+"""Hallway upgrade variant guaranteed items, the trunk upgrade, plus the
+Tomorrow Hallway's cross-day extra-copy carry.
 
 ``hallway__ix74`` grants 1 key on first entry. Items are not inherited through
 ``variant_of``, so the variant carries its own ``items.guaranteed`` entry
@@ -11,6 +11,7 @@ from __future__ import annotations
 from dataclasses import replace
 
 from blueprince_sim.config import GameConfig
+from blueprince_sim.engine import special_items as si
 from blueprince_sim.engine.game import Game
 from blueprince_sim.env.multiday import DayChain
 
@@ -31,6 +32,58 @@ def test_hallway_ix74_grants_one_key():
 
     g._enter(cell)
     assert g.state.keys == keys0 + 1
+
+
+# ------------------------------------------------------- hallway__ix75 trunk
+
+
+def test_hallway_ix75_has_a_trunk():
+    """hallway__ix75 ("+1 locked trunk") declares one trunk container.
+
+    "A Hallway upgrade always contains a trunk" (wiki) is guaranteed via
+    data/special_items.json containers.rooms, not luck-rolled.
+    """
+    cfg = GameConfig(special_items=True)
+    g = Game(cfg, seed=0)
+    assert si.containers_in(g.registry, "hallway__ix75") == {"trunk": 1}
+
+
+def test_plain_hallway_has_no_trunk():
+    """The base Hallway (and its non-trunk variants) declare no containers."""
+    cfg = GameConfig(special_items=True)
+    g = Game(cfg, seed=0)
+    assert si.containers_in(g.registry, "hallway") == {}
+
+
+def test_hallway_ix75_trunk_is_openable_and_costs_a_key():
+    """The trunk at a placed hallway__ix75 is openable and spends 1 key
+    when opened without a smash-tagged item."""
+    cell = 5
+    cfg = GameConfig(special_items=True)
+    g = Game(cfg, seed=0)
+    room = g.registry.by_id["hallway__ix75"]
+    g.state.grid[cell] = room.idx
+    g.state.placed_doors[cell] = room.door_mask
+    g.state.keys = 3
+
+    assert si.can_open_container(g, cell)
+    si.open_container(g, cell)
+    assert g.state.keys == 2, "opening the trunk without a smasher must spend exactly 1 key"
+
+
+def test_hallway_ix75_trunk_grants_loot():
+    """Opening hallway__ix75's trunk logs at least one item/resource grant."""
+    cell = 5
+    cfg = GameConfig(special_items=True)
+    g = Game(cfg, seed=1)
+    room = g.registry.by_id["hallway__ix75"]
+    g.state.grid[cell] = room.idx
+    g.state.placed_doors[cell] = room.door_mask
+    g.state.keys = 3
+
+    result = si.open_container(g, cell)
+    assert result is not None
+    assert len(g.state.items_found_log) > 0, "opening the trunk must log at least one grant"
 
 
 # --------------------------------------------------------- Tomorrow Hallway

@@ -33,6 +33,7 @@ from . import locker_room  # noqa: F401
 from . import mail_room  # noqa: F401
 from . import nook  # noqa: F401
 from . import observatory  # noqa: F401
+from . import parlor  # noqa: F401
 from . import patio  # noqa: F401
 from . import quest_bedroom  # noqa: F401
 from . import room_8  # noqa: F401
