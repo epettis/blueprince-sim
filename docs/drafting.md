@@ -81,9 +81,27 @@ the sim redraws all three):
 
 ## Other draft-time modifiers
 
-- **Archives / Darkroom** (`reduce_draft_options`): drafting *from* these
-  rooms marks options face-down — Archives one "mystery" option, Darkroom
-  all three. A hidden option is still draftable, sight unseen.
+- **Archives** (`archive_floorplan`): house-wide and non-stacking, not a
+  from-room effect. Once one is on the estate, every draft through any
+  doorway archives one of its three dealt options — a uniformly random slot,
+  drawn from its own named RNG stream (`archives_slot`) and re-rolled on
+  every redraw. Archived is a property of the floorplan, distinct from
+  hidden (a property of how it was dealt): the archived option is always
+  also hidden, never the reverse. Negated by Shelter/Knight's Shield, spent
+  once at the Archives' own placement (`engine/effects/rooms/archives.py`).
+- **Darkroom** (`conceal_all_floorplans`): a from-room effect — drafting from
+  its own doorway hides all three options face-down, live-read against
+  `state.darkroom_lights_on` on every deal and redraw. Its lights start on
+  but blow a fuse (switch flips off) the first time the Darkroom is entered
+  each day, unless the switch was already off or Shelter/Knight's Shield
+  negates it (`engine/effects/rooms/darkroom.py`). The Utility Closet's
+  "Darkroom" switch can restore power at any time afterward, disabling the
+  concealment for later doorways from the room — but flipping it off then on
+  again *before* the Darkroom is first entered does not stop the fuse from
+  blowing.
+- A hidden or archived option is still fully draftable, sight unseen; a
+  concealed floorplan's rarity is visible when drafting through a security
+  door.
 - **Conservatory**: on draft, re-rolls the rarity of 3 random undealt deck
   cards.
 - **Hovel**: gem costs can be paid with steps at 3 steps : 1 gem.

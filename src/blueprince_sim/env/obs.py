@@ -21,11 +21,14 @@ CAT_INDEX = {c: i for i, c in enumerate(CATEGORIES)}
 STAGES = ("week1", "week2", "late")
 STAGE_INDEX = {s: i for i, s in enumerate(STAGES)}
 # room_idx+1, rarity+1, gem_cost, step_cost, layout, category, door_N, door_E,
-# door_S, door_W, affordable, forced. The four door bits expose the drafted
-# orientation as separate directional features so the policy can prefer, e.g.,
-# north doors. Cost is split by currency: with the Hovel placed, gem costs are
-# paid entirely in steps at 3:1, which a single scalar cannot express.
-OPTION_FEATURES = 12
+# door_S, door_W, affordable, forced, archived. The four door bits expose the
+# drafted orientation as separate directional features so the policy can
+# prefer, e.g., north doors. Cost is split by currency: with the Hovel placed,
+# gem costs are paid entirely in steps at 3:1, which a single scalar cannot
+# express. archived is distinct from a hidden option's concealment: it marks
+# the one floorplan an active Archives archived this hand (archived implies
+# hidden, never the converse).
+OPTION_FEATURES = 13
 HOUSE_FLAGS = 13  # solarium, greenhouse, study, library, hovel, bedroom_bonus,
                   # red_negations, free_categories count, has_keycard,
                   # keycard_power_on, offline_unlocked, security_level,
@@ -320,11 +323,20 @@ def encode(game: Game, day_chain: DayChain | None = None) -> dict:
             gem_cost, step_cost = _cost_split(game, room, opt)
             doors = tuple(int(bool(opt.orientation & d)) for d in DIRS)  # N,E,S,W
             if opt.hidden:
-                # Archives mystery: identity and orientation concealed
-                # (room_idx 0 = unknown, door bits 0), but the cost and
-                # affordability stay visible and it is still selectable.
-                options[opt.slot] = (0, 0, gem_cost, step_cost, -1, -1, 0, 0, 0, 0,
-                                     int(game.affordable(room, opt)), 0)
+                # Identity and orientation concealed (room_idx 0 = unknown,
+                # door bits 0), but the cost and affordability stay visible
+                # and it is still selectable. Rarity leaks through a security
+                # door (wiki: "If the door being drafted from is a security
+                # door, the rarity of the floorplan is shown"), otherwise -1.
+                # from_cell == -1 (outer-room draft) has no doorway segment to
+                # check; never hidden today anyway, but guarded explicitly.
+                security = (
+                    pending.from_cell != -1
+                    and game.door_state_of(pending.from_cell, pending.direction) == DOOR_SECURITY
+                )
+                rarity = room.rarity_idx + 1 if security else -1
+                options[opt.slot] = (0, rarity, gem_cost, step_cost, -1, -1, 0, 0, 0, 0,
+                                     int(game.affordable(room, opt)), 0, int(opt.archived))
                 continue
             options[opt.slot] = (
                 room.idx + 1,
@@ -336,6 +348,7 @@ def encode(game: Game, day_chain: DayChain | None = None) -> dict:
                 *doors,
                 int(game.affordable(room, opt)),
                 int(opt.forced),
+                int(opt.archived),
             )
 
     house_flags = np.array([

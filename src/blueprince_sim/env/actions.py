@@ -5,7 +5,7 @@ to draft, or a room to enter) and the engine walks the shortest connected
 path, paying the normal one-step-per-room cost. Re-entering rooms grants
 nothing, so free-form single-tile moves were retired.
 
-Layout (Discrete(327)):
+Layout (Discrete(328)):
   0..179   draft at doorway: cell (45) x direction (4: N,E,S,W) ->
            cell*4 + dir_index. Walks to the room first if needed. Legal for
            every frontier doorway reachable with at least one step to spare
@@ -77,6 +77,8 @@ Layout (Discrete(327)):
            to NAVIGATE.
   326      pause/resume the configured experiment (NAVIGATE; standing in the
            Laboratory with a configured experiment).
+  327      toggle the Darkroom lights (standing at the Utility Closet breaker;
+           see engine/effects/rooms/darkroom.py for the fuse-blow it guards).
 """
 
 from __future__ import annotations
@@ -144,9 +146,10 @@ START_SETUP_ACTION = OPEN_SIGIL_DOOR_BASE + _N_SIGIL_REALMS  # 311 + 8 = 319
 EXP_TRIGGER_BASE = START_SETUP_ACTION + 1    # 320..322
 EXP_EFFECT_BASE = EXP_TRIGGER_BASE + 3       # 323..325
 TOGGLE_EXPERIMENT_ACTION = EXP_EFFECT_BASE + 3  # 326
+TOGGLE_DARKROOM_ACTION = TOGGLE_EXPERIMENT_ACTION + 1  # 327: flip the "Darkroom" breaker
 
-# N_ACTIONS = first slot after the experiments block.
-N_ACTIONS = TOGGLE_EXPERIMENT_ACTION + 1  # 326 + 1 = 327
+# N_ACTIONS = first slot after the Darkroom toggle.
+N_ACTIONS = TOGGLE_DARKROOM_ACTION + 1  # 327 + 1 = 328
 
 DIR_INDEX = {d: i for i, d in enumerate(DIRS)}
 
@@ -501,6 +504,8 @@ def action_mask(game: Game, prev_action: int | None = None) -> list[bool]:
                 mask[OUTER_DRAFT_ACTION] = True
             if game.can_toggle_keycard_power():
                 mask[TOGGLE_POWER_ACTION] = True
+            if game.can_toggle_darkroom_lights():
+                mask[TOGGLE_DARKROOM_ACTION] = True
             if game.can_set_security_level():
                 for i, level in enumerate(SECURITY_LEVELS):
                     if level != st.security_level:
@@ -582,6 +587,8 @@ def apply_action(game: Game, action: int) -> None:
         game.open_outer_draft()
     elif action == TOGGLE_POWER_ACTION:
         game.set_keycard_power(not game.state.keycard_power_on)
+    elif action == TOGGLE_DARKROOM_ACTION:
+        game.set_darkroom_lights(not game.state.darkroom_lights_on)
     elif SET_LEVEL_BASE <= action < SET_LEVEL_BASE + len(SECURITY_LEVELS):
         game.set_security_level(SECURITY_LEVELS[action - SET_LEVEL_BASE])
     elif action == ROTATE_ACTION:
@@ -679,6 +686,9 @@ def describe_action(game: Game, action: int) -> str:
     if action == TOGGLE_POWER_ACTION:
         state = "off" if game.state.keycard_power_on else "on"
         return f"turn keycard power {state}"
+    if action == TOGGLE_DARKROOM_ACTION:
+        state = "off" if game.state.darkroom_lights_on else "on"
+        return f"turn Darkroom lights {state}"
     if SET_LEVEL_BASE <= action < SET_LEVEL_BASE + len(SECURITY_LEVELS):
         return f"set security level {SECURITY_LEVELS[action - SET_LEVEL_BASE]}"
     if action == ROTATE_ACTION:

@@ -35,22 +35,7 @@ TUNNEL_ID = "tunnel"
 READING_NOOK_ID = "reading_nook__ix99"
 LIBRARY_ID = "library"
 MECHANARIUM_ID = "mechanarium"
-
-
-def _hidden_count(from_room: Room | None) -> int:
-    """Archives/Darkroom: drafting FROM it hides some (or all) floorplans.
-
-    The room is still dealt and still draftable — it is shown face-down as a
-    "mystery" option the player can select blind — so this counts how many of
-    the dealt options to mark hidden, not how many to drop.
-
-    The effect tag carries an optional ``amount`` param (default 1).  Archives
-    omits it (→ 1 hidden); Darkroom sets amount=3 to hide all three options.
-    """
-    if from_room is None:
-        return 0
-    return sum(int(e.param("amount", 1)) for e in from_room.effects
-               if e.tag == "reduce_draft_options")
+DARKROOM_ID = "darkroom"
 
 
 class DraftContext:
@@ -535,12 +520,24 @@ def _reading_nook_library_option(ctx: DraftContext, cell: int, entry_dir: int) -
 
 
 def _fill_options(ctx: DraftContext, pending: PendingDraft, from_room: Room | None) -> None:
-    """Deal the three option slots, then mark mystery option(s) as hidden.
+    """Deal the three option slots, then apply concealment.
 
-    Archives hides one option (always keeps option 0 visible).  Darkroom hides
-    all three — every option is shown face-down.  A hidden option is still
-    fully draftable; only its identity and orientation are concealed from the
-    player (and from the RL observation).
+    Two independent passes, composed rather than computed as one index:
+
+    - Darkroom (from-room, live-read every deal/redraw): while
+      ``state.darkroom_lights_on`` is False, every option dealt from its
+      doorway is hidden face-down.
+    - Archives (house-wide, non-stacking): once ``state.archives_active`` is
+      set, every draft through any doorway archives exactly one of its three
+      dealt options -- a uniformly random slot, drawn from its own named RNG
+      stream. An archived option is always also hidden (``archived`` implies
+      ``hidden``, never the converse).
+
+    A hidden or archived option is still fully draftable; only its identity
+    and orientation are concealed from the player (and from the RL
+    observation). The two effects compose: a Darkroom hand dealt with an
+    Archives on the estate has all three options hidden and exactly one of
+    them archived.
 
     Tunnel chain: drafting north from a placed Tunnel deals a normal
     three-slot hand with slot 0 guaranteed to be a Tunnel — the wiki
@@ -614,15 +611,22 @@ def _fill_options(ctx: DraftContext, pending: PendingDraft, from_room: Room | No
             exclude.add(opt.room_idx)
     # Clear after the initial deal; redraws of this hand use normal odds.
     ctx.state.special.silver_key_draft = False
-    hidden = _hidden_count(from_room)
-    if hidden:
-        n = len(pending.options)
-        # hide_all: Darkroom hides every option (hidden >= n).
-        # Otherwise keep at least option[0] visible so there's always an
-        # identifiable, affordable choice (Archives semantics).
-        start = 0 if hidden >= n else max(1, n - hidden)
-        for opt in pending.options[start:]:
+
+    # Darkroom: obscures every option dealt from its own doorway while its
+    # lights are off (effects/rooms/darkroom.py flips the switch off on first
+    # entry, unless negated -- see its docstring).
+    if (from_room is not None and from_room.id == DARKROOM_ID
+            and not ctx.state.darkroom_lights_on):
+        for opt in pending.options:
             opt.hidden = True
+
+    # Archives: house-wide once placed (effects/rooms/archives.py), applies to
+    # every doorway's hand, not just its own -- archives exactly one slot,
+    # uniformly at random, independently of the Darkroom pass above.
+    if ctx.state.archives_active and pending.options:
+        idx = ctx.rng.randint("archives_slot", 0, len(pending.options) - 1)
+        pending.options[idx].hidden = True
+        pending.options[idx].archived = True
 
 
 def deal_draft(state: GameState, registry: Registry, cfg: GameConfig, rng: Rng,
@@ -632,8 +636,9 @@ def deal_draft(state: GameState, registry: Registry, cfg: GameConfig, rng: Rng,
 
     Entry point used by ``Game.open_door`` the first time a doorway is opened
     (the result is cached per doorway, so reopening shows the same hand).
-    Library no-draft filtering, Archives/Darkroom hiding, and the Tunnel
-    chain all key off the room being drafted FROM.
+    Library no-draft filtering, Darkroom hiding, and the Tunnel chain all key
+    off the room being drafted FROM; Archives hiding keys off house state
+    instead (see ``_fill_options``).
     """
     from_room = registry.rooms[state.grid[from_cell]] if state.grid[from_cell] >= 0 else None
     ctx = DraftContext(state, registry, cfg, rng, placed_ids, from_room)

@@ -81,8 +81,9 @@ def render_status(game: Game) -> str:
         card = "yes" if st.has_keycard else "no"
         power = "on" if st.keycard_power_on else "off"
         doors = "openable" if game.security_openable() else "sealed"
+        darkroom = "on" if st.darkroom_lights_on else "off"
         line += (f"\nSecurity: level {st.security_level} | power {power} | "
-                 f"keycard {card} | security doors {doors}")
+                 f"keycard {card} | security doors {doors} | Darkroom lights {darkroom}")
     return line
 
 
@@ -90,8 +91,8 @@ def render_options(game: Game) -> str:
     """List the pending draft options, one line per slot; "" outside the DRAFTING phase.
 
     Each line shows the orientation glyph, name, rarity, layout, and effective
-    cost, flagging unaffordable and forced options; an Archives mystery slot
-    hides identity and orientation.
+    cost, flagging unaffordable and forced options; a hidden (Darkroom, or the
+    one slot an active Archives archived) option hides identity and orientation.
     """
     if game.phase is not Phase.DRAFTING or game.state.pending is None:
         return ""
@@ -102,9 +103,11 @@ def render_options(game: Game) -> str:
         afford = "" if game.affordable(room, opt) else " (can't afford)"
         cost = game._effective_cost(room, opt)
         if opt.hidden:
-            # Identity and orientation are hidden for an Archives mystery.
+            # Identity and orientation are hidden; "archived" instead of
+            # "hidden" when this is the specific slot an active Archives picked.
+            label = "archived" if opt.archived else "hidden"
             lines.append(f"  [{opt.slot + 1}] ? {'??? (mystery room)':<22} "
-                         f"{'hidden':<12} {'?':<9} cost {cost}{afford}")
+                         f"{label:<12} {'?':<9} cost {cost}{afford}")
             continue
         glyph = door_glyph(opt.orientation)
         forced = " [forced]" if opt.forced else ""

@@ -168,10 +168,19 @@ def free_green_drafts(game, room, eff, ctx_room) -> None:
     game.free_categories.add("green")
 
 
-# reduce_draft_options (Archives) is consumed directly by draft.deal_draft
-# based on the room being drafted FROM; register it so it isn't warned about.
-@effect("reduce_draft_options", Hook.ON_PLACE)
-def reduce_draft_options(game, room, eff, ctx_room) -> None:
+# archive_floorplan (Archives) and conceal_all_floorplans (Darkroom) are both
+# consumed directly: archive_floorplan by effects/rooms/archives.py's ON_PLACE
+# room_hook (sets a house-wide day flag), conceal_all_floorplans by
+# draft._fill_options, keyed on the room being drafted FROM and read live
+# against effects/rooms/darkroom.py's ON_ENTER-set switch state. Register
+# both tags as no-ops here so neither is warned about as unhandled.
+@effect("archive_floorplan", Hook.ON_PLACE)
+def archive_floorplan(game, room, eff, ctx_room) -> None:
+    pass
+
+
+@effect("conceal_all_floorplans", Hook.ON_PLACE)
+def conceal_all_floorplans(game, room, eff, ctx_room) -> None:
     pass
 
 

@@ -72,7 +72,7 @@ KNOWN_EFFECT_TAGS = {"grant", "grant_per_category", "grant_on_draft_category",
                      "counts_as_drafting_room",
                      "counts_as_bedrooms", "inject_pool",
                      "free_green_drafts",
-                     "reduce_draft_options",
+                     "archive_floorplan", "conceal_all_floorplans",
                      "anti_luck", "mark_visited"}
 
 # Room ids whose "always unlocked"/"always locked" effect_text is implemented

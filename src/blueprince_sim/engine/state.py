@@ -112,7 +112,8 @@ class DraftOption:
     gem_cost: int          # resolved cost (dynamic costs evaluated at deal time)
     slot: int              # 0..2
     forced: bool = False   # placed by a priority/forced draw
-    hidden: bool = False   # Archives: face-down "mystery" room, still draftable
+    hidden: bool = False   # face-down: identity/orientation concealed, still draftable
+    archived: bool = False  # this floorplan was archived by an active Archives; implies hidden
 
 
 @dataclass(slots=True)
@@ -218,6 +219,11 @@ class GameState:
     keycard_power_on: bool = True     # Utility Closet breaker, "Keycard Entry"
     offline_unlocked: bool = False    # Security terminal offline mode (set on visit)
     has_keycard: bool = False         # Keycard held: opens security doors while power is on
+    # Utility Closet breaker, "Darkroom" -- initially on, like keycard_power_on.
+    # Read live at every doorway draft FROM the Darkroom (engine/draft.py); flipped
+    # off by effects/rooms/darkroom.py's ON_ENTER handler the first time the
+    # Darkroom is entered today, unless it was already off or Shelter negates it.
+    darkroom_lights_on: bool = True
 
     # special items held (item id -> count; most items are unique, see special_items.py)
     inventory: dict[str, int] = field(default_factory=dict)
@@ -320,6 +326,12 @@ class GameState:
     # reports this as GameConfig.no_contact_due, which grants the package
     # outright at the start of the FOLLOWING day.
     no_contact_drafted: bool = False
+    # Set once by effects/rooms/archives.py's ON_PLACE handler, unless Shelter or
+    # Knight's Shield negates it (consumed once, here, not per doorway). Unlike the
+    # sauna_visited-shaped flags above this carries NO day-to-day meaning -- it is
+    # read back out same-day, by every draft.deal_draft/redeal call, to archive one
+    # option of the dealt hand (house-wide, non-stacking: a second Archives is a no-op).
+    archives_active: bool = False
     # chronological (item id, count) pickups this run, for CLI/replay reporting
     items_found_log: list[tuple[str, int]] = field(default_factory=list)
 
