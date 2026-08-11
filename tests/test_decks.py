@@ -1,9 +1,14 @@
 """Deck (solitaire) semantics and pool construction."""
 
+from scipy import stats
+
 from blueprince_sim.config import GameConfig
-from blueprince_sim.engine.decks import build_decks, eligible_pool
+from blueprince_sim.engine.decks import build_decks, eligible_pool, inject_rooms_undealt
+from blueprince_sim.engine.draft import DraftContext, _priority_draw
+from blueprince_sim.engine.game import Game
+from blueprince_sim.engine.grid import N
 from blueprince_sim.engine.rng import Rng
-from blueprince_sim.engine.state import DeckState
+from blueprince_sim.engine.state import DeckState, GameState
 
 
 def test_deal_no_repeat_until_depletion():
@@ -83,3 +88,139 @@ def test_deck_copies_and_build(registry):
             assert registry.rooms[card].is_free
         for card in gem.order:
             assert not registry.rooms[card].is_free
+
+
+def test_inject_rooms_undealt_preserves_dealt_prefix_and_grows_by_copies(registry):
+    """inject_rooms_undealt must not perturb the dealt prefix or cursor, and
+    grows the deck by exactly the number of copies injected."""
+    rng = Rng(0)
+    room = registry.by_id["closet"]
+    deck_idx = room.rarity_idx * 2 + (0 if room.is_free else 1)
+    decks = [DeckState() for _ in range(8)]
+    decks[deck_idx] = DeckState(order=[100, 101, 200, 201, 202], pos=2)
+    state = GameState(decks=decks)
+    deck = decks[deck_idx]
+    before_prefix = list(deck.order[:deck.pos])
+    before_pos = deck.pos
+    before_len = len(deck.order)
+
+    inject_rooms_undealt(state, registry, ["closet", "closet"], rng)
+
+    assert deck.order[:before_pos] == before_prefix
+    assert deck.pos == before_pos
+    assert len(deck.order) == before_len + 2 * room.deck_copies
+
+
+def test_inject_rooms_undealt_lands_only_in_undealt_range(registry):
+    """Every injected card lands at an index >= pos -- none can leak into the
+    already-dealt prefix."""
+    rng = Rng(0)
+    room = registry.by_id["closet"]
+    deck_idx = room.rarity_idx * 2 + (0 if room.is_free else 1)
+    decks = [DeckState() for _ in range(8)]
+    decks[deck_idx] = DeckState(order=[900, 901, 902], pos=3)  # fully dealt, no closet cards
+    state = GameState(decks=decks)
+
+    inject_rooms_undealt(state, registry, ["closet"] * 20, rng)
+
+    deck = decks[deck_idx]
+    positions = [i for i, c in enumerate(deck.order) if c == room.idx]
+    assert len(positions) == 20 * room.deck_copies
+    assert all(i >= 3 for i in positions)
+
+
+def test_inject_rooms_undealt_positions_are_roughly_uniform(registry):
+    """Over many trials, injected positions spread evenly across the undealt
+    range instead of clustering at either end (chi-square against uniform)."""
+    rng = Rng(0)
+    room = registry.by_id["closet"]
+    deck_idx = room.rarity_idx * 2 + (0 if room.is_free else 1)
+    undealt_width = 50
+    n_bins = 5
+    n_trials = 4000
+    counts = [0] * n_bins
+    for _ in range(n_trials):
+        decks = [DeckState() for _ in range(8)]
+        decks[deck_idx] = DeckState(order=list(range(1000, 1000 + undealt_width)), pos=0)
+        state = GameState(decks=decks)
+        inject_rooms_undealt(state, registry, ["closet"], rng)
+        at = decks[deck_idx].order.index(room.idx)
+        counts[min(at * n_bins // (undealt_width + 1), n_bins - 1)] += 1
+    expected = [n_trials / n_bins] * n_bins
+    _, p = stats.chisquare(counts, expected)
+    assert p > 0.001, f"injected positions not uniform: counts={counts}"
+
+
+def test_add_copies_rewinds_but_inject_rooms_undealt_does_not(registry):
+    """Pins the distinction the new primitive exists for: add_copies (the
+    existing once-a-day helper) reshuffles and rewinds pos to 0, while
+    inject_rooms_undealt leaves the cursor and dealt prefix untouched."""
+    room = registry.by_id["closet"]
+    deck_idx = room.rarity_idx * 2 + (0 if room.is_free else 1)
+
+    rewound = DeckState(order=[100, 101, 102, 103], pos=2)
+    rewound.add_copies(room.idx, 1, lambda lst: None)
+    assert rewound.pos == 0
+
+    decks = [DeckState() for _ in range(8)]
+    decks[deck_idx] = DeckState(order=[100, 101, 102, 103], pos=2)
+    inject_rooms_undealt(GameState(decks=decks), registry, ["closet"], Rng(0))
+    assert decks[deck_idx].pos == 2
+
+
+def test_priority_draw_skips_entry_with_inactive_condition(registry, cfg):
+    """A priority_draws entry carrying a condition absent from the active set
+    is skipped before its own chance is ever rolled -- splicing one in ahead
+    of the real entries must leave both the final pick and every other
+    entry's own RNG substream exactly as if it were absent."""
+    original = registry.priority["priority_draws"]
+    gated_entry = {"rooms": ["closet"], "label": "never_active_gate", "chance": 1.0,
+                   "condition": "definitely_not_a_real_condition"}
+    try:
+        for seed in range(10):
+            registry.priority["priority_draws"] = original
+            rng_base = Rng(seed)
+            ctx_base = DraftContext(GameState(), registry, cfg, rng_base, set(), None)
+            base_pick = _priority_draw(ctx_base, 7, N, set())
+
+            registry.priority["priority_draws"] = [gated_entry, *original]
+            rng_gated = Rng(seed)
+            ctx_gated = DraftContext(GameState(), registry, cfg, rng_gated, set(), None)
+            gated_pick = _priority_draw(ctx_gated, 7, N, set())
+
+            assert (gated_pick.id if gated_pick else None) == \
+                   (base_pick.id if base_pick else None), \
+                f"seed {seed}: an inactive gated entry changed the priority-draw pick"
+            fresh_gate_state = Rng(seed).stream("priority_never_active_gate").getstate()
+            assert (rng_gated.stream("priority_never_active_gate").getstate()
+                    == fresh_gate_state), f"seed {seed}: gated entry's substream was consumed"
+    finally:
+        registry.priority["priority_draws"] = original
+
+
+def test_deck_groundwork_ships_inert(cfg):
+    """Behaviour-neutrality guard for the deck-level groundwork (inject_rooms_undealt,
+    set_dynamic_rarity, the priority_draws condition key): with no call site added for
+    any of them, dealt hands stay bit-identical across two runs of the same seed, and
+    the two new named substreams go untouched by a full three-slot deal."""
+    game = Game(cfg, seed=0)
+
+    def collect(seed: int):
+        game.reset(seed)
+        game.state.steps = 999
+        pending = game.open_door(2, N)
+        return [(o.room_idx, o.orientation, o.gem_cost) for o in pending.options]
+
+    for seed in range(200):
+        run_a = collect(seed)
+        run_b = collect(seed)
+        assert run_a == run_b, f"seed {seed}: non-deterministic hand"
+
+    game.reset(0)
+    before = (game.rng.stream("deck_inject_undealt").getstate(),
+             game.rng.stream("dynamic_rarity").getstate())
+    game.state.steps = 999
+    game.open_door(2, N)
+    after = (game.rng.stream("deck_inject_undealt").getstate(),
+            game.rng.stream("dynamic_rarity").getstate())
+    assert before == after, "a full hand deal consumed the new deck-groundwork substreams"

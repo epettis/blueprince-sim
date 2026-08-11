@@ -80,7 +80,14 @@ def build_decks(registry: Registry, cfg: GameConfig, rng: Rng) -> list[DeckState
 
 
 def inject_rooms(state: GameState, registry: Registry, room_ids: list[str], rng: Rng) -> None:
-    """Add rooms to the live decks mid-day (The Pool, Gardener mode, etc.)."""
+    """Add rooms to the live decks mid-day (The Pool, Gardener mode, etc.).
+
+    Reshuffles the whole target deck and rewinds its cursor to 0, so cards
+    already dealt this cycle become dealable again -- correct for this
+    function's once-per-day callers. :func:`inject_rooms_undealt` is the
+    sibling for an effect that fires many times a day: it inserts into the
+    undealt region only, leaving already-dealt cards dealt.
+    """
     for rid in room_ids:
         room = registry.by_id.get(rid)
         if room is None or room.rarity is None:
@@ -88,6 +95,30 @@ def inject_rooms(state: GameState, registry: Registry, room_ids: list[str], rng:
         deck = state.deck(room.rarity_idx, not room.is_free)
         deck.add_copies(room.idx, room.deck_copies,
                         lambda lst, i=room.rarity_idx: rng.shuffle(f"deck_inject_{i}", lst))
+
+
+def inject_rooms_undealt(state: GameState, registry: Registry, room_ids: list[str], rng: Rng,
+                         label: str = "deck_inject_undealt") -> None:
+    """Add rooms to the live decks mid-day without reshuffling or rewinding the cursor.
+
+    Sibling to :func:`inject_rooms`: that helper's whole-deck reshuffle is
+    correct for its once-per-day callers but would be wrong for an effect
+    that fires many times a day, since it would silently un-deal every card
+    already drawn this cycle. Each copy is inserted at a uniformly random
+    undealt position instead, so ``order[:pos]`` and ``pos`` are untouched
+    and the relative order of the existing undealt residue is preserved.
+    ``len(order)`` is recomputed before each insert (as :func:`apply_upgrade`
+    does for its cross-bucket path), so later inserts can land after earlier
+    ones. All positions are drawn from the single ``label`` substream.
+    """
+    for rid in room_ids:
+        room = registry.by_id.get(rid)
+        if room is None or room.rarity is None:
+            continue
+        deck = state.deck(room.rarity_idx, not room.is_free)
+        for _ in range(room.deck_copies):
+            at = rng.randint(label, deck.pos, len(deck.order))
+            deck.insert_undealt(room.idx, at)
 
 
 def rarity_deck_ok(state: GameState, registry: Registry, cfg: GameConfig,
@@ -207,3 +238,49 @@ def apply_upgrade(state: GameState, registry: Registry, variant_id: str, rng: Rn
         for _ in range(removed):
             at = rng.randint("upgrade_deck_insert", dst_deck.pos, len(dst_deck.order))
             dst_deck.insert_undealt(variant.idx, at)
+
+
+def set_dynamic_rarity(state: GameState, registry: Registry, room_id: str,
+                       target_rarity_idx: int, rng: Rng,
+                       label: str = "dynamic_rarity") -> None:
+    """Move a room's live-deck cards into another rarity bucket for the day.
+
+    The room's free/gem class never changes -- only which rarity's deck(s) its
+    cards sit in, since a card's effective rarity IS the deck it occupies
+    (``_deal_from_rarity`` is handed a rarity index and never reads a card's own
+    rarity). Idempotent: if the room's cards already sit in ``target_rarity_idx``
+    (per ``state.dynamic_rarity``, defaulting to ``Room.rarity_idx``), this is a
+    no-op that consumes no RNG -- required because the effect that will call
+    this fires many times a day and does not stack with itself.
+
+    Copies already dealt this cycle stay dealt: they move to just before the
+    destination deck's cursor (``DeckState.insert_dealt``), which the solitaire
+    invariant requires -- leaving a dealt copy behind in the source deck would
+    let it be re-dealt after draw_slot's attempt-3 full reshuffle. Undealt
+    copies move to a uniformly random undealt position in the destination deck,
+    the same shape as :func:`apply_upgrade`'s cross-bucket path. All positions
+    are drawn from the single ``label`` substream.
+    """
+    room = registry.by_id[room_id]
+    current_rarity_idx = state.dynamic_rarity.get(room_id, room.rarity_idx)
+    if current_rarity_idx == target_rarity_idx:
+        return  # already in the target bucket: no-op, no RNG consumed
+
+    is_gem = not room.is_free
+    src_deck = state.deck(current_rarity_idx, is_gem)
+    dst_deck = state.deck(target_rarity_idx, is_gem)
+
+    n_dealt = src_deck.order[:src_deck.pos].count(room.idx)
+    n_total = src_deck.remove_card(room.idx)
+    n_undealt = n_total - n_dealt
+
+    for _ in range(n_dealt):
+        dst_deck.insert_dealt(room.idx)
+    for _ in range(n_undealt):
+        at = rng.randint(label, dst_deck.pos, len(dst_deck.order))
+        dst_deck.insert_undealt(room.idx, at)
+
+    if target_rarity_idx == room.rarity_idx:
+        state.dynamic_rarity.pop(room_id, None)
+    else:
+        state.dynamic_rarity[room_id] = target_rarity_idx

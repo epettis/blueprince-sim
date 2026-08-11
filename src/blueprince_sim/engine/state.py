@@ -94,6 +94,17 @@ class DeckState:
         """
         self.order.insert(at, room_idx)
 
+    def insert_dealt(self, room_idx: int) -> None:
+        """Insert one card just before the cursor, already marked dealt this cycle.
+
+        Used when a card moves decks mid-cycle and was already dealt in its old
+        deck (set_dynamic_rarity): it must stay dealt in its new deck too, so it
+        lands in order[:pos] and pos advances with it. Position within the dealt
+        prefix carries no meaning, so no ``at`` argument is needed.
+        """
+        self.order.insert(self.pos, room_idx)
+        self.pos += 1
+
     def add_copies(self, room_idx: int, n: int, shuffler) -> None:
         """Shuffle ``n`` copies of a room into the deck (mid-day injection).
 
@@ -174,6 +185,10 @@ class GameState:
 
     # decks: index = rarity_idx * 2 + (0 free | 1 gem)
     decks: list[DeckState] = field(default_factory=list)
+    # Room id -> rarity index its live-deck cards currently sit in, set by
+    # decks.py::set_dynamic_rarity when a room's cards are moved off Room.rarity
+    # for the day; a room absent from this dict sits in its own rarity.
+    dynamic_rarity: dict[str, int] = field(default_factory=dict)
 
     # cached house-effect flags (recomputed on placement)
     solarium_placed: bool = False  # Solarium: swaps in the special slot-2/3 rarity table
