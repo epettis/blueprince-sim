@@ -656,6 +656,81 @@ the residual `game.py` branches.
 
 ## Decisions log
 
+- **2026-08-11, the redraw cap is DROPPED. This reverses the 2026-08-11
+  ruling above, and the reversal is my fault.** When I asked for that ruling I
+  described `drawing_room_drawn` x `set_dice` as an unbounded zero-step loop.
+  Measured in this engine, it is not: **mean 2.34 redraws, median 2, p90 3,
+  p99 4, max 4 over 53 sampled hands; zero runs exceeded 8.** It is a decaying
+  random walk, not a divergence.
+
+  The closed form agrees. Each redraw spends a die and the Drawing Room
+  reappears with probability p, so `E[length | 2 dice] = (2-p)/(1-p)^2`, which
+  is 2.35 at the measured p = 0.10 and only diverges as p -> 1.
+
+  **Both of the wiki's methods for driving p -> 1 are unavailable here.** The
+  Chronograph is not modelled at all, and the Silver Key draft bias is cleared
+  after the initial deal (`draft.py`, commented "Redraws clear the flag"), so
+  the depleted-pool method cannot persist across redraws. An adversarial probe
+  that reduced the commonplace/gem deck to the Drawing Room alone still
+  produced 0 fires in the available redraws.
+
+  **Owner ruling: drop the cap.** Do not add a per-hand redraw budget. The
+  termination check in `redraw` still goes in -- it is a live bug independent
+  of the cap.
+
+  Act on this cold as: **a cap would have been a permanent, invented deviation
+  from the game justified by a premise that was never true of our engine.**
+  The wiki is explicit that the real game has no such limit: *"There is no
+  limit to how many times floorplans can be redrawn in one draft."* The lesson
+  is that "this looks unbounded" is a hypothesis to measure, not a fact to
+  rule on -- especially when the proposed fix is a deviation.
+
+- **2026-08-11, the Silver Key bias clearing on redraw is an OPEN question,
+  held for play.** `draft.py` clears the Silver Key's cross/T draft bias after
+  the initial deal, so it does not apply to redrawn hands. The wiki's
+  description of the dice-farming exploit implies the real game's bias **does**
+  persist -- that is what would make a Drawing Room appear on every draw and
+  make the loop real.
+
+  Owner is checking in play: draft with a Silver Key, redraw, and see whether
+  the bias still applies to the new hand.
+
+  Act on this cold as: **if the bias should persist, this is a fidelity bug and
+  the redraw loop becomes genuinely unbounded**, which would re-open the cap
+  ruling above. Until then the clearing behaviour stands. Do not change it
+  speculatively.
+
+- **2026-08-11, four `drawing_room_drawn` scoping calls made without
+  escalation.**
+
+  - **The trigger binds through `effects/rooms/drawing_room.py`**, a one-line
+    `room_hook` at `ON_HAND_DEALT` delegating to `experiments`. The
+    alternative -- an `on_hand_dealt` function called from three sites --
+    would put a `"drawing_room"` literal inside an engine module, which the
+    standing architectural rule forbids. The room module is where a room-id
+    binding belongs, and `fire()` already runs per option at all three deal
+    sites, so it needs no new call sites.
+  - **The cap does not gate on `set_dice` being configured.** Action legality
+    that depends on experiment configuration is opaque to both the agent and a
+    human reading the mask. Moot now that the cap is dropped, recorded so it
+    is not re-proposed.
+  - **No observation change.** Neither `rotations_used` nor
+    `study_redraws_used` is exposed today, the mask already makes an
+    unavailable redraw unselectable in a MaskablePPO env, and widening
+    `resources` would invalidate every released checkpoint.
+  - **`_check_termination()` goes at the very end of `redraw`**, after the
+    `ON_HAND_DEALT` loop, so a trigger firing on the redealt hand is what gets
+    checked. Verified reachable today: `steps_for_gold` drives steps to 0
+    inside a redraw and the day does not end.
+
+  Also found: the hidden-Drawing-Room leak the owner accepted is **total, not
+  partial, under the Archives**. Archives conceals exactly one slot, a hand
+  holds at most one Drawing Room, and no other trigger fires at deal time --
+  so a success-counter tick plus two visible non-Drawing-Rooms identifies the
+  hidden card with certainty. Under the Darkroom it leaks only "one of these
+  three". Suppressing the counter would not close it, since the effect's own
+  result is observable too.
+
 - **2026-08-11, redraws get a per-hand cap -- a deliberate deviation from the
   game.** Owner, on the `drawing_room_drawn` x `set_dice` loop. Each die-redraw
   spends a die; if the redealt hand contains the Drawing Room the trigger fires
