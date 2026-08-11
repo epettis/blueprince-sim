@@ -656,6 +656,59 @@ the residual `game.py` branches.
 
 ## Decisions log
 
+- **2026-08-10, the Guess Bedroom excludes the Aquarium family and treats a
+  mimicked Bunk Room as a flat 2 Bedrooms.** Owner, on two ambiguities raised
+  by the research pass. The Guess Bedroom loses its own +10 steps and instead
+  secretly picks one Bedroom from today's draft pool when it is **drafted**,
+  taking on that room's effect.
+
+  **The Aquarium is out of the selectable set for now**, with the gap in
+  `meta.blocked_on`. Mimicking it would require inheriting the Aquarium's
+  extra colours, and `Room` is frozen -- so `Room.is_category` would have to
+  become state-aware for one cell. That primitive backs category biases,
+  `grant_per_category`, the Cloister/Terrace green boosts and scepter colours,
+  which is a lot of load-bearing code to change for one room. The wiki records
+  that the real game is buggy here too ("in rare cases, only some of the
+  effects are applied, despite still mimicking an Aquarium"). Reversible.
+
+  **A mimicked Bunk Room counts as 2 Bedrooms**, matching the real Bunk Room's
+  existing `counts_as_bedrooms: 2`. The true behaviour is **unpublished** --
+  the wiki carries its own open-question box saying it "is not consistent from
+  effect to effect. For some effects, it still only counts as one Bedroom. For
+  some, such as the Day Overview, it actually counts as three." A flat 2 is
+  consistent with the rest of the codebase and wrong only where the wiki
+  itself cannot say.
+
+  The remaining four mimics are cheap, because every payload is already
+  implemented on the source room: Bedroom (+2 steps, retriggerable, does not
+  become an Entry Room), Boudoir (no effect), Nursery (the persistent
+  +5-steps-per-Bedroom effect, including for itself; not a Drafting Room for
+  the Classroom; own item spawns disabled), Servant's Quarters (keys equal to
+  Bedrooms in the house, **cap 15** -- a cap the existing `servants_quarters`
+  record does not have either, so that is a pre-existing gap).
+
+  Published selection rules to honour: never the Guess Bedroom itself, Her
+  Ladyship's Chamber, the Master Bedroom, or the Spare Bedroom and its
+  upgrades; Repellent-banned floorplans are excluded **except the Hovel**,
+  which can always be selected even if already drafted and even before unlock;
+  rooms already on the estate are eligible if the Chamber of Mirrors returned
+  them to the pool; the **upgraded** version is mimicked where an upgrade
+  applies; and if no valid option exists and the Hovel was not chosen, the
+  mimic fails and the room has no effect. Once one Guess Bedroom mimics an
+  Aquarium every later one does too -- moot while the Aquarium is excluded,
+  but it is why the chosen id has to be state, not a local.
+
+  **UNPUBLISHED magnitude:** the wiki says Servant's Quarters is "more commonly
+  selected than the other floorplans" and gives no number. Record as `null`
+  with the gap in `meta.notes`; do not invent a weight.
+
+  Also corrected by this work: `docs/open_tasks.md` previously recorded that
+  the Guess Bedroom "gets a research pass, then an owner call if it is
+  unsourced ... if the wiki is as vague as the datamine, leave it unmodelled."
+  The wiki is **not** vague -- it is one of the better-documented upgrade
+  pages on the site, with per-mimic sections. So this is implementable, not a
+  shelve.
+
 - **2026-08-10, the Great Hall locks all three grid doorways AND models the
   search cost.** Owner, choosing the more faithful of three options. The room's
   effect is "7 Locked Doors", but our grid has no subchambers: a `cross` has
