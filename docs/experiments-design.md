@@ -308,16 +308,41 @@ That refactor also threaded the `game` orchestrator through `items.py`'s
 `(state, registry, rng)` parameter triples — the same idiom `dig_all` and the
 rest of this module already followed — with no behavior change.
 
-**Ten of the twelve base triggers and eight of the twelve base effects are
-now live.** Unimplemented triggers: `archived_floorplan`,
-`drawing_room_drawn` — each needs a firing site (an Archives-drafted gate,
-the Drawing Room's own draw) that is later work. Unimplemented base effects:
-`entrance_hall_trunk`, `spread_dig_spots`, `add_aquariums`, `mail_room_letter`.
+Most recently, the last two base triggers landed, plus a termination gap
+fix. `Game.redraw` now calls `_check_termination()` at the end, after the
+redealt hand's `ON_HAND_DEALT` loop, the same convention `open_door` already
+follows — previously an experiment could drain steps to 0 inside a redraw
+(e.g. `drawing_room_drawn` + `steps_for_gold`) and the day would not end
+until some later NAVIGATE-phase action noticed. `drawing_room_drawn` fires
+from a new `on_drawing_room_dealt`, called by a one-line `room_hook` on
+`Hook.ON_HAND_DEALT` in `engine/effects/rooms/drawing_room.py` — kept out of
+`experiments.py`'s own dispatch so a Drawing-Room-id literal lives in a room
+module, not an engine one (the standing rule that no engine module may
+branch on a room id). `fire()` already ran that hook at all three
+`ON_HAND_DEALT` sites (the initial grid deal, the initial outer deal, and
+every redraw), so no new call site was needed; the outer deal is a permanent
+no-op since the fixed outer pool can never contain the Drawing Room. A
+hidden or archived Drawing Room still counts (the hook receives no
+concealment info at all, matching the wiki's plain "drawn" wording).
+`archived_floorplan` became a sixth branch of `on_room_drafted`, gated on the
+chosen `DraftOption.archived` flag now threaded through `Game.choose` ->
+`Game._place_room` (mirroring how `gem_cost` already reaches that function) —
+it fires on *choosing* an archived option, not its earlier deal, and fires
+twice for a Bunk Room by reading the same `counts_as_bedrooms`/`amount` tag
+`bedrooms_after_second` already reads, rather than hard-coding a room id.
+`archived_floorplan`'s own `room_drafted_gate` availability (Archives
+drafted, veteran-bypassable) stays unbuilt, same as before — only `day_gate`
+is enforced, and it never applied to this trigger.
+
+**All twelve base triggers are now live; eight of the twelve base effects
+are.** Unimplemented base effects: `entrance_hall_trunk`, `spread_dig_spots`,
+`add_aquariums`, `mail_room_letter` — a live trigger can still be paired with
+one of these silent effects, a no-op the draw does not filter out.
 
 `draw_offers` samples the base pool uniformly (modulo the `day_gate` filter
 above) and still does not filter on `implemented`, so a setup can configure
 an experiment pairing a live trigger with a silent effect, or vice versa, or
-both silent — narrower now that 10 of 12 triggers and 8 of 12 effects have
+both silent — narrower now that every trigger and 8 of 12 effects have
 firing sites, but still possible. Filtering the draw to fully-implemented
 records remains future work, not something addressed so far.
 

@@ -23,6 +23,7 @@ from . import commerce  # noqa: F401  (registers commerce capability on import)
 from . import conservatory  # noqa: F401
 from . import darkroom  # noqa: F401
 from . import dovecote  # noqa: F401  (no handler; imported for the predicate helper)
+from . import drawing_room  # noqa: F401
 from . import foyer  # noqa: F401
 from . import furnace  # noqa: F401
 from . import great_hall  # noqa: F401  (no handler; imported for the lever helper)
