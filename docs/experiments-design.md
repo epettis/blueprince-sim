@@ -266,7 +266,7 @@ gated on standing in the Laboratory, with `Phase.EXPERIMENT_PENDING` and
 actions 319–326. A later pass wired the five draft-site triggers (`shops`,
 `gems_spent`, `bedrooms_after_second`, `hallway_from_hallway`,
 `red_room_draft`) through `on_room_drafted`, called from `Game._place_room`.
-Most recently: the generic `cap` field (enforced in `trigger_success`, which
+A further pass added the generic `cap` field (enforced in `trigger_success`, which
 also gates the trigger's own `steps_lost` on a capped-out fire — pausing
 suppresses a qualifying event without spending one of the cap's charges,
 since `success_count` only ever increments inside that same call); the
@@ -281,19 +281,30 @@ already-rolled `DOOR_SECURITY` segment to open); and the `day_gate`
 availability filter in `draw_offers`, excluding `security_door` and
 `drawing_room_drawn` from the sampling pool before day 8 unless
 `cfg.veteran_mode` is set (the default — the filter is a no-op unless a
-caller explicitly turns veteran mode off).
+caller explicitly turns veteran mode off). Most recently, the
+`trash_while_digging` trigger, fired from `special_items.dig_all`'s per-spot
+loop on a `junk` table outcome (`nothing` never counts, per the wiki). Both
+dig tables already fold Scraps of Paper into a second `junk` row rather than
+a distinct kind, so the Patch 1.6 addition needed no separate handling.
+`dig_all` digs every remaining spot at a cell in one call, so this trigger
+fires in bursts, not once per player action. Courtyard carries the highest
+plain `dig_spots` in `rooms.json` (5), but it is not one of the six
+fireplace rooms, so it cannot also collect Cloister of Veia's +8-per-fireplace-
+room bonus (`veia_dig_bonus`); of the fireplace rooms, only Furnace carries a
+nonzero baseline (1), so the highest single-cell total reachable through
+normal play is 1 + 8 = 9 spots, not the two maxima naively summed.
 
-**Eight of the twelve base triggers and eight of the twelve base effects are
+**Nine of the twelve base triggers and eight of the twelve base effects are
 now live.** Unimplemented triggers: `apples`, `archived_floorplan`,
-`trash_while_digging`, `drawing_room_drawn` — each needs a firing site (apple
-pickup, an Archives-drafted gate, dig hooks, the Drawing Room's own draw)
-that is later work. Unimplemented base effects: `entrance_hall_trunk`,
-`spread_dig_spots`, `add_aquariums`, `mail_room_letter`.
+`drawing_room_drawn` — each needs a firing site (apple pickup, an
+Archives-drafted gate, the Drawing Room's own draw) that is later work.
+Unimplemented base effects: `entrance_hall_trunk`, `spread_dig_spots`,
+`add_aquariums`, `mail_room_letter`.
 
 `draw_offers` samples the base pool uniformly (modulo the `day_gate` filter
 above) and still does not filter on `implemented`, so a setup can configure
 an experiment pairing a live trigger with a silent effect, or vice versa, or
-both silent — narrower now that 8 of 12 triggers and 8 of 12 effects have
+both silent — narrower now that 9 of 12 triggers and 8 of 12 effects have
 firing sites, but still possible. Filtering the draw to fully-implemented
 records remains future work, not something addressed so far.
 

@@ -1321,6 +1321,10 @@ def dig_all(game, cell: int) -> None:
     Tool priority (best table first): jack_hammer > detector_shovel > shovel.
     Detector shovel table entries carry explicit coin amounts; other tables
     sub-roll coin_pile_split for the 1-4 coin spread.
+
+    Digs every remaining spot in one loop, so trash_while_digging can fire
+    once per junk spot in a single call -- a burst, not a single event per
+    player action, on rooms/bonuses that stack many spots at one cell.
     """
     from .effects.rooms import the_kennel  # deferred: effects/rooms imports special_items
 
@@ -1348,6 +1352,11 @@ def dig_all(game, cell: int) -> None:
         remaining = total_spots - already_dug
 
         if remaining > 0 and tool_item is not None:
+            # remaining is fixed before the loop starts, so nothing inside it can
+            # grow this dig -- the one effect that would (spread_dig_spots) is
+            # unimplemented, and the wiki forbids pairing it with
+            # trash_while_digging as trigger+effect on the same day anyway
+            # (experiments.json's spread_dig_spots.availability.cross_column_exclude).
             table = registry.special.dig_rules["tables"][table_name]
             weights = tuple(entry["weight"] for entry in table)
             coin_split = registry.special.dig_rules["coin_pile_split"]
@@ -1358,7 +1367,15 @@ def dig_all(game, cell: int) -> None:
                 entry = table[idx]
                 kind = entry["kind"]
 
-                if kind in ("junk", "nothing"):
+                if kind == "junk":
+                    # trash_while_digging: "digging up nothing does not count"
+                    # (wiki), so only junk fires here -- nothing falls through
+                    # below. Scraps of Paper (Patch 1.6) is folded into the
+                    # tables' junk rows rather than a separate row, so this
+                    # covers it too.
+                    if state.experiment.trigger_id == "trash_while_digging":
+                        experiments.trigger_success(game)
+                elif kind == "nothing":
                     pass
                 elif kind == "coins":
                     if "amount" in entry:

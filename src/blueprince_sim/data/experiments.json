@@ -191,13 +191,13 @@
     "text": "If Veteran Mode is not enabled, this trigger cannot appear until the first time you obtain a Shovel."
    },
    "cap": null,
-   "implemented": false,
+   "implemented": true,
    "meta": {
     "source": "https://blueprince.wiki.gg/wiki/Experiments/Triggers",
     "confidence": "wiki",
-    "blocked_on": "phase 0: no experiments engine exists yet (data/validation only)",
+    "blocked_on": null,
     "notes": [
-     "Six wiki-listed trash kinds (rock, pebbles, tin can, brick, shoe, nail) plus Scraps of Paper (Patch 1.6+). Digging up 'nothing' does not count."
+     "Six wiki-listed trash kinds (rock, pebbles, tin can, brick, shoe, nail) plus Scraps of Paper (Patch 1.6+). Digging up 'nothing' does not count. Fires from special_items.dig_all's per-spot loop on a 'junk' table outcome; both dig tables already fold Scraps of Paper into a second junk row, so no separate handling is needed for the Patch 1.6 addition. The item_obtained_gate availability (first Shovel obtained) is not enforced -- only day_gate is -- so this trigger is always offerable; veteran_mode (default True) would bypass the gate anyway."
     ]
    }
   },
