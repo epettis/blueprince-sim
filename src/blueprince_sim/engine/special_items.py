@@ -208,6 +208,11 @@ class SpecialItemsState:
     # None = no item stored today.
     coat_check_item: str | None = None
     opened_containers: dict[int, int] = field(default_factory=dict)  # cell -> count of containers already opened there
+    # Mechanarium: cell -> its diagonal-compartment count (0-4), fixed once at
+    # draft time by seed_mechanarium_compartments. Per-placement, not a static
+    # per-room count, because it depends on how many Mechanical rooms are
+    # standing the moment this particular Mechanarium is placed.
+    mechanarium_compartments: dict[int, int] = field(default_factory=dict)
     garage_car_opened: bool = False  # Car Keys garage car trunk used today (once per day)
     # Vault Key ids whose deposit box was opened today (at most once per key per day).
     vault_boxes_opened: list[str] = field(default_factory=list)
@@ -1412,12 +1417,37 @@ def dig_all(game, cell: int) -> None:
 
 # ----------------------------------------------------------------- containers
 
+# Room id for the Mechanarium's own containers.rooms special-case below --
+# a literal, not an import from draft.py (which itself imports this module),
+# to avoid a circular import between draft.py and special_items.py.
+MECHANARIUM_ROOM_ID = "mechanarium"
+
+# The Mechanarium's diagonal-compartment kinds, in the wiki's fixed open
+# order (1st/2nd/3rd/4th corner). Each is a containers.kinds entry in
+# data/special_items.json with its own deterministic, priority-chain loot.
+_MECHANARIUM_COMPARTMENT_KINDS: tuple[str, ...] = (
+    "mechanarium_lever", "mechanarium_key", "mechanarium_upgrade", "mechanarium_sanctum",
+)
+
+
 def containers_in(registry, room_id: str) -> dict[str, int]:
     """Container kinds and counts for ``room_id``, or {} if none.
 
     Reads from registry.special.containers["rooms"]; returns e.g. {"trunk": 1}.
+    The Mechanarium is never in that table -- its compartment count is
+    per-placement, not per-room (see ``_mechanarium_compartment_kinds``).
     """
     return dict(registry.special.containers.get("rooms", {}).get(room_id, {}))
+
+
+def _mechanarium_compartment_kinds(state, cell: int) -> dict[str, int]:
+    """The Mechanarium at ``cell``'s openable compartment kinds, one each, in order.
+
+    Sliced from ``_MECHANARIUM_COMPARTMENT_KINDS`` by the count
+    ``seed_mechanarium_compartments`` fixed for this cell at draft time.
+    """
+    n = state.special.mechanarium_compartments.get(cell, 0)
+    return {kind: 1 for kind in _MECHANARIUM_COMPARTMENT_KINDS[:n]}
 
 
 def _container_kinds_at(state, registry, cell: int) -> list[tuple[str, int]]:
@@ -1429,7 +1459,10 @@ def _container_kinds_at(state, registry, cell: int) -> list[tuple[str, int]]:
     if state.grid[cell] < 0:
         return []
     room = registry.rooms[state.grid[cell]]
-    all_kinds = containers_in(registry, room.id)
+    if room.id == MECHANARIUM_ROOM_ID:
+        all_kinds = _mechanarium_compartment_kinds(state, cell)
+    else:
+        all_kinds = containers_in(registry, room.id)
     if not all_kinds:
         return []
     already = state.special.opened_containers.get(cell, 0)
@@ -1500,8 +1533,11 @@ def can_open_container(game, cell: int) -> bool:
 def _apply_grant(state, registry, game, grant_entry: dict) -> str:
     """Apply one grant entry from a loot ``grants`` list; return a log tag.
 
-    Supported kinds: coins, keys, gems, dice, item, keycard, food.
-    Unknown kinds are silently skipped and return "".
+    Supported kinds: coins, keys, gems, dice, item, keycard, food, plus the
+    four Mechanarium compartment kinds (mechanarium_lever/_key_chain/
+    _upgrade_chain/_sanctum_chain -- see the "Mechanarium diagonal
+    compartments" section below). Unknown kinds are silently skipped and
+    return "".
     """
     from . import items as items_mod  # deferred import to avoid cycles
     gkind = grant_entry.get("kind", "")
@@ -1548,6 +1584,14 @@ def _apply_grant(state, registry, game, grant_entry: dict) -> str:
                 state.items_found_log.append(("coins", 1))
                 return "coins:1"
             return item_id
+        case "mechanarium_lever":
+            return _mechanarium_west_lever(game)
+        case "mechanarium_key_chain":
+            return _mechanarium_key_chain(game)
+        case "mechanarium_upgrade_chain":
+            return _mechanarium_upgrade_chain(game)
+        case "mechanarium_sanctum_chain":
+            return _mechanarium_sanctum_chain(game)
         case _:
             return ""
 
@@ -1742,6 +1786,117 @@ def open_container(game, cell: int) -> str | None:
 
     # Legacy single-grant entries (backward compat)
     return _apply_grant(state, registry, game, entry)
+
+
+# ------------------------------------------------- Mechanarium diagonal compartments
+
+def seed_mechanarium_compartments(game, cell: int) -> None:
+    """Fix the Mechanarium at ``cell``'s diagonal-compartment count, once, at draft time.
+
+    Wiki (blueprince.wiki.gg/wiki/Mechanarium): once the four cardinal doors
+    are accounted for, further Mechanical rooms open diagonal compartments
+    instead, up to four -- min(4, mechanical_rooms - cardinal_doors_spawned).
+    ``mechanical_rooms`` counts every Mechanical-category room on the grid
+    INCLUDING this Mechanarium itself; ``cardinal_doors_spawned`` is the
+    popcount of its own placed door mask.
+
+    Called from the Mechanarium's own ON_PLACE hook
+    (effects/rooms/mechanarium.py), which fires after Game._place_room has
+    already written both the grid and ``placed_doors[cell]`` for this
+    placement, so both counts here reflect their final, frozen values -- the
+    same "set in stone the moment it is drafted" timing as the cardinal mask
+    itself (draft.py's _mechanarium_orientation).
+    """
+    state = game.state
+    rooms = game.registry.rooms
+    mechanical_rooms = sum(
+        1 for idx in state.grid if idx >= 0 and rooms[idx].is_category("mechanical"))
+    cardinal_doors_spawned = bin(state.placed_doors[cell]).count("1")
+    compartments = max(0, min(4, mechanical_rooms - cardinal_doors_spawned))
+    state.special.mechanarium_compartments[cell] = compartments
+
+
+def _mechanarium_west_lever(game) -> str:
+    """First diagonal compartment: "contains a West Antechamber Lever."
+
+    Routes through secret_garden.pull_west_lever -- the same Antechamber west
+    segment Secret Garden's own on-entry lever opens (effects/rooms/
+    secret_garden.py; game.py's _enter_lever_room dispatches to it there) --
+    rather than a second, independent lever mechanism. No extra cost beyond
+    opening the compartment itself.
+    """
+    from .effects.rooms import secret_garden
+    cell = game.room_cells.get(MECHANARIUM_ROOM_ID, -1)
+    secret_garden.pull_west_lever(game, cell)
+    return "lever:west_antechamber"
+
+
+def _mechanarium_key_chain(game) -> str:
+    """Second diagonal compartment: first available of Silver Key, Keycard,
+    Secret Garden Key, Vault Key 233, else a basic key.
+
+    Silver Key is not a ``unique`` item (the general spawn system allows more
+    than one to exist in the house at once), so ``_is_available`` alone would
+    never treat an already-held Silver Key as unavailable; this compartment
+    adds its own explicit "not already held" check on top, so it does not
+    hand over a second one. Keycard is excluded from ``_is_available``
+    (PIPELINE_EXCLUDED -- owned by locks.py's ``state.has_keycard`` instead),
+    so its availability here is ``not state.has_keycard`` directly. Secret
+    Garden Key and Vault Key 233 are both ``unique``, so ``_is_available``
+    already resolves "already held" correctly for them.
+    """
+    state, registry = game.state, game.registry
+    if not has(state, "silver_key") and _is_available(state, "silver_key", registry):
+        return _apply_grant(state, registry, game, {"kind": "item", "id": "silver_key"})
+    if not state.has_keycard:
+        return _apply_grant(state, registry, game, {"kind": "keycard"})
+    if _is_available(state, "secret_garden_key", registry):
+        return _apply_grant(state, registry, game, {"kind": "item", "id": "secret_garden_key"})
+    if _is_available(state, "vault_key_233", registry):
+        return _apply_grant(state, registry, game, {"kind": "item", "id": "vault_key_233"})
+    return _apply_grant(state, registry, game, {"kind": "keys", "amount": 1})
+
+
+def _mechanarium_upgrade_chain(game) -> str:
+    """Third diagonal compartment: first available of the Upgrade Disk,
+    Battery Pack, Broken Lever, Sledge Hammer, else a Trunk roll.
+
+    All four items are ``unique``, so ``_is_available`` alone (already-held +
+    gated_out) resolves each step; the Upgrade Disk in particular becomes
+    unavailable once ``GameConfig.collected_disks`` gates it out via
+    ``configure()`` -- "The Upgrade Disk becomes unavailable if the disk from
+    this location was previously used" (wiki). The Trunk fallback rolls the
+    ordinary ``containers.kinds.trunk`` loot table exactly as a real Trunk
+    container would: the wiki names "Trunk" as the last resort rather than a
+    specific item.
+    """
+    state, registry = game.state, game.registry
+    for item_id in ("upgrade_disk_mechanarium", "battery_pack", "broken_lever", "sledge_hammer"):
+        if _is_available(state, item_id, registry):
+            return _apply_grant(state, registry, game, {"kind": "item", "id": item_id})
+    loot = registry.special.containers.get("kinds", {}).get("trunk", {}).get("loot", [])
+    if not loot:
+        return ""
+    weights = tuple(float(e["weight"]) for e in loot)
+    idx = game.rng.roll_weighted("mechanarium_compartment_trunk", weights)
+    tags = [t for g in loot[idx].get("grants", []) if (t := _apply_grant(state, registry, game, g))]
+    return "/".join(tags) if tags else ""
+
+
+def _mechanarium_sanctum_chain(game) -> str:
+    """Fourth diagonal compartment: "a Sanctum Key, or 8 dice if the Sanctum
+    Key has already been used or is otherwise unavailable" (wiki).
+
+    ``_is_available`` already resolves the Sanctum Key's own cross-day gates
+    (``GameConfig.collected_sanctum_keys`` once spent, and ``room46_reached``
+    before any Sanctum Key may spawn at all -- both seeded into
+    ``state.special.gated_out`` by ``configure()``).
+    """
+    state, registry = game.state, game.registry
+    if _is_available(state, "sanctum_key_mechanarium", registry):
+        return _apply_grant(
+            state, registry, game, {"kind": "item", "id": "sanctum_key_mechanarium"})
+    return _apply_grant(state, registry, game, {"kind": "dice", "amount": 8})
 
 
 def can_open_car_trunk(game) -> bool:

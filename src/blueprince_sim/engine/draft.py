@@ -8,14 +8,14 @@ filters. Four attempts per slot: full rules -> ignore priority filters ->
 reshuffle decks -> forced Closet. Priority draws can force specific rooms
 into slot 3.
 
-The Mechanarium is a special case handled entirely in this module (see
-_mechanarium_orientation): its door mask is derived from the number of
-placed Mechanical rooms rather than rolled, so it never consumes an
-"orientation" RNG draw.
-
-Not modelled: Mechanical rooms beyond the four cardinal doors are meant to
-open diagonal compartments with key/item caches (wiki); that mechanic is out
-of scope here.
+The Mechanarium's cardinal door mask is derived in this module (see
+_mechanarium_orientation) from the number of placed Mechanical rooms rather
+than rolled, so it never consumes an "orientation" RNG draw. Mechanical rooms
+beyond the four cardinal doors open diagonal compartments instead, modelled
+as containers at the Mechanarium's cell rather than as doors here --
+engine/effects/rooms/mechanarium.py seeds the per-placement compartment
+count, and engine/special_items.py's containers.kinds
+mechanarium_lever/_key/_upgrade/_sanctum hold their loot.
 """
 
 from __future__ import annotations
@@ -417,9 +417,11 @@ def _mechanarium_orientation(ctx: DraftContext, cell: int, entry_dir: int) -> in
     A skipped candidate (an occupied neighbour with no facing door) does not
     consume its slot -- the next candidate direction gets the door instead
     (owner ruling). An empty neighbour, or one with a facing door, is fine.
-    Capped at the four cardinal directions; surplus Mechanical rooms are
-    meant to open diagonal compartments, not modelled here (see module
-    docstring).
+    Capped at the four cardinal directions; surplus Mechanical rooms open
+    diagonal compartments instead, seeded separately by
+    effects/rooms/mechanarium.py once this mask is actually placed (see
+    module docstring) -- not derived here, since that seeding needs the
+    Mechanarium's own final placed-door popcount, not this preview mask.
     """
     rooms = ctx.registry.rooms
     mechanical_rooms = sum(
