@@ -535,16 +535,23 @@
      3,
      4
     ],
-    "distribution": null
+    "distribution": null,
+    "conference_room_spot_cap": 50,
+    "conference_room_trigger_count_approx": 17,
+    "spots_per_trigger_usual": 3
    },
-   "implemented": false,
+   "implemented": true,
    "meta": {
     "source": "https://blueprince.wiki.gg/wiki/Experiments/Effects",
     "confidence": "wiki",
-    "blocked_on": "phase 0: no experiments engine exists yet (data/validation only)",
+    "blocked_on": "Grounds branch unimplemented: off-grid dig spots have no representation in this simulator (special_items.dig_all reads state.grid[cell] only; engine/areas.py has no dig-spot concept) -- only this record's Conference Room branch is implemented.",
     "notes": [
-     "The 2/3/4 dig-spot-per-trigger distribution is not published by the wiki; magnitude.distribution left null (gap -- do not invent).",
-     "Wiki gives only approximate totals, not exact caps: 'approximately 100 dig spots... after around 34 experiment triggers' on the Grounds (50 after 17 triggers if redirected to a Conference Room); no cap field recorded because these are stated as approximate, unlike the exact 17/16/40/3/10 caps on other records."
+     "The 2/3/4 dig-spot-per-trigger distribution is not published by the wiki; magnitude.distribution left null (gap -- do not invent). engine/experiments.py::_apply_spread_dig_spots always adds 3 (the wiki's stated usual batch) rather than inventing a roll across the three options.",
+     "Wiki gives only approximate totals for the Grounds branch, not exact caps: 'approximately 100 dig spots... after around 34 experiment triggers' -- unbuilt (see meta.blocked_on), so no cap field recorded for it, unlike the exact 17/16/40/3/10 caps on other records.",
+     "The Conference Room branch's cap IS exact and published (\"up to 50 dig spots... after 17 triggers\"): recorded as magnitude.conference_room_spot_cap (50) rather than the top-level cap field, because cap counts successful APPLICATIONS (see ExperimentEffect's own field comment) while this branch's limit is a spot TOTAL -- 17 triggers of 3 spots each is 51, one more than the stated 50, so the engine enforces the spot cap directly (clamping the final batch) rather than an application count that would occasionally overshoot by one spot.",
+     "\"The first five [dig spots] appearing on the conference table and the remainder appearing on the surrounding floor\" (wiki) is placement flavour with no mechanical consequence at this engine's per-cell granularity; not modelled.",
+     "KNOWN GAP, not built: the Dovecote birdbath sub-effect. Wiki: with a Dovecote on the estate, this effect ALSO fills 6 off-grid birdbaths with dirt in a fixed 3-trigger pattern (3 birdbaths on the first trigger, 2 on the second, 1 on the third), 'entirely independent of the main effect' and occurring 'regardless of whether the regular dig spots are spread to the Grounds or the Conference Room.' Off-grid like the Grounds branch itself, so blocked on the same missing off-grid dig-spot concept.",
+     "KNOWN GAP, not built: the Blessing of the Chef 'Mudslide Icecream' dish. Wiki: while that Blessing is active, triggering this effect can add a unique Dining Room dish (5 steps, plus a dirt-pile flavour detail) -- the Blessing system itself is unimplemented, so this is out of scope until that lands."
     ]
    }
   },

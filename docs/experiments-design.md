@@ -122,6 +122,14 @@ trigger gives a 95% chance of removing the `set_steps` effect from the pool.
 trigger/effect id sets, so a rename on one side that forgets the other side is
 a validation **error**, not a silent drift.
 
+`cross_column_exclude` is enforced in `engine/experiments.py::_effect_offerable`,
+which is why `draw_offers` samples the 3 triggers before filtering the effect
+pool: the exclusion reads which triggers were actually *offered* that setup
+(the sampled 3), not the whole eligible trigger pool, so the trigger draw must
+finish first. `cross_column_probability` (`map_view`) stays unenforced --
+`map_view` is a packet-pool trigger, and the packet pool is never offered
+(phases 5-8, out of scope), so the rule it would gate can never fire anyway.
+
 ### `cap`
 
 A hard, wiki-*stated* limit on how many times the record's own effect
@@ -143,9 +151,17 @@ enforced at two different sites in `engine/experiments.py`:
   still displays its delivery message, a capped-out trunk effect just no-ops.
 
 Approximate figures the wiki hedges with "around" or "approximately" (the dig
-spots effect's "~100 spots after ~34 triggers") are **not** encoded as `cap`;
-they live in `meta.notes` instead, because a `cap` field implies an exact
-enforceable number and these explicitly aren't that.
+spots effect's "~100 spots after ~34 triggers" on the Grounds) are **not**
+encoded as `cap`; they live in `meta.notes` instead, because a `cap` field
+implies an exact enforceable number and these explicitly aren't that. The
+same record's Conference Room branch (the only branch this sim builds -- see
+"Phase plan" / Status) *does* carry a wiki-exact limit ("up to 50 dig spots...
+after 17 triggers"), but it is still not the top-level `cap`: `cap` counts
+successful *applications*, while this branch's limit is a spot *total* (17
+applications of 3 spots each would be 51, one over the stated 50), so it lives
+in `magnitude.conference_room_spot_cap` instead and is enforced directly
+against the running spot count, clamping the final batch rather than
+overshooting by one spot.
 
 ### `magnitude`
 
@@ -353,6 +369,7 @@ is enforced, and it never applied to this trigger.
 **All twelve base triggers are now live; eleven of the twelve base effects
 are.** The one unimplemented base effect is `spread_dig_spots` — a live
 trigger can still be paired with it, a no-op the draw does not filter out.
+(`spread_dig_spots` itself landed in a later pass, described further down.)
 
 Most recently, the effect-side `cap` field landed (`ExperimentEffect.cap`,
 loaded but previously dropped on the floor — `tools/validate_data.py`
@@ -400,12 +417,13 @@ unblocks:
   `carryover()`, merged by `DayChain`); that wiring is a follow-up.
 
 `draw_offers` samples the base pool uniformly (modulo the trigger-side
-`day_gate` filter and the effect-side `day_or_packet_gate`/cap filter above)
-and still does not filter on `implemented`, so a setup can configure an
-experiment pairing a live trigger with a silent effect, or vice versa, or
-both silent — narrower now that every trigger and 11 of 12 effects have
-firing sites, but still possible. Filtering the draw to fully-implemented
-records remains future work, not something addressed so far.
+`day_gate` filter and the effect-side `day_or_packet_gate`/`cross_column_exclude`/cap
+filters above) and still does not filter on `implemented`, so a setup can
+configure an experiment pairing a live trigger with a silent effect, or vice
+versa, or both silent — narrower now that every trigger and every base effect
+has a firing site (`spread_dig_spots`'s own is partial — see below), but still
+possible. Filtering the draw to fully-implemented records remains future
+work, not something addressed so far.
 
 Most recently, `add_aquariums` landed — the last base effect, and the risky
 one: it deliberately breaks `room_draftable`'s one-copy-per-room invariant.
@@ -442,6 +460,71 @@ this to exhaustion — placing `aquarium__experiment` at all 43
 non-Entrance-Hall, non-Antechamber cells with `shops` configured — and pins
 that it terminates normally. `Game._place_room`'s comment now states this
 argument instead of asking for it to be re-verified.
+
+Most recently, `spread_dig_spots` landed — the Conference Room branch only.
+The wiki's Grounds branch (dig spots placed outside the house, starting just
+outside the Entrance Hall) needs an off-grid dig-spot concept this simulator
+does not have (`special_items.dig_all` reads `state.grid[cell]` only;
+`engine/areas.py` has no dig-spot representation) and stays unbuilt; the
+record's `implemented` flipped to `true` anyway since the Conference Room
+branch is a complete, self-contained behavior, and its `meta.blocked_on` was
+rewritten to name the Grounds gap specifically rather than the stale "no
+experiments engine exists yet." With a Conference Room on the estate,
+`_apply_spread_dig_spots` adds `CONFERENCE_ROOM_DIG_SPOT_BATCH` (3, the
+wiki's stated usual batch — the 2/3/4 distribution stays unpublished and
+`magnitude.distribution` stays `null`, per the existing gap) dig spots to its
+cell on top of `SpecialItemsState.veia_dig_bonus` — the same per-cell overlay
+Cloister of Veia writes and `dig_all` already reads — each firing, up to
+`CONFERENCE_ROOM_DIG_SPOT_CAP` (50, clamping the final batch); without a
+Conference Room the call is a no-op. The 50-spot figure is wiki-exact for
+this branch (unlike the Grounds branch's hedged totals) but is *not* the
+generic `ExperimentEffect.cap` field, which counts applications rather than
+spots — 17 applications of 3 would overshoot 50 by one — so it lives in
+`magnitude.conference_room_spot_cap` and is enforced against a dedicated
+running total (`SpecialItemsState.conference_room_dig_spots`) instead.
+
+This pass also built the prerequisite the effect could not safely ship
+without: `cross_column_exclude` enforcement. The wiki states
+`spread_dig_spots` "will never be offered if the 'find trash while digging'
+experiment trigger is offered," and `experiments.json` had carried that as a
+`cross_column_exclude` availability record since phase 0, but nothing read
+it — `draw_offers` could offer both in the same setup. `_effect_offerable`
+now takes the setup's already-sampled `offered_triggers` and excludes any
+effect whose `cross_column_exclude.excludes_trigger_id` is among them, which
+forces an ordering change in `draw_offers`: triggers must be sampled (and
+their RNG substream consumed) *before* the effect pool is filtered, since the
+exclusion depends on which 3 triggers were actually offered, not the whole
+eligible trigger pool. This does not reorder any RNG substream draw relative
+to before (triggers were already sampled first); it only moves the moment
+the effect pool is filtered to after that draw completes. The exclusion can
+drop at most 1 of the 12 base effects, so — like the existing day-gate and
+day-or-packet-gate filters — it can never shrink the effect pool below the 3
+`draw_offers` needs; `draw_offers` asserts this the same way it already
+asserted for the trigger-side filter.
+
+Two more wiki-described pieces of this effect are recorded but not built, in
+`meta.notes`: the **Dovecote birdbath sub-effect** (with a Dovecote on the
+estate, this effect *also* fills 6 off-grid birdbaths with dirt in a fixed
+3-trigger pattern, independent of the main effect — blocked on the same
+missing off-grid concept as the Grounds branch) and the **Blessing of the
+Chef's "Mudslide Icecream"** dish (a unique Dining Room dish this effect can
+add while that Blessing is active — blocked on the Blessing system itself
+being unimplemented). Also not modelled, at this engine's per-cell
+granularity: the wiki's "first five [dig spots] appear on the conference
+table, the remainder on the surrounding floor" placement detail, which has no
+mechanical consequence here.
+
+`special_items.py::dig_all`'s per-spot loop carries a safety comment arguing
+that `remaining` (the spot count fixed before the loop starts) can never grow
+mid-loop. That argument used to lean on `spread_dig_spots` being
+unimplemented; it still holds now that the effect is live, for a narrower
+reason: the loop's only within-loop mutation site is the `trash_while_digging`
+branch (which calls `apply_effect` for *today's* configured effect), and
+`spread_dig_spots` can never be that day's configured effect while
+`trash_while_digging` is that day's configured trigger, because the two can
+never even be *offered* together — the `cross_column_exclude` enforcement
+above. The comment now states this argument directly instead of pointing at
+an unimplemented effect.
 
 ## Validation (`tools/validate_data.py`)
 

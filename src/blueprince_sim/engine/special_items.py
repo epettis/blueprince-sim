@@ -241,6 +241,13 @@ class SpecialItemsState:
     # count carry over (owner ruling: 17 is a daily maximum), which falls out
     # for free from SpecialItemsState being rebuilt fresh with GameState.
     entrance_hall_trunks: int = 0
+    # Dig spots the spread_dig_spots experiment effect has added to the
+    # Conference Room today (experiments.py::apply_effect), capped at 50.
+    # Tracked separately from veia_dig_bonus -- which this counter also feeds
+    # -- so the 50-spot cap is exact even if something else ever adds to
+    # veia_dig_bonus at the same cell. Per-day only, same reset shape as
+    # entrance_hall_trunks.
+    conference_room_dig_spots: int = 0
 
 
 # --------------------------------------------------------------- inventory ops
@@ -1375,10 +1382,15 @@ def dig_all(game, cell: int) -> None:
 
         if remaining > 0 and tool_item is not None:
             # remaining is fixed before the loop starts, so nothing inside it can
-            # grow this dig -- the one effect that would (spread_dig_spots) is
-            # unimplemented, and the wiki forbids pairing it with
-            # trash_while_digging as trigger+effect on the same day anyway
-            # (experiments.json's spread_dig_spots.availability.cross_column_exclude).
+            # grow this dig. spread_dig_spots is the only effect that could (it
+            # adds to veia_dig_bonus), but this loop's junk branch below can only
+            # ever fire trigger_success for the trash_while_digging trigger, and
+            # spread_dig_spots can never be today's configured effect alongside
+            # that trigger -- the wiki forbids offering the two together
+            # (experiments.json's spread_dig_spots.availability.cross_column_exclude,
+            # enforced in experiments._effect_offerable), so the junk branch below
+            # can never turn around and invoke apply_effect(spread_dig_spots) on
+            # this same cell mid-loop.
             table = registry.special.dig_rules["tables"][table_name]
             weights = tuple(entry["weight"] for entry in table)
             coin_split = registry.special.dig_rules["coin_pile_split"]

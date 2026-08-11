@@ -16,14 +16,15 @@ loader, and this module imports only model/rng-adjacent types.
 
 ## Not modelled (this phase)
 
-Eight of the twenty effects stay inert (``implemented: false`` or, for
-``keys_per_30_steps``, undrawable — see below): ``spread_dig_spots`` (base
-pool); ``pantry_fruit``, ``reservoir_water_level``, ``remove_tunnel_crate``,
+Seven of the twenty effects stay inert (``implemented: false`` or, for
+``keys_per_30_steps``, undrawable — see below), all packet pool:
+``pantry_fruit``, ``reservoir_water_level``, ``remove_tunnel_crate``,
 ``unseal_antechamber_door``, ``permanent_lockpicking_skill``,
-``random_item_then_zero_keys``, ``half_steps_for_dice`` (packet pool).
+``random_item_then_zero_keys``, ``half_steps_for_dice``.
 ``keys_per_30_steps`` (packet pool) IS implemented mechanically below, but
 stays undrawable until the packet subsystem (phases 5-8) is authorised,
-since :func:`draw_offers` only samples the base pool.
+since :func:`draw_offers` only samples the base pool. All twelve base
+effects are now implemented.
 
 ``add_aquariums`` (the last base effect, uncapped) injects ``aquariums_added``
 (3) copies of the ``aquarium__experiment`` floorplan into the live decks via
@@ -42,6 +43,21 @@ copy share that single id. An Aquarium is a Shop, Red, Hallway and Bedroom
 room at once (``extra_categories``), so drafting one while any of those four
 triggers is configured can re-fire this effect -- ``Game._place_room``'s own
 comment documents why that cannot recurse.
+
+``spread_dig_spots`` only builds the wiki's Conference Room branch: with a
+Conference Room on the estate, each firing adds dig spots to its cell via
+its record's ``magnitude.spots_per_trigger_usual`` (3, the wiki's usual
+batch; the 2/3/4 distribution itself is unpublished and not modelled) on top
+of ``SpecialItemsState.veia_dig_bonus``, up to
+``magnitude.conference_room_spot_cap`` (50, clamping the final batch). Without
+a Conference Room this is a no-op: the Grounds branch (off-grid dig spots
+starting outside the Entrance Hall) needs a dig-spot concept this simulator
+does not have and is deliberately not built -- see
+:func:`_apply_spread_dig_spots` and the id's own ``meta.blocked_on``. This
+effect's ``cross_column_exclude`` availability (never offered alongside the
+``trash_while_digging`` trigger) is enforced in :func:`_effect_offerable`,
+which is why :func:`draw_offers` must sample triggers before filtering the
+effect pool.
 
 Two effects carry a ``cap`` and both are now implemented: ``entrance_hall_trunk``
 (17, adds a trunk to the Entrance Hall -- see special_items.py's
@@ -103,8 +119,12 @@ is set (the default). One of the twelve base effects carries a
 ``day_or_packet_gate`` availability (``mail_room_letter``): excluded before
 day 11 (``or_packet`` is permanently False -- see :func:`_effect_offerable`);
 also excluded once its cap is spent, though see that function's docstring
-for why this half of the check cannot yet see a prior day's deliveries. No
-other availability kind, on either triggers or effects, is enforced yet.
+for why this half of the check cannot yet see a prior day's deliveries.
+Another base effect carries a ``cross_column_exclude`` availability
+(``spread_dig_spots``): excluded whenever ``trash_while_digging`` is among
+the 3 triggers offered that same setup (not merely eligible to be offered --
+see :func:`_effect_offerable`). No other availability kind, on either
+triggers or effects, is enforced yet.
 """
 
 from __future__ import annotations
@@ -122,7 +142,6 @@ from .model import RARITY_INDEX
 # _apply_add_aquariums imports it lazily instead.
 AQUARIUM_BASE_ID = "aquarium"
 AQUARIUM_EXPERIMENT_ID = "aquarium__experiment"
-
 
 @dataclass(frozen=True, slots=True)
 class ExperimentTrigger:
@@ -255,17 +274,25 @@ def _trigger_offerable(trig: ExperimentTrigger, cfg) -> bool:
     return cfg.day >= gate.get("day", 0)
 
 
-def _effect_offerable(effect: ExperimentEffect, cfg, ex: ExperimentState) -> bool:
+def _effect_offerable(effect: ExperimentEffect, cfg, ex: ExperimentState,
+                      offered_triggers: tuple[str, ...] = ()) -> bool:
     """True unless an availability rule or a spent cap blocks this effect today.
 
-    Only ``day_or_packet_gate`` (mail_room_letter's day-11 gate) is enforced;
-    any other availability kind, or none, is always offerable -- entrance_hall_
-    trunk carries no availability record at all (it stays offerable forever
-    and simply no-ops past its cap in :func:`apply_effect`; the wiki never
-    says it stops being offered, unlike mail_room_letter's explicit "never
-    offered again"). ``or_packet`` is permanently False here: the packet
-    subsystem (phases 5-8) is not authorised, so no custom experiment packet
-    can ever exist to satisfy it.
+    ``day_or_packet_gate`` (mail_room_letter's day-11 gate) and
+    ``cross_column_exclude`` (spread_dig_spots vs. trash_while_digging) are
+    enforced; any other availability kind, or none, is always offerable --
+    entrance_hall_trunk carries no availability record at all (it stays
+    offerable forever and simply no-ops past its cap in :func:`apply_effect`;
+    the wiki never says it stops being offered, unlike mail_room_letter's
+    explicit "never offered again"). ``or_packet`` is permanently False here:
+    the packet subsystem (phases 5-8) is not authorised, so no custom
+    experiment packet can ever exist to satisfy it.
+
+    ``cross_column_exclude`` reads ``offered_triggers`` -- the 3 triggers
+    already drawn for today's setup, per :func:`draw_offers`'s own ordering
+    (triggers are sampled first) -- not the whole offerable trigger pool: the
+    wiki's "will never be offered if [trigger] is offered" means offered to
+    the player at setup, not merely eligible to be offered.
 
     mail_room_letter is also excluded once its cap has already been reached
     -- but see ExperimentState.letters_delivered's own comment: that counter
@@ -279,6 +306,9 @@ def _effect_offerable(effect: ExperimentEffect, cfg, ex: ExperimentState) -> boo
     if gate is not None and gate.get("kind") == "day_or_packet_gate":
         or_packet = False  # packet subsystem (phases 5-8) unauthorised; never satisfiable
         if not (cfg.day >= gate.get("day", 0) or or_packet):
+            return False
+    if gate is not None and gate.get("kind") == "cross_column_exclude":
+        if gate.get("excludes_trigger_id") in offered_triggers:
             return False
     if effect.id == "mail_room_letter" and effect.cap is not None:
         if ex.letters_delivered >= effect.cap:
@@ -298,21 +328,28 @@ def draw_offers(registry, rng, cfg, state) -> tuple[tuple[str, ...], tuple[str, 
     Only the base pool is ever drawn: the packet pool (Satellite Dish, phases
     5-8) is out of scope, so its 8 triggers and 8 effects are never offered.
     Triggers gated by a ``day_gate`` availability (see :func:`_trigger_offerable`)
-    and effects gated by their own availability/cap (see :func:`_effect_offerable`)
-    are dropped from their respective sampling pools before the draw. Neither
-    the 2 day-gated triggers nor the single gated/cappable effect (base pool
-    has only mail_room_letter) can ever shrink either pool below the 3 the
-    draw needs.
+    are dropped from the trigger sampling pool and sampled first -- their
+    result then feeds the effect pool's own ``cross_column_exclude`` filter
+    (see :func:`_effect_offerable`), so triggers must be drawn before effects
+    are filtered; this is the same order the two were already sampled in, so
+    no RNG substream draw is reordered by the dependency, only the effect
+    pool's filtering moment. Effects also gated by their own availability/cap
+    are dropped from the effect sampling pool before that draw. None of the 2
+    day-gated triggers, the single gated/cappable effect (mail_room_letter),
+    or spread_dig_spots's cross-column exclusion (which can drop at most 1 of
+    the 12 base effects) can ever shrink either pool below the 3 the draw
+    needs.
     """
     ex = registry.experiments
     trig_pool = [t for t in ex.base_trigger_ids if _trigger_offerable(ex.trigger_by_id[t], cfg)]
     assert len(trig_pool) >= 3, "day_gate filtering must never shrink the trigger pool below 3"
-    eff_pool = [e for e in ex.base_effect_ids
-                if _effect_offerable(ex.effect_by_id[e], cfg, state.experiment)]
-    assert len(eff_pool) >= 3, "effect availability filtering must never shrink the pool below 3"
     sampled_triggers = rng.stream("experiment_triggers").sample(trig_pool, 3)
-    sampled_effects = rng.stream("experiment_effects").sample(eff_pool, 3)
     sampled_triggers.sort(key=trig_pool.index)
+
+    eff_pool = [e for e in ex.base_effect_ids
+                if _effect_offerable(ex.effect_by_id[e], cfg, state.experiment, sampled_triggers)]
+    assert len(eff_pool) >= 3, "effect availability filtering must never shrink the pool below 3"
+    sampled_effects = rng.stream("experiment_effects").sample(eff_pool, 3)
     sampled_effects.sort(key=eff_pool.index)
     return tuple(sampled_triggers), tuple(sampled_effects)
 
@@ -544,6 +581,8 @@ def apply_effect(game, effect_id: str) -> None:
             st.keys += st.steps // per
         case "add_aquariums":
             _apply_add_aquariums(game, effect)
+        case "spread_dig_spots":
+            _apply_spread_dig_spots(game, effect)
         case _:
             pass  # inert effect id; nothing to apply
 
@@ -609,3 +648,37 @@ def _apply_add_aquariums(game, effect: ExperimentEffect) -> None:
         decks.set_dynamic_rarity(st, registry, room_id, target_idx, rng,
                                  label="add_aquariums_rarity")
     st.add_aquariums_active = True
+
+
+def _apply_spread_dig_spots(game, effect: ExperimentEffect) -> None:
+    """"Spread dirt on the driveway" -- Conference Room branch only.
+
+    The wiki's Grounds branch (dig spots placed outside the house, starting
+    just outside the Entrance Hall) is not modelled: this simulator has no
+    off-grid dig-spot concept (special_items.dig_all reads state.grid[cell]
+    only; engine/areas.py has no dig-spot representation at all), so without
+    a Conference Room already on the estate this call is a no-op.
+
+    With a Conference Room present, every firing adds
+    magnitude.spots_per_trigger_usual (3) dig spots to its cell via
+    SpecialItemsState.veia_dig_bonus, the same additive per-cell overlay
+    Cloister of Veia writes and special_items.dig_all already reads -- until
+    SpecialItemsState.conference_room_dig_spots reaches
+    magnitude.conference_room_spot_cap (50), at which point the final batch is
+    clamped to whatever is left and every later firing adds nothing. The
+    "first five on the table, the rest on the floor" placement flavour (wiki)
+    has no mechanical consequence at this engine's per-cell granularity and
+    is not modelled.
+    """
+    conference_cell = game.room_cells.get("conference_room")
+    if conference_cell is None:
+        return  # Grounds branch unbuilt; see the module docstring
+    st = game.state
+    cap = effect.magnitude.get("conference_room_spot_cap", 50)
+    remaining_capacity = cap - st.special.conference_room_dig_spots
+    if remaining_capacity <= 0:
+        return
+    batch = min(effect.magnitude.get("spots_per_trigger_usual", 3), remaining_capacity)
+    st.special.conference_room_dig_spots += batch
+    bonus = st.special.veia_dig_bonus
+    bonus[conference_cell] = bonus.get(conference_cell, 0) + batch
