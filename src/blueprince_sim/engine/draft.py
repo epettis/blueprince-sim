@@ -103,10 +103,25 @@ def _deal_from_rarity(ctx: DraftContext, rarity_idx: int, slot: int, cell: int,
 
 def _priority_draw(ctx: DraftContext, cell: int, entry_dir: int,
                    exclude: set[int]) -> Room | None:
-    """Roll the slot-3 priority draws (Patio group, Commissary/Observatory, Classroom)."""
+    """Roll the slot-3 priority draws (Patio group, Commissary/Observatory, Classroom).
+
+    An entry may carry an optional ``condition`` tag (the same vocabulary
+    ``_active_conditions`` feeds to ``_apply_category_bias``'s ``category_biases``
+    entries); such an entry is skipped, consuming no RNG, while that condition
+    isn't active. The active-condition set is computed lazily, only once some
+    entry actually carries a ``condition``, so the common (today: universal)
+    unconditional path never pays for it.
+    """
     pool_ids = {ctx.registry.rooms[c].id
                 for d in ctx.state.decks for c in d.order}
+    active: set[str] | None = None
     for entry in ctx.registry.priority["priority_draws"]:
+        condition = entry.get("condition")
+        if condition is not None:
+            if active is None:
+                active = _active_conditions(ctx)
+            if condition not in active:
+                continue
         chance = entry["chance"]
         if ctx.state.greenhouse_placed and "chance_with_greenhouse" in entry:
             chance = entry["chance_with_greenhouse"]

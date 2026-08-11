@@ -11,7 +11,20 @@ Eight solitaire decks are built at day start from the enabled pools: 4
 rarities (commonplace / standard / unusual / rare) × free / gem-cost
 (`engine/decks.py`). Dealing is solitaire-style — a dealt room does not
 repeat until its deck depletes and reshuffles. Rooms injected during the
-day (The Pool, Pool Hall, Schoolhouse) are shuffled into the live decks.
+day (The Pool, Pool Hall, Schoolhouse) are shuffled into the live decks via
+`inject_rooms`, which reshuffles the whole target deck and rewinds its
+cursor — correct for those once-per-day callers.
+
+A card's effective rarity IS the deck it sits in — dealing never reads a
+card's own rarity, only the rarity index handed to it. Two primitives move
+cards between decks without disturbing the rest: `inject_rooms_undealt`
+(for an effect that injects copies many times a day, so a whole-deck
+reshuffle would keep un-dealing already-drawn cards) and
+`set_dynamic_rarity` (moves a room's cards to a different rarity's deck of
+the same free/gem class for the day, tracked in `GameState.dynamic_rarity`;
+idempotent, and preserves dealt-ness by landing dealt copies before the
+destination cursor). Both are groundwork for the `add_aquariums` experiment
+effect and are currently unwired — no production call site exists yet.
 
 ## Per-slot rarity roll
 
@@ -34,7 +47,11 @@ Room 46 has been reached (`GameConfig.gem_gate_active`).
 
 **Priority draws** (`data/priority_draws.json`) can override slot 3 before
 the normal roll: the Patio group at 5% (raised to 50% while a Greenhouse is
-placed), Commissary/Observatory at 13%, Classroom at 3%.
+placed), Commissary/Observatory at 13%, Classroom at 3%. An entry may also
+carry an optional `condition` tag (the same vocabulary `category_biases`
+entries use, e.g. `greenhouse_or_king`); such an entry is skipped, rolling
+no chance at all, while that condition isn't active. No entry currently
+carries one.
 
 ## Placement filters
 

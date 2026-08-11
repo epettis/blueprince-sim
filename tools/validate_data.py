@@ -471,11 +471,19 @@ def main(argv: list[str] | None = None) -> int:
     if any(w < 0 for w in lib_row):
         errors.append(f"library_override has a negative weight: {lib_row}")
 
-    # priority draws reference real rooms
+    # priority draws reference real rooms; an optional "condition" tag must be
+    # one _active_conditions can actually emit -- reuse category_biases' own
+    # condition values as that vocabulary rather than duplicating it here.
+    active_condition_tags = {e["condition"] for e in priority.get("category_biases", [])
+                             if "condition" in e}
     for entry in priority["priority_draws"]:
         for rid in entry["rooms"]:
             if rid not in by_id:
                 errors.append(f"priority draw references unknown room {rid}")
+        condition = entry.get("condition")
+        if condition is not None and condition not in active_condition_tags:
+            warnings.append(
+                f"priority draw {entry['label']!r}: unknown condition {condition!r} (permissive)")
     for rid in priority["forced_draw_precedence"]["order"]:
         if rid not in by_id:
             warnings.append(f"forced-draw precedence references unknown room {rid}")
