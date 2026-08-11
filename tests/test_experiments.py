@@ -1,9 +1,10 @@
 """Laboratory / Experiments: setup/pause/resume core, the pure-resource
 effects, the five placement-site draft triggers (shops, red_room_draft,
 hallway_from_hallway, bedrooms_after_second, gems_spent), the generic cap
-machinery, the trunks_opened and security_door interaction-site triggers, the
-day_gate availability filter, and the scoped termination checks added at
-open_door/open_container/_maybe_finish_experiment_setup.
+machinery, the trunks_opened, security_door, and trash_while_digging
+interaction-site triggers, the day_gate availability filter, and the scoped
+termination checks added at open_door/open_container/move/
+_maybe_finish_experiment_setup.
 
 Mirrors test_upgrade_env.py's shape (direct Game construction plus the flat
 action space) for the setup flow, and calls engine.experiments functions
@@ -23,6 +24,7 @@ from blueprince_sim.engine import special_items as si
 from blueprince_sim.engine.game import Game, Phase, RedrawKind
 from blueprince_sim.engine.grid import E, N, S, W
 from blueprince_sim.engine.locks import DOOR_LOCKED, DOOR_OPEN, DOOR_SECURITY, segment_key
+from blueprince_sim.engine.rng import Rng
 from blueprince_sim.engine.state import DraftOption, PendingDraft
 from blueprince_sim.env import actions as A
 
@@ -723,6 +725,141 @@ def test_trunks_opened_does_not_fire_on_a_vault_box():
     granted = g.open_vault_box()
     assert granted
     assert g.state.experiment.success_count == 0
+
+
+# ---------------------------------------------------------------------------
+# trash_while_digging: special_items.py::dig_all
+# ---------------------------------------------------------------------------
+
+class _AlwaysIndexRng(Rng):
+    """Rng whose roll_weighted always returns a fixed index, forcing every
+    dig roll onto one chosen table row regardless of its actual weight."""
+
+    def __init__(self, seed: int, index: int) -> None:
+        super().__init__(seed)
+        self._index = index
+
+    def roll_weighted(self, label: str, weights: tuple) -> int:  # noqa: ARG002
+        return self._index
+
+
+def test_trash_while_digging_fires_on_a_junk_outcome():
+    """A dig outcome of 'junk' (the shovel table's row 0) fires the trigger
+    and applies the chosen effect."""
+    g = Game(GameConfig(starting_items=frozenset({"shovel"})), seed=0)
+    storeroom = g.registry.by_id["storeroom"]
+    cell = 10
+    g.state.grid[cell] = storeroom.idx
+    _configure(g, "trash_while_digging", "permanent_allowance")
+    g.rng = _AlwaysIndexRng(0, 0)  # force the shovel table's junk row
+    si.dig_all(g, cell)
+    assert g.state.experiment.success_count == 1
+    assert g.state.allowance == 1
+
+
+def test_trash_while_digging_does_not_fire_on_a_nothing_outcome():
+    """'Digging up nothing does not count as finding trash' (wiki): a
+    'nothing' outcome (the shovel table's row 5) must not fire the trigger,
+    even with it configured and unpaused."""
+    g = Game(GameConfig(starting_items=frozenset({"shovel"})), seed=0)
+    storeroom = g.registry.by_id["storeroom"]
+    cell = 10
+    g.state.grid[cell] = storeroom.idx
+    _configure(g, "trash_while_digging", "permanent_allowance")
+    g.rng = _AlwaysIndexRng(0, 5)  # force the shovel table's nothing row
+    si.dig_all(g, cell)
+    assert g.state.experiment.success_count == 0
+    assert g.state.allowance == 0
+
+
+def test_trash_while_digging_fires_once_per_junk_spot_in_a_bulk_dig():
+    """dig_all digs every remaining spot at a cell in one call; an all-junk
+    dig on a 2-spot room fires the trigger twice, once per spot, not once
+    per arrival (call)."""
+    g = Game(GameConfig(starting_items=frozenset({"shovel"})), seed=0)
+    tomb = g.registry.by_id["tomb"]
+    assert tomb.items.dig_spots == 2
+    cell = 10
+    g.state.grid[cell] = tomb.idx
+    _configure(g, "trash_while_digging", "permanent_allowance")
+    g.rng = _AlwaysIndexRng(0, 0)  # force the shovel table's junk row
+    si.dig_all(g, cell)
+    assert g.state.experiment.success_count == 2
+    assert g.state.allowance == 2
+
+
+def test_trash_while_digging_does_not_fire_for_a_different_configured_trigger():
+    """Digging up junk while a different trigger (shops) is configured must
+    not fire trash_while_digging's effect -- only the currently configured
+    trigger's own branch may call trigger_success."""
+    g = Game(GameConfig(starting_items=frozenset({"shovel"})), seed=0)
+    storeroom = g.registry.by_id["storeroom"]
+    cell = 10
+    g.state.grid[cell] = storeroom.idx
+    _configure(g, "shops", "permanent_allowance")
+    g.rng = _AlwaysIndexRng(0, 0)  # force the shovel table's junk row
+    si.dig_all(g, cell)
+    assert g.state.experiment.success_count == 0
+    assert g.state.allowance == 0
+
+
+def test_trash_while_digging_does_not_fire_while_paused():
+    """trigger_success's active gate suppresses trash_while_digging the same
+    way it suppresses every other trigger while the experiment is paused."""
+    g = Game(GameConfig(starting_items=frozenset({"shovel"})), seed=0)
+    storeroom = g.registry.by_id["storeroom"]
+    cell = 10
+    g.state.grid[cell] = storeroom.idx
+    _configure(g, "trash_while_digging", "permanent_allowance")
+    g.state.experiment.paused = True
+    g.rng = _AlwaysIndexRng(0, 0)  # force the shovel table's junk row
+    si.dig_all(g, cell)
+    assert g.state.experiment.success_count == 0
+    assert g.state.allowance == 0
+
+
+def test_trash_while_digging_burst_drains_steps_and_floors_at_zero():
+    """The burst case: Furnace is the only fireplace room with a nonzero base
+    dig_spots (1), so a Furnace drafted from a Cloister of Veia reaches the
+    highest single-cell dig-spot total reachable through normal play, 1 + 8
+    (the Cloister's fireplace-room bonus) = 9 -- not the 5 + 8 = 13 a naive
+    sum of the two maxima would suggest, since Courtyard (the room with the
+    highest plain dig_spots, 5) is not one of the seven fireplace rooms and so
+    never collects the Cloister bonus. An all-junk dig there with
+    steps_for_gold configured fires 9 times (-10 steps / +20 coins each): 90
+    steps of drain against a starting balance of 50 floors at 0 rather than
+    going negative, while every fire still pays out its coins."""
+    g = Game(GameConfig(starting_items=frozenset({"shovel"})), seed=0)
+    furnace = g.registry.by_id["furnace"]
+    assert furnace.items.dig_spots == 1
+    assert furnace.has_fireplace
+    cell = 10
+    g.state.grid[cell] = furnace.idx
+    g.state.special.veia_dig_bonus[cell] = 8  # Cloister of Veia fireplace-room bonus
+    _configure(g, "trash_while_digging", "steps_for_gold")
+    g.state.steps = 50
+    g.rng = _AlwaysIndexRng(0, 0)  # force the shovel table's junk row
+    si.dig_all(g, cell)
+    assert g.state.experiment.success_count == 9
+    assert g.state.steps == 0
+    assert g.state.coins == 9 * 20
+
+
+def test_move_ends_the_day_when_a_dig_burst_drains_steps_to_zero():
+    """move()'s own termination check runs after on_arrive (which runs
+    dig_all), so a single move() into a multi-spot dig room that drains steps
+    via repeated trash_while_digging fires still ends the day correctly."""
+    g = Game(GameConfig(starting_items=frozenset({"shovel"})), seed=0)
+    tomb = g.registry.by_id["tomb"]
+    g._place_room(tomb, 7, S)
+    _configure(g, "trash_while_digging", "steps_for_gold")
+    g.state.steps = 5
+    g.rng = _AlwaysIndexRng(0, 0)  # force the shovel table's junk row
+    g.move(N)
+    assert g.state.experiment.success_count == tomb.items.dig_spots
+    assert g.state.steps == 0
+    assert g.phase is Phase.TERMINAL
+    assert g.termination_reason == "out_of_steps"
 
 
 # ---------------------------------------------------------------------------
