@@ -656,6 +656,65 @@ the residual `game.py` branches.
 
 ## Decisions log
 
+- **2026-08-10, the Mechanarium's door count is CONFIRMED fixed at draft.** The
+  owner's claim from play -- "the number of doors is set when drafted; it does
+  not add doors later for newly drafted engineering rooms" -- is confirmed
+  verbatim by the wiki: *"The number and orientation of the doors in the
+  Mechanarium are set in stone the moment it is drafted. Drafting more
+  Mechanical Rooms after the Mechanarium has been drafted will not cause more
+  doors in the Mechanarium to spawn."* Independently corroborated by
+  `Template:Interactions/Mechanical Room`.
+
+  This is what makes the room buildable at all. A count that grew would need
+  live mutation of a placed room's door mask, and `placed_doors` is written in
+  exactly three places, none of which any effect handler can reach. A count
+  frozen at draft is an ordinary placement-time decision.
+
+  **Owner ruling: build BOTH the doors and the four diagonal compartments.**
+
+  **The eight Mechanical rooms**, all resolving to our ids: `utility_closet`,
+  `boiler_room`, `pump_room`, `security`, `workshop`, `laboratory`,
+  `electric_eel_aquarium__ix4`, `mechanarium`. All eight are `category:
+  blueprint`, so this needs the multi-valued `extra_categories` field added
+  earlier the same day -- and it **also unblocks** `priority_draws.json`'s
+  dead `mechanical_or_rotanda` entry, whose own note records that it "matches
+  nothing in rooms.json", plus the Gear Wrench and Powered Electromagnet.
+
+- **2026-08-10, a Mechanarium doorway blocked by a neighbour's blank wall does
+  not consume its slot.** Owner. The wiki says such a doorway is "skipped" and
+  the room "tries again at the next position", without saying whether the slot
+  is spent. An **unpublished** note in the page source lists blocking a side
+  door as a way to reach the eighth door, which implies the count carries over.
+
+  Act on this cold as: the supporting evidence is commented-out wiki source,
+  not published text, so this is the owner's call resting on a hint rather than
+  a statement. It makes the Mechanarium's door count depend on its neighbours'
+  door masks at draft time, which is worth re-testing in play.
+
+- **2026-08-10, the Southern Cross excludes the Mechanarium, the Chamber of
+  Mirrors and every upgrade variant.** Owner, on a divergence found while
+  scoping the Mechanarium. Our `priority_draws.json` keys the 40% draw on
+  `layout: "cross"`, which sweeps in all 19 cross-layout rooms; the wiki's own
+  query excludes the two rooms by name and filters `Type HOLDS "Upgrade"`, and
+  the Mechanarium page repeats it independently ("It is also unaffected by the
+  Southern Cross").
+
+  Currently inert -- nothing sets `state.southern_cross_active` -- so this is
+  wrong data rather than wrong behaviour, which is why it was safe to correct
+  in passing.
+
+- **2026-08-10, "gated mechanical arms" is unsourced and should not be
+  repeated.** Both CLAUDE.md and `upgrade_disk_mechanarium.meta.simplification`
+  describe the Mechanarium's Upgrade Disk as being behind "gated mechanical
+  arms". A full pass over the Mechanarium page found **no wiki support for any
+  arm mechanic**. The real gate is the diagonal-door spawn threshold: the disk
+  sits behind the third diagonal door, which needs three more Mechanical rooms
+  than spawned drafting doors, and the Sanctum Key sits behind the fourth.
+
+  Act on this cold as: correct the wording when the compartments land. If the
+  phrase came from play rather than the wiki it needs attributing, but nothing
+  in the sources supports it as written.
+
 - **2026-08-10, the Laboratory is GO for phases 0-4 only.** Owner. That
   delivers a playable, trainable Laboratory: the data file, the
   offer/choose/start/pause core, the eight pure-resource effects, the
