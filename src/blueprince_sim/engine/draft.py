@@ -36,6 +36,7 @@ READING_NOOK_ID = "reading_nook__ix99"
 LIBRARY_ID = "library"
 MECHANARIUM_ID = "mechanarium"
 DARKROOM_ID = "darkroom"
+AQUARIUM_EXPERIMENT_ID = "aquarium__experiment"
 
 
 class DraftContext:
@@ -60,7 +61,8 @@ def room_draftable(ctx: DraftContext, room: Room, cell: int, entry_dir: int,
     """Full eligibility check for dealing ``room`` at the target doorway.
 
     Combines the one-copy-on-the-grid rule (waived entirely while the Chamber
-    of Mirrors is placed, and for Tunnels dealt via the chain), the room's
+    of Mirrors is placed, for Tunnels dealt via the chain, and for
+    aquarium__experiment once add_aquariums has fired today), the room's
     draft conditions, and door-geometry legality. ``exclude`` holds room
     indices already dealt into earlier slots of this hand.
     """
@@ -69,8 +71,15 @@ def room_draftable(ctx: DraftContext, room: Room, cell: int, entry_dir: int,
     if room.id in ctx.placed_ids and "chamber_of_mirrors" not in ctx.placed_ids:
         # Allow a second (or third) Tunnel when it is force-dealt from a Tunnel's
         # north exit (tunnel_chain=True).  The duplicate-id check would otherwise
-        # block the chain once the first Tunnel is on the grid.
-        if not (tunnel_chain and room.id == TUNNEL_ID):
+        # block the chain once the first Tunnel is on the grid.  Allow any number
+        # of aquarium__experiment copies once add_aquariums has fired: all three
+        # (and every later injected copy) share this one id, so without this the
+        # grid would cap at 2 total (the base Aquarium plus one experiment copy).
+        # The base Aquarium itself keeps the ordinary one-copy limit -- only the
+        # experiment-added id is named here.
+        waived = (tunnel_chain and room.id == TUNNEL_ID) or (
+            room.id == AQUARIUM_EXPERIMENT_ID and ctx.state.add_aquariums_active)
+        if not waived:
             return False  # one copy of a room on the grid at a time
     if not satisfies_draft_conditions(room, cell, entry_dir, ctx.state, ctx.cfg,
                                       ctx.placed_ids, ctx.from_library):
@@ -227,6 +236,8 @@ def _active_conditions(ctx: DraftContext) -> set[str]:
         conds.add("southern_cross_constellation")
     if state.draxus_active:
         conds.add("draxus_constellation")
+    if state.add_aquariums_active:
+        conds.add("add_aquariums")
     # King's Chess Piece (Banner of the King) is deliberately NOT emitted here: no
     # source models how the Banner is obtained or a per-day color pick, and the five
     # king_* tags must fire one at a time (mirroring scepter_<color>), never all at

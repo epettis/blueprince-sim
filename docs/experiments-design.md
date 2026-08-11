@@ -350,10 +350,9 @@ twice for a Bunk Room by reading the same `counts_as_bedrooms`/`amount` tag
 drafted, veteran-bypassable) stays unbuilt, same as before — only `day_gate`
 is enforced, and it never applied to this trigger.
 
-**All twelve base triggers are now live; ten of the twelve base effects
-are.** Unimplemented base effects: `spread_dig_spots`, `add_aquariums` — a
-live trigger can still be paired with one of these silent effects, a no-op
-the draw does not filter out.
+**All twelve base triggers are now live; eleven of the twelve base effects
+are.** The one unimplemented base effect is `spread_dig_spots` — a live
+trigger can still be paired with it, a no-op the draw does not filter out.
 
 Most recently, the effect-side `cap` field landed (`ExperimentEffect.cap`,
 loaded but previously dropped on the floor — `tools/validate_data.py`
@@ -404,9 +403,45 @@ unblocks:
 `day_gate` filter and the effect-side `day_or_packet_gate`/cap filter above)
 and still does not filter on `implemented`, so a setup can configure an
 experiment pairing a live trigger with a silent effect, or vice versa, or
-both silent — narrower now that every trigger and 10 of 12 effects have
+both silent — narrower now that every trigger and 11 of 12 effects have
 firing sites, but still possible. Filtering the draw to fully-implemented
 records remains future work, not something addressed so far.
+
+Most recently, `add_aquariums` landed — the last base effect, and the risky
+one: it deliberately breaks `room_draftable`'s one-copy-per-room invariant.
+`apply_effect` injects `magnitude.aquariums_added` (3) copies of the
+`aquarium__experiment` floorplan via `decks.inject_rooms_undealt`, then moves
+both the base Aquarium and that experiment copy to the Commonplace bucket via
+`decks.set_dynamic_rarity` (idempotent past the first firing — the injection
+must run first, since `inject_rooms_undealt` always inserts into a room's own
+static rarity bucket, ignoring any dynamic override), then sets
+`state.add_aquariums_active`. That flag does two things outside
+`experiments.py`: it activates two new `condition`-gated `priority_draws.json`
+entries (`add_aquariums_13`/`add_aquariums_3`, 13% and 3%, applying
+independently per `_priority_draw`'s existing per-entry roll — 15.61%
+combined, appended after the three existing entries so their own substream
+labels and order are untouched), and it waives `room_draftable`'s one-copy
+rule for `aquarium__experiment` specifically — never the base Aquarium —
+following the shape of the existing Tunnel-chain exception rather than a
+second global waiver like the Chamber of Mirrors'. Without the waiver all
+three injected copies (and every later one) share the single
+`aquarium__experiment` id, so the grid caps at 2 Aquariums total; with it, the
+grid is the only remaining bound.
+
+That bound was the actual risk: an Aquarium is a Shop, Red, Hallway and
+Bedroom room at once (`extra_categories`), so drafting one while any of those
+four triggers is configured re-fires `add_aquariums`, the wiki's own designed
+loop. `Game._place_room` carried a comment flagging this as the case its
+non-recursion argument had not yet been checked against. Re-verified: the
+loop cannot recurse *within* one `_place_room` call, because
+`_apply_add_aquariums` only mutates deck/rarity state and never calls
+`_place_room`, `open_door`, or `choose`; *across* separate placements it is
+bounded by the finite grid, since each fire only makes more Aquariums
+draftable, it does not place one itself. `tests/test_experiments.py` drives
+this to exhaustion — placing `aquarium__experiment` at all 43
+non-Entrance-Hall, non-Antechamber cells with `shops` configured — and pins
+that it terminates normally. `Game._place_room`'s comment now states this
+argument instead of asking for it to be re-verified.
 
 ## Validation (`tools/validate_data.py`)
 

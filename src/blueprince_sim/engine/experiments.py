@@ -16,15 +16,32 @@ loader, and this module imports only model/rng-adjacent types.
 
 ## Not modelled (this phase)
 
-Nine of the twenty effects stay inert (``implemented: false`` or, for
-``keys_per_30_steps``, undrawable — see below): ``spread_dig_spots``,
-``add_aquariums`` (base pool); ``pantry_fruit``, ``reservoir_water_level``,
-``remove_tunnel_crate``, ``unseal_antechamber_door``,
-``permanent_lockpicking_skill``, ``random_item_then_zero_keys``,
-``half_steps_for_dice`` (packet pool).
+Eight of the twenty effects stay inert (``implemented: false`` or, for
+``keys_per_30_steps``, undrawable — see below): ``spread_dig_spots`` (base
+pool); ``pantry_fruit``, ``reservoir_water_level``, ``remove_tunnel_crate``,
+``unseal_antechamber_door``, ``permanent_lockpicking_skill``,
+``random_item_then_zero_keys``, ``half_steps_for_dice`` (packet pool).
 ``keys_per_30_steps`` (packet pool) IS implemented mechanically below, but
 stays undrawable until the packet subsystem (phases 5-8) is authorised,
 since :func:`draw_offers` only samples the base pool.
+
+``add_aquariums`` (the last base effect, uncapped) injects ``aquariums_added``
+(3) copies of the ``aquarium__experiment`` floorplan into the live decks via
+``decks.inject_rooms_undealt``, moves both the base Aquarium and that
+experiment copy to the Commonplace bucket via ``decks.set_dynamic_rarity``
+(idempotent past the first firing, per that function's own contract), and
+sets ``state.add_aquariums_active`` -- see :func:`_apply_add_aquariums` for
+why the injection must run before the rarity move. The flag does two more
+things outside this module: it activates two ``condition``-gated
+priority_draws.json entries (13% and 3%, applying independently -- 15.61%
+combined, since :func:`_priority_draw` already rolls every entry on its own)
+read by draft.py's ``_active_conditions``, and it waives the one-copy-per-room
+rule for ``aquarium__experiment`` (only that id, never the base Aquarium) in
+draft.py's ``room_draftable``, since all three (and every later) injected
+copy share that single id. An Aquarium is a Shop, Red, Hallway and Bedroom
+room at once (``extra_categories``), so drafting one while any of those four
+triggers is configured can re-fire this effect -- ``Game._place_room``'s own
+comment documents why that cannot recurse.
 
 Two effects carry a ``cap`` and both are now implemented: ``entrance_hall_trunk``
 (17, adds a trunk to the Entrance Hall -- see special_items.py's
@@ -97,6 +114,14 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from .grid import neighbor
+from .model import RARITY_INDEX
+
+# Aquarium ids the add_aquariums effect touches. model.py's top-level import
+# is cycle-safe (it does not import this module); decks.py is NOT imported at
+# module scope because decks -> state -> experiments would cycle, so
+# _apply_add_aquariums imports it lazily instead.
+AQUARIUM_BASE_ID = "aquarium"
+AQUARIUM_EXPERIMENT_ID = "aquarium__experiment"
 
 
 @dataclass(frozen=True, slots=True)
@@ -517,6 +542,8 @@ def apply_effect(game, effect_id: str) -> None:
         case "keys_per_30_steps":
             per = effect.magnitude.get("steps_per_key", 30)
             st.keys += st.steps // per
+        case "add_aquariums":
+            _apply_add_aquariums(game, effect)
         case _:
             pass  # inert effect id; nothing to apply
 
@@ -539,3 +566,46 @@ def _apply_gain_key_gem_or_die(game, effect: ExperimentEffect) -> None:
             st.gems += 1
         case "die":
             st.dice += 1
+
+
+def _apply_add_aquariums(game, effect: ExperimentEffect) -> None:
+    """Inject aquariums_added copies, move Aquarium to commonplace, flag the day.
+
+    Order matters. inject_rooms_undealt (decks.py) always inserts into the
+    room's own static Room.rarity bucket, ignoring any dynamic_rarity override
+    -- so the copies are injected FIRST, then set_dynamic_rarity sweeps
+    everything (the pre-existing base Aquarium card, plus the batch just
+    injected) into the target bucket in one move. Doing it in the other order
+    would leave a first-firing batch stranded outside the destination deck.
+
+    set_dynamic_rarity is idempotent (a no-op, no RNG, once a room's bucket
+    already reads the target) -- required since this effect carries no cap and
+    can fire many times a day; the wiki's "sets the Dynamic Rarity" reads as a
+    standing state, not a repeatable action. One consequence: on a second (or
+    later) firing, that same idempotency means the freshly-injected batch stays
+    in the room's own static bucket rather than following the earlier batches
+    to the target rarity -- still genuinely drawable (at the room's ordinary
+    rarity odds), just not Commonplace like the first batch. Fixing that would
+    need inject_rooms_undealt itself to consult dynamic_rarity, out of scope
+    for this module.
+
+    Applied to both the base Aquarium and the experiment-added copy: the wiki
+    names "the Aquarium's Dynamic Rarity" (singular) while also describing the
+    added copies as living in "different draft pools" -- both cannot be true
+    under this engine's single-deck-per-rarity model, so both ids are moved
+    here rather than silently picking one reading over the other.
+
+    decks.py is imported locally: importing it at module scope would cycle
+    (decks -> state -> experiments), per this module's own docstring.
+    """
+    from . import decks
+
+    st, registry, rng = game.state, game.registry, game.rng
+    n = effect.magnitude.get("aquariums_added", 3)
+    decks.inject_rooms_undealt(st, registry, [AQUARIUM_EXPERIMENT_ID] * n, rng,
+                               label="add_aquariums_inject")
+    target_idx = RARITY_INDEX[effect.magnitude.get("rarity_override", "commonplace")]
+    for room_id in (AQUARIUM_BASE_ID, AQUARIUM_EXPERIMENT_ID):
+        decks.set_dynamic_rarity(st, registry, room_id, target_idx, rng,
+                                 label="add_aquariums_rarity")
+    st.add_aquariums_active = True

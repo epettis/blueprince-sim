@@ -110,12 +110,18 @@ def inject_rooms_undealt(state: GameState, registry: Registry, room_ids: list[st
     ``len(order)`` is recomputed before each insert (as :func:`apply_upgrade`
     does for its cross-bucket path), so later inserts can land after earlier
     ones. All positions are drawn from the single ``label`` substream.
+
+    Copies land in whichever bucket the room's cards currently occupy --
+    ``state.dynamic_rarity`` when :func:`set_dynamic_rarity` has moved them,
+    otherwise the room's own rarity. A room that has not been moved is
+    absent from that dict, so this is its static bucket as usual.
     """
     for rid in room_ids:
         room = registry.by_id.get(rid)
         if room is None or room.rarity is None:
             continue
-        deck = state.deck(room.rarity_idx, not room.is_free)
+        rarity_idx = state.dynamic_rarity.get(room.id, room.rarity_idx)
+        deck = state.deck(rarity_idx, not room.is_free)
         for _ in range(room.deck_copies):
             at = rng.randint(label, deck.pos, len(deck.order))
             deck.insert_undealt(room.idx, at)
