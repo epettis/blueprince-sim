@@ -581,11 +581,11 @@
      3
     ]
    },
-   "implemented": false,
+   "implemented": true,
    "meta": {
     "source": "https://blueprince.wiki.gg/wiki/Experiments/Effects",
     "confidence": "wiki",
-    "blocked_on": "phase 0: no experiments engine exists yet (data/validation only)",
+    "blocked_on": null,
     "notes": [
      "The rarity_override and priority_draw_chance_pct fields are wiki-datamined (tagged DataSpoiler) rather than plain wiki text, unlike the '3 Aquariums' headline number.",
      "Added Aquariums have different placement restrictions than the original Aquarium, which can make the count look smaller than it is."

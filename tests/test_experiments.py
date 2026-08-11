@@ -34,11 +34,14 @@ from __future__ import annotations
 from blueprince_sim.config import GameConfig
 from blueprince_sim.engine import experiments
 from blueprince_sim.engine import special_items as si
-from blueprince_sim.engine.game import Game, Phase, RedrawKind
+from blueprince_sim.engine.draft import (DraftContext, _active_conditions, _priority_draw,
+                                         room_draftable)
+from blueprince_sim.engine.game import ANTECHAMBER_CELL, Game, Phase, RedrawKind
 from blueprince_sim.engine.grid import E, ENTRANCE_CELL, N, S, W
 from blueprince_sim.engine.locks import DOOR_LOCKED, DOOR_OPEN, DOOR_SECURITY, segment_key
+from blueprince_sim.engine.model import RARITY_INDEX
 from blueprince_sim.engine.rng import Rng
-from blueprince_sim.engine.state import DraftOption, PendingDraft
+from blueprince_sim.engine.state import DraftOption, GameState, PendingDraft
 from blueprince_sim.env import actions as A
 from blueprince_sim.env.multiday import DayChain
 from blueprince_sim.env import obs as obs_mod
@@ -360,10 +363,14 @@ def test_keys_per_30_steps_floors_the_division():
 
 
 def test_inert_effect_id_is_a_no_op():
-    """apply_effect no-ops for an effect whose record is implemented=false."""
+    """apply_effect no-ops for an effect whose record is implemented=false.
+
+    spread_dig_spots is the last remaining inert base effect now that
+    add_aquariums has its own firing site (see the add_aquariums tests below).
+    """
     g = _game_at_laboratory()
     before = (g.state.keys, g.state.gems, g.state.dice, g.state.coins, g.state.allowance)
-    experiments.apply_effect(g, "add_aquariums")  # implemented=false
+    experiments.apply_effect(g, "spread_dig_spots")  # implemented=false
     after = (g.state.keys, g.state.gems, g.state.dice, g.state.coins, g.state.allowance)
     assert before == after
 
@@ -1510,3 +1517,239 @@ def test_mail_room_letter_exclusion_never_shrinks_effect_pool_below_three():
         offered = g.state.experiment.offered_effects
         assert len(offered) == 3
         assert "mail_room_letter" not in offered
+
+
+# ---------------------------------------------------------------------------
+# add_aquariums: inject_rooms_undealt + set_dynamic_rarity + the one-copy
+# waiver in draft.py::room_draftable + the two condition-gated priority draws
+# ---------------------------------------------------------------------------
+
+# Interior cell (rank 3, col 2) reached moving south -- comfortably away from
+# grid edges, mirroring tests/rooms/test_chamber_of_mirrors.py's own target
+# cell so door-geometry legality is never the reason a room is rejected here.
+_AQUARIUM_TARGET_CELL = 12
+_AQUARIUM_DIRECTION = S
+
+
+def test_add_aquariums_injects_three_copies_and_moves_both_aquariums_to_commonplace():
+    """First firing: 3 aquarium__experiment cards are injected, and both the
+    base Aquarium and the experiment copy end up in the Commonplace deck --
+    the '3 Aquariums' headline number and the DataSpoiler's Dynamic-Rarity
+    claim, pinned together since inject must run before the rarity move for
+    either to land in the right bucket (see _apply_add_aquariums's own
+    docstring)."""
+    g = _game_at_laboratory()
+    aqx = g.registry.by_id["aquarium__experiment"]
+    aq = g.registry.by_id["aquarium"]
+    unusual_idx = RARITY_INDEX["unusual"]
+    commonplace_idx = RARITY_INDEX["commonplace"]
+    unusual_gem_deck = g.state.deck(unusual_idx, True)  # both rooms cost 1 gem: is_free is False
+    assert unusual_gem_deck.order.count(aq.idx) == 1, "base Aquarium starts in its own rarity"
+    assert unusual_gem_deck.order.count(aqx.idx) == 0, "no experiment copies exist yet"
+
+    experiments.apply_effect(g, "add_aquariums")
+
+    commonplace_gem_deck = g.state.deck(commonplace_idx, True)
+    assert commonplace_gem_deck.order.count(aqx.idx) == 3
+    assert commonplace_gem_deck.order.count(aq.idx) == 1
+    unusual_gem_deck = g.state.deck(unusual_idx, True)
+    assert aqx.idx not in unusual_gem_deck.order
+    assert aq.idx not in unusual_gem_deck.order
+
+    ctx = DraftContext(g.state, g.registry, g.cfg, g.rng, set(), None)
+    assert room_draftable(ctx, aqx, _AQUARIUM_TARGET_CELL, _AQUARIUM_DIRECTION, set()), (
+        "an injected copy must be genuinely draftable, not just present in a deck"
+    )
+
+
+def test_add_aquariums_firing_twice_does_not_move_the_rarity_twice():
+    """set_dynamic_rarity's own idempotency means a second fire consumes no
+    extra RNG on the rarity-move step and leaves the recorded bucket
+    unchanged -- 'sets the Dynamic Rarity' is a standing state, not a
+    repeatable action, matching the wiki wording and this effect's lack of a
+    cap (it fires on every qualifying draft, uncapped)."""
+    g = _game_at_laboratory()
+    experiments.apply_effect(g, "add_aquariums")
+    commonplace_idx = RARITY_INDEX["commonplace"]
+    assert g.state.dynamic_rarity["aquarium"] == commonplace_idx
+    assert g.state.dynamic_rarity["aquarium__experiment"] == commonplace_idx
+    before_rarity_rng = g.rng.stream("add_aquariums_rarity").getstate()
+
+    experiments.apply_effect(g, "add_aquariums")
+
+    assert g.rng.stream("add_aquariums_rarity").getstate() == before_rarity_rng, (
+        "the second firing's rarity move must consume no RNG"
+    )
+    assert g.state.dynamic_rarity["aquarium"] == commonplace_idx
+    assert g.state.dynamic_rarity["aquarium__experiment"] == commonplace_idx
+
+
+def test_add_aquariums_later_batches_land_in_commonplace_too():
+    """Every firing's copies join the bucket the earlier ones were moved to.
+
+    The rarity move is idempotent, so a second firing returns early without
+    moving anything -- if injection used the room's static rarity the later
+    batches would sit in Unusual while the first sat in Commonplace, and the
+    effect would quietly stop delivering the odds it advertises.
+    """
+    g = _game_at_laboratory()
+    commonplace_idx = RARITY_INDEX["commonplace"]
+    exp = g.registry.by_id["aquarium__experiment"]
+    gem_deck = g.state.deck(commonplace_idx, not exp.is_free)
+
+    experiments.apply_effect(g, "add_aquariums")
+    after_first = gem_deck.order.count(exp.idx)
+
+    experiments.apply_effect(g, "add_aquariums")
+    after_second = gem_deck.order.count(exp.idx)
+
+    assert after_second > after_first, (
+        f"second batch did not join the commonplace deck "
+        f"({after_first} copies after one firing, {after_second} after two)"
+    )
+
+
+def test_add_aquariums_sets_the_day_flag_that_activates_the_condition():
+    """state.add_aquariums_active flips from False to True on firing, and
+    draft.py's _active_conditions reflects it immediately -- the wiring the
+    two priority_draws.json entries key off."""
+    g = _game_at_laboratory()
+    ctx = DraftContext(g.state, g.registry, g.cfg, g.rng, set(), None)
+    assert not g.state.add_aquariums_active
+    assert "add_aquariums" not in _active_conditions(ctx)
+
+    experiments.apply_effect(g, "add_aquariums")
+
+    assert g.state.add_aquariums_active
+    assert "add_aquariums" in _active_conditions(ctx)
+
+
+def test_add_aquariums_priority_draws_inactive_before_active_after_firing(monkeypatch):
+    """The two add_aquariums priority_draws entries (13%/3%) are skipped --
+    consuming no RNG -- while the condition is inactive, and become live once
+    the effect has fired. Isolated via a temporary priority_draws swap so the
+    three unconditional entries (Patio/Commissary/Classroom) can never
+    contaminate the pick once every chance roll is forced to hit."""
+    g = _game_at_laboratory()
+    monkeypatch.setattr(Rng, "chance", lambda self, label, p: True)  # force every roll to hit
+    registry = g.registry
+    add_aq_entries = [e for e in registry.priority["priority_draws"]
+                      if e.get("condition") == "add_aquariums"]
+    assert len(add_aq_entries) == 2
+    original = registry.priority["priority_draws"]
+    try:
+        registry.priority["priority_draws"] = add_aq_entries
+
+        ctx_inactive = DraftContext(g.state, registry, g.cfg, g.rng, set(), None)
+        assert _priority_draw(ctx_inactive, _AQUARIUM_TARGET_CELL, _AQUARIUM_DIRECTION,
+                              set()) is None
+
+        experiments.apply_effect(g, "add_aquariums")
+        ctx_active = DraftContext(g.state, registry, g.cfg, g.rng, set(), None)
+        picked = _priority_draw(ctx_active, _AQUARIUM_TARGET_CELL, _AQUARIUM_DIRECTION, set())
+        assert picked is not None and picked.id == "aquarium"
+    finally:
+        registry.priority["priority_draws"] = original
+
+
+def test_add_aquariums_priority_draws_do_not_affect_the_three_existing_entries(monkeypatch):
+    """Appending the two new entries after the three existing ones leaves
+    their own picks and substreams untouched -- the same guarantee
+    test_decks.py::test_priority_draw_skips_entry_with_inactive_condition
+    pins for a gated entry spliced in ahead of the real ones, checked here in
+    the other direction (gated entries appended at the end)."""
+    g = _game_at_laboratory()
+    registry = g.registry
+    original = registry.priority["priority_draws"]
+    trimmed = [e for e in original if e.get("condition") != "add_aquariums"]
+
+    for seed in range(10):
+        registry.priority["priority_draws"] = trimmed
+        rng_trimmed = Rng(seed)
+        ctx_trimmed = DraftContext(GameState(), registry, g.cfg, rng_trimmed, set(), None)
+        pick_trimmed = _priority_draw(ctx_trimmed, _AQUARIUM_TARGET_CELL, _AQUARIUM_DIRECTION,
+                                      set())
+
+        registry.priority["priority_draws"] = original
+        rng_full = Rng(seed)
+        ctx_full = DraftContext(GameState(), registry, g.cfg, rng_full, set(), None)
+        pick_full = _priority_draw(ctx_full, _AQUARIUM_TARGET_CELL, _AQUARIUM_DIRECTION, set())
+
+        full_id = pick_full.id if pick_full else None
+        trimmed_id = pick_trimmed.id if pick_trimmed else None
+        assert full_id == trimmed_id, (
+            f"seed {seed}: appending the inactive add_aquariums entries changed the pick"
+        )
+    registry.priority["priority_draws"] = original
+
+
+def test_aquarium_experiment_blocked_without_add_aquariums_active(registry):
+    """Without the day flag, aquarium__experiment obeys the ordinary
+    one-copy-per-room rule like any other room."""
+    aqx = registry.by_id["aquarium__experiment"]
+    state = GameState()
+    ctx = DraftContext(state, registry, GameConfig(), Rng(0),
+                       {"aquarium__experiment"}, None)
+    assert not room_draftable(ctx, aqx, _AQUARIUM_TARGET_CELL, _AQUARIUM_DIRECTION, set())
+
+
+def test_aquarium_experiment_waiver_allows_a_repeat_once_add_aquariums_has_fired(registry):
+    """Once state.add_aquariums_active is True, aquarium__experiment can be
+    dealt again even though its id is already among placed_ids -- the
+    waiver that lets more than the ordinary 2-Aquarium cap reach the grid."""
+    aqx = registry.by_id["aquarium__experiment"]
+    state = GameState()
+    state.add_aquariums_active = True
+    ctx = DraftContext(state, registry, GameConfig(), Rng(0),
+                       {"aquarium__experiment"}, None)
+    assert room_draftable(ctx, aqx, _AQUARIUM_TARGET_CELL, _AQUARIUM_DIRECTION, set())
+
+
+def test_base_aquarium_still_capped_at_one_even_with_add_aquariums_active(registry):
+    """The waiver names aquarium__experiment specifically -- the base Aquarium
+    keeps the ordinary one-copy limit regardless of the day flag."""
+    aq = registry.by_id["aquarium"]
+    state = GameState()
+    state.add_aquariums_active = True
+    ctx = DraftContext(state, registry, GameConfig(), Rng(0), {"aquarium"}, None)
+    assert not room_draftable(ctx, aq, _AQUARIUM_TARGET_CELL, _AQUARIUM_DIRECTION, set())
+
+
+def test_aquarium_experiment_restricted_cells_still_blocked_with_the_waiver_active(registry):
+    """The waiver only touches the one-copy rule -- experiment_aquarium's own
+    draft condition (the two Rank-1 cells southward, the two Rank-9 cells
+    northward) still blocks aquarium__experiment even while add_aquariums is
+    active and placed_ids is empty, so no duplicate-rule interaction is
+    masking the restriction."""
+    aqx = registry.by_id["aquarium__experiment"]
+    state = GameState()
+    state.add_aquariums_active = True
+    ctx = DraftContext(state, registry, GameConfig(), Rng(0), set(), None)
+    assert not room_draftable(ctx, aqx, 1, S, set()), "Rank-1 cell, southward: must be blocked"
+    assert not room_draftable(ctx, aqx, 41, N, set()), "Rank-9 cell, northward: must be blocked"
+    assert room_draftable(ctx, aqx, _AQUARIUM_TARGET_CELL, _AQUARIUM_DIRECTION, set()), (
+        "an ordinary interior cell must remain unrestricted"
+    )
+
+
+def test_add_aquariums_self_refiring_loop_terminates_bounded_by_the_grid():
+    """Drives the wiki's own designed loop to exhaustion: an Aquarium is a
+    Shop, so with 'shops' configured, placing one re-fires add_aquariums,
+    which only mutates deck/rarity state and never calls _place_room --
+    so it cannot recurse within a single placement. Placing aquarium__experiment
+    at every one of the 43 non-Entrance-Hall, non-Antechamber cells fires the
+    trigger once per placement and completes without hanging or erroring,
+    pinning that the loop across separate placements is bounded by the finite
+    grid, not by anything add_aquariums itself controls."""
+    g = Game(GameConfig(), seed=0)
+    _configure(g, "shops", "add_aquariums")
+    aqx = g.registry.by_id["aquarium__experiment"]
+    free_cells = [c for c in range(45) if c not in (ENTRANCE_CELL, ANTECHAMBER_CELL)]
+    assert len(free_cells) == 43
+
+    for cell in free_cells:
+        g._place_room(aqx, cell, aqx.rotations[0])
+
+    assert g.state.experiment.success_count == len(free_cells)
+    assert sum(1 for idx in g.state.grid if idx == aqx.idx) == len(free_cells)
+    assert g.state.add_aquariums_active

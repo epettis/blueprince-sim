@@ -54,6 +54,38 @@ _STUDIO_ADDITION_EXCLUSIONS: frozenset[str] = frozenset({
     # is acknowledged here.  Promote this note once Casino games are implemented.
 })
 
+# Aquarium upgrade-variant room ids excluded from training via banned_rooms
+# (below): a Starfish Aquarium disk grants a permanent star on every draft, and
+# add_aquariums (Laboratory experiment effect) can make many Aquariums draftable
+# in one day, which would make a many-star day reachable and dominate the reward
+# surface. This does NOT touch the base Aquarium or the add_aquariums effect
+# itself -- only its three upgrade variants (goldfish/starfish/electric eel).
+#
+# This is NOT the same mechanism as _STUDIO_ADDITION_EXCLUSIONS: that one
+# removes an id from a derived "all studio additions" allowlist BEFORE it ever
+# reaches cfg.studio_additions. There is no equivalent allowlist for upgrade
+# disks here -- both all_unlocks_config and fresh_save_config already pass
+# upgrade_disks=frozenset() (no room upgrades applied at day start, by
+# design), so an Aquarium disk can only enter a training run by the agent
+# itself selecting one at a Disk Reader terminal mid-episode, which then
+# persists via env/multiday.py's DayChain.applied_upgrades across a multi-day
+# chain -- a live path neither training config's own fields gate at all.
+# banned_rooms (decks.py::eligible_pool: a ban also excludes the banned
+# floorplan's own upgrade variants, keyed by variant_of) is the only knob
+# available from this file that blocks a specific upgrade variant without
+# touching the base room, so it is reused here for that purpose rather than
+# its usual one (Repellent bans).
+#
+# Known gap: this only takes effect for a single-day run (multi_day=0, chain
+# is None in make_single_env below), because env/multiday.py's DayChain
+# recomputes banned_rooms every day purely from its own Repellent-ban
+# bookkeeping (self.repellent_bans), ignoring base_cfg.banned_rooms entirely
+# after day 1 -- so a multi-day chain silently drops this exclusion. Fixing
+# that needs a change in env/multiday.py, out of this file's scope.
+_UPGRADE_DISK_EXCLUSIONS: frozenset[str] = frozenset({
+    "goldfish_aquarium__ix2", "starfish_aquarium__ix3", "electric_eel_aquarium__ix4",
+})
+
 @functools.cache
 def all_studio_additions() -> frozenset[str]:
     """Studio-addition room ids whose behaviour is modelled, derived from the registry.
@@ -123,6 +155,10 @@ def all_unlocks_config(reward: str = "shaped") -> GameConfig:
         west_gate_unlatched=True,      # Grounds<->West Path shortcut open
         studio_additions=all_studio_additions(),
         upgrade_disks=frozenset(),     # explicitly: no room upgrades
+        # Blocks the 3 Aquarium upgrade variants from ever being drafted (see
+        # _UPGRADE_DISK_EXCLUSIONS above) -- only takes effect for a single-day
+        # run; a multi_day DayChain overwrites this every day regardless.
+        banned_rooms=_UPGRADE_DISK_EXCLUSIONS,
         reward=reward,
     )
 
@@ -183,7 +219,11 @@ def fresh_save_config(reward: str = "shaped") -> GameConfig:
         draft_counts={},               # no cumulative draft history
         entrance_vase_broken=False,    # west vase intact
         outer_chip_dug=False,          # West Path chip not yet dug
-        banned_rooms=frozenset(),      # no Repellent bans active
+        # No Repellent bans active. NOT given _UPGRADE_DISK_EXCLUSIONS (unlike
+        # all_unlocks_config): configs/fresh_save.yaml must describe the exact
+        # same config (test_yaml_preset_and_python_preset_do_not_drift), and
+        # that YAML has no equivalent field to add the exclusion to.
+        banned_rooms=frozenset(),
         lit_targets=frozenset(),       # no ignition targets lit
         collected_disks=frozenset(),   # no upgrade disks spent
         chapel_tithes=0,               # no Keeper of Tithes coins banked

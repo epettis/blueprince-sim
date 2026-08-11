@@ -1648,17 +1648,29 @@ class Game:
             # triggered it) and before ON_PLACE below (a Weight Room's own
             # step-halving must resolve after any experiment effect that
             # already touched steps). No currently live effect places a room,
-            # deals a hand, opens a container, or digs, and
-            # draft.py::room_draftable independently blocks re-drafting an
-            # already-placed room id unless the Chamber of Mirrors is placed,
-            # so this can't recurse today -- add_aquariums (inert) is the
-            # wiki's own designed loop through these triggers, so re-verify
-            # both claims before it goes live. The same guarantee covers
+            # deals a hand, opens a container, or digs -- add_aquariums
+            # (implemented) is the wiki's own designed loop through these
+            # triggers: an Aquarium is a Shop, Red, Hallway and Bedroom room at
+            # once, so drafting one while any of those four triggers is
+            # configured re-fires it, and each fire injects more Aquariums into
+            # the decks. That loop cannot recurse WITHIN this call, because
+            # apply_effect's add_aquariums arm only mutates deck/rarity state
+            # (decks.inject_rooms_undealt, decks.set_dynamic_rarity) and never
+            # calls _place_room, open_door, or choose. ACROSS separate calls
+            # (one per doorway drafted) it is bounded by the finite grid: each
+            # fire only makes MORE Aquariums draftable, it does not itself
+            # place one, so the number of times this effect can fire in a day
+            # is capped by the number of rooms the day can ever place -- at
+            # most the 43 non-Entrance-Hall, non-Antechamber cells, usually far
+            # fewer once the step budget runs out. draft.py::room_draftable's
+            # one-copy rule still blocks every OTHER room id from repeating
+            # (waived for aquarium__experiment specifically, once
+            # add_aquariums has fired, and for the Chamber of Mirrors
+            # globally). The same two guarantees (no live effect places a
+            # room/deals/opens/digs; the grid is finite) cover
             # _roll_new_segments' own security_door fire above (site B), which
             # runs even earlier in this method -- before placed_ids, room_cells,
-            # and rooms_placed are updated -- for the identical reason: no
-            # currently live effect places a room, deals a hand, opens a
-            # container, or digs.
+            # and rooms_placed are updated.
             experiments.on_room_drafted(self, room, cell, entry_dir, gem_cost, archived)
         effects.fire(self, room, Hook.ON_PLACE)
         if self.state.foyer_placed:

@@ -35,11 +35,17 @@ VALID_CONFIDENCE = {"datamined", "wiki", "inferred", "placeholder"}
 KNOWN_CONDITIONS = {"west_wing", "east_wing", "west_or_east_wing", "not_on_wing",
                     "no_corner", "corner_only", "interior_only",
                     "west_wing_from_south_door", "garage", "boiler_room",
-                    "morning_room", "room8_placement", "gift_shop",
+                    "morning_room", "room8_placement", "gift_shop",
                     "experiment_aquarium",
                     "no_north_on_wing", "no_horizontal_end_rank", "north_south_only",
                     "pool_drafted", "library_only", "antechamber_north_door", "room8_key",
                     "knight_chess_piece", "secret_garden_key", "breakfast", "the_foundation"}
+# priority_draws.json "condition" tags that _active_conditions (engine/draft.py)
+# emits but that carry no matching category_biases entry to source the
+# vocabulary from below -- add_aquariums gates two priority_draws entries
+# directly, with no category-bias counterpart (it targets a fixed room list,
+# not a category).
+KNOWN_PRIORITY_DRAW_ONLY_CONDITIONS = {"add_aquariums"}
 # Item kinds engine/items.py::grant_item and roll_room_items actually handle
 # for a room's items.guaranteed list. "coins_exact" grants the literal count
 # as coins with no pile roll; "coins" rolls each of count PILES from
@@ -474,9 +480,11 @@ def main(argv: list[str] | None = None) -> int:
 
     # priority draws reference real rooms; an optional "condition" tag must be
     # one _active_conditions can actually emit -- reuse category_biases' own
-    # condition values as that vocabulary rather than duplicating it here.
+    # condition values as that vocabulary, plus KNOWN_PRIORITY_DRAW_ONLY_CONDITIONS
+    # for tags (like add_aquariums) that gate a priority_draws entry directly
+    # and have no category_biases entry to source the vocabulary from.
     active_condition_tags = {e["condition"] for e in priority.get("category_biases", [])
-                             if "condition" in e}
+                             if "condition" in e} | KNOWN_PRIORITY_DRAW_ONLY_CONDITIONS
     for entry in priority["priority_draws"]:
         for rid in entry["rooms"]:
             if rid not in by_id:
@@ -1167,7 +1175,7 @@ def main(argv: list[str] | None = None) -> int:
     # wiki enumerations, carried as flags.has_animal/flags.has_fireplace rather
     # than a Python literal so the lists stay data and editable. This check is
     # what catches the two drifting apart, or a flag being dropped from a record.
-    HAS_ANIMAL_ROOMS = {"rumpus_room", "aquarium", "aquarium__experiment",
+    HAS_ANIMAL_ROOMS = {"rumpus_room", "aquarium", "aquarium__experiment",
                         "nursery", "bunk_room",
                         "dovecote", "the_kennel"}
     actual_animal = {r["id"] for r in rooms if r.get("flags", {}).get("has_animal")}
@@ -1225,8 +1233,8 @@ def main(argv: list[str] | None = None) -> int:
     # Mechanarium are supplemental-sourced and carry their own
     # extra_categories directly.
     EXPECTED_EXTRA_CATEGORIES = {
-        "aquarium": {"red", "green", "hallway", "bedroom", "shop", "blackprint"},
-        "aquarium__experiment": {
+        "aquarium": {"red", "green", "hallway", "bedroom", "shop", "blackprint"},
+        "aquarium__experiment": {
             "red", "green", "hallway", "bedroom", "shop", "blackprint"},
         "goldfish_aquarium__ix2": {"red", "green", "hallway", "bedroom", "shop", "blackprint"},
         "starfish_aquarium__ix3": {"red", "green", "hallway", "bedroom", "shop", "blackprint"},

@@ -40,6 +40,32 @@
         "confidence": "datamined",
         "source": "sheet constants: 'Classrooms 3%'"
       }
+    },
+    {
+      "rooms": [
+        "aquarium",
+        "aquarium__experiment"
+      ],
+      "label": "add_aquariums_13",
+      "chance": 0.13,
+      "condition": "add_aquariums",
+      "meta": {
+        "confidence": "wiki",
+        "source": "blueprince.wiki.gg/wiki/Experiments/Effects DataSpoiler on add_aquariums: 'adds both a 13% and 3% chance for Aquarium to get a Priority Draw' -- the two chances apply independently (15.61% combined), so they are modeled as two separate entries rather than one 16% entry."
+      }
+    },
+    {
+      "rooms": [
+        "aquarium",
+        "aquarium__experiment"
+      ],
+      "label": "add_aquariums_3",
+      "chance": 0.03,
+      "condition": "add_aquariums",
+      "meta": {
+        "confidence": "wiki",
+        "source": "blueprince.wiki.gg/wiki/Experiments/Effects DataSpoiler on add_aquariums: same source as add_aquariums_13; this is the independent second (3%) chance, not a combined figure."
+      }
     }
   ],
   "forced_draws": [

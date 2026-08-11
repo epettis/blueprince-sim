@@ -189,6 +189,12 @@ class GameState:
     # decks.py::set_dynamic_rarity when a room's cards are moved off Room.rarity
     # for the day; a room absent from this dict sits in its own rarity.
     dynamic_rarity: dict[str, int] = field(default_factory=dict)
+    # Laboratory add_aquariums effect has fired today: activates the two
+    # condition-gated Aquarium priority_draws.json entries (draft.py's
+    # _active_conditions) and waives the one-copy-per-room rule for
+    # aquarium__experiment (draft.py::room_draftable). Day-scoped like the
+    # rest of ExperimentState/GameState — no carry-over field feeds it back in.
+    add_aquariums_active: bool = False
 
     # cached house-effect flags (recomputed on placement)
     solarium_placed: bool = False  # Solarium: swaps in the special slot-2/3 rarity table
