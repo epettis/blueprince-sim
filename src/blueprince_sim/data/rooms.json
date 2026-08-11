@@ -219,7 +219,8 @@
      "tag": "grant_per_category",
      "resource": "keys",
      "amount": 1,
-     "category": "bedroom"
+     "category": "bedroom",
+     "cap": 15
     }
    ],
    "items": {

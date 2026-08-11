@@ -342,7 +342,8 @@ EFFECT_OVERRIDE: dict[str, dict] = {
     # EFFECT_MAP's "servants_quarters" entry does not match; mirrors the base
     # Servant's Quarters' key-per-Bedroom grant (glyph resolves to key).
     "servants_spare_quarters__ix134": {"effects": [
-        {"tag": "grant_per_category", "resource": "keys", "amount": 1, "category": "bedroom"}]},
+        {"tag": "grant_per_category", "resource": "keys", "amount": 1, "category": "bedroom",
+         "cap": 15}]},
     # Spare Veranda: second-level variant with its own name, so EFFECT_MAP's
     # "veranda" entry does not match; mirrors the base Veranda's luck grant.
     "spare_veranda__ix140": {"effects": [{"tag": "grant", "resource": "luck", "amount": 3}]},
