@@ -10,8 +10,10 @@ from __future__ import annotations
 
 from blueprince_sim.config import GameConfig
 from blueprince_sim.engine import special_items as si
+from blueprince_sim.engine.decks import eligible_pool
 from blueprince_sim.engine.game import Game
 from blueprince_sim.engine.grid import N, S
+from blueprince_sim.engine.model import Registry
 from blueprince_sim.engine.state import DraftOption, PendingDraft
 
 # Every colour category the base Room.category field ever takes, other than
@@ -185,3 +187,52 @@ def test_hall_pass_free_move_into_aquarium_from_hallway():
     g.state.grid[7] = hallway.idx
     cost = si.move_step_cost(g, 7, N, aquarium)
     assert cost == 0
+
+
+def test_experiment_aquarium_record_appended_without_shifting_existing_idx():
+    """Room.idx is the position in rooms.json order (engine/model.py), and a
+    trained RL policy's learned room embedding is keyed by that index, so
+    adding a new record must never renumber an existing room. Pins a spread
+    of pre-existing anchor rooms -- the first sheet row, the whole Aquarium
+    family, the Antechamber, and the room that used to be last -- against
+    their known idx, plus the new record's own position at the very end.
+    """
+    registry = Registry.load()
+    assert len(registry.rooms) == 170
+    assert registry.by_id["entrance_hall"].idx == 1
+    assert registry.by_id["aquarium"].idx == 73
+    assert registry.by_id["goldfish_aquarium__ix2"].idx == 74
+    assert registry.by_id["starfish_aquarium__ix3"].idx == 75
+    assert registry.by_id["electric_eel_aquarium__ix4"].idx == 76
+    assert registry.by_id["antechamber"].idx == 77
+    assert registry.by_id["tunnel"].idx == 168  # previously the last room in the file
+    assert registry.by_id["aquarium__experiment"].idx == 169  # now appended last
+
+
+def test_experiment_aquarium_copies_the_base_record_except_id_conditions_and_pool():
+    """The experiment copy matches the wiki's "identical to the originals
+    except placement" description: same categories, gem cost, layout and
+    rarity as the base Aquarium, differing only by id, its own placement
+    condition, and pool membership (which keeps it out of decks until
+    add_aquariums itself is implemented)."""
+    registry = Registry.load()
+    base = registry.by_id["aquarium"]
+    exp = registry.by_id["aquarium__experiment"]
+    assert exp.categories == base.categories
+    assert exp.gem_cost == base.gem_cost
+    assert exp.layout == base.layout
+    assert exp.rarity == base.rarity
+    assert exp.draft_conditions == ("experiment_aquarium",)
+    assert base.draft_conditions == ()
+    assert exp.pool != base.pool
+
+
+def test_experiment_aquarium_record_is_not_in_the_base_draft_pool():
+    """add_aquariums (the Laboratory experiment effect that injects this
+    record) is not implemented yet, so the experiment-added Aquarium must
+    stay genuinely inert today -- excluded from eligible_pool's decks via
+    pool_temp -- while the real Aquarium keeps drafting normally."""
+    registry = Registry.load()
+    pool_ids = {r.id for r in eligible_pool(registry, GameConfig())}
+    assert "aquarium__experiment" not in pool_ids
+    assert "aquarium" in pool_ids

@@ -35,7 +35,8 @@ VALID_CONFIDENCE = {"datamined", "wiki", "inferred", "placeholder"}
 KNOWN_CONDITIONS = {"west_wing", "east_wing", "west_or_east_wing", "not_on_wing",
                     "no_corner", "corner_only", "interior_only",
                     "west_wing_from_south_door", "garage", "boiler_room",
-                    "morning_room", "room8_placement", "gift_shop",
+                    "morning_room", "room8_placement", "gift_shop",
+                    "experiment_aquarium",
                     "no_north_on_wing", "no_horizontal_end_rank", "north_south_only",
                     "pool_drafted", "library_only", "antechamber_north_door", "room8_key",
                     "knight_chess_piece", "secret_garden_key", "breakfast", "the_foundation"}
@@ -1166,7 +1167,8 @@ def main(argv: list[str] | None = None) -> int:
     # wiki enumerations, carried as flags.has_animal/flags.has_fireplace rather
     # than a Python literal so the lists stay data and editable. This check is
     # what catches the two drifting apart, or a flag being dropped from a record.
-    HAS_ANIMAL_ROOMS = {"rumpus_room", "aquarium", "nursery", "bunk_room",
+    HAS_ANIMAL_ROOMS = {"rumpus_room", "aquarium", "aquarium__experiment",
+                        "nursery", "bunk_room",
                         "dovecote", "the_kennel"}
     actual_animal = {r["id"] for r in rooms if r.get("flags", {}).get("has_animal")}
     if actual_animal != HAS_ANIMAL_ROOMS:
@@ -1223,7 +1225,9 @@ def main(argv: list[str] | None = None) -> int:
     # Mechanarium are supplemental-sourced and carry their own
     # extra_categories directly.
     EXPECTED_EXTRA_CATEGORIES = {
-        "aquarium": {"red", "green", "hallway", "bedroom", "shop", "blackprint"},
+        "aquarium": {"red", "green", "hallway", "bedroom", "shop", "blackprint"},
+        "aquarium__experiment": {
+            "red", "green", "hallway", "bedroom", "shop", "blackprint"},
         "goldfish_aquarium__ix2": {"red", "green", "hallway", "bedroom", "shop", "blackprint"},
         "starfish_aquarium__ix3": {"red", "green", "hallway", "bedroom", "shop", "blackprint"},
         "electric_eel_aquarium__ix4": {
