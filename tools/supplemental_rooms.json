@@ -802,6 +802,9 @@
       "id": "mechanarium",
       "name": "Mechanarium",
       "category": "blueprint",
+      "extra_categories": [
+        "mechanical"
+      ],
       "rarity": "unusual",
       "gem_cost": 0,
       "layout": "cross",

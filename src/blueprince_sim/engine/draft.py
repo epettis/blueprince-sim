@@ -282,6 +282,11 @@ def _apply_category_bias(ctx: DraftContext, room: Room, slot: int, cell: int,
     Chess Piece/Royal Scepter all bias toward drafting a room of that colour),
     so it goes through ``Room.is_category`` and can match a multi-category
     room such as the Aquarium or Maid's Chamber on any colour it counts as.
+
+    An entry can also carry ``exclude_rooms`` (specific ids to leave out) and
+    ``exclude_upgrade_variants`` (drop every room with a ``variant_of``, the
+    direct link an upgrade variant carries to the base room it replaces) —
+    the Southern Cross's 4-way bias needs both to match the wiki's own query.
     """
     active = _active_conditions(ctx)
     if not active:
@@ -299,12 +304,19 @@ def _apply_category_bias(ctx: DraftContext, room: Room, slot: int, cell: int,
         target_layout = entry.get("layout")
         target_flag = entry.get("flag")
         target_room_ids = set(entry.get("rooms", []))
+        exclude_room_ids = set(entry.get("exclude_rooms", []))
+        exclude_upgrade_variants = entry.get("exclude_upgrade_variants", False)
 
         def _pred(card: int,
                   _tc=target_cat, _tl=target_layout, _tf=target_flag,
-                  _tr=target_room_ids) -> bool:
+                  _tr=target_room_ids, _xr=exclude_room_ids,
+                  _xu=exclude_upgrade_variants) -> bool:
             r = rooms[card]
             if _tr and r.id not in _tr:
+                return False
+            if _xr and r.id in _xr:
+                return False
+            if _xu and r.variant_of is not None:
                 return False
             if _tc and not r.is_category(_tc):
                 return False

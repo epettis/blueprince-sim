@@ -2295,6 +2295,9 @@
    "id": "utility_closet",
    "name": "Utility Closet",
    "category": "blueprint",
+   "extra_categories": [
+    "mechanical"
+   ],
    "rarity": "standard",
    "gem_cost": 0,
    "layout": "dead_end",
@@ -2326,6 +2329,9 @@
    "id": "boiler_room",
    "name": "Boiler Room",
    "category": "blueprint",
+   "extra_categories": [
+    "mechanical"
+   ],
    "rarity": "unusual",
    "gem_cost": 1,
    "layout": "t",
@@ -2359,6 +2365,9 @@
    "id": "pump_room",
    "name": "Pump Room",
    "category": "blueprint",
+   "extra_categories": [
+    "mechanical"
+   ],
    "rarity": "standard",
    "gem_cost": 0,
    "layout": "corner",
@@ -2393,6 +2402,9 @@
    "id": "security",
    "name": "Security",
    "category": "blueprint",
+   "extra_categories": [
+    "mechanical"
+   ],
    "rarity": "commonplace",
    "gem_cost": 1,
    "layout": "t",
@@ -2424,6 +2436,9 @@
    "id": "workshop",
    "name": "Workshop",
    "category": "blueprint",
+   "extra_categories": [
+    "mechanical"
+   ],
    "rarity": "unusual",
    "gem_cost": 0,
    "layout": "straight",
@@ -2455,6 +2470,9 @@
    "id": "laboratory",
    "name": "Laboratory",
    "category": "blueprint",
+   "extra_categories": [
+    "mechanical"
+   ],
    "rarity": "standard",
    "gem_cost": 1,
    "layout": "corner",
@@ -2972,7 +2990,8 @@
     "hallway",
     "bedroom",
     "shop",
-    "blackprint"
+    "blackprint",
+    "mechanical"
    ],
    "rarity": "unusual",
    "gem_cost": 1,
@@ -6117,6 +6136,9 @@
    "id": "mechanarium",
    "name": "Mechanarium",
    "category": "blueprint",
+   "extra_categories": [
+    "mechanical"
+   ],
    "rarity": "unusual",
    "gem_cost": 0,
    "layout": "cross",
