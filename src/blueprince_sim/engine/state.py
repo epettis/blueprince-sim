@@ -385,6 +385,12 @@ class GameState:
     # (effects/rooms/guest_bedroom.py). Marked at ON_PLACE, read at ON_ENTER;
     # same shape as closet_bonus_cells/cloister_mila_bonus_cells above.
     geist_bedroom_tomb_cells: set[int] = field(default_factory=set)
+    # The room id the Guess Bedroom (guess_bedroom__ix70) secretly mimics today,
+    # rolled once on its first draft and shared by every Guess Bedroom placed
+    # afterward; None when no Guess Bedroom has drafted a valid pick yet, or the
+    # draw found no eligible Bedroom (mimic fails, room grants nothing). Per-day
+    # only -- a fresh GameState resets it every day like geist_bedroom_tomb_cells.
+    guess_bedroom_mimic_id: str | None = None
 
     # Resources parked in a cell, waiting for the player to walk in and collect them
     # (Secret Garden fruit spread today; Patio gems and Locker Room keys will reuse

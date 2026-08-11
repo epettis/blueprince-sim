@@ -3433,7 +3433,10 @@
     "directory_number": "49",
     "internal_index": 70,
     "effect_text": "Hidden effect of a random BEDROOM in your draft pool?",
-    "unlock": "Upgrade Guest Bedroom"
+    "unlock": "Upgrade Guest Bedroom",
+    "blocked_on": "aquarium_mimic_needs_state_aware_is_category",
+    "servants_quarters_selection_weight": null,
+    "notes": "The Aquarium family is excluded from the mimic pool: mimicking it would need Room.is_category to become true for one drafted cell only, which every other is_category consumer assumes cannot happen (see blocked_on). The wiki states Servant's Quarters is drawn more often than the other floorplans but publishes no weight, so servants_quarters_selection_weight stays null and the sim draws uniformly for now."
    },
    "variant_of": "guest_bedroom"
   },
@@ -3696,7 +3699,8 @@
      "tag": "grant_per_category",
      "resource": "keys",
      "amount": 1,
-     "category": "bedroom"
+     "category": "bedroom",
+     "cap": 15
     }
    ],
    "items": {
