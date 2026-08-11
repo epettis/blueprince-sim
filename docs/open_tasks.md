@@ -656,6 +656,95 @@ the residual `game.py` branches.
 
 ## Decisions log
 
+- **2026-08-11, "archived" is independent of "hidden" -- our data conflates
+  two different mechanics.** Owner, correcting a question I asked badly. I
+  offered a choice between counting only Archives-hidden options or any hidden
+  option for the `archived_floorplan` experiment trigger. The owner rejected
+  the framing: *"Archived is independent from hidden. You can't see rooms
+  drafted from the Darkroom, but one of them can still be archived."*
+
+  So `opt.hidden` is **the wrong signal entirely**. Being archived is a
+  property a floorplan has; being hidden is a property of how it was dealt.
+  A Darkroom draft hides its options from the player, and one of those hidden
+  options may independently be archived.
+
+  Our `rooms.json` gives the Archives and the Darkroom the **same effect tag**
+  (`reduce_draft_options`, differing only in `amount`), so the engine cannot
+  currently tell the two apart, and `opt.hidden` conflates them. The trigger
+  needs a distinct archived marker, set by the Archives' mechanic only.
+
+  Act on this cold as: this is a **modelling gap in the drafting system**, not
+  just a blocked trigger. Whether the Darkroom's "you cannot see the options"
+  is even correctly modelled as `reduce_draft_options` is now open --
+  reducing the option count and concealing the options are different things.
+  Worth a research pass before the trigger is built.
+
+- **2026-08-11, experiment trigger and cap semantics.** Owner, on three of the
+  twelve ambiguities raised while scoping experiment phases 2-3.
+
+  **The "for each Bedroom after your second" trigger counts all of today's
+  Bedrooms**, not only those drafted after the experiment started. The wiki's
+  live text says the opposite -- *"It does matter whether those two initial
+  Bedrooms are drafted before or after starting the experiment"* -- but that
+  sentence has never been grammatically clean (created 2025-09-29 as "before
+  or starting", repaired to "before or after" by a 2025-11-25 grammar edit
+  that left "does matter" untouched), so a dropped "not" is at least as
+  plausible as a deliberate "does". This is the harsher reading: a
+  bedroom-heavy morning can burn the grace before the player reaches the
+  Laboratory.
+
+  **The "next 3 times you unlock and open a chest" trigger counts trunks
+  only** -- not locked lockers, not free lockers, not the Garage car trunk,
+  not Mechanarium compartments. The wiki uses "chest" to mean trunk and its
+  Sledge Hammer clause describes trunks specifically. Including locked lockers
+  would have let a single Locker Room visit burn the whole 3-trigger cap
+  deterministically, since that room holds 17 in one cell.
+
+  **A capped trigger counts fires, not qualifying events** -- so pausing the
+  experiment preserves charges. This sets the precedent for the packet pool's
+  `map_view`, the only other capped trigger.
+
+- **2026-08-11, eight experiment scoping calls made without escalation.**
+  Recorded so they are visible rather than buried in a PR.
+
+  - The **Hovel kills the `gems_spent` trigger** (wiki: *"this trigger becomes
+    useless with it on the estate"*). Our engine models the Hovel by paying
+    gem costs in steps at 3:1 while `_effective_cost` still returns the gem
+    number, so a naive `cost >= 2` check would fire on every expensive draft
+    -- the exact opposite of the published behaviour.
+  - **The Stopwatch's gem waiver does not count as spending.** Unpublished;
+    consistent with the Emerald Bracelet rule, which the wiki does state.
+  - **Outer-room drafts do not fire draft triggers.** Self-consistent: outer
+    rooms are never in `st.grid`, so the counting effects already exclude
+    them. The wiki says outer rooms count only under a Blessing, and
+    Blessings are out of scope.
+  - **The Red Rooms trigger's own 5-step loss is suppressed while paused**,
+    which falls out for free from applying it inside `trigger_success` after
+    the active gate.
+  - **The `security_door` trigger fires at `open_door`**, not `choose` --
+    matching "drafted from". The in-drafting site naturally lands after
+    placement, the same way the game's two paths differ.
+  - **Draft triggers fire between draft counting and `ON_PLACE`.** Both
+    bounds are wiki-stated: after the grid write so the triggering room counts
+    itself, and before `ON_PLACE` so the Weight Room halves the experiment's
+    steps rather than the reverse.
+  - **`gain_star` is flipped live** -- `state.stars` is already fully wired
+    for carryover, so it is one line, and it drops the all-inert-offer rate
+    from 4.55% to 1.8%.
+  - **Availability gating is split into its own PR.** Under shipped defaults
+    only the `spread_dig_spots`/`trash_while_digging` cross-column exclusion
+    binds; the two gates needing new persistent config are bypassed by
+    `veteran_mode`.
+
+  Two data-file corrections also fall out: `bedrooms_after_second`'s note must
+  quote the wiki verbatim and record the ruling above, and `security_door`'s
+  note omits the published in-drafting clause entirely.
+
+  **Deliberately not modelled:** the wiki's own hedge that `security_door`
+  *"occasionally triggers an additional time, possibly due to a bug"* -- it
+  gives no frequency. And Scraps of Paper, which Patch 1.6 added to the trash
+  table, do not exist in `special_items.json`.
+
 - **2026-08-10, the Guess Bedroom excludes the Aquarium family and treats a
   mimicked Bunk Room as a flat 2 Bedrooms.** Owner, on two ambiguities raised
   by the research pass. The Guess Bedroom loses its own +10 steps and instead
