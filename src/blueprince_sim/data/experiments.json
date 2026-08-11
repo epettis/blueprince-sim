@@ -4,7 +4,7 @@
   "source": "https://blueprince.wiki.gg/wiki/Experiments, https://blueprince.wiki.gg/wiki/Experiments/Triggers, https://blueprince.wiki.gg/wiki/Experiments/Effects, https://blueprince.wiki.gg/wiki/Spoilers:Experiments/Triggers, https://blueprince.wiki.gg/wiki/Spoilers:Experiments/Effects",
   "confidence": "wiki",
   "notes": [
-   "Phase 1 of the Laboratory/Experiments subsystem: engine/experiments.py implements the setup/pause/resume core, the 'immediately' trigger, and eight pure-resource effects (their records carry 'implemented: true'). Every other trigger and effect stays 'implemented: false' -- see docs/experiments-design.md for the phase plan.",
+   "The Laboratory/Experiments subsystem lives in engine/experiments.py: the setup terminal, pause/resume, the generic cap and day_gate machinery, and effect application. Records carrying 'implemented': true are live; the rest are inert and carry meta.blocked_on naming what each still needs. Live triggers fire from engine/experiments.py (immediately), Game._place_room via on_room_drafted (the five draft-site triggers), special_items.open_container (trunks_opened) and two sites in game.py (security_door). See docs/experiments-design.md for the phase plan and its Status section for the current live counts -- that section, not this note, is the one kept in step with each PR.",
    "Deliberately never modelled, at any future phase (see docs/experiments-design.md): the 40-second real-time trigger and the map-view trigger (no wall-clock or interactive map action in this simulator); the setup-menu reroll timing exploit (revisiting the Experimental Setup menu before committing to reroll the three-of-each draw -- a UI-timing exploit, not a data rule); Blessing of the Tinkerer cross-triggers (any active experiment also triggers whenever a Mechanical Room is drafted, independent of the chosen trigger -- a global modifier on the whole subsystem, not a per-record rule); radiation level (a hidden daily counter, incremented by every successful trigger, that gates the Shelter terminal's unlock-all-doors ability -- Shelter/radiation are out of scope); Dare Mode (an alternate, harder experiments ruleset documented on a separate wiki subpage); Research Logs (an in-fiction in-game log of experiment activation history, not a mechanical system)."
   ]
  },
@@ -79,14 +79,18 @@
     "text": "If Veteran Mode is not enabled, this trigger cannot appear before Day 8."
    },
    "cap": null,
-   "implemented": false,
+   "magnitude": {
+    "undocumented_extra_fire_rate_pct": null
+   },
+   "implemented": true,
    "meta": {
     "source": "https://blueprince.wiki.gg/wiki/Experiments/Triggers",
     "confidence": "wiki",
-    "blocked_on": "phase 0: no experiments engine exists yet (data/validation only)",
+    "blocked_on": null,
     "notes": [
-     "A security door must be drafted FROM to count; merely unlocking one is not enough. Also occasionally triggers an extra time at the start of the draft, possibly a bug (wiki hedges this itself).",
-     "\"Opening a security door in a different room by drafting into it also counts for this experimental trigger.\""
+     "A security door must be drafted FROM to count; merely unlocking one is not enough.",
+     "\"Opening a security door in a different room by drafting into it also counts for this experimental trigger.\"",
+     "Wiki also hedges that this 'occasionally triggers an additional time at the start of the draft, possibly due to a bug,' with no rate given; magnitude.undocumented_extra_fire_rate_pct left null (gap -- do not invent) and deliberately not modelled."
     ]
    }
   },
@@ -150,13 +154,13 @@
    "pool": "base",
    "availability": null,
    "cap": 3,
-   "implemented": false,
+   "implemented": true,
    "meta": {
     "source": "https://blueprince.wiki.gg/wiki/Experiments/Triggers",
     "confidence": "wiki",
-    "blocked_on": "phase 0: no experiments engine exists yet (data/validation only)",
+    "blocked_on": null,
     "notes": [
-     "'Chest' is wiki terminology for trunk; counts both key-unlocks and Sledge-Hammer-equivalent smashes."
+     "'Chest' is wiki terminology for trunk; counts both key-unlocks and Sledge-Hammer-equivalent smashes. Fires for containers.kinds 'trunk' and the dead 'chest' kind (no room currently references it); does not fire for lockers, the Garage car trunk, or Vault deposit boxes, which are distinct mechanics."
     ]
    }
   },
@@ -399,7 +403,11 @@
      "gem",
      "die"
     ],
-    "split": [1, 1, 1]
+    "split": [
+     1,
+     1,
+     1
+    ]
    },
    "implemented": true,
    "meta": {
@@ -663,7 +671,8 @@
     "confidence": "wiki",
     "blocked_on": "phase 0: no experiments engine exists yet (data/validation only); the packet subsystem itself is phases 5-8, not yet authorised",
     "notes": [
-     "The exact fruit mix (apple vs banana vs orange weights) is not published, only their relative ordering (apples less common than bananas and oranges); magnitude.mix_weights left null (gap -- do not invent)."
+     "The exact fruit mix (apple vs banana vs orange weights) is not published, only their relative ordering (apples less common than bananas and oranges); magnitude.mix_weights left null (gap -- do not invent).",
+     "This ordering is specific to the experiment-spawned Pantry fruit pool, not the general fruit pool: items.json's fruit_weights has apples MORE common than bananas/oranges (50/30/20) for ordinary spawns. The two are different pools describing different situations, not a contradiction -- do not 'reconcile' them."
     ]
    }
   },

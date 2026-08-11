@@ -258,24 +258,44 @@ partial; its *behavior* waits for its own authorization.
 
 ### Status
 
-Phases 0 and 1 have landed. `engine/experiments.py` holds the registry, the
-per-day `ExperimentState`, the uniform 3-of-12 setup draw, and effect
-application; `Game` exposes the terminal (`start_setup`,
+Phases 0 and 1 landed the engine core: `engine/experiments.py` holds the
+registry, the per-day `ExperimentState`, the uniform 3-of-12 setup draw, and
+effect application; `Game` exposes the terminal (`start_setup`,
 `choose_experiment_trigger`, `choose_experiment_effect`, `toggle_experiment`)
 gated on standing in the Laboratory, with `Phase.EXPERIMENT_PENDING` and
-actions 319–326.
+actions 319–326. A later pass wired the five draft-site triggers (`shops`,
+`gems_spent`, `bedrooms_after_second`, `hallway_from_hallway`,
+`red_room_draft`) through `on_room_drafted`, called from `Game._place_room`.
+Most recently: the generic `cap` field (enforced in `trigger_success`, which
+also gates the trigger's own `steps_lost` on a capped-out fire — pausing
+suppresses a qualifying event without spending one of the cap's charges,
+since `success_count` only ever increments inside that same call); the
+`trunks_opened` trigger (`special_items.py::open_container`, gated on
+`kind in ("trunk", "chest")`, firing only after the opened-count bump so a
+failed open never counts, and covering smash-opens the same way key-opens
+are covered); the `security_door` trigger, fired from two sites in
+`game.py` — `_unlock_for_passage`, gated on `for_draft=True` (drafting
+*through* a security doorway, not merely walking through it) and
+`_roll_new_segments` (drafting *into* a room whose own door converts an
+already-rolled `DOOR_SECURITY` segment to open); and the `day_gate`
+availability filter in `draw_offers`, excluding `security_door` and
+`drawing_room_drawn` from the sampling pool before day 8 unless
+`cfg.veteran_mode` is set (the default — the filter is a no-op unless a
+caller explicitly turns veteran mode off).
 
-**Seven of the twelve base effects and one of the twelve base triggers are
-live.** `draw_offers` samples the base pool uniformly and does not filter on
-`implemented`, which is faithful to the game's own offer distribution but has a
-consequence worth knowing while phases 2–3 are outstanding: only `immediately`
-has a firing site, so a setup offers at least one live trigger 25% of the time
-(`1 - C(11,3)/C(12,3)`). The rest configure an experiment that stays silent for
-the day. Phases 2 and 3 are what close this — they add the draft-site and
-interaction firing sites for the other eleven base triggers.
+**Eight of the twelve base triggers and eight of the twelve base effects are
+now live.** Unimplemented triggers: `apples`, `archived_floorplan`,
+`trash_while_digging`, `drawing_room_drawn` — each needs a firing site (apple
+pickup, an Archives-drafted gate, dig hooks, the Drawing Room's own draw)
+that is later work. Unimplemented base effects: `entrance_hall_trunk`,
+`spread_dig_spots`, `add_aquariums`, `mail_room_letter`.
 
-Filtering the draw to implemented records is not an option in the meantime:
-with one live trigger there is nothing to draw three from.
+`draw_offers` samples the base pool uniformly (modulo the `day_gate` filter
+above) and still does not filter on `implemented`, so a setup can configure
+an experiment pairing a live trigger with a silent effect, or vice versa, or
+both silent — narrower now that 8 of 12 triggers and 8 of 12 effects have
+firing sites, but still possible. Filtering the draw to fully-implemented
+records remains future work, not something addressed so far.
 
 ## Validation (`tools/validate_data.py`)
 
