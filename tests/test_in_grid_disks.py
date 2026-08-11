@@ -1,8 +1,13 @@
-"""Tests for the 7 in-grid Upgrade Disks and the widened disks_held observation.
+"""Tests for the entry-granted in-grid Upgrade Disks and the disks_held observation.
 
-All seven disks (office, morning_room, her_ladyships_chamber, great_hall,
-freezer, archives, mechanarium) are granted on first room entry; none of their
-real-game gates is modelled, so there is no "gate unsatisfied" case to test.
+Six disks (office, morning_room, her_ladyships_chamber, great_hall, freezer,
+archives) are granted on first room entry, with none of their real-game gates
+modelled, so there is no "gate unsatisfied" case to test for them.
+
+The Mechanarium's disk is deliberately absent: it sits in that room's third
+diagonal compartment, which only spawns with three more Mechanical rooms than
+cardinal doors, so it is opened rather than granted on entry. See
+tests/rooms/test_mechanarium.py.
 """
 
 from __future__ import annotations
@@ -27,7 +32,6 @@ _IN_GRID_DISK_ROOMS = [
     ("great_hall", "upgrade_disk_great_hall"),
     ("freezer", "upgrade_disk_freezer"),
     ("archives", "upgrade_disk_archives"),
-    ("mechanarium", "upgrade_disk_mechanarium"),
 ]
 
 
@@ -76,6 +80,9 @@ def test_disks_held_encodes_counts_above_the_old_cap():
     g = _game()
     for _, disk_id in _IN_GRID_DISK_ROOMS:
         si.grant(g.state, g.registry, disk_id, source="test")
+    # Granted directly rather than by entering: the Mechanarium's disk is
+    # compartment-gated, and the point here is the held count, not its source.
+    si.grant(g.state, g.registry, "upgrade_disk_mechanarium", source="test")
     si.grant(g.state, g.registry, "upgrade_disk_vault_304", source="test")
     held = len(g.held_disk_ids())
     assert held == 8, f"fixture should hold 8 disks, holds {held}"

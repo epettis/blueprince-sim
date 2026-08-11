@@ -1,20 +1,25 @@
-"""Tests for the Mechanarium's derived, per-Mechanical-room door mask.
+"""Tests for the Mechanarium's derived door mask and diagonal compartments.
 
-draft.py::_mechanarium_orientation implements the wiki's algorithm
-(blueprince.wiki.gg/wiki/Mechanarium): one doorway per Mechanical room in the
-estate including itself, back door first, then forward/left/right in that
-order, with an owner ruling that a doorway skipped for lack of a facing door
-does not consume its slot. Diagonal compartments (doors beyond the four
-cardinal ones) are a separate, unmodelled slice -- see draft.py's module
-docstring.
+draft.py::_mechanarium_orientation implements the wiki's cardinal-door
+algorithm (blueprince.wiki.gg/wiki/Mechanarium): one doorway per Mechanical
+room in the estate including itself, back door first, then forward/left/right
+in that order, with an owner ruling that a doorway skipped for lack of a
+facing door does not consume its slot. Once those four cardinal doors are
+accounted for, further Mechanical rooms open up to four diagonal
+compartments instead -- modelled as containers at the Mechanarium's cell
+(engine/effects/rooms/mechanarium.py seeds the per-placement count;
+engine/special_items.py's containers.kinds mechanarium_lever/_key/_upgrade/
+_sanctum hold each compartment's deterministic, priority-ordered loot).
 """
 
 from __future__ import annotations
 
 from blueprince_sim.config import GameConfig
+from blueprince_sim.engine import special_items as si
 from blueprince_sim.engine.draft import DraftContext, MECHANARIUM_ID, _mechanarium_orientation
 from blueprince_sim.engine.game import Game
 from blueprince_sim.engine.grid import E, N, OPPOSITE, W, neighbor
+from blueprince_sim.engine.locks import DOOR_OPEN, DOOR_SEALED, segment_key
 from blueprince_sim.engine.model import Registry
 from blueprince_sim.engine.placement import satisfies_draft_conditions
 from blueprince_sim.engine.rng import Rng
@@ -52,6 +57,33 @@ def _add_mechanical_rooms(state: GameState, registry: Registry, n: int) -> None:
     that never neighbor CELL, each with its normal door mask."""
     for room_id, cell in zip(_MECHANICAL_IDS[:n], _FAR_CELLS[:n]):
         _place(state, registry, room_id, cell)
+
+
+# Cells for compartment-count tests, which need more than the five distinct
+# ids _MECHANICAL_IDS offers -- never neighbors CELL (17/21/23/27) or CELL
+# itself, and never the Entrance Hall's rank-1-center cell (2).
+_MANY_SAFE_CELLS = [0, 1, 3, 4, 6, 8, 9, 10]
+
+
+def _add_n_mechanical_rooms(state: GameState, registry: Registry, n: int) -> None:
+    """Place ``n`` Mechanical rooms (one id, reused) at cells that never
+    neighbor CELL -- only the *count* of Mechanical rooms standing matters
+    for the diagonal-compartment threshold, not their variety."""
+    room = registry.by_id["utility_closet"]
+    assert n <= len(_MANY_SAFE_CELLS), f"need {n} safe cells, only {len(_MANY_SAFE_CELLS)} defined"
+    for cell in _MANY_SAFE_CELLS[:n]:
+        state.grid[cell] = room.idx
+        state.placed_doors[cell] = room.door_mask
+
+
+def _place_mechanarium_with_n_others(game: Game, registry: Registry, others: int):
+    """Place ``others`` extra Mechanical rooms, then the Mechanarium itself at
+    CELL with its derived mask; return the derived mask."""
+    _add_n_mechanical_rooms(game.state, registry, others)
+    mechanarium = registry.by_id[MECHANARIUM_ID]
+    derived = _mechanarium_orientation(_ctx(registry, game.state), CELL, ENTRY)
+    game._place_room(mechanarium, CELL, derived)
+    return derived
 
 
 def test_lone_mechanarium_gets_only_the_back_door(registry: Registry):
@@ -170,3 +202,144 @@ def test_one_door_mechanarium_does_not_trigger_the_tombs_dead_end_bonus(registry
     game._place_room(mechanarium, CELL, derived)
 
     assert game.state.coins == 0, "a 1-door Mechanarium must not count as a Dead End"
+
+
+# ------------------------------------------------------- diagonal compartments
+
+
+def test_compartment_count_follows_min4_of_mechanical_rooms_minus_cardinal_doors(
+        registry: Registry):
+    """compartments = min(4, mechanical_rooms_total_incl_self - cardinal_doors_spawned):
+    zero at 4 total Mechanical rooms (all four cardinal doors spawn), one more per extra
+    Mechanical room once the cardinal doors are maxed out, capped at 4 diagonal doors."""
+    # (others placed besides the Mechanarium, expected compartment count)
+    cases = [(3, 0), (4, 1), (5, 2), (7, 4), (8, 4)]
+    for others, expected in cases:
+        game = Game(GameConfig(special_items=True), seed=0, registry=registry)
+        derived = _place_mechanarium_with_n_others(game, registry, others)
+        assert derived == OPPOSITE[ENTRY] | FORWARD | LEFT | RIGHT, (
+            f"setup: others={others} must fill all four cardinal doors"
+        )
+        got = game.state.special.mechanarium_compartments.get(CELL, -1)
+        assert got == expected, f"others={others} (total={others + 1}): got {got}, want {expected}"
+
+
+def test_first_compartment_grants_the_west_antechamber_lever(registry: Registry):
+    """The first diagonal compartment "contains a West Antechamber Lever" (wiki):
+    opening it pulls the same Antechamber west segment Secret Garden's own
+    on-entry lever opens, via secret_garden.pull_west_lever."""
+    game = Game(GameConfig(special_items=True), seed=0, registry=registry)
+    _place_mechanarium_with_n_others(game, registry, 4)  # total 5 -> 1 compartment
+    assert game.state.special.mechanarium_compartments[CELL] == 1
+
+    seg = segment_key(41, E)
+    assert game.state.door_state.get(seg) == DOOR_SEALED, "setup: west lever starts sealed"
+
+    game.state.pos = CELL
+    tag = game.open_container()
+
+    assert tag == "lever:west_antechamber"
+    assert game.state.door_state.get(seg) == DOOR_OPEN, (
+        "opening the first compartment must pull the west Antechamber lever"
+    )
+
+
+def test_opening_a_compartment_costs_no_key(registry: Registry):
+    """The wiki names no key, step, or gem cost for opening a diagonal
+    compartment door -- only the ordinary OPEN_CONTAINER_ACTION."""
+    game = Game(GameConfig(special_items=True), seed=0, registry=registry)
+    _place_mechanarium_with_n_others(game, registry, 4)
+    game.state.pos = CELL
+    game.state.keys = 3
+
+    game.open_container()
+
+    assert game.state.keys == 3, "opening a compartment must not spend a key"
+
+
+def test_second_compartment_falls_through_to_keycard_when_silver_key_already_held(
+        registry: Registry):
+    """Compartment 2's priority list is Silver Key, Keycard, Secret Garden Key,
+    Vault Key 233, then a basic key. Silver Key is not a `unique` item (the
+    general spawn system allows more than one in the house at once), so this
+    compartment's own "already held" check -- layered on top of
+    `_is_available` -- is what makes it fall through to the Keycard instead
+    of handing over a second Silver Key."""
+    game = Game(GameConfig(special_items=True), seed=0, registry=registry)
+    si.configure(game.state, game.cfg)
+    _place_mechanarium_with_n_others(game, registry, 5)  # total 6 -> 2 compartments
+    assert game.state.special.mechanarium_compartments[CELL] == 2
+    game.state.pos = CELL
+    game.open_container()  # compartment 1 (the lever) -- not under test here
+
+    si.grant(game.state, game.registry, "silver_key", source="test")
+    tag = game.open_container()  # compartment 2
+
+    assert tag == "keycard", f"expected fallthrough to keycard, got {tag!r}"
+    assert game.state.has_keycard is True
+
+
+def test_third_compartment_yields_the_upgrade_disk_then_the_next_item_once_spent(
+        registry: Registry):
+    """Compartment 3 yields the Upgrade Disk; once THAT disk is recorded as
+    spent (GameConfig.collected_disks, the cross-day carry-over gate a real
+    terminal insertion sets), a fresh Mechanarium's compartment 3 falls
+    through to the chain's next item, the Battery Pack."""
+    game = Game(GameConfig(special_items=True), seed=0, registry=registry)
+    si.configure(game.state, game.cfg)
+    _place_mechanarium_with_n_others(game, registry, 6)  # total 7 -> 3 compartments
+    assert game.state.special.mechanarium_compartments[CELL] == 3
+    game.state.pos = CELL
+    game.open_container()  # compartment 1
+    game.open_container()  # compartment 2
+    tag = game.open_container()  # compartment 3
+
+    assert tag == "upgrade_disk_mechanarium"
+    assert si.has(game.state, "upgrade_disk_mechanarium")
+
+    spent_cfg = GameConfig(
+        special_items=True, collected_disks=frozenset({"upgrade_disk_mechanarium"}))
+    game2 = Game(spent_cfg, seed=1, registry=registry)
+    si.configure(game2.state, game2.cfg)
+    _place_mechanarium_with_n_others(game2, registry, 6)
+    assert game2.state.special.mechanarium_compartments[CELL] == 3
+    game2.state.pos = CELL
+    game2.open_container()
+    game2.open_container()
+    tag2 = game2.open_container()
+
+    assert tag2 == "battery_pack", (
+        f"disk already spent must fall through to the chain's next item, got {tag2!r}"
+    )
+
+
+def test_fourth_compartment_yields_the_sanctum_key_then_dice_once_unavailable(
+        registry: Registry):
+    """Compartment 4 "contains a Sanctum Key, or 8 dice if the Sanctum Key
+    has already been used or is otherwise unavailable" (wiki) -- exercised
+    here via room46_reached=False, which gates every Sanctum Key id out."""
+    reached_cfg = GameConfig(special_items=True, room46_reached=True)
+    game = Game(reached_cfg, seed=0, registry=registry)
+    si.configure(game.state, game.cfg)
+    _place_mechanarium_with_n_others(game, registry, 7)  # total 8 -> 4 compartments
+    assert game.state.special.mechanarium_compartments[CELL] == 4
+    game.state.pos = CELL
+    game.open_container()  # compartment 1
+    game.open_container()  # compartment 2
+    game.open_container()  # compartment 3
+    tag = game.open_container()  # compartment 4
+
+    assert tag == "sanctum_key_mechanarium"
+
+    unreached_cfg = GameConfig(special_items=True, room46_reached=False)
+    game2 = Game(unreached_cfg, seed=1, registry=registry)
+    si.configure(game2.state, game2.cfg)
+    _place_mechanarium_with_n_others(game2, registry, 7)
+    assert game2.state.special.mechanarium_compartments[CELL] == 4
+    game2.state.pos = CELL
+    game2.open_container()
+    game2.open_container()
+    game2.open_container()
+    tag2 = game2.open_container()
+
+    assert tag2 == "dice:8", f"Sanctum Key unavailable must fall through to 8 dice, got {tag2!r}"

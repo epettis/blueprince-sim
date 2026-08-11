@@ -6164,7 +6164,7 @@
    "meta": {
     "source": "wiki",
     "confidence": "wiki",
-    "effect_text": "Contains one doorway per Mechanical room in the estate, including itself: the first door always faces back the way it was drafted from, and up to three more spawn forward/left/right in that order, each skipped without consuming its slot when the neighbouring room has no facing door. The door count is fixed the moment the room is drafted. Layout is cross (wiki infobox: Shape=4-way), not a guess -- but the effective door count is 1-8; doors beyond the four cardinal ones open diagonal compartments with key/item caches, not modeled here. interior_only covers the 'center 21 tiles' constraint.",
+    "effect_text": "Contains one doorway per Mechanical room in the estate, including itself: the first door always faces back the way it was drafted from, and up to three more spawn forward/left/right in that order, each skipped without consuming its slot when the neighbouring room has no facing door. The door count is fixed the moment the room is drafted. Layout is cross (wiki infobox: Shape=4-way), not a guess -- but the effective door count is 1-8; doors beyond the four cardinal ones open diagonal compartments with a deterministic, priority-ordered loot list (a West Antechamber Lever, then a key item, then an Upgrade Disk, then a Sanctum Key -- modelled as containers at this room's cell, see engine/effects/rooms/mechanarium.py and engine/special_items.py). interior_only covers the 'center 21 tiles' constraint.",
     "rarity_confidence": "wiki"
    }
   },

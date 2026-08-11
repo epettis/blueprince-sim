@@ -31,6 +31,7 @@ from . import her_ladyships_chamber  # noqa: F401
 from . import hovel  # noqa: F401
 from . import locker_room  # noqa: F401
 from . import mail_room  # noqa: F401
+from . import mechanarium  # noqa: F401  (no per-tag handler; seeds the diagonal-compartment count)
 from . import nook  # noqa: F401
 from . import observatory  # noqa: F401
 from . import parlor  # noqa: F401

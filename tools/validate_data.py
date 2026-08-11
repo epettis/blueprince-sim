@@ -550,8 +550,14 @@ def main(argv: list[str] | None = None) -> int:
                         f"special_items dig/{table_name}: item outcome references unknown id {rid!r}"
                     )
 
-    # Valid grant kinds inside a loot entry's grants list
-    VALID_GRANT_KINDS = {"coins", "keys", "gems", "dice", "item", "keycard", "food"}
+    # Valid grant kinds inside a loot entry's grants list. The four
+    # mechanarium_* kinds dispatch to Mechanarium compartment resolvers
+    # (engine/special_items.py) rather than a plain grant.
+    VALID_GRANT_KINDS = {
+        "coins", "keys", "gems", "dice", "item", "keycard", "food",
+        "mechanarium_lever", "mechanarium_key_chain", "mechanarium_upgrade_chain",
+        "mechanarium_sanctum_chain",
+    }
 
     # containers section
     containers_doc = si_doc.get("containers", {})
