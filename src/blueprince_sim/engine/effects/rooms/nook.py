@@ -36,6 +36,6 @@ def eat_free_bacon_and_eggs(game, room, ctx_room) -> None:
     Unlike the Kitchen dish, the Breakfast Nook's Bacon & Eggs does not cost
     gold." (blueprince.wiki.gg/wiki/Nook/Upgrades)
     """
-    si.eat_food(game.state, game.registry, BACON_AND_EGGS_DISH, 1)
+    si.eat_food(game, BACON_AND_EGGS_DISH, 1)
     game.inject_rooms([MORNING_ROOM_ID])
     game.state.special.extra_conditions.add(BREAKFAST_GATE_CONDITION)

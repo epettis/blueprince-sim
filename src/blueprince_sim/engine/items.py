@@ -10,7 +10,6 @@ from __future__ import annotations
 
 from . import special_items
 from .model import Registry, Room
-from .rng import Rng
 from .state import GameState
 
 EXTRA_ITEM_TABLE = (
@@ -101,7 +100,7 @@ def luck_probability(state: GameState, registry: Registry) -> float:
     return (effective - lo) / (hi - lo)
 
 
-def grant_item(state: GameState, item: str, count: int, rng: Rng, registry: Registry) -> None:
+def grant_item(game, item: str, count: int) -> None:
     """Add ``count`` of one item kind to the player's resources and log the pickup.
 
     "coins" means coin PILES: each of the ``count`` piles rolls its own size
@@ -114,6 +113,9 @@ def grant_item(state: GameState, item: str, count: int, rng: Rng, registry: Regi
     immediately via ``special_items.eat_food``. Unknown item ids grant
     nothing but are still logged.
     """
+    state = game.state
+    registry = game.registry
+    rng = game.rng
     match item:
         case "coins" | "coins_exact":
             if item == "coins_exact":
@@ -136,7 +138,7 @@ def grant_item(state: GameState, item: str, count: int, rng: Rng, registry: Regi
         case "food":
             # Food restores steps; per-dish values and Salt Shaker / Silver
             # Spoon modifiers are eat_food's concern (it logs each item).
-            special_items.eat_food(state, registry, "banana", count)
+            special_items.eat_food(game, "banana", count)
             return
         case "fruit":
             # Each of count is its own weighted dish roll, eaten immediately;
@@ -146,12 +148,12 @@ def grant_item(state: GameState, item: str, count: int, rng: Rng, registry: Regi
             weights = tuple(fruit_weights[d] for d in dish_ids)
             for _ in range(count):
                 idx = rng.roll_weighted("fruit_kind", weights)
-                special_items.eat_food(state, registry, dish_ids[idx], 1)
+                special_items.eat_food(game, dish_ids[idx], 1)
             return
     state.items_found_log.append((item, count))
 
 
-def roll_extra_items(state: GameState, registry: Registry, count: int, rng: Rng) -> int:
+def roll_extra_items(game, count: int) -> int:
     """Grant ``count`` items resolved through EXTRA_ITEM_TABLE, luck-immune.
 
     The same fixed-count random-item roll a room's own guaranteed "random"
@@ -163,20 +165,23 @@ def roll_extra_items(state: GameState, registry: Registry, count: int, rng: Rng)
     """
     for _ in range(count):
         weights = tuple(w for _, w in EXTRA_ITEM_TABLE)
-        idx = rng.roll_weighted("extra_item_kind", weights)
-        grant_item(state, EXTRA_ITEM_TABLE[idx][0], 1, rng, registry)
+        idx = game.rng.roll_weighted("extra_item_kind", weights)
+        grant_item(game, EXTRA_ITEM_TABLE[idx][0], 1)
     return count
 
 
-def roll_room_items(state: GameState, registry: Registry, room: Room, rng: Rng) -> int:
+def roll_room_items(game, room: Room) -> int:
     """Spawn a room's items into the player's resources; returns items found."""
+    state = game.state
+    registry = game.registry
+    rng = game.rng
     found = 0
     for item, count in room.items.guaranteed:
         if item == "random":
             # Fixed COUNT of random items (Closet/Walk-In/Attic): luck-immune.
-            found += roll_extra_items(state, registry, count, rng)
+            found += roll_extra_items(game, count)
         else:
-            grant_item(state, item, count, rng, registry)
+            grant_item(game, item, count)
             found += 1
     p = luck_probability(state, registry)
     for _ in range(room.items.additional_max):
@@ -189,7 +194,7 @@ def roll_room_items(state: GameState, registry: Registry, room: Room, rng: Rng) 
                 continue
             weights = tuple(w for _, w in EXTRA_ITEM_TABLE)
             idx = rng.roll_weighted("extra_item_kind", weights)
-            grant_item(state, EXTRA_ITEM_TABLE[idx][0], 1, rng, registry)
+            grant_item(game, EXTRA_ITEM_TABLE[idx][0], 1)
             found += 1
     if found >= 2:
         state.luck += registry.item_rules["luck"]["penalty_two_plus_items"]

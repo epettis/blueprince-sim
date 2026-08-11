@@ -624,7 +624,7 @@ def on_enter(game, room, cell: int) -> None:
 
     # Dining Room main course (rank-8 gated; also checked on every arrival so
     # a return visit after reaching Rank 8 serves it).
-    _maybe_serve_main_course(state, registry)
+    _maybe_serve_main_course(game)
 
     # Lunch Box: guaranteed in the Dining Room (and upgrade variants) when unlocked
     if game.cfg.lunch_box_unlocked:
@@ -668,7 +668,7 @@ def on_enter(game, room, cell: int) -> None:
             break
 
 
-def _maybe_serve_main_course(state, registry) -> None:
+def _maybe_serve_main_course(game) -> None:
     """Serve the day's Dining Room Main Course if it is due.
 
     The course is only served once the player has REACHED Rank 8 (some
@@ -678,6 +678,8 @@ def _maybe_serve_main_course(state, registry) -> None:
     the boost-room check happens inside eat_food.
     """
     from .grid import rank_of
+    state = game.state
+    registry = game.registry
     if not state.special.enabled or state.special.dining_room_served:
         return
     if state.area is not None:
@@ -693,7 +695,7 @@ def _maybe_serve_main_course(state, registry) -> None:
     state.special.dining_room_served = True
     cycle = registry.item_rules.get("food", {}).get("main_course_cycle", [])
     if cycle:
-        eat_food(state, registry, cycle[state.day % len(cycle)])
+        eat_food(game, cycle[state.day % len(cycle)])
 
 
 def on_arrive(game, cell: int) -> None:
@@ -702,7 +704,7 @@ def on_arrive(game, cell: int) -> None:
     visits). Called from Game.move after entering. Task C.
     """
     check_lunch_box(game.state, game.registry)
-    _maybe_serve_main_course(game.state, game.registry)
+    _maybe_serve_main_course(game)
 
     # Treasure Map: resolve the marked cell lazily on first arrival after pickup
     state = game.state
@@ -793,7 +795,7 @@ def lost_and_found_on_enter(game) -> None:
             continue
         chosen = rng.choice("lost_and_found", available)
         if chosen == "die":
-            items_mod.grant_item(state, "die", 1, rng, registry)
+            items_mod.grant_item(game, "die", 1)
         else:
             grant(state, registry, chosen, source="lost_and_found")
 
@@ -1199,7 +1201,7 @@ def _resolve_food_base(state, registry, food_id: str) -> int:
     return dish.get("steps", default_steps)
 
 
-def eat_food(state, registry, food_id: str = "banana", count: int = 1) -> None:
+def eat_food(game, food_id: str = "banana", count: int = 1) -> None:
     """Eat ``count`` food items of kind ``food_id``, granting steps.
 
     Per-dish resolution via ``_resolve_food_base``: flat steps (banana,
@@ -1207,13 +1209,24 @@ def eat_food(state, registry, food_id: str = "banana", count: int = 1) -> None:
     boost-room-conditional steps (main courses). Unknown dishes fall back
     to food.default_steps (3). Salt Shaker / Silver Spoon apply per item
     via :func:`food_steps`. ``inject_rooms`` dishes are NOT handled here —
-    callers that have access to ``game`` must check the dish record and call
+    callers must check the dish record and call
     ``game.inject_rooms`` after eat_food for those dishes.
+
+    Each apple eaten (``food_id == "apple"``, covering all three visual
+    varieties — green, red, and with leaves, which share the one dish id)
+    fires the ``apples`` experiment trigger once its steps have already been
+    granted, so a same-day ``set_steps`` effect lands last, per the wiki. A
+    ``count`` > 1 call fires once per apple, not once per call, matching
+    apples being eaten one at a time.
     """
+    state = game.state
+    registry = game.registry
     base = _resolve_food_base(state, registry, food_id)
     for _ in range(count):
         state.steps += food_steps(state, registry, base)
         state.items_found_log.append(("food", 1))
+        if food_id == "apple" and state.experiment.trigger_id == "apples":
+            experiments.trigger_success(game)
 
 
 def food_steps(state, registry, base: int) -> int:
@@ -1563,7 +1576,7 @@ def _apply_grant(state, registry, game, grant_entry: dict) -> str:
         case "food":
             food_id = grant_entry.get("id", "banana")
             amount = grant_entry.get("amount", 1)
-            eat_food(state, registry, food_id, amount)
+            eat_food(game, food_id, amount)
             return f"food:{food_id}:{amount}"
         case "coins":
             amount = grant_entry.get("amount", 1)
@@ -1585,7 +1598,7 @@ def _apply_grant(state, registry, game, grant_entry: dict) -> str:
             amount = grant_entry.get("amount", 1)
             # grant_item logs the pickup itself; a second append would
             # double-count dice in items_found_log.
-            items_mod.grant_item(state, "die", amount, game.rng, registry)
+            items_mod.grant_item(game, "die", amount)
             return f"dice:{amount}"
         case "keycard":
             state.has_keycard = True
@@ -2291,7 +2304,7 @@ def light(game) -> None:
             case "dice":
                 amount = reward.get("amount", 1)
                 # grant_item already logs the pickup (see above).
-                items_mod.grant_item(state, "die", amount, game.rng, registry)
+                items_mod.grant_item(game, "die", amount)
             case "chapel_tithe_payout":
                 # Pay out the Keeper of Tithes accumulated total: every coin the
                 # Chapel's -1 entry penalty ever took.  The counter is cleared

@@ -69,7 +69,7 @@ def _pay_bonus(game, room, count: int) -> None:
     cell = game.room_cells.get(room.id)
     if cell is not None and cell in _bonus_cells(game):
         _bonus_cells(game).discard(cell)
-        roll_extra_items(game.state, game.registry, count, game.rng)
+        roll_extra_items(game, count)
 
 
 @room_hook("hallway_closet__ix39", Hook.ON_PLACE)
