@@ -656,6 +656,110 @@ the residual `game.py` branches.
 
 ## Decisions log
 
+- **2026-08-10, the Great Hall locks all three grid doorways AND models the
+  search cost.** Owner, choosing the more faithful of three options. The room's
+  effect is "7 Locked Doors", but our grid has no subchambers: a `cross` has
+  only 3 non-entry doorways. In the real game the far doorway is a genuinely
+  locked drafting door, while the two side drafting doors are themselves
+  unlocked but sit behind three locked inner doors each, only one of which is
+  the passage.
+
+  So all three doorways lock, and the side doorways additionally carry the
+  expected cost of finding the right inner door. The wiki publishes a
+  theoretical table for that search: edge doors 25% to be the doorway, the
+  centre door 50%. The owner rejected the cheaper "lock all three, flat 1 key
+  per side" option in favour of modelling it.
+
+  Mechanism: `data/locks.json` already has `always_unlocked_rooms`, consumed at
+  `engine/locks.py::roll_segment`. A symmetric `always_locked_rooms` is the
+  natural counterpart. The lock roll happens inside `_place_room` before hooks
+  fire, so this belongs in data, not a `room_hook`. A Foyer already on the
+  estate correctly overrides it, matching "unless some other effect forces them
+  to be unlocked".
+
+- **2026-08-10, the Spare Great Hall's layout is `straight`, not `cross` --
+  the wiki wins over the datamine.** Owner, on a conflict surfaced rather than
+  resolved silently. Our datamine row says `4-Door`; the wiki says flatly that
+  the Spare Great Hall **does not inherit the Great Hall's shape** and draws
+  the consequence explicitly: *it may be drafted along the edges of the house*,
+  which a 4-way can never be under `grid.py`'s outer-wall invariant.
+
+  This is not cosmetic -- it changes which of the 45 cells the room can legally
+  occupy. The change must go through `LAYOUT_OVERRIDE` in
+  `tools/ingest_sheet.py`, **not** a hand-edit to `rooms.json`, or the next
+  re-ingest reverts it. Precedent exists: two datamined rooms are already
+  corrected this way.
+
+  Still open, and deliberately not asked yet: whether the Spare Great Hall gets
+  any modelled effect at all. Per the wiki it has no side doorways, no
+  Antechamber lever, no Upgrade Disk, and -- despite its own effect text -- its
+  far door is *not* necessarily locked. That would make its entire published
+  effect invisible at grid granularity, i.e. the `parlor__ix109` treatment. Its
+  prize contents are published and could be granted as an items roll if the
+  room should do something.
+
+- **2026-08-10, colour-selective drafting gets filter + default floorplans, no
+  reserve copies.** Owner, choosing the middle of four options. The Secret
+  Passage lets the player pick one of five colours (Bedroom, Hallway, Green
+  Room, Shop, Red Room) and restricts the whole resulting hand to it.
+
+  **No colour-selective machinery exists anywhere in the codebase** -- a grep
+  for `color_selective|prism|color_filter` across `src/` returns zero hits. The
+  nearest primitive, `draft.py::_apply_category_bias`, is a *bias* (roll a
+  chance, try to swap one card), not a *filter*, and the wiki warns explicitly
+  that the two must not be confused.
+
+  Scope as ruled: restrict the deal to the chosen colour, and fall back to the
+  published per-colour default triples when the pool is thin. Reserve copies
+  are out. The owner rejected filter-only because the wiki says thin pools are
+  *frequent* for Green Rooms and Shops, so filter-only would diverge often; and
+  rejected full fidelity because it requires relaxing the out-drafting
+  invariant in `placement.py`/`rotation.py`, which is load-bearing.
+
+  This clears two findings and one item at once: `secret_passage`,
+  `spare_secret_passage__ix138` (which reuses the same handler, as `foyer.py`
+  already does for its Spare), and `prism_key`, whose `meta.blocked_on` is
+  literally `color_biased_drafting_not_modeled`.
+
+  Separate side finding, not covered by this ruling:
+  `secret_passage.draft_conditions` is `[]` and nothing in `src/` references
+  the room, so **none** of its published placement restrictions are modelled --
+  it cannot be drafted on Rank 1 or 9, and is blocked from wing drafts leading
+  north into Rank 8 or south into Rank 2 until another vertical wing draft
+  occurs. The rank rule is two existing primitives away; the stateful wing rule
+  is not.
+
+- **2026-08-10, the Shrine is built, with five of eight blessings live.**
+  Owner. Deposit 1-80 gold, receive one of eight blessings lasting 3-7 days;
+  taking the gold back curses you for 2 days instead. The band table, the 8x5
+  coin pairs, and all eight blessing effects are fully published.
+
+  Buildable now: Dancer, High Roller, Gardener, General, Berry Picker. Stubbed
+  with `meta.blocked_on`: Tinkerer (needs the experiments subsystem), Chef
+  (needs Dining Room dishes), Monk (needs grounds drafting).
+
+  **This is save-scoped state** -- blessings survive an attempt wrap, joining
+  `stars` and `main_course_bonus`. It needs the `mail_transit_days` shape (a
+  raw day count DayChain decays mechanically), not the allowance/stars
+  "replaced wholesale" shape: a blessing id, a remaining-days count, a parallel
+  curse-days count, and a monk-room key.
+
+  Action space as ruled: expose 8 blessings x 5 durations = 40 actions and
+  derive the coin cost, rather than 80 raw donation amounts. Nothing is lost --
+  the wiki notes there is little reason to offer an even number of coins except
+  to deliberately deprive oneself of gold.
+
+  Two corrections fall out. Our stored `effect_text` is *"Donate money for
+  multi-day blessings (out of single-day scope)"* -- not game text at all, but
+  a project annotation whose scope claim expired when DayChain landed; the wiki
+  infobox reads *"Make an offering, Receive a blessing."* And the curse path is
+  the gate to `cursed_effigy_unlocked`, a flag that already exists in
+  `config.py` and that today can never be set by play.
+
+  **UNPUBLISHED, do not encode:** the Shrine page source carries a commented-out
+  claim that the Veranda *does* incur the curse penalty when its cost is
+  bypassed. Drafted by an editor, never published.
+
 - **2026-08-10, the Mechanarium's door count is CONFIRMED fixed at draft.** The
   owner's claim from play -- "the number of doors is set when drafted; it does
   not add doors later for newly drafted engineering rooms" -- is confirmed
