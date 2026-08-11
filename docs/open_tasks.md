@@ -656,6 +656,81 @@ the residual `game.py` branches.
 
 ## Decisions log
 
+- **2026-08-11, our Archives is scoped wrong: the effect is house-wide for
+  the day, not per-doorway.** Research triggered by the owner's archived/hidden
+  correction. The wiki is unambiguous: *"The Archives ... will 'archive' one of
+  the three floorplans drawn whenever a room is drafted after Archives"* --
+  no from-room qualifier anywhere on the page. Our `draft.py::_hidden_count`
+  keys off the room being drafted **from**, so archiving only happens through
+  an Archives doorway.
+
+  The owner's own sentence is the proof, independent of the wiki: under our
+  model a Darkroom draft sets `from_room = Darkroom`, so no option could ever
+  be archived -- yet the owner observes that one of a Darkroom's concealed
+  options can be. That is only possible if the Archives effect is persistent
+  and house-wide.
+
+  Corroborated a third way: the Shelter interaction is worded *"drafting the
+  Archives under the effect of the Shelter ... Archived floorplans do not
+  appear"*, i.e. the negation is applied once at placement and suppresses
+  archiving for the whole day. That only makes sense for a day-long
+  capability.
+
+  Our stored `meta.effect_text` for the Archives says *"While drafting from
+  this room, one of the 3 floorplans is hidden (modeled: one fewer option)"* --
+  wrong twice: the from-room scoping, and the parenthetical, which is a
+  project annotation that is stale against the wiki **and** against our own
+  code (nothing anywhere drops an option).
+
+- **2026-08-11, neither the Archives nor the Darkroom reduces the option
+  count -- both conceal.** The `reduce_draft_options` tag name asserts a
+  mechanic the game does not have. Our runtime behaviour is right (we mark
+  options hidden and keep them draftable); only the name and the annotation
+  lie. Archived floorplans remain fully selectable, and the game deliberately
+  preserves side channels: gem cost, Coat Check label, power lines, rotation
+  (which leaks shape), the Furnace's red haze, and rarity when drafting
+  through a security door.
+
+  So **archived is a per-option-instance flag produced by a day-long
+  house-wide capability**, while Darkroom concealment is a genuine from-room
+  effect. The two compose independently. Split the tag: `archive_floorplan`
+  for the Archives, `conceal_all_floorplans` for the Darkroom, and retire
+  `reduce_draft_options`.
+
+- **2026-08-11, the archived slot is uniformly random across all three.**
+  Owner. We currently archive **slot 2 deterministically** and always keep
+  slot 0 visible; the wiki only says "one of the three". The owner ruled
+  random across all three, which is strictly harder than what we ship -- there
+  is no longer a guaranteed fully-informed option. This materially changes
+  agent play, so it needs a named RNG substream and a test.
+
+- **2026-08-11, the Shelter's negation of the Archives is spent once, at
+  placement.** Owner, matching the wiki's *"drafting the Archives under the
+  effect of the Shelter"* wording: one charge when the Archives is drafted,
+  and no archiving for the rest of the day. The alternative -- a charge per
+  draft -- would drain all three Shelter charges in three doorways.
+
+  Act on this cold as: `_red_negated` is currently never consulted on the
+  `draft.py` path, so today a Shelter negates neither room. The trap is that
+  every existing caller uses a per-event pattern; this one must latch into a
+  day flag at placement or it silently drains the resource.
+
+- **2026-08-11, the Darkroom light switch and the security-door rarity leak
+  are both in scope.** Owner, on two published gaps found in the same pass.
+
+  The Utility Closet can restore the Darkroom's lights, fully disabling its
+  drafting penalty; we model that switch system but have **no Darkroom
+  switch** anywhere in `src/` or `data/`. Without it the agent has no counter
+  to a Darkroom at all. (The wiki also notes the fuse never blows if the
+  switch is already off when the Darkroom is drafted, but flipping it off and
+  on again beforehand does not prevent it.)
+
+  Separately, the wiki says a concealed floorplan's **rarity is visible** when
+  drafting through a security door. Our `env/obs.py` zeroes rarity for every
+  hidden option unconditionally, so the agent loses information a real player
+  has. Note `forced` is zeroed there too, which discards real information for
+  no stated reason -- worth checking while in that code.
+
 - **2026-08-11, "archived" is independent of "hidden" -- our data conflates
   two different mechanics.** Owner, correcting a question I asked badly. I
   offered a choice between counting only Archives-hidden options or any hidden
