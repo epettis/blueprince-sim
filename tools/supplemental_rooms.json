@@ -117,7 +117,7 @@
       "deck_copies": 1,
       "effects": [
         {
-          "tag": "reduce_draft_options"
+          "tag": "archive_floorplan"
         }
       ],
       "items": {
@@ -184,8 +184,7 @@
       "deck_copies": 1,
       "effects": [
         {
-          "tag": "reduce_draft_options",
-          "amount": 3
+          "tag": "conceal_all_floorplans"
         }
       ],
       "items": {

@@ -18,6 +18,7 @@ from ..config import GameConfig
 from ..engine.game import Game, Phase, RedrawKind
 from ..engine.grid import DIR_NAMES
 from ..engine.items import expected_yields
+from ..engine.locks import DOOR_SECURITY
 from ..engine.placement import legal_orientations
 from ..env import actions as A
 
@@ -48,8 +49,7 @@ def _option_legal_orientations(game: Game, p, opt) -> list[int]:
     per-option "alternate orientation" action block once existed but was never
     reachable from the mask, and was removed along with it.) Outer-room drafts
     have no doorway to rotate against (``target_cell == -1``, fixed
-    orientation), and hidden (Archives mystery) options have no known room, so
-    both return [].
+    orientation), and hidden options have no known room, so both return [].
     """
     if p.target_cell == -1 or opt.hidden:
         return []
@@ -99,11 +99,14 @@ def _redraw_info(game: Game) -> dict:
 def _pending_dict(game: Game) -> dict | None:
     """JSON view of the pending draft hand; None when no draft is open.
 
-    Hidden (Archives mystery) options keep cost and affordability visible but
-    report room_idx -1, name "???", and no identity/orientation fields.
-    ``redraw`` and each option's ``legal_orientations`` let the client show
-    what a redraw would cost and whether a drafted room has an orientation
-    other than the one it was dealt in -- see ``_redraw_info`` and
+    Hidden options (Darkroom's own doorway while its lights are off, or the
+    one slot an active Archives archived) keep cost and affordability visible
+    but report room_idx -1, name "???", and no identity/orientation fields;
+    ``archived`` distinguishes the latter from a plain Darkroom conceal.
+    Rarity leaks through when drafting via a security door, same as
+    env/obs.py. ``redraw`` and each option's ``legal_orientations`` let the
+    client show what a redraw would cost and whether a drafted room has an
+    orientation other than the one it was dealt in -- see ``_redraw_info`` and
     ``_option_legal_orientations`` for why those need engine calls rather than
     being derivable from ``orientation`` alone. ``from_room`` is the name of
     the room the draft was opened from (None for the outer-room draft, whose
@@ -113,16 +116,24 @@ def _pending_dict(game: Game) -> dict | None:
     p = game.state.pending
     if p is None:
         return None
+    # Outer-room drafts (from_cell == -1) have no doorway segment to check;
+    # they are never hidden today anyway (open_outer_draft deals through its
+    # own path, never through draft._fill_options, so neither Darkroom's
+    # from-room check nor Archives' house-wide one ever runs against them),
+    # but guard explicitly rather than rely on that staying true.
+    security = (p.from_cell != -1
+                and game.door_state_of(p.from_cell, p.direction) == DOOR_SECURITY)
     options = []
     for opt in p.options:
         room = game.registry.rooms[opt.room_idx]
         if opt.hidden:
             options.append({
                 "slot": opt.slot, "room_idx": -1, "name": "???", "category": None,
-                "rarity": None, "layout": None, "orientation": 0, "legal_orientations": [],
+                "rarity": room.rarity if security else None, "layout": None,
+                "orientation": 0, "legal_orientations": [],
                 "cost": game._effective_cost(room, opt),
                 "affordable": game.affordable(room, opt),
-                "forced": opt.forced, "hidden": True,
+                "forced": opt.forced, "hidden": True, "archived": opt.archived,
             })
             continue
         options.append({
@@ -132,7 +143,7 @@ def _pending_dict(game: Game) -> dict | None:
             "legal_orientations": _option_legal_orientations(game, p, opt),
             "cost": game._effective_cost(room, opt),
             "affordable": game.affordable(room, opt),
-            "forced": opt.forced, "hidden": False,
+            "forced": opt.forced, "hidden": False, "archived": False,
         })
     return {
         "from_cell": p.from_cell,

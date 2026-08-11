@@ -5424,7 +5424,7 @@
    "deck_copies": 1,
    "effects": [
     {
-     "tag": "reduce_draft_options"
+     "tag": "archive_floorplan"
     }
    ],
    "items": {
@@ -5436,7 +5436,7 @@
    "meta": {
     "source": "wiki",
     "confidence": "wiki",
-    "effect_text": "While drafting from this room, one of the 3 floorplans is hidden (modeled: one fewer option). Conducts power.",
+    "effect_text": "Whenever a room is drafted after the Archives, one of the 3 floorplans drawn is archived: hidden from view, still draftable. House-wide and non-stacking (multiple Archives act as one); negated by Shelter. Conducts power.",
     "rarity_confidence": "inferred"
    }
   },
@@ -5493,8 +5493,7 @@
    "deck_copies": 1,
    "effects": [
     {
-     "tag": "reduce_draft_options",
-     "amount": 3
+     "tag": "conceal_all_floorplans"
     }
    ],
    "items": {
@@ -5506,7 +5505,7 @@
    "meta": {
     "source": "wiki",
     "confidence": "wiki",
-    "effect_text": "Drafting from it: all 3 floorplans obscured (all options hidden).",
+    "effect_text": "Drafting from it: all 3 floorplans obscured (all options hidden), unless the Utility Closet's Darkroom switch is on. Entering it blows a fuse and turns the switch off, unless the switch was already off or Shelter negates it.",
     "rarity_confidence": "inferred"
    }
   },

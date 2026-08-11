@@ -39,7 +39,7 @@ Room *behaviour* splits by how many rooms share it:
   serving many rooms, each room's numbers in its own `effects` list. These are
   `grant`, `grant_per_category`, `grant_on_draft_category`,
   `set_resource_on_enter`, `counts_as_bedrooms`, `counts_as_drafting_room`,
-  `inject_pool`, `free_green_drafts`, `reduce_draft_options`, and `anti_luck`
+  `inject_pool`, `free_green_drafts`, `archive_floorplan`, and `anti_luck`
   (which `items.py::expected_yields` reads generically).
 - **Belonging to exactly one room → `engine/effects/rooms/<room_id>.py`**,
   registered with `@room_hook(room_id, Hook.<member>)`, mirroring

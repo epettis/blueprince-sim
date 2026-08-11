@@ -539,6 +539,23 @@ class Game:
         assert self.can_toggle_keycard_power(), "must stand in the Utility Closet"
         self.state.keycard_power_on = on
 
+    def can_toggle_darkroom_lights(self) -> bool:
+        """Standing at the Utility Closet breaker box, on the grid, mid-day."""
+        return (self.phase is Phase.NAVIGATE and self.cfg.door_locks
+                and not self.off_grid
+                and self.state.pos == self._utility_closet_cell() >= 0)
+
+    def set_darkroom_lights(self, on: bool) -> None:
+        """Flip the breaker's "Darkroom" switch (free, like the real game).
+
+        Takes effect immediately for any doorway drafted from the Darkroom
+        afterward (engine/draft.py reads the switch live); does not retroactively
+        change a hand already dealt. See effects/rooms/darkroom.py for the
+        first-entry fuse-blow this switch guards against.
+        """
+        assert self.can_toggle_darkroom_lights(), "must stand in the Utility Closet"
+        self.state.darkroom_lights_on = on
+
     def can_set_security_level(self) -> bool:
         """Standing at the Security terminal, on the grid, mid-day."""
         return (self.phase is Phase.NAVIGATE and self.cfg.door_locks

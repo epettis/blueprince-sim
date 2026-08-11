@@ -103,6 +103,8 @@ def action_group(action_id: int) -> str:
         return "choose"
     if action_id == A.TOGGLE_EXPERIMENT_ACTION:
         return "control"
+    if action_id == A.TOGGLE_DARKROOM_ACTION:
+        return "control"
     return "other"
 
 

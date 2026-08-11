@@ -138,7 +138,7 @@
    "meta": {
     "source": "https://blueprince.wiki.gg/wiki/Experiments/Triggers",
     "confidence": "wiki",
-    "blocked_on": "drafting-system gap: 'archived' is a property of a floorplan and 'hidden' is a property of how it was dealt, but the Archives and the Darkroom share the same reduce_draft_options tag in rooms.json, so the engine cannot tell an archived floorplan from a merely concealed one.",
+    "blocked_on": "needs its fire site: DraftOption.archived now distinguishes an archived floorplan from a merely concealed one, so the trigger fires when the player chooses an option carrying that flag.",
     "notes": [
      "Requires first drafting the Archives (whose effect hides floorplans during drafting) and then drafting one of the hidden ones. An archived Bunk Room triggers twice."
     ]
