@@ -28,7 +28,7 @@ DATA = Path(__file__).resolve().parent.parent / "src" / "blueprince_sim" / "data
 VALID_RARITIES = {"commonplace", "standard", "unusual", "rare", None}
 VALID_LAYOUTS = {"dead_end", "straight", "corner", "t", "cross"}
 VALID_CATEGORIES = {"blueprint", "bedroom", "hallway", "green", "shop", "red",
-                    "blackprint", "studio_addition", "outer", "objective"}
+                    "blackprint", "studio_addition", "outer", "objective", "mechanical"}
 VALID_POOLS = {"base", "studio_addition", "outer", "pool_temp", "upgrade_variant",
                "conditional", "none"}
 VALID_CONFIDENCE = {"datamined", "wiki", "inferred", "placeholder"}
@@ -1025,17 +1025,30 @@ def main(argv: list[str] | None = None) -> int:
     # "AQUARIUM is every color of room": the base Aquarium and its three
     # upgrade variants each list every colour but their own primary
     # ("blueprint"). Maid's Chamber's own effect text has always said "Counts
-    # as red room AND bedroom" -- bedroom is its lone addition. Room.categories
-    # (engine/model.py) is what turns this into the membership set
-    # Room.is_category() checks. Mirrored in tools/ingest_sheet.py's
-    # CATEGORY_OVERRIDE (the Aquarium family only; Maid's Chamber is
-    # supplemental-sourced and carries its own extra_categories directly).
+    # as red room AND bedroom" -- bedroom is its lone addition. The eight
+    # Mechanical rooms (wiki's definitive list) carry "mechanical", a room
+    # role rather than a colour; the Electric Eel Aquarium gains it on top of
+    # its existing every-colour membership. Room.categories (engine/model.py)
+    # is what turns this into the membership set Room.is_category() checks.
+    # Mirrored in tools/ingest_sheet.py's CATEGORY_OVERRIDE for the
+    # sheet-sourced rooms (the Aquarium family, Utility Closet, Boiler Room,
+    # Pump Room, Security, Workshop, Laboratory); Maid's Chamber and the
+    # Mechanarium are supplemental-sourced and carry their own
+    # extra_categories directly.
     EXPECTED_EXTRA_CATEGORIES = {
         "aquarium": {"red", "green", "hallway", "bedroom", "shop", "blackprint"},
         "goldfish_aquarium__ix2": {"red", "green", "hallway", "bedroom", "shop", "blackprint"},
         "starfish_aquarium__ix3": {"red", "green", "hallway", "bedroom", "shop", "blackprint"},
-        "electric_eel_aquarium__ix4": {"red", "green", "hallway", "bedroom", "shop", "blackprint"},
+        "electric_eel_aquarium__ix4": {
+            "red", "green", "hallway", "bedroom", "shop", "blackprint", "mechanical"},
         "maids_chamber": {"bedroom"},
+        "utility_closet": {"mechanical"},
+        "boiler_room": {"mechanical"},
+        "pump_room": {"mechanical"},
+        "security": {"mechanical"},
+        "workshop": {"mechanical"},
+        "laboratory": {"mechanical"},
+        "mechanarium": {"mechanical"},
     }
     actual_extra_categories = {
         r["id"]: set(r["extra_categories"]) for r in rooms if r.get("extra_categories")

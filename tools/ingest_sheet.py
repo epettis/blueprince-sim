@@ -414,11 +414,24 @@ FLAG_OVERRIDE: dict[str, dict] = {
 # variants each list every colour but their own primary ("blueprint") and
 # "objective" (a room role, not a colour), since each variant's own
 # effect_text repeats the same sentence verbatim alongside its own addition.
+#
+# The wiki's Mechanical room list adds six sheet-sourced rooms to the
+# membership set: Utility Closet, Boiler Room, Pump Room, Security, Workshop
+# and Laboratory. The Electric Eel Aquarium is also on that list, gaining
+# "mechanical" on top of its existing every-colour membership rather than
+# replacing it.
 CATEGORY_OVERRIDE: dict[str, list[str]] = {
     "aquarium": ["red", "green", "hallway", "bedroom", "shop", "blackprint"],
     "goldfish_aquarium__ix2": ["red", "green", "hallway", "bedroom", "shop", "blackprint"],
     "starfish_aquarium__ix3": ["red", "green", "hallway", "bedroom", "shop", "blackprint"],
-    "electric_eel_aquarium__ix4": ["red", "green", "hallway", "bedroom", "shop", "blackprint"],
+    "electric_eel_aquarium__ix4": [
+        "red", "green", "hallway", "bedroom", "shop", "blackprint", "mechanical"],
+    "utility_closet": ["mechanical"],
+    "boiler_room": ["mechanical"],
+    "pump_room": ["mechanical"],
+    "security": ["mechanical"],
+    "workshop": ["mechanical"],
+    "laboratory": ["mechanical"],
 }
 
 

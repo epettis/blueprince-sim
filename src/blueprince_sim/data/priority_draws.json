@@ -140,11 +140,16 @@
       "layout": "cross",
       "chance": 0.4,
       "condition": "southern_cross_constellation",
+      "exclude_rooms": [
+        "mechanarium",
+        "chamber_of_mirrors"
+      ],
+      "exclude_upgrade_variants": true,
       "label": "4-Door Rooms (Southern Cross Constellation)",
       "meta": {
         "confidence": "datamined",
         "source": "sheet constants: 'Southern Cross 40% 4-Way'; https://blueprince.wiki.gg/wiki/Drafting/Advanced",
-        "notes": "Reachable via state.southern_cross_active, but nothing sets it: no star-count/night-sky/Observatory chain is modeled. Day-scoped stub so the bias is testable rather than dead. 40% datamined."
+        "notes": "Reachable via state.southern_cross_active, but nothing sets it: no star-count/night-sky/Observatory chain is modeled. Day-scoped stub so the bias is testable rather than dead. 40% datamined. The wiki's own query is Room_Shape=4-way AND NOT Type HOLDS Upgrade AND NOT Name=Mechanarium AND NOT Name=Chamber of Mirrors; the Mechanarium page repeats the Mechanarium exclusion verbatim ('It is also unaffected by the Southern Cross')."
       }
     },
     {
