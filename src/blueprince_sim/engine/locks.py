@@ -68,19 +68,44 @@ def security_openable(st: GameState) -> bool:
 
 
 def roll_segment(st: GameState, rules: dict, room, cell: int, direction: int,
-                 rng: Rng) -> int:
+                 rng: Rng, entry_dir: int | None = None) -> tuple[int, int]:
     """Roll a freshly created doorway segment of ``room``'s door at ``cell``.
 
+    Returns ``(door_state, extra_key_cost)``: the door state as usual, plus
+    any extra keys (beyond the base 1 a locked segment already costs) needed
+    to open it. Only always-locked rooms' side doorways ever return a nonzero
+    extra; every other path returns 0.
+
     Always-unlocked rooms (Corridor, Corriyard) bypass everything - no lock,
-    no security door, no bias update. Otherwise security replaces the normal
-    lock roll, and guaranteed-state security doors skip the bias system too.
+    no security door, no bias update. Always-locked rooms (Great Hall) lock
+    unconditionally and also bypass the bias system; ``entry_dir`` is this
+    room's own doorway direction the player entered through (see grid.py's
+    entry_dir convention), used to exempt the doorway directly opposite entry
+    (the far doorway, no search) from the two side doorways (search applies).
+    Passing ``entry_dir=None`` -- e.g. a room placed directly rather than
+    drafted through, as test setup sometimes does -- skips the search-cost
+    roll entirely rather than guessing which doorway is "far". Otherwise
+    security replaces the normal lock roll, and guaranteed-state security
+    doors skip the bias system too.
     """
     if room.id in rules["always_unlocked_rooms"]["rooms"]:
-        return DOOR_OPEN
+        return DOOR_OPEN, 0
+    always_locked = rules.get("always_locked_rooms")
+    if always_locked and room.id in always_locked["rooms"]:
+        extra = 0
+        if entry_dir is not None and direction != OPPOSITE[entry_dir]:
+            extra = _roll_search_cost(always_locked["side_search_cost"], rng)
+        return DOOR_LOCKED, extra
     if _roll_security(st, rules, room, cell, direction, rng):
         st.security_doors_spawned += 1
-        return DOOR_SECURITY
-    return _roll_lock(st, rules, cell, direction, rng)
+        return DOOR_SECURITY, 0
+    return _roll_lock(st, rules, cell, direction, rng), 0
+
+
+def _roll_search_cost(table: dict, rng: Rng) -> int:
+    """Extra keys beyond the base 1, drawn from locks.json's side_search_cost."""
+    idx = rng.roll_weighted("locked_door_search_cost", tuple(table["weights"]))
+    return table["extra_keys"][idx]
 
 
 def _roll_lock(st: GameState, rules: dict, cell: int, direction: int, rng: Rng) -> int:

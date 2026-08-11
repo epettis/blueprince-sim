@@ -75,11 +75,12 @@ KNOWN_EFFECT_TAGS = {"grant", "grant_per_category", "grant_on_draft_category",
                      "reduce_draft_options",
                      "anti_luck", "mark_visited"}
 
-# Room ids whose "always unlocked" effect_text is implemented via
-# locks.json's always_unlocked_rooms table rather than effects/items --
-# excluded from the divergence audit below by exact id, not by text pattern,
-# so any other room's unmodelled "always unlocked" claim still surfaces.
-_AUDIT_STRUCTURAL_EXEMPT_IDS = {"corridor", "corriyard__ix50"}
+# Room ids whose "always unlocked"/"always locked" effect_text is implemented
+# via locks.json's always_unlocked_rooms/always_locked_rooms tables rather
+# than effects/items -- excluded from the divergence audit below by exact id,
+# not by text pattern, so any other room's unmodelled locking claim still
+# surfaces.
+_AUDIT_STRUCTURAL_EXEMPT_IDS = {"corridor", "corriyard__ix50", "great_hall"}
 
 # Commerce rooms whose behaviour lives in engine/shops.py, driven by shops.json,
 # rather than in effects/items. The eight priced shops come from shops.json's own
@@ -221,11 +222,12 @@ def find_divergences(
     """
     locks_backed = frozenset(rid for rid in _AUDIT_STRUCTURAL_EXEMPT_IDS if rid in by_id)
     # Sanity-check the locks-backed list so it can't silently rot: every id in
-    # it must actually be exempt from locks.json's own always_unlocked table.
-    lock_exempt = set(lock_rules.get("always_unlocked_rooms", {}).get("rooms", []))
+    # it must actually be exempt from locks.json's own always_unlocked/always_locked tables.
+    lock_exempt = (set(lock_rules.get("always_unlocked_rooms", {}).get("rooms", []))
+                   | set(lock_rules.get("always_locked_rooms", {}).get("rooms", [])))
     assert locks_backed <= lock_exempt, (
         f"_AUDIT_STRUCTURAL_EXEMPT_IDS has ids not in locks.json "
-        f"always_unlocked_rooms: {locks_backed - lock_exempt}"
+        f"always_unlocked_rooms/always_locked_rooms: {locks_backed - lock_exempt}"
     )
     structural = locks_backed | frozenset(
         rid for rid in (set(_AUDIT_PYTHON_EXEMPT_IDS) | set(_AUDIT_DATA_EXEMPT_IDS)
@@ -457,10 +459,26 @@ def main(argv: list[str] | None = None) -> int:
             errors.append(f"locks room_door_chance/{rid} out of range: {chance}")
     if not 0 <= lock_rules["keycard"]["chance"] <= 100:
         errors.append("locks keycard chance out of range")
+    always_locked = lock_rules.get("always_locked_rooms", {})
     for rid in [*lock_rules["keycard"]["source_rooms"],
-                *lock_rules["always_unlocked_rooms"]["rooms"]]:
+                *lock_rules["always_unlocked_rooms"]["rooms"],
+                *always_locked.get("rooms", [])]:
         if rid not in by_id:
             errors.append(f"locks references unknown room {rid}")
+    both = (set(lock_rules["always_unlocked_rooms"]["rooms"]) & set(always_locked.get("rooms", [])))
+    if both:
+        errors.append(f"locks: rooms in both always_unlocked_rooms and always_locked_rooms: {both}")
+    if always_locked:
+        ssc = always_locked.get("side_search_cost", {})
+        extra_keys = ssc.get("extra_keys", [])
+        weights = ssc.get("weights", [])
+        if not extra_keys or len(extra_keys) != len(weights):
+            errors.append("locks always_locked_rooms.side_search_cost: "
+                          "extra_keys/weights missing or length mismatch")
+        if any(k < 0 for k in extra_keys):
+            errors.append("locks always_locked_rooms.side_search_cost: negative extra_keys value")
+        if any(w < 0 for w in weights):
+            errors.append("locks always_locked_rooms.side_search_cost: negative weight")
 
     # required special rooms exist
     for required in ("entrance_hall", "antechamber", "closet"):

@@ -115,6 +115,11 @@ class Game:
         self.hovel_placed = False
         self.rotunda_placed = False  # Rotunda: free floorplan rotation while placed
         self.doorway_drafts: dict[tuple[int, int], PendingDraft] = {}
+        # Extra keys (beyond the base 1) a locked segment costs to open, keyed by
+        # locks.segment_key -- currently only an always-locked room's side doorways
+        # (Great Hall) via locks.roll_segment; a missing entry means 0 extra. Read
+        # by lock_open_cost; mutated only from _roll_new_segments.
+        self.door_search_cost: dict[tuple[int, int], int] = {}
         self.phase = Phase.NAVIGATE
         self.termination_reason = ""
         self.rooms_placed = 0
@@ -224,8 +229,9 @@ class Game:
             return cached
         st = self.state
         grid, doors, door_state = st.grid, st.placed_doors, st.door_state
+        search_cost = self.door_search_cost
         locked_and_drains = (
-            sum(1 for v in door_state.values() if v == DOOR_LOCKED)
+            sum(1 + search_cost.get(k, 0) for k, v in door_state.items() if v == DOOR_LOCKED)
             + sum(1 for c in range(N_CELLS) if not st.entered[c] and self.lever_key_cost(c))
         )
         keys_cap = min(st.keys, locked_and_drains)
@@ -252,7 +258,7 @@ class Game:
                     continue  # sealed: impassable regardless of keys
                 if seg == DOOR_LOCKED:
                     if not special_items.can_open_locked_free(self):
-                        nspent = spent + 1
+                        nspent = spent + 1 + search_cost.get(segment_key(cell, d), 0)
                         if nspent > keys_cap:
                             continue
                 elif seg == DOOR_SECURITY and not sec_ok:
@@ -435,16 +441,26 @@ class Game:
         """Can security doors be opened right now (keycard/power/offline mode)?"""
         return _security_openable(self.state)
 
+    def lock_open_cost(self, cell: int, direction: int) -> int:
+        """Keys a locked segment costs to open: the base 1, plus an always-locked
+        room's side-doorway search surcharge (locks.json's side_search_cost, see
+        :meth:`_roll_new_segments`) if this segment rolled one. 0 for a segment
+        that is not currently DOOR_LOCKED."""
+        if self.door_state_of(cell, direction) != DOOR_LOCKED:
+            return 0
+        return 1 + self.door_search_cost.get(segment_key(cell, direction), 0)
+
     def doorway_passable(self, cell: int, direction: int) -> bool:
         """Can the doorway be opened from where it stands: a locked door with
-        a key in hand, a security door while the system allows it, or any
+        enough keys in hand, a security door while the system allows it, or any
         open/unlocked door. Path key costs are the caller's concern (see
         :meth:`key_cost_map`)."""
         state = self.door_state_of(cell, direction)
         if state == DOOR_SEALED:
             return False  # sealed: impassable, no item or key can open it
         if state == DOOR_LOCKED:
-            return self.state.keys >= 1 or special_items.can_open_locked_free(self)
+            return (self.state.keys >= self.lock_open_cost(cell, direction)
+                    or special_items.can_open_locked_free(self))
         if state == DOOR_SECURITY:
             return self.security_openable()
         return True
@@ -485,13 +501,16 @@ class Game:
         if state == DOOR_LOCKED:
             # Silver Key: consumed for drafting (not movement); does not return
             # to the spawn pool today (consumed=False keeps it pool-eligible tomorrow).
+            # open_locked_free (Master Key / Stopwatch / Lock Pick Kit) waives
+            # the search surcharge along with the base key.
             if (for_draft and self.cfg.special_items
                     and special_items.has(st, "silver_key")):
                 special_items.remove(st, "silver_key", consumed=False)
                 st.special.silver_key_draft = True
             elif not (self.cfg.special_items and special_items.open_locked_free(self)):
-                assert st.keys >= 1, "door is locked and you have no key"
-                st.keys -= 1
+                cost = self.lock_open_cost(cell, direction)
+                assert st.keys >= cost, f"door is locked and costs {cost} keys; holding {st.keys}"
+                st.keys -= cost
             self._open_segment(cell, direction)
         elif state == DOOR_SECURITY:
             assert self.security_openable(), "security door cannot be opened"
@@ -1228,7 +1247,8 @@ class Game:
         # Drafting only PLACES the room behind the doorway. The player does
         # not enter it, pays no step, and gains none of its resources until
         # they move in (see :meth:`move`).
-        self._place_room(room, pending.target_cell, opt.orientation)
+        self._place_room(room, pending.target_cell, opt.orientation,
+                         entry_dir=OPPOSITE[pending.direction])
         del self.doorway_drafts[(pending.from_cell, pending.direction)]
         st.pending = None
         self.phase = Phase.NAVIGATE
@@ -1484,7 +1504,8 @@ class Game:
 
     # ---------------------------------------------------------------- internal
 
-    def _roll_new_segments(self, room: Room, cell: int, orientation: int) -> None:
+    def _roll_new_segments(self, room: Room, cell: int, orientation: int,
+                           entry_dir: int | None = None) -> None:
         """Roll lock/security state for the room's doors on fresh segments.
 
         The segment a room was drafted through is already DOOR_OPEN; a door
@@ -1492,6 +1513,9 @@ class Game:
         (in-drafting, as in the real game) - so a locked door can never sit
         between two connected placed rooms, and locks only ever gate frontier
         drafting. Only doors creating a segment for the first time roll.
+        ``entry_dir`` is this room's own doorway direction the player entered
+        through (see grid.py entry_dir), passed straight to locks.roll_segment
+        so an always-locked room (Great Hall) can price its side doorways.
         """
         if not self.cfg.door_locks:
             return
@@ -1509,12 +1533,15 @@ class Game:
                     st.door_state[seg] = DOOR_OPEN
                     st.door_version += 1
                 continue
-            st.door_state[seg] = roll_segment(
-                st, self.registry.lock_rules, room, cell, d, self.rng)
+            state, extra = roll_segment(
+                st, self.registry.lock_rules, room, cell, d, self.rng, entry_dir)
+            st.door_state[seg] = state
+            if extra:
+                self.door_search_cost[seg] = extra
             st.door_version += 1
 
     def _place_room(self, room: Room, cell: int, orientation: int,
-                    entered: bool = False) -> None:
+                    entered: bool = False, entry_dir: int | None = None) -> None:
         """Put ``room`` on the grid at ``cell`` with the given door orientation.
 
         Rolls lock state for its fresh door segments, updates the placed-id /
@@ -1523,12 +1550,16 @@ class Game:
         include_self react to their own draft), and ON_DRAFT_ROOM on every
         other placed room (relational effects like the Nursery).
         ``entered=True`` is only used for the Entrance Hall at day start.
+        ``entry_dir`` is this room's own doorway direction the player entered
+        through (see :meth:`_roll_new_segments`); omitted by callers that
+        place a room without drafting through it (day-start Entrance Hall,
+        Foundation carryover).
         """
         st = self.state
         st.grid[cell] = room.idx
         st.placed_doors[cell] = orientation
         st.entered[cell] = entered
-        self._roll_new_segments(room, cell, orientation)
+        self._roll_new_segments(room, cell, orientation, entry_dir)
         self.placed_ids.add(room.id)
         if room.id == "the_foundation":
             # First (and only) time this attempt it is drafted: record where, so

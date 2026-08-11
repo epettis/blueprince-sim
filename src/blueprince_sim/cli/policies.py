@@ -200,7 +200,7 @@ def _navigate_frontier(game: Game) -> None:
         if not 0 <= dist[cell] <= st.steps - 1:  # must arrive with a step to spare
             continue
         seg = game.door_state_of(cell, d)
-        if seg == locks.DOOR_LOCKED and st.keys < key_cost[cell] + 1:
+        if seg == locks.DOOR_LOCKED and st.keys < key_cost[cell] + game.lock_open_cost(cell, d):
             continue
         if seg == locks.DOOR_SECURITY and not game.security_openable():
             security_blocked = True
