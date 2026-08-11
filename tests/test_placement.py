@@ -360,3 +360,36 @@ def test_secret_garden_key_consumed_on_secret_garden_placement(registry):
         "Secret Garden Key must be consumed when the Secret Garden is placed")
     assert "secret_garden_key" in g.state.special.removed, (
         "Consumed key must appear in special.removed so it cannot respawn today")
+
+
+def test_experiment_aquarium_placement(registry, cfg):
+    """The experiment-added Aquarium copy (wiki, Aquarium "Other interactions")
+    cannot be drafted southwards into the two Rank 1 cells beside the
+    Entrance Hall (cells 1, 3), or northwards into the two Rank 9 cells
+    beside the Antechamber (cells 41, 43) -- the restriction is coupled to
+    both the cell and the direction, so it still drafts there from any other
+    direction, and anywhere else from any direction. The base Aquarium
+    carries no draft_conditions and is unaffected."""
+    st = GameState()
+    exp = registry.by_id["aquarium__experiment"]
+    # Rank 1 cells beside the Entrance Hall (cell 2): southward is barred...
+    assert not satisfies_draft_conditions(exp, 1, S, st, cfg, set(), False)
+    assert not satisfies_draft_conditions(exp, 3, S, st, cfg, set(), False)
+    # ...but every other direction into those same cells is fine.
+    assert satisfies_draft_conditions(exp, 1, N, st, cfg, set(), False)
+    assert satisfies_draft_conditions(exp, 1, E, st, cfg, set(), False)
+    assert satisfies_draft_conditions(exp, 3, W, st, cfg, set(), False)
+    # Rank 9 cells beside the Antechamber (cell 42): northward is barred...
+    assert not satisfies_draft_conditions(exp, 41, N, st, cfg, set(), False)
+    assert not satisfies_draft_conditions(exp, 43, N, st, cfg, set(), False)
+    # ...but every other direction into those same cells is fine.
+    assert satisfies_draft_conditions(exp, 41, S, st, cfg, set(), False)
+    assert satisfies_draft_conditions(exp, 43, E, st, cfg, set(), False)
+    # Elsewhere on the grid the restriction never applies, from any direction.
+    assert satisfies_draft_conditions(exp, 22, S, st, cfg, set(), False)
+    assert satisfies_draft_conditions(exp, 22, N, st, cfg, set(), False)
+    # The base Aquarium carries no draft_conditions, so the same doorways
+    # that bar the experiment copy are legal for it.
+    base = registry.by_id["aquarium"]
+    assert satisfies_draft_conditions(base, 1, S, st, cfg, set(), False)
+    assert satisfies_draft_conditions(base, 41, N, st, cfg, set(), False)

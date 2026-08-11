@@ -6373,6 +6373,47 @@
     "effect_text": "While drafting from a Tunnel, always draw another Tunnel (chain drafting). MODELED: opening the north door of a placed Tunnel force-deals a single forced Tunnel option (no RNG, slot 0 cost 0, orientation N|S); chain ends when Tunnel is illegal at the target (rank 9 blocked by rank_lte_8). NOT MODELED: southward Tunnel chains (direction not confirmed); rank-1/9 exceptional drafts with gem rewards; library gem-gate (no draw when holding >=2 gems); dig_spots luck scaling (fixed at 3).",
     "rarity_confidence": "wiki"
    }
+  },
+  {
+   "id": "aquarium__experiment",
+   "name": "Aquarium",
+   "category": "blueprint",
+   "extra_categories": [
+    "red",
+    "green",
+    "hallway",
+    "bedroom",
+    "shop",
+    "blackprint"
+   ],
+   "rarity": "unusual",
+   "gem_cost": 1,
+   "layout": "t",
+   "alt_layouts": [],
+   "draft_conditions": [
+    "experiment_aquarium"
+   ],
+   "flags": {
+    "no_library_draft": false,
+    "powered": false,
+    "duct": false,
+    "disk_reader": false,
+    "has_animal": true
+   },
+   "deck_copies": 1,
+   "effects": [],
+   "items": {
+    "guaranteed": [],
+    "additional_max": 1,
+    "dig_spots": 1
+   },
+   "pool": "pool_temp",
+   "meta": {
+    "source": "https://blueprince.wiki.gg/wiki/Aquarium",
+    "confidence": "wiki",
+    "effect_text": "AQUARIUM is every color of room.",
+    "notes": "Experiment-added copy of the Aquarium, injected by the Laboratory's add_aquariums effect ('add 3 Aquariums to today's draft pool'). Wiki (Aquarium, \"Other interactions\"): \"These additional copies are identical to the originals except that they cannot be drafted in certain positions from certain directions, possibly due to a bug or oversight. Specifically, they cannot be drafted southwards in the two Rank 1 locations adjacent to the Entrance Hall, and cannot be drafted northwards into the Rank 9 locations adjacent to the Antechamber.\" Modeled via the experiment_aquarium draft condition (cells 1/3 blocked southward, cells 41/43 blocked northward). Inert until add_aquariums itself is implemented (PR3): pool_temp keeps this record out of every deck build in the meantime."
+   }
   }
  ]
 }

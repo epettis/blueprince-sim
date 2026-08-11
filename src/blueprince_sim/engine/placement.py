@@ -14,6 +14,15 @@ from .state import GameState
 # columns, Ranks 3-8" (see docs/foundation-design.md's "17 positions" count).
 FOUNDATION_BANNED_CELL = 37
 
+# Rank 1, columns 1 and 3: the two Rank-1 cells immediately beside the
+# Entrance Hall (rank 1, col 2). Rank 9, columns 1 and 3: the two Rank-9
+# cells immediately beside the Antechamber (rank 9, col 2). The
+# experiment-added Aquarium copies cannot be drafted southwards into the
+# first pair or northwards into the second (wiki, Aquarium "Other
+# interactions").
+_EXPERIMENT_AQUARIUM_RANK1_CELLS = (1, 3)
+_EXPERIMENT_AQUARIUM_RANK9_CELLS = (41, 43)
+
 
 def legal_orientations(room: Room, cell: int, entry_dir: int, state: GameState,
                        cfg: GameConfig) -> list[int]:
@@ -130,6 +139,15 @@ def satisfies_draft_conditions(room: Room, cell: int, entry_dir: int, state: Gam
                 if rank_of(cell) == RANKS:
                     return False
                 if rank_of(cell) == 1 and entry_dir == S:
+                    return False
+            case "experiment_aquarium":
+                # Experiment-added Aquarium copy: never drafted southward into
+                # the two Rank 1 cells beside the Entrance Hall, and never
+                # drafted northward into the two Rank 9 cells beside the
+                # Antechamber. Every other cell/direction is unrestricted.
+                if cell in _EXPERIMENT_AQUARIUM_RANK1_CELLS and entry_dir == S:
+                    return False
+                if cell in _EXPERIMENT_AQUARIUM_RANK9_CELLS and entry_dir == N:
                     return False
             case "no_north_on_wing":
                 # Clock Tower / Solarium: on a wing (edge column) they cannot
