@@ -656,6 +656,97 @@ the residual `game.py` branches.
 
 ## Decisions log
 
+- **2026-08-11, redraws get a per-hand cap -- a deliberate deviation from the
+  game.** Owner, on the `drawing_room_drawn` x `set_dice` loop. Each die-redraw
+  spends a die; if the redealt hand contains the Drawing Room the trigger fires
+  and `set_dice` resets dice to 2. Redraws cost **zero steps**, so dice never
+  fall below 1 while the Drawing Room keeps appearing.
+
+  The wiki documents this as a real farming exploit and states the intended
+  payoff: *"As dice can be converted to experiment activations at a one-to-one
+  rate, a method to obtain a lot of dice makes for an easy way to activate
+  experiments hundreds of times as necessary. For example, this can be used
+  with the allowance or star effects to farm a large amount of the permanent
+  resources."* `permanent_allowance` and `gain_star` are both live.
+
+  **The owner chose to cap rather than reproduce it**, mirroring the existing
+  rotation budget cap, whose docstring already records why: a free cyclic
+  action makes a deterministic argmax policy loop on it forever. Redraw is
+  normally resource-bounded; `set_dice` removes the bound.
+
+  Act on this cold as: **this is a knowing divergence from the game, chosen
+  because the sim is an RL environment**, not a fidelity call. Record the cap
+  as a simulation constraint in the README's simplifications section, not as a
+  game rule.
+
+- **2026-08-11, the `jack_hammer` dig table diverges from the datamine and gets
+  a partial fix now.** Our table has **zero** trash entries, and
+  `DIG_PRIORITY` auto-selects the jack hammer as the best tool -- so
+  `trash_while_digging` would be silently unfireable for any player holding
+  one. The wiki's datamined table gives it **18.4%** trash.
+
+  Our `shovel` and `detector_shovel` tables reproduce the wiki row for row.
+  `jack_hammer` alone does not: no trash, no `nothing`, no dice, no Stopwatch,
+  and it **adds four vault keys the wiki does not list**, with nothing in
+  `dig.meta.note` explaining any of it.
+
+  **Owner ruling: add the six trash rows plus `nothing` at the wiki's weights
+  now, and do the full table reconciliation as its own data PR** -- a real
+  change to the dig economy should not be buried inside an experiments PR.
+
+  Act on this cold as: the unsourced vault keys are the open question. They may
+  be a deliberate addition nobody recorded, or an ingest artifact. Establish
+  which before the full rebuild deletes them.
+
+- **2026-08-11, a hidden Drawing Room counts as drawn.** Owner. The trigger
+  fires on the floorplan being dealt into the hand, whether or not the Archives
+  concealed it -- concealment is about display, not the deal.
+
+  Known consequence, accepted: firing **leaks the concealed option's identity**
+  through the experiment's success counter, which the observation exposes. An
+  agent watching the counter tick learns what the face-down card is. This
+  partially defeats the Archives whenever this trigger is configured.
+
+- **2026-08-11, six phase 3 scoping calls made without escalation.**
+
+  - **The `apples` trigger gets `game` threaded through `items.py`**, rather
+    than a deferred counter drained at enclosing sites. Every leaf already has
+    `game` reachable -- the "no game in scope" problem is a property of current
+    signatures, not a real constraint -- and threading *removes* parameters
+    (`grant_item`, `roll_room_items`, `roll_extra_items` each drop two or
+    three). A missed thread is a `TypeError`; a missed drain is a silently
+    misattributed effect that counts the wrong house. Threading also gives
+    per-apple interleaving, which is the faithful shape.
+  - **Termination gets four scoped insertions, not a blanket call**:
+    `open_door`, `open_container`, `redraw`, and
+    `_maybe_finish_experiment_setup` (the last already live since phase 1).
+    Each is justified by a specific new fire site. **Not** inside
+    `trigger_success`, which runs mid-`_place_room` before the placement is
+    finished -- terminating there would fire ON_DAY_END against a
+    half-constructed grid.
+  - **The availability layer gets the two free `day_gate`s only.** `cfg.day`
+    and `cfg.veteran_mode` already exist; `item_obtained_gate` needs a new
+    persistent `shovel_ever_obtained` flag and is deferred. Note
+    `veteran_mode` defaults to True, so all of this is a no-op by default. Any
+    filter must never shrink the pool below 3, since `draw_offers` samples 3.
+  - **The `security_door` trigger's "occasionally triggers an additional time,
+    possibly due to a bug"** stays unmodelled, recorded as a `null` magnitude
+    with the gap in `meta.notes`. The wiki hedges it and gives no rate.
+  - **The dead `chest` container kind counts as a trunk** (the wiki says chest
+    *is* trunk), so the gate is `kind in ("trunk", "chest")` and stays correct
+    if a room ever gets one. **Vault deposit boxes do not count** -- a
+    distinct mechanic.
+  - **`trunks_opened` ships with its designed partner dead.** The wiki pairs
+    it with the Entrance Hall trunk effect from both sides; that effect is
+    inert and needs dynamic per-cell container counts, which
+    `containers_in()` cannot express today.
+
+  Also found: `docs/experiments-design.md`'s Status section went stale the
+  moment PR #169 landed -- it still claims one live base trigger and a 25%
+  offer rate. And `pantry_fruit`'s note about apples being less common is
+  **not** in conflict with `items.json`'s fruit weights; they describe two
+  different pools, which is worth one clarifying line so nobody re-opens it.
+
 - **2026-08-11, our Archives is scoped wrong: the effect is house-wide for
   the day, not per-doorway.** Research triggered by the owner's archived/hidden
   correction. The wiki is unambiguous: *"The Archives ... will 'archive' one of
