@@ -1,0 +1,809 @@
+{
+ "schema_version": 1,
+ "meta": {
+  "source": "https://blueprince.wiki.gg/wiki/Experiments, https://blueprince.wiki.gg/wiki/Experiments/Triggers, https://blueprince.wiki.gg/wiki/Experiments/Effects, https://blueprince.wiki.gg/wiki/Spoilers:Experiments/Triggers, https://blueprince.wiki.gg/wiki/Spoilers:Experiments/Effects",
+  "confidence": "wiki",
+  "notes": [
+   "Phase 0 of the Laboratory/Experiments subsystem: transcription and validation only. Every record below is 'implemented: false' -- see docs/experiments-design.md for the phase plan.",
+   "Deliberately never modelled, at any future phase (see docs/experiments-design.md): the 40-second real-time trigger and the map-view trigger (no wall-clock or interactive map action in this simulator); the setup-menu reroll timing exploit (revisiting the Experimental Setup menu before committing to reroll the three-of-each draw -- a UI-timing exploit, not a data rule); Blessing of the Tinkerer cross-triggers (any active experiment also triggers whenever a Mechanical Room is drafted, independent of the chosen trigger -- a global modifier on the whole subsystem, not a per-record rule); radiation level (a hidden daily counter, incremented by every successful trigger, that gates the Shelter terminal's unlock-all-doors ability -- Shelter/radiation are out of scope); Dare Mode (an alternate, harder experiments ruleset documented on a separate wiki subpage); Research Logs (an in-fiction in-game log of experiment activation history, not a mechanical system)."
+  ]
+ },
+ "mechanic": {
+  "one_at_a_time": true,
+  "pausable": true,
+  "duration": "day",
+  "setup": "Three experimental triggers and three experimental effects are chosen uniformly from the available pool at the Laboratory terminal; the player picks one of each to form the day's experiment.",
+  "base_trigger_count": 12,
+  "base_effect_count": 12,
+  "packet_trigger_count": 8,
+  "packet_effect_count": 8,
+  "packet_note": "The Satellite Dish data packet permanently adds the 8 packet triggers and 8 packet effects to the pool, bringing each to 20; Packet Management then lets the player choose which >=8 of each may appear. Phases 5-8 (out of scope for this data pass)."
+ },
+ "triggers": [
+  {
+   "id": "immediately",
+   "text": "Immediately,",
+   "pool": "base",
+   "availability": null,
+   "cap": null,
+   "implemented": false,
+   "meta": {
+    "source": "https://blueprince.wiki.gg/wiki/Experiments/Triggers",
+    "confidence": "wiki",
+    "blocked_on": "phase 0: no experiments engine exists yet (data/validation only)",
+    "notes": [
+     "Triggers exactly once, at the moment the experiment is started."
+    ]
+   }
+  },
+  {
+   "id": "apples",
+   "text": "Each time you eat an apple,",
+   "pool": "base",
+   "availability": null,
+   "cap": null,
+   "implemented": false,
+   "meta": {
+    "source": "https://blueprince.wiki.gg/wiki/Experiments/Triggers",
+    "confidence": "wiki",
+    "blocked_on": "phase 0: no experiments engine exists yet (data/validation only)",
+    "notes": [
+     "Counts green apples and apples-with-leaves consumed for steps; no other fruit counts. The steps from the apple are gained before the experimental effect applies."
+    ]
+   }
+  },
+  {
+   "id": "shops",
+   "text": "Whenever you draft a Shop room,",
+   "pool": "base",
+   "availability": null,
+   "cap": null,
+   "implemented": false,
+   "meta": {
+    "source": "https://blueprince.wiki.gg/wiki/Experiments/Triggers",
+    "confidence": "wiki",
+    "blocked_on": "phase 0: no experiments engine exists yet (data/validation only)",
+    "notes": [
+     "All Shops count. Can loop with the Aquariums effect. With Blessing of the Tinkerer active, drafting the Electric Eel Aquarium triggers this twice (most triggers do not double this way) -- a cross-trigger interaction, deliberately not modelled per the phase 0 scope note on Blessing of the Tinkerer."
+    ]
+   }
+  },
+  {
+   "id": "security_door",
+   "text": "Each time you unlock or bypass a security door,",
+   "pool": "base",
+   "availability": {
+    "kind": "day_gate",
+    "day": 8,
+    "veteran_bypass": true,
+    "text": "If Veteran Mode is not enabled, this trigger cannot appear before Day 8."
+   },
+   "cap": null,
+   "implemented": false,
+   "meta": {
+    "source": "https://blueprince.wiki.gg/wiki/Experiments/Triggers",
+    "confidence": "wiki",
+    "blocked_on": "phase 0: no experiments engine exists yet (data/validation only)",
+    "notes": [
+     "A security door must be drafted FROM to count; merely unlocking one is not enough. Also occasionally triggers an extra time at the start of the draft, possibly a bug (wiki hedges this itself)."
+    ]
+   }
+  },
+  {
+   "id": "gems_spent",
+   "text": "Whenever you spend 2 or more gems drafting a room,",
+   "pool": "base",
+   "availability": null,
+   "cap": null,
+   "implemented": false,
+   "meta": {
+    "source": "https://blueprince.wiki.gg/wiki/Experiments/Triggers",
+    "confidence": "wiki",
+    "blocked_on": "phase 0: no experiments engine exists yet (data/validation only)",
+    "notes": [
+     "Applies to whichever rooms currently cost >=2 gems to draft -- the wiki page resolves this via a live Cargo query (Gem_cost>=2 AND NOT Type HOLDS 'Upgrade'), not a static id list, so no room id list is transcribed here. Waived if a room's gem cost is removed (e.g. by the Emerald Bracelet); gems spent elsewhere during drafting (e.g. the Study's option) do not count."
+    ]
+   }
+  },
+  {
+   "id": "bedrooms_after_second",
+   "text": "For each Bedroom you draft after your second,",
+   "pool": "base",
+   "availability": null,
+   "cap": null,
+   "implemented": false,
+   "meta": {
+    "source": "https://blueprince.wiki.gg/wiki/Experiments/Triggers",
+    "confidence": "wiki",
+    "blocked_on": "phase 0: no experiments engine exists yet (data/validation only)",
+    "notes": [
+     "The first two Bedrooms drafted (before or after the experiment starts) do not count. The Bunk Room counts twice, and can by itself satisfy both of the 'first two' -- if drafted with exactly one other Bedroom already in the house, the experiment triggers once."
+    ]
+   }
+  },
+  {
+   "id": "archived_floorplan",
+   "text": "Whenever you draft an 'archived' floorplan,",
+   "pool": "base",
+   "availability": {
+    "kind": "room_drafted_gate",
+    "room_id": "archives",
+    "veteran_bypass": true,
+    "text": "If Veteran Mode is not enabled, this trigger cannot appear until you have drafted an Archives at least once."
+   },
+   "cap": null,
+   "implemented": false,
+   "meta": {
+    "source": "https://blueprince.wiki.gg/wiki/Experiments/Triggers",
+    "confidence": "wiki",
+    "blocked_on": "phase 0: no experiments engine exists yet (data/validation only)",
+    "notes": [
+     "Requires first drafting the Archives (whose effect hides floorplans during drafting) and then drafting one of the hidden ones. An archived Bunk Room triggers twice."
+    ]
+   }
+  },
+  {
+   "id": "trunks_opened",
+   "text": "The next 3 times you unlock and open a chest,",
+   "pool": "base",
+   "availability": null,
+   "cap": 3,
+   "implemented": false,
+   "meta": {
+    "source": "https://blueprince.wiki.gg/wiki/Experiments/Triggers",
+    "confidence": "wiki",
+    "blocked_on": "phase 0: no experiments engine exists yet (data/validation only)",
+    "notes": [
+     "'Chest' is wiki terminology for trunk; counts both key-unlocks and Sledge-Hammer-equivalent smashes."
+    ]
+   }
+  },
+  {
+   "id": "hallway_from_hallway",
+   "text": "When you draft a Hallway from another Hallway,",
+   "pool": "base",
+   "availability": null,
+   "cap": null,
+   "implemented": false,
+   "meta": {
+    "source": "https://blueprince.wiki.gg/wiki/Experiments/Triggers",
+    "confidence": "wiki",
+    "blocked_on": "phase 0: no experiments engine exists yet (data/validation only)",
+    "notes": [
+     "Counts Hallways of all kinds, not just the base Hallway room."
+    ]
+   }
+  },
+  {
+   "id": "trash_while_digging",
+   "text": "Each time you find some trash while digging,",
+   "pool": "base",
+   "availability": {
+    "kind": "item_obtained_gate",
+    "item_id": "shovel",
+    "veteran_bypass": true,
+    "text": "If Veteran Mode is not enabled, this trigger cannot appear until the first time you obtain a Shovel."
+   },
+   "cap": null,
+   "implemented": false,
+   "meta": {
+    "source": "https://blueprince.wiki.gg/wiki/Experiments/Triggers",
+    "confidence": "wiki",
+    "blocked_on": "phase 0: no experiments engine exists yet (data/validation only)",
+    "notes": [
+     "Six wiki-listed trash kinds (rock, pebbles, tin can, brick, shoe, nail) plus Scraps of Paper (Patch 1.6+). Digging up 'nothing' does not count."
+    ]
+   }
+  },
+  {
+   "id": "red_room_draft",
+   "text": "When you draft a Red Room, lose 5 steps and then,",
+   "pool": "base",
+   "availability": null,
+   "cap": null,
+   "magnitude": {
+    "steps_lost": 5,
+    "floor": 0
+   },
+   "implemented": false,
+   "meta": {
+    "source": "https://blueprince.wiki.gg/wiki/Experiments/Triggers",
+    "confidence": "wiki",
+    "blocked_on": "phase 0: no experiments engine exists yet (data/validation only)",
+    "notes": [
+     "One of the few triggers that carries its own baked-in effect (the 5-step loss, floored at 0) on top of whichever effect is chosen for the column. The step loss can be nullified by pairing with the 'set steps to 40' effect."
+    ]
+   }
+  },
+  {
+   "id": "drawing_room_drawn",
+   "text": "While drafting, if you draw a DRAWING ROOM floorplan,",
+   "pool": "base",
+   "availability": {
+    "kind": "day_gate",
+    "day": 8,
+    "veteran_bypass": true,
+    "text": "If Veteran Mode is not enabled, this trigger cannot appear before Day 8."
+   },
+   "cap": null,
+   "implemented": false,
+   "meta": {
+    "source": "https://blueprince.wiki.gg/wiki/Experiments/Triggers",
+    "confidence": "wiki",
+    "blocked_on": "phase 0: no experiments engine exists yet (data/validation only)",
+    "notes": [
+     "Triggers on every draw of the Drawing Room including redraws, and even when rewinding back into a previous draw with the Chronograph."
+    ]
+   }
+  },
+  {
+   "id": "rank9_first_entry",
+   "text": "The first time you enter each room on Rank 9,",
+   "pool": "packet",
+   "availability": null,
+   "cap": null,
+   "implemented": false,
+   "meta": {
+    "source": "https://blueprince.wiki.gg/wiki/Spoilers:Experiments/Triggers",
+    "confidence": "wiki",
+    "blocked_on": "phase 0: no experiments engine exists yet (data/validation only); the packet subsystem itself is phases 5-8, not yet authorised",
+    "notes": [
+     "Includes the Antechamber. Prior visits before the experiment started do not count."
+    ]
+   }
+  },
+  {
+   "id": "fireplace_draft",
+   "text": "For each room with a fireplace you draft,",
+   "pool": "packet",
+   "availability": null,
+   "cap": null,
+   "rooms": [
+    "den",
+    "parlor",
+    "drawing_room",
+    "dining_room",
+    "furnace",
+    "hovel",
+    "schoolhouse",
+    "trophy_room",
+    "the_armory"
+   ],
+   "implemented": false,
+   "meta": {
+    "source": "https://blueprince.wiki.gg/wiki/Spoilers:Experiments/Triggers",
+    "confidence": "wiki",
+    "blocked_on": "phase 0: no experiments engine exists yet (data/validation only); the packet subsystem itself is phases 5-8, not yet authorised",
+    "notes": [
+     "The Dining Room only counts when drafted in the center of the house or on Rank 9; on the wings or Rank 1 its fireplace wall is windows instead."
+    ]
+   }
+  },
+  {
+   "id": "speed_40_seconds",
+   "text": "For every room you draft within the next 40 seconds,",
+   "pool": "packet",
+   "availability": null,
+   "cap": null,
+   "implemented": false,
+   "meta": {
+    "source": "https://blueprince.wiki.gg/wiki/Spoilers:Experiments/Triggers",
+    "confidence": "wiki",
+    "blocked_on": "phase 0: no experiments engine exists yet (data/validation only); the packet subsystem itself is phases 5-8, not yet authorised",
+    "notes": [
+     "Real-time based (~7 triggers achievable at high speed); deliberately never modelled -- this simulator has no wall-clock concept, so the trigger is meaningless here regardless of implementation phase."
+    ]
+   }
+  },
+  {
+   "id": "terminal_access",
+   "text": "Each time you access a different terminal today,",
+   "pool": "packet",
+   "availability": null,
+   "cap": null,
+   "implemented": false,
+   "meta": {
+    "source": "https://blueprince.wiki.gg/wiki/Spoilers:Experiments/Triggers",
+    "confidence": "wiki",
+    "blocked_on": "phase 0: no experiments engine exists yet (data/validation only); the packet subsystem itself is phases 5-8, not yet authorised",
+    "notes": [
+     "First access per terminal since the experiment started, including via Remote Terminal Access."
+    ]
+   }
+  },
+  {
+   "id": "upgraded_floorplan_draft",
+   "text": "Each time you draft an upgraded floorplan,",
+   "pool": "packet",
+   "availability": null,
+   "cap": null,
+   "implemented": false,
+   "meta": {
+    "source": "https://blueprince.wiki.gg/wiki/Spoilers:Experiments/Triggers",
+    "confidence": "wiki",
+    "blocked_on": "phase 0: no experiments engine exists yet (data/validation only); the packet subsystem itself is phases 5-8, not yet authorised",
+    "notes": [
+     "Multiple copies of the same upgraded floorplan each trigger separately; an upgraded Bunk Room triggers twice."
+    ]
+   }
+  },
+  {
+   "id": "antechamber_lever_pull",
+   "text": "Each time you pull a different antechamber lever,",
+   "pool": "packet",
+   "availability": null,
+   "cap": null,
+   "implemented": false,
+   "meta": {
+    "source": "https://blueprince.wiki.gg/wiki/Spoilers:Experiments/Triggers",
+    "confidence": "wiki",
+    "blocked_on": "phase 0: no experiments engine exists yet (data/validation only); the packet subsystem itself is phases 5-8, not yet authorised",
+    "notes": [
+     "Only unique levers pulled after the experiment started count; levers pulled beforehand never (re)trigger it."
+    ]
+   }
+  },
+  {
+   "id": "map_view",
+   "text": "The next 10 times you view your map, lose 10 steps and then,",
+   "pool": "packet",
+   "availability": {
+    "kind": "cross_column_probability",
+    "removes_effect_id": "set_steps",
+    "chance_pct": 95,
+    "text": "If this trigger is offered today, the \"set your steps to 40\" effect has a 95% chance to be removed from today's effect pool."
+   },
+   "cap": 10,
+   "magnitude": {
+    "steps_lost": 10
+   },
+   "implemented": false,
+   "meta": {
+    "source": "https://blueprince.wiki.gg/wiki/Spoilers:Experiments/Triggers",
+    "confidence": "wiki",
+    "blocked_on": "phase 0: no experiments engine exists yet (data/validation only); the packet subsystem itself is phases 5-8, not yet authorised",
+    "notes": [
+     "Deliberately never modelled -- there is no interactive map-viewing action in this simulator, so the trigger is meaningless here regardless of implementation phase."
+    ]
+   }
+  },
+  {
+   "id": "tomorrow_room_draft",
+   "text": "Each time you draft a Tomorrow room,",
+   "pool": "packet",
+   "availability": null,
+   "cap": null,
+   "implemented": false,
+   "meta": {
+    "source": "https://blueprince.wiki.gg/wiki/Spoilers:Experiments/Triggers",
+    "confidence": "wiki",
+    "blocked_on": "phase 0: no experiments engine exists yet (data/validation only); the packet subsystem itself is phases 5-8, not yet authorised",
+    "notes": [
+     "'Tomorrow Rooms' (upgrade-disk-granted next-day room injections) have no dedicated flag or enumerable room list in this sim's rooms.json, so no room id list is transcribed here."
+    ]
+   }
+  }
+ ],
+ "effects": [
+  {
+   "id": "gain_key_gem_or_die",
+   "text": "gain 1 key, 1 gem or 1 die (selected randomly)",
+   "pool": "base",
+   "availability": null,
+   "cap": null,
+   "magnitude": {
+    "options": [
+     "key",
+     "gem",
+     "die"
+    ],
+    "split": null
+   },
+   "implemented": false,
+   "meta": {
+    "source": "https://blueprince.wiki.gg/wiki/Experiments/Effects",
+    "confidence": "wiki",
+    "blocked_on": "phase 0: no experiments engine exists yet (data/validation only)",
+    "notes": [
+     "The key/gem/die selection split is not published by the wiki; magnitude.split left null (gap -- do not invent).",
+     "Originally granted a coin instead of the die; the coin reward was replaced with an Ivory Die in Patch 1.04.5 (provenance only, not current behavior)."
+    ]
+   }
+  },
+  {
+   "id": "set_steps",
+   "text": "set your Steps to 40.",
+   "pool": "base",
+   "availability": null,
+   "cap": null,
+   "magnitude": {
+    "steps": 40
+   },
+   "implemented": false,
+   "meta": {
+    "source": "https://blueprince.wiki.gg/wiki/Experiments/Effects",
+    "confidence": "wiki",
+    "blocked_on": "phase 0: no experiments engine exists yet (data/validation only)",
+    "notes": [
+     "Nullifies the Red Rooms trigger's own steps penalty. If triggered by drafting the Weight Room, steps are set to 40 THEN halved to 20 by the Weight Room's own effect."
+    ]
+   }
+  },
+  {
+   "id": "entrance_hall_trunk",
+   "text": "add a small chest to the Entrance Hall.",
+   "pool": "base",
+   "availability": null,
+   "cap": 17,
+   "implemented": false,
+   "meta": {
+    "source": "https://blueprince.wiki.gg/wiki/Experiments/Effects",
+    "confidence": "wiki",
+    "blocked_on": "phase 0: no experiments engine exists yet (data/validation only)",
+    "notes": [
+     "17 is a hard, wiki-stated cap (predetermined spawn order across the Entrance Hall's four walls). Shared with The Twins constellation, whose effect is identical to triggering this effect twice."
+    ]
+   }
+  },
+  {
+   "id": "keys_per_hallway_pair",
+   "text": "gain 1 key for every 2 Hallways in your house.",
+   "pool": "base",
+   "availability": null,
+   "cap": null,
+   "magnitude": {
+    "per_hallways": 2,
+    "keys": 1,
+    "rounding": "floor"
+   },
+   "implemented": false,
+   "meta": {
+    "source": "https://blueprince.wiki.gg/wiki/Experiments/Effects",
+    "confidence": "wiki",
+    "blocked_on": "phase 0: no experiments engine exists yet (data/validation only)",
+    "notes": [
+     "If the Hallway trigger itself drafted the counted Hallway, that Hallway is included in the count."
+    ]
+   }
+  },
+  {
+   "id": "gain_star",
+   "text": "gain +1 star.",
+   "pool": "base",
+   "availability": {
+    "kind": "resource_or_gate",
+    "resource": "stars",
+    "amount": 3,
+    "or_veteran": true,
+    "or_packet": true,
+    "text": "This effect will only appear if you have at least 3 stars, are on Veteran Mode, or have set up an experiment packet."
+   },
+   "cap": null,
+   "magnitude": {
+    "stars": 1
+   },
+   "implemented": false,
+   "meta": {
+    "source": "https://blueprince.wiki.gg/wiki/Experiments/Effects",
+    "confidence": "wiki",
+    "blocked_on": "phase 0: no experiments engine exists yet (data/validation only)"
+   }
+  },
+  {
+   "id": "gold_per_red_room",
+   "text": "gain 3 gold for each red room in your house.",
+   "pool": "base",
+   "availability": null,
+   "cap": null,
+   "magnitude": {
+    "coins_per_red_room": 3
+   },
+   "implemented": false,
+   "meta": {
+    "source": "https://blueprince.wiki.gg/wiki/Experiments/Effects",
+    "confidence": "wiki",
+    "blocked_on": "phase 0: no experiments engine exists yet (data/validation only)",
+    "notes": [
+     "Triggers successfully with no effect if there are currently no Red Rooms in the estate."
+    ]
+   }
+  },
+  {
+   "id": "spread_dig_spots",
+   "text": "spread dirt on the driveway.",
+   "pool": "base",
+   "availability": {
+    "kind": "cross_column_exclude",
+    "excludes_trigger_id": "trash_while_digging",
+    "text": "This effect will never be offered if the \"find trash while digging\" experiment trigger is offered."
+   },
+   "cap": null,
+   "magnitude": {
+    "spots_per_trigger_options": [
+     2,
+     3,
+     4
+    ],
+    "distribution": null
+   },
+   "implemented": false,
+   "meta": {
+    "source": "https://blueprince.wiki.gg/wiki/Experiments/Effects",
+    "confidence": "wiki",
+    "blocked_on": "phase 0: no experiments engine exists yet (data/validation only)",
+    "notes": [
+     "The 2/3/4 dig-spot-per-trigger distribution is not published by the wiki; magnitude.distribution left null (gap -- do not invent).",
+     "Wiki gives only approximate totals, not exact caps: 'approximately 100 dig spots... after around 34 experiment triggers' on the Grounds (50 after 17 triggers if redirected to a Conference Room); no cap field recorded because these are stated as approximate, unlike the exact 17/16/40/3/10 caps on other records."
+    ]
+   }
+  },
+  {
+   "id": "set_dice",
+   "text": "set your dice to 2.",
+   "pool": "base",
+   "availability": null,
+   "cap": null,
+   "magnitude": {
+    "dice": 2
+   },
+   "implemented": false,
+   "meta": {
+    "source": "https://blueprince.wiki.gg/wiki/Experiments/Effects",
+    "confidence": "wiki",
+    "blocked_on": "phase 0: no experiments engine exists yet (data/validation only)",
+    "notes": [
+     "UNPUBLISHED, DO NOT IMPLEMENT: the wiki source carries this rule commented out (not live text): 'This effect cannot be offered if the gain 1 key/gem/die effect is offered.' The editors have not confirmed it and flag the broader datamine as unreliable ('a lot of the datamined info on experiments has been off or just straight up wrong'). Recorded here for provenance only."
+    ]
+   }
+  },
+  {
+   "id": "add_aquariums",
+   "text": "add 3 Aquariums to today's draft pool.",
+   "pool": "base",
+   "availability": null,
+   "cap": null,
+   "magnitude": {
+    "aquariums_added": 3,
+    "rarity_override": "commonplace",
+    "priority_draw_chance_pct": [
+     13,
+     3
+    ]
+   },
+   "implemented": false,
+   "meta": {
+    "source": "https://blueprince.wiki.gg/wiki/Experiments/Effects",
+    "confidence": "wiki",
+    "blocked_on": "phase 0: no experiments engine exists yet (data/validation only)",
+    "notes": [
+     "The rarity_override and priority_draw_chance_pct fields are wiki-datamined (tagged DataSpoiler) rather than plain wiki text, unlike the '3 Aquariums' headline number.",
+     "Added Aquariums have different placement restrictions than the original Aquarium, which can make the count look smaller than it is."
+    ]
+   }
+  },
+  {
+   "id": "mail_room_letter",
+   "text": "a letter will be delivered to the Mail Room.",
+   "pool": "base",
+   "availability": {
+    "kind": "day_or_packet_gate",
+    "day": 11,
+    "or_packet": true,
+    "text": "This effect cannot appear until Day 11, unless a custom experiment packet has been created."
+   },
+   "cap": 16,
+   "implemented": false,
+   "meta": {
+    "source": "https://blueprince.wiki.gg/wiki/Experiments/Effects",
+    "confidence": "wiki",
+    "blocked_on": "phase 0: no experiments engine exists yet (data/validation only)",
+    "notes": [
+     "16 letters total, delivered in a fixed predetermined order regardless of whether the Mail Room is on the estate; never offered again once all 16 are delivered (the wiki-stated cap)."
+    ]
+   }
+  },
+  {
+   "id": "permanent_allowance",
+   "text": "permanently add 1 gold to your allowance.",
+   "pool": "base",
+   "availability": null,
+   "cap": null,
+   "magnitude": {
+    "allowance_gold": 1
+   },
+   "implemented": false,
+   "meta": {
+    "source": "https://blueprince.wiki.gg/wiki/Experiments/Effects",
+    "confidence": "wiki",
+    "blocked_on": "phase 0: no experiments engine exists yet (data/validation only)"
+   }
+  },
+  {
+   "id": "steps_for_gold",
+   "text": "lose 10 steps and gain 20 gold.",
+   "pool": "base",
+   "availability": null,
+   "cap": null,
+   "magnitude": {
+    "steps_lost": 10,
+    "coins_gained": 20
+   },
+   "implemented": false,
+   "meta": {
+    "source": "https://blueprince.wiki.gg/wiki/Experiments/Effects",
+    "confidence": "wiki",
+    "blocked_on": "phase 0: no experiments engine exists yet (data/validation only)"
+   }
+  },
+  {
+   "id": "pantry_fruit",
+   "text": "stock your PANTRY with fruit.",
+   "pool": "packet",
+   "availability": {
+    "kind": "room_present_gate",
+    "room_id": "pantry",
+    "checked_at": "first_view",
+    "text": "This effect can only appear if there is a Pantry already in the estate when first viewing experiment options."
+   },
+   "cap": null,
+   "magnitude": {
+    "fruit_per_trigger_approx": 4,
+    "mix_ordinal": [
+     "banana",
+     "orange",
+     "apple"
+    ],
+    "mix_weights": null
+   },
+   "implemented": false,
+   "meta": {
+    "source": "https://blueprince.wiki.gg/wiki/Spoilers:Experiments/Effects",
+    "confidence": "wiki",
+    "blocked_on": "phase 0: no experiments engine exists yet (data/validation only); the packet subsystem itself is phases 5-8, not yet authorised",
+    "notes": [
+     "The exact fruit mix (apple vs banana vs orange weights) is not published, only their relative ordering (apples less common than bananas and oranges); magnitude.mix_weights left null (gap -- do not invent)."
+    ]
+   }
+  },
+  {
+   "id": "reservoir_water_level",
+   "text": "Lower the Reservoir by 1",
+   "pool": "packet",
+   "availability": {
+    "kind": "value_variant",
+    "condition": "water_level_0_at_selection",
+    "swap_text": "Raise the Reservoir by 1",
+    "text": "If the Reservoir's water level is 0 when this experimental effect is randomly chosen during setup, it is changed to 'Raise the Reservoir by 1' (identical mechanism, reversed direction, water_delta effectively +1). Once either variant is rolled during setup it is locked in for the rest of the day even if the water level changes again before the experiment begins."
+   },
+   "cap": null,
+   "magnitude": {
+    "water_delta": -1
+   },
+   "implemented": false,
+   "meta": {
+    "source": "https://blueprince.wiki.gg/wiki/Spoilers:Experiments/Effects",
+    "confidence": "wiki",
+    "blocked_on": "phase 0: no experiments engine exists yet (data/validation only); the packet subsystem itself is phases 5-8, not yet authorised"
+   }
+  },
+  {
+   "id": "remove_tunnel_crate",
+   "text": "remove a crate from the tunnel.",
+   "pool": "packet",
+   "availability": null,
+   "cap": 40,
+   "magnitude": {
+    "crates_total": 40,
+    "document_crate_removed_at": 18,
+    "file_cabinet_key_reachable_at": 23,
+    "far_door_reachable_at": 36
+   },
+   "implemented": false,
+   "meta": {
+    "source": "https://blueprince.wiki.gg/wiki/Spoilers:Experiments/Effects",
+    "confidence": "wiki",
+    "blocked_on": "phase 0: no experiments engine exists yet (data/validation only); the packet subsystem itself is phases 5-8, not yet authorised",
+    "notes": [
+     "UNPUBLISHED, DO NOT IMPLEMENT: the wiki source carries this rule commented out (not live text): 'If fewer than 36 crates... have been removed, this effect has a 30% chance to be removed from today's effect pool,' with the editor's own note that they tested it and found no meaningful frequency change, and a general caution that a lot of the datamined experiments info 'has been off or just straight up wrong.' Recorded here for provenance only.",
+     "Actual crate removal is gated on the tunnel's left torch being lit (engine/special_items.py ignition targets do not currently include the tunnel); the trigger message still displays and the count still advances even when unlit, with removal applied retroactively once lit."
+    ]
+   }
+  },
+  {
+   "id": "unseal_antechamber_door",
+   "text": "unseal one of the doors of the ANTECHAMBER.",
+   "pool": "packet",
+   "availability": null,
+   "cap": null,
+   "magnitude": {
+    "doors_total": 4,
+    "weighting": null
+   },
+   "implemented": false,
+   "meta": {
+    "source": "https://blueprince.wiki.gg/wiki/Spoilers:Experiments/Effects",
+    "confidence": "wiki",
+    "blocked_on": "phase 0: no experiments engine exists yet (data/validation only); the packet subsystem itself is phases 5-8, not yet authorised",
+    "notes": [
+     "The wiki states west/east/south doors 'appear to be preferred' over north but gives no numbers; magnitude.weighting left null (gap -- do not invent).",
+     "Has no effect once all four doors are unsealed (still triggers, no-op)."
+    ]
+   }
+  },
+  {
+   "id": "keys_per_30_steps",
+   "text": "gain 1 key for every 30 steps you have.",
+   "pool": "packet",
+   "availability": null,
+   "cap": null,
+   "magnitude": {
+    "steps_per_key": 30,
+    "rounding": "floor"
+   },
+   "implemented": false,
+   "meta": {
+    "source": "https://blueprince.wiki.gg/wiki/Spoilers:Experiments/Effects",
+    "confidence": "wiki",
+    "blocked_on": "phase 0: no experiments engine exists yet (data/validation only); the packet subsystem itself is phases 5-8, not yet authorised"
+   }
+  },
+  {
+   "id": "permanent_lockpicking_skill",
+   "text": "permanently increase your lockpicking skill.",
+   "pool": "packet",
+   "availability": null,
+   "cap": null,
+   "magnitude": {
+    "amount": null
+   },
+   "implemented": false,
+   "meta": {
+    "source": "https://blueprince.wiki.gg/wiki/Spoilers:Experiments/Effects",
+    "confidence": "wiki",
+    "blocked_on": "phase 0: no experiments engine exists yet (data/validation only); the packet subsystem itself is phases 5-8, not yet authorised",
+    "notes": [
+     "The magnitude of the skill increase is not published anywhere -- the wiki notes there is no in-game way to check lockpicking skill at all short of tallying Research Log activation counts; magnitude.amount left null (gap -- do not invent).",
+     "The Pick Sound Amplifier also benefits from this skill (wiki-confirmed)."
+    ]
+   }
+  },
+  {
+   "id": "random_item_then_zero_keys",
+   "text": "gain 1 random item, then set your keys to 0.",
+   "pool": "packet",
+   "availability": null,
+   "cap": null,
+   "magnitude": {
+    "keys_after": 0,
+    "item_pool": null
+   },
+   "implemented": false,
+   "meta": {
+    "source": "https://blueprince.wiki.gg/wiki/Spoilers:Experiments/Effects",
+    "confidence": "wiki",
+    "blocked_on": "phase 0: no experiments engine exists yet (data/validation only); the packet subsystem itself is phases 5-8, not yet authorised",
+    "notes": [
+     "The eligible item pool is a live wiki Cargo query (Items where Locations HOLDS 'Experiment'), not present in static wikitext; magnitude.item_pool left null (gap -- do not invent). If fewer than 2 pool items are currently available to spawn, a Silver Key is granted instead."
+    ]
+   }
+  },
+  {
+   "id": "half_steps_for_dice",
+   "text": "lose half your steps, then gain 4 Ivory Die.",
+   "pool": "packet",
+   "availability": null,
+   "cap": null,
+   "magnitude": {
+    "steps_multiplier": 0.5,
+    "steps_rounding": "floor",
+    "dice_gained": 4
+   },
+   "implemented": false,
+   "meta": {
+    "source": "https://blueprince.wiki.gg/wiki/Spoilers:Experiments/Effects",
+    "confidence": "wiki",
+    "blocked_on": "phase 0: no experiments engine exists yet (data/validation only); the packet subsystem itself is phases 5-8, not yet authorised"
+   }
+  }
+ ]
+}
