@@ -656,6 +656,112 @@ the residual `game.py` branches.
 
 ## Decisions log
 
+- **2026-08-11, three premises behind the `add_aquariums` scoping were wrong,
+  and the groundwork is far smaller than costed.** Recorded because the owner
+  accepted a cost estimate built on them.
+
+  **1. `draft.py::_priority_draw` is NOT a first-match loop.** It rolls
+  **every** entry independently and `continue`s past a failed roll, returning
+  only on a roll that succeeded *and* yielded a draftable room. Measured over
+  400k seeds, the two existing rows fire at **0.15606** against the wiki's
+  stated **0.1561**. The compounding the Aquarium needs **already works**; no
+  new mechanism is required. What is missing is only *day-scoping* of an
+  entry, and `_apply_category_bias` already has the `condition` idiom to copy.
+
+  **2. There is no deal-time rarity read, so a "rarity override channel" is
+  the wrong shape.** `_deal_from_rarity` is handed a `rarity_idx` and never
+  asks a card what rarity it is -- **a card's effective rarity IS the deck it
+  sits in**. So "set Aquarium's Dynamic Rarity to Commonplace" is a *card
+  move* between buckets, which the repo already does twice
+  (`reroll_random_rarities` for the Conservatory, `apply_upgrade`'s
+  cross-bucket path). **No rebuild of the decks is needed, and a mid-day
+  rebuild would be actively unsafe** -- it resets all eight cursors, silently
+  discarding today's upgrades, injections and Conservatory rerolls.
+
+  **3. The Aquarium room record already exists.** The new record is a
+  *second, distinct* floorplan (the experiment-added copy, which the wiki
+  gives its own placement restriction), not the Aquarium itself.
+
+  **Scheduling consequence, and it inverts what I told the owner: the room
+  record is the retrain trigger, not the effect.** `obs.py` uses
+  `len(registry.rooms)` as a Box high bound, and `Room.idx` is *position in
+  rooms.json order* -- so a new record inserted mid-file shifts every later
+  room's index and invalidates the policy's learned room embedding far more
+  deeply than a bound change. **It must be appended at the end**, through
+  `tools/supplemental_rooms.json` rather than a hand-edit.
+
+  `decks.py::add_copies` is confirmed wrong for this effect: it reshuffles the
+  whole deck and rewinds the cursor, by design, because it serves once-per-day
+  callers. Firing it 40+ times a day would re-arm the entire bucket each time.
+  The replacement inserts into the **undealt** region only.
+
+- **2026-08-11, the Aquarium gets two separate condition-gated priority-draw
+  rows, not a place in the existing ones.** Owner. The wiki says the effect
+  "adds Aquarium to the 3/13% passive filters", but our `_priority_draw`
+  resolves a row's `rooms` list by **fixed order, first draftable wins**,
+  while the real game treats a priority draw as a *filter* and draws by deck
+  order among the survivors.
+
+  Joining the rows would therefore starve the Aquarium behind the Commissary
+  and Observatory -- materially wrong once the Aquarium has 3, 6 or 9 copies
+  in the deck against the Commissary's single card. Separate rows reproduce
+  the published 15.61% exactly, at the cost of two extra RNG substreams.
+
+  Act on this cold as: this is a **deliberate divergence from the wiki's
+  literal wording, chosen because our priority-draw resolution differs from
+  the game's.** If the resolution is ever fixed to draw by deck order among
+  survivors, revisit -- joining the rows would then be both literal and
+  correct.
+
+- **2026-08-11, the priority-draw rows are already off-spec, and that is its
+  own PR.** Owner. Independent of the Aquarium work: the wiki puts the
+  **Garage** in the 3% row (excluded in early days) and says the **Secret
+  Passage** sits in the 5% row *only while the Greenhouse is undrafted*,
+  moving to 3% afterwards. Our data has the Classroom alone at 3% and the
+  Secret Passage unconditionally at 5%.
+
+  Fixed separately rather than inside the Aquarium PR, so a shift in draft
+  odds has one attributable cause.
+
+  **Two corrections to the research that scoped this, both verified against
+  the wiki source and our own data, and both shrinking the job:**
+
+  - **The Greenhouse gating tag already exists and is already consulted in
+    the very function that needs it.** `_priority_draw` reads
+    `state.greenhouse_placed` to swap in an entry's
+    `chance_with_greenhouse`, and the Greenhouse room module sets that flag.
+    Our 5%-to-50% boost is therefore already correct and already sourced.
+    What is missing is only the Secret Passage's **conditional membership**
+    of the two rows -- and the flag it keys on is in scope at that line.
+
+    The published text (`Drafting/Advanced`) is:
+    *"Patio, Veranda, Greenhouse, Morning Room: 5% chance, increased to 50%
+    if a Greenhouse is active. Secret Passage is included if Greenhouse has
+    not been drafted."* and *"Garage, Classroom: 3% chance. (Garage excluded
+    in early days, Secret Passage included after Greenhouse effect is
+    active)."*
+
+  - **The Garage's absence from the 3% row is a known, documented gap, not a
+    new finding.** `priority_draws.json`'s `forced_draws.garage.meta.notes`
+    already records it: *"The separate Day-5-or-Veteran 3% passive Priority
+    Draw for the Garage (wiki) is a different, unimplemented mechanic -- do
+    not conflate the two gates."* Our note is more specific than the wiki's
+    "early days". Leave that mechanic alone; it is not what this PR is for.
+
+  So the job is one conditional rooms-list, not a new gating mechanism.
+
+- **2026-08-11, the Mail Room's Dynamic Rarity deferral is re-opened.**
+  Owner. It was deferred on 2026-08-09 with the stated reason that
+  `decks.py` had no rarity-override channel and building one was its own work
+  touching the draft hot path. **That reason expires the moment the Aquarium
+  groundwork lands** -- the card-move primitive is exactly the channel it
+  wanted. A waiting package setting the Mail Room to Commonplace becomes a
+  few lines on the same primitive.
+
+  Its own small PR, after the groundwork. Note the wiki publishes a ~25-room
+  Dynamic Rarity table, none of it modelled; this re-opens the Mail Room
+  specifically, not the table.
+
 - **2026-08-11, Entrance Hall trunks are entirely per-day: 17 is a DAILY
   maximum, and nothing carries over.** Owner, from play. Neither the spawned
   trunks nor the spawn counter survives the night -- the effect can add up to
