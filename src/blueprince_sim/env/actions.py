@@ -5,7 +5,7 @@ to draft, or a room to enter) and the engine walks the shortest connected
 path, paying the normal one-step-per-room cost. Re-entering rooms grants
 nothing, so free-form single-tile moves were retired.
 
-Layout (Discrete(311)):
+Layout (Discrete(327)):
   0..179   draft at doorway: cell (45) x direction (4: N,E,S,W) ->
            cell*4 + dir_index. Walks to the room first if needed. Legal for
            every frontier doorway reachable with at least one step to spare
@@ -66,6 +66,17 @@ Layout (Discrete(311)):
            Standing at the inner_sanctum area node holding an unspent Sanctum
            Key, with that realm's door still sealed. Permanently unlocks the
            door and grants its one-time +2 allowance immediately.
+  319      operate the Experimental Setup terminal (NAVIGATE; standing in the
+           Laboratory, no experiment configured today) -- draws 3 triggers
+           and 3 effects and enters EXPERIMENT_PENDING.
+  320..322 choose experiment trigger slot 0/1/2 (EXPERIMENT_PENDING; legal
+           until a trigger has been chosen this setup).
+  323..325 choose experiment effect slot 0/1/2 (EXPERIMENT_PENDING; legal
+           until an effect has been chosen this setup). Once both a trigger
+           and an effect are chosen the experiment starts and phase returns
+           to NAVIGATE.
+  326      pause/resume the configured experiment (NAVIGATE; standing in the
+           Laboratory with a configured experiment).
 """
 
 from __future__ import annotations
@@ -128,8 +139,14 @@ _N_AREA_NODES = 38
 OPEN_SIGIL_DOOR_BASE = TRAVEL_BASE + _N_AREA_NODES  # 273 + 38 = 311
 _N_SIGIL_REALMS = 8
 
-# N_ACTIONS = first slot after the Sigil Chamber block.
-N_ACTIONS = OPEN_SIGIL_DOOR_BASE + _N_SIGIL_REALMS  # 311 + 8 = 319
+# Experiments block; see the module docstring for the per-slot legality rules.
+START_SETUP_ACTION = OPEN_SIGIL_DOOR_BASE + _N_SIGIL_REALMS  # 311 + 8 = 319
+EXP_TRIGGER_BASE = START_SETUP_ACTION + 1    # 320..322
+EXP_EFFECT_BASE = EXP_TRIGGER_BASE + 3       # 323..325
+TOGGLE_EXPERIMENT_ACTION = EXP_EFFECT_BASE + 3  # 326
+
+# N_ACTIONS = first slot after the experiments block.
+N_ACTIONS = TOGGLE_EXPERIMENT_ACTION + 1  # 326 + 1 = 327
 
 DIR_INDEX = {d: i for i, d in enumerate(DIRS)}
 
@@ -344,6 +361,13 @@ def action_mask(game: Game, prev_action: int | None = None) -> list[bool]:
         if game.can_light():
             mask[LIGHT_ACTION] = True
 
+        # Both predicates go through at_laboratory_terminal(), which is False
+        # off-grid and inside outer rooms, so they need no separate guard.
+        if game.can_start_setup():
+            mask[START_SETUP_ACTION] = True
+        if game.can_toggle_experiment():
+            mask[TOGGLE_EXPERIMENT_ACTION] = True
+
         # Travel actions: legal on-grid AND off-grid. A destination is legal when
         # reachable, the player can strictly afford it (steps > cost, so at
         # least 1 step remains on arrival), and it is not the current location.
@@ -496,6 +520,17 @@ def action_mask(game: Game, prev_action: int | None = None) -> list[bool]:
         # No other actions are legal in this phase — the player must choose.
         for i in range(3):
             mask[CHOOSE_UPGRADE_BASE + i] = True
+    elif game.phase is Phase.EXPERIMENT_PENDING:
+        # Exactly three triggers and three effects are always offered; each
+        # section masks off once its own pick has been made (the other
+        # section stays open independently, so either can be picked first).
+        ex = game.state.experiment
+        if ex.trigger_id is None:
+            for i in range(3):
+                mask[EXP_TRIGGER_BASE + i] = True
+        if ex.effect_id is None:
+            for i in range(3):
+                mask[EXP_EFFECT_BASE + i] = True
     # Security-setpoint repeat guard: if the last applied action was a
     # set-level id, mask all three off so the agent must do something else
     # before touching the setpoint again.
@@ -586,9 +621,17 @@ def apply_action(game: Game, action: int) -> None:
         node_id = node_ids[action - TRAVEL_BASE]
         game.travel_to(node_id)
         # A grid walk inside travel_to can end the day; caller must check phase.
-    elif OPEN_SIGIL_DOOR_BASE <= action < N_ACTIONS:
+    elif OPEN_SIGIL_DOOR_BASE <= action < START_SETUP_ACTION:
         realm = _si.SIGIL_REALMS[action - OPEN_SIGIL_DOOR_BASE]
         game.open_sigil_door(realm)
+    elif action == START_SETUP_ACTION:
+        game.start_setup()
+    elif EXP_TRIGGER_BASE <= action < EXP_EFFECT_BASE:
+        game.choose_experiment_trigger(action - EXP_TRIGGER_BASE)
+    elif EXP_EFFECT_BASE <= action < TOGGLE_EXPERIMENT_ACTION:
+        game.choose_experiment_effect(action - EXP_EFFECT_BASE)
+    elif action == TOGGLE_EXPERIMENT_ACTION:
+        game.toggle_experiment()
     else:
         raise ValueError(f"unimplemented action {action}")
 
@@ -695,7 +738,21 @@ def describe_action(game: Game, action: int) -> str:
         result = game.area_route_cost(node_id)
         cost = result[0] if result is not None else "?"
         return f"travel to {name} ({cost} steps)"
-    if OPEN_SIGIL_DOOR_BASE <= action < N_ACTIONS:
+    if OPEN_SIGIL_DOOR_BASE <= action < START_SETUP_ACTION:
         realm = _si.SIGIL_REALMS[action - OPEN_SIGIL_DOOR_BASE]
         return f"open Sigil Chamber door: {realm.replace('_', ' ').title()}"
+    if action == START_SETUP_ACTION:
+        return "operate Experimental Setup terminal"
+    if EXP_TRIGGER_BASE <= action < EXP_EFFECT_BASE:
+        i = action - EXP_TRIGGER_BASE
+        offered = game.state.experiment.offered_triggers
+        text = game.registry.experiments.trigger_by_id[offered[i]].text if i < len(offered) else "?"
+        return f"choose experiment trigger #{i}: {text}"
+    if EXP_EFFECT_BASE <= action < TOGGLE_EXPERIMENT_ACTION:
+        i = action - EXP_EFFECT_BASE
+        offered = game.state.experiment.offered_effects
+        text = game.registry.experiments.effect_by_id[offered[i]].text if i < len(offered) else "?"
+        return f"choose experiment effect #{i}: {text}"
+    if action == TOGGLE_EXPERIMENT_ACTION:
+        return "resume experiment" if game.state.experiment.paused else "pause experiment"
     return f"action {action}"

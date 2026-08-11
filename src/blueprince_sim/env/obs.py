@@ -95,7 +95,18 @@ def observation_space(n_rooms: int, n_items: int, n_recipes: int,
         # upgrade_options: Room.idx+1 for each of the three offered upgrade variants
         # while in UPGRADE_PENDING, or -1 in every slot otherwise.
         "upgrade_options": spaces.Box(-1, max(n_rooms, 999), shape=(3,), dtype=np.int16),
-        "phase": spaces.Discrete(4),
+        # experiment: Laboratory/Experiments state, 0 = none/absent throughout
+        # (matching item_state's +1/0 sentinel convention, not options' -1):
+        #   [0:3] offered trigger idx+1 (registry.experiments.triggers order),
+        #         while in EXPERIMENT_PENDING with that slot still unchosen
+        #   [3:6] offered effect idx+1 (registry.experiments.effects order),
+        #         while in EXPERIMENT_PENDING with that slot still unchosen
+        #   [6]   today's chosen trigger idx+1, or 0 if not configured
+        #   [7]   today's chosen effect idx+1, or 0 if not configured
+        #   [8]   paused (0/1)
+        #   [9]   success_count today, clamped to 999
+        "experiment": spaces.Box(0, 999, shape=(10,), dtype=np.int16),
+        "phase": spaces.Discrete(5),
         # disks_held: count of upgrade disks in inventory, clamped to
         # MAX_DISKS_HELD. Lets the agent know whether inserting is possible
         # without inspecting the full inventory.
@@ -431,6 +442,26 @@ def encode(game: Game, day_chain: DayChain | None = None) -> dict:
     # the same MAX_DISKS_HELD that bounds the declared space above.
     disks_held = min(len(game.held_disk_ids()), MAX_DISKS_HELD)
 
+    # experiment: Laboratory/Experiments state (see the space's field-layout comment).
+    ex_state = st.experiment
+    ex_registry = registry.experiments
+    trigger_idx = {t.id: i for i, t in enumerate(ex_registry.triggers)}
+    effect_idx = {e.id: i for i, e in enumerate(ex_registry.effects)}
+    experiment_arr = np.zeros(10, dtype=np.int16)
+    if game.phase is Phase.EXPERIMENT_PENDING:
+        if ex_state.trigger_id is None:
+            for i, tid in enumerate(ex_state.offered_triggers[:3]):
+                experiment_arr[i] = trigger_idx.get(tid, -1) + 1
+        if ex_state.effect_id is None:
+            for i, eid in enumerate(ex_state.offered_effects[:3]):
+                experiment_arr[3 + i] = effect_idx.get(eid, -1) + 1
+    if ex_state.trigger_id is not None:
+        experiment_arr[6] = trigger_idx.get(ex_state.trigger_id, -1) + 1
+    if ex_state.effect_id is not None:
+        experiment_arr[7] = effect_idx.get(ex_state.effect_id, -1) + 1
+    experiment_arr[8] = int(ex_state.paused)
+    experiment_arr[9] = min(ex_state.success_count, 999)
+
     # shop_stock: current shop's display (SHOP_STOCK_ROWS x 5), -1 sentinel rows
     shop_stock_arr = _encode_shop_stock(game)
 
@@ -521,6 +552,7 @@ def encode(game: Game, day_chain: DayChain | None = None) -> dict:
         "resources": resources,
         "options": options,
         "upgrade_options": upgrade_options,
+        "experiment": experiment_arr,
         "phase": game.phase.value,
         "disks_held": disks_held,
         "stage": STAGE_INDEX.get(st.stage, 2),

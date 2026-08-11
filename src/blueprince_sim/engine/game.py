@@ -7,7 +7,7 @@ from enum import Enum
 from heapq import heappop, heappush
 
 from ..config import GameConfig
-from . import effects, shops, special_items
+from . import effects, experiments, shops, special_items
 from .areas import GateContext, reachable
 from .decks import apply_upgrade, build_decks, inject_rooms
 from .draft import deal_draft, redeal
@@ -35,6 +35,7 @@ class Phase(Enum):
     DRAFTING = 1
     TERMINAL = 2
     UPGRADE_PENDING = 3
+    EXPERIMENT_PENDING = 4
 
 
 class RedrawKind(Enum):
@@ -1766,6 +1767,121 @@ class Game:
         st.pending_upgrade_slot = None
         st.pending_upgrade_options = ()
         self.phase = Phase.NAVIGATE
+
+    # -------------------------------------------------------- experiments
+
+    def at_laboratory_terminal(self) -> bool:
+        """True when the player is standing in the Laboratory, at its terminal.
+
+        Distinct from ``disk_reader_here()``: Security, Laboratory, Office and
+        Shelter all carry ``flags.disk_reader``, but the Experimental Setup
+        menu is specific to the Laboratory's own terminal, so this checks the
+        room id directly rather than the shared disk-reader flag. The
+        Laboratory has no upgrade variants and no outer-room presence, so an
+        exact on-grid id match is the whole check.
+        """
+        if self.inside_outer_room or self.off_grid:
+            return False
+        st = self.state
+        if not (0 <= st.pos < len(st.grid)) or st.grid[st.pos] < 0:
+            return False
+        return self.registry.rooms[st.grid[st.pos]].id == "laboratory"
+
+    def can_start_setup(self) -> bool:
+        """True when operating the Experimental Setup terminal is legal right now.
+
+        Requires NAVIGATE, standing at the Laboratory terminal, and no
+        experiment already configured today -- "only one experiment can be
+        active on any given day" (wiki), so a second setup attempt while one
+        is configured offers nothing new.
+        """
+        return (
+            self.phase is Phase.NAVIGATE
+            and self.at_laboratory_terminal()
+            and not self.state.experiment.configured
+        )
+
+    def start_setup(self) -> None:
+        """Operate the terminal: draw 3 triggers and 3 effects, enter EXPERIMENT_PENDING.
+
+        Draws uniformly from the base pool only (draw_offers); the packet
+        pool stays undrawable until the packet subsystem (phases 5-8) is
+        authorised. A no-op if an experiment is already configured today --
+        mirrors can_start_setup so a caller that skips the mask still can't
+        redraw a live experiment's offers out from under it.
+        """
+        if not self.can_start_setup():
+            return
+        st = self.state
+        offered_triggers, offered_effects = experiments.draw_offers(self.registry, self.rng)
+        st.experiment.offered_triggers = offered_triggers
+        st.experiment.offered_effects = offered_effects
+        self.phase = Phase.EXPERIMENT_PENDING
+
+    def choose_experiment_trigger(self, index: int) -> None:
+        """Choose one of the three offered triggers.
+
+        Only legal in EXPERIMENT_PENDING with 0 <= index < 3 and no trigger
+        chosen yet this setup. Once both a trigger and an effect are chosen,
+        the experiment starts (see _maybe_finish_experiment_setup).
+        """
+        st = self.state
+        assert self.phase is Phase.EXPERIMENT_PENDING, \
+            "choose_experiment_trigger only legal in EXPERIMENT_PENDING"
+        assert st.experiment.trigger_id is None, "trigger already chosen this setup"
+        assert 0 <= index < 3, f"index must be 0, 1, or 2; got {index}"
+        st.experiment.trigger_id = st.experiment.offered_triggers[index]
+        self._maybe_finish_experiment_setup()
+
+    def choose_experiment_effect(self, index: int) -> None:
+        """Choose one of the three offered effects.
+
+        Only legal in EXPERIMENT_PENDING with 0 <= index < 3 and no effect
+        chosen yet this setup. Once both a trigger and an effect are chosen,
+        the experiment starts (see _maybe_finish_experiment_setup).
+        """
+        st = self.state
+        assert self.phase is Phase.EXPERIMENT_PENDING, \
+            "choose_experiment_effect only legal in EXPERIMENT_PENDING"
+        assert st.experiment.effect_id is None, "effect already chosen this setup"
+        assert 0 <= index < 3, f"index must be 0, 1, or 2; got {index}"
+        st.experiment.effect_id = st.experiment.offered_effects[index]
+        self._maybe_finish_experiment_setup()
+
+    def _maybe_finish_experiment_setup(self) -> None:
+        """Once both a trigger and an effect are chosen, start the experiment.
+
+        Clears the offered lists, returns phase to NAVIGATE, and -- since the
+        "immediately" trigger needs no separate firing site -- fires it right
+        here, exactly once, the moment the experiment becomes active.
+        """
+        st = self.state
+        if st.experiment.trigger_id is None or st.experiment.effect_id is None:
+            return
+        st.experiment.offered_triggers = ()
+        st.experiment.offered_effects = ()
+        self.phase = Phase.NAVIGATE
+        if st.experiment.trigger_id == "immediately":
+            experiments.trigger_success(self)
+
+    def can_toggle_experiment(self) -> bool:
+        """True when pausing/resuming the active experiment is legal right now.
+
+        Requires NAVIGATE, standing at the Laboratory terminal, and a
+        configured experiment -- "paused and resumed... from the terminal"
+        (wiki).
+        """
+        return (
+            self.phase is Phase.NAVIGATE
+            and self.at_laboratory_terminal()
+            and self.state.experiment.configured
+        )
+
+    def toggle_experiment(self) -> None:
+        """Flip the configured experiment's paused flag."""
+        assert self.can_toggle_experiment(), "must hold a configured experiment at the terminal"
+        st = self.state
+        st.experiment.paused = not st.experiment.paused
 
     def _terminate(self, reason: str) -> None:
         """End the day; this is the sole place Phase.TERMINAL is set.
