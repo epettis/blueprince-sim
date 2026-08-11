@@ -475,7 +475,7 @@ def test_carryover_shape_is_complete():
         "lit_targets", "collected_disks", "chapel_tithes",
         "upgrade_disks", "draft_counts",
         "foundation_cell", "foundation_doors",
-        "allowance", "stars", "main_course_bonus",
+        "allowance", "stars", "main_course_bonus", "letters_delivered",
         "collected_allowance_tokens", "mail_cycle", "mail_transit_days",
         "hallway_tomorrow_extra",
     }

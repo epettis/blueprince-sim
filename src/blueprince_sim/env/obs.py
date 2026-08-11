@@ -10,7 +10,7 @@ from ..engine.grid import DIRS, OPPOSITE, neighbor
 from ..engine.locks import DOOR_LOCKED, DOOR_SEALED, DOOR_SECURITY, SECURITY_LEVELS
 from ..engine.model import LAYOUTS
 from ..engine.shops import SCEPTER_COLORS, current_shop_id
-from ..engine.special_items import SIGIL_REALMS
+from ..engine.special_items import SIGIL_REALMS, _container_kinds_at
 from ..engine.upgrades import all_slot_ids, upgraded_slots
 from .actions import _build_area_node_ids
 from .multiday import DayChain
@@ -429,20 +429,17 @@ def encode(game: Game, day_chain: DayChain | None = None) -> dict:
             if remaining > 0:
                 grid_dig[cell // 5, cell % 5] = remaining
 
-    # grid_containers: unopened container count per cell
+    # grid_containers: unopened container count per cell. Routed through
+    # _container_kinds_at rather than reading registry.special.containers["rooms"]
+    # directly, so per-cell overlays (Mechanarium compartments, Entrance Hall
+    # trunks added by the entrance_hall_trunk experiment effect) are visible
+    # here too, not just the static per-room table.
     grid_containers = np.zeros((9, 5), dtype=np.uint8)
-    containers_data = registry.special.containers
-    if containers_data:
-        rooms_map = containers_data.get("rooms", {})
-        for cell, room_idx in enumerate(st.grid):
-            if room_idx >= 0:
-                room = registry.rooms[room_idx]
-                all_kinds = rooms_map.get(room.id, {})
-                total = sum(all_kinds.values())
-                already = special.opened_containers.get(cell, 0)
-                remaining = max(0, total - already)
-                if remaining > 0:
-                    grid_containers[cell // 5, cell % 5] = remaining
+    for cell, room_idx in enumerate(st.grid):
+        if room_idx >= 0:
+            remaining = sum(n for _, n in _container_kinds_at(st, registry, cell))
+            if remaining > 0:
+                grid_containers[cell // 5, cell % 5] = remaining
 
     # upgrade_options: offered variant room indices (+1) in UPGRADE_PENDING, else -1
     upgrade_options = np.full(3, -1, dtype=np.int16)

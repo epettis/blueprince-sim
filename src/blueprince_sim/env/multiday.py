@@ -113,6 +113,11 @@ class DayChain:
         # figure by day end, the same shape as allowance/stars. SAVE-scoped,
         # like stars above.
         self.main_course_bonus: int = base_cfg.main_course_bonus
+        # Experiment letters delivered to the Mail Room: running permanent
+        # total, replaced (not merged) from each day's own carryover value --
+        # state.experiment.letters_delivered already IS the accumulated figure
+        # by day end. SAVE-scoped, like stars and main_course_bonus above.
+        self.letters_delivered: int = base_cfg.letters_delivered
         # Mail Room order/delivery cycle: REPLACED (not merged) from each
         # day's own carryover value every advance(), the same shape as
         # allowance/chapel_tithes -- state.mail_cycle already IS the day's
@@ -198,6 +203,7 @@ class DayChain:
             allowance=self.allowance,
             stars=self.stars,
             main_course_bonus=self.main_course_bonus,
+            letters_delivered=self.letters_delivered,
             mail_cycle=self.mail_cycle,
             mail_transit_days=self.mail_transit_days,
             hallway_tomorrow_extra=self.hallway_tomorrow_extra,
@@ -290,6 +296,10 @@ class DayChain:
         if star_val is not None:
             self.stars = star_val
 
+        # --- main_course_bonus (running permanent total; replace each advance) ---
+        letters_val = carryover.get("letters_delivered")
+        if letters_val is not None:
+            self.letters_delivered = letters_val
         # --- main_course_bonus (running permanent total; replace each advance) ---
         mcb_val = carryover.get("main_course_bonus")
         if mcb_val is not None:
@@ -402,9 +412,9 @@ class DayChain:
             self.collected_disks = frozenset()  # fresh attempt; disks back in the house
             self.chapel_tithes = 0            # fresh attempt; tithe bank reset
             self.allowance = self.base_cfg.allowance  # fresh attempt; back to the base preset
-            # stars and main_course_bonus are deliberately absent here: both are
-            # save-scoped and carry through the wrap into the next attempt,
-            # unlike every other value reset above.
+            # stars, main_course_bonus and letters_delivered are deliberately
+            # absent here: all three are save-scoped and carry through the wrap
+            # into the next attempt, unlike every other value reset above.
             self.mail_cycle = self.base_cfg.mail_cycle  # fresh attempt; back to the base preset
             self.mail_transit_days = self.base_cfg.mail_transit_days  # fresh attempt; back to base
             self.hallway_tomorrow_extra = self.base_cfg.hallway_tomorrow_extra  # fresh attempt

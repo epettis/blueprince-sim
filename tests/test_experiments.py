@@ -35,11 +35,13 @@ from blueprince_sim.config import GameConfig
 from blueprince_sim.engine import experiments
 from blueprince_sim.engine import special_items as si
 from blueprince_sim.engine.game import Game, Phase, RedrawKind
-from blueprince_sim.engine.grid import E, N, S, W
+from blueprince_sim.engine.grid import E, ENTRANCE_CELL, N, S, W
 from blueprince_sim.engine.locks import DOOR_LOCKED, DOOR_OPEN, DOOR_SECURITY, segment_key
 from blueprince_sim.engine.rng import Rng
 from blueprince_sim.engine.state import DraftOption, PendingDraft
 from blueprince_sim.env import actions as A
+from blueprince_sim.env.multiday import DayChain
+from blueprince_sim.env import obs as obs_mod
 
 
 # ---------------------------------------------------------------------------
@@ -1355,3 +1357,156 @@ def test_redraw_ends_the_day_when_the_fired_effect_drains_steps_to_zero(monkeypa
     assert g.state.steps == 0
     assert g.phase is Phase.TERMINAL
     assert g.termination_reason == "out_of_steps"
+
+
+# ---------------------------------------------------------------------------
+# Effect caps: entrance_hall_trunk (17) and mail_room_letter (16)
+# ---------------------------------------------------------------------------
+
+def test_effect_cap_no_ops_but_trigger_still_succeeds():
+    """entrance_hall_trunk already at its 17-trunk cap: trigger_success still
+    returns True and success_count still advances, but the effect itself adds
+    no further trunk -- the distinction an effect cap draws from a trigger cap
+    (trunks_opened, map_view), which suppresses the whole fire instead."""
+    g = _game_at_laboratory()
+    _configure(g, "immediately", "entrance_hall_trunk")
+    g.state.special.entrance_hall_trunks = 17
+    assert experiments.trigger_success(g) is True
+    assert g.state.experiment.success_count == 1
+    assert g.state.special.entrance_hall_trunks == 17
+
+
+def test_entrance_hall_trunk_caps_at_seventeen():
+    """18 direct fires of entrance_hall_trunk (an uncapped trigger paired with
+    it) leave the trunk count at 17, not 18 -- the 17th application is the
+    last, and success_count keeps advancing past it since the trigger itself
+    never caps."""
+    g = _game_at_laboratory()
+    _configure(g, "immediately", "entrance_hall_trunk")
+    for _ in range(18):
+        experiments.trigger_success(g)
+    assert g.state.special.entrance_hall_trunks == 17
+    assert g.state.experiment.success_count == 18
+
+
+def test_entrance_hall_trunk_adds_an_openable_trunk_at_the_entrance_hall():
+    """Firing entrance_hall_trunk adds a container at ENTRANCE_CELL that the
+    existing can_open_container/open_container actions can open, reusing the
+    'trunk' containers.kind (the wiki: no difference from a regular trunk)."""
+    g = Game(GameConfig(), seed=0)
+    g.state.keys = 1
+    _configure(g, "immediately", "entrance_hall_trunk")
+    experiments.trigger_success(g)
+    assert g.state.special.entrance_hall_trunks == 1
+    assert g.state.pos == ENTRANCE_CELL
+    assert g.can_open_container()
+    result = g.open_container()
+    assert result is not None
+    assert g.state.special.opened_containers.get(ENTRANCE_CELL, 0) == 1
+
+
+def test_entrance_hall_trunks_do_not_carry_to_the_next_day():
+    """Owner ruling: 17 is a daily maximum -- reset() (a fresh day) clears both
+    the trunk count and any opened-container record, with no carry-over field
+    feeding either back in from GameConfig."""
+    g = Game(GameConfig(), seed=0)
+    _configure(g, "immediately", "entrance_hall_trunk")
+    experiments.trigger_success(g)
+    assert g.state.special.entrance_hall_trunks == 1
+    g.reset()
+    assert g.state.special.entrance_hall_trunks == 0
+    assert g.state.special.opened_containers.get(ENTRANCE_CELL, 0) == 0
+
+
+def test_opening_entrance_hall_trunk_fires_trunks_opened():
+    """An Entrance-Hall trunk added by entrance_hall_trunk routes through the
+    same open_container path as any other trunk, so a configured trunks_opened
+    trigger fires for it too -- the two effects/triggers are designed to pair."""
+    g = Game(GameConfig(), seed=0)
+    g.state.special.entrance_hall_trunks = 1
+    g.state.keys = 1
+    _configure(g, "trunks_opened", "permanent_allowance")
+    assert g.can_open_container()
+    result = g.open_container()
+    assert result is not None
+    assert g.state.experiment.success_count == 1
+
+
+def test_obs_grid_containers_shows_the_entrance_hall_trunk():
+    """grid_containers (env/obs.py) is routed through _container_kinds_at, so a
+    per-cell overlay like the Entrance Hall's added trunk is visible there too
+    -- not just the static per-room containers.json table it used to read."""
+    g = Game(GameConfig(), seed=0)
+    g.state.special.entrance_hall_trunks = 1
+    observation = obs_mod.encode(g)
+    row, col = ENTRANCE_CELL // 5, ENTRANCE_CELL % 5
+    assert observation["grid_containers"][row, col] == 1
+    assert observation["grid_containers"].shape == (9, 5)
+
+
+def test_mail_room_letter_not_offered_before_day_11():
+    """mail_room_letter's day_or_packet_gate excludes it before day 11 -- unlike
+    the trigger-side day_gate kind, this one carries no veteran_bypass field at
+    all, so veteran_mode plays no part (set False here only to avoid any other
+    gate's bypass muddying the assertion)."""
+    g = Game(GameConfig(veteran_mode=False, day=10), seed=0)
+    effect = g.registry.experiments.effect_by_id["mail_room_letter"]
+    assert experiments._effect_offerable(effect, g.cfg, g.state.experiment) is False
+
+
+def test_mail_room_letter_offered_at_day_11():
+    """The same gate opens at day 11 exactly."""
+    g = Game(GameConfig(veteran_mode=False, day=11), seed=0)
+    effect = g.registry.experiments.effect_by_id["mail_room_letter"]
+    assert experiments._effect_offerable(effect, g.cfg, g.state.experiment) is True
+
+
+def test_mail_room_letter_never_offered_once_sixteen_delivered():
+    """Once ExperimentState.letters_delivered reaches the effect's own cap (16),
+    _effect_offerable excludes it regardless of the day gate having opened."""
+    g = Game(GameConfig(veteran_mode=False, day=20), seed=0)
+    effect = g.registry.experiments.effect_by_id["mail_room_letter"]
+    g.state.experiment.letters_delivered = 16
+    assert experiments._effect_offerable(effect, g.cfg, g.state.experiment) is False
+
+
+def test_letters_delivered_is_seeded_from_config_at_reset():
+    """A day starts with the save's letter total, not at zero.
+
+    Without this the cap could only ever see today's deliveries, so "never
+    offered again after 16" could never become true however many days passed.
+    """
+    g = Game(GameConfig(letters_delivered=9), seed=0)
+    assert g.state.experiment.letters_delivered == 9
+
+
+def test_letters_delivered_survives_a_day_and_an_attempt_wrap():
+    """The letter total carries across days and through a fresh attempt.
+
+    Letters are permanent additions to the Mail Room, so unlike almost every
+    other carried value they are save-scoped -- an attempt wrap must not put
+    already-delivered letters back on the table.
+    """
+    chain = DayChain(GameConfig(), n_days=2)
+    assert chain.next_config().letters_delivered == 0
+
+    chain.advance({"letters_delivered": 5})
+    assert chain.next_config().letters_delivered == 5, "must carry to the next day"
+
+    chain.advance({})  # day 3 exceeds n_days=2, so the attempt wraps
+    assert chain.next_config().letters_delivered == 5, (
+        "letters are save-scoped and must survive the attempt wrap"
+    )
+
+
+def test_mail_room_letter_exclusion_never_shrinks_effect_pool_below_three():
+    """With mail_room_letter excluded (day < 11, veteran off), start_setup's
+    offered_effects still has exactly 3 entries -- effect availability
+    filtering must never shrink the sampling pool below what draw_offers
+    needs to sample, mirroring the trigger-side day_gate guarantee."""
+    for seed in range(15):
+        g = _game_at_laboratory(seed=seed, cfg=GameConfig(veteran_mode=False, day=1))
+        g.start_setup()
+        offered = g.state.experiment.offered_effects
+        assert len(offered) == 3
+        assert "mail_room_letter" not in offered

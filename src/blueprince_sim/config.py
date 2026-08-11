@@ -169,6 +169,13 @@ class GameConfig:
     # Carried by DayChain as a running total, replaced wholesale each
     # advance() the same way as allowance/stars.
     main_course_bonus: int = 0
+    # Experiment letters delivered to the Mail Room (permanent additions, in a
+    # fixed published order, capped at 16).  Their contents are deliberately
+    # unmodelled -- see experiments.json -- so this exists only to retire the
+    # mail_room_letter effect from the setup draw once all 16 have arrived.
+    # Carried by DayChain as a running total, replaced wholesale each advance()
+    # the same way as stars; SAVE-scoped, so it survives an attempt wrap.
+    letters_delivered: int = 0
     # Fixed-source Allowance Token ids collected (ever, across all days): each
     # one-time find spot (a Mora Jai box or the Cloister's token) has its own
     # item id, so this set gates exactly the sources already collected without
