@@ -1753,3 +1753,123 @@ def test_add_aquariums_self_refiring_loop_terminates_bounded_by_the_grid():
     assert g.state.experiment.success_count == len(free_cells)
     assert sum(1 for idx in g.state.grid if idx == aqx.idx) == len(free_cells)
     assert g.state.add_aquariums_active
+
+
+# ---------------------------------------------------------------------------
+# spread_dig_spots: Conference Room branch + the cross_column_exclude gate
+# ---------------------------------------------------------------------------
+
+_CONFERENCE_TARGET_CELL = 12  # same interior cell test_add_aquariums's own tests use
+
+
+def test_spread_dig_spots_adds_a_batch_to_the_conference_room_when_present():
+    """Firing with a Conference Room on the estate adds
+    CONFERENCE_ROOM_DIG_SPOT_BATCH (3) dig spots to its cell via
+    veia_dig_bonus, the same per-cell overlay dig_all already reads."""
+    g = _game_at_laboratory()
+    _place(g, "conference_room", _CONFERENCE_TARGET_CELL)
+
+    experiments.apply_effect(g, "spread_dig_spots")
+
+    assert g.state.special.veia_dig_bonus[_CONFERENCE_TARGET_CELL] == 3
+    assert g.state.special.conference_room_dig_spots == 3
+
+
+def test_spread_dig_spots_digging_the_conference_room_yields_more_than_its_baseline():
+    """The Conference Room's own items.dig_spots is 0 -- with no firing, digging
+    it finds nothing; after one firing, three added spots each dig up a
+    gold_coin outcome (the shovel table's row 4, forced deterministic), so the
+    player actually finds more than the room's zero-spot baseline."""
+    g = _game_at_laboratory(cfg=GameConfig(starting_items=frozenset({"shovel"})))
+    g.state.pos = _CONFERENCE_TARGET_CELL
+    conference_room = g.registry.by_id["conference_room"]
+    assert conference_room.items.dig_spots == 0
+    _place(g, "conference_room", _CONFERENCE_TARGET_CELL)
+
+    si.dig_all(g, _CONFERENCE_TARGET_CELL)
+    assert g.state.coins == 0, "no dig spots yet: the baseline digs up nothing"
+
+    experiments.apply_effect(g, "spread_dig_spots")
+    g.rng = _AlwaysIndexRng(0, 4)  # force the shovel table's gold_coin row
+    si.dig_all(g, _CONFERENCE_TARGET_CELL)
+
+    assert g.state.coins == 3, "three added spots, one gold coin each"
+
+
+def test_spread_dig_spots_without_a_conference_room_adds_nothing_and_does_not_crash():
+    """With no Conference Room on the estate, firing is a no-op -- the Grounds
+    branch (off-grid dig spots) is unbuilt per this effect's own
+    meta.blocked_on -- and must not raise."""
+    g = _game_at_laboratory()
+
+    experiments.apply_effect(g, "spread_dig_spots")
+
+    assert g.state.special.veia_dig_bonus == {}
+    assert g.state.special.conference_room_dig_spots == 0
+
+
+def test_spread_dig_spots_cap_clamps_the_final_batch_and_then_stops():
+    """The 50-spot cap clamps a batch that would overshoot it (48 already
+    added -> only 2 more, not 3) and silently no-ops every firing after
+    the cap is reached, matching entrance_hall_trunk's own no-op-past-cap
+    shape for a capped effect."""
+    g = _game_at_laboratory()
+    _place(g, "conference_room", _CONFERENCE_TARGET_CELL)
+    g.state.special.conference_room_dig_spots = 48
+
+    experiments.apply_effect(g, "spread_dig_spots")
+    assert g.state.special.conference_room_dig_spots == 50
+    assert g.state.special.veia_dig_bonus[_CONFERENCE_TARGET_CELL] == 2
+
+    experiments.apply_effect(g, "spread_dig_spots")
+    assert g.state.special.conference_room_dig_spots == 50, "capped: no further spots"
+    assert g.state.special.veia_dig_bonus[_CONFERENCE_TARGET_CELL] == 2
+
+
+def test_trash_while_digging_and_spread_dig_spots_are_never_offered_together():
+    """spread_dig_spots' cross_column_exclude means trash_while_digging
+    (trigger) and spread_dig_spots (effect) can never both appear in one
+    day's setup offers -- driven across many seeds since whether the
+    exclusion actually bites depends on the trigger draw, not a static
+    pool difference. Also confirms the exclusion is exercised at all
+    (trash_while_digging appears in at least one of the sampled seeds)."""
+    saw_trash_while_digging_offered = False
+    for seed in range(200):
+        g = _game_at_laboratory(seed=seed)
+        g.start_setup()
+        ex = g.state.experiment
+        if "trash_while_digging" in ex.offered_triggers:
+            saw_trash_while_digging_offered = True
+            assert "spread_dig_spots" not in ex.offered_effects
+    assert saw_trash_while_digging_offered, "test seed range never exercised the exclusion"
+
+
+def test_offered_effect_pool_stays_at_three_when_the_exclusion_is_active():
+    """Even on a setup where trash_while_digging is offered (dropping
+    spread_dig_spots from the effect sampling pool), start_setup still
+    offers exactly 3 effects -- draw_offers' own guarantee that
+    availability filtering never shrinks the pool below what it needs to
+    sample, exercised specifically on exclusion-active seeds."""
+    saw_exclusion_active = False
+    for seed in range(200):
+        g = _game_at_laboratory(seed=seed)
+        g.start_setup()
+        ex = g.state.experiment
+        assert len(ex.offered_effects) == 3
+        if "trash_while_digging" in ex.offered_triggers:
+            saw_exclusion_active = True
+    assert saw_exclusion_active, "test seed range never exercised the exclusion"
+
+
+def test_effect_offerable_excludes_spread_dig_spots_when_trash_while_digging_offered():
+    """Direct unit check on _effect_offerable's cross_column_exclude branch:
+    spread_dig_spots is excluded once trash_while_digging is among the
+    offered_triggers passed in, and offerable otherwise."""
+    g = _game_at_laboratory()
+    effect = g.registry.experiments.effect_by_id["spread_dig_spots"]
+    assert experiments._effect_offerable(
+        effect, g.cfg, g.state.experiment, ("trash_while_digging", "shops", "apples")
+    ) is False
+    assert experiments._effect_offerable(
+        effect, g.cfg, g.state.experiment, ("shops", "red_room_draft", "apples")
+    ) is True
