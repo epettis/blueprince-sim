@@ -1242,13 +1242,15 @@ class Game:
             return
         room = self.registry.rooms[opt.room_idx]
         assert self.affordable(room, opt), "cannot afford"
-        self._pay(room, opt)
+        cost = self._effective_cost(room, opt)
+        waived = self._pay(room, opt)
 
         # Drafting only PLACES the room behind the doorway. The player does
         # not enter it, pays no step, and gains none of its resources until
         # they move in (see :meth:`move`).
         self._place_room(room, pending.target_cell, opt.orientation,
-                         entry_dir=OPPOSITE[pending.direction])
+                         entry_dir=OPPOSITE[pending.direction],
+                         gem_cost=0 if waived else cost)
         del self.doorway_drafts[(pending.from_cell, pending.direction)]
         st.pending = None
         self.phase = Phase.NAVIGATE
@@ -1281,21 +1283,24 @@ class Game:
             return self.state.steps > 3 * cost
         return self.state.gems >= cost
 
-    def _pay(self, room: Room, opt) -> None:
+    def _pay(self, room: Room, opt) -> bool:
         """Deduct the option's gem cost - in steps at 3:1 when the Hovel is placed.
 
         An active Stopwatch waives the payment (gems still required in hand;
         the waiver spends a charge here, at pay time, so affordability
-        queries never consume it)."""
+        queries never consume it). Returns True when a Stopwatch waived the
+        payment, so callers can tell a waived cost from a genuinely spent one
+        (the gems_spent experiment trigger cares about this distinction)."""
         cost = self._effective_cost(room, opt)
         if cost <= 0:
-            return
+            return False
         if self.cfg.special_items and special_items.stopwatch_waives_gems(self, cost):
-            return
+            return True
         if self.hovel_placed:
             self.state.steps -= 3 * cost
         else:
             self.state.gems -= cost
+        return False
 
     # There is no decline: opening a door commits you to drafting one of the
     # dealt rooms. Slot 1 is always the free forced-Closet fallback, so an
@@ -1541,19 +1546,23 @@ class Game:
             st.door_version += 1
 
     def _place_room(self, room: Room, cell: int, orientation: int,
-                    entered: bool = False, entry_dir: int | None = None) -> None:
+                    entered: bool = False, entry_dir: int | None = None,
+                    gem_cost: int = 0) -> None:
         """Put ``room`` on the grid at ``cell`` with the given door orientation.
 
         Rolls lock state for its fresh door segments, updates the placed-id /
-        room-cell indexes and progress counters, then fires the room's
-        ON_PLACE hook, its own ON_DRAFT_ROOM hook (effects opted in via
-        include_self react to their own draft), and ON_DRAFT_ROOM on every
-        other placed room (relational effects like the Nursery).
+        room-cell indexes and progress counters, detects and fires any
+        placement-site experiment trigger, then fires the room's ON_PLACE
+        hook, its own ON_DRAFT_ROOM hook (effects opted in via include_self
+        react to their own draft), and ON_DRAFT_ROOM on every other placed
+        room (relational effects like the Nursery).
         ``entered=True`` is only used for the Entrance Hall at day start.
         ``entry_dir`` is this room's own doorway direction the player entered
         through (see :meth:`_roll_new_segments`); omitted by callers that
         place a room without drafting through it (day-start Entrance Hall,
-        Foundation carryover).
+        Foundation carryover). ``gem_cost`` is the nominal gem cost paid for
+        this draft (0 if free, waived, or not drafted through :meth:`choose`)
+        -- see :func:`experiments.on_room_drafted`.
         """
         st = self.state
         st.grid[cell] = room.idx
@@ -1576,6 +1585,18 @@ class Game:
             self.drafted_rooms.append(room.name)
             root_id = root_base_id(self.registry, room)
             self.state.draft_counts[root_id] = self.state.draft_counts.get(root_id, 0) + 1
+            # After the grid write above (so a counting effect this fire may
+            # trigger, e.g. keys_per_hallway_pair, sees the room that just
+            # triggered it) and before ON_PLACE below (a Weight Room's own
+            # step-halving must resolve after any experiment effect that
+            # already touched steps). No currently live effect places a room,
+            # deals a hand, opens a container, or digs, and
+            # draft.py::room_draftable independently blocks re-drafting an
+            # already-placed room id unless the Chamber of Mirrors is placed,
+            # so this can't recurse today -- add_aquariums (inert) is the
+            # wiki's own designed loop through these triggers, so re-verify
+            # both claims before it goes live.
+            experiments.on_room_drafted(self, room, cell, entry_dir, gem_cost)
         effects.fire(self, room, Hook.ON_PLACE)
         if self.state.foyer_placed:
             # Covers a Hallway placed AFTER the Foyer: its own fresh segments

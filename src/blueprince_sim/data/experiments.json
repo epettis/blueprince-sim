@@ -58,11 +58,11 @@
    "pool": "base",
    "availability": null,
    "cap": null,
-   "implemented": false,
+   "implemented": true,
    "meta": {
     "source": "https://blueprince.wiki.gg/wiki/Experiments/Triggers",
     "confidence": "wiki",
-    "blocked_on": "phase 0: no experiments engine exists yet (data/validation only)",
+    "blocked_on": null,
     "notes": [
      "All Shops count. Can loop with the Aquariums effect. With Blessing of the Tinkerer active, drafting the Electric Eel Aquarium triggers this twice (most triggers do not double this way) -- a cross-trigger interaction, deliberately not modelled per the phase 0 scope note on Blessing of the Tinkerer."
     ]
@@ -85,7 +85,8 @@
     "confidence": "wiki",
     "blocked_on": "phase 0: no experiments engine exists yet (data/validation only)",
     "notes": [
-     "A security door must be drafted FROM to count; merely unlocking one is not enough. Also occasionally triggers an extra time at the start of the draft, possibly a bug (wiki hedges this itself)."
+     "A security door must be drafted FROM to count; merely unlocking one is not enough. Also occasionally triggers an extra time at the start of the draft, possibly a bug (wiki hedges this itself).",
+     "\"Opening a security door in a different room by drafting into it also counts for this experimental trigger.\""
     ]
    }
   },
@@ -95,11 +96,11 @@
    "pool": "base",
    "availability": null,
    "cap": null,
-   "implemented": false,
+   "implemented": true,
    "meta": {
     "source": "https://blueprince.wiki.gg/wiki/Experiments/Triggers",
     "confidence": "wiki",
-    "blocked_on": "phase 0: no experiments engine exists yet (data/validation only)",
+    "blocked_on": null,
     "notes": [
      "Applies to whichever rooms currently cost >=2 gems to draft -- the wiki page resolves this via a live Cargo query (Gem_cost>=2 AND NOT Type HOLDS 'Upgrade'), not a static id list, so no room id list is transcribed here. Waived if a room's gem cost is removed (e.g. by the Emerald Bracelet); gems spent elsewhere during drafting (e.g. the Study's option) do not count."
     ]
@@ -111,13 +112,14 @@
    "pool": "base",
    "availability": null,
    "cap": null,
-   "implemented": false,
+   "implemented": true,
    "meta": {
     "source": "https://blueprince.wiki.gg/wiki/Experiments/Triggers",
     "confidence": "wiki",
-    "blocked_on": "phase 0: no experiments engine exists yet (data/validation only)",
+    "blocked_on": null,
     "notes": [
-     "The first two Bedrooms drafted (before or after the experiment starts) do not count. The Bunk Room counts twice, and can by itself satisfy both of the 'first two' -- if drafted with exactly one other Bedroom already in the house, the experiment triggers once."
+     "Wiki: \"The first two Bedrooms drafted do not count for this trigger, but each Bedroom drafted afterwards does. It does matter whether those two initial Bedrooms are drafted before or after starting the experiment.\" That last sentence never says which way it matters and the wiki gives no further detail -- it has never been grammatically clean. Owner ruling: this sim counts all of today's Bedrooms toward the two-Bedroom threshold, whether drafted before or after the experiment started.",
+     "The Bunk Room counts twice, and can by itself satisfy both of the 'first two' -- if drafted with exactly one other Bedroom already in the house, the experiment triggers once."
     ]
    }
   },
@@ -136,7 +138,7 @@
    "meta": {
     "source": "https://blueprince.wiki.gg/wiki/Experiments/Triggers",
     "confidence": "wiki",
-    "blocked_on": "phase 0: no experiments engine exists yet (data/validation only)",
+    "blocked_on": "drafting-system gap: 'archived' is a property of a floorplan and 'hidden' is a property of how it was dealt, but the Archives and the Darkroom share the same reduce_draft_options tag in rooms.json, so the engine cannot tell an archived floorplan from a merely concealed one.",
     "notes": [
      "Requires first drafting the Archives (whose effect hides floorplans during drafting) and then drafting one of the hidden ones. An archived Bunk Room triggers twice."
     ]
@@ -164,11 +166,11 @@
    "pool": "base",
    "availability": null,
    "cap": null,
-   "implemented": false,
+   "implemented": true,
    "meta": {
     "source": "https://blueprince.wiki.gg/wiki/Experiments/Triggers",
     "confidence": "wiki",
-    "blocked_on": "phase 0: no experiments engine exists yet (data/validation only)",
+    "blocked_on": null,
     "notes": [
      "Counts Hallways of all kinds, not just the base Hallway room."
     ]
@@ -205,11 +207,11 @@
     "steps_lost": 5,
     "floor": 0
    },
-   "implemented": false,
+   "implemented": true,
    "meta": {
     "source": "https://blueprince.wiki.gg/wiki/Experiments/Triggers",
     "confidence": "wiki",
-    "blocked_on": "phase 0: no experiments engine exists yet (data/validation only)",
+    "blocked_on": null,
     "notes": [
      "One of the few triggers that carries its own baked-in effect (the 5-step loss, floored at 0) on top of whichever effect is chosen for the column. The step loss can be nullified by pairing with the 'set steps to 40' effect."
     ]
@@ -482,11 +484,11 @@
    "magnitude": {
     "stars": 1
    },
-   "implemented": false,
+   "implemented": true,
    "meta": {
     "source": "https://blueprince.wiki.gg/wiki/Experiments/Effects",
     "confidence": "wiki",
-    "blocked_on": "phase 0: no experiments engine exists yet (data/validation only)"
+    "blocked_on": null
    }
   },
   {
