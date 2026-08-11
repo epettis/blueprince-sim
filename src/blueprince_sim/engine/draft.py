@@ -7,13 +7,22 @@ or the union of free+gem decks (slots 2 & 3), subject to the doorway's
 filters. Four attempts per slot: full rules -> ignore priority filters ->
 reshuffle decks -> forced Closet. Priority draws can force specific rooms
 into slot 3.
+
+The Mechanarium is a special case handled entirely in this module (see
+_mechanarium_orientation): its door mask is derived from the number of
+placed Mechanical rooms rather than rolled, so it never consumes an
+"orientation" RNG draw.
+
+Not modelled: Mechanical rooms beyond the four cardinal doors are meant to
+open diagonal compartments with key/item caches (wiki); that mechanic is out
+of scope here.
 """
 
 from __future__ import annotations
 
 from ..config import GameConfig
 from .decks import roll_rarity
-from .grid import N, OPPOSITE, rank_of
+from .grid import N, OPPOSITE, neighbor, rank_of, rotate_mask
 from .model import Registry, Room
 from .placement import legal_orientations, satisfies_draft_conditions
 from .rng import Rng
@@ -25,6 +34,7 @@ CLOSET_ID = "closet"
 TUNNEL_ID = "tunnel"
 READING_NOOK_ID = "reading_nook__ix99"
 LIBRARY_ID = "library"
+MECHANARIUM_ID = "mechanarium"
 
 
 def _hidden_count(from_room: Room | None) -> int:
@@ -386,6 +396,56 @@ def draw_slot(ctx: DraftContext, slot: int, cell: int, entry_dir: int,
     return None
 
 
+def _mechanarium_orientation(ctx: DraftContext, cell: int, entry_dir: int) -> int:
+    """Derive the Mechanarium's door mask at draft time -- never rolled.
+
+    Wiki (blueprince.wiki.gg/wiki/Mechanarium): "it contains one doorway per
+    Mechanical room in the estate, including the Mechanarium itself. The
+    first door is always the one that the Mechanarium is drafted from... The
+    next doors that spawn are forward, left and right drafting doors that
+    lead into open space. If a Mechanarium doorway would lead in an existing
+    room... If that room has no door at that position... the Mechanarium
+    skips that doorway and tries again at the next position." The count and
+    orientation are "set in stone the moment it is drafted" -- later
+    Mechanical-room drafts never add doors to an already-placed Mechanarium.
+
+    ``entry_dir`` is the direction the player moved to reach ``cell`` (see
+    grid.py), so "forward" continues that same direction; "left"/"right" are
+    its counterclockwise/clockwise quarter turns under this grid's N/E/S/W
+    bit convention (rotate_mask's quarter-turn direction).
+
+    A skipped candidate (an occupied neighbour with no facing door) does not
+    consume its slot -- the next candidate direction gets the door instead
+    (owner ruling). An empty neighbour, or one with a facing door, is fine.
+    Capped at the four cardinal directions; surplus Mechanical rooms are
+    meant to open diagonal compartments, not modelled here (see module
+    docstring).
+    """
+    rooms = ctx.registry.rooms
+    mechanical_rooms = sum(
+        1 for idx in ctx.state.grid if idx >= 0 and rooms[idx].is_category("mechanical"))
+    # n = mechanical_rooms + 1 (this Mechanarium, not yet placed); the back door
+    # already accounts for one of the n doors, so n - 1 remain to be tried below,
+    # capped at 3 (forward/left/right -- the fourth and last cardinal direction).
+    doors_left = min(mechanical_rooms, 3)
+    back = OPPOSITE[entry_dir]
+    mask = back
+    forward = entry_dir
+    right = rotate_mask(entry_dir, 1)
+    left = rotate_mask(entry_dir, 3)
+    for d in (forward, left, right):
+        if doors_left <= 0:
+            break
+        nb = neighbor(cell, d)
+        if nb == -1:
+            continue  # never a door; unreachable under interior_only, kept defensively
+        if ctx.state.grid[nb] != -1 and not ctx.state.placed_doors[nb] & OPPOSITE[d]:
+            continue  # occupied neighbour has no facing door: skip without consuming the slot
+        mask |= d
+        doors_left -= 1
+    return mask
+
+
 def _make_option(ctx: DraftContext, room: Room, slot: int, cell: int, entry_dir: int,
                  forced_draw: bool = False) -> DraftOption:
     """Build the DraftOption for a dealt room, rolling its floorplan orientation.
@@ -393,21 +453,25 @@ def _make_option(ctx: DraftContext, room: Room, slot: int, cell: int, entry_dir:
     A single legal orientation is taken as-is; otherwise the datamined
     south-biased roll picks one. Slot 0 is always free; other slots carry the
     room's resolved gem cost. ``forced_draw`` marks priority-draw, forced-
-    Closet, and Tunnel-chain deals.
+    Closet, and Tunnel-chain deals. The Mechanarium's mask is derived instead
+    (see _mechanarium_orientation) and consumes no "orientation" RNG draw.
     """
-    orientations = legal_orientations(room, cell, entry_dir, ctx.state, ctx.cfg)
-    if not orientations:  # forced Closet fallback path
-        orientations = [room.door_mask]
-    if len(orientations) == 1:
-        orientation = orientations[0]
+    if room.id == MECHANARIUM_ID:
+        orientation = _mechanarium_orientation(ctx, cell, entry_dir)
     else:
-        # A drawn floorplan is rolled into a legal orientation with datamined,
-        # south-biased weights (the Ornate Compass flips the bias northward).
-        weights = orientation_weights(orientations, OPPOSITE[entry_dir],
-                                      ctx.state.day,
-                                      compass_active_from_state(
-                                          ctx.state, ctx.registry, ctx.cfg))
-        orientation = orientations[ctx.rng.roll_weighted("orientation", weights)]
+        orientations = legal_orientations(room, cell, entry_dir, ctx.state, ctx.cfg)
+        if not orientations:  # forced Closet fallback path
+            orientations = [room.door_mask]
+        if len(orientations) == 1:
+            orientation = orientations[0]
+        else:
+            # A drawn floorplan is rolled into a legal orientation with datamined,
+            # south-biased weights (the Ornate Compass flips the bias northward).
+            weights = orientation_weights(orientations, OPPOSITE[entry_dir],
+                                          ctx.state.day,
+                                          compass_active_from_state(
+                                              ctx.state, ctx.registry, ctx.cfg))
+            orientation = orientations[ctx.rng.roll_weighted("orientation", weights)]
     cost = 0 if slot == 0 else resolve_gem_cost(room, ctx.state, ctx.registry.rooms)
     return DraftOption(room_idx=room.idx, orientation=orientation, gem_cost=cost,
                        slot=slot, forced=forced_draw)
