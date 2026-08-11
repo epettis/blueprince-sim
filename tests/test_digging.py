@@ -146,12 +146,11 @@ def test_jack_hammer_preferred_over_shovel():
     st.inventory["jack_hammer"] = 1
     st.special.spawned_today.append("jack_hammer")
 
-    # Shovel has junk entries; jack_hammer has no junk entries — use this to
-    # distinguish: over many seeds, check if coins+gems outcomes match
-    # jack_hammer's table (which always gives something useful) rather than shovel's.
+    # Gems discriminate the two tables: jack_hammer has a gems outcome and the
+    # shovel table has none, so a single gem proves which table was rolled.
     tomb = reg.by_id["tomb"]
     cell = 10
-    useful_count = 0
+    gem_seeds = 0
     for seed in range(30):
         st2 = GameState()
         st2.special.enabled = True
@@ -162,14 +161,43 @@ def test_jack_hammer_preferred_over_shovel():
         st2.grid[cell] = tomb.idx
         game = _fake_game(st2, reg, seed=seed)
         si.dig_all(game, cell)
-        if st2.coins > 0 or st2.gems > 0 or st2.keys > 0 or st2.steps > 50:
-            useful_count += 1
+        if st2.gems > 0:
+            gem_seeds += 1
 
-    # jack_hammer table has no junk — all 2 spots per seed yield something;
-    # over 30 seeds all 30 runs should have at least one useful outcome.
-    assert useful_count >= 25, (
-        f"only {useful_count}/30 seeds had useful jack_hammer outcomes; "
+    assert gem_seeds > 0, (
+        "no seed produced a gem, which only the jack_hammer table can; "
         "tool priority may be wrong")
+
+
+def test_jack_hammer_can_dig_up_trash():
+    """Digging with a jack hammer sometimes yields junk, at roughly the published rate.
+
+    The engine picks the jack hammer over every other tool, so a table with no trash
+    outcome would make the trash-while-digging experiment trigger permanently
+    unfireable for any player holding one — a dead feature nothing else would reveal.
+    """
+    st, reg = _state_with_registry()
+    tomb = reg.by_id["tomb"]
+    cell = 10
+    spots = tomb.items.dig_spots
+    junk = 0
+    for seed in range(300):
+        st2 = GameState()
+        st2.special.enabled = True
+        st2.inventory["jack_hammer"] = 1
+        st2.special.spawned_today.append("jack_hammer")
+        st2.grid[cell] = tomb.idx
+        game = _fake_game(st2, reg, seed=seed)
+        before = len(st2.items_found_log)
+        si.dig_all(game, cell)
+        # Junk and nothing are the only outcomes that log no find.
+        junk += spots - (len(st2.items_found_log) - before)
+
+    rate = junk / (300 * spots)
+    assert 0.10 < rate < 0.40, (
+        f"jack hammer produced no-find outcomes at {rate:.1%}; expected roughly the "
+        "published 18.4% trash plus 5% nothing"
+    )
 
 
 def test_shovel_used_when_only_shovel_held():

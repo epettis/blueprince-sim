@@ -2773,65 +2773,77 @@
    ],
    "jack_hammer": [
     {
-     "weight": 22.159091,
+     "weight": 16.971849,
      "kind": "gems",
      "count": 2
     },
     {
-     "weight": 35.136364,
+     "weight": 26.911259,
      "kind": "coins"
     },
     {
-     "weight": 25.0,
+     "weight": 19.147727,
      "kind": "key"
     },
     {
-     "weight": 10.0,
+     "weight": 7.659091,
      "kind": "gold_coin"
     },
     {
-     "weight": 2.5,
+     "weight": 1.914773,
      "kind": "item",
      "id": "silver_key"
     },
     {
-     "weight": 0.5,
+     "weight": 0.382955,
      "kind": "item",
      "id": "secret_garden_key"
     },
     {
-     "weight": 0.8,
+     "weight": 0.612727,
      "kind": "item",
      "id": "vault_key_304"
     },
     {
-     "weight": 0.8,
+     "weight": 0.612727,
      "kind": "item",
      "id": "vault_key_149"
     },
     {
-     "weight": 0.3,
+     "weight": 0.229773,
      "kind": "item",
      "id": "vault_key_233"
     },
     {
-     "weight": 0.1,
+     "weight": 0.076591,
      "kind": "item",
      "id": "vault_key_370"
     },
     {
-     "weight": 0.5,
+     "weight": 0.382955,
      "kind": "item",
      "id": "knights_shield"
     },
     {
-     "weight": 0.5,
+     "weight": 0.382955,
      "kind": "item",
      "id": "allowance_token"
     },
     {
-     "weight": 1.704545,
+     "weight": 1.305527,
      "kind": "coins"
+    },
+    {
+     "weight": 15.0,
+     "kind": "junk"
+    },
+    {
+     "weight": 3.409091,
+     "kind": "junk"
+    },
+    {
+     "weight": 5.0,
+     "kind": "nothing"
     }
    ]
   },
@@ -2843,7 +2855,7 @@
   ],
   "turnip_steps": 6,
   "meta": {
-   "note": "jack_hammer table: wind_up_key entry (weight 1.704545) replaced with coins \u2014 Wind-up Key is deliberately not modeled (action-space simplification)."
+   "note": "jack_hammer table: wind_up_key entry (weight 1.704545) replaced with coins \u2014 Wind-up Key is deliberately not modeled (action-space simplification). Trash (two junk rows: the six named trash items at 15%, Scraps of Paper at 3.409091%) and nothing (5%) carry the wiki's published absolute rates; the other rows are scaled to fill the rest, preserving their relative odds. The remainder of this table still diverges from the datamine \u2014 it lumps outcomes the wiki lists separately (gem 1/3, dice 1/2/3, Stopwatch) and adds vault keys the wiki does not list \u2014 and has not been reconciled; establish where the vault keys came from before a full rebuild removes them."
   }
  },
  "treasure_map": {
