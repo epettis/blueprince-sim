@@ -1,6 +1,9 @@
 """Laboratory / Experiments: setup/pause/resume core, the pure-resource
-effects, and the five placement-site draft triggers (shops, red_room_draft,
-hallway_from_hallway, bedrooms_after_second, gems_spent).
+effects, the five placement-site draft triggers (shops, red_room_draft,
+hallway_from_hallway, bedrooms_after_second, gems_spent), the generic cap
+machinery, the trunks_opened and security_door interaction-site triggers, the
+day_gate availability filter, and the scoped termination checks added at
+open_door/open_container/_maybe_finish_experiment_setup.
 
 Mirrors test_upgrade_env.py's shape (direct Game construction plus the flat
 action space) for the setup flow, and calls engine.experiments functions
@@ -8,15 +11,18 @@ directly for the effect-math checks, the same "engine function, not full
 action loop" style test_special_items.py uses for its own effect pins. The
 draft-trigger tests mostly drive Game._place_room directly (like the
 existing _place helper), reaching for the real open_door/choose pipeline
-only where the threading between them matters (gem cost, Stopwatch, Study).
+only where the threading between them matters (gem cost, Stopwatch, Study,
+security-door state).
 """
 
 from __future__ import annotations
 
 from blueprince_sim.config import GameConfig
 from blueprince_sim.engine import experiments
+from blueprince_sim.engine import special_items as si
 from blueprince_sim.engine.game import Game, Phase, RedrawKind
-from blueprince_sim.engine.grid import N, W
+from blueprince_sim.engine.grid import E, N, S, W
+from blueprince_sim.engine.locks import DOOR_LOCKED, DOOR_OPEN, DOOR_SECURITY, segment_key
 from blueprince_sim.engine.state import DraftOption, PendingDraft
 from blueprince_sim.env import actions as A
 
@@ -566,3 +572,316 @@ def test_aquarium_draft_fires_shops_red_room_and_bedrooms_after_second_triggers(
     aquarium = g.registry.by_id["aquarium"]
     g._place_room(aquarium, 11, aquarium.rotations[0], entry_dir=W)
     assert g.state.experiment.success_count == 1
+
+
+# ---------------------------------------------------------------------------
+# Generic cap machinery
+# ---------------------------------------------------------------------------
+
+def test_capped_trigger_stops_firing_at_its_cap():
+    """trunks_opened caps at 3: a 4th direct trigger_success call is a no-op --
+    success_count and the chosen effect both stop advancing past the cap."""
+    g = _game_at_laboratory()
+    _configure(g, "trunks_opened", "permanent_allowance")
+    for _ in range(4):
+        experiments.trigger_success(g)
+    assert g.state.experiment.success_count == 3
+    assert g.state.allowance == 3
+
+
+def test_pausing_preserves_cap_charges_across_a_qualifying_event():
+    """A qualifying event suppressed by pause does not consume one of the cap's
+    charges: pausing after 1 of 3 fires and resuming still allows the full
+    remaining 2 fires, for 3 total (not 2) -- caps count fires, not events."""
+    g = _game_at_laboratory()
+    _configure(g, "trunks_opened", "permanent_allowance")
+    assert experiments.trigger_success(g) is True
+    assert g.state.experiment.success_count == 1
+
+    g.state.experiment.paused = True
+    assert experiments.trigger_success(g) is False  # suppressed, not counted
+    assert g.state.experiment.success_count == 1
+
+    g.state.experiment.paused = False
+    assert experiments.trigger_success(g) is True
+    assert experiments.trigger_success(g) is True
+    assert g.state.experiment.success_count == 3
+    assert experiments.trigger_success(g) is False  # genuinely capped out now
+    assert g.state.experiment.success_count == 3
+
+
+def test_capped_out_fire_does_not_charge_its_own_steps_lost():
+    """map_view carries both cap=10 and a steps_lost magnitude; a call already
+    at the cap must leave steps untouched, since the cap check sits before the
+    steps_lost deduction in trigger_success."""
+    g = _game_at_laboratory()
+    _configure(g, "map_view", "permanent_allowance")
+    g.state.experiment.success_count = 10  # already at map_view's cap
+    g.state.steps = 50
+    assert experiments.trigger_success(g) is False
+    assert g.state.steps == 50
+    assert g.state.allowance == 0
+
+
+# ---------------------------------------------------------------------------
+# trunks_opened: special_items.py::open_container
+# ---------------------------------------------------------------------------
+
+def test_trunks_opened_fires_on_a_smash_opened_trunk():
+    """trunks_opened fires when a trunk is opened via a smash-tagged item
+    (Sledge Hammer) -- 'or breaking the locks with the Sledge Hammer or
+    equivalent' (wiki) -- even though no key was spent."""
+    g = Game(GameConfig(starting_items=frozenset({"sledge_hammer"})), seed=42)
+    attic = g.registry.by_id["attic"]
+    cell = 5
+    g.state.grid[cell] = attic.idx
+    g.state.placed_doors[cell] = attic.door_mask
+    g.state.entered[cell] = True
+    g.state.pos = cell
+    _configure(g, "trunks_opened", "permanent_allowance")
+    result = g.open_container()
+    assert result is not None
+    assert g.state.experiment.success_count == 1
+
+
+def test_trunks_opened_fires_on_a_key_opened_trunk():
+    """trunks_opened also fires for the ordinary key-unlock path, not only
+    smash-opens -- 'unlock and open a chest' is the primary wording."""
+    g = Game(GameConfig(), seed=42)
+    attic = g.registry.by_id["attic"]
+    cell = 5
+    g.state.grid[cell] = attic.idx
+    g.state.placed_doors[cell] = attic.door_mask
+    g.state.pos = cell
+    g.state.keys = 1
+    _configure(g, "trunks_opened", "permanent_allowance")
+    result = g.open_container()
+    assert result is not None
+    assert g.state.keys == 0
+    assert g.state.experiment.success_count == 1
+
+
+def test_trunks_opened_does_not_fire_on_a_failed_open():
+    """No keys and no smasher: open_container returns None and trunks_opened
+    never fires -- only a container that actually opened can count."""
+    g = Game(GameConfig(), seed=42)
+    attic = g.registry.by_id["attic"]
+    cell = 5
+    g.state.grid[cell] = attic.idx
+    g.state.placed_doors[cell] = attic.door_mask
+    g.state.pos = cell
+    g.state.keys = 0
+    _configure(g, "trunks_opened", "permanent_allowance")
+    result = g.open_container()
+    assert result is None
+    assert g.state.experiment.success_count == 0
+
+
+def test_trunks_opened_does_not_fire_on_a_locker():
+    """Lockers (open or locked) are a distinct containers.kinds family from
+    trunk/chest; opening one never fires trunks_opened."""
+    g = Game(GameConfig(), seed=3)
+    locker_room = g.registry.by_id["locker_room"]
+    g.state.grid[7] = locker_room.idx
+    g.state.placed_doors[7] = locker_room.door_mask
+    g.state.pos = 7
+    g.state.keys = 5
+    _configure(g, "trunks_opened", "permanent_allowance")
+    opened = 0
+    while g.can_open_container() and opened < 4:
+        g.open_container()
+        opened += 1
+    assert opened > 0, "Locker Room must have offered at least one container"
+    assert g.state.experiment.success_count == 0
+
+
+def test_trunks_opened_does_not_fire_on_the_garage_car_trunk():
+    """The Garage car trunk is a separate one-per-day mechanic (open_car_trunk),
+    never routed through open_container, so trunks_opened never fires for it."""
+    g = Game(GameConfig(), seed=0)
+    si.grant(g.state, g.registry, "car_keys", source="test")
+    garage = g.registry.by_id["garage"]
+    g._place_room(garage, 5, garage.rotations[0])
+    g.state.pos = 5
+    _configure(g, "trunks_opened", "permanent_allowance")
+    assert g.can_open_car_trunk()
+    granted = g.open_car_trunk()
+    assert granted
+    assert g.state.experiment.success_count == 0
+
+
+def test_trunks_opened_does_not_fire_on_a_vault_box():
+    """Vault deposit boxes (open_vault_box) are a distinct mechanic from
+    trunks_opened, even though both are unlock-and-open container actions."""
+    g = Game(GameConfig(), seed=0)
+    vault = g.registry.by_id["vault"]
+    g._place_room(vault, 10, vault.rotations[0])
+    g.state.pos = 10
+    g.state.inventory["vault_key_149"] = 1
+    _configure(g, "trunks_opened", "permanent_allowance")
+    assert g.can_open_vault_box()
+    granted = g.open_vault_box()
+    assert granted
+    assert g.state.experiment.success_count == 0
+
+
+# ---------------------------------------------------------------------------
+# security_door: game.py's two sites (_unlock_for_passage, _roll_new_segments)
+# ---------------------------------------------------------------------------
+
+def test_security_door_fires_when_drafted_from_site_a():
+    """Site A: drafting THROUGH a security doorway (open_door, for_draft=True)
+    fires security_door -- the wiki's 'must be drafted from' requirement."""
+    g = Game(GameConfig(), seed=0)
+    g.state.has_keycard = True
+    g.state.keycard_power_on = True
+    g.state.door_state[segment_key(2, N)] = DOOR_SECURITY
+    _configure(g, "security_door", "permanent_allowance")
+    g.open_door(2, N)
+    assert g.state.experiment.success_count == 1
+
+
+def test_security_door_does_not_fire_on_a_plain_walk_through_site_a():
+    """Site A is gated on for_draft=True: merely walking through an already
+    security-doored connection (move, for_draft defaults False) opens the
+    door but never fires the trigger -- 'just unlocking is not enough' (wiki)."""
+    g = Game(GameConfig(), seed=0)
+    hallway = g.registry.by_id["hallway"]
+    g._place_room(hallway, 7, 13)  # 13 = W|S|N, connects south to the entrance
+    g.state.has_keycard = True
+    g.state.keycard_power_on = True
+    seg = segment_key(2, N)
+    g.state.door_state[seg] = DOOR_SECURITY
+    _configure(g, "security_door", "permanent_allowance")
+    g.move(N)
+    assert g.state.pos == 7
+    assert g.state.door_state[seg] == DOOR_OPEN  # the door did open for passage
+    assert g.state.experiment.success_count == 0
+
+
+def test_security_door_reopening_a_cached_doorway_does_not_double_fire():
+    """Site A is idempotent: a second open_door call on the same doorway (the
+    pending draft still cached, phase reset to NAVIGATE without a choose())
+    reads the segment as already DOOR_OPEN and cannot fire a second time."""
+    g = Game(GameConfig(), seed=0)
+    g.state.has_keycard = True
+    g.state.keycard_power_on = True
+    g.state.door_state[segment_key(2, N)] = DOOR_SECURITY
+    _configure(g, "security_door", "permanent_allowance")
+    g.open_door(2, N)
+    assert g.state.experiment.success_count == 1
+    g.phase = Phase.NAVIGATE  # simulate re-opening before a choose() commits it
+    g.open_door(2, N)
+    assert g.state.experiment.success_count == 1
+
+
+def test_security_door_fires_when_drafting_into_a_security_segment_site_b():
+    """Site B: placing a room whose own door faces a neighbor's already-rolled
+    DOOR_SECURITY segment converts it to open and fires security_door -- the
+    wiki's 'opening a security door in a different room by drafting into it'."""
+    g = _game_at_laboratory()
+    hallway = g.registry.by_id["hallway"]
+    seg = segment_key(12, E)
+    g.state.door_state[seg] = DOOR_SECURITY
+    _configure(g, "security_door", "permanent_allowance")
+    g._place_room(hallway, 12, 7)  # 7 = N|E|S, faces the pre-rolled E segment
+    assert g.state.experiment.success_count == 1
+
+
+def test_security_door_does_not_fire_on_a_merely_locked_segment_site_b():
+    """Site B only fires for a converted DOOR_SECURITY segment; converting an
+    already-rolled DOOR_LOCKED segment the same way fires nothing."""
+    g = _game_at_laboratory()
+    hallway = g.registry.by_id["hallway"]
+    seg = segment_key(12, E)
+    g.state.door_state[seg] = DOOR_LOCKED
+    _configure(g, "security_door", "permanent_allowance")
+    g._place_room(hallway, 12, 7)
+    assert g.state.experiment.success_count == 0
+
+
+def test_security_door_site_b_can_fire_up_to_three_times_in_one_placement():
+    """A 4-way room facing three already-rolled security segments fires once
+    per segment -- up to 3 times in a single _place_room call, expected per
+    the module's own documentation, not a bug."""
+    g = _game_at_laboratory()
+    entrance_hall = g.registry.by_id["entrance_hall"]
+    for d in (N, E, S):
+        g.state.door_state[segment_key(12, d)] = DOOR_SECURITY
+    _configure(g, "security_door", "permanent_allowance")
+    g._place_room(entrance_hall, 12, 15)  # 15 = N|E|S|W
+    assert g.state.experiment.success_count == 3
+
+
+# ---------------------------------------------------------------------------
+# Availability: the day_gate filter in draw_offers
+# ---------------------------------------------------------------------------
+
+def test_day_gate_excludes_gated_triggers_before_day_8_without_veteran_mode():
+    """With veteran_mode off and day < 8, security_door and drawing_room_drawn
+    never appear in the offered pool -- yet the pool still has exactly 3
+    entries, confirming the filter never shrinks the sampling pool below 3."""
+    for seed in range(15):
+        g = _game_at_laboratory(seed=seed, cfg=GameConfig(veteran_mode=False, day=1))
+        g.start_setup()
+        offered = g.state.experiment.offered_triggers
+        assert len(offered) == 3
+        assert "security_door" not in offered
+        assert "drawing_room_drawn" not in offered
+
+
+def test_day_gate_allows_gated_triggers_with_veteran_mode():
+    """veteran_mode=True (the default) bypasses the day_gate regardless of
+    day, so both gated triggers remain eligible for the sampling pool."""
+    cfg = GameConfig(veteran_mode=True, day=1)
+    g = Game(cfg, seed=0)
+    trig_security = g.registry.experiments.trigger_by_id["security_door"]
+    trig_drawing = g.registry.experiments.trigger_by_id["drawing_room_drawn"]
+    assert experiments._trigger_offerable(trig_security, cfg) is True
+    assert experiments._trigger_offerable(trig_drawing, cfg) is True
+
+
+def test_day_gate_allows_gated_triggers_at_day_8_even_without_veteran_mode():
+    """The gate only blocks days 1-7 without veteran_mode; day >= 8 always
+    passes regardless of the veteran_mode setting."""
+    cfg = GameConfig(veteran_mode=False, day=8)
+    g = Game(cfg, seed=0)
+    trig = g.registry.experiments.trigger_by_id["security_door"]
+    assert experiments._trigger_offerable(trig, cfg) is True
+
+
+# ---------------------------------------------------------------------------
+# Scoped termination checks
+# ---------------------------------------------------------------------------
+
+def test_open_door_ends_the_day_when_the_fired_effect_drains_steps_to_zero():
+    """security_door + steps_for_gold: drafting through a security doorway with
+    few steps left zeroes them out, and open_door's own termination check
+    ends the day inside the call rather than on some later NAVIGATE action."""
+    g = Game(GameConfig(), seed=0)
+    g.state.has_keycard = True
+    g.state.keycard_power_on = True
+    g.state.door_state[segment_key(2, N)] = DOOR_SECURITY
+    g.state.steps = 5
+    _configure(g, "security_door", "steps_for_gold")
+    g.open_door(2, N)
+    assert g.state.steps == 0
+    assert g.phase is Phase.TERMINAL
+    assert g.termination_reason == "out_of_steps"
+
+
+def test_open_container_ends_the_day_when_the_fired_effect_drains_steps_to_zero():
+    """trunks_opened + steps_for_gold: opening a trunk with few steps left
+    zeroes them out, and open_container's own termination check ends the day."""
+    g = Game(GameConfig(starting_items=frozenset({"sledge_hammer"})), seed=42)
+    attic = g.registry.by_id["attic"]
+    cell = 5
+    g.state.grid[cell] = attic.idx
+    g.state.placed_doors[cell] = attic.door_mask
+    g.state.pos = cell
+    g.state.steps = 5
+    _configure(g, "trunks_opened", "steps_for_gold")
+    g.open_container()
+    assert g.state.steps == 0
+    assert g.phase is Phase.TERMINAL
+    assert g.termination_reason == "out_of_steps"

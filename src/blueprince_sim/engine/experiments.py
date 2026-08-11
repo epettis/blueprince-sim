@@ -26,15 +26,26 @@ Eleven of the twenty effects stay inert (``implemented: false`` or, for
 stays undrawable until the packet subsystem (phases 5-8) is authorised,
 since :func:`draw_offers` only samples the base pool.
 
-Six of the twelve base triggers stay unimplemented: ``apples``,
-``security_door``, ``archived_floorplan``, ``trunks_opened``,
-``trash_while_digging``, and ``drawing_room_drawn`` need firing sites (apple
-pickup, security-door open, dig hooks, ...) that are later work, same as all
-eight packet triggers. ``immediately`` fires once, at setup completion, from
-:meth:`Game._maybe_finish_experiment_setup`. The other five --
-``shops``, ``gems_spent``, ``bedrooms_after_second``, ``hallway_from_hallway``,
+Four of the twelve base triggers stay unimplemented: ``apples``,
+``archived_floorplan``, ``trash_while_digging``, and ``drawing_room_drawn``
+need firing sites (apple pickup, dig hooks, ...) that are later work, same as
+all eight packet triggers. ``immediately`` fires once, at setup completion,
+from :meth:`Game._maybe_finish_experiment_setup`. Five -- ``shops``,
+``gems_spent``, ``bedrooms_after_second``, ``hallway_from_hallway``,
 ``red_room_draft`` -- are all detected by :func:`on_room_drafted`, called from
-``Game._place_room`` on every non-entrance draft.
+``Game._place_room`` on every non-entrance draft. ``trunks_opened`` (capped at
+3) fires from ``special_items.open_container`` after a trunk or chest is
+opened, including a smash-open; vault boxes, lockers, and the Garage car trunk
+do not count. ``security_door`` fires from two sites in game.py: drafting
+through a security doorway (``_unlock_for_passage``, gated on
+``for_draft=True`` -- merely walking through does not count) and drafting a
+room whose own door faces an already-rolled security segment on a neighbor
+(``_roll_new_segments``, converting it to open).
+
+Two of the twelve base triggers carry a ``day_gate`` availability
+(``security_door``, ``drawing_room_drawn``): both are excluded from
+:func:`draw_offers`'s sampling pool before day 8 unless ``cfg.veteran_mode``
+is set (the default). No other availability kind is enforced yet.
 """
 
 from __future__ import annotations
@@ -53,6 +64,8 @@ class ExperimentTrigger:
     pool: str  # base|packet
     implemented: bool  # False = inert; no firing site wired for this trigger
     magnitude: dict = field(default_factory=dict)  # structured numbers, raw from JSON
+    cap: int | None = None  # max successful fires today, or None for unlimited
+    availability: dict | None = None  # gate on whether this can be offered, or None
     confidence: str = "wiki"  # data provenance: datamined > wiki > inferred > placeholder
 
 
@@ -87,6 +100,8 @@ def load_experiments(data_dir: Path) -> ExperimentsRegistry:
             pool=t["pool"],
             implemented=bool(t.get("implemented", False)),
             magnitude=t.get("magnitude") or {},
+            cap=t.get("cap"),
+            availability=t.get("availability"),
             confidence=t.get("meta", {}).get("confidence", "wiki"),
         )
 
@@ -146,7 +161,24 @@ class ExperimentState:
 
 # ------------------------------------------------------------------ setup draw
 
-def draw_offers(registry, rng) -> tuple[tuple[str, ...], tuple[str, ...]]:
+def _trigger_offerable(trig: ExperimentTrigger, cfg) -> bool:
+    """True unless a ``day_gate`` availability record blocks this trigger today.
+
+    Only the ``day_gate`` kind is enforced (``security_door`` and
+    ``drawing_room_drawn``, both gated at day 8 with a veteran-mode bypass);
+    any other availability kind, or none at all, is always offerable -- the
+    remaining kinds (``room_drafted_gate``, ``item_obtained_gate``) stay
+    unbuilt this phase, per the module docstring.
+    """
+    gate = trig.availability
+    if gate is None or gate.get("kind") != "day_gate":
+        return True
+    if cfg.veteran_mode and gate.get("veteran_bypass", False):
+        return True
+    return cfg.day >= gate.get("day", 0)
+
+
+def draw_offers(registry, rng, cfg) -> tuple[tuple[str, ...], tuple[str, ...]]:
     """Draw 3 triggers and 3 effects uniformly from the base pool.
 
     Sampled without replacement via named RNG substreams (seed-deterministic),
@@ -157,9 +189,14 @@ def draw_offers(registry, rng) -> tuple[tuple[str, ...], tuple[str, ...]]:
 
     Only the base pool is ever drawn: the packet pool (Satellite Dish, phases
     5-8) is out of scope, so its 8 triggers and 8 effects are never offered.
+    Triggers gated by a ``day_gate`` availability (see :func:`_trigger_offerable`)
+    are dropped from the sampling pool before the draw; effects carry no such
+    filter yet. The base trigger pool (12) has only 2 day-gated members, so
+    this can never shrink the pool below the 3 the draw needs.
     """
     ex = registry.experiments
-    trig_pool = list(ex.base_trigger_ids)
+    trig_pool = [t for t in ex.base_trigger_ids if _trigger_offerable(ex.trigger_by_id[t], cfg)]
+    assert len(trig_pool) >= 3, "day_gate filtering must never shrink the trigger pool below 3"
     eff_pool = list(ex.base_effect_ids)
     sampled_triggers = rng.stream("experiment_triggers").sample(trig_pool, 3)
     sampled_effects = rng.stream("experiment_effects").sample(eff_pool, 3)
@@ -174,13 +211,22 @@ def trigger_success(game) -> bool:
     """Call this when the active trigger's condition has been met.
 
     Returns True and applies the chosen effect (incrementing success_count)
-    when the experiment is configured and not paused; returns False and does
-    nothing otherwise (no experiment configured, or paused). This is the
-    single fire site every trigger's own detection hook is meant to call:
-    "immediately" (fired once, at setup completion, from
-    Game._maybe_finish_experiment_setup) and the five draft-site triggers
-    detected by :func:`on_room_drafted` all route through here; the remaining
-    base and packet triggers still need their own detection hooks wired in.
+    when the experiment is configured and not paused, and the trigger has not
+    already fired its ``cap`` (e.g. trunks_opened's "next 3 times"); returns
+    False and does nothing otherwise (no experiment configured, paused, or
+    capped out). This is the single fire site every trigger's own detection
+    hook is meant to call: "immediately" (fired once, at setup completion,
+    from Game._maybe_finish_experiment_setup), the five draft-site triggers
+    detected by :func:`on_room_drafted`, trunks_opened (special_items.py's
+    open_container), and security_door (game.py's _unlock_for_passage and
+    _roll_new_segments) all route through here; the remaining base and packet
+    triggers still need their own detection hooks wired in.
+
+    A capped-out fire does not charge its own ``steps_lost`` either -- the cap
+    check sits before both. Because success_count only ever increments here,
+    and this function returns early while paused, a cap counts *fires*, not
+    qualifying events: pausing an experiment preserves its remaining charges
+    rather than burning them on suppressed events.
 
     A trigger carrying ``steps_lost`` in its magnitude (red_room_draft, and
     map_view in the packet pool) takes that loss on top of whichever effect
@@ -192,8 +238,10 @@ def trigger_success(game) -> bool:
     ex = game.state.experiment
     if not ex.active:
         return False
-    ex.success_count += 1
     trig = game.registry.experiments.trigger_by_id.get(ex.trigger_id)
+    if trig is not None and trig.cap is not None and ex.success_count >= trig.cap:
+        return False
+    ex.success_count += 1
     steps_lost = trig.magnitude.get("steps_lost", 0) if trig is not None else 0
     if steps_lost:
         game.state.steps = max(trig.magnitude.get("floor", 0), game.state.steps - steps_lost)

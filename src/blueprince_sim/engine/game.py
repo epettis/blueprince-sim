@@ -494,7 +494,10 @@ class Game:
 
         ``for_draft=True`` signals this is a frontier-draft opening (not movement):
         when the Silver Key is held, it is consumed instead of a regular key and
-        the next deal is biased toward cross/t layouts.
+        the next deal is biased toward cross/t layouts. It also gates the
+        security_door experiment trigger (site A): the wiki's "just unlocking
+        security doors is not enough, a security door must be drafted from" --
+        ``open_door`` passes ``for_draft=True``, ``move`` does not.
         """
         st = self.state
         state = self.door_state_of(cell, direction)
@@ -515,6 +518,11 @@ class Game:
         elif state == DOOR_SECURITY:
             assert self.security_openable(), "security door cannot be opened"
             self._open_segment(cell, direction)
+            # Idempotent by construction: ``state`` was read once, above, before
+            # the segment was opened, so a second call on an already-open segment
+            # takes neither branch here and cannot double-fire.
+            if for_draft and st.experiment.trigger_id == "security_door":
+                experiments.trigger_success(self)
 
     def _security_toggle_helps(self) -> bool:
         """Would flipping the Utility Closet keycard power open security doors?
@@ -625,9 +633,15 @@ class Game:
         return special_items.can_open_container(self, self.state.pos)
 
     def open_container(self) -> str | None:
-        """Open the next container at the current cell; return what was granted."""
+        """Open the next container at the current cell; return what was granted.
+
+        Checks termination at the end: opening a trunk can fire trunks_opened,
+        whose configured effect may drain steps to 0 (e.g. steps_for_gold).
+        """
         assert self.cfg.special_items
-        return special_items.open_container(self, self.state.pos)
+        result = special_items.open_container(self, self.state.pos)
+        self._check_termination()
+        return result
 
     def can_open_car_trunk(self) -> bool:
         """Car Keys held, standing in the Garage, trunk not yet opened today."""
@@ -746,6 +760,11 @@ class Game:
         receives the room's effects only when they :meth:`move` into it.
         Opening a locked doorway consumes a key first; a security doorway
         needs the keycard system to allow it (:meth:`security_openable`).
+        Checks termination at the end: the security_door trigger can fire from
+        this method's own :meth:`_unlock_for_passage` call, and a steps-draining
+        effect (e.g. steps_for_gold) could otherwise go unnoticed until the
+        next NAVIGATE-phase action. A caller must check ``phase`` afterward,
+        same as every other termination-checking action.
         """
         assert self.phase is Phase.NAVIGATE, "not in NAVIGATE phase"
         st = self.state
@@ -777,6 +796,7 @@ class Game:
             self.doorway_drafts[key] = pending
         st.pending = pending
         self.phase = Phase.DRAFTING
+        self._check_termination()
         return pending
 
     def draft_from(self, cell: int, direction: int) -> PendingDraft | None:
@@ -1538,6 +1558,14 @@ class Game:
         ``entry_dir`` is this room's own doorway direction the player entered
         through (see grid.py entry_dir), passed straight to locks.roll_segment
         so an always-locked room (Great Hall) can price its side doorways.
+
+        In-drafting into an already-rolled DOOR_SECURITY segment (site B of the
+        security_door experiment trigger) fires it -- the wiki's "opening a
+        security door in a different room by drafting into it also counts."
+        A DOOR_LOCKED segment converted the same way does not fire anything:
+        only unlocking/bypassing a *security* door counts. This can fire up to
+        3 times in one call (one per fresh-but-already-rolled security segment
+        the new room's orientation faces), which is expected, not a bug.
         """
         if not self.cfg.door_locks:
             return
@@ -1554,6 +1582,8 @@ class Game:
                 if existing not in (DOOR_OPEN, DOOR_SEALED):
                     st.door_state[seg] = DOOR_OPEN
                     st.door_version += 1
+                    if existing == DOOR_SECURITY and st.experiment.trigger_id == "security_door":
+                        experiments.trigger_success(self)
                 continue
             state, extra = roll_segment(
                 st, self.registry.lock_rules, room, cell, d, self.rng, entry_dir)
@@ -1612,7 +1642,12 @@ class Game:
             # already-placed room id unless the Chamber of Mirrors is placed,
             # so this can't recurse today -- add_aquariums (inert) is the
             # wiki's own designed loop through these triggers, so re-verify
-            # both claims before it goes live.
+            # both claims before it goes live. The same guarantee covers
+            # _roll_new_segments' own security_door fire above (site B), which
+            # runs even earlier in this method -- before placed_ids, room_cells,
+            # and rooms_placed are updated -- for the identical reason: no
+            # currently live effect places a room, deals a hand, opens a
+            # container, or digs.
             experiments.on_room_drafted(self, room, cell, entry_dir, gem_cost)
         effects.fire(self, room, Hook.ON_PLACE)
         if self.state.foyer_placed:
@@ -1882,7 +1917,8 @@ class Game:
         if not self.can_start_setup():
             return
         st = self.state
-        offered_triggers, offered_effects = experiments.draw_offers(self.registry, self.rng)
+        offered_triggers, offered_effects = experiments.draw_offers(
+            self.registry, self.rng, self.cfg)
         st.experiment.offered_triggers = offered_triggers
         st.experiment.offered_effects = offered_effects
         self.phase = Phase.EXPERIMENT_PENDING
@@ -1922,7 +1958,9 @@ class Game:
 
         Clears the offered lists, returns phase to NAVIGATE, and -- since the
         "immediately" trigger needs no separate firing site -- fires it right
-        here, exactly once, the moment the experiment becomes active.
+        here, exactly once, the moment the experiment becomes active. Checks
+        termination at the end: "immediately" paired with steps_for_gold can
+        zero out steps on the spot.
         """
         st = self.state
         if st.experiment.trigger_id is None or st.experiment.effect_id is None:
@@ -1932,6 +1970,7 @@ class Game:
         self.phase = Phase.NAVIGATE
         if st.experiment.trigger_id == "immediately":
             experiments.trigger_success(self)
+        self._check_termination()
 
     def can_toggle_experiment(self) -> bool:
         """True when pausing/resuming the active experiment is legal right now.

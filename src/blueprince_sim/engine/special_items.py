@@ -22,6 +22,7 @@ import json
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from . import experiments
 from .model import Effect
 
 KINDS = ("standard", "special_key", "contraption", "showroom", "armory", "unique")
@@ -1765,6 +1766,14 @@ def open_container(game, cell: int) -> str | None:
 
     # Mark one container opened at this cell
     state.special.opened_containers[cell] = state.special.opened_containers.get(cell, 0) + 1
+
+    # trunks_opened: trunk and the dead 'chest' kind both count (wiki: "chest" is
+    # trunk terminology); lockers, the Garage car trunk, and Vault boxes are
+    # separate mechanics and never reach this point. Only fires past the payment
+    # gates above, so a failed open (insufficient keys) never counts, and a
+    # smash-open (which skips payment but still reaches here) does count.
+    if kind in ("trunk", "chest") and state.experiment.trigger_id == "trunks_opened":
+        experiments.trigger_success(game)
 
     # Roll loot
     loot_table = kind_cfg.get("loot", [])
