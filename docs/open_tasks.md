@@ -656,6 +656,95 @@ the residual `game.py` branches.
 
 ## Decisions log
 
+- **2026-08-11, the four remaining base experiment effects get built.** Owner,
+  rejecting the cheaper option of filtering them out of the setup draw. The
+  Laboratory's `draw_offers` does not filter on `implemented`, so a player can
+  be offered -- and pick -- an experiment that does nothing. That is the
+  clearest failure of the "features are built to be PLAYED" bar in the
+  subsystem: a day replay containing a chosen no-op experiment does not read
+  clean.
+
+  The four: `entrance_hall_trunk`, `spread_dig_spots`, `add_aquariums`,
+  `mail_room_letter`.
+
+  Act on this cold as: **two of these are subsystems wearing an experiment
+  costume, and one may not be buildable at all.**
+  - `mail_room_letter` looks cheapest -- the Mail Room family is fully
+    modelled and the wiki publishes a 16-letter collection in fixed order.
+  - `entrance_hall_trunk` needs **dynamic per-cell container counts**;
+    `containers_in()` reads a static per-room table and the Entrance Hall has
+    no entry.
+  - `add_aquariums` needs live deck injection with a per-day rarity override,
+    and it must defeat `draft.py::room_draftable`'s one-copy-on-grid rule --
+    which is also the thing that currently makes it non-re-entrant with the
+    shops/bedrooms/hallways/red triggers. **Re-verify that non-recursion
+    argument before it goes live.**
+  - `spread_dig_spots` is **blocked on off-grid dig spots**, which do not
+    exist: `dig_all` reads `state.grid[cell]` only, and `areas.py` has no dig
+    concept. Report back rather than inventing a model. Note the wiki also
+    forbids pairing it with `trash_while_digging`, already encoded as
+    `cross_column_exclude`.
+
+- **2026-08-11, Blessing of the Tinkerer IS built -- reversing its
+  never-model entry.** Owner, resolving a conflict between two of their own
+  rulings. The Shrine ruling stubbed Tinkerer on "needs the experiments
+  subsystem"; task 19 listed "Blessing of the Tinkerer cross-triggers" under
+  *Deliberately never modelled* because it is a global modifier on the whole
+  subsystem rather than a per-record rule.
+
+  The blocker named in the Shrine ruling is gone, so that ruling now governs:
+  any active experiment also triggers whenever a Mechanical Room is drafted,
+  independent of the chosen trigger.
+
+  Act on this cold as: **the eight Mechanical rooms are already typed**
+  (`is_category("mechanical")`, landed in #159), so the detection is cheap.
+  The care needed is at the fire site -- this is a second, unconditional path
+  into `trigger_success` that bypasses the configured trigger's own gate, so
+  it must respect the pause gate and any cap exactly as the normal path does.
+
+- **2026-08-11, the jack hammer's unsourced vault keys are resolved by what
+  they unlock.** Owner, on the four vault keys our dig table carries that the
+  datamine does not list: *"Research the items blocked by the keys. Drop any
+  keys that only block puzzles or story items. Model those that block items we
+  do model, like gems."*
+
+  So this is not a keep-all or delete-all call. Each of `vault_key_304`,
+  `vault_key_149`, `vault_key_233` and `vault_key_370` is judged on its own
+  vault's contents: a vault holding modelled resources justifies keeping its
+  key in the table; a vault holding only puzzle or story content does not.
+
+  Act on this cold as: this needs a research pass over what each vault
+  contains before the full table reconciliation runs, and the outcome must be
+  written into `dig.meta.note` so the next reader does not re-open it.
+
+- **2026-08-11, the Spare Great Hall grants its published prize contents.**
+  Owner, closing a question deliberately left open on 2026-08-10. Per the wiki
+  the room has no side doorways, no Antechamber lever, no Upgrade Disk, and
+  its far door is not necessarily locked -- so its entire published *effect*
+  is invisible at our grid granularity. Rather than declare it permanently
+  inert, it gets its published prize contents (four cyan gems / key + cyan gem
+  + 5 coins / 20 coins) as an items roll.
+
+  This clears two of the eleven divergence findings, and is the only option
+  that leaves the room doing something a player can observe.
+
+- **2026-08-11, two orchestrator decisions taken without escalation.**
+
+  - **`servants_spare_quarters__ix134` gets `cap: 15`.** The base
+    `servants_quarters` gained the published cap while the Guess Bedroom mimic
+    was being built; the upgrade variant carries the same uncapped
+    `grant_per_category` and was missed. Per CLAUDE.md a placement/behaviour
+    rule applies to upgrade variants that inherit the base's rule. This is the
+    same invisible-until-the-count-gets-large shape as the original.
+  - **The divergence audit gains a fifth exemption channel,
+    `_AUDIT_DEFERRED_EXEMPT_IDS`,** carrying an id and a reason, guarded
+    against staleness the way the Python channel already is. The owner asked
+    for Closed Exhibit / Throne Room / Pump Room to be marked deferred; there
+    was never a mechanism that could express it, so it was never done -- and
+    `parlor__ix109`, ruled permanent, is still counted too. Exempting those
+    four takes the count **11 -> 7**, after which every remaining finding is
+    genuinely actionable.
+
 - **2026-08-11, the redraw cap is DROPPED. This reverses the 2026-08-11
   ruling above, and the reversal is my fault.** When I asked for that ruling I
   described `drawing_room_drawn` x `set_dice` as an unbounded zero-step loop.
