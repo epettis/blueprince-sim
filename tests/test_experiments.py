@@ -1,9 +1,10 @@
 """Laboratory / Experiments: setup/pause/resume core, the pure-resource
-effects, the five placement-site draft triggers (shops, red_room_draft,
-hallway_from_hallway, bedrooms_after_second, gems_spent), the generic cap
-machinery, the trunks_opened, security_door, trash_while_digging, and apples
-interaction-site triggers, the day_gate availability filter, and the scoped
-termination checks added at open_door/open_container/move/
+effects, the six placement-site draft triggers (shops, red_room_draft,
+hallway_from_hallway, bedrooms_after_second, gems_spent, archived_floorplan),
+the generic cap machinery, the trunks_opened, security_door,
+trash_while_digging, apples, and drawing_room_drawn interaction-site
+triggers, the day_gate availability filter, and the scoped termination
+checks added at open_door/open_container/move/redraw/
 _maybe_finish_experiment_setup.
 
 Mirrors test_upgrade_env.py's shape (direct Game construction plus the flat
@@ -14,6 +15,18 @@ draft-trigger tests mostly drive Game._place_room directly (like the
 existing _place helper), reaching for the real open_door/choose pipeline
 only where the threading between them matters (gem cost, Stopwatch, Study,
 security-door state).
+
+drawing_room_drawn's own tests need a real Drawing Room in a real dealt
+hand -- rewriting a deck's ``order`` alone is not enough, since the "rarity"
+roll that picks which deck a slot draws from runs first and is not itself
+seed-searchable in one step. ``_force_drawing_room_dealable`` instead forces
+that roll to always pick commonplace (the Drawing Room's own rarity) via
+``monkeypatch``, then reorders the two commonplace decks so the deal reaches
+the Drawing Room's own gem-deck card without ever emptying a deck outright
+(an emptied deck triggers draw_slot's attempt-3 full reshuffle, which would
+scramble the surgery). This drives the real open_door/redraw/open_outer_draft
+pipeline end to end rather than constructing a hand by hand, so it also
+exercises the deal-site plumbing the trigger depends on.
 """
 
 from __future__ import annotations
@@ -53,6 +66,35 @@ def _configure(game: Game, trigger_id: str, effect_id: str) -> None:
     """Configure today's experiment directly, bypassing the terminal's offer/choice flow."""
     game.state.experiment.trigger_id = trigger_id
     game.state.experiment.effect_id = effect_id
+
+
+def _force_drawing_room_dealable(monkeypatch, game: Game) -> None:
+    """Rig ``game`` so the next 3-slot fill (initial deal or redraw) deals the Drawing Room.
+
+    Forces every "rarity" roll to commonplace (the Drawing Room's own
+    rarity), then reorders the commonplace decks so a slot's deal reaches the
+    Drawing Room's own gem-deck card (gem_cost 1, so it lives in the gem
+    deck) ahead of the free deck: trims the free deck's remaining cards below
+    the gem deck's remaining count (never to zero -- an empty deck triggers a
+    full reshuffle that would undo the ordering below) so draw_slot's
+    remaining-count sort tries the gem deck first, then swaps the Drawing
+    Room's card to the gem deck's cursor position. Leaves slot 0 (which only
+    ever draws from the free deck) untouched, so it still deals normally.
+    """
+    orig_roll_weighted = Rng.roll_weighted
+
+    def forced(self, label, weights):
+        if label == "rarity":
+            return 0  # commonplace
+        return orig_roll_weighted(self, label, weights)
+
+    monkeypatch.setattr(Rng, "roll_weighted", forced)
+    dr = game.registry.by_id["drawing_room"]
+    free_deck = game.state.deck(dr.rarity_idx, False)
+    gem_deck = game.state.deck(dr.rarity_idx, True)
+    del free_deck.order[free_deck.pos + 5:]
+    i, pos = gem_deck.order.index(dr.idx), gem_deck.pos
+    gem_deck.order[i], gem_deck.order[pos] = gem_deck.order[pos], gem_deck.order[i]
 
 
 # ---------------------------------------------------------------------------
@@ -576,6 +618,75 @@ def test_aquarium_draft_fires_shops_red_room_and_bedrooms_after_second_triggers(
     assert g.state.experiment.success_count == 1
 
 
+def _choose_archived(game: Game, room, archived: bool, hidden: bool = True) -> None:
+    """Deal one option in slot 1 (from the Laboratory, north to cell 12) and choose it,
+    with DraftOption.archived/hidden set directly -- the site under test is choose()'s
+    own handling of an already-dealt option, not the deal that concealed it."""
+    game.phase = Phase.DRAFTING
+    game.state.pos = 7
+    pd = PendingDraft(from_cell=7, direction=N, target_cell=12)
+    pd.options = [DraftOption(room_idx=room.idx, orientation=room.door_mask,
+                              gem_cost=0, slot=1, hidden=hidden, archived=archived)]
+    game.doorway_drafts[(7, N)] = pd
+    game.state.pending = pd
+    game.choose(1)
+
+
+def test_archived_floorplan_fires_when_choosing_an_archived_option():
+    """archived_floorplan fires on choosing an option DraftOption.archived flags --
+    an Archives-archived floorplan -- not on the earlier deal that archived it."""
+    g = _game_at_laboratory()
+    _configure(g, "archived_floorplan", "permanent_allowance")
+    _choose_archived(g, g.registry.by_id["closet"], archived=True)
+    assert g.state.experiment.success_count == 1
+
+
+def test_archived_floorplan_does_not_fire_for_a_merely_hidden_option():
+    """A Darkroom-hidden option (hidden=True, archived=False) never fires the
+    trigger -- only an Archives' own archived flag counts, per DraftOption's
+    "archived implies hidden, never the converse" contract."""
+    g = _game_at_laboratory()
+    _configure(g, "archived_floorplan", "permanent_allowance")
+    _choose_archived(g, g.registry.by_id["closet"], archived=False, hidden=True)
+    assert g.state.experiment.success_count == 0
+
+
+def test_archived_floorplan_does_not_fire_for_a_visible_option():
+    """A plain, unconcealed option never fires archived_floorplan."""
+    g = _game_at_laboratory()
+    _configure(g, "archived_floorplan", "permanent_allowance")
+    _choose_archived(g, g.registry.by_id["closet"], archived=False, hidden=False)
+    assert g.state.experiment.success_count == 0
+
+
+def test_archived_floorplan_bunk_room_fires_twice():
+    """Wiki: "If the archived floorplan is a Bunk Room, it triggers twice" -- read
+    off the same counts_as_bedrooms/amount tag bedrooms_after_second uses, not a
+    hard-coded Bunk Room id."""
+    g = _game_at_laboratory()
+    _configure(g, "archived_floorplan", "permanent_allowance")
+    _choose_archived(g, g.registry.by_id["bunk_room"], archived=True)
+    assert g.state.experiment.success_count == 2
+
+
+def test_archived_floorplan_does_not_fire_for_a_different_configured_trigger():
+    """A different configured trigger never fires archived_floorplan's own branch,
+    even for a genuinely archived option."""
+    g = _game_at_laboratory()
+    _configure(g, "shops", "permanent_allowance")
+    _choose_archived(g, g.registry.by_id["closet"], archived=True)
+    assert g.state.experiment.success_count == 0
+
+
+def test_archived_floorplan_does_not_fire_while_paused():
+    """Pausing suppresses a qualifying archived-option choice like every other trigger."""
+    g = _game_at_laboratory()
+    _configure(g, "archived_floorplan", "permanent_allowance")
+    g.state.experiment.paused = True
+    _choose_archived(g, g.registry.by_id["closet"], archived=True)
+    assert g.state.experiment.success_count == 0
+
+
 # ---------------------------------------------------------------------------
 # Generic cap machinery
 # ---------------------------------------------------------------------------
@@ -1038,6 +1149,124 @@ def test_security_door_site_b_can_fire_up_to_three_times_in_one_placement():
 
 
 # ---------------------------------------------------------------------------
+# Interaction-site trigger: drawing_room_drawn
+# ---------------------------------------------------------------------------
+
+def test_drawing_room_drawn_fires_on_an_initial_deal_containing_it(monkeypatch):
+    """drawing_room_drawn fires once when a real open_door() initial deal
+    contains the Drawing Room -- not fired more times just because two other
+    unrelated options were dealt alongside it in the same hand."""
+    g = Game(GameConfig(), seed=0)
+    _configure(g, "drawing_room_drawn", "permanent_allowance")
+    _force_drawing_room_dealable(monkeypatch, g)
+    dr_idx = g.registry.by_id["drawing_room"].idx
+    pending = g.open_door(2, N)
+    assert dr_idx in [o.room_idx for o in pending.options]
+    assert g.state.experiment.success_count == 1
+
+
+def test_drawing_room_drawn_fires_again_on_each_redraw_that_deals_it(monkeypatch):
+    """A redraw that deals a fresh Drawing Room fires the trigger again --
+    ON_HAND_DEALT is deliberately re-fired for every redealt hand."""
+    g = Game(GameConfig(), seed=0)
+    _configure(g, "drawing_room_drawn", "permanent_allowance")
+    pending = g.open_door(2, N)  # ordinary initial deal, no Drawing Room forced
+    assert g.registry.by_id["drawing_room"].idx not in [o.room_idx for o in pending.options]
+    assert g.state.experiment.success_count == 0
+    g.state.dice = 1
+    _force_drawing_room_dealable(monkeypatch, g)
+    dr_idx = g.registry.by_id["drawing_room"].idx
+    g.redraw(RedrawKind.DIE)
+    assert dr_idx in [o.room_idx for o in g.state.pending.options]
+    assert g.state.experiment.success_count == 1
+
+
+def test_drawing_room_drawn_never_fires_twice_for_one_hand(monkeypatch):
+    """Reopening an already-dealt doorway returns the cached hand without
+    re-dealing, so a second open_door() on the same doorway never re-fires
+    ON_HAND_DEALT (and the trigger) for the same hand."""
+    g = Game(GameConfig(), seed=0)
+    _configure(g, "drawing_room_drawn", "permanent_allowance")
+    _force_drawing_room_dealable(monkeypatch, g)
+    g.open_door(2, N)
+    assert g.state.experiment.success_count == 1
+    g.phase = Phase.NAVIGATE  # simulate returning to NAVIGATE without choosing
+    g.open_door(2, N)  # same doorway: doorway_drafts cache hit, no re-deal
+    assert g.state.experiment.success_count == 1
+
+
+def test_drawing_room_drawn_never_fires_on_an_outer_deal():
+    """The fixed 8-room outer pool can never contain the Drawing Room, so a
+    real open_outer_draft() never fires the trigger -- a permanent no-op site."""
+    g = Game(GameConfig(west_gate_unlatched=True, starting_steps=50), seed=0)
+    assert g.registry.by_id["drawing_room"].id not in {r.id for r in g.outer_rooms}
+    _configure(g, "drawing_room_drawn", "permanent_allowance")
+    g.open_outer_draft()
+    assert g.state.experiment.success_count == 0
+
+
+def test_drawing_room_drawn_fires_for_a_hidden_drawing_room(monkeypatch):
+    """A Darkroom-hidden Drawing Room still counts: the room_hook receives no
+    concealment info at all, matching the wiki's plain "drawn" wording."""
+    g = Game(GameConfig(), seed=0)
+    darkroom = g.registry.by_id["darkroom"]
+    g._place_room(darkroom, 7, N | S)
+    g.state.pos = 7
+    g.state.darkroom_lights_on = False
+    _configure(g, "drawing_room_drawn", "permanent_allowance")
+    _force_drawing_room_dealable(monkeypatch, g)
+    dr_idx = g.registry.by_id["drawing_room"].idx
+    pending = g.open_door(7, N)
+    dealt = next(o for o in pending.options if o.room_idx == dr_idx)
+    assert dealt.hidden
+    assert g.state.experiment.success_count == 1
+
+
+def test_drawing_room_drawn_fires_for_an_archived_drawing_room(monkeypatch):
+    """An Archives-archived Drawing Room still counts, for the same reason a
+    merely-hidden one does."""
+    g = Game(GameConfig(), seed=0)
+    g.state.archives_active = True
+    orig_randint = Rng.randint
+
+    def forced_randint(self, label, lo, hi):
+        if label == "archives_slot":
+            return 1  # matches the slot _force_drawing_room_dealable lands it in
+        return orig_randint(self, label, lo, hi)
+
+    monkeypatch.setattr(Rng, "randint", forced_randint)
+    _configure(g, "drawing_room_drawn", "permanent_allowance")
+    _force_drawing_room_dealable(monkeypatch, g)
+    dr_idx = g.registry.by_id["drawing_room"].idx
+    pending = g.open_door(2, N)
+    dealt = next(o for o in pending.options if o.room_idx == dr_idx)
+    assert dealt.archived
+    assert g.state.experiment.success_count == 1
+
+
+def test_drawing_room_drawn_does_not_fire_for_a_different_configured_trigger(monkeypatch):
+    """A different configured trigger never fires drawing_room_drawn's own hook,
+    even when the Drawing Room really is dealt."""
+    g = Game(GameConfig(), seed=0)
+    _configure(g, "shops", "permanent_allowance")
+    _force_drawing_room_dealable(monkeypatch, g)
+    pending = g.open_door(2, N)
+    assert g.registry.by_id["drawing_room"].idx in [o.room_idx for o in pending.options]
+    assert g.state.experiment.success_count == 0
+
+
+def test_drawing_room_drawn_does_not_fire_while_paused(monkeypatch):
+    """Pausing suppresses a qualifying deal like every other trigger."""
+    g = Game(GameConfig(), seed=0)
+    _configure(g, "drawing_room_drawn", "permanent_allowance")
+    g.state.experiment.paused = True
+    _force_drawing_room_dealable(monkeypatch, g)
+    pending = g.open_door(2, N)
+    assert g.registry.by_id["drawing_room"].idx in [o.room_idx for o in pending.options]
+    assert g.state.experiment.success_count == 0
+
+
+# ---------------------------------------------------------------------------
 # Availability: the day_gate filter in draw_offers
 # ---------------------------------------------------------------------------
 
@@ -1106,6 +1335,23 @@ def test_open_container_ends_the_day_when_the_fired_effect_drains_steps_to_zero(
     g.state.steps = 5
     _configure(g, "trunks_opened", "steps_for_gold")
     g.open_container()
+    assert g.state.steps == 0
+    assert g.phase is Phase.TERMINAL
+    assert g.termination_reason == "out_of_steps"
+
+
+def test_redraw_ends_the_day_when_the_fired_effect_drains_steps_to_zero(monkeypatch):
+    """drawing_room_drawn + steps_for_gold: a redraw that deals the Drawing Room
+    with few steps left zeroes them out, and redraw()'s own termination check
+    (added at the end, after the ON_HAND_DEALT loop) ends the day inside the
+    call rather than on some later NAVIGATE action."""
+    g = Game(GameConfig(), seed=0)
+    _configure(g, "drawing_room_drawn", "steps_for_gold")
+    g.open_door(2, N)  # ordinary initial deal; does not itself contain the Drawing Room
+    g.state.dice = 1
+    g.state.steps = 5
+    _force_drawing_room_dealable(monkeypatch, g)
+    g.redraw(RedrawKind.DIE)
     assert g.state.steps == 0
     assert g.phase is Phase.TERMINAL
     assert g.termination_reason == "out_of_steps"

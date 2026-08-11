@@ -1266,7 +1266,10 @@ class Game:
         DRAFTING-phase action; returns the game to NAVIGATE. Placing does not
         enter the room - no step is spent and none of its resources are gained
         until the player :meth:`move`s in. Outer-room drafts (target_cell -1)
-        route to their off-grid placement instead.
+        route to their off-grid placement instead. This is also the site that
+        detects the archived_floorplan experiment trigger -- it fires on
+        *choosing* an archived option, not on its earlier deal, so ``opt``'s
+        own ``archived`` flag is threaded into :meth:`_place_room`.
         """
         assert self.phase is Phase.DRAFTING and self.state.pending is not None
         st = self.state
@@ -1287,7 +1290,7 @@ class Game:
         # they move in (see :meth:`move`).
         self._place_room(room, pending.target_cell, opt.orientation,
                          entry_dir=OPPOSITE[pending.direction],
-                         gem_cost=0 if waived else cost)
+                         gem_cost=0 if waived else cost, archived=opt.archived)
         del self.doorway_drafts[(pending.from_cell, pending.direction)]
         st.pending = None
         self.phase = Phase.NAVIGATE
@@ -1362,6 +1365,10 @@ class Game:
         that agreed across two independent queries. blueprince.wiki.gg, this
         project's usual source, does not mention outer rerolls either way.
         So: owner-ruled, externally corroborated, not datamined.
+
+        Checks termination at the end: the redealt hand's ON_HAND_DEALT fire
+        can itself drain steps (e.g. steps_for_gold), so a caller must check
+        ``phase`` afterward, same as every other termination-checking action.
         """
         assert self.phase is Phase.DRAFTING and self.state.pending is not None
         st = self.state
@@ -1387,6 +1394,7 @@ class Game:
         # redraw is itself the event this hook exists to model.
         for opt in pending.options:
             effects.fire(self, self.registry.rooms[opt.room_idx], Hook.ON_HAND_DEALT)
+        self._check_termination()
 
     def _rotation_source(self) -> bool:
         """Is a free-rotation source in play for the current hand?"""
@@ -1594,7 +1602,7 @@ class Game:
 
     def _place_room(self, room: Room, cell: int, orientation: int,
                     entered: bool = False, entry_dir: int | None = None,
-                    gem_cost: int = 0) -> None:
+                    gem_cost: int = 0, archived: bool = False) -> None:
         """Put ``room`` on the grid at ``cell`` with the given door orientation.
 
         Rolls lock state for its fresh door segments, updates the placed-id /
@@ -1609,7 +1617,9 @@ class Game:
         place a room without drafting through it (day-start Entrance Hall,
         Foundation carryover). ``gem_cost`` is the nominal gem cost paid for
         this draft (0 if free, waived, or not drafted through :meth:`choose`)
-        -- see :func:`experiments.on_room_drafted`.
+        -- see :func:`experiments.on_room_drafted`. ``archived`` is the chosen
+        ``DraftOption.archived`` flag (False for calls that bypass a real
+        draft option, e.g. tests placing a room directly).
         """
         st = self.state
         st.grid[cell] = room.idx
@@ -1648,7 +1658,7 @@ class Game:
             # and rooms_placed are updated -- for the identical reason: no
             # currently live effect places a room, deals a hand, opens a
             # container, or digs.
-            experiments.on_room_drafted(self, room, cell, entry_dir, gem_cost)
+            experiments.on_room_drafted(self, room, cell, entry_dir, gem_cost, archived)
         effects.fire(self, room, Hook.ON_PLACE)
         if self.state.foyer_placed:
             # Covers a Hallway placed AFTER the Foyer: its own fresh segments

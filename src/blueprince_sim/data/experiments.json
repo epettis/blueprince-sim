@@ -138,11 +138,10 @@
     "text": "If Veteran Mode is not enabled, this trigger cannot appear until you have drafted an Archives at least once."
    },
    "cap": null,
-   "implemented": false,
+   "implemented": true,
    "meta": {
     "source": "https://blueprince.wiki.gg/wiki/Experiments/Triggers",
     "confidence": "wiki",
-    "blocked_on": "needs its fire site: DraftOption.archived now distinguishes an archived floorplan from a merely concealed one, so the trigger fires when the player chooses an option carrying that flag.",
     "notes": [
      "Requires first drafting the Archives (whose effect hides floorplans during drafting) and then drafting one of the hidden ones. An archived Bunk Room triggers twice."
     ]
@@ -232,11 +231,10 @@
     "text": "If Veteran Mode is not enabled, this trigger cannot appear before Day 8."
    },
    "cap": null,
-   "implemented": false,
+   "implemented": true,
    "meta": {
     "source": "https://blueprince.wiki.gg/wiki/Experiments/Triggers",
     "confidence": "wiki",
-    "blocked_on": "phase 0: no experiments engine exists yet (data/validation only)",
     "notes": [
      "Triggers on every draw of the Drawing Room including redraws, and even when rewinding back into a previous draw with the Chronograph."
     ]

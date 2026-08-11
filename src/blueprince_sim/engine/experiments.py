@@ -26,14 +26,17 @@ Eleven of the twenty effects stay inert (``implemented: false`` or, for
 stays undrawable until the packet subsystem (phases 5-8) is authorised,
 since :func:`draw_offers` only samples the base pool.
 
-Two of the twelve base triggers stay unimplemented: ``archived_floorplan``
-and ``drawing_room_drawn`` need firing sites (an Archives-drafted gate, the
-Drawing Room's own draw) that are later work, same as all eight packet
-triggers. ``immediately`` fires once, at setup completion, from
-:meth:`Game._maybe_finish_experiment_setup`. Five -- ``shops``, ``gems_spent``,
-``bedrooms_after_second``, ``hallway_from_hallway``, ``red_room_draft`` -- are
-all detected by :func:`on_room_drafted`, called from ``Game._place_room`` on
-every non-entrance draft. ``trunks_opened`` (capped at 3) fires from
+All twelve base triggers are now implemented; the eight packet triggers stay
+unimplemented pending the packet subsystem (phases 5-8). ``immediately``
+fires once, at setup completion, from
+:meth:`Game._maybe_finish_experiment_setup`. Six -- ``shops``, ``gems_spent``,
+``bedrooms_after_second``, ``hallway_from_hallway``, ``red_room_draft``,
+``archived_floorplan`` -- are all detected by :func:`on_room_drafted`, called
+from ``Game._place_room`` on every non-entrance draft. ``archived_floorplan``
+gates on the chosen ``DraftOption.archived`` flag threaded through from
+``Game.choose`` (it fires on *choosing* an archived option, not its earlier
+deal) and fires twice for a Bunk Room (see :func:`_fire_archived_floorplan`).
+``trunks_opened`` (capped at 3) fires from
 ``special_items.open_container`` after a trunk or chest is opened, including a
 smash-open; vault boxes, lockers, and the Garage car trunk do not count.
 ``security_door`` fires from two sites in game.py: drafting through a security
@@ -54,6 +57,13 @@ so a same-day ``set_steps`` effect lands last, per the wiki, rather than being
 overwritten by the apple's steps. A single ``eat_food`` call with ``count`` >
 1 (the Secret Garden's Conference Room spread) fires once per apple in the
 loop, matching apples being eaten one at a time in the real game.
+``drawing_room_drawn`` fires from :func:`on_drawing_room_dealt`, called by a
+``room_hook`` on ``ON_HAND_DEALT`` in ``effects/rooms/drawing_room.py`` --
+kept out of this module's own dispatch so that a Drawing-Room-id literal
+lives in a room module rather than an engine one; ``fire()`` already runs the
+hook at all three ON_HAND_DEALT sites (the initial grid deal, the initial
+outer deal, and every redraw), so no new call site was needed. A hidden or
+archived Drawing Room still counts, per the wiki's plain "drawn" wording.
 
 Two of the twelve base triggers carry a ``day_gate`` availability
 (``security_door``, ``drawing_room_drawn``): both are excluded from
@@ -264,8 +274,9 @@ def trigger_success(game) -> bool:
 
 # ------------------------------------------------------------------ draft-site triggers
 
-def on_room_drafted(game, room, cell: int, entry_dir: int | None, gem_cost: int) -> None:
-    """Detect and fire the five placement-site triggers for a freshly-placed room.
+def on_room_drafted(game, room, cell: int, entry_dir: int | None, gem_cost: int,
+                    archived: bool = False) -> None:
+    """Detect and fire the six placement-site triggers for a freshly-placed room.
 
     Called from Game._place_room after the room is written to the grid and
     before its ON_PLACE hook fires, for every non-entrance draft (never for
@@ -273,7 +284,11 @@ def on_room_drafted(game, room, cell: int, entry_dir: int | None, gem_cost: int)
     currently configured trigger's own branch can call trigger_success --
     drafting a Shop while "gems_spent" is configured must not fire it.
     ``gem_cost`` is the nominal gem cost paid (0 if free, or waived by a
-    Stopwatch, which does not count as spending).
+    Stopwatch, which does not count as spending). ``archived`` is the chosen
+    DraftOption's own ``archived`` flag -- an outer-room draft never sets it
+    (draft.py's Archives pass only ever touches a grid hand), so that path
+    (which does not route through this function at all) can never fire
+    archived_floorplan.
     """
     ex = game.state.experiment
     match ex.trigger_id:
@@ -286,8 +301,39 @@ def on_room_drafted(game, room, cell: int, entry_dir: int | None, gem_cost: int)
                 trigger_success(game)
         case "gems_spent" if gem_cost >= 2 and not game.hovel_placed:
             trigger_success(game)
+        case "archived_floorplan" if archived:
+            _fire_archived_floorplan(game, room)
     if room.is_category("bedroom"):
         _count_bedroom_draft(game, room, ex.trigger_id)
+
+
+def _fire_archived_floorplan(game, room) -> None:
+    """Fire archived_floorplan once, or twice if ``room`` is a Bunk Room.
+
+    Reads the same "counts_as_bedrooms" tag/``amount`` param
+    :func:`_count_bedroom_draft` reads for bedrooms_after_second, rather than
+    hard-coding a Bunk Room id, so the two agree by construction: "If the
+    archived floorplan is a Bunk Room, it triggers twice" (wiki).
+    """
+    bed_effect = next((e for e in room.effects if e.tag == "counts_as_bedrooms"), None)
+    times = bed_effect.param("amount", 1) if bed_effect is not None else 1
+    for _ in range(times):
+        trigger_success(game)
+
+
+def on_drawing_room_dealt(game) -> None:
+    """Fire drawing_room_drawn: the Drawing Room was just dealt into a hand.
+
+    Called by effects/rooms/drawing_room.py's ``ON_HAND_DEALT`` room_hook,
+    which ``effects.fire`` already invokes at all three ON_HAND_DEALT sites
+    (open_door's initial deal, open_outer_draft's initial deal, and every
+    redraw) -- no new call site is needed. The outer pool can never contain
+    the Drawing Room, so that site is a permanent no-op. A hidden or
+    archived Drawing Room still counts: the wiki's "drawn" wording draws no
+    distinction for concealment, so this does not read opt.hidden/archived.
+    """
+    if game.state.experiment.trigger_id == "drawing_room_drawn":
+        trigger_success(game)
 
 
 def _drafted_from_hallway(game, cell: int, entry_dir: int | None) -> bool:
