@@ -84,7 +84,10 @@ def grant(game, room, eff, ctx_room) -> None:
 
 @effect("grant_per_category", Hook.ON_ENTER)
 def grant_per_category(game, room, eff, ctx_room) -> None:
-    """E.g. Servant's Quarters: +1 per Bedroom in the house."""
+    """E.g. Servant's Quarters: +1 per Bedroom in the house, up to its cap of 15.
+
+    An optional ``cap`` param bounds the total granted, not the count.
+    """
     category = eff.param("category")
     if category == "any":
         n = sum(1 for idx in game.state.grid if idx >= 0)
@@ -92,7 +95,11 @@ def grant_per_category(game, room, eff, ctx_room) -> None:
         n = sum(1 for idx in game.state.grid
                 if idx >= 0 and game.registry.rooms[idx].is_category(category))
         n += game.bedroom_bonus if category == "bedroom" else 0
-    _grant(game, eff.param("resource"), eff.param("amount", 1) * n)
+    total = eff.param("amount", 1) * n
+    cap = eff.param("cap")
+    if cap is not None:
+        total = min(total, cap)
+    _grant(game, eff.param("resource"), total)
 
 
 @effect("set_resource_on_enter", Hook.ON_ENTER)

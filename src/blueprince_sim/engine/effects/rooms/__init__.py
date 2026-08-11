@@ -25,6 +25,7 @@ from . import foyer  # noqa: F401
 from . import furnace  # noqa: F401
 from . import great_hall  # noqa: F401  (no handler; imported for the lever helper)
 from . import greenhouse  # noqa: F401
+from . import guess_bedroom  # noqa: F401
 from . import guest_bedroom  # noqa: F401
 from . import hallway  # noqa: F401
 from . import her_ladyships_chamber  # noqa: F401
