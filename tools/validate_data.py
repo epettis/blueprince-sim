@@ -118,6 +118,7 @@ _AUDIT_PYTHON_EXEMPT_IDS = {
     # Token, granted earlier in the same on_enter call, so it stays ordered
     # against that grant rather than moving to an earlier-firing room_hook.
     "lost_and_found": "engine/special_items.py",  # steal one item, grant two
+    "mechanarium": "engine/draft.py",            # derived door mask at draft time
     "reading_nook__ix99": "engine/draft.py",     # LIBRARY forced into slot 2
     "the_foundation": "engine/game.py",          # persists across days
     "the_kennel": "engine/effects/rooms/the_kennel.py",  # digging unlocks that room
