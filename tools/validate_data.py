@@ -796,6 +796,86 @@ def main(argv: list[str] | None = None) -> int:
                 if iid not in si_by_id:
                     errors.append(f"{where}: grant item {iid!r} not in special_items")
 
+    # ── experiments.json (Laboratory/Experiments, phase 0: data + validation) ─────
+    VALID_EXPERIMENT_POOLS = {"base", "packet"}
+    experiments_doc = json.loads((DATA / "experiments.json").read_text())
+    ex_triggers = experiments_doc.get("triggers", [])
+    ex_effects = experiments_doc.get("effects", [])
+    ex_trigger_ids = {t["id"] for t in ex_triggers}
+    ex_effect_ids = {e["id"] for e in ex_effects}
+
+    ex_all_ids = [r["id"] for r in ex_triggers] + [r["id"] for r in ex_effects]
+    if len(ex_all_ids) != len(set(ex_all_ids)):
+        dupes = {i for i in ex_all_ids if ex_all_ids.count(i) > 1}
+        errors.append(f"experiments: duplicate ids: {dupes}")
+
+    n_base_triggers = sum(1 for t in ex_triggers if t.get("pool") == "base")
+    n_packet_triggers = sum(1 for t in ex_triggers if t.get("pool") == "packet")
+    n_base_effects = sum(1 for e in ex_effects if e.get("pool") == "base")
+    n_packet_effects = sum(1 for e in ex_effects if e.get("pool") == "packet")
+    if n_base_triggers != 12:
+        errors.append(f"experiments: base triggers must be exactly 12, got {n_base_triggers}")
+    if n_packet_triggers != 8:
+        errors.append(f"experiments: packet triggers must be exactly 8, got {n_packet_triggers}")
+    if n_base_effects != 12:
+        errors.append(f"experiments: base effects must be exactly 12, got {n_base_effects}")
+    if n_packet_effects != 8:
+        errors.append(f"experiments: packet effects must be exactly 8, got {n_packet_effects}")
+
+    def _check_experiment_record(kind: str, rec: dict) -> None:
+        """Validate one trigger or effect record: pool, cap, availability, id refs."""
+        where = f"experiments/{kind}/{rec.get('id')}"
+        if rec.get("pool") not in VALID_EXPERIMENT_POOLS:
+            errors.append(f"{where}: invalid pool {rec.get('pool')!r}")
+        if rec.get("implemented", True) is not False:
+            errors.append(f"{where}: phase 0 requires implemented=false")
+        if not rec.get("meta", {}).get("blocked_on"):
+            errors.append(f"{where}: implemented=false requires meta.blocked_on")
+        conf = rec.get("meta", {}).get("confidence")
+        if conf not in VALID_CONFIDENCE:
+            errors.append(f"{where}: invalid confidence {conf!r}")
+        cap = rec.get("cap")
+        if cap is not None and (not isinstance(cap, int) or isinstance(cap, bool) or cap <= 0):
+            errors.append(f"{where}: cap must be a positive int or null, got {cap!r}")
+        for rid in rec.get("rooms", []):
+            if rid not in by_id:
+                errors.append(f"{where}: rooms references unknown room {rid!r}")
+        av = rec.get("availability")
+        if av is not None:
+            if "room_id" in av and av["room_id"] not in by_id:
+                errors.append(
+                    f"{where}: availability.room_id {av['room_id']!r} not in rooms.json"
+                )
+            if "item_id" in av and av["item_id"] not in si_by_id:
+                errors.append(
+                    f"{where}: availability.item_id {av['item_id']!r} not in special_items"
+                )
+            if "excludes_trigger_id" in av and av["excludes_trigger_id"] not in ex_trigger_ids:
+                errors.append(
+                    f"{where}: availability.excludes_trigger_id "
+                    f"{av['excludes_trigger_id']!r} not a known trigger id"
+                )
+            if "removes_effect_id" in av and av["removes_effect_id"] not in ex_effect_ids:
+                errors.append(
+                    f"{where}: availability.removes_effect_id "
+                    f"{av['removes_effect_id']!r} not a known effect id"
+                )
+            pct = av.get("chance_pct")
+            if pct is not None and (not isinstance(pct, (int, float)) or not 0 <= pct <= 100):
+                errors.append(f"{where}: availability.chance_pct out of range 0-100: {pct!r}")
+        magnitude = rec.get("magnitude") or {}
+        pct_list = magnitude.get("priority_draw_chance_pct")
+        if pct_list is not None:
+            for p in pct_list:
+                if not isinstance(p, (int, float)) or not 0 <= p <= 100:
+                    errors.append(
+                        f"{where}: magnitude.priority_draw_chance_pct out of range: {p!r}"
+                    )
+
+    for t in ex_triggers:
+        _check_experiment_record("triggers", t)
+    for e in ex_effects:
+        _check_experiment_record("effects", e)
 
     # ── shops.json ─────────────────────────────────────────────────────────────
     VALID_STOCK_KINDS = {"resource", "item", "container"}
@@ -1395,6 +1475,7 @@ def main(argv: list[str] | None = None) -> int:
     print(f"{len(rooms)} rooms ({len(base)} base pool); "
           f"{len(si_items)} special items; "
           f"{n_shops} shops; "
+          f"{len(ex_triggers)} experiment triggers, {len(ex_effects)} experiment effects; "
           f"{len(errors)} errors, {len(warnings)} warnings{audit_note}")
     for w in warnings:
         print(f"  warning: {w}")
