@@ -26,28 +26,34 @@ Eleven of the twenty effects stay inert (``implemented: false`` or, for
 stays undrawable until the packet subsystem (phases 5-8) is authorised,
 since :func:`draw_offers` only samples the base pool.
 
-Three of the twelve base triggers stay unimplemented: ``apples``,
-``archived_floorplan``, and ``drawing_room_drawn`` need firing sites (apple
-pickup, an Archives-drafted gate, the Drawing Room's own draw) that are later
-work, same as all eight packet triggers. ``immediately`` fires once, at setup
-completion, from :meth:`Game._maybe_finish_experiment_setup`. Five --
-``shops``, ``gems_spent``, ``bedrooms_after_second``, ``hallway_from_hallway``,
-``red_room_draft`` -- are all detected by :func:`on_room_drafted`, called from
-``Game._place_room`` on every non-entrance draft. ``trunks_opened`` (capped at
-3) fires from ``special_items.open_container`` after a trunk or chest is
-opened, including a smash-open; vault boxes, lockers, and the Garage car trunk
-do not count. ``security_door`` fires from two sites in game.py: drafting
-through a security doorway (``_unlock_for_passage``, gated on
-``for_draft=True`` -- merely walking through does not count) and drafting a
-room whose own door faces an already-rolled security segment on a neighbor
-(``_roll_new_segments``, converting it to open). ``trash_while_digging`` fires
-from ``special_items.dig_all``'s per-spot loop on a ``junk`` outcome (the six
-named trash items plus, since Patch 1.6, Scraps of Paper -- both dig tables
-fold the scrap into a second ``junk`` row rather than a distinct kind);
-``nothing`` outcomes never count, per the wiki. Because ``dig_all`` digs every
-remaining spot at a cell in one call, this trigger can fire many times from a
-single ``move()`` -- no cap and no cross-call state, so it is a legitimate
-burst, not a bug.
+Two of the twelve base triggers stay unimplemented: ``archived_floorplan``
+and ``drawing_room_drawn`` need firing sites (an Archives-drafted gate, the
+Drawing Room's own draw) that are later work, same as all eight packet
+triggers. ``immediately`` fires once, at setup completion, from
+:meth:`Game._maybe_finish_experiment_setup`. Five -- ``shops``, ``gems_spent``,
+``bedrooms_after_second``, ``hallway_from_hallway``, ``red_room_draft`` -- are
+all detected by :func:`on_room_drafted`, called from ``Game._place_room`` on
+every non-entrance draft. ``trunks_opened`` (capped at 3) fires from
+``special_items.open_container`` after a trunk or chest is opened, including a
+smash-open; vault boxes, lockers, and the Garage car trunk do not count.
+``security_door`` fires from two sites in game.py: drafting through a security
+doorway (``_unlock_for_passage``, gated on ``for_draft=True`` -- merely
+walking through does not count) and drafting a room whose own door faces an
+already-rolled security segment on a neighbor (``_roll_new_segments``,
+converting it to open). ``trash_while_digging`` fires from
+``special_items.dig_all``'s per-spot loop on a ``junk`` outcome (the six named
+trash items plus, since Patch 1.6, Scraps of Paper -- both dig tables fold the
+scrap into a second ``junk`` row rather than a distinct kind); ``nothing``
+outcomes never count, per the wiki. Because ``dig_all`` digs every remaining
+spot at a cell in one call, this trigger can fire many times from a single
+``move()`` -- no cap and no cross-call state, so it is a legitimate burst, not
+a bug. ``apples`` fires from ``special_items.eat_food``'s per-item loop, once
+per apple eaten (``food_id == "apple"``, the one dish id covering all three
+visual varieties), after that apple's own steps have already been granted --
+so a same-day ``set_steps`` effect lands last, per the wiki, rather than being
+overwritten by the apple's steps. A single ``eat_food`` call with ``count`` >
+1 (the Secret Garden's Conference Room spread) fires once per apple in the
+loop, matching apples being eaten one at a time in the real game.
 
 Two of the twelve base triggers carry a ``day_gate`` availability
 (``security_door``, ``drawing_room_drawn``): both are excluded from

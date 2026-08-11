@@ -1149,7 +1149,7 @@ class Game:
                     and not st.outer_room_entered):
                 st.outer_room_entered = True
                 effects.fire(self, outer_room, Hook.ON_ENTER)
-                roll_room_items(st, self.registry, outer_room, self.rng)
+                roll_room_items(self, outer_room)
                 if self.cfg.special_items:
                     # Outer rooms spawn special items too (Toolshed's Gear Wrench,
                     # the Trading Post pool); -1 = off-grid, no cell hooks apply.
@@ -1686,9 +1686,9 @@ class Game:
         dishes = self.registry.item_rules["food"]["dishes"]
         for what, count in entries:
             if what in dishes:
-                special_items.eat_food(self.state, self.registry, what, count)
+                special_items.eat_food(self, what, count)
             else:
-                grant_item(self.state, what, count, self.rng, self.registry)
+                grant_item(self, what, count)
 
     def _enter(self, cell: int) -> None:
         """First-entry bookkeeping for ``cell``; no-op if already entered.
@@ -1710,14 +1710,14 @@ class Game:
         st.entered[cell] = True
         room = self.registry.rooms[st.grid[cell]]
         effects.fire(self, room, Hook.ON_ENTER)
-        roll_room_items(st, self.registry, room, self.rng)
+        roll_room_items(self, room)
         if cell in st.cloister_mila_bonus_cells:
             # Cloister of Mila's extra item: a guaranteed, luck-immune pull
             # from the same table roll_room_items uses for its own luck-
             # immune "random" guaranteed items (Closet/Walk-In/Attic).
             idx = self.rng.roll_weighted(
                 "extra_item_kind", tuple(w for _, w in EXTRA_ITEM_TABLE))
-            grant_item(st, EXTRA_ITEM_TABLE[idx][0], 1, self.rng, self.registry)
+            grant_item(self, EXTRA_ITEM_TABLE[idx][0], 1)
         if self.cfg.special_items:
             special_items.on_enter(self, room, cell)
             if effects.provides_capability(room.id, Capability.COMMERCE):

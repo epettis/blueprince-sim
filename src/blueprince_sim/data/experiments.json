@@ -42,13 +42,13 @@
    "pool": "base",
    "availability": null,
    "cap": null,
-   "implemented": false,
+   "implemented": true,
    "meta": {
     "source": "https://blueprince.wiki.gg/wiki/Experiments/Triggers",
     "confidence": "wiki",
-    "blocked_on": "phase 0: no experiments engine exists yet (data/validation only)",
+    "blocked_on": null,
     "notes": [
-     "Counts green apples and apples-with-leaves consumed for steps; no other fruit counts. The steps from the apple are gained before the experimental effect applies."
+     "Counts green apples and apples-with-leaves consumed for steps; no other fruit counts. The steps from the apple are gained before the experimental effect applies. Our single apple dish id covers all three visual varieties (purely visual per the wiki), so every apple eaten fires this trigger once, from special_items.eat_food after the steps grant."
     ]
    }
   },

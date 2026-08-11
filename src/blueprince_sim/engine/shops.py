@@ -512,7 +512,7 @@ def buy(game, index: int) -> None:
                     case "food":
                         # The entry id names the dish (banana, club_sandwich...)
                         # so per-food step values and dynamic rules apply.
-                        si.eat_food(state, game.registry, entry["id"], amount)
+                        si.eat_food(game, entry["id"], amount)
                         # inject_rooms dishes (Bacon & Eggs): add rooms to
                         # today's draft decks after eating.
                         dish = (game.registry.item_rules
@@ -789,11 +789,11 @@ def trade(game, give_id: str) -> None:
     receive = _resolve_trade(state, registry, give_id)
     if receive is None:
         # Became untradeable between offer and trade (edge case); grant a die as fallback
-        items_mod.grant_item(state, "die", 1, game.rng, registry)
+        items_mod.grant_item(game, "die", 1)
     else:
         match receive:
             case "dice":
-                items_mod.grant_item(state, "die", 1, game.rng, registry)
+                items_mod.grant_item(game, "die", 1)
             case "allowance_token":
                 si.grant(state, registry, receive, source="trade")
             case _:

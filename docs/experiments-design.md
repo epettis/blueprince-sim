@@ -292,19 +292,32 @@ plain `dig_spots` in `rooms.json` (5), but it is not one of the six
 fireplace rooms, so it cannot also collect Cloister of Veia's +8-per-fireplace-
 room bonus (`veia_dig_bonus`); of the fireplace rooms, only Furnace carries a
 nonzero baseline (1), so the highest single-cell total reachable through
-normal play is 1 + 8 = 9 spots, not the two maxima naively summed.
+normal play is 1 + 8 = 9 spots, not the two maxima naively summed. Most
+recently, the `apples` trigger, fired from `special_items.eat_food`'s
+per-item loop on `food_id == "apple"` — the one dish id covering all three
+visual varieties (green, red, with leaves; purely visual per the wiki) — once
+per apple, after that apple's own steps have already been granted. The
+ordering matters: a same-day `set_steps` effect must land last, not be
+overwritten by the apple's own steps, per the wiki's stated interaction. A
+single `eat_food` call with `count` > 1 (the Secret Garden's Conference Room
+spread, which pays out 4 apples in one call) fires the trigger once per apple
+inside the loop, matching apples being eaten one at a time in the real game.
+That refactor also threaded the `game` orchestrator through `items.py`'s
+`grant_item`/`roll_room_items`/`roll_extra_items` and this module's
+`eat_food`/`_maybe_serve_main_course`, replacing their loose
+`(state, registry, rng)` parameter triples — the same idiom `dig_all` and the
+rest of this module already followed — with no behavior change.
 
-**Nine of the twelve base triggers and eight of the twelve base effects are
-now live.** Unimplemented triggers: `apples`, `archived_floorplan`,
-`drawing_room_drawn` — each needs a firing site (apple pickup, an
-Archives-drafted gate, the Drawing Room's own draw) that is later work.
-Unimplemented base effects: `entrance_hall_trunk`, `spread_dig_spots`,
-`add_aquariums`, `mail_room_letter`.
+**Ten of the twelve base triggers and eight of the twelve base effects are
+now live.** Unimplemented triggers: `archived_floorplan`,
+`drawing_room_drawn` — each needs a firing site (an Archives-drafted gate,
+the Drawing Room's own draw) that is later work. Unimplemented base effects:
+`entrance_hall_trunk`, `spread_dig_spots`, `add_aquariums`, `mail_room_letter`.
 
 `draw_offers` samples the base pool uniformly (modulo the `day_gate` filter
 above) and still does not filter on `implemented`, so a setup can configure
 an experiment pairing a live trigger with a silent effect, or vice versa, or
-both silent — narrower now that 9 of 12 triggers and 8 of 12 effects have
+both silent — narrower now that 10 of 12 triggers and 8 of 12 effects have
 firing sites, but still possible. Filtering the draw to fully-implemented
 records remains future work, not something addressed so far.
 

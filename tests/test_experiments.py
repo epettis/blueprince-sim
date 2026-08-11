@@ -1,7 +1,7 @@
 """Laboratory / Experiments: setup/pause/resume core, the pure-resource
 effects, the five placement-site draft triggers (shops, red_room_draft,
 hallway_from_hallway, bedrooms_after_second, gems_spent), the generic cap
-machinery, the trunks_opened, security_door, and trash_while_digging
+machinery, the trunks_opened, security_door, trash_while_digging, and apples
 interaction-site triggers, the day_gate availability filter, and the scoped
 termination checks added at open_door/open_container/move/
 _maybe_finish_experiment_setup.
@@ -860,6 +860,93 @@ def test_move_ends_the_day_when_a_dig_burst_drains_steps_to_zero():
     assert g.state.steps == 0
     assert g.phase is Phase.TERMINAL
     assert g.termination_reason == "out_of_steps"
+
+
+# ---------------------------------------------------------------------------
+# apples: special_items.py::eat_food's per-item loop
+# ---------------------------------------------------------------------------
+
+def test_apples_fires_when_eating_an_apple():
+    """Eating an apple with the apples trigger configured fires it once and
+    applies the chosen effect."""
+    g = Game(GameConfig(), seed=0)
+    _configure(g, "apples", "permanent_allowance")
+    si.eat_food(g, "apple", 1)
+    assert g.state.experiment.success_count == 1
+    assert g.state.allowance == 1
+
+
+def test_apples_does_not_fire_for_a_banana_or_orange():
+    """'No other fruit count for this trigger' (wiki): eating a banana or an
+    orange, the two other dishes food.fruit_weights can roll, must not fire
+    the apples trigger."""
+    g = Game(GameConfig(), seed=0)
+    _configure(g, "apples", "permanent_allowance")
+    si.eat_food(g, "banana", 1)
+    si.eat_food(g, "orange", 1)
+    assert g.state.experiment.success_count == 0
+    assert g.state.allowance == 0
+
+
+def test_apples_with_set_steps_ends_at_40_not_42():
+    """The wiki's stated interaction: 'the steps from the apple are gained
+    before the experimental effect applies', so set_steps (steps := 40)
+    fires and overwrites the apple's own step gain last -- steps end at the
+    flat 40, not 42 (10 starting + 2 for the apple + a hypothetical 40 on
+    top, the wrong order this test rules out)."""
+    g = Game(GameConfig(), seed=0)
+    _configure(g, "apples", "set_steps")
+    g.state.steps = 10
+    si.eat_food(g, "apple", 1)
+    assert g.state.steps == 40
+
+
+def test_apples_fires_once_per_apple_in_a_bulk_eat():
+    """eat_food's count parameter (the Secret Garden Conference Room path
+    passes 4 apples in a single call) fires the trigger once per apple
+    inside the loop, not once per call -- apples are eaten one at a time in
+    the real game."""
+    g = Game(GameConfig(), seed=0)
+    _configure(g, "apples", "permanent_allowance")
+    si.eat_food(g, "apple", 4)
+    assert g.state.experiment.success_count == 4
+    assert g.state.allowance == 4
+
+
+def test_apples_conference_room_spread_fires_four_times():
+    """The real firing site, exercised end to end: a Secret Garden's
+    Conference Room spread parks 4 apples in one spread_pending entry
+    (effects/rooms/secret_garden.py's CONFERENCE_ROOM_APPLES), collected by
+    Game._collect_spread on arrival -- which must fire the trigger four
+    times, interleaved with each apple's own step gain, not once."""
+    g = Game(GameConfig(), seed=0)
+    _configure(g, "apples", "permanent_allowance")
+    g.state.spread_pending[10] = [("apple", 4)]
+    g._collect_spread(10)
+    assert g.state.experiment.success_count == 4
+    assert g.state.allowance == 4
+
+
+def test_apples_does_not_fire_for_a_different_configured_trigger():
+    """Eating an apple while a different trigger (shops) is configured must
+    not fire the apples effect -- only the currently configured trigger's
+    own branch may call trigger_success."""
+    g = Game(GameConfig(), seed=0)
+    _configure(g, "shops", "permanent_allowance")
+    si.eat_food(g, "apple", 1)
+    assert g.state.experiment.success_count == 0
+    assert g.state.allowance == 0
+
+
+def test_apples_does_not_fire_while_paused():
+    """trigger_success's active gate suppresses apples the same way it
+    suppresses every other trigger while the experiment is paused."""
+    g = Game(GameConfig(), seed=0)
+    _configure(g, "apples", "permanent_allowance")
+    g.state.experiment.paused = True
+    si.eat_food(g, "apple", 1)
+    assert g.state.experiment.success_count == 0
+    assert g.state.allowance == 0
 
 
 # ---------------------------------------------------------------------------

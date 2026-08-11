@@ -441,11 +441,11 @@ def test_joya_bonus_raises_each_main_course_dish_by_five(registry, cfg):
     g = Game(cfg, seed=1)
     g.state.main_course_bonus = 5
     steps_before = g.state.steps
-    si.eat_food(g.state, g.registry, "lemon_glazed_salmon")  # base 20, no aquarium on estate
+    si.eat_food(g, "lemon_glazed_salmon")  # base 20, no aquarium on estate
     assert g.state.steps == steps_before + 25
 
     steps_before = g.state.steps
-    si.eat_food(g.state, g.registry, "wood_fired_pizza")  # base 20, no furnace on estate
+    si.eat_food(g, "wood_fired_pizza")  # base 20, no furnace on estate
     assert g.state.steps == steps_before + 25
 
 
