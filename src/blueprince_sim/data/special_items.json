@@ -3388,6 +3388,9 @@
    "furnace": {
     "trunk": 1
    },
+   "hallway__ix75": {
+    "trunk": 1
+   },
    "locker_room": {
     "locker_open": 3,
     "locker_locked": 17
@@ -3418,7 +3421,7 @@
   "meta": {
    "source": "https://blueprince.wiki.gg/wiki/Trunk",
    "confidence": "datamined",
-   "notes": "Trunk loot from https://blueprince.wiki.gg/wiki/Trunk (datamined probabilities). Fractions sum to ~0.994 as published; weights are fractions x1000 normalised by actual total. The 1-key+1-gem+1-4-coin outcome models coin count as 2 (midpoint). Locker split from https://blueprince.wiki.gg/wiki/Locker_Room: 3 open + 17 locked out of 36 (16 sealed/inaccessible excluded). Locker loot is inferred. Gymnasium: 2 total, split 1 open + 1 locked (inferred). Trunk rooms: attic/wine_cellar/storeroom/boiler_room sourced from item spawn-room lists (wiki); others inferred. Garage car trunk loot from Car Keys wiki page."
+   "notes": "Trunk loot from https://blueprince.wiki.gg/wiki/Trunk (datamined probabilities). Fractions sum to ~0.994 as published; weights are fractions x1000 normalised by actual total. The 1-key+1-gem+1-4-coin outcome models coin count as 2 (midpoint). Locker split from https://blueprince.wiki.gg/wiki/Locker_Room: 3 open + 17 locked out of 36 (16 sealed/inaccessible excluded). Locker loot is inferred. Gymnasium: 2 total, split 1 open + 1 locked (inferred). Trunk rooms: attic/wine_cellar/storeroom/boiler_room sourced from item spawn-room lists (wiki); hallway__ix75 sourced from https://blueprince.wiki.gg/wiki/Hallway (\"a Hallway upgrade always contains a trunk\", guaranteed rather than spawn-rolled); others inferred. Garage car trunk loot from Car Keys wiki page."
   },
   "vault_boxes": {
    "room": "vault",

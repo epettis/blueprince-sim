@@ -1,6 +1,15 @@
-"""Hallway variant: the Tomorrow Hallway's cross-day extra-copy carry.
+"""Hallway variants: the trunk upgrade, and the Tomorrow Hallway's cross-day
+extra-copy carry.
 
 Implemented:
+  - hallway__ix75 -- "+1 locked trunk" (blueprince.wiki.gg/wiki/Hallway: "a
+    Hallway upgrade always contains a trunk", guaranteed rather than luck-
+    rolled). No handler here: the container system already keys a room's
+    containers by id (data/special_items.json containers.rooms), and
+    engine/special_items.py's containers_in()/open_container() read that
+    table generically, so declaring "hallway__ix75": {"trunk": 1} there is
+    the entire change. Opening (smash or 1 key, per the trunk kind's own
+    ``opener`` list) is the existing container action, unchanged.
   - hallway__ix76 -- "Add an extra HALLWAY to tomorrow's draft pool"
     (blueprince.wiki.gg/wiki/Hallway/Upgrades). Cumulative: drafting N copies
     today adds N extra Hallways tomorrow. count_drafted_today increments a

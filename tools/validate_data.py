@@ -97,6 +97,9 @@ _AUDIT_COMMERCE_EXTRA_IDS = {"trading_post", "workshop"}
 # an implementation trips the check instead of leaving the room silently
 # "modelled".
 _AUDIT_PYTHON_EXEMPT_IDS = {
+    # Every color of room is `extra_categories`/`Room.is_category()`, not an
+    # effects/items.guaranteed/room_hook site the audit can see.
+    "aquarium": "engine/model.py",
     "break_room__ix11": "engine/game.py",        # day-end keycard pulse
     "chamber_of_mirrors": "engine/draft.py",     # duplicate-room drafting
     # Absorbing a spread is implemented by each spreader's own branch rather
@@ -107,6 +110,10 @@ _AUDIT_PYTHON_EXEMPT_IDS = {
     # room_hook (which only fires once, on first entry).
     "dining_room": "engine/special_items.py",    # rank-8 main course
     "dovecote": "engine/effects/rooms/dovecote.py",  # rotation while drawn
+    # The trunk is declared entirely in the containers.rooms table, read
+    # generically by engine/special_items.py, so the guard points at the table
+    # itself: deleting the entry is what should trip it.
+    "hallway__ix75": "data/special_items.json",
     # The steal must be able to draw the room's own guaranteed Allowance
     # Token, granted earlier in the same on_enter call, so it stays ordered
     # against that grant rather than moving to an earlier-firing room_hook.
