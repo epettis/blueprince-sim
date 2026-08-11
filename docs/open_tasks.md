@@ -656,6 +656,33 @@ the residual `game.py` branches.
 
 ## Decisions log
 
+- **2026-08-11, Entrance Hall trunks are entirely per-day: 17 is a DAILY
+  maximum, and nothing carries over.** Owner, from play. Neither the spawned
+  trunks nor the spawn counter survives the night -- the effect can add up to
+  17 trunks to the Entrance Hall each day, and the next day starts clean.
+
+  This corrects an assumption I stated in the other direction. The wiki
+  publishes a "maximum of 17" alongside a predetermined spawn order across the
+  Entrance Hall's four walls, which reads like a lifetime cap on numbered
+  physical objects; it is not.
+
+  Act on this cold as: **this makes `entrance_hall_trunk` materially cheaper
+  than scoped.** Everything lives in `SpecialItemsState`, which is rebuilt
+  with `GameState` every day -- so there is **no `GameConfig` field, no
+  `shops.py::carryover()` entry, and no `DayChain` merge**. The per-cell
+  container overlay and the per-day spawn counter are the whole of it. Do not
+  build the save-persistent counter the earlier scoping called for.
+
+  The 17 remains shared with **The Twins** constellation within a day (the
+  wiki: The Twins is "identical to triggering this effect twice"), so the
+  counter must still be named for the Entrance Hall rather than for the
+  experiment, so The Twins can reuse it when it lands.
+
+  Still open and not settled by this ruling: whether trunks appear in the
+  **Outer Entrance Hall** too (the wiki says they do under the Shrine's Monk
+  blessing). Outer rooms have no grid cell, so a cell-keyed overlay cannot
+  reach them; recorded as a gap.
+
 - **2026-08-11, the four remaining base experiment effects get built.** Owner,
   rejecting the cheaper option of filtering them out of the setup draw. The
   Laboratory's `draw_offers` does not filter on `implemented`, so a player can
