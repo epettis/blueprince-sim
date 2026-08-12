@@ -328,6 +328,12 @@ def encode(game: Game, day_chain: DayChain | None = None) -> dict:
                 # and it is still selectable. Rarity leaks through a security
                 # door (wiki: "If the door being drafted from is a security
                 # door, the rarity of the floorplan is shown"), otherwise -1.
+                # forced is also zeroed: forced options are drawn from a small
+                # named-room pool (Garage, Tunnel chain, Reading Nook Library,
+                # priority draws), so exposing it on an otherwise-concealed
+                # card would narrow its identity far more than any in-game
+                # tell does -- same suppress-unless-canon-leak treatment as
+                # rarity above.
                 # from_cell == -1 (outer-room draft) has no doorway segment to
                 # check; never hidden today anyway, but guarded explicitly.
                 security = (

@@ -1298,6 +1298,16 @@ def compass_active_from_state(state, registry, cfg) -> bool:
     return cfg.compass or _has_item_effect(state, registry, "compass")
 
 
+def electromagnet_active_from_state(state, registry) -> bool:
+    """Powered Electromagnet drafting-bias check from state/registry (no game object).
+
+    Used by draft.py where game is not available. True while holding a Powered
+    Electromagnet: its Mechanical-Rooms-plus-Rotunda draft bias persists while
+    held, the same way its component Compass effect does.
+    """
+    return _has_item_effect(state, registry, "electromagnet")
+
+
 def satisfied_condition_items(state) -> set[str]:
     """Draft-condition gates granted by held items or in-run events.
 

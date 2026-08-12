@@ -61,6 +61,7 @@ KNOWN_ITEM_EFFECT_TAGS = {
     "stopwatch", "sleeping_mask", "watering_can", "master_key", "silver_key_bias",
     "compass", "ornate_compass", "emerald_bracelet", "dig_tool", "treasure_map",
     "metal_detector_spawns", "auto_collect", "mask_red_room", "paper_crown",
+    "electromagnet",
     "set_steps_on_pickup", "steps_at_rank", "negate_red_once_per_day",
     "allowance",
     # PR2+ / inert tags
