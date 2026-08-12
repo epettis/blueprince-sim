@@ -932,6 +932,20 @@ def main(argv: list[str] | None = None) -> int:
         req = target_cfg.get("requires_item")
         if req is not None and req not in si_by_id:
             errors.append(f"{where}: requires_item {req!r} not in special_items")
+        reqs = target_cfg.get("requires_items")
+        if reqs is not None:
+            if req is not None:
+                errors.append(f"{where}: requires_item and requires_items are mutually exclusive")
+            if not isinstance(reqs, dict) or not reqs:
+                errors.append(f"{where}: requires_items must be a non-empty object")
+            else:
+                for item_id, count in reqs.items():
+                    if item_id not in si_by_id:
+                        errors.append(f"{where}: requires_items {item_id!r} not in special_items")
+                    if not isinstance(count, int) or count < 1:
+                        errors.append(
+                            f"{where}: requires_items[{item_id!r}]={count!r} must be a positive int"
+                        )
         for reward in target_cfg.get("grants", []):
             if reward.get("kind") == "item":
                 iid = reward.get("id")

@@ -2201,6 +2201,26 @@ def _ignition_tools(registry) -> frozenset:
     return frozenset(registry.special.ignition.get("tools", []))
 
 
+def ignition_requires_met(inventory: dict, target_cfg: dict) -> bool:
+    """True when a target's item requirement(s) are satisfied by ``inventory``.
+
+    Supports both shapes a target's data record may declare: the legacy
+    ``requires_item`` (a single item id, held count >= 1 -- unused by any
+    target today but kept working) and ``requires_items`` (a dict of item id
+    -> minimum held count, e.g. the sundial's ``{"microchip": 3}``). A target
+    with neither key has no requirement and always passes. Shared by
+    special_items.py::can_light and env/actions.py::_cell_has_ignition_target
+    so the two callers never drift apart.
+    """
+    req = target_cfg.get("requires_item")
+    if req is not None:
+        return inventory.get(req, 0) > 0
+    reqs = target_cfg.get("requires_items")
+    if reqs:
+        return all(inventory.get(item_id, 0) >= count for item_id, count in reqs.items())
+    return True
+
+
 def _current_ignition_target_id(game) -> str | None:
     """Id of the ignition target the player currently stands at, or None.
 
@@ -2231,7 +2251,7 @@ def can_light(game) -> bool:
     """True when: special items enabled, standing at an ignition target (a
     room on the grid, or an off-grid area node flagged "area" in
     ignition.targets), holding a torch or burning_glass, target not yet lit
-    today, and any requires_item satisfied.
+    today, and any requires_item/requires_items satisfied.
 
     Only targets listed in ignition.targets are actionable; targets absent
     from both rooms.json and areas.json (crate_tunnel) are listed in
@@ -2250,10 +2270,9 @@ def can_light(game) -> bool:
     tools = _ignition_tools(registry)
     if not any(state.inventory.get(t, 0) > 0 for t in tools):
         return False
-    # Check requires_item
+    # Check requires_item / requires_items
     target_cfg = registry.special.ignition["targets"][target_id]
-    req = target_cfg.get("requires_item")
-    if req is not None and state.inventory.get(req, 0) <= 0:
+    if not ignition_requires_met(state.inventory, target_cfg):
         return False
     return True
 
@@ -2269,6 +2288,10 @@ def light(game) -> None:
       Keeper of Tithes accumulated total) as a one-time reward.
     mine_south's grants list is empty — its Upgrade Disk is a separate,
     ungated pickup granted by on_area_arrival, not an ignition reward.
+    apple_orchard's grants list is also empty: lighting the sundial sets the
+    permanent state.satellite_dish_unlocked flag directly below instead of
+    through the grants list, since the reward is a config unlock rather than
+    an inventory item or a resource.
     Does not consume the tool (torch/burning_glass are reusable).
     """
     from . import items as items_mod  # deferred to avoid cycles
@@ -2279,6 +2302,12 @@ def light(game) -> None:
     target_id = _current_ignition_target_id(game)
     target_cfg = registry.special.ignition["targets"][target_id]
     state.special.lit_targets.append(target_id)
+    if target_id == "apple_orchard":
+        # Satellite Dish unlock: recorded on STATE, never written back to
+        # GameConfig (one config object is shared by every episode of a
+        # trainer worker). shops.py::carryover() ORs this with
+        # cfg.satellite_dish_unlocked; DayChain carries the result permanently.
+        state.satellite_dish_unlocked = True
     for reward in target_cfg.get("grants", []):
         kind = reward.get("kind")
         match kind:
