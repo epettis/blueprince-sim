@@ -6,7 +6,10 @@ registers tag handlers with ``effect`` -- so landing a room module here only
 requires importing it from this file. ``commerce.py`` is the exception: it
 registers the ``Capability.COMMERCE`` fact for eleven rooms via ``provides``
 rather than a per-room handler, so it lives as one shared module instead of
-eleven near-empty ones.
+eleven near-empty ones. The four Antechamber-lever rooms (Great Hall, Weight
+Room, Secret Garden, Throne Room) register via ``provides_lever`` instead of
+``room_hook``, since the engine needs to query them by cell rather than fire
+them through the tag/hook pipeline.
 """
 
 from __future__ import annotations
@@ -26,7 +29,7 @@ from . import dovecote  # noqa: F401  (no handler; imported for the predicate he
 from . import drawing_room  # noqa: F401
 from . import foyer  # noqa: F401
 from . import furnace  # noqa: F401
-from . import great_hall  # noqa: F401  (no handler; imported for the lever helper)
+from . import great_hall  # noqa: F401  (registers lever capability on import)
 from . import greenhouse  # noqa: F401
 from . import guess_bedroom  # noqa: F401
 from . import guest_bedroom  # noqa: F401
@@ -50,7 +53,7 @@ from . import shelter  # noqa: F401
 from . import solarium  # noqa: F401
 from . import study  # noqa: F401
 from . import the_kennel  # noqa: F401
-from . import throne_room  # noqa: F401  (no handler; imported for the lever helper)
+from . import throne_room  # noqa: F401  (registers lever capability on import)
 from . import tomb  # noqa: F401
 from . import treasure_trove  # noqa: F401
 from . import vestibule  # noqa: F401

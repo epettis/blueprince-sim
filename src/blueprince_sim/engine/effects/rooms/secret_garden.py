@@ -28,7 +28,7 @@ from __future__ import annotations
 
 from ...grid import E
 from ...locks import DOOR_SEALED, segment_key
-from .. import Hook, room_hook
+from .. import Hook, provides_lever, room_hook
 
 WEST_SEGMENT_CELL = 41  # column 1: its east face is the Antechamber's west door
 
@@ -60,6 +60,9 @@ def pull_west_lever(game, cell: int) -> None:
     if game.state.door_state.get(seg) != DOOR_SEALED:
         return
     game._open_segment(WEST_SEGMENT_CELL, E)
+
+
+provides_lever("secret_garden", pull_west_lever)
 
 
 def _fruit_for_room_count(room_count: int) -> int:

@@ -7,6 +7,7 @@ from __future__ import annotations
 
 from ...grid import N
 from ...locks import DOOR_SEALED, segment_key
+from .. import provides_lever
 
 ANTECHAMBER_CELL = 42  # rank 9, center column
 
@@ -24,3 +25,6 @@ def pull_north_lever(game, cell: int) -> None:
     if game.state.door_state.get(seg) != DOOR_SEALED:
         return
     game._open_north_door()
+
+
+provides_lever("throne_room", pull_north_lever)
