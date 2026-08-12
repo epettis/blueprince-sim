@@ -855,6 +855,43 @@ around 1,800 LOC.
 
 ## Decisions log
 
+- **2026-08-12, the Trading Post now has a give-only concept, and a vacuous
+  test was found doing the opposite of its job.**
+
+  `_roll_trade_graph` built each tier's cycle from ONE id list serving as both
+  the give side and the receive side, so an id could not be removed from only
+  one. Each tier's cycle is now built over **receivable ids only**, with
+  give-only ids attached as extra sources resolving into it and nothing pointing
+  back. `microchip` (tier 2), `treasure_map` and `watering_can` are marked
+  `no_receive`, all three confirmed unbolded (give-only) on the wiki's
+  Trading Post page.
+
+  **Deliberately shaping-neutral**: `items.json` has `untradeable = 6.0` and
+  `by_tier["2"] = 6.0`, so the microchip's tier change leaves `inventory_value`
+  identical; the other two keep their tiers. **The approved tier-table sweep --
+  adding tiers to the ~8 wiki-receivable items currently `tier: null` -- is held
+  for its own PR**, because it does change shaping and adds cycle members.
+
+  **`tests/test_obs_items.py::test_no_offer_list_exceeds_eight_rows` was
+  vacuous, and pre-existing.** It asserted `trade_offers()` never exceeds
+  `TRADE_OFFER_ROWS` (8). Measured against `HEAD` *before* this PR: with all 24
+  tradeables held, **36 of 60 seeds exceed 8**, up to 24 offers. The test passed
+  only because seed 3 happened to yield 4.
+
+  The agent's fix was to change the seed to one that still passes. **Rejected --
+  that is enshrining wrong behaviour, and picking a lucky seed is exactly how
+  the test came to be vacuous in the first place.** Replaced with a test of the
+  property that is actually true and actually matters: `_encode_trade_offers`
+  slices `offers[:TRADE_OFFER_ROWS]`, so **the Box is never overflowed**. It
+  sweeps 40 seeds and **asserts that at least one exceeds the cap**, so it can
+  never again pass without exercising truncation.
+
+  **The real gap it exposes, for the owner:** `TRADE_OFFER_ROWS = 8` is
+  commented "generous; 24 tradeables, real sessions hold far fewer", but a full
+  inventory routinely produces 10-24 offers, and **everything past the eighth is
+  invisible to the policy.** Raising the cap is an observation width change and
+  therefore a retrain trigger, so it is recorded rather than done.
+
 - **2026-08-12, I falsified a blocker with my own PR and caught it one step
   later.** `microchip.meta.blocked_on` said `grotto_pedestal_chip_not_modeled`.
   #210 modelled the pedestal chip, so the string was true when written and false

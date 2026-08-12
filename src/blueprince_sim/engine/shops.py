@@ -60,10 +60,13 @@ class ShopsState:
     trades_done: int = 0  # Trading Post trades used today
     # Fixed trade mapping for the day: item_id -> successor id (item or sentinel
     # "dice"/"allowance_token").  Rolled lazily on first use inside the Trading
-    # Post.  Within each tier items form a shuffled cycle; a 1-item cycle points
-    # to itself (self-trade = untradeable).  dice_chance% of successors are replaced
-    # with "dice"; tier-5 may also yield allowance_token (t5_special_chance%).
-    # Upgrade Disks are one-time per source and never repeatable via trades.
+    # Post.  Within each tier the RECEIVABLE items form a shuffled cycle; a
+    # 1-receivable-item cycle points to itself (self-trade = untradeable).
+    # Give-only (no_receive) items attach as extra sources into that cycle and
+    # are never anyone's successor, so they can be given but never received.
+    # dice_chance% of successors are replaced with "dice"; tier-5 may also
+    # yield allowance_token (t5_special_chance%).  Upgrade Disks are one-time
+    # per source and never repeatable via trades.
     trade_graph: dict[str, str] = field(default_factory=dict)
     # True once _roll_trade_graph has been called for this episode.
     trade_graph_rolled: bool = False
@@ -587,13 +590,37 @@ def _inside_trading_post(game) -> bool:
     return outer_room is not None and outer_room.id == "trading_post"
 
 
+def _next_receivable(ids: list[str], receivable: list[bool], start: int) -> str:
+    """The next id after ``start`` (cyclically through ``ids``) whose item is
+    receivable — a give-only item is never returned.
+
+    A receivable id may resolve back to itself if it is the tier's only
+    receivable item (self-edge, untradeable — same rule as a 1-item tier).
+    If no id in the tier is receivable, ``start`` itself is returned as a
+    self-edge fallback (does not occur for any tier in the current data).
+    Pure lookup over the already-shuffled ``ids``; consumes no rng draws.
+    """
+    n = len(ids)
+    for step in range(1, n + 1):
+        idx = (start + step) % n
+        if receivable[idx]:
+            return ids[idx]
+    return ids[start]
+
+
 def _roll_trade_graph(game) -> None:
     """Build the day's fixed trade mapping and store it on state.shops.trade_graph.
 
     Called lazily on first use inside the Trading Post (substream "trade_graph").
     For each tier 1–5 the tradeable items (SpecialItem.tier == tier, id != "keycard")
-    are shuffled into one cycle: ids[i] → ids[(i+1) % n].  A 1-item tier cycle
-    produces a self-edge — that item cannot be traded (real game's self-trade rule).
+    are shuffled once into a single order.  The RECEIVABLE ids in that order
+    (SpecialItem.no_receive is False) form a cycle: each points to the next
+    receivable id, cyclically, skipping over any give-only ids in between.  A
+    give-only id is attached as an extra source pointing at that same next
+    receivable id, but — since it is skipped by the scan — nothing ever points
+    back at it, so it can be given but never received.  A tier with exactly one
+    receivable id produces a self-edge on that id — that item cannot be traded
+    (real game's self-trade rule).
 
     Then, per item independently:
       - dice_chance% → replace successor with "dice".
@@ -602,6 +629,10 @@ def _roll_trade_graph(game) -> None:
         is the 16th and last in the game's supply (15 fixed locations hold the
         rest), and it is unique: once held it stops resolving, so repeat
         tier-5 trades decay to the graph's other outcomes.
+
+    This dice/t5 override applies to give-only items too, matching the wiki
+    ("all trade offers have a 10% chance to give dice"); it never *grants* a
+    give-only item, since it only ever replaces a successor, never a source.
 
     The graph is FIXED for the day; it is never re-rolled.  trades_per_day bounds
     any A→B→A milking loop at the trade() call site.
@@ -622,9 +653,9 @@ def _roll_trade_graph(game) -> None:
         if not ids:
             continue
         game.rng.shuffle("trade_graph", ids)
-        n = len(ids)
+        receivable = [not registry.special.by_id[i].no_receive for i in ids]
         for i, item_id in enumerate(ids):
-            successor = ids[(i + 1) % n]
+            successor = _next_receivable(ids, receivable, i)
             match tier:
                 case 5:
                     if game.rng.chance("trade_graph", t5_special_chance):
@@ -664,12 +695,15 @@ def _trade_target_ok(state, registry, item_id: str) -> bool:
     already spawned today (``spawned_today``) is still a valid trade return,
     so an A→B→A cycle really can hand A back — the real-game milking loop —
     bounded only by trades_per_day. Blocked: held uniques, consumed-for-good
-    ids, the keycard, and a second Stopwatch after one already ran today.
+    ids, the keycard, a give-only (no_receive) item, and a second Stopwatch
+    after one already ran today.
     """
     if item_id in si.PIPELINE_EXCLUDED or item_id in state.special.removed:
         return False
     item = registry.special.by_id.get(item_id)
     if item is None:
+        return False
+    if item.no_receive:
         return False
     if item.unique and state.inventory.get(item_id, 0) > 0:
         return False
