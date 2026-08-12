@@ -177,22 +177,6 @@ DEFERRED_UNREAD_TAGS: frozenset[str] = frozenset({
     # -- effect authored (a persisted Workshop rarity change) but rarity
     # state doesn't carry across days in the current model.
     "gear_wrench",
-    # silver_key item: meta.blocked_on is null and implemented=True -- NOT
-    # legitimately deferred like the four above, and reported as a brief
-    # discrepancy rather than silently folded in as a fifth of the same
-    # kind. The silver-key draft bias IS implemented (game.py branches on
-    # the "silver_key" item id in open_door and sets
-    # state.special.silver_key_draft; draft.py reads that flag in
-    # _apply_category_bias), but that implementation never goes through
-    # item.effect("silver_key_bias") or the tag string itself -- so the tag
-    # has zero readers even though the behaviour it documents is real. This
-    # is the same two-sources-of-truth shape ignition_tool was, just with
-    # the "real" side implemented via an id branch instead of via a second,
-    # divergent tag read. Phase 0 does not move code or data, so this can't
-    # be fixed here by wiring a reader or deleting the now-redundant effect
-    # record; it is parked here so this file's own tests stay green, and
-    # flagged loudly in the phase-0 report for a follow-up decision.
-    "silver_key_bias",
 })
 
 
