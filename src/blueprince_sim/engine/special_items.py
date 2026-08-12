@@ -31,11 +31,17 @@ from .effects import (
     item_capability_any,
 )
 from .effects.items import (
+    battery_pack,
+    broken_lever,
+    car_keys,
     cursed_effigy,
     key_8,
+    keycard,
     lunch_box,
     royal_scepter,
+    secret_garden_key,
     silver_key,
+    sledge_hammer,
     sleeping_mask,
     watering_can,
 )
@@ -109,7 +115,7 @@ FOOD_STEPS_PIPELINE: tuple[str, ...] = (
 # engine/locks.py (state.has_keycard), kept there so the security door system
 # stays self-contained. The Lost & Found can still steal it (it special-cases
 # has_keycard directly).
-PIPELINE_EXCLUDED = frozenset({"keycard"})
+PIPELINE_EXCLUDED = frozenset({keycard.ITEM_ID})
 
 # The eight Sanctum Key source ids (one per spawn site: six on-grid rooms,
 # two off-grid areas -- see each record's meta in special_items.json).
@@ -780,10 +786,7 @@ def on_place(game, room, cell: int) -> None:
             state.keys += 1
             state.items_found_log.append(("key", 1))
 
-    # Secret Garden Key: consumed when the Secret Garden is placed (max one per day;
-    # the key does not return to the spawn pool, consumed=True).
-    if room.id == "secret_garden" and has(state, "secret_garden_key"):
-        remove(state, "secret_garden_key", consumed=True)
+    secret_garden_key.consume_on_place(state, room.id)
 
 
 def lost_and_found_on_enter(game) -> None:
@@ -798,14 +801,12 @@ def lost_and_found_on_enter(game) -> None:
     # but lives on state.has_keycard (engine/locks.py), not the inventory.
     held = [iid for iid, cnt in state.inventory.items()
             if cnt > 0 and iid not in PIPELINE_EXCLUDED]
-    if state.has_keycard:
-        held.append("keycard")
+    if keycard.held(state):
+        held.append(keycard.ITEM_ID)
     if held:
         stolen_id = rng.choice("lost_and_found", held)
-        if stolen_id == "keycard":
-            # Re-findable later via the locks.py source-room rolls, matching
-            # the pool-return behavior of other stolen items well enough.
-            state.has_keycard = False
+        if stolen_id == keycard.ITEM_ID:
+            keycard.steal(state)
         else:
             remove(state, stolen_id, consumed=True)
 
@@ -1282,8 +1283,8 @@ def satisfied_condition_items(state) -> set[str]:
     conds: set[str] = set()
     if key_8.held(state):
         conds.add("room8_key")
-    if state.inventory.get("secret_garden_key", 0) > 0:
-        conds.add("secret_garden_key")
+    if secret_garden_key.held(state):
+        conds.add(secret_garden_key.ITEM_ID)
     conds.update(state.special.extra_conditions)
     return conds
 
@@ -1607,10 +1608,8 @@ def _apply_grant(state, registry, game, grant_entry: dict) -> str:
             # double-count dice in items_found_log.
             items_mod.grant_item(game, "die", amount)
             return f"dice:{amount}"
-        case "keycard":
-            state.has_keycard = True
-            state.items_found_log.append(("keycard", 1))
-            return "keycard"
+        case keycard.ITEM_ID:
+            return keycard.grant(state)
         case "item":
             item_id = grant_entry.get("id", "")
             if _is_available(state, item_id, registry):
@@ -1895,10 +1894,11 @@ def _mechanarium_key_chain(game) -> str:
     result = silver_key.mechanarium_grant(state, registry, game)
     if result is not None:
         return result
-    if not state.has_keycard:
-        return _apply_grant(state, registry, game, {"kind": "keycard"})
-    if _is_available(state, "secret_garden_key", registry):
-        return _apply_grant(state, registry, game, {"kind": "item", "id": "secret_garden_key"})
+    if not keycard.held(state):
+        return _apply_grant(state, registry, game, {"kind": keycard.ITEM_ID})
+    if _is_available(state, secret_garden_key.ITEM_ID, registry):
+        return _apply_grant(
+            state, registry, game, {"kind": "item", "id": secret_garden_key.ITEM_ID})
     if _is_available(state, "vault_key_233", registry):
         return _apply_grant(state, registry, game, {"kind": "item", "id": "vault_key_233"})
     return _apply_grant(state, registry, game, {"kind": "keys", "amount": 1})
@@ -1918,7 +1918,8 @@ def _mechanarium_upgrade_chain(game) -> str:
     specific item.
     """
     state, registry = game.state, game.registry
-    for item_id in ("upgrade_disk_mechanarium", "battery_pack", "broken_lever", "sledge_hammer"):
+    for item_id in ("upgrade_disk_mechanarium", battery_pack.ITEM_ID, broken_lever.ITEM_ID,
+                     sledge_hammer.ITEM_ID):
         if _is_available(state, item_id, registry):
             return _apply_grant(state, registry, game, {"kind": "item", "id": item_id})
     loot = registry.special.containers.get("kinds", {}).get("trunk", {}).get("loot", [])
@@ -1963,7 +1964,7 @@ def can_open_car_trunk(game) -> bool:
         return False
     if state.special.garage_car_opened:
         return False
-    if not has(state, "car_keys"):
+    if not has(state, car_keys.ITEM_ID):
         return False
     if state.grid[state.pos] < 0:
         return False
@@ -2020,16 +2021,14 @@ def open_car_trunk(game) -> list[str]:
     later_gold = car_cfg.get("later_gold", 5)
 
     available = [iid for iid in later_pool
-                 if iid == "keycard" or _is_available(state, iid, registry)]
+                 if iid == keycard.ITEM_ID or _is_available(state, iid, registry)]
     for _ in range(later_draws):
         if not available:
             break
         pick_idx = game.rng.randint("garage_car", 0, len(available) - 1)
         picked = available.pop(pick_idx)
-        if picked == "keycard":
-            state.has_keycard = True
-            state.items_found_log.append(("keycard", 1))
-            granted.append("keycard")
+        if picked == keycard.ITEM_ID:
+            granted.append(keycard.grant(state))
         elif _is_available(state, picked, registry):
             grant(state, registry, picked, source="garage_car")
             granted.append(picked)
@@ -2343,7 +2342,7 @@ def can_install_lever(game) -> bool:
     registry = game.registry
     if not state.special.enabled:
         return False
-    if not has(state, "broken_lever"):
+    if not has(state, broken_lever.ITEM_ID):
         return False
     if state.grid[state.pos] < 0:
         return False
@@ -2378,7 +2377,7 @@ def install_lever(game) -> None:
     effect = machine_cfg.get("effect")
 
     # Consume the lever first
-    remove(state, "broken_lever", consumed=True)
+    remove(state, broken_lever.ITEM_ID, consumed=True)
     state.special.machines_used.append(room.id)
 
     from .grid import N

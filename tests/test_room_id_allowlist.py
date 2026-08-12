@@ -181,8 +181,6 @@ ALLOWLIST: dict[str, set[str]] = {
         # MECHANARIUM_ROOM_ID constant: room.id == comparison +
         # room_cells.get() gating Mechanarium-specific item behaviour.
         "mechanarium",
-        # room.id == "secret_garden" key-consumption branch.
-        "secret_garden",
         # KINDS = (..., "showroom", ...): an inventory-item *kind* tag
         # ("showroom exhibit" items), not a room id -- collides with the
         # real Showroom room's id the same way the category names do.

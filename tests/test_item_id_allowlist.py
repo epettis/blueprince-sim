@@ -174,30 +174,12 @@ ITEM_ARCHITECTURE: dict[str, set[str]] = {
 #: test_item_debt_does_not_exceed_the_cap pins the current total as a
 #: ceiling so it cannot quietly grow either.
 ITEM_DEBT: dict[str, set[str]] = {
-    "game.py": {
-        # registry.lock_rules["keycard"] table lookup + items_found_log
-        # label: the Keycard's own spawn-chance/state handling in game.py,
-        # distinct from shops.py's PIPELINE_EXCLUDED carve-out (architecture).
-        # silver_key, paper_crown, and power_hammer moved off this list
-        # (task 22 phase 5a): their reads are now effects/items/ module
-        # functions (silver_key.consume_for_draft, paper_crown.bonus_redraw,
-        # power_hammer.held), which name no string literal here. Keycard
-        # stays: it is one of the six RNG-adjacent items deferred to phase 5b.
-        "keycard",
-    },
     "shops.py": {
-        # Special-key fallback list default (car_keys / silver_key). car_keys
-        # is one of the six RNG-adjacent items deferred to phase 5b; its
-        # literal shares this default-list line with silver_key's own last-
-        # resort default, so silver_key.ITEM_ID replaced silver_key's two
-        # literals here in place, without touching car_keys' own occurrence
-        # or its default-list position (task 22 phase 5a).
-        "car_keys",
         # Royal Scepter / Entrance Hall vase chip: the vase-smash microchip
         # grant belongs to the (out of scope) Microchip branch. royal_scepter
-        # moved off this list (phase 5a): its day-start grant and
-        # can_activate_scepter gate are now royal_scepter.grant_carry_over/
-        # held, which name no string literal here.
+        # moved off this list (phase 5a); car_keys moved off (phase 5b): its
+        # locksmith fallback-list literal is now car_keys.ITEM_ID, which
+        # names no string literal here.
         "microchip",
         # lunch_box, repellent, and stopwatch moved off this list (phase 5a):
         # their reads are now effects/items/ module functions
@@ -206,36 +188,29 @@ ITEM_DEBT: dict[str, set[str]] = {
         # literal here.
     },
     "special_items.py": {
-        # Fabrication-chain ids: the individual has()/remove() calls each
-        # recipe performs on its own inputs/output, plus the Mechanarium
-        # third-compartment fallback sequence (Upgrade Disk, then Battery
-        # Pack, Broken Lever, Sledge Hammer, else a Trunk roll) -- a
-        # room-specific loot order, not a cross-item tool ranking. All three
-        # are RNG-adjacent items deferred to phase 5b.
-        "battery_pack", "broken_lever", "sledge_hammer",
-        # Key-family ids with their own bespoke pickup/spend logic distinct
-        # from the generic spawn pipeline. car_keys, keycard, and
-        # secret_garden_key are RNG-adjacent items deferred to phase 5b.
-        # key_8 and silver_key moved off this list (phase 5a): key_8's
-        # room8_key condition-gate check is now key_8.held, and silver_key's
-        # Mechanarium grant is now silver_key.mechanarium_grant, neither of
-        # which names a string literal here.
-        "car_keys", "keycard", "secret_garden_key",
         # moon_pendant and treasure_map are phase 6 items, migrated alone.
         # compass, cursed_effigy, lunch_box, royal_scepter, sleeping_mask,
         # and watering_can moved off this list (phase 5a), alongside
         # chronograph, emerald_bracelet, master_key, and ornate_compass from
-        # earlier phases: their reads are now ItemCapability lookups or
-        # effects/items/ module functions, which name no string literal here.
+        # earlier phases; key_8 and silver_key also moved off in phase 5a.
+        # battery_pack, broken_lever, car_keys, keycard, and secret_garden_key
+        # moved off this list (phase 5b): their reads are now
+        # effects/items/ module functions or ITEM_ID references (keycard.held/
+        # grant/steal/roll_source_room_grant, secret_garden_key.held/
+        # consume_on_place, battery_pack.ITEM_ID, broken_lever.ITEM_ID,
+        # sledge_hammer.ITEM_ID, car_keys.ITEM_ID), which name no string
+        # literal here. game.py's own keycard entry moved off entirely
+        # (phase 5b): its lock_rules lookup is now
+        # keycard.roll_source_room_grant.
         "moon_pendant", "treasure_map",
     },
 }
 
-#: ITEM_DEBT's total size after task 22 phase 5a's migration (was 27 at the
-#: phase 5 split). A later phase may lower this further;
+#: ITEM_DEBT's total size after task 22 phase 5b's migration (was 11 at the
+#: phase 5a split). A later phase may lower this further;
 #: test_item_debt_does_not_exceed_the_cap fails if a change raises it, so
 #: debt can only ratchet down from here.
-ITEM_DEBT_CAP = 11
+ITEM_DEBT_CAP = 3
 
 
 def _combined_allowlist() -> dict[str, set[str]]:

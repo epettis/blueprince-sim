@@ -815,7 +815,7 @@ it comes first and stands alone.
 | 2 | `ItemCapability` primitives + `effects/items/`; migrate `coupon_book` as pattern-setter | S | Low | **DONE in #203** |
 | 3 | Pure-query **singleton** capabilities (8 modules) | M | Low | **DONE in #204** |
 | 4 | Item handlers on game events + the engine-owned priority tuples | M | **Med** | **DONE in #205** |
-| 5 | Id-branch items with no tags (~15 modules) | M | Med |
+| 5 | Id-branch items, split on RNG risk: 5a RNG-free, 5b RNG-adjacent | M | Med | **DONE in #207, #208** |
 | 6 | RNG-touching migrations, **last and alone** | M | **High** |
 | 7 | Shrink both allowlists; delete `implemented`/`blocked_on` | S | Low |
 
@@ -854,6 +854,36 @@ allowlist entry** -- that rule alone catches `ignition_tool` today.
 around 1,800 LOC.
 
 ## Decisions log
+
+- **2026-08-12, phase 5b landed: `ITEM_DEBT` 11 -> 3**, cap lowered to match.
+  The three left are `microchip` (the Microchip branch), and `moon_pendant` and
+  `treasure_map` (phase 6, migrated alone). **`game.py` now has no item-id debt
+  entries at all.**
+
+  **The RNG risk map was measurable, and that is what made the phase safe.**
+  `rng.py` seeds each label independently, so only *same-label* ordering
+  matters. Five of the seven touchpoints used single-site labels and were
+  provably safe; the risk reduced to two `shops.py` functions on the
+  five-site `shop_stock` and `trade_graph` streams. In both, the item id was a
+  **list literal, not a draw** -- so a rename to a constant could not shift draw
+  order. Verified after the fact: the draw *sequence* in every touched module is
+  byte-identical to `HEAD`.
+
+  **One of my two flagged risks was not a risk.** `_roll_trade_graph`'s
+  `keycard` occurrences were already in `ITEM_ARCHITECTURE`, not `ITEM_DEBT`, so
+  that row needed no edit at all. Cost nothing, but the map overstated the work.
+
+  **A grep hazard is getting worse as the migration proceeds.** `game.py`'s
+  `rng.chance("keycard")` became `game.rng.chance(ITEM_ID, ...)` inside the new
+  module, so the substream label is no longer a greppable literal anywhere. The
+  draw is still single-site and correct, but **searching for an RNG label by
+  string will increasingly give false negatives** -- the same trap that hid
+  `silver_key_bias`. Compare draw *sequences* (`grep -oE 'rng\.[a-z_]+\("...'`
+  old vs new), not line numbers, when judging whether a refactor moved a draw.
+
+  **Third consecutive item migration to shrink ROOM debt**: moving `on_place`'s
+  `room.id == "secret_garden"` check into the item module made
+  `special_items.py`'s `"secret_garden"` entry stale.
 
 - **2026-08-12, `effects: []` in `rooms.json` does NOT mean a room is
   effectless, and I read it that way.** Owner correction, and it overturns the
