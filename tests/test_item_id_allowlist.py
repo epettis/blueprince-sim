@@ -164,6 +164,13 @@ ITEM_ARCHITECTURE: dict[str, set[str]] = {
         "coin_purse", "emerald_bracelet", "hall_pass", "knights_shield",
         "lucky_purse", "running_shoes", "salt_shaker", "silver_spoon",
         "stopwatch",
+        # SpecialItemsRegistry.treasure_map field load (raw["treasure_map"]):
+        # the "treasure_map" data SECTION (cells/rewards table), a published
+        # table this module keeps loading -- not the item-id branch, which
+        # moved to effects/items/treasure_map.py (phase 6). Coincidentally
+        # spelled the same as the item id, like the 13 id/tag collisions
+        # test_item_id_allowlist.py's docstring documents.
+        "treasure_map",
     },
 }
 
@@ -187,8 +194,7 @@ ITEM_DEBT: dict[str, set[str]] = {
         # consume, stopwatch.blocks_as_trade_return), which name no string
         # literal here.
     },
-    "special_items.py": {
-        # moon_pendant and treasure_map are phase 6 items, migrated alone.
+    "special_items.py": set(
         # compass, cursed_effigy, lunch_box, royal_scepter, sleeping_mask,
         # and watering_can moved off this list (phase 5a), alongside
         # chronograph, emerald_bracelet, master_key, and ornate_compass from
@@ -201,16 +207,21 @@ ITEM_DEBT: dict[str, set[str]] = {
         # sledge_hammer.ITEM_ID, car_keys.ITEM_ID), which name no string
         # literal here. game.py's own keycard entry moved off entirely
         # (phase 5b): its lock_rules lookup is now
-        # keycard.roll_source_room_grant.
-        "moon_pendant", "treasure_map",
-    },
+        # keycard.roll_source_room_grant. moon_pendant and treasure_map moved
+        # off this list (phase 6): their reads are now
+        # effects/items/moon_pendant.py (carry_over) and
+        # effects/items/treasure_map.py (resolve_cell/dig_reward). The one
+        # remaining "treasure_map" occurrence in special_items.py (the data
+        # section load) is a table carve-out, listed on ITEM_ARCHITECTURE
+        # instead.
+    ),
 }
 
-#: ITEM_DEBT's total size after task 22 phase 5b's migration (was 11 at the
-#: phase 5a split). A later phase may lower this further;
-#: test_item_debt_does_not_exceed_the_cap fails if a change raises it, so
-#: debt can only ratchet down from here.
-ITEM_DEBT_CAP = 3
+#: ITEM_DEBT's total size after task 22 phase 6's migration (was 3 at the
+#: phase 5b split; 1 remains -- microchip -- which belongs to the out-of-scope
+#: Microchip branch). test_item_debt_does_not_exceed_the_cap fails if a
+#: change raises it, so debt can only ratchet down from here.
+ITEM_DEBT_CAP = 1
 
 
 def _combined_allowlist() -> dict[str, set[str]]:

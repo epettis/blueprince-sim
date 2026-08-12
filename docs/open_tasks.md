@@ -816,8 +816,8 @@ it comes first and stands alone.
 | 3 | Pure-query **singleton** capabilities (8 modules) | M | Low | **DONE in #204** |
 | 4 | Item handlers on game events + the engine-owned priority tuples | M | **Med** | **DONE in #205** |
 | 5 | Id-branch items, split on RNG risk: 5a RNG-free, 5b RNG-adjacent | M | Med | **DONE in #207, #208** |
-| 6 | RNG-touching migrations, **last and alone** | M | **High** |
-| 7 | Shrink both allowlists; delete `implemented`/`blocked_on` | S | Low |
+| 6 | RNG-touching migrations, **last and alone** | M | **High** | **DONE in #209** |
+| 7 | Shrink both allowlists; delete `implemented`/`blocked_on` | S | Low | **split DONE in #206**; the flag deletion is deferred, see below |
 
 **No phase is a retrain trigger provided the `items` array is never reordered
 and nothing is inserted mid-array.** `env/obs.py` enumerates it positionally
@@ -854,6 +854,68 @@ allowlist entry** -- that rule alone catches `ignition_tool` today.
 around 1,800 LOC.
 
 ## Decisions log
+
+- **2026-08-12, task 22 is substantively complete. `ITEM_DEBT` = 1.** Phase 6
+  migrated `treasure_map` and `moon_pendant`; the single remaining entry is
+  `microchip` in `shops.py`, which the Microchip branch owns.
+
+  Journey: **58 (module, item_id) pairs measured at phase 0 -> 1 of genuine
+  debt**, with 38 reclassified as permanent architecture (priority tuples,
+  family constants, named draft conditions, trade-graph outcomes, and the
+  `treasure_map` data-section load). Tag pairs 36 -> 22. `game.py` and
+  `special_items.py` now carry **no item-id debt at all**.
+
+  **`treasure_map` migrated after all.** I briefed that declining might be
+  correct, because its two draws share one substream across two functions
+  (`on_arrive` picks the cell, `dig_all` picks the reward) and are sequenced by
+  gameplay rather than code adjacency. Both extracted 1:1 with nothing
+  interposed, so the ordering held.
+
+  **The verification is the part worth keeping.** The static grep-sequence check
+  is *useless here by construction*: the new module calls
+  `game.rng.choice(ITEM_ID, ...)`, so both draws stop being greppable literals
+  and read as *removed* rather than relocated. What settled it was dynamic --
+  patch `Rng.{choice,shuffle,chance,roll_weighted,randint}` to log every
+  `(method, label, result)`, drive a full seeded game against both trees, and
+  diff the logs. **Byte-identical across four seeds.** Independently confirmed
+  by a state digest over five seeds, identical before and after.
+
+  **Generalisable: when a refactor moves an RNG draw behind a constant, string
+  search cannot verify it. Compare execution, not source.** This is the fourth
+  variant of one hazard this session -- `silver_key_bias` behind a same-named
+  local, RNG labels behind constants, `effects: []` behind the registry, and now
+  draw labels behind `ITEM_ID`. Every time, a string search returned a confident
+  wrong answer.
+
+  **One prediction of mine was wrong**: I expected the room-id allowlist to
+  shrink again (it had for three consecutive migrations). It did not -- neither
+  of these items touches a room-id literal.
+
+  **Phase 7's remaining half -- deleting `implemented`/`blocked_on` -- is
+  deliberately NOT done**, and should not be until the registries are wired into
+  `validate_data.py` (see the next entry). Deleting those fields now would
+  remove the only machine-readable statement of what is inert, in exchange for
+  nothing.
+
+- **2026-08-12, proposed task 23: make `effects: []` checkable.** The migration
+  deliberately moves behaviour out of the `effects` array, which is the point --
+  and the cost is that **`effects: []` no longer means "does nothing"**. I made
+  exactly that error on the Throne Room within a day of documenting the risk.
+
+  A partial index already exists: `_AUDIT_PYTHON_EXEMPT_IDS` in
+  `validate_data.py` maps room id -> module with a liveness check. **But it is
+  scoped to audit exemptions, not to "where does behaviour live"** -- 16 rooms
+  are listed and `throne_room` is not, because its `effect_text` promises
+  nothing so the audit never flags it.
+
+  **Proposal: wire the existing registry validators into
+  `tools/validate_data.py`.** `registered_rooms()`, `validate_room_registry`,
+  `validate_capability_registry` and `validate_item_registry` all exist and
+  **none is called from production or from the validator** -- they are exercised
+  only by tests. Wiring them makes "empty AND unregistered = genuinely inert" an
+  enforced invariant rather than a convention, closes the `throne_room` gap with
+  no new mechanism, and needs no marker field in data (which would just be
+  another hand-maintained claim able to go stale).
 
 - **2026-08-12, phase 5b landed: `ITEM_DEBT` 11 -> 3**, cap lowered to match.
   The three left are `microchip` (the Microchip branch), and `moon_pendant` and

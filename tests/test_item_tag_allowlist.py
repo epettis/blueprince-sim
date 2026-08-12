@@ -128,16 +128,21 @@ ITEM_TAG_ALLOWLIST: dict[str, set[str]] = {
         # ItemCapability.COMPASS_BIAS replaced it -- plus sleeping_mask,
         # steps_at_rank, and watering_can, whose reads are now
         # engine/effects/items/sleeping_mask.py, lunch_box.py, and
-        # watering_can.py respectively).
+        # watering_can.py respectively). "moon_pendant_carry" moved off this
+        # list (phase 6): its only occurrence was the rng.shuffle substream
+        # label, which is now in engine/effects/items/moon_pendant.py.
         "allowance", "auto_collect",
         "dig_tool",
         "lockpick", "luck_bonus",
-        "metal_detector_spawns", "moon_pendant_carry",
+        "metal_detector_spawns",
         "set_steps_on_pickup",
         "smash", "stopwatch",
         # "treasure_map" section dict key (raw["treasure_map"]: cells,
-        # rewards) plus has(state, "treasure_map") item-id lookups --
-        # coincides with the tag string spelling, not read via .effect().
+        # rewards) -- coincides with the tag string spelling, not read via
+        # .effect(). The item-id behaviour (has(state, "treasure_map") and
+        # both rng.choice draws) moved to
+        # engine/effects/items/treasure_map.py (phase 6); this data-section
+        # load is the only reason the tag literal still appears here.
         "treasure_map",
     },
 }
