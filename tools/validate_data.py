@@ -59,7 +59,7 @@ KNOWN_ITEM_EFFECT_TAGS = {
     # PR1 functional set
     "lockpick", "luck_bonus", "coin_interest", "coin_multiplier",
     "food_bonus", "food_multiplier", "free_hallway_moves", "free_move_interval",
-    "stopwatch", "sleeping_mask", "watering_can", "master_key", "silver_key_bias",
+    "stopwatch", "sleeping_mask", "watering_can", "master_key",
     "compass", "ornate_compass", "emerald_bracelet", "dig_tool", "treasure_map",
     "metal_detector_spawns", "auto_collect", "mask_red_room", "paper_crown",
     "electromagnet",

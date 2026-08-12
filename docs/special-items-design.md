@@ -188,7 +188,7 @@ machines_used: list[str] # machine room ids that already took a Broken Lever tod
 `free_hallway_moves`, `free_move_interval` (Running Shoes, n=3, inferred),
 `stopwatch` (free_costs: 10, inferred — turn-based stand-in for 60 real-time seconds),
 `sleeping_mask` (steps: 5), `watering_can` (capacity: 3), `master_key`,
-`silver_key_bias`, `compass`, `ornate_compass`, `emerald_bracelet`, `dig_tool`
+`compass`, `ornate_compass`, `emerald_bracelet`, `dig_tool`
 (table id), `treasure_map`, `metal_detector_spawns` (coin/key chances, inferred),
 `auto_collect` (Electromagnet: implies metal_detector-style spawn grant),
 `mask_red_room` (Knight's Shield), `paper_crown`, `set_steps_on_pickup`

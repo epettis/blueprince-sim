@@ -855,6 +855,41 @@ around 1,800 LOC.
 
 ## Decisions log
 
+- **2026-08-12, delete the `silver_key_bias` effect record rather than wiring a
+  reader.** Owner, resolving the binary question phase 0 raised.
+
+  The silver-key draft bias is real and works, through an id branch:
+  `game.py` tests `has(st, "silver_key")` and sets
+  `state.special.silver_key_draft`, which `draft.py` reads. The
+  `silver_key_bias` effect entry in `special_items.json` was a **second,
+  never-consulted source of truth** for behaviour already implemented
+  elsewhere -- the `ignition_tool` shape, but harder to detect, because the
+  item is `implemented: true` with `blocked_on: null` so no existing check had
+  anything to say about it.
+
+  **Deleting is the right direction and worth stating as a general rule:
+  when a record and an implementation disagree about where behaviour lives,
+  and the implementation works, the record is what is redundant.** Wiring a
+  reader purely to justify an existing record would be inventing a consumer
+  for data nobody needs.
+
+  Removed in four places -- the item's `effects` list (now `[]`),
+  `KNOWN_ITEM_EFFECT_TAGS` in `validate_data.py`,
+  `DEFERRED_UNREAD_TAGS` in the phase 0 tag scanner, and the tag inventory in
+  `docs/special-items-design.md`. All 10 silver-key tests stay green; the
+  mechanic never moved. **Zero-reader tags 4 -> 3**, and the three that remain
+  (`crown_of_blueprints`, `dowsing_rod`, `gear_wrench`) are all legitimately
+  deferred against real blockers.
+
+  Note the deletion order was itself a check on the ratchet: removing the tag
+  from the data made `test_deferred_unread_tags_are_real_tags` fail before the
+  scanner was updated, which is the scanner refusing to let its own list go
+  stale.
+
+  **This closes the second of the two dead-tag findings.** `ignition_tool`
+  went in #199; `silver_key_bias` here. Both were found by looking for tags
+  nothing reads, and that check now exists permanently.
+
 - **2026-08-12, `silver_key_bias` is a second dead effect tag, and nothing
   would ever have flagged it.** Found by task 22 phase 0's tag scanner.
 
