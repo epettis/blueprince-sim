@@ -16,13 +16,20 @@ from __future__ import annotations
 
 import random
 
+import pytest
+
 from blueprince_sim.config import GameConfig
+from blueprince_sim.engine.effects import Capability, _CAPABILITY_REGISTRY, provides_capability
 from blueprince_sim.engine.game import ANTECHAMBER_CELL, Game
 from blueprince_sim.engine.grid import E, N, S, W
 from blueprince_sim.engine.locks import DOOR_OPEN, DOOR_SEALED, segment_key
 from blueprince_sim.env.blueprince_env import BluePrinceEnv
 from blueprince_sim.env.multiday import DayChain
 from blueprince_sim.rl.train import fresh_save_config
+
+# The four rooms that pull an Antechamber lever on first entry, each
+# registered via engine/effects/rooms/<id>.py's own provides_lever() call.
+LEVER_ROOM_IDS = ("great_hall", "secret_garden", "throne_room", "weight_room")
 
 
 # ---------------------------------------------------------------------------
@@ -217,3 +224,40 @@ def test_random_masked_play_never_hits_an_engine_assertion():
                 ) from exc
             if terminated or truncated:
                 break
+
+
+# ---------------------------------------------------------------------------
+# Capability.LEVER: which rooms register it, and that dispatch is
+# capability-gated rather than an id list living in game.py (docs/open_tasks.md
+# task 21). Mirrors tests/test_capabilities.py's Capability.COMMERCE coverage.
+
+@pytest.mark.parametrize("room_id", LEVER_ROOM_IDS)
+def test_lever_room_provides_lever(room_id):
+    """Each of the four lever rooms is registered as providing Capability.LEVER
+    via its own effects/rooms module's provides_lever() call."""
+    assert provides_capability(room_id, Capability.LEVER)
+
+
+def test_ordinary_room_does_not_provide_lever(registry):
+    """A room with no lever role (e.g. the Corridor) does not provide
+    Capability.LEVER -- the registry is opt-in, not a default."""
+    assert not provides_capability("corridor", Capability.LEVER)
+
+
+def test_lever_capability_registry_has_exactly_four_rooms():
+    """The set of ids registered for Capability.LEVER is exactly the four
+    lever rooms -- no fifth room accidentally registered, and none of the
+    four is missing."""
+    registered = {room_id for room_id, cap in _CAPABILITY_REGISTRY if cap is Capability.LEVER}
+    assert registered == set(LEVER_ROOM_IDS)
+
+
+def test_entering_an_ordinary_room_at_a_lever_cell_does_not_pull_a_lever(registry):
+    """A room with no Capability.LEVER registration does not open an
+    Antechamber segment even when placed at a real lever room's own segment
+    cell (37, the Weight Room's south-segment cell) and entered -- dispatch
+    is gated on the capability, not merely on "a room was entered"."""
+    g = _game(levers=True, registry=registry)
+    _place_at(g, "corridor", 37, N | S)
+    _enter_at(g, 37)
+    assert g.door_state_of(ANTECHAMBER_CELL, S) == DOOR_SEALED

@@ -12,7 +12,7 @@ from __future__ import annotations
 from ... import special_items
 from ...grid import N
 from ...locks import DOOR_SEALED, segment_key
-from .. import Hook, room_hook
+from .. import Hook, provides_lever, room_hook
 from ..tier1 import _red_negated
 
 SOUTH_SEGMENT_CELL = 37  # rank 8 center: its north face is the Antechamber's south door
@@ -47,3 +47,6 @@ def pull_south_lever(game, cell: int) -> None:
         return
     st.shops.weight_room_wall_broken = True
     game._open_segment(SOUTH_SEGMENT_CELL, N)
+
+
+provides_lever("weight_room", pull_south_lever)

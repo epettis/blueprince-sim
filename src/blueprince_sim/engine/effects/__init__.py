@@ -20,6 +20,7 @@ logger = logging.getLogger("blueprince_sim.effects")
 
 class Capability(Enum):
     COMMERCE = "commerce"  # room can be bought from, traded with, or fabricated at
+    LEVER = "lever"  # room pulls an Antechamber lever on first entry
 
 
 _CAPABILITY_REGISTRY: set[tuple[str, Capability]] = set()
@@ -52,6 +53,44 @@ def validate_capability_registry(registry) -> list[str]:
     """
     return sorted(
         {room_id for room_id, _cap in _CAPABILITY_REGISTRY if room_id not in registry.by_id})
+
+
+LeverPullFn = Callable  # (game, cell) -> None
+LeverCostFn = Callable  # (game, cell) -> int (keys the pull would spend right now)
+_LEVER_PULL: dict[str, LeverPullFn] = {}
+_LEVER_COST: dict[str, LeverCostFn] = {}
+
+
+def provides_lever(room_id: str, pull: LeverPullFn, cost: LeverCostFn | None = None) -> None:
+    """Register ``room_id`` as providing ``Capability.LEVER``, with its pull handler.
+
+    Unlike ``provides``, a lever capability needs a function to call, not just
+    the fact -- so this both records the capability and stores the room's own
+    ``pull`` (called on first entry) and optional ``cost`` (queried ahead of
+    entry to price a route; a lever costs nothing unless its own module
+    registers a cost function, e.g. one gated behind a locked door).
+    """
+    provides(room_id, Capability.LEVER)
+    _LEVER_PULL[room_id] = pull
+    if cost is not None:
+        _LEVER_COST[room_id] = cost
+
+
+def pull_lever(game, room_id: str, cell: int) -> None:
+    """Fire ``room_id``'s registered lever pull; a no-op for any other id."""
+    fn = _LEVER_PULL.get(room_id)
+    if fn is not None:
+        fn(game, cell)
+
+
+def lever_key_cost(room_id: str, game, cell: int) -> int:
+    """Keys pulling ``room_id``'s lever at ``cell`` would cost right now.
+
+    0 for any id with no registered cost function -- the common case, since
+    only a lever gated behind its own locked door needs one.
+    """
+    fn = _LEVER_COST.get(room_id)
+    return fn(game, cell) if fn is not None else 0
 
 
 class Hook(Enum):

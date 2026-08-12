@@ -110,9 +110,6 @@ ALLOWLIST: dict[str, set[str]] = {
         # Anchor-dict key + r.id.startswith("garage") upgrade-family match
         # (pathfinding hint) alongside the room_cells.get() lookup.
         "garage",
-        # match room.id: case "great_hall"/"weight_room"/"secret_garden"/
-        # "throne_room": lever-pull dispatch to the room's effects module.
-        "great_hall", "weight_room", "secret_garden", "throne_room",
         # room.id == "laboratory" special-move gate.
         "laboratory",
         # dest == "room_46" / area_route_cost("room_46") / room46_reached

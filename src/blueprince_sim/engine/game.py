@@ -12,8 +12,7 @@ from .areas import GateContext, reachable
 from .decks import apply_upgrade, build_decks, inject_rooms
 from .draft import deal_draft, redeal
 from .effects import Capability, Hook
-from .effects.rooms import (dovecote, foyer, great_hall, mail_room, secret_garden,
-                            throne_room, weight_room)
+from .effects.rooms import dovecote, foyer, mail_room
 from .grid import (ADJACENT, DIRS, E, ENTRANCE_CELL, N, N_CELLS, OPPOSITE, W,
                    neighbor, rank_of, rotate_mask)
 from .items import EXTRA_ITEM_TABLE, grant_item, roll_room_items
@@ -480,8 +479,8 @@ class Game:
         """Open the Antechamber's north segment and record the per-day reward event.
 
         The single call site for both north-door levers (Inner Sanctum in
-        :meth:`travel_to`, Throne Room in :meth:`_enter_lever_room`), so they cannot
-        drift.  Sets ``state.north_door_opened`` here — at the lever, not derived
+        :meth:`travel_to`, Throne Room in ``effects.rooms.throne_room.pull_north_lever``),
+        so they cannot drift.  Sets ``state.north_door_opened`` here — at the lever, not derived
         from the segment's door state — so env/rewards.py can pay NORTH_DOOR_REWARD
         exactly once without paying it "for free" under antechamber_levers=False,
         where the segment is never sealed to begin with.
@@ -1754,47 +1753,32 @@ class Game:
         # Antechamber lever gate: entering a lever room opens its sealed segment.
         # Per the sim's "player solves the puzzle of any room they enter" doctrine,
         # entering the room pulls its lever subject to the access cost below.
-        # Only fires when antechamber_levers is True (config gate).
-        if self.cfg.antechamber_levers:
-            self._enter_lever_room(room, cell)
-
-    def _enter_lever_room(self, room, cell: int) -> None:
-        """Route to a lever room's on-entry Antechamber-segment pull, if any.
-
-        Each room's own eligibility and cost logic lives in its
-        effects/rooms module (design doc antechamber-lever-design.md); this
-        only dispatches by id. The Greenhouse's South lever is a separate
-        path, handled entirely by special_items.install_lever.
-        """
-        match room.id:
-            case "weight_room":
-                weight_room.pull_south_lever(self, cell)
-            case "secret_garden":
-                secret_garden.pull_west_lever(self, cell)
-            case "great_hall":
-                great_hall.pull_east_lever(self, cell)
-            case "throne_room":
-                throne_room.pull_north_lever(self, cell)
+        # Only fires when antechamber_levers is True (config gate). Each lever
+        # room's own eligibility and cost logic lives in its effects/rooms
+        # module (design doc antechamber-lever-design.md), registered via
+        # Capability.LEVER. The Greenhouse's South lever is a separate path,
+        # handled entirely by special_items.install_lever.
+        if self.cfg.antechamber_levers and effects.provides_capability(room.id, Capability.LEVER):
+            effects.pull_lever(self, room.id, cell)
 
     def lever_key_cost(self, cell: int) -> int:
         """Keys that pulling ``cell``'s Antechamber lever would spend right now.
 
         Only the Great Hall's locked prize-room side door costs a key; every
-        other lever room is free (0). Deliberately ignores
-        ``state.entered[cell]`` - the lever only fires on first entry, so a
-        caller reasoning about a *future* walk must check ``state.entered``
-        itself.
+        other lever room is free (0), per its own registered cost function
+        (Capability.LEVER). Deliberately ignores ``state.entered[cell]`` - the
+        lever only fires on first entry, so a caller reasoning about a
+        *future* walk must check ``state.entered`` itself.
         """
         st = self.state
         if not self.cfg.antechamber_levers:
             return 0
         if st.grid[cell] < 0:
             return 0
-        if self.registry.rooms[st.grid[cell]].id != "great_hall":
+        room = self.registry.rooms[st.grid[cell]]
+        if not effects.provides_capability(room.id, Capability.LEVER):
             return 0
-        if st.door_state.get(segment_key(43, W)) != DOOR_SEALED:
-            return 0
-        return 1
+        return effects.lever_key_cost(room.id, self, cell)
 
     def inject_rooms(self, room_ids: list[str]) -> None:
         inject_rooms(self.state, self.registry, room_ids, self.rng)
