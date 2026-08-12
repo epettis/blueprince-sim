@@ -13,6 +13,7 @@ from __future__ import annotations
 import random
 
 from ..engine import locks
+from ..engine.draft import COLOUR_CATEGORIES
 from ..engine.game import ANTECHAMBER_CELL, Game, Phase, RedrawKind
 from ..engine.grid import N, neighbor, rank_of
 
@@ -121,8 +122,21 @@ def _forced_slot(game: Game) -> int:
     return min(o.slot for o in game.state.pending.options)
 
 
+def _colour_pending(game: Game, rnd: random.Random) -> bool:
+    """COLOUR_PENDING decision (a Secret Passage door was just opened): pick a
+    uniform random colour. True if a decision was taken, so callers can
+    return immediately -- shared by every policy below, since none of them
+    has an opinion on which colour to draft."""
+    if game.phase is not Phase.COLOUR_PENDING:
+        return False
+    game.choose_colour(rnd.choice(COLOUR_CATEGORIES))
+    return True
+
+
 def random_policy(game: Game, rnd: random.Random) -> None:
     """Uniform random baseline: pick any affordable option / any legal move or draft."""
+    if _colour_pending(game, rnd):
+        return
     if game.phase is Phase.DRAFTING:
         opts = _affordable(game)
         # No decline: opening a door commits you to taking a room.
@@ -226,6 +240,8 @@ def _navigate_frontier(game: Game) -> None:
 
 def frontier_greedy(game: Game, rnd: random.Random) -> None:
     """Draft anywhere reachable, best-first toward the Antechamber."""
+    if _colour_pending(game, rnd):
+        return
     if game.phase is Phase.NAVIGATE:
         _navigate_frontier(game)
     else:
@@ -234,6 +250,8 @@ def frontier_greedy(game: Game, rnd: random.Random) -> None:
 
 def greedy_rank(game: Game, rnd: random.Random) -> None:
     """Push north; prefer high-connectivity rooms with north doors."""
+    if _colour_pending(game, rnd):
+        return
     if game.phase is Phase.NAVIGATE:
         _navigate_north(game)
     else:
@@ -242,6 +260,8 @@ def greedy_rank(game: Game, rnd: random.Random) -> None:
 
 def economy(game: Game, rnd: random.Random) -> None:
     """Like greedy_rank but values resource rooms and redraws on bad hands."""
+    if _colour_pending(game, rnd):
+        return
     if game.phase is Phase.NAVIGATE:
         _navigate_north(game)
     else:

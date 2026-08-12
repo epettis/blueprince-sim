@@ -5,6 +5,7 @@ from __future__ import annotations
 import numpy as np
 from gymnasium import spaces
 
+from ..engine.draft import COLOUR_CATEGORIES
 from ..engine.game import ANTECHAMBER_CELL, Game, Phase
 from ..engine.grid import DIRS, OPPOSITE, neighbor
 from ..engine.locks import DOOR_LOCKED, DOOR_SEALED, DOOR_SECURITY, SECURITY_LEVELS
@@ -109,7 +110,12 @@ def observation_space(n_rooms: int, n_items: int, n_recipes: int,
         #   [8]   paused (0/1)
         #   [9]   success_count today, clamped to 999
         "experiment": spaces.Box(0, 999, shape=(10,), dtype=np.int16),
-        "phase": spaces.Discrete(5),
+        "phase": spaces.Discrete(6),
+        # secret_passage_colour: 1 + COLOUR_CATEGORIES index of the dealt hand's
+        # colour-selective restriction (state.pending.colour) while DRAFTING;
+        # 0 in COLOUR_PENDING (no colour chosen yet -- that IS the pending
+        # choice) and whenever the current hand, if any, carries no restriction.
+        "secret_passage_colour": spaces.Discrete(len(COLOUR_CATEGORIES) + 1),
         # disks_held: count of upgrade disks in inventory, clamped to
         # MAX_DISKS_HELD. Lets the agent know whether inserting is possible
         # without inspecting the full inventory.
@@ -315,6 +321,10 @@ def encode(game: Game, day_chain: DayChain | None = None) -> dict:
     redraws = pending.redraws_left if pending else 0
     resources = np.array(
         [st.steps, st.gems, st.keys, st.coins, st.dice, st.luck, redraws], dtype=np.int16)
+
+    secret_passage_colour = 0
+    if pending is not None and pending.colour is not None:
+        secret_passage_colour = COLOUR_CATEGORIES.index(pending.colour) + 1
 
     options = np.full((3, OPTION_FEATURES), -1, dtype=np.int16)
     if game.phase is Phase.DRAFTING and pending is not None:
@@ -570,6 +580,7 @@ def encode(game: Game, day_chain: DayChain | None = None) -> dict:
         "upgrade_options": upgrade_options,
         "experiment": experiment_arr,
         "phase": game.phase.value,
+        "secret_passage_colour": secret_passage_colour,
         "disks_held": disks_held,
         "stage": STAGE_INDEX.get(st.stage, 2),
         "house_flags": house_flags,

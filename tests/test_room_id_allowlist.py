@@ -88,6 +88,13 @@ ALLOWLIST: dict[str, set[str]] = {
         "schoolhouse",
         # Rank-3 90% Foundation removal-from-pool roll.
         "the_foundation",
+        # SECRET_PASSAGE_IDS: the Secret Passage and its Spare, exempt from
+        # normal drafting and from being drawn during a colour-selective draft.
+        "secret_passage", "spare_secret_passage__ix138",
+        # Category names, not room references: the colour-selective filter
+        # names the five selectable colours. Blue Prince has rooms called
+        # Bedroom and Hallway, so the two are textually identical here.
+        "bedroom", "hallway",
     },
     "experiments.py": {
         # add_aquariums module constants (AQUARIUM_BASE_ID,

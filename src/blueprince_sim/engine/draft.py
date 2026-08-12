@@ -16,6 +16,21 @@ as containers at the Mechanarium's cell rather than as doors here --
 engine/effects/rooms/mechanarium.py seeds the per-placement compartment
 count, and engine/special_items.py's containers.kinds
 mechanarium_lever/_key/_upgrade/_sanctum hold their loot.
+
+Colour-selective drafting (Secret Passage / Spare Secret Passage): a doorway
+dealt with ``DraftContext.colour`` set restricts every slot to that one
+category (Room.is_category), threaded through the single ``room_draftable``
+gate so it composes for free with the priority draws, forced draws, and
+category bias that already call it -- none of those need their own colour
+guard. A thin colour's pool draw (the ordinary rank/rarity attempts 1-3)
+falls back to the wiki's published default triple (priority_draws.json's
+colour_defaults) before
+the universal forced-Closet attempt 4; reserve copies -- the wiki's other
+thin-pool fallback -- are deliberately not modelled (see docs/open_tasks.md's
+colour-selective drafting ruling), so a default is still filtered through
+room_draftable and can lose to the one-copy-per-grid rule like any other
+candidate. Game.open_door/choose_colour own the doorway-level phase gating;
+this module only owns the deal itself.
 """
 
 from __future__ import annotations
@@ -37,7 +52,13 @@ LIBRARY_ID = "library"
 MECHANARIUM_ID = "mechanarium"
 DARKROOM_ID = "darkroom"
 AQUARIUM_EXPERIMENT_ID = "aquarium__experiment"
+SECRET_PASSAGE_IDS = ("secret_passage", "spare_secret_passage__ix138")
 
+# The five colours a Secret Passage door (or a Prism Key) can restrict a draft
+# to (blueprince.wiki.gg/wiki/Drafting_effects#Color-selective_drafting). Not
+# blueprint/blackprint -- "There is no way to select Blueprints or Blackprints
+# specifically."
+COLOUR_CATEGORIES = ("bedroom", "hallway", "green", "shop", "red")
 
 def _category_matches(room: Room, entry: dict) -> bool:
     """True when ``room`` matches a category_biases entry's target category.
@@ -58,10 +79,12 @@ def _category_matches(room: Room, entry: dict) -> bool:
 class DraftContext:
     """Bundles the per-draft references so helpers stay signature-light."""
 
-    __slots__ = ("state", "registry", "cfg", "rng", "placed_ids", "from_room", "from_library")
+    __slots__ = ("state", "registry", "cfg", "rng", "placed_ids", "from_room", "from_library",
+                 "colour")
 
     def __init__(self, state: GameState, registry: Registry, cfg: GameConfig, rng: Rng,
-                 placed_ids: set[str], from_room: Room | None) -> None:
+                 placed_ids: set[str], from_room: Room | None,
+                 colour: str | None = None) -> None:
         self.state = state
         self.registry = registry
         self.cfg = cfg
@@ -69,6 +92,8 @@ class DraftContext:
         self.placed_ids = placed_ids
         self.from_room = from_room  # room being drafted FROM, or None (positional condition source)
         self.from_library = from_room is not None and from_room.id == "library"
+        # Secret Passage colour-selective restriction; None for an ordinary hand.
+        self.colour = colour
 
 
 def room_draftable(ctx: DraftContext, room: Room, cell: int, entry_dir: int,
@@ -80,10 +105,19 @@ def room_draftable(ctx: DraftContext, room: Room, cell: int, entry_dir: int,
     of Mirrors is placed, for Tunnels dealt via the chain, and for
     aquarium__experiment once add_aquariums has fired today), the room's
     draft conditions, and door-geometry legality. ``exclude`` holds room
-    indices already dealt into earlier slots of this hand.
+    indices already dealt into earlier slots of this hand. While
+    ``ctx.colour`` is set (a Secret Passage colour-selective draft), a room
+    also needs to carry that colour (Room.is_category) and must not itself be
+    a Secret Passage variant -- "The Secret Passage cannot itself be drawn
+    during a color-selective draft" (wiki).
     """
     if room.idx in exclude:
         return False
+    if ctx.colour is not None:
+        if room.id in SECRET_PASSAGE_IDS:
+            return False
+        if not room.is_category(ctx.colour):
+            return False
     if room.id in ctx.placed_ids and "chamber_of_mirrors" not in ctx.placed_ids:
         # Allow a second (or third) Tunnel when it is force-dealt from a Tunnel's
         # north exit (tunnel_chain=True).  The duplicate-id check would otherwise
@@ -378,6 +412,42 @@ def _apply_category_bias(ctx: DraftContext, room: Room, slot: int, cell: int,
     return room
 
 
+def _colour_default_triple(ctx: DraftContext, colour: str) -> tuple[str, ...]:
+    """This colour's default floorplans, in the order the deal should try them.
+
+    Read from priority_draws.json's colour_defaults rather than named here, so
+    the published table stays data. Its swap rule replaces one default with
+    another while a listed upgrade is applied -- the Cloister leaves green when
+    upgraded, and the Solarium takes its place.
+    """
+    defaults = ctx.registry.priority["colour_defaults"]
+    triple = tuple(defaults["triples"][colour])
+    swap = defaults.get("swap")
+    if (swap is not None and colour == swap["colour"]
+            and any(v in ctx.state.applied_upgrades for v in swap["swap_when_upgraded"])):
+        triple = tuple(swap["with"] if rid == swap["replace"] else rid for rid in triple)
+    return triple
+
+
+def _deal_colour_default(ctx: DraftContext, cell: int, entry_dir: int,
+                         exclude: set[int]) -> Room | None:
+    """First of ``ctx.colour``'s published default floorplans still draftable here.
+
+    Tried in wiki order through the same ``room_draftable`` gate as any other
+    candidate, so a default can never relax the out-drafting invariant or
+    duplicate a room already on the grid -- the reserve-copy tier that would
+    allow that is deliberately not modelled. Returns None if all three are
+    unavailable here (the caller then falls through to the forced-Closet
+    attempt, same as an ordinary exhausted slot).
+    """
+    assert ctx.colour is not None
+    for room_id in _colour_default_triple(ctx, ctx.colour):
+        room = ctx.registry.by_id.get(room_id)
+        if room is not None and room_draftable(ctx, room, cell, entry_dir, exclude):
+            return room
+    return None
+
+
 def draw_slot(ctx: DraftContext, slot: int, cell: int, entry_dir: int,
               exclude: set[int], earlier_options: list[DraftOption] = ()) -> DraftOption | None:
     """Fill one option slot via the four-attempt procedure.
@@ -420,6 +490,14 @@ def draw_slot(ctx: DraftContext, slot: int, cell: int, entry_dir: int,
         if room is not None:
             room = _apply_category_bias(ctx, room, slot, cell, entry_dir, exclude)
             return _make_option(ctx, room, slot, cell, entry_dir)
+
+    # Colour-selective draft (Secret Passage): the pool is thin, so fall back
+    # to the published default triple before the universal forced-Closet
+    # attempt below -- see _deal_colour_default.
+    if ctx.colour is not None:
+        room = _deal_colour_default(ctx, cell, entry_dir, exclude)
+        if room is not None:
+            return _make_option(ctx, room, slot, cell, entry_dir, forced_draw=True)
 
     # Attempt 4: forced Closet - cannot fail (Closet is a free commonplace
     # dead end, so it always has a legal orientation).
@@ -610,6 +688,14 @@ def _fill_options(ctx: DraftContext, pending: PendingDraft, from_room: Room | No
     the guarantee still targets list index 2 specifically, which then lands
     on a visually earlier option than "third"; that already-rare edge case is
     not special-cased further here.
+
+    Colour-selective draft (``pending.colour`` set): the Silver Key's cross/t
+    bias is skipped entirely rather than merely narrowed by the colour filter
+    -- "If the Silver Key is used in the Secret Passage, the Secret Passage's
+    effect will take priority and the Silver Key's effect is ignored" (wiki).
+    Every other pass (Foundation removal, Darkroom/Archives concealment) is
+    unaffected; ``room_draftable`` (see its docstring) is what keeps every
+    slot on-colour.
     """
     # Tunnel chain-draft: north exit of a placed Tunnel guarantees a Tunnel in
     # slot 0 of an otherwise-normal three-slot hand (see docstring above).
@@ -634,9 +720,10 @@ def _fill_options(ctx: DraftContext, pending: PendingDraft, from_room: Room | No
         exclude.add(foundation.idx)
 
     # Silver Key: on the initial deal, try cross/t layouts first for each slot,
-    # falling back to the normal draw when no cross/t card qualifies.
+    # falling back to the normal draw when no cross/t card qualifies. Ignored
+    # outright during a colour-selective draft (see docstring above).
     # Redraws clear the flag before calling _fill_options via redeal (flag already False).
-    silver_key_bias = ctx.state.special.silver_key_draft
+    silver_key_bias = ctx.state.special.silver_key_draft and ctx.colour is None
     for slot in range(3):
         if slot == 0 and tunnel_forced_option is not None:
             pending.options.append(tunnel_forced_option)
@@ -679,28 +766,37 @@ def _fill_options(ctx: DraftContext, pending: PendingDraft, from_room: Room | No
 
 def deal_draft(state: GameState, registry: Registry, cfg: GameConfig, rng: Rng,
                placed_ids: set[str], from_cell: int, direction: int,
-               target_cell: int) -> PendingDraft:
+               target_cell: int, colour: str | None = None) -> PendingDraft:
     """Deal a fresh three-option hand for the doorway ``from_cell`` -> ``target_cell``.
 
-    Entry point used by ``Game.open_door`` the first time a doorway is opened
-    (the result is cached per doorway, so reopening shows the same hand).
-    Library no-draft filtering, Darkroom hiding, and the Tunnel chain all key
-    off the room being drafted FROM; Archives hiding keys off house state
-    instead (see ``_fill_options``).
+    Entry point used by ``Game.open_door``/``Game.choose_colour`` the first
+    time a doorway is opened (the result is cached per doorway, so reopening
+    shows the same hand). Library no-draft filtering, Darkroom hiding, and
+    the Tunnel chain all key off the room being drafted FROM; Archives hiding
+    keys off house state instead (see ``_fill_options``). ``colour``
+    restricts every slot to one of COLOUR_CATEGORIES (Secret Passage
+    variants only); it is stamped onto the returned ``PendingDraft`` so a
+    later ``redeal`` of this same hand stays on-colour without the caller
+    having to pass it again.
     """
     from_room = registry.rooms[state.grid[from_cell]] if state.grid[from_cell] >= 0 else None
-    ctx = DraftContext(state, registry, cfg, rng, placed_ids, from_room)
-    pending = PendingDraft(from_cell=from_cell, direction=direction, target_cell=target_cell)
+    ctx = DraftContext(state, registry, cfg, rng, placed_ids, from_room, colour=colour)
+    pending = PendingDraft(from_cell=from_cell, direction=direction, target_cell=target_cell,
+                           colour=colour)
     _fill_options(ctx, pending, from_room)
     return pending
 
 
 def redeal(state: GameState, registry: Registry, cfg: GameConfig, rng: Rng,
            placed_ids: set[str], pending: PendingDraft) -> None:
-    """Redraw all three options in place (Study / Classroom / dice redraw)."""
+    """Redraw all three options in place (Study / Classroom / dice redraw).
+
+    Reuses ``pending.colour`` (set by the original ``deal_draft``) so a
+    redraw of a colour-selective hand stays restricted to the same colour.
+    """
     from_room = registry.rooms[state.grid[pending.from_cell]] \
         if state.grid[pending.from_cell] >= 0 else None
-    ctx = DraftContext(state, registry, cfg, rng, placed_ids, from_room)
+    ctx = DraftContext(state, registry, cfg, rng, placed_ids, from_room, colour=pending.colour)
     pending.options.clear()
     pending.rotations_used = 0  # fresh hand, fresh rotation budget
     _fill_options(ctx, pending, from_room)
