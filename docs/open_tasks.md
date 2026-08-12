@@ -855,6 +855,27 @@ around 1,800 LOC.
 
 ## Decisions log
 
+- **2026-08-12, the sundial takes any ignition tool: trust the wiki.** Owner,
+  resolving the conflict #215 recorded rather than decided. The wiki says "an
+  ignition tool"; an owner play-report had named the Burning Glass specifically.
+  **The Torch lights it too.**
+
+  No behaviour change -- #215 already implemented "any tool in `ignition.tools`",
+  on the reasoning that a per-target tool restriction would be new machinery for
+  a fact the owner themselves flagged as probably just what was in hand. The
+  ruling confirms that call.
+
+  What *did* need changing is the record: `special_items.json`'s ignition note
+  described the conflict as **open**. Leaving it would have been the same
+  stale-reason failure this session has now hit thirteen times -- a note
+  outliving the question it described. Updated to state the ruling.
+
+  **Worth generalising: "owner play overrides the wiki" is a tie-breaker, not an
+  automatic win.** Here the owner read their own observation as weaker evidence
+  than the published text, because a single play-report cannot distinguish "this
+  tool is required" from "this tool was in my hand". Surfacing the conflict
+  rather than resolving it silently is what let them make that call.
+
 - **2026-08-12, the Apple Orchard sundial is built and CANNOT be lit.** Phase 6a
   of the Microchip branch: the unlock only. `experiments.py`'s `or_packet` stays
   hardcoded `False`; the packet's 8 triggers and 8 effects are a later PR.
