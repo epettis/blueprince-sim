@@ -136,6 +136,10 @@ class PendingDraft:
     study_redraws_used: int = 0  # Study redraws bought with gems on this hand (max 8)
     redraws_left: int = 0  # free redraws (Classroom etc.)
     rotations_used: int = 0  # free rotations spent on this hand (see Game.rotation_available)
+    # Secret Passage colour-selective restriction (draft.py COLOUR_CATEGORIES), carried
+    # across redraws of this same hand so a redraw stays locked to the chosen colour;
+    # None for an ordinary (non-colour-selective) hand.
+    colour: str | None = None
 
 
 @dataclass(slots=True)
@@ -255,6 +259,12 @@ class GameState:
     experiment: ExperimentState = field(default_factory=ExperimentState)
 
     pending: PendingDraft | None = None  # in-flight draft hand; None outside the drafting phase
+    # Secret Passage / Spare Secret Passage colour pick: the doorway (cell, direction)
+    # awaiting Game.choose_colour(), set by Game.open_door instead of dealing a hand
+    # when the doorway's from-room is a Secret Passage variant and this is its first
+    # opening. -1 outside COLOUR_PENDING; direction is only meaningful while cell >= 0.
+    pending_colour_cell: int = -1
+    pending_colour_direction: int = 0
     outer_room_drafted: bool = False  # today's single outer-room draft has been used
     # area-graph node id the player stands on, or None when on the 5x9 grid (pos is authoritative)
     # Equivalences with the old outer_loc int: None=0, "west_path"=1, <outer_room_id>=2

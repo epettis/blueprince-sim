@@ -5,7 +5,7 @@ to draft, or a room to enter) and the engine walks the shortest connected
 path, paying the normal one-step-per-room cost. Re-entering rooms grants
 nothing, so free-form single-tile moves were retired.
 
-Layout (Discrete(328)):
+Layout (Discrete(333)):
   0..179   draft at doorway: cell (45) x direction (4: N,E,S,W) ->
            cell*4 + dir_index. Walks to the room first if needed. Legal for
            every frontier doorway reachable with at least one step to spare
@@ -79,10 +79,16 @@ Layout (Discrete(328)):
            Laboratory with a configured experiment).
   327      toggle the Darkroom lights (standing at the Utility Closet breaker;
            see engine/effects/rooms/darkroom.py for the fuse-blow it guards).
+  328..332 choose Secret Passage colour 0..4 (COLOUR_PENDING only; engine.draft.
+           COLOUR_CATEGORIES order: bedroom, hallway, green, shop, red). Set by
+           opening a doorway whose from-room is a Secret Passage variant for
+           the first time (Game.open_door); restricts every option of the
+           hand dealt right after the pick to that one colour.
 """
 
 from __future__ import annotations
 
+from ..engine.draft import COLOUR_CATEGORIES
 from ..engine.game import Game, Phase, RedrawKind
 from ..engine.grid import DIR_NAMES, DIRS, N_CELLS, rank_of
 from ..engine.locks import DOOR_LOCKED, DOOR_SEALED, DOOR_SECURITY, SECURITY_LEVELS
@@ -148,8 +154,12 @@ EXP_EFFECT_BASE = EXP_TRIGGER_BASE + 3       # 323..325
 TOGGLE_EXPERIMENT_ACTION = EXP_EFFECT_BASE + 3  # 326
 TOGGLE_DARKROOM_ACTION = TOGGLE_EXPERIMENT_ACTION + 1  # 327: flip the "Darkroom" breaker
 
-# N_ACTIONS = first slot after the Darkroom toggle.
-N_ACTIONS = TOGGLE_DARKROOM_ACTION + 1  # 327 + 1 = 328
+# 328..332: choose Secret Passage colour 0..4 (COLOUR_PENDING only), appended
+# at the end so no earlier id shifts. Order matches engine.draft.COLOUR_CATEGORIES.
+CHOOSE_COLOUR_BASE = TOGGLE_DARKROOM_ACTION + 1  # 328
+
+# N_ACTIONS = first slot after the colour picks.
+N_ACTIONS = CHOOSE_COLOUR_BASE + len(COLOUR_CATEGORIES)  # 328 + 5 = 333
 
 DIR_INDEX = {d: i for i, d in enumerate(DIRS)}
 
@@ -536,6 +546,11 @@ def action_mask(game: Game, prev_action: int | None = None) -> list[bool]:
         if ex.effect_id is None:
             for i in range(3):
                 mask[EXP_EFFECT_BASE + i] = True
+    elif game.phase is Phase.COLOUR_PENDING:
+        # All five colours are always offered; no other action is legal here
+        # -- the player must pick one (Game.choose_colour).
+        for i in range(len(COLOUR_CATEGORIES)):
+            mask[CHOOSE_COLOUR_BASE + i] = True
     # Security-setpoint repeat guard: if the last applied action was a
     # set-level id, mask all three off so the agent must do something else
     # before touching the setpoint again.
@@ -639,6 +654,8 @@ def apply_action(game: Game, action: int) -> None:
         game.choose_experiment_effect(action - EXP_EFFECT_BASE)
     elif action == TOGGLE_EXPERIMENT_ACTION:
         game.toggle_experiment()
+    elif CHOOSE_COLOUR_BASE <= action < N_ACTIONS:
+        game.choose_colour(COLOUR_CATEGORIES[action - CHOOSE_COLOUR_BASE])
     else:
         raise ValueError(f"unimplemented action {action}")
 
@@ -765,4 +782,7 @@ def describe_action(game: Game, action: int) -> str:
         return f"choose experiment effect #{i}: {text}"
     if action == TOGGLE_EXPERIMENT_ACTION:
         return "resume experiment" if game.state.experiment.paused else "pause experiment"
+    if CHOOSE_COLOUR_BASE <= action < N_ACTIONS:
+        colour = COLOUR_CATEGORIES[action - CHOOSE_COLOUR_BASE]
+        return f"choose colour: {colour}"
     return f"action {action}"

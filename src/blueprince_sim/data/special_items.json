@@ -923,7 +923,8 @@
     "source": "https://blueprince.wiki.gg/wiki/Prism_Key",
     "confidence": "wiki",
     "absent_spawn_areas": [],
-    "blocked_on": "color_biased_drafting_not_modeled"
+    "blocked_on": "locked_door_special_key_selection_not_modeled",
+    "notes": "The colour-selective drafting mechanism this needed (engine/draft.py's DraftContext.colour, same filter the Secret Passage uses -- 'The Prism Key's effect seems to be identical to that of the Secret Passage') now exists. What remains is the locked-door special-key menu itself: no per-door special-key choice, glow/fit preview, consume-and-readd, or the Great Hall-style warp-to-next-draft quirk is modelled anywhere in locks.py/shops.py."
    }
   },
   {

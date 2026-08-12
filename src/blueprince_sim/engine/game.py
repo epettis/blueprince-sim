@@ -10,7 +10,7 @@ from ..config import GameConfig
 from . import effects, experiments, shops, special_items
 from .areas import GateContext, reachable
 from .decks import apply_upgrade, build_decks, inject_rooms
-from .draft import deal_draft, redeal
+from .draft import COLOUR_CATEGORIES, SECRET_PASSAGE_IDS, deal_draft, redeal
 from .effects import Capability, Hook
 from .effects.rooms import dovecote, foyer, mail_room
 from .grid import (ADJACENT, DIRS, E, ENTRANCE_CELL, N, N_CELLS, OPPOSITE, W,
@@ -35,6 +35,7 @@ class Phase(Enum):
     TERMINAL = 2
     UPGRADE_PENDING = 3
     EXPERIMENT_PENDING = 4
+    COLOUR_PENDING = 5  # Secret Passage: awaiting a colour pick before the hand is dealt
 
 
 class RedrawKind(Enum):
@@ -754,7 +755,7 @@ class Game:
             "clock_tower_tomorrow_keys": st.clock_tower_tomorrow_keys,
         }
 
-    def open_door(self, cell: int, direction: int) -> PendingDraft:
+    def open_door(self, cell: int, direction: int) -> PendingDraft | None:
         """Draft (but do not enter) through a doorway of the current room.
 
         Drafting only deals a hand and, on :meth:`choose`, places a room; it
@@ -767,6 +768,13 @@ class Game:
         effect (e.g. steps_for_gold) could otherwise go unnoticed until the
         next NAVIGATE-phase action. A caller must check ``phase`` afterward,
         same as every other termination-checking action.
+
+        Returns None, and enters COLOUR_PENDING instead of dealing, when this
+        is the FIRST opening of a doorway whose from-room is a Secret Passage
+        variant (SECRET_PASSAGE_IDS) -- the player must :meth:`choose_colour`
+        before a hand can be dealt. Reopening that same doorway once its
+        colour has already been chosen (cached in doorway_drafts) skips the
+        pick and returns the cached hand, same as any other doorway.
         """
         assert self.phase is Phase.NAVIGATE, "not in NAVIGATE phase"
         st = self.state
@@ -778,24 +786,68 @@ class Game:
         key = (cell, direction)
         pending = self.doorway_drafts.get(key)
         if pending is None:
-            pending = deal_draft(st, self.registry, self.cfg, self.rng,
-                                 self.placed_ids, cell, direction, target)
-            # Visible to ON_DRAFT_FROM handlers below (the Classroom's free-redraw
-            # grant reads/adds to pending.redraws_left, which defaults to 0).
-            st.pending = pending
-            # ON_DRAFT_FROM fires once, on the initial deal only -- not on
-            # redraws (see redraw(), which deliberately does not re-fire it).
-            effects.fire(self, self.registry.rooms[st.grid[cell]], Hook.ON_DRAFT_FROM)
-            for opt in pending.options:
-                effects.fire(self, self.registry.rooms[opt.room_idx], Hook.ON_HAND_DEALT)
-            # Paper Crown: +1 free redraw on an all-non-red initial deal.
-            # Hidden options are treated as potentially red (no crown bonus if any hidden).
-            if (self.cfg.special_items and special_items.has(st, "paper_crown")
-                    and not any(o.hidden for o in pending.options)
-                    and all(not self.registry.rooms[o.room_idx].is_category("red")
-                            for o in pending.options)):
-                pending.redraws_left += 1
-            self.doorway_drafts[key] = pending
+            from_room = self.registry.rooms[st.grid[cell]]
+            if from_room.id in SECRET_PASSAGE_IDS:
+                st.pending_colour_cell = cell
+                st.pending_colour_direction = direction
+                self.phase = Phase.COLOUR_PENDING
+                self._check_termination()
+                return None
+            pending = self._deal_and_cache(cell, direction, target)
+        st.pending = pending
+        self.phase = Phase.DRAFTING
+        self._check_termination()
+        return pending
+
+    def _deal_and_cache(self, cell: int, direction: int, target: int,
+                        colour: str | None = None) -> PendingDraft:
+        """Deal a fresh hand for the ``cell``->``direction`` doorway and cache it.
+
+        Shared tail of :meth:`open_door`'s ordinary path and
+        :meth:`choose_colour`'s resumed deal, so both fire ON_DRAFT_FROM/
+        ON_HAND_DEALT and apply the Paper Crown bonus identically. ``colour``
+        restricts the deal to one category (Secret Passage variants only);
+        None for an ordinary doorway.
+        """
+        st = self.state
+        pending = deal_draft(st, self.registry, self.cfg, self.rng,
+                             self.placed_ids, cell, direction, target, colour=colour)
+        # Visible to ON_DRAFT_FROM handlers below (the Classroom's free-redraw
+        # grant reads/adds to pending.redraws_left, which defaults to 0).
+        st.pending = pending
+        # ON_DRAFT_FROM fires once, on the initial deal only -- not on
+        # redraws (see redraw(), which deliberately does not re-fire it).
+        effects.fire(self, self.registry.rooms[st.grid[cell]], Hook.ON_DRAFT_FROM)
+        for opt in pending.options:
+            effects.fire(self, self.registry.rooms[opt.room_idx], Hook.ON_HAND_DEALT)
+        # Paper Crown: +1 free redraw on an all-non-red initial deal.
+        # Hidden options are treated as potentially red (no crown bonus if any hidden).
+        if (self.cfg.special_items and special_items.has(st, "paper_crown")
+                and not any(o.hidden for o in pending.options)
+                and all(not self.registry.rooms[o.room_idx].is_category("red")
+                        for o in pending.options)):
+            pending.redraws_left += 1
+        self.doorway_drafts[(cell, direction)] = pending
+        return pending
+
+    def choose_colour(self, colour: str) -> PendingDraft:
+        """Resolve the Secret Passage's colour pick and deal the restricted hand.
+
+        Only legal in COLOUR_PENDING; ``colour`` must be one of
+        COLOUR_CATEGORIES. Finishes exactly what :meth:`open_door` would have
+        done for this doorway had a pick not been needed, restricted to
+        ``colour``, then returns to DRAFTING. Checks termination at the end,
+        same as :meth:`open_door` (colour_pending itself already checked
+        termination on entry; this covers whatever the deal's own hooks do).
+        """
+        assert self.phase is Phase.COLOUR_PENDING, "choose_colour only legal in COLOUR_PENDING"
+        assert colour in COLOUR_CATEGORIES, f"unknown colour {colour!r}"
+        st = self.state
+        cell, direction = st.pending_colour_cell, st.pending_colour_direction
+        target = neighbor(cell, direction)
+        st.pending_colour_cell = -1
+        st.pending_colour_direction = 0
+        pending = self._deal_and_cache(cell, direction, target, colour=colour)
         st.pending = pending
         self.phase = Phase.DRAFTING
         self._check_termination()
@@ -809,10 +861,12 @@ class Game:
         the way, so the RNG stream is identical to issuing the moves by hand.
         Returns None if the walk ends the day before the draft can happen, if
         the walk itself gets stranded short of ``cell`` (see
-        :meth:`move_to`), or if arriving at ``cell`` changed the
-        ``direction`` doorway's own lock state out from under the caller's
-        plan (the Vestibule can do this on its own arrival) so that it is no
-        longer affordable.
+        :meth:`move_to`), if arriving at ``cell`` changed the ``direction``
+        doorway's own lock state out from under the caller's plan (the
+        Vestibule can do this on its own arrival) so that it is no longer
+        affordable, or if the doorway's from-room is a Secret Passage variant
+        and this is its first opening -- see :meth:`open_door`, which enters
+        COLOUR_PENDING in that case instead of dealing.
         """
         assert self.phase is Phase.NAVIGATE
         if cell != self.state.pos:

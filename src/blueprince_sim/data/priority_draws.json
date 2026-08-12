@@ -334,5 +334,44 @@
   "source": "TFMurphy decompiled sheet v1.3 constants block (extracted 2026-07-20); precedence order from wiki.gg Drafting/Advanced",
   "confidence": "datamined",
   "notes": "The exact procedural interpretation of category_biases (re-deal vs pre-filter) is TFMurphy prose, implemented as a biased re-deal hook."
+ },
+ "colour_defaults": {
+  "comment": "Per-colour default floorplans for a colour-selective draft (wiki.gg/Drafting_effects, 'List of default floorplans for each selectable color type'), tried in order once the ordinary pool draw comes up empty. 'swap' replaces one default with another while any of 'swap_when_upgraded' is applied: the Cloister leaves green when upgraded, and the Solarium takes its place.",
+  "triples": {
+   "bedroom": [
+    "bedroom",
+    "boudoir",
+    "guest_bedroom"
+   ],
+   "hallway": [
+    "hallway",
+    "passageway",
+    "aquarium"
+   ],
+   "green": [
+    "courtyard",
+    "aquarium",
+    "cloister"
+   ],
+   "shop": [
+    "commissary",
+    "kitchen",
+    "locksmith"
+   ],
+   "red": [
+    "gymnasium",
+    "darkroom",
+    "chapel"
+   ]
+  },
+  "swap": {
+   "colour": "green",
+   "replace": "cloister",
+   "with": "solarium",
+   "swap_when_upgraded": [
+    "cloister_of_orinda__ix35",
+    "cloister_of_draxus__ix36"
+   ]
+  }
  }
 }
