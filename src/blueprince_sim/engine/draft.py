@@ -42,7 +42,11 @@ from .model import Registry, Room
 from .placement import legal_orientations, satisfies_draft_conditions
 from .rng import Rng
 from .rotation import orientation_weights
-from .special_items import compass_active_from_state, electromagnet_active_from_state
+from .special_items import (
+    chronograph_active_from_state,
+    compass_active_from_state,
+    electromagnet_active_from_state,
+)
 from .state import DraftOption, GameState, PendingDraft, resolve_gem_cost
 
 CLOSET_ID = "closet"
@@ -290,6 +294,8 @@ def _active_conditions(ctx: DraftContext) -> set[str]:
         conds.add("add_aquariums")
     if electromagnet_active_from_state(state, ctx.registry):
         conds.add("electromagnet")
+    if chronograph_active_from_state(state, ctx.registry):
+        conds.add("chronograph")
     # King's Chess Piece (Banner of the King) is deliberately NOT emitted here: no
     # source models how the Banner is obtained or a per-day color pick, and the five
     # king_* tags must fire one at a time (mirroring scepter_<color>), never all at

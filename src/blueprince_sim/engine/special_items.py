@@ -1308,6 +1308,17 @@ def electromagnet_active_from_state(state, registry) -> bool:
     return _has_item_effect(state, registry, "electromagnet")
 
 
+def chronograph_active_from_state(state, registry) -> bool:
+    """Chronograph drafting-bias check from state/registry (no game object).
+
+    Used by draft.py where game is not available. True while holding a
+    Chronograph: its 40% Tomorrow-Rooms priority draw persists while held, the
+    same shape as the Powered Electromagnet's bias above. The Chronograph's
+    other effect, rewinding a redraw, is separate and unmodelled.
+    """
+    return _has_item_effect(state, registry, "chronograph")
+
+
 def satisfied_condition_items(state) -> set[str]:
     """Draft-condition gates granted by held items or in-run events.
 

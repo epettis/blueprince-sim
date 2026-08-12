@@ -225,7 +225,7 @@
    "meta": {
     "confidence": "datamined",
     "source": "sheet constants: 'Chronograph 40% Tomorrow Rooms'; wiki.gg/Drafting/Advanced",
-    "notes": "Still inert, but no longer for a category reason: 'tomorrow' now matches the twelve Tomorrow rooms typed via rooms.json extra_categories (Clock Tower, Coat Check, Freezer, Mail Room plus its three upgrades, Morning Room, Planetarium, Sauna, the Hallway's Tomorrow upgrade, and the Break Room). The blocker is now solely condition 'chronograph', which draft.py's _active_conditions never emits -- the Chronograph's rewind mechanic is unmodeled (special_items.json: implemented false), so nothing ever activates this bias."
+    "notes": "Still inert, but no longer for a category reason: 'tomorrow' now matches the twelve Tomorrow rooms typed via rooms.json extra_categories (Clock Tower, Coat Check, Freezer, Mail Room plus its three upgrades, Morning Room, Planetarium, Sauna, the Hallway's Tomorrow upgrade, and the Break Room). Live: condition 'chronograph' is emitted by _active_conditions while a Chronograph is held (special_items.json effect tag 'chronograph', checked via chronograph_active_from_state). The item's other effect, rewinding a redraw, is separate and still unmodelled."
    }
   },
   {

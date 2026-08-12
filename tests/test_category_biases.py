@@ -272,6 +272,34 @@ def test_electromagnet_absent_by_default_present_when_held(registry):
     assert "electromagnet" in _active_conditions(ctx)
 
 
+def test_chronograph_absent_by_default_present_when_held(registry):
+    """chronograph is unreachable while the item isn't in inventory, and appears
+    the instant a Chronograph is held -- the same inventory-based idiom as the
+    Electro Magnet above. The item's other effect, rewinding a redraw, is
+    separate and unmodelled, so holding it must not imply that one works."""
+    cfg = GameConfig()
+    state = GameState()
+    ctx = _bare_ctx(registry, cfg, state)
+
+    assert "chronograph" not in _active_conditions(ctx)
+
+    state.inventory["chronograph"] = 1
+    assert "chronograph" in _active_conditions(ctx)
+
+
+def test_chronograph_bias_entry_targets_tomorrow_rooms_at_the_published_rate(registry):
+    """The Chronograph's priority-draw row biases the "tomorrow" category at the
+    datamined 40%. Pinned because the row was authored long before anything
+    emitted its condition, so the rate is the half a reader cannot verify."""
+    entry = next(e for e in registry.priority["category_biases"]
+                 if e.get("condition") == "chronograph")
+    assert entry["category"] == "tomorrow"
+    assert entry["chance"] == 0.4
+
+    matched = {r.id for r in registry.rooms if r.is_category("tomorrow")}
+    assert "clock_tower" in matched and "freezer" in matched
+
+
 def test_mechanical_or_rotunda_union_is_exactly_mechanical_rooms_plus_rotunda(registry):
     """category_matches("mechanical_or_rotunda") holds for exactly the eight
     wiki-pinned Mechanical rooms plus the Rotunda -- no more, no less -- mirroring
