@@ -855,6 +855,37 @@ around 1,800 LOC.
 
 ## Decisions log
 
+- **2026-08-12, I falsified a blocker with my own PR and caught it one step
+  later.** `microchip.meta.blocked_on` said `grotto_pedestal_chip_not_modeled`.
+  #210 modelled the pedestal chip, so the string was true when written and false
+  four hours later. Retagged to **`orindian_ruins_not_reachable`**, which is what
+  actually stops it: both nodes are `modelled: false` so `env/actions.py` offers
+  no travel, and `travel_to` has no `orindian_ruins` arrival handler.
+
+  Worth recording plainly because this is the twelfth instance of the session's
+  central failure and the first one I committed myself, with the warning fresh.
+  **The rule "when you fix a blocker, grep for everything that cited it" applies
+  to the PR you just merged, not only to old work.**
+
+- **2026-08-12, `throne_room.meta.effect_text` corrected in BOTH sources.** It
+  claimed "entirely out of scope, no effect modeled" while two of its effects
+  are modelled: the north Antechamber lever
+  (`effects/rooms/throne_room.py::provides_lever`) and the Mora Jai box's +2
+  allowance (`allowance_token_throne_room`, `guaranteed_in`). Only the crown
+  objective is genuinely out of scope.
+
+  **`throne_room` is supplemental-sourced** -- present in
+  `tools/supplemental_rooms.json`, absent from `tools/raw/`. Editing
+  `rooms.json` alone would have been **silently reverted by a future
+  re-ingest**, the hazard `HANDOFF.md` §7 names. Both files updated; both still
+  parse; 170 rooms, order unchanged.
+
+  This is the concrete cost of the `effects: []` ambiguity recorded earlier: the
+  room's `effects` array is empty because its behaviour lives in the room
+  registry and a guaranteed item, and the prose note drifted to match the array
+  rather than the code. **Task 23 -- wiring the registry validators into
+  `validate_data.py` -- is what would have caught it mechanically.**
+
 - **2026-08-12, the Microchip gate is corrected. Phase 1 of the branch.**
   `Gate.counts_flag` lets an item gate count an in-place copy the player does
   not carry; `three_microchips` keeps `count: 3` and gains
