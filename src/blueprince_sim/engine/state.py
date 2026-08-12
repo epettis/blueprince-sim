@@ -275,6 +275,13 @@ class GameState:
     # mutating it would leak the unlock into later "fresh save" episodes.  carryover() ORs
     # this with cfg.west_gate_unlatched, the same shape as vase_smashed / chip_dug.
     west_gate_unlatched: bool = False
+    # The Blackbridge Grotto pedestal's own microchip has been taken out today.
+    # Day-scoped only: NO GameConfig field, NO _CARRYOVER_KEYS entry.  Unlike
+    # west_gate_unlatched above, the Grotto chip records no discovery to carry
+    # forward -- it starts in the pedestal on day 1 with no prerequisite, so the
+    # owner's respawn-next-day rule is implemented for free by this field simply
+    # defaulting False at every reset(), not by plumbing it through carryover().
+    grotto_chip_taken: bool = False
     # Set the first time the player reaches mine_south today.  Same shape as
     # west_gate_unlatched: an IN-RUN discovery recorded on STATE, never written
     # back to GameConfig (one config object is shared by every episode of a

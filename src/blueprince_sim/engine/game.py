@@ -1030,6 +1030,13 @@ class Game:
               Permanent once entered (owner decision, see docs/open_tasks.md:
               "assume the player unlocks this room permanently after entering the
               Boiler Room").  Gates Underpass -> Upper Rotating Gear.
+          "grotto_chip_in_place" -- the Blackbridge Grotto pedestal's own microchip has
+              NOT been taken out today (st.grotto_chip_taken is False).  Day-scoped only,
+              unlike the flags above: it defaults set on every reset() rather than being
+              carried in from cfg, since the pedestal chip has no discovery to carry --
+              it starts in place with no prerequisite and simply respawns each day.
+              Contributes 1 to the three_microchips item gate's total (see
+              areas.py::gate_open's counts_flag handling).
         """
         st = self.state
         flags: set[str] = set()
@@ -1046,6 +1053,8 @@ class Game:
             flags.add("candlestick_stairway_lit")
         if self._breaker_on():
             flags.add("garage_door_breaker")
+        if not st.grotto_chip_taken:
+            flags.add("grotto_chip_in_place")
         # North door open: Inner Sanctum or Throne Room lever pulled this day.
         north_seg = segment_key(ANTECHAMBER_CELL, N)
         if self.state.door_state.get(north_seg) != DOOR_SEALED:
