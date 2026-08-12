@@ -23,7 +23,7 @@ from pathlib import Path
 # would cycle at module load); special_items imports only model, so it's safe.
 from . import special_items as si
 from .effects import Capability, ItemCapability, item_capability_sum, provides_capability
-from .effects.items import lunch_box, repellent, royal_scepter, silver_key, stopwatch
+from .effects.items import car_keys, lunch_box, repellent, royal_scepter, silver_key, stopwatch
 
 
 # Scepter colors are floorplan categories; the bias entries in
@@ -186,7 +186,7 @@ def _roll_locksmith(game, table: dict) -> None:
     special_key_data = table.get("special_key", {})
     rolls = special_key_data.get("rolls", [])
     price = special_key_data.get("price", 8)
-    fallback = special_key_data.get("fallback", ["car_keys", silver_key.ITEM_ID])
+    fallback = special_key_data.get("fallback", [car_keys.ITEM_ID, silver_key.ITEM_ID])
 
     # Roll which priority list to use (cumulative chance)
     chosen_order = None

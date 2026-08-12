@@ -12,7 +12,7 @@ from .areas import GateContext, reachable
 from .decks import apply_upgrade, build_decks, inject_rooms
 from .draft import COLOUR_CATEGORIES, SECRET_PASSAGE_IDS, deal_draft, redeal
 from .effects import Capability, Hook
-from .effects.items import paper_crown, power_hammer, silver_key
+from .effects.items import keycard, paper_crown, power_hammer, silver_key
 from .effects.rooms import dovecote, foyer, mail_room, shrine
 from .grid import (ADJACENT, DIRS, E, ENTRANCE_CELL, N, N_CELLS, OPPOSITE, W,
                    neighbor, rank_of, rotate_mask)
@@ -1902,11 +1902,7 @@ class Game:
             if effects.provides_capability(room.id, Capability.COMMERCE):
                 shops.on_enter_shop(self, room)
         if self.cfg.door_locks:
-            kc = self.registry.lock_rules["keycard"]
-            if (not st.has_keycard and room.id in kc["source_rooms"]
-                    and self.rng.chance("keycard", kc["chance"] / 100.0)):
-                st.has_keycard = True
-                st.items_found_log.append(("keycard", 1))
+            keycard.roll_source_room_grant(self, room)
         # Antechamber lever gate: entering a lever room opens its sealed segment.
         # Per the sim's "player solves the puzzle of any room they enter" doctrine,
         # entering the room pulls its lever subject to the access cost below.
