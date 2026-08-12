@@ -438,8 +438,8 @@ def configure(state, cfg) -> None:
     for key_id in getattr(cfg, "collected_sanctum_keys", frozenset()):
         if key_id not in gated:
             gated.append(key_id)
-    # Owner ruling (docs/open_tasks.md decisions log, 2026-08-09): none of the
-    # eight Sanctum Keys spawn anywhere until Room 46 has been reached at least
+    # Owner ruling (see docs/open_tasks.md): none of the eight Sanctum Keys
+    # spawn anywhere until Room 46 has been reached at least
     # once (cfg.room46_reached, a permanent carry-over flag set the FOLLOWING
     # day -- same convention as gem_gate_active(), which also reads cfg only).
     if not cfg.room46_reached:
@@ -529,8 +529,8 @@ def on_area_arrival(game, area_id: str) -> None:
       (docs/areas.md) — obtainable without an ignition tool, unlike the
       candlesticks that separately open the Precipice stairway.
     - Upper Rotating Gear's gem and Treasure Trove blackprint (owner spec,
-      docs/open_tasks.md decisions log 2026-08-06). Neither is an inventory
-      item, so neither uses ``grant``/``_is_available``: the gem is a plain
+      see docs/open_tasks.md). Neither is an inventory item, so neither uses
+      ``grant``/``_is_available``: the gem is a plain
       ``state.gems`` bump guarded by a per-day flag (once per day, not once
       ever — a fresh ``GameState`` resets the guard every day), and the
       blackprint is a permanent ``state.treasure_trove_blackprint`` flag

@@ -289,7 +289,7 @@ class PlaySession:
             # base it was computed from. Stamping which preset that was is what
             # lets replay.build_frames rebuild the right one; without it a
             # fresh-save record silently replays onto the all-unlocks base and
-            # drifts. build_frames' own comment predicted exactly this.
+            # drifts.
             "unlocks": self.unlocks,
         }
         # A PlaySession always drives a DayChain, so info["day_config"] is

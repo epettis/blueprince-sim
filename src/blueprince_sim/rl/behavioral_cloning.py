@@ -131,8 +131,9 @@ def load_demo_dataset(paths: Iterable[str | Path], n_actions: int,
     one preset its fresh PPO env will train under. If ``unlocks`` is omitted,
     every record in ``paths`` must share the same (normalized) preset, or
     :class:`MixedPresetError` is raised: with no explicit choice, silently
-    training on a blend of two ``day_config`` bases would drift in ways
-    ``web/replay.py`` already had to fix once (see that module's docstring).
+    training on a blend of two ``day_config`` bases would drift in ways that
+    are hard to diagnose after the fact (see ``web/replay.py``'s docstring for
+    the same class of failure).
     """
     wanted = normalize_unlocks(unlocks) if unlocks is not None else None
     records: list[dict] = []

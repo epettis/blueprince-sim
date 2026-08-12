@@ -478,9 +478,8 @@ def main(argv: list[str] | None = None) -> int:
             gitem, gcount = g.get("item"), g.get("count")
             # engine/items.py::grant_item silently no-ops on an item id it
             # doesn't recognise (logs the pickup but grants nothing) -- a typo
-            # here fails exactly the same silent way the exact-coins bug did,
-            # so it is worth catching at data-validation time rather than in
-            # a low-value round-trip test.
+            # here would fail silently at runtime, so it is caught here at
+            # data-validation time instead.
             if gitem not in KNOWN_GUARANTEED_ITEM_KINDS:
                 errors.append(f"{where}: items.guaranteed has unknown item kind {gitem!r}")
             if not isinstance(gcount, int) or gcount < 0:
@@ -1566,18 +1565,16 @@ def main(argv: list[str] | None = None) -> int:
         # 1. A stub gate must carry retire_in (the only record of what retires it).
         # 2. kind=unmodelled must carry retire_in regardless of stub, and must declare
         #    which way it fails, EXACTLY ONE of:
-        #      stub=true           default-OPEN (2026-07-27 convention). Passes
+        #      stub=true           default-OPEN (the standing convention). Passes
         #                          unconditionally, so no node is stranded, and
         #                          anything measured through it is an upper bound.
-        #      default_closed=true default-CLOSED (2026-08-06, reservoir_water_13).
+        #      default_closed=true default-CLOSED (the exception, e.g. reservoir_water_13).
         #                          gate_open returns False for kind=unmodelled, so the
         #                          edge is shut until the real mechanism lands.
-        #    Demanding an explicit declaration is the point. Before this, the rule was
-        #    "unmodelled implies stub=true", which made an accidental stub=false
-        #    silently kill an edge and strand whatever sat behind it -- the exact
-        #    failure mode behind the withdrawn basement_key_well PR. Inferring intent
-        #    from stub=false would re-open that hole for every future gate; naming it
-        #    means a closed gate is always somebody's stated decision.
+        #    Demanding an explicit declaration is the point: inferring intent from an
+        #    absent flag would let an accidental stub=false silently kill an edge and
+        #    strand whatever sits behind it. Naming it means a closed gate is always
+        #    somebody's stated decision.
         # 3. retire_in must NOT be present on any other (non-unmodelled) non-stub gate
         #    -- a live gate with a real mechanism has nothing left to retire.
         if g.get("stub") is True and not g.get("retire_in"):
@@ -1649,11 +1646,11 @@ def main(argv: list[str] | None = None) -> int:
     # Node and edge count consistency: 38 nodes (26 area + 12 anchors) and 77 directed
     # edges. A mismatch means the data and spec have drifted.
     #
-    # 77: the reservoir_north<->reservoir_south crossing (2026-08-06, gated CLOSED by
-    # reservoir_water_13) added 2 edges to the prior 75. Not 79: the antechamber
-    # anchor deliberately has NO area edges to the house. Reaching rank 9 center is a
-    # GRID walk through a lever-opened door, and an area edge would let travel_to()
-    # hop there for ~0 steps straight past the seal.
+    # 77: includes the reservoir_north<->reservoir_south crossing (gated CLOSED by
+    # reservoir_water_13). Not 79: the antechamber anchor deliberately has NO area
+    # edges to the house. Reaching rank 9 center is a GRID walk through a
+    # lever-opened door, and an area edge would let travel_to() hop there for
+    # ~0 steps straight past the seal.
     SPEC_NODE_COUNT = 38
     SPEC_EDGE_COUNT = 77
     actual_node_count = len(a_node_ids)

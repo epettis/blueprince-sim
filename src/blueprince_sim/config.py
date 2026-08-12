@@ -274,10 +274,10 @@ class GameConfig:
         frozensets and data_dir to a Path.
 
         A set-valued field given as a STRING is a comma-separated id list, NOT an
-        iterable of characters.  ``--set upgrade_disks=cloister_of_orinda__ix35``
-        used to reach ``frozenset(str)``, which silently produced a set of single
-        letters: the ids matched nothing, so the override did nothing and said
-        nothing.  A measurement configured that way silently measures its own
+        iterable of characters: coercing it via plain ``frozenset(str)`` would
+        silently produce a set of single letters, so e.g.
+        ``--set upgrade_disks=cloister_of_orinda__ix35`` would match no real id --
+        the override would do nothing and say nothing, silently measuring its own
         control arm.
         """
         kwargs = {}
@@ -296,9 +296,9 @@ class GameConfig:
         return cls(**kwargs)
 
 
-# Config fields that hold a set of ids.  DERIVED from the annotations, not hand-listed:
-# the previous hand-written tuple was one edit away from silently omitting a new
-# frozenset field, and an omitted field would pass its raw value straight through.
+# Config fields that hold a set of ids.  DERIVED from the annotations, not hand-listed,
+# so a new frozenset field can't be silently omitted -- an omitted field would pass
+# its raw value straight through.
 # `from __future__ import annotations` makes f.type a string, hence the substring test.
 _SET_VALUED_FIELDS: frozenset[str] = frozenset(
     f.name for f in fields(GameConfig) if "frozenset" in f.type

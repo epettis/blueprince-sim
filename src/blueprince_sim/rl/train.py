@@ -93,12 +93,11 @@ def all_studio_additions() -> frozenset[str]:
     Derived rather than hand-listed so a newly-added ``studio_addition`` room is
     either picked up automatically or flagged by
     ``test_studio_additions_all_accounted_for``. It can then never be silently
-    dropped from training, which is exactly how ``lost_and_found`` ended up
-    implemented but disabled.
+    dropped from training.
 
     Two inclusions worth naming: ``lost_and_found`` (steal/gift behaviour in
     ``special_items.py``) and ``tunnel`` (chain-draft mechanic in ``draft.py``)
-    are both implemented despite having been absent from the old hand-written set.
+    are both implemented and included here.
 
     Lazy and cached deliberately: deriving this at import time would make merely
     importing this module read the data files, and ``web/replay.py`` imports it.

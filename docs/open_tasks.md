@@ -298,9 +298,10 @@ discarded for exactly that reason.
 
 ## 16. Sweep comments that re-litigate past behaviour
 
-Opened 2026-08-09, from the PR #89 review. Blocked on task 15 finishing -- a
-comment-only pass touches many files at once and would collide with every
-in-flight room PR.
+Opened 2026-08-09, from the PR #89 review. Runs independently of task 15: the
+collision a comment-only pass creates with in-flight room PRs is a merge cost,
+not a correctness one. See the 2026-08-11 scope ruling in the decisions log for
+the four category calls and the measured sizes.
 
 The standing rule is in the decisions log: a comment says what the code does.
 It does not narrate what the code used to do, defend against an alternative
@@ -321,6 +322,25 @@ Known instances, all landed in #89 and left in place on purpose:
   pin.
 
 Do not treat that list as exhaustive; it is where the rule was first noticed.
+
+**Correction, 2026-08-11 (PR 1 of the sweep).** Two of the three instances
+named above do not exist, and were verified line by line:
+
+- **`KNOWN_GUARANTEED_ITEM_KINDS` carries no dated citation.** That comment is
+  a clean present-tense description of item kinds. The only `2026-08-09`
+  reference in `tools/validate_data.py` is the separate exact-coins paragraph
+  in the guaranteed-items loop -- which *is* a genuine violation, and was
+  fixed. The two were conflated when this task was written.
+- **`items.py::grant_item`'s docstring is entirely present-tense.** Its
+  "instead of" phrasing contrasts two currently-valid options, which the sweep's
+  own carve-out classifies as a keep. It narrates no history, cites no date and
+  no bug. **Left untouched.** If it wants a length trim, that is a different
+  edit than this task authorises.
+
+Only the third (`tests/rooms/test_vault.py`) survived scrutiny; it is PR 2's.
+Recorded rather than silently deleted, because a task statement that names
+non-existent work is the same failure this task exists to fix.
+
 The sweep should cover `src/`, `tools/` and `tests/`, and is a good candidate
 for a mechanical first pass (grep for dated ruling references, "used to",
 "previously", "no longer", "instead of", "would have") followed by judgment.
@@ -697,8 +717,128 @@ one shared `Capability.DAY_END` between them.
   one module per room.
 - 24 of the 62 findings triaged on 2026-08-10 were false positives caused
   precisely by this scatter.
+## 22. Item behaviour: registry migration (scoping)
+
+Opened 2026-08-11, owner directive. The question, in their words: should items
+be "broken out into a registry similarly to how we broke out the rooms"? The
+stated reasoning -- "the engine can keep track of the capabilities while the
+registry implements those capabilities for each item and special item", and it
+"would also likely make it easier for you to stop re-litigating abilities".
+
+Note **"each item and special item"**: two distinct systems are in scope,
+`engine/items.py` (the luck / room-item yield system, 201 LOC) and
+`engine/special_items.py` (the ~102 inventory items, 2,465 LOC).
+
+**Measured starting point, 2026-08-11.** String literals in `engine/*.py`
+(non-recursive) matched against the 102 ids in `special_items.json`:
+
+| | count |
+|---|---|
+| `(module, item_id)` pairs | **58** -- `special_items.py` 42, `shops.py` 11, `game.py` 4, `placement.py` 1 |
+| `(module, effect_tag)` pairs | 35, over 38 distinct tags |
+| item-logic LOC | 4,440 -- `special_items.py` 2,465, `shops.py` 1,200, `upgrades.py` 574, `items.py` 201 |
+
+**For comparison the room-id debt is 65 pairs and is held under an enforced
+ratchet (`tests/test_room_id_allowlist.py`). The item debt of 58 is of the same
+order and has no equivalent enforcement at all** -- it was unmeasured until
+this entry.
+
+The motivating link to task 16's neighbour work: `implemented: false` in
+`special_items.json` is an *asserted* fact that has repeatedly gone stale (five
+false `blocked_on` strings found the same day, two of them on items the engine
+already grants or reads). A per-item module would make it *derivable*. Whether
+it actually does is the test the recommendation has to pass.
+
+An architecture pass is in flight. It must take a position on the item
+equivalent of task 17's central call -- that migration moved 13 singleton tags
+and **deliberately left 9 shared parametric ones in data** -- and must propose
+an enforcement mechanism that ratchets down rather than only growing.
+
 
 ## Decisions log
+
+- **2026-08-11, the stale-blocker retag widens to an audit of all 14
+  unimplemented special items.** Owner. The queue named two records whose
+  `meta.blocked_on` was false; verifying them turned up five, and three of the
+  five are worse than merely stale because the engine already touches the item:
+
+  - `dowsing_rod`, `crown_of_the_blueprints` -- `color_biased_drafting_not_modeled`,
+    built in #193.
+  - `coupon_book` -- `shop_purchases_not_modeled`, but `shops.py::buy` exists
+    and its effect tag `shop_discount` is **already read** at `shops.py:384`.
+  - `gear_wrench` -- `mechanical_room_rarity_not_modeled`, but the 8 Mechanical
+    Rooms carry `extra_categories: ["mechanical"]` (fixed #159). The real gap is
+    a rarity card-move, which the 2026-08-11 entry above establishes the repo
+    already performs twice.
+  - `microchip` -- `outer_areas_not_modeled`, but the 36-node area graph landed;
+    and `shops.py:904/920` already **grant** the item while its record says
+    unimplemented and its `effects` list is empty.
+
+  So: audit the remaining nine as well (`battery_pack`, `magnifying_glass`,
+  `telescope`, `prism_key`, `chronograph`, `trophy_of_wealth`, `the_axe`,
+  `file_cabinet_key`, `key_of_aries`) rather than fixing only what was reported.
+  A research pass first, then one data PR.
+
+  **`implemented: false` is carrying two different meanings** -- "nothing in the
+  engine touches this" and "the engine grants it but it does nothing" -- and
+  that ambiguity is what let `coupon_book` and `microchip` sit miscategorised.
+  The audit should say which of the two each record means.
+
+  On `coupon_book` specifically: **trace the discount end to end before flipping
+  the flag.** A wired effect tag is not proof; Room 8 was reachable on 2 of 45
+  cells and granted nothing while looking built.
+
+- **2026-08-11, what the Microchip actually does, from play.** Owner, and this
+  outranks the wiki per the standing rule -- recorded because nothing in the
+  repo captured it and the record's `effects` list is empty.
+
+  **Microchips open the Orindian Ruins, behind the Blackbridge Grotto.** There
+  are also **Trading Post trade mechanics involving them that should already be
+  implemented** in `shops.py`'s trade graph.
+
+  So `outer_areas_not_modeled` was not just stale, it was pointing away from the
+  real work: the item has a concrete destination gate and an existing trade
+  surface. Research pass to verify every use against the wiki and the datamine
+  before authoring the effect.
+
+- **2026-08-11, task 16's scope, in four rulings.** Owner. The brief in
+  `HANDOFF.md` measured ~35-45 edits across ~25 files; re-measuring found ~74
+  files, because two large categories were never enumerated. The raw greps do
+  overstate as recorded -- 48 `#`-comment hits on history verbs reduce to about
+  8 genuine ones, since "on an earlier day", "used to prove" and "rejected by
+  the geometry gate" all describe the present. The extra size is real, not
+  grep noise.
+
+  **1. The 26 `tests/rooms/` "Split out of the old test_X.py" module
+  docstrings: strip the history clause, keep the cross-reference.** The pointer
+  ("see tests/rooms/test_dining_room.py for the Dining Room's main course") is
+  live navigation and stays; where the file came from is not.
+
+  **2. Dated references: strip the date, keep an undated pointer to
+  `docs/open_tasks.md`.** "owner spec, docs/open_tasks.md decisions log
+  2026-08-06" becomes "owner spec, see docs/open_tasks.md". A reader must still
+  be able to find the reasoning behind a surprising rule; they do not need to
+  know the day it was ruled. **Source-provenance stamps are exempt and keep
+  their dates** -- "The wiki's Cargo Rooms table, fetched 2026-08-11" is the
+  same kind of fact as `meta.source`/`meta.confidence`, and a fetch date is
+  what makes a wiki claim auditable later.
+
+  **3. The ~20 test docstrings that narrate the bug they pin get rewritten to
+  state the property, not deleted down to their first clause.** Deleting only
+  the trailing "-- previously this granted nothing" leaves "Hovel now
+  qualifies" implying a change the reader cannot see. This is the highest-value
+  part of the sweep and the only editorial part; every rewrite gets reviewed
+  individually.
+
+  **4. Two PRs: `src/` + `tools/` first (~17 files), then `tests/`.** Engine
+  comments encode constraints the code must still honour and need the closer
+  read; the test sweep is bulk and lower-risk.
+
+  Also noted: `HANDOFF.md` §3's pointers to `engine/game.py:1359` and
+  `config.py:249` are stale -- both line numbers now land on clean code. The
+  named offenders in this task's own body (`tools/validate_data.py`,
+  `engine/items.py`, `tests/rooms/test_vault.py`) were re-verified and are
+  still there.
 
 - **2026-08-11, three premises behind the `add_aquariums` scoping were wrong,
   and the groundwork is far smaller than costed.** Recorded because the owner

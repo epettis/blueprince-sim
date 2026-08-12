@@ -62,20 +62,19 @@ def _ante_paths(game: Game) -> int:
     where the player is standing: walking off the 5x9 grid into an outer area
     does not change the house's connectivity, so this uses ``game.grid_frontier_doorways()``
     (ungated) rather than ``game.frontier_doorways()`` (returns [] off-grid).
-    Without this, an off-grid excursion collapsed every path to "sealed" and
-    back on return — potential-neutral overall (so invisible in the reward
-    sum) but capable of masking a real 1-open-path danger state as 0-paths
-    while outside, and confirmed empirically to make travel actions the
+    Using the gated ``frontier_doorways()`` instead would collapse every path to
+    "sealed" and back on return while off-grid — potential-neutral overall (so
+    invisible in the reward sum) but capable of masking a real 1-open-path danger
+    state as 0-paths while outside, and measured to make travel actions the
     dominant behavior of a policy trained under the collapsed signal.
     """
     if game.state.room46_reached:
         return 99  # already reached Room 46; win secured, no path penalty applies
     # >= 0 covers "standing in it" (distance 0) as well as "can walk there".
-    # With > 0, a player inside the Antechamber scored as paths=0, the all-routes-
-    # sealed penalty — the best state on the board rated as the worst. It never
-    # showed before B2 because arriving there ended the day; now the player lingers
-    # to continue north, and the -1.0 -> 0.0 potential snap on the Room 46 step
-    # silently doubled the win to +2.0.
+    # With > 0, a player inside the Antechamber would score as paths=0, the
+    # all-routes-sealed penalty -- the best state on the board rated as the
+    # worst, since the player can linger there to continue north rather than
+    # the day ending on arrival.
     if game.distance_map()[ANTECHAMBER_CELL] >= 0:
         return 99  # Antechamber reachable on foot, or underfoot — no path penalty
     od = game.optimistic_distances()

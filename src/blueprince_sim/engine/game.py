@@ -1024,15 +1024,15 @@ class Game:
               before that first entry would otherwise see it as unset.  Gates BOTH
               mine_south<->precipice edges: the stairway is a single physical structure
               the player lowers from inside the mine, not a front door (docs/areas.md;
-              owner correction, 2026-08-05).
+              owner correction, see docs/open_tasks.md).
           "boiler_room_steam" -- carried in from cfg, OR earned today the moment the
               player first enters the Boiler Room.  Same OR-from-cfg-or-state shape as
               west_gate_unlatched (a plain top-level GameState field, never lazily
               seeded the way state.special.lit_targets is, so checking cfg directly
               is already correct before any room is entered on a later day).
-              Permanent once entered (owner decision, docs/open_tasks.md decisions
-              log, 2026-08-06: "assume the player unlocks this room permanently after
-              entering the Boiler Room").  Gates Underpass -> Upper Rotating Gear.
+              Permanent once entered (owner decision, see docs/open_tasks.md:
+              "assume the player unlocks this room permanently after entering the
+              Boiler Room").  Gates Underpass -> Upper Rotating Gear.
         """
         st = self.state
         flags: set[str] = set()
@@ -1174,7 +1174,7 @@ class Game:
         Special case — drafted outer room:
         when arriving at the today's outer room for the first time, marks it
         entered, fires ON_ENTER effects, rolls items, and runs special-item
-        on_enter hooks (mirrors what the old enter_outer_room wrapper did).
+        on_enter hooks.
         """
         result = self.area_route_cost(dest)
         assert result is not None, f"area node {dest!r} is not reachable"
@@ -1236,10 +1236,9 @@ class Game:
                 if self.cfg.special_items:
                     special_items.on_area_arrival(self, dest)
             # Upper Rotating Gear: grants the gem and the Treasure Trove blackprint
-            # (owner spec, docs/open_tasks.md decisions log 2026-08-06). Unlike the
-            # Abandoned Mine (South) Upgrade Disk above, neither grant is an
-            # inventory item, so this call is unconditional -- not gated on
-            # cfg.special_items.
+            # (owner spec, see docs/open_tasks.md). Unlike the Abandoned Mine
+            # (South) Upgrade Disk above, neither grant is an inventory item,
+            # so this call is unconditional -- not gated on cfg.special_items.
             if dest == "upper_rotating_gear":
                 special_items.on_area_arrival(self, dest)
             # Sanctum Key sources at reservoir_north/safehouse: off-grid, no
@@ -1260,8 +1259,8 @@ class Game:
             # passed (via the flag or a held Power Hammer), so this is the one
             # place that needs to latch it for the rest of the attempt. Owner
             # decision: unconditionally permanent, no plank-vs-wall distinction
-            # (docs/open_tasks.md decisions log, 2026-08-04). Recorded on STATE,
-            # never on cfg -- same shape as west_gate_unlatched/mine_south_visited.
+            # (see docs/open_tasks.md). Recorded on STATE, never on cfg -- same
+            # shape as west_gate_unlatched/mine_south_visited.
             if dest == "sealed_entrance":
                 st.sealed_entrance_broken = True
             # Inner Sanctum main lever: opens the Antechamber's north door.
@@ -1493,8 +1492,8 @@ class Game:
         fixed outer pool via :meth:`_deal_outer_options` rather than the grid
         pipeline, since it has no doorway/from-room to redraw against.
 
-        Provenance, recorded because this REVERSES a restriction the code
-        previously asserted outright. Owner ruling from play ("assume the Study
+        Provenance recorded here since outdoor Study/Die reroll access is not
+        obvious from the datamined tables alone. Owner ruling from play ("assume the Study
         works outdoors; I think the reroll works on all drafts"), corroborated
         by Fandom's Outer Room page: "Ivory Dice may be used to reroll the pool
         of Outer Rooms, as may Gems if you drafted a Study inside before you
@@ -1952,7 +1951,7 @@ class Game:
         The Catacombs are unlocked by drafting and physically entering the Tomb on the same
         day: the sim assumes the player solves any puzzle in a room they enter, so entering
         the Tomb solves the angel-statue puzzle. Same-day physical access is still required
-        (owner decision 2026-07-27). The flag is NOT a permanent carry-over.
+        (owner decision, see docs/open_tasks.md). The flag is NOT a permanent carry-over.
         """
         outer_room = self.drafted_outer_room
         return (
