@@ -549,3 +549,56 @@ def test_clock_tower_carry_resets_on_daychain_attempt_wrap():
     chain.advance({})                                 # day 2 -> wraps to day 1
 
     assert chain.next_config().clock_tower_tomorrow_keys == 0
+
+
+# ======================================================== SHRINE
+
+def test_shrine_blessing_day_count_decays_by_one_each_advance():
+    """DayChain replaces shrine_blessing_days/id from carryover, then decays
+    the day count by 1 each advance() -- the mail_transit_days shape."""
+    chain = DayChain(GameConfig(), n_days=10)
+    chain.advance({"shrine_blessing_id": "dancer", "shrine_blessing_days": 3})
+    assert chain.next_config().shrine_blessing_id == "dancer"
+    assert chain.next_config().shrine_blessing_days == 2
+
+    chain.advance({})  # no new donation reported today; the running value still decays
+    assert chain.next_config().shrine_blessing_days == 1
+
+    chain.advance({})
+    assert chain.next_config().shrine_blessing_days == 0
+
+
+def test_shrine_curse_day_count_decays_independently_of_the_blessing():
+    """The curse's own day-count decays the same way as the blessing's,
+    tracked on its own separate field."""
+    chain = DayChain(GameConfig(), n_days=10)
+    chain.advance({"shrine_curse_days": 2})
+    assert chain.next_config().shrine_curse_days == 1
+
+    chain.advance({})
+    assert chain.next_config().shrine_curse_days == 0
+
+
+def test_shrine_offered_coins_and_monk_room_are_replaced_not_decayed():
+    """The two non-day-count fields (parked coins, the reserved Monk-room key)
+    are replaced wholesale from each day's carryover, with no mechanical decay."""
+    chain = DayChain(GameConfig(), n_days=10)
+    chain.advance({"shrine_offered_coins": 17, "shrine_monk_room": 9})
+    assert chain.next_config().shrine_offered_coins == 17
+    assert chain.next_config().shrine_monk_room == 9
+
+    chain.advance({})  # no new value reported: the running value carries unchanged
+    assert chain.next_config().shrine_offered_coins == 17
+    assert chain.next_config().shrine_monk_room == 9
+
+
+def test_shrine_state_is_save_scoped_across_a_daychain_attempt_wrap():
+    """Unlike mail_transit_days (reset at the wrap), the shrine_* fields are
+    SAVE-scoped: a blessing survives a DayChain attempt wrap (decayed by the
+    one day the wrap itself represents), the same carve-out as stars/
+    main_course_bonus."""
+    chain = DayChain(GameConfig(), n_days=1)
+    chain.advance({"shrine_blessing_id": "gardener", "shrine_blessing_days": 6})
+    assert chain.current_day == 1, "n_days=1 must have wrapped back to day 1"
+    assert chain.next_config().shrine_blessing_id == "gardener"
+    assert chain.next_config().shrine_blessing_days == 5

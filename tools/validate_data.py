@@ -138,6 +138,12 @@ _AUDIT_PYTHON_EXEMPT_IDS = {
     "the_foundation": "engine/game.py",          # persists across days
     "the_kennel": "engine/effects/rooms/the_kennel.py",  # digging unlocks that room
     "utility_closet": "engine/game.py",          # breaker box
+    # Donate/take-back are action-driven (Game.donate_shrine/take_back_shrine_offering),
+    # not a room_hook -- the room's own identity/state queries, the curse's
+    # resource-loss table and Berry Picker's random-pick pool all live here; the
+    # per-draft/per-redraw/per-rotation blessing effects dispatch from their own
+    # existing call sites in engine/game.py (see that module's own comments).
+    "shrine": "engine/effects/rooms/shrine.py",
 }
 
 # Rooms whose real effect is a no-op under the sim's assumed-solved doctrine:
@@ -1171,6 +1177,54 @@ def main(argv: list[str] | None = None) -> int:
                 errors.append(
                     f"{where} trophy/{troph_id}: price must be a non-negative int, got {troph_price!r}"
                 )
+
+    # ── shrine.json (Shrine blessings/curse; see engine/effects/rooms/shrine.py) ─
+    shrine_doc = json.loads((DATA / "shrine.json").read_text())
+    sh_bands = shrine_doc.get("bands", [])
+    sh_blessings = shrine_doc.get("blessings", [])
+    if len(sh_bands) != 5:
+        errors.append(f"shrine: bands must be exactly 5, got {len(sh_bands)}")
+    if len(sh_blessings) != 8:
+        errors.append(f"shrine: blessings must be exactly 8, got {len(sh_blessings)}")
+
+    # Bands must tile 1..80 contiguously, ascending duration, no gaps or overlaps.
+    prev_max = 0
+    for b in sh_bands:
+        lo, hi, days = b.get("min_coins"), b.get("max_coins"), b.get("duration_days")
+        if lo != prev_max + 1:
+            errors.append(f"shrine/bands: band {b!r} does not start at {prev_max + 1}")
+        if not isinstance(hi, int) or not isinstance(lo, int) or hi < lo:
+            errors.append(f"shrine/bands: invalid coin range in {b!r}")
+        if not isinstance(days, int) or days <= 0:
+            errors.append(f"shrine/bands: invalid duration_days in {b!r}")
+        prev_max = hi if isinstance(hi, int) else prev_max
+    if sh_bands and prev_max != 80:
+        errors.append(f"shrine/bands: bands must cover up to 80 coins, last ends at {prev_max}")
+
+    sh_ids = [b.get("id") for b in sh_blessings]
+    if len(sh_ids) != len(set(sh_ids)):
+        dupes = {i for i in sh_ids if sh_ids.count(i) > 1}
+        errors.append(f"shrine/blessings: duplicate ids: {dupes}")
+    for b in sh_blessings:
+        where = f"shrine/blessings/{b.get('id')}"
+        costs = b.get("costs", [])
+        if len(costs) != len(sh_bands):
+            errors.append(f"{where}: costs must have {len(sh_bands)} entries, got {len(costs)}")
+        for i, (cost, band) in enumerate(zip(costs, sh_bands)):
+            lo, hi = band.get("min_coins"), band.get("max_coins")
+            if not isinstance(cost, int) or not (lo <= cost <= hi):
+                errors.append(f"{where}: costs[{i}]={cost!r} outside band range {lo}-{hi}")
+        if not b.get("implemented", False):
+            if not b.get("meta", {}).get("blocked_on"):
+                errors.append(f"{where}: implemented=false requires meta.blocked_on")
+
+    sh_curse = shrine_doc.get("curse", {})
+    for rid in sh_curse.get("exempt_room_ids", []):
+        if rid not in by_id:
+            errors.append(f"shrine/curse: exempt_room_ids references unknown room {rid!r}")
+    for cat in sh_curse.get("resource_loss_per_category", {}):
+        if cat not in VALID_CATEGORIES:
+            errors.append(f"shrine/curse: resource_loss_per_category has unknown category {cat!r}")
 
     # ── Upgrade Disk terminals ────────────────────────────────────────────────
     # The rooms whose terminal accepts an Upgrade Disk (docs/upgrade-disks-design.md).

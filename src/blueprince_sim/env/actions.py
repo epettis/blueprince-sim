@@ -84,6 +84,22 @@ Layout (Discrete(333)):
            opening a doorway whose from-room is a Secret Passage variant for
            the first time (Game.open_door); restricts every option of the
            hand dealt right after the pick to that one colour.
+  333..372 donate to the Shrine: blessing_idx*5 + duration_idx (8 blessings x
+           5 durations; both in data/shrine.json order -- blessings: dancer,
+           high_roller, gardener, tinkerer, general, chef, monk, berry_picker;
+           durations: 3,4,5,6,7 days). Legal standing inside the drafted
+           Shrine, with no blessing or curse already active, for an
+           implemented blessing whose canonical (lower-of-pair) coin cost is
+           affordable. Chef and Monk are never legal (unimplemented).
+  373      take back the Shrine offering: refunds the parked coins, drops the
+           active blessing, and curses the player for 2 days (resource loss
+           on every colour drafted while cursed). Legal standing inside the
+           drafted Shrine with a blessing currently active.
+  374      pick a berry (Blessing of the Berry Picker): DRAFTING phase only,
+           replaces choosing one of the three dealt options with a uniformly
+           random legal room from the doorway's whole draft pool, disregarding
+           rarity. Legal only for an on-grid hand (never an outer-room draft)
+           with the blessing active and at least one affordable candidate.
 """
 
 from __future__ import annotations
@@ -95,6 +111,7 @@ from ..engine.locks import DOOR_LOCKED, DOOR_SEALED, DOOR_SECURITY, SECURITY_LEV
 from ..engine import shops as _shops
 from ..engine import special_items as _si
 from ..engine.effects import Capability, provides_capability
+from ..engine.effects.rooms import shrine as _shrine
 from ..engine.model import Registry
 
 # ---------------------------------------------------------------------------
@@ -158,8 +175,20 @@ TOGGLE_DARKROOM_ACTION = TOGGLE_EXPERIMENT_ACTION + 1  # 327: flip the "Darkroom
 # at the end so no earlier id shifts. Order matches engine.draft.COLOUR_CATEGORIES.
 CHOOSE_COLOUR_BASE = TOGGLE_DARKROOM_ACTION + 1  # 328
 
-# N_ACTIONS = first slot after the colour picks.
-N_ACTIONS = CHOOSE_COLOUR_BASE + len(COLOUR_CATEGORIES)  # 328 + 5 = 333
+# 333..372: donate to the Shrine. Counts are fixed by the published wiki table
+# shape (8 blessings x 5 duration bands), not derived from a variable-length
+# registry the way area nodes are -- data/shrine.json's own blessings/bands
+# lists carry exactly these lengths (validated by tools/validate_data.py).
+DONATE_BASE = CHOOSE_COLOUR_BASE + len(COLOUR_CATEGORIES)  # 328 + 5 = 333
+_N_SHRINE_BLESSINGS = 8
+_N_SHRINE_DURATIONS = 5
+# 373: take back the Shrine offering (refund + curse).
+TAKE_BACK_OFFERING_ACTION = DONATE_BASE + _N_SHRINE_BLESSINGS * _N_SHRINE_DURATIONS  # 373
+# 374: pick a berry (Blessing of the Berry Picker), DRAFTING phase only.
+BERRY_PICK_ACTION = TAKE_BACK_OFFERING_ACTION + 1  # 374
+
+# N_ACTIONS = first slot after the berry pick.
+N_ACTIONS = BERRY_PICK_ACTION + 1  # 375
 
 DIR_INDEX = {d: i for i, d in enumerate(DIRS)}
 
@@ -451,6 +480,14 @@ def action_mask(game: Game, prev_action: int | None = None) -> list[bool]:
             offers = game.trade_offers()
             for i in range(min(len(offers), 8)):
                 mask[TRADE_BASE + i] = True
+            # Shrine donate/take-back (inside the drafted Shrine); can_donate_shrine
+            # and can_take_back_shrine_offering already check position themselves.
+            for bi in range(_N_SHRINE_BLESSINGS):
+                for di in range(_N_SHRINE_DURATIONS):
+                    if game.can_donate_shrine(bi, di):
+                        mask[DONATE_BASE + bi * _N_SHRINE_DURATIONS + di] = True
+            if game.can_take_back_shrine_offering():
+                mask[TAKE_BACK_OFFERING_ACTION] = True
         else:
             dist = game.distance_map()
             key_cost = game.key_cost_map()
@@ -530,6 +567,8 @@ def action_mask(game: Game, prev_action: int | None = None) -> list[bool]:
             mask[REDRAW_ACTION] = True
         if game.rotation_available():
             mask[ROTATE_ACTION] = True
+        if game.can_berry_pick():
+            mask[BERRY_PICK_ACTION] = True
     elif game.phase is Phase.UPGRADE_PENDING:
         # Exactly three upgrade variants are always offered; enable all three.
         # No other actions are legal in this phase — the player must choose.
@@ -654,8 +693,15 @@ def apply_action(game: Game, action: int) -> None:
         game.choose_experiment_effect(action - EXP_EFFECT_BASE)
     elif action == TOGGLE_EXPERIMENT_ACTION:
         game.toggle_experiment()
-    elif CHOOSE_COLOUR_BASE <= action < N_ACTIONS:
+    elif CHOOSE_COLOUR_BASE <= action < DONATE_BASE:
         game.choose_colour(COLOUR_CATEGORIES[action - CHOOSE_COLOUR_BASE])
+    elif DONATE_BASE <= action < TAKE_BACK_OFFERING_ACTION:
+        blessing_idx, duration_idx = divmod(action - DONATE_BASE, _N_SHRINE_DURATIONS)
+        game.donate_shrine(blessing_idx, duration_idx)
+    elif action == TAKE_BACK_OFFERING_ACTION:
+        game.take_back_shrine_offering()
+    elif action == BERRY_PICK_ACTION:
+        game.berry_pick()
     else:
         raise ValueError(f"unimplemented action {action}")
 
@@ -782,7 +828,20 @@ def describe_action(game: Game, action: int) -> str:
         return f"choose experiment effect #{i}: {text}"
     if action == TOGGLE_EXPERIMENT_ACTION:
         return "resume experiment" if game.state.experiment.paused else "pause experiment"
-    if CHOOSE_COLOUR_BASE <= action < N_ACTIONS:
+    if CHOOSE_COLOUR_BASE <= action < DONATE_BASE:
         colour = COLOUR_CATEGORIES[action - CHOOSE_COLOUR_BASE]
         return f"choose colour: {colour}"
+    if DONATE_BASE <= action < TAKE_BACK_OFFERING_ACTION:
+        blessing_idx, duration_idx = divmod(action - DONATE_BASE, _N_SHRINE_DURATIONS)
+        r = _shrine.rules(game)
+        if blessing_idx < len(r.blessings) and duration_idx < len(r.bands):
+            blessing = r.blessings[blessing_idx]
+            days = r.bands[duration_idx].duration_days
+            cost = blessing.costs[duration_idx]
+            return f"donate {cost}g: {blessing.name} ({days} days)"
+        return f"donate slot {blessing_idx}/{duration_idx}"
+    if action == TAKE_BACK_OFFERING_ACTION:
+        return "take back Shrine offering"
+    if action == BERRY_PICK_ACTION:
+        return "pick a berry"
     return f"action {action}"

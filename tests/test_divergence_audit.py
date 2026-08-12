@@ -477,12 +477,31 @@ def test_default_run_prints_zero_errors_and_warnings_in_summary(capsys):
     assert "ERROR:" not in out
 
 
-def test_audit_flag_prints_findings_and_still_exits_zero(capsys):
+def test_audit_flag_prints_findings_and_still_exits_zero(capsys, monkeypatch):
     """--audit prints the divergence worklist under its own labelled section
     and still exits 0, since a worklist of unfinished audit items is not a
-    validation failure."""
+    validation failure.
+
+    Uses a monkeypatched find_divergences rather than relying on the live
+    data actually carrying a finding right now: the live worklist is
+    presently empty, and this module's own docstring already says the count
+    is expected to shrink as the audit gets fixed, not stay nonzero forever.
+    The patch only substitutes a fake nonempty pair when the real call
+    returns empty, so main()'s own internal liveness-check calls (which
+    disable the deferred-exemption channel and must see the genuine
+    now-unsuppressed findings) are unaffected.
+    """
+    import tools.validate_data as vd
+
+    real_find_divergences = vd.find_divergences
+
+    def _fake_when_empty(*args, **kwargs):
+        kind1, kind2 = real_find_divergences(*args, **kwargs)
+        return (kind1, kind2) if (kind1 or kind2) else (["k1_fake"], ["k2_fake"])
+
+    monkeypatch.setattr(vd, "find_divergences", _fake_when_empty)
     rc = main(["--audit"])
     out = capsys.readouterr().out
     assert rc == 0
     assert "divergence audit" in out
-    assert "audit[kind1]:" in out or "audit[kind2]:" in out
+    assert "audit[kind1]:" in out and "audit[kind2]:" in out

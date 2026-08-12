@@ -12,7 +12,7 @@ from .areas import GateContext, reachable
 from .decks import apply_upgrade, build_decks, inject_rooms
 from .draft import COLOUR_CATEGORIES, SECRET_PASSAGE_IDS, deal_draft, redeal
 from .effects import Capability, Hook
-from .effects.rooms import dovecote, foyer, mail_room
+from .effects.rooms import dovecote, foyer, mail_room, shrine
 from .grid import (ADJACENT, DIRS, E, ENTRANCE_CELL, N, N_CELLS, OPPOSITE, W,
                    neighbor, rank_of, rotate_mask)
 from .items import EXTRA_ITEM_TABLE, grant_item, roll_room_items
@@ -96,7 +96,16 @@ class Game:
         st.applied_upgrades = set(cfg.upgrade_disks)
         st.pending_upgrade_slot = None
         st.pending_upgrade_options = ()
+        st.shrine_blessing_id = cfg.shrine_blessing_id
+        st.shrine_blessing_days = cfg.shrine_blessing_days
+        st.shrine_curse_days = cfg.shrine_curse_days
+        st.shrine_offered_coins = cfg.shrine_offered_coins
+        st.shrine_monk_room = cfg.shrine_monk_room
         self.state = st
+        # Blessing of the Gardener: 8 Courtyards, re-injected fresh every day the
+        # blessing is active (decks are rebuilt from scratch every reset(), unlike
+        # the day-count carry-over itself).
+        shrine.apply_gardener_injection(self)
         # Seed the config-carried running values (mail cycle and transit days,
         # tithes, permanently gated item ids) before anything reads them, so the
         # day's first observation reports what was carried, not the field defaults.
@@ -630,6 +639,57 @@ class Game:
         assert self.cfg.special_items
         shops.smash_vase(self)
 
+    def can_donate_shrine(self, blessing_idx: int, duration_idx: int) -> bool:
+        """Legal at the Shrine, no blessing/curse active, for an affordable
+        implemented blessing (``blessing_idx``/``duration_idx`` in shrine.json order)."""
+        return shrine.can_donate(self, blessing_idx, duration_idx)
+
+    def donate_shrine(self, blessing_idx: int, duration_idx: int) -> None:
+        """Pay that blessing/duration's coin cost and grant it."""
+        shrine.donate(self, blessing_idx, duration_idx)
+
+    def can_take_back_shrine_offering(self) -> bool:
+        """Legal at the Shrine while a blessing is currently active."""
+        return shrine.can_take_back(self)
+
+    def take_back_shrine_offering(self) -> None:
+        """Refund the offering, drop the blessing, and curse the player for 2 days."""
+        shrine.take_back(self)
+
+    def can_berry_pick(self) -> bool:
+        """Blessing of the Berry Picker: legal while DRAFTING an on-grid hand,
+        with the blessing active and at least one affordable candidate room."""
+        if self.phase is not Phase.DRAFTING or self.state.pending is None:
+            return False
+        if self.state.pending.target_cell == -1:  # no doorway/cell for an outer-room draft
+            return False
+        return shrine.berry_pick_available(self, self.state.pending)
+
+    def berry_pick(self) -> None:
+        """Draft a random legal room from the pool instead of a dealt option.
+
+        Reuses :meth:`choose`'s cost/afford/pay/:meth:`_place_room` pipeline
+        around a slot-2-shaped synthetic ``DraftOption`` (no discount is
+        published for this path, so it prices like any other non-free pick).
+        Checks termination at the end, same as :meth:`choose`.
+        """
+        assert self.can_berry_pick(), "berry pick not available"
+        st = self.state
+        pending = st.pending
+        room, orientation = shrine.pick_berry(self, pending)
+        opt = DraftOption(room_idx=room.idx, orientation=orientation, gem_cost=0, slot=2)
+        opt.gem_cost = self._effective_cost(room, opt)
+        assert self.affordable(room, opt), "cannot afford the berry-picked room"
+        cost = self._effective_cost(room, opt)
+        waived = self._pay(room, opt)
+        self._place_room(room, pending.target_cell, orientation,
+                         entry_dir=OPPOSITE[pending.direction],
+                         gem_cost=0 if waived else cost, archived=False)
+        del self.doorway_drafts[(pending.from_cell, pending.direction)]
+        st.pending = None
+        self.phase = Phase.NAVIGATE
+        self._check_termination()
+
     def can_open_container(self) -> bool:
         """At least one unopened container at the current cell can be opened."""
         return special_items.can_open_container(self, self.state.pos)
@@ -710,7 +770,29 @@ class Game:
         result = shops.carryover(self)
         result.update(self._room_pulse_carryover())
         result.update(self._sigil_carryover())
+        result.update(self._shrine_carryover())
         return result
+
+    def _shrine_carryover(self) -> dict:
+        """Cross-day carry for the active Shrine blessing/curse.
+
+        Today's ending value for each field; DayChain.advance() replaces its
+        running value from this and then decays the two day-counts by 1 --
+        the same mail_transit_days shape as ``shops.carryover``'s mail_cycle
+        entry, but SAVE-scoped rather than reset at the attempt wrap (see
+        DayChain's own comment). Kept here alongside :meth:`_room_pulse_carryover`
+        and :meth:`_sigil_carryover` rather than in ``shops.carryover`` so every
+        Shrine-specific read stays colocated with the rest of this module's
+        Shrine call sites.
+        """
+        st = self.state
+        return {
+            "shrine_blessing_id": st.shrine_blessing_id,
+            "shrine_blessing_days": st.shrine_blessing_days,
+            "shrine_curse_days": st.shrine_curse_days,
+            "shrine_offered_coins": st.shrine_offered_coins,
+            "shrine_monk_room": st.shrine_monk_room,
+        }
 
     def _sigil_carryover(self) -> dict:
         """Cross-day carry for consumed Sanctum Key sources and opened Sigil doors.
@@ -1439,6 +1521,8 @@ class Game:
         elif kind is RedrawKind.DIE:
             assert st.dice >= 1
             st.dice -= 1
+            if shrine.blessing_active(self, "high_roller"):
+                st.coins += 5
         if pending.target_cell == -1:  # outer-room draft: fixed pool, not the grid pipeline
             pending.options.clear()
             pending.rotations_used = 0  # fresh hand, fresh rotation budget
@@ -1452,7 +1536,7 @@ class Game:
             effects.fire(self, self.registry.rooms[opt.room_idx], Hook.ON_HAND_DEALT)
         self._check_termination()
 
-    def _rotation_source(self) -> bool:
+    def _free_rotation_source(self) -> bool:
         """Is a free-rotation source in play for the current hand?"""
         st = self.state
         if self.phase is not Phase.DRAFTING or st.pending is None:
@@ -1463,13 +1547,27 @@ class Game:
             return True
         return dovecote.in_current_hand(self)
 
+    def _dancer_rotation_source(self) -> bool:
+        """Is Blessing of the Dancer's paid rotation (1 gem per spin) usable right now?
+
+        Same phase/target-cell gating as :meth:`_free_rotation_source`, plus the
+        blessing being active and at least 1 gem in hand.
+        """
+        st = self.state
+        if self.phase is not Phase.DRAFTING or st.pending is None:
+            return False
+        if st.pending.target_cell == -1:  # outer-room draft: no doorway to rotate against
+            return False
+        return shrine.blessing_active(self, "dancer") and st.gems >= 1
+
     def rotation_available(self) -> bool:
-        """Can the current hand's floorplans be freely rotated?
+        """Can the current hand's floorplans be rotated right now (free or paid)?
 
         The Ornate Compass grants this on every draft while it is held; the
         Rotunda grants it while placed on the grid; the Dovecote grants it only
-        while it is one of the drawn options. This overrides the random
-        orientation roll - the player rotates the options at will.
+        while it is one of the drawn options; Blessing of the Dancer grants it
+        for 1 gem per spin (:meth:`_dancer_rotation_source`). This overrides the
+        random orientation roll - the player rotates the options at will.
 
         Outer-room drafts sit off the grid with a fixed orientation and no
         entry doorway (``target_cell == -1``), so rotation never applies there.
@@ -1481,9 +1579,10 @@ class Game:
         hand states already seen. Without the cap, rotation is a free cyclic
         action (period lcm <= 12; 1 when the doorway pins every option), and a
         deterministic policy whose argmax is "rotate" around the cycle loops on
-        it forever.
+        it forever. The Dancer's per-spin gem cost is a further, independent
+        brake on top of this budget.
         """
-        if not self._rotation_source():
+        if not (self._free_rotation_source() or self._dancer_rotation_source()):
             return False
         st = self.state
         pending = st.pending
@@ -1499,9 +1598,13 @@ class Game:
 
         Callable whenever a rotation source is in play, even if every option is
         pinned (a no-op), so episodes recorded before no-op rotates were masked
-        out still replay.
+        out still replay. Spends 1 gem when the only source in play is Blessing
+        of the Dancer (a free source, if also present, is used instead).
         """
-        assert self._rotation_source(), "no rotation source in play"
+        free = self._free_rotation_source()
+        assert free or self._dancer_rotation_source(), "no rotation source in play"
+        if not free:
+            self.state.gems -= 1
         st = self.state
         pending = st.pending
         pending.rotations_used += 1
@@ -1663,7 +1766,8 @@ class Game:
 
         Rolls lock state for its fresh door segments, updates the placed-id /
         room-cell indexes and progress counters, detects and fires any
-        placement-site experiment trigger, then fires the room's ON_PLACE
+        placement-site experiment trigger and any active Shrine blessing/curse
+        effect (:func:`shrine.on_room_drafted`), then fires the room's ON_PLACE
         hook, its own ON_DRAFT_ROOM hook (effects opted in via include_self
         react to their own draft), and ON_DRAFT_ROOM on every other placed
         room (relational effects like the Nursery).
@@ -1727,6 +1831,7 @@ class Game:
             # runs even earlier in this method -- before placed_ids, room_cells,
             # and rooms_placed are updated.
             experiments.on_room_drafted(self, room, cell, entry_dir, gem_cost, archived)
+            shrine.on_room_drafted(self, room)
         effects.fire(self, room, Hook.ON_PLACE)
         if self.state.foyer_placed:
             # Covers a Hallway placed AFTER the Foyer: its own fresh segments

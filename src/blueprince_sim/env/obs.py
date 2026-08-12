@@ -6,6 +6,7 @@ import numpy as np
 from gymnasium import spaces
 
 from ..engine.draft import COLOUR_CATEGORIES
+from ..engine.effects.rooms import shrine
 from ..engine.game import ANTECHAMBER_CELL, Game, Phase
 from ..engine.grid import DIRS, OPPOSITE, neighbor
 from ..engine.locks import DOOR_LOCKED, DOOR_SEALED, DOOR_SECURITY, SECURITY_LEVELS
@@ -191,6 +192,11 @@ def observation_space(n_rooms: int, n_items: int, n_recipes: int,
         # the start of TOMORROW -- the cross-day investment V(s) has to be able
         # to price.
         "mail": spaces.Box(0, 99, shape=(3,), dtype=np.int16),
+        # shrine: [active blessing idx+1 (0 = none), blessing days remaining,
+        # curse days remaining, coins parked in the bowl]. Blessing idx uses
+        # data/shrine.json's own order (engine.effects.rooms.shrine.ShrineRules
+        # .blessing_index), the same order DONATE_BASE indexes by.
+        "shrine": spaces.Box(0, 999, shape=(4,), dtype=np.int16),
         # sigil_doors_open: 1 bit per Inner Sanctum realm door, in SIGIL_REALMS
         # (sorted) order, 1 = permanently unlocked (state.special.sigil_doors_opened
         # union cfg.sigil_doors_open). A door never re-seals, so this is another
@@ -556,6 +562,17 @@ def encode(game: Game, day_chain: DayChain | None = None) -> dict:
         dtype=np.int16,
     )
 
+    # shrine: active blessing (0 = none while shrine_blessing_days == 0), its
+    # remaining days, curse days remaining, and coins parked in the bowl.
+    _shrine_rules = shrine.rules(game)
+    _blessing_col = 0
+    if st.shrine_blessing_days > 0:
+        _blessing_col = _shrine_rules.blessing_index.get(st.shrine_blessing_id, -1) + 1
+    shrine_obs = np.array(
+        [_blessing_col, st.shrine_blessing_days, st.shrine_curse_days, st.shrine_offered_coins],
+        dtype=np.int16,
+    )
+
     # sigil_doors_open: which Inner Sanctum realm doors are permanently unlocked.
     # Union of cfg (carried from earlier days) and today's own openings, same
     # read shape as upgrade_slots (state.applied_upgrades).
@@ -602,4 +619,5 @@ def encode(game: Game, day_chain: DayChain | None = None) -> dict:
         "stars": stars_obs,
         "sigil_doors_open": sigil_doors_open_obs,
         "mail": mail_obs,
+        "shrine": shrine_obs,
     }

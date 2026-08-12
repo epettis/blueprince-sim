@@ -493,6 +493,18 @@ class GameState:
     # hallway_tomorrow_count/sauna_visited.
     clock_tower_tomorrow_keys: int = 0
 
+    # --- Shrine blessings/curse (engine/effects/rooms/shrine.py) ---
+    # Seeded each day from the matching GameConfig.shrine_* fields (Game.reset);
+    # a blessing/curse this GameState grants or clears is reported by
+    # Game._shrine_carryover() and replaced+decayed into tomorrow's config the
+    # same way as mail_cycle/mail_transit_days -- see GameConfig's own comment
+    # for the save-scoped-but-daily-decayed shape.
+    shrine_blessing_id: str = ""    # active blessing id; meaningful only while blessing_days > 0
+    shrine_blessing_days: int = 0   # days left on the blessing, counting the day it was granted
+    shrine_curse_days: int = 0      # days left on the Shrine curse (2 when freshly cursed)
+    shrine_offered_coins: int = 0   # coins parked in the bowl; returned in full on take-back
+    shrine_monk_room: int = -1      # reserved for Blessing of the Monk (not implemented): always -1
+
     def deck(self, rarity_idx: int, is_gem: bool) -> DeckState:
         return self.decks[rarity_idx * 2 + (1 if is_gem else 0)]
 

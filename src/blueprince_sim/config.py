@@ -224,6 +224,21 @@ class GameConfig:
     # cell/orientation forever.  -1 = not yet drafted this attempt.
     foundation_cell: int = -1           # grid cell the Foundation permanently occupies
     foundation_doors: int = 0           # its frozen 4-bit door mask; 0 = not yet drafted
+    # --- Shrine blessings/curse (data/shrine.json; engine/effects/rooms/shrine.py) ---
+    # SAVE-scoped (survives an attempt wrap, like stars/main_course_bonus), but decayed
+    # day-to-day the way mail_transit_days is: DayChain replaces these from each day's
+    # own carryover value, then mechanically decrements the two day-counts by 1 (floored
+    # at 0) every advance().
+    shrine_blessing_id: str = ""    # active blessing id; meaningful only while blessing_days > 0
+    shrine_blessing_days: int = 0   # days left on the blessing, counting the day it was granted
+    shrine_curse_days: int = 0      # days left on the Shrine curse (2 when freshly cursed)
+    # Coins parked in the stone bowl for the active blessing; returned in full if the
+    # offering is taken back. Meaningful only while shrine_blessing_days > 0.
+    shrine_offered_coins: int = 0
+    # Reserved for Blessing of the Monk (not implemented -- blocked on grounds
+    # drafting, see data/shrine.json): would hold the cell the day ended in, to
+    # offer that room from the grounds the next day. Always -1 today.
+    shrine_monk_room: int = -1
     # --- reward selection for the env ---
     reward: str = "sparse"              # sparse|shaped|phased
     data_dir: Path | None = None        # alternate data/*.json directory (None = packaged data)

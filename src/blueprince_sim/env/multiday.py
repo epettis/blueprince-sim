@@ -182,6 +182,16 @@ class DayChain:
         self.frozen_coins: int = 0              # Freezer carry: coins to start today with (0 = none)
         self.frozen_gems: int = 0               # Freezer carry: gems to start today with (0 = none)
         self.no_contact_due: bool = False       # No Contact Delivery drafted yesterday: package today
+        # Shrine blessing/curse: REPLACED (not merged) from each day's own carryover
+        # value every advance() -- the same mail_transit_days shape (mail_cycle's
+        # sibling) -- then the two day-counts decay by 1 (floored at 0) mechanically.
+        # SAVE-scoped: unlike mail_transit_days, none of these five are reset at the
+        # attempt wrap below, the same carve-out as stars/main_course_bonus.
+        self.shrine_blessing_id: str = base_cfg.shrine_blessing_id
+        self.shrine_blessing_days: int = base_cfg.shrine_blessing_days
+        self.shrine_curse_days: int = base_cfg.shrine_curse_days
+        self.shrine_offered_coins: int = base_cfg.shrine_offered_coins
+        self.shrine_monk_room: int = base_cfg.shrine_monk_room
 
     def next_config(self) -> GameConfig:
         """Return the ``GameConfig`` for the current day.
@@ -226,6 +236,11 @@ class DayChain:
             frozen_coins=self.frozen_coins,
             frozen_gems=self.frozen_gems,
             no_contact_due=self.no_contact_due,
+            shrine_blessing_id=self.shrine_blessing_id,
+            shrine_blessing_days=self.shrine_blessing_days,
+            shrine_curse_days=self.shrine_curse_days,
+            shrine_offered_coins=self.shrine_offered_coins,
+            shrine_monk_room=self.shrine_monk_room,
             **self.carried_flags,          # unpack only the True flags
         )
 
@@ -383,6 +398,26 @@ class DayChain:
         self.frozen_gems = carryover.get("frozen_gems") or 0
         self.no_contact_due = bool(carryover.get("no_contact_due"))
 
+        # --- Shrine blessing/curse (replace from today's value, then decay the two
+        #     day-counts by 1, floored at 0 -- the same shape as mail_transit_days) ---
+        sbi_val = carryover.get("shrine_blessing_id")
+        if sbi_val is not None:
+            self.shrine_blessing_id = sbi_val
+        sbd_val = carryover.get("shrine_blessing_days")
+        if sbd_val is not None:
+            self.shrine_blessing_days = sbd_val
+        self.shrine_blessing_days = max(0, self.shrine_blessing_days - 1)
+        scd_val = carryover.get("shrine_curse_days")
+        if scd_val is not None:
+            self.shrine_curse_days = scd_val
+        self.shrine_curse_days = max(0, self.shrine_curse_days - 1)
+        soc_val = carryover.get("shrine_offered_coins")
+        if soc_val is not None:
+            self.shrine_offered_coins = soc_val
+        smr_val = carryover.get("shrine_monk_room")
+        if smr_val is not None:
+            self.shrine_monk_room = smr_val
+
         # --- banned_rooms (Repellent bans from this day) ---
         # Decrement PRE-EXISTING bans first (one day has elapsed for them),
         # then merge the NEW bans from this day.  New bans are not decremented
@@ -423,9 +458,10 @@ class DayChain:
             self.collected_disks = frozenset()  # fresh attempt; disks back in the house
             self.chapel_tithes = 0            # fresh attempt; tithe bank reset
             self.allowance = self.base_cfg.allowance  # fresh attempt; back to the base preset
-            # stars, main_course_bonus and letters_delivered are deliberately
-            # absent here: all three are save-scoped and carry through the wrap
-            # into the next attempt, unlike every other value reset above.
+            # stars, main_course_bonus, letters_delivered and the five shrine_*
+            # fields are deliberately absent here: all are save-scoped and carry
+            # through the wrap into the next attempt, unlike every other value
+            # reset above.
             self.mail_cycle = self.base_cfg.mail_cycle  # fresh attempt; back to the base preset
             self.mail_transit_days = self.base_cfg.mail_transit_days  # fresh attempt; back to base
             self.hallway_tomorrow_extra = self.base_cfg.hallway_tomorrow_extra  # fresh attempt
