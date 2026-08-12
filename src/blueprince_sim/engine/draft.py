@@ -27,7 +27,7 @@ from .model import Registry, Room
 from .placement import legal_orientations, satisfies_draft_conditions
 from .rng import Rng
 from .rotation import orientation_weights
-from .special_items import compass_active_from_state
+from .special_items import compass_active_from_state, electromagnet_active_from_state
 from .state import DraftOption, GameState, PendingDraft, resolve_gem_cost
 
 CLOSET_ID = "closet"
@@ -37,6 +37,22 @@ LIBRARY_ID = "library"
 MECHANARIUM_ID = "mechanarium"
 DARKROOM_ID = "darkroom"
 AQUARIUM_EXPERIMENT_ID = "aquarium__experiment"
+
+
+def _category_matches(room: Room, entry: dict) -> bool:
+    """True when ``room`` matches a category_biases entry's target category.
+
+    Most entries are a plain ``Room.is_category`` check on ``category``. An
+    entry may instead name a ``category_base`` plus ``category_extra_rooms``,
+    for a target that is a category plus specific rooms outside it -- the
+    Electro Magnet targets Mechanical Rooms plus the Rotunda, which is a
+    blueprint room. The rooms live in the record so this stays generic.
+    """
+    base = entry.get("category_base")
+    if base is not None:
+        return (room.is_category(base)
+                or room.id in entry.get("category_extra_rooms", ()))
+    return room.is_category(entry["category"])
 
 
 class DraftContext:
@@ -238,6 +254,8 @@ def _active_conditions(ctx: DraftContext) -> set[str]:
         conds.add("draxus_constellation")
     if state.add_aquariums_active:
         conds.add("add_aquariums")
+    if electromagnet_active_from_state(state, ctx.registry):
+        conds.add("electromagnet")
     # King's Chess Piece (Banner of the King) is deliberately NOT emitted here: no
     # source models how the Banner is obtained or a per-day color pick, and the five
     # king_* tags must fire one at a time (mirroring scepter_<color>), never all at
@@ -299,10 +317,13 @@ def _apply_category_bias(ctx: DraftContext, room: Room, slot: int, cell: int,
     original draw (the original stays consumed from its deck).  If no match is
     available the original draw is kept unchanged.
 
-    A target category is a colour identity check (Furnace/Greenhouse/King's
-    Chess Piece/Royal Scepter all bias toward drafting a room of that colour),
-    so it goes through ``Room.is_category`` and can match a multi-category
-    room such as the Aquarium or Maid's Chamber on any colour it counts as.
+    A target category is usually a colour identity check (Furnace/Greenhouse/
+    King's Chess Piece/Royal Scepter all bias toward drafting a room of that
+    colour), so it goes through ``_category_matches`` and
+    can match a multi-category room such as the Aquarium or Maid's Chamber on
+    any colour it counts as. A few categories (see ``CATEGORY_UNIONS``) also
+    pull in specific rooms outside that category, like the Electro Magnet's
+    Rotunda.
 
     An entry can also carry ``exclude_rooms`` (specific ids to leave out) and
     ``exclude_upgrade_variants`` (drop every room with a ``variant_of``, the
@@ -329,7 +350,8 @@ def _apply_category_bias(ctx: DraftContext, room: Room, slot: int, cell: int,
         exclude_upgrade_variants = entry.get("exclude_upgrade_variants", False)
 
         def _pred(card: int,
-                  _tc=target_cat, _tl=target_layout, _tf=target_flag,
+                  _tc=target_cat, _entry=entry, _tl=target_layout,
+                  _tf=target_flag,
                   _tr=target_room_ids, _xr=exclude_room_ids,
                   _xu=exclude_upgrade_variants) -> bool:
             r = rooms[card]
@@ -339,7 +361,7 @@ def _apply_category_bias(ctx: DraftContext, room: Room, slot: int, cell: int,
                 return False
             if _xu and r.variant_of is not None:
                 return False
-            if _tc and not r.is_category(_tc):
+            if _tc and not _category_matches(r, _entry):
                 return False
             if _tl and r.layout != _tl:
                 return False

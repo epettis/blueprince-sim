@@ -1347,6 +1347,9 @@
     {
      "tag": "locksmith_rob",
      "keys": 24
+    },
+    {
+     "tag": "electromagnet"
     }
    ],
    "implemented": true,
@@ -1355,7 +1358,7 @@
     "confidence": "wiki",
     "absent_spawn_areas": [],
     "blocked_on": null,
-    "notes": "Robs the Locksmith on approach: auto-collects the 24 basic wall keys (four racks of 6; occasionally fewer) and disables both key purchase options for the rest of the day. The special key is NOT collected (special keys are never auto-collected). PR2 shop behavior."
+    "notes": "Robs the Locksmith on approach: auto-collects the 24 basic wall keys (four racks of 6; occasionally fewer) and disables both key purchase options for the rest of the day. The special key is NOT collected (special keys are never auto-collected). PR2 shop behavior. electromagnet: while held, biases drafting toward Mechanical Rooms plus the Rotunda (data/priority_draws.json category_biases 'electromagnet' entry)."
    }
   },
   {

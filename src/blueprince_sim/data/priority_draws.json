@@ -1,334 +1,338 @@
 {
-  "schema_version": 1,
-  "comment": "Three mechanisms. 'priority_draws': chance to force a specific room (or one of a named set) into slot 3 whenever it is draftable. 'forced_draws': a DIFFERENT mechanic (wiki.gg/Drafting/Advanced) -- once per day, the first time a doorway is opened where a listed room's own draft conditions + a gate are met, roll a very-high chance to push that specific room into slot 3; on success it is unavailable for the rest of the day even if the placement itself then fails (e.g. the room already occupies an earlier slot of the same hand). 'category_biases': conditional biases that force a category re-deal with the given chance while their condition holds (King's Chess Piece variants, constellations, room auras). Chances are fractions.",
-  "priority_draws": [
-    {
-      "rooms": [
-        "patio",
-        "veranda",
-        "greenhouse",
-        "morning_room",
-        "secret_passage"
-      ],
-      "label": "patio_rooms",
-      "chance": 0.05,
-      "chance_with_greenhouse": 0.5,
-      "meta": {
-        "confidence": "datamined",
-        "source": "sheet constants: 'Patio Rooms 5%'; Greenhouse boost from wiki.gg Drafting/Advanced"
-      }
-    },
-    {
-      "rooms": [
-        "commissary",
-        "observatory"
-      ],
-      "label": "commissary_observatory",
-      "chance": 0.13,
-      "meta": {
-        "confidence": "datamined",
-        "source": "sheet constants: 'Commissary / Observatory 13%'"
-      }
-    },
-    {
-      "rooms": [
-        "classroom"
-      ],
-      "label": "classroom",
-      "chance": 0.03,
-      "meta": {
-        "confidence": "datamined",
-        "source": "sheet constants: 'Classrooms 3%'"
-      }
-    },
-    {
-      "rooms": [
-        "aquarium",
-        "aquarium__experiment"
-      ],
-      "label": "add_aquariums_13",
-      "chance": 0.13,
-      "condition": "add_aquariums",
-      "meta": {
-        "confidence": "wiki",
-        "source": "blueprince.wiki.gg/wiki/Experiments/Effects DataSpoiler on add_aquariums: 'adds both a 13% and 3% chance for Aquarium to get a Priority Draw' -- the two chances apply independently (15.61% combined), so they are modeled as two separate entries rather than one 16% entry."
-      }
-    },
-    {
-      "rooms": [
-        "aquarium",
-        "aquarium__experiment"
-      ],
-      "label": "add_aquariums_3",
-      "chance": 0.03,
-      "condition": "add_aquariums",
-      "meta": {
-        "confidence": "wiki",
-        "source": "blueprince.wiki.gg/wiki/Experiments/Effects DataSpoiler on add_aquariums: same source as add_aquariums_13; this is the independent second (3%) chance, not a combined figure."
-      }
-    }
-  ],
-  "forced_draws": [
-    {
-      "room": "garage",
-      "label": "garage",
-      "chance": 0.90,
-      "chance_with_west_gate": 0.925,
-      "gate_day": 3,
-      "meta": {
-        "confidence": "datamined",
-        "source": "blueprince.wiki.gg/wiki/Garage datamined box: 'the chance of the roll succeeding is 90%. If the West Gate permanent addition has been unlocked, the chance is increased to 92.5%.' Gate: 'Veteran Mode is active, or Day 3 has been reached.'",
-        "notes": "Only the Garage slice of forced_draw_precedence is implemented (owner decision); conservatory/morning_room/utility_closet remain unbuilt pending their own prerequisites (Found Floorplan, Bacon & Eggs, and Garage-drafted-first respectively). The separate Day-5-or-Veteran 3% passive Priority Draw for the Garage (wiki) is a different, unimplemented mechanic -- do not conflate the two gates."
-      }
-    }
-  ],
-  "forced_draw_precedence": {
-    "order": [
-      "conservatory",
-      "garage",
-      "morning_room",
-      "utility_closet"
-    ],
-    "meta": {
-      "confidence": "wiki",
-      "source": "wiki.gg Drafting/Advanced: only one forced draw fires; this precedence decides which"
-    }
+ "schema_version": 1,
+ "comment": "Three mechanisms. 'priority_draws': chance to force a specific room (or one of a named set) into slot 3 whenever it is draftable. 'forced_draws': a DIFFERENT mechanic (wiki.gg/Drafting/Advanced) -- once per day, the first time a doorway is opened where a listed room's own draft conditions + a gate are met, roll a very-high chance to push that specific room into slot 3; on success it is unavailable for the rest of the day even if the placement itself then fails (e.g. the room already occupies an earlier slot of the same hand). 'category_biases': conditional biases that force a category re-deal with the given chance while their condition holds (King's Chess Piece variants, constellations, room auras). Chances are fractions.",
+ "priority_draws": [
+  {
+   "rooms": [
+    "patio",
+    "veranda",
+    "greenhouse",
+    "morning_room",
+    "secret_passage"
+   ],
+   "label": "patio_rooms",
+   "chance": 0.05,
+   "chance_with_greenhouse": 0.5,
+   "meta": {
+    "confidence": "datamined",
+    "source": "sheet constants: 'Patio Rooms 5%'; Greenhouse boost from wiki.gg Drafting/Advanced"
+   }
   },
-  "category_biases": [
-    {
-      "category": "green",
-      "chance": 0.4,
-      "condition": "greenhouse_or_king",
-      "label": "Green Rooms (Greenhouse / King)"
-    },
-    {
-      "category": "red",
-      "chance": 0.3,
-      "condition": "furnace_or_king",
-      "label": "Red Rooms (Furnace / King)"
-    },
-    {
-      "category": "blueprint",
-      "chance": 0.5,
-      "condition": "king_blueprint",
-      "label": "Blueprints (King)",
-      "meta": {
-        "confidence": "datamined",
-        "source": "sheet constants: King's Chess Piece / Banner of the King Blueprint bias",
-        "notes": "Shaped but inert: no Banner subsystem is modeled, so never emitted. Renamed from shared 'king' to king_<color> (mirrors scepter_<color>) because the Banner picks ONE color per day -- a bare tag would fire all five at once. Wiki says 40%; our datamined 50% kept (owner, 2026-08-06)."
-      }
-    },
-    {
-      "category": "hallway",
-      "chance": 0.3,
-      "condition": "king_hallway",
-      "label": "Hallways (King)",
-      "meta": {
-        "confidence": "datamined",
-        "source": "sheet constants: King's Chess Piece / Banner of the King Hallway bias",
-        "notes": "Shaped but inert: no Banner subsystem modeled. Renamed from 'king' to king_hallway; see king_blueprint's note. Matches wiki's 30% for Hallways -- no magnitude disagreement."
-      }
-    },
-    {
-      "category": "bedroom",
-      "chance": 0.28,
-      "condition": "king_bedroom",
-      "label": "Bedrooms (King)",
-      "meta": {
-        "confidence": "datamined",
-        "source": "sheet constants: King's Chess Piece / Banner of the King Bedroom bias",
-        "notes": "Shaped but inert: no Banner subsystem modeled. Renamed from 'king' to king_bedroom; see king_blueprint's note. Matches wiki's 28% for Bedrooms -- no magnitude disagreement."
-      }
-    },
-    {
-      "category": "shop",
-      "chance": 0.25,
-      "condition": "king_shop",
-      "label": "Shops (King)",
-      "meta": {
-        "confidence": "datamined",
-        "source": "sheet constants: King's Chess Piece / Banner of the King Shop bias",
-        "notes": "Shaped but inert: no Banner subsystem modeled. Renamed from 'king' to king_shop; see king_blueprint's note. Wiki gives 30% for Shops; our sheet says 25% -- kept sheet value, flagged for re-test."
-      }
-    },
-    {
-      "category": "blackprint",
-      "chance": 0.4,
-      "condition": "king_blackprint",
-      "label": "Blackprints (King)",
-      "meta": {
-        "confidence": "datamined",
-        "source": "sheet constants: King's Chess Piece / Banner of the King Blackprint bias",
-        "notes": "Shaped but inert: no Banner subsystem modeled. Renamed from 'king' to king_blackprint; see king_blueprint's note. Matches wiki's 40% for Blackprints -- no magnitude disagreement."
-      }
-    },
-    {
-      "layout": "cross",
-      "chance": 0.4,
-      "condition": "southern_cross_constellation",
-      "exclude_rooms": [
-        "mechanarium",
-        "chamber_of_mirrors"
-      ],
-      "exclude_upgrade_variants": true,
-      "label": "4-Door Rooms (Southern Cross Constellation)",
-      "meta": {
-        "confidence": "datamined",
-        "source": "sheet constants: 'Southern Cross 40% 4-Way'; https://blueprince.wiki.gg/wiki/Drafting/Advanced",
-        "notes": "Reachable via state.southern_cross_active, but nothing sets it: no star-count/night-sky/Observatory chain is modeled. Day-scoped stub so the bias is testable rather than dead. 40% datamined. The wiki's own query is Room_Shape=4-way AND NOT Type HOLDS Upgrade AND NOT Name=Mechanarium AND NOT Name=Chamber of Mirrors; the Mechanarium page repeats the Mechanarium exclusion verbatim ('It is also unaffected by the Southern Cross')."
-      }
-    },
-    {
-      "layout": "dead_end",
-      "chance": 0.3,
-      "condition": "draxus_constellation",
-      "label": "Dead Ends (Draxus Constellation)",
-      "meta": {
-        "confidence": "datamined",
-        "source": "sheet constants: 'Draxus 30% Dead End'; https://blueprince.wiki.gg/wiki/Drafting/Advanced",
-        "notes": "Same day-scoped stub as southern_cross_constellation: state.draxus_active is emitted but no activation source is modeled. Not cloister_of_draxus__ix36's own, unrelated 'only Dead Ends draftable here' rule -- shared name is coincidental theming, not a shared mechanism."
-      }
-    },
-    {
-      "rooms": [
-        "classroom"
-      ],
-      "chance": 0.35,
-      "condition": "schoolhouse",
-      "label": "Classrooms (Schoolhouse)",
-      "meta": {
-        "confidence": "datamined",
-        "source": "sheet constants: 'Schoolhouse 35% Classroom'; confirmed on Drafting/Advanced and the Schoolhouse wiki page",
-        "notes": "Live: state.schoolhouse_placed is set by the Schoolhouse's ON_PLACE room handler (effects/rooms/schoolhouse.py) and emitted by draft.py::_active_conditions. 35% datamined. NOTE the wiki also credits the Schoolhouse with boosting the Library and Studio Addition: Dormitory; neither magnitude is sourced anywhere in our data, so those entries are deliberately absent rather than guessed."
-      }
-    },
-    {
-      "category": "mechanical_or_rotunda",
-      "chance": 0.4,
-      "condition": "electromagnet",
-      "label": "Mechanical Rooms & Rotunda (Electromagnet)",
-      "meta": {
-        "confidence": "datamined",
-        "source": "sheet constants: 'Electro Magnet 40% Mechanical Rooms, plus Rotunda'; wiki.gg/Drafting/Advanced",
-        "notes": "Left inert: category 'mechanical_or_rotunda' matches nothing in rooms.json -- the 8 Mechanical Rooms all carry category 'blueprint'. Would be a silent no-op as-is. Needs a fixed room-id list plus a new state flag plus wiring into powered_electromagnet's effects (special_items.json has none for this)."
-      }
-    },
-    {
-      "category": "tomorrow",
-      "chance": 0.4,
-      "condition": "chronograph",
-      "label": "Tomorrow Rooms (Chronograph)",
-      "meta": {
-        "confidence": "datamined",
-        "source": "sheet constants: 'Chronograph 40% Tomorrow Rooms'; wiki.gg/Drafting/Advanced",
-        "notes": "Left inert: category 'tomorrow' matches nothing in rooms.json -- Tomorrow Rooms span several existing categories. Would be a silent no-op as-is. Needs a fixed room-id list plus splitting this out of chronograph's unmodeled rewind mechanic (special_items.json: implemented false)."
-      }
-    },
-    {
-      "rooms": [
-        "bookshop"
-      ],
-      "chance": 0.5,
-      "condition": "drafting_from_library",
-      "label": "Bookshop (Library)",
-      "meta": {
-        "confidence": "inferred",
-        "source": "wiki.gg/Library; wiki.gg/Drafting/Advanced (confirms the Bookshop bias exists, no percentage published)",
-        "notes": "Live: fires when drafting from the Library (ctx.from_room.id == 'library'). Chance unsourced on the wiki -- kept the existing 50% sheet value, flagged inferred rather than datamined pending confirmation."
-      }
-    },
-    {
-      "flag": "powered",
-      "chance": 0.4,
-      "condition": "adjacent_duct",
-      "label": "Powered Rooms (From Duct Room)",
-      "meta": {
-        "confidence": "wiki",
-        "source": "wiki.gg/Drafting/Advanced (Duct Draw mechanic)",
-        "notes": "Left inert: real mechanic is a tiered 70%/25% per-slot 'Duct Draw' gated on an activated Boiler Room; wiki wording suggests both directions push toward MORE duct rooms, not the symmetric swap coded here. Needs a design conversation; ctx.from_room.duct/.powered plumbing is ready once resolved."
-      }
-    },
-    {
-      "flag": "duct",
-      "chance": 0.4,
-      "condition": "adjacent_powered",
-      "label": "Duct Rooms (From Powered Room)",
-      "meta": {
-        "confidence": "wiki",
-        "source": "https://blueprince.wiki.gg/wiki/Drafting/Advanced (Duct Draw mechanic)",
-        "notes": "Left inert deliberately -- see adjacent_duct's note; same tiered/asymmetric mechanic disagreement, same needs-design-conversation status."
-      }
-    },
-    {
-      "category": "blueprint",
-      "chance": 0.4,
-      "condition": "scepter_blueprint",
-      "label": "scepter_blueprint",
-      "meta": {
-        "confidence": "inferred",
-        "source": "https://blueprince.wiki.gg/wiki/Royal_Scepter",
-        "notes": "Magnitude unpublished; wiki states same effect as Banner of the King (no % given); 40% mirrors the Greenhouse/Green bias as a conservative inferred value"
-      }
-    },
-    {
-      "category": "green",
-      "chance": 0.4,
-      "condition": "scepter_green",
-      "label": "scepter_green",
-      "meta": {
-        "confidence": "inferred",
-        "source": "https://blueprince.wiki.gg/wiki/Royal_Scepter",
-        "notes": "Magnitude unpublished; wiki states same effect as Banner of the King (no % given); 40% mirrors the Greenhouse/Green bias as a conservative inferred value"
-      }
-    },
-    {
-      "category": "red",
-      "chance": 0.4,
-      "condition": "scepter_red",
-      "label": "scepter_red",
-      "meta": {
-        "confidence": "inferred",
-        "source": "https://blueprince.wiki.gg/wiki/Royal_Scepter",
-        "notes": "Magnitude unpublished; wiki states same effect as Banner of the King (no % given); 40% mirrors the Greenhouse/Green bias as a conservative inferred value"
-      }
-    },
-    {
-      "category": "bedroom",
-      "chance": 0.4,
-      "condition": "scepter_bedroom",
-      "label": "scepter_bedroom",
-      "meta": {
-        "confidence": "inferred",
-        "source": "https://blueprince.wiki.gg/wiki/Royal_Scepter",
-        "notes": "Magnitude unpublished; wiki states same effect as Banner of the King (no % given); 40% mirrors the Greenhouse/Green bias as a conservative inferred value"
-      }
-    },
-    {
-      "category": "hallway",
-      "chance": 0.4,
-      "condition": "scepter_hallway",
-      "label": "scepter_hallway",
-      "meta": {
-        "confidence": "inferred",
-        "source": "https://blueprince.wiki.gg/wiki/Royal_Scepter",
-        "notes": "Magnitude unpublished; wiki states same effect as Banner of the King (no % given); 40% mirrors the Greenhouse/Green bias as a conservative inferred value"
-      }
-    },
-    {
-      "category": "shop",
-      "chance": 0.4,
-      "condition": "scepter_shop",
-      "label": "scepter_shop",
-      "meta": {
-        "confidence": "inferred",
-        "source": "https://blueprince.wiki.gg/wiki/Royal_Scepter",
-        "notes": "Magnitude unpublished; wiki states same effect as Banner of the King (no % given); 40% mirrors the Greenhouse/Green bias as a conservative inferred value"
-      }
-    }
+  {
+   "rooms": [
+    "commissary",
+    "observatory"
+   ],
+   "label": "commissary_observatory",
+   "chance": 0.13,
+   "meta": {
+    "confidence": "datamined",
+    "source": "sheet constants: 'Commissary / Observatory 13%'"
+   }
+  },
+  {
+   "rooms": [
+    "classroom"
+   ],
+   "label": "classroom",
+   "chance": 0.03,
+   "meta": {
+    "confidence": "datamined",
+    "source": "sheet constants: 'Classrooms 3%'"
+   }
+  },
+  {
+   "rooms": [
+    "aquarium",
+    "aquarium__experiment"
+   ],
+   "label": "add_aquariums_13",
+   "chance": 0.13,
+   "condition": "add_aquariums",
+   "meta": {
+    "confidence": "wiki",
+    "source": "blueprince.wiki.gg/wiki/Experiments/Effects DataSpoiler on add_aquariums: 'adds both a 13% and 3% chance for Aquarium to get a Priority Draw' -- the two chances apply independently (15.61% combined), so they are modeled as two separate entries rather than one 16% entry."
+   }
+  },
+  {
+   "rooms": [
+    "aquarium",
+    "aquarium__experiment"
+   ],
+   "label": "add_aquariums_3",
+   "chance": 0.03,
+   "condition": "add_aquariums",
+   "meta": {
+    "confidence": "wiki",
+    "source": "blueprince.wiki.gg/wiki/Experiments/Effects DataSpoiler on add_aquariums: same source as add_aquariums_13; this is the independent second (3%) chance, not a combined figure."
+   }
+  }
+ ],
+ "forced_draws": [
+  {
+   "room": "garage",
+   "label": "garage",
+   "chance": 0.9,
+   "chance_with_west_gate": 0.925,
+   "gate_day": 3,
+   "meta": {
+    "confidence": "datamined",
+    "source": "blueprince.wiki.gg/wiki/Garage datamined box: 'the chance of the roll succeeding is 90%. If the West Gate permanent addition has been unlocked, the chance is increased to 92.5%.' Gate: 'Veteran Mode is active, or Day 3 has been reached.'",
+    "notes": "Only the Garage slice of forced_draw_precedence is implemented (owner decision); conservatory/morning_room/utility_closet remain unbuilt pending their own prerequisites (Found Floorplan, Bacon & Eggs, and Garage-drafted-first respectively). The separate Day-5-or-Veteran 3% passive Priority Draw for the Garage (wiki) is a different, unimplemented mechanic -- do not conflate the two gates."
+   }
+  }
+ ],
+ "forced_draw_precedence": {
+  "order": [
+   "conservatory",
+   "garage",
+   "morning_room",
+   "utility_closet"
   ],
   "meta": {
-    "source": "TFMurphy decompiled sheet v1.3 constants block (extracted 2026-07-20); precedence order from wiki.gg Drafting/Advanced",
-    "confidence": "datamined",
-    "notes": "The exact procedural interpretation of category_biases (re-deal vs pre-filter) is TFMurphy prose, implemented as a biased re-deal hook."
+   "confidence": "wiki",
+   "source": "wiki.gg Drafting/Advanced: only one forced draw fires; this precedence decides which"
   }
+ },
+ "category_biases": [
+  {
+   "category": "green",
+   "chance": 0.4,
+   "condition": "greenhouse_or_king",
+   "label": "Green Rooms (Greenhouse / King)"
+  },
+  {
+   "category": "red",
+   "chance": 0.3,
+   "condition": "furnace_or_king",
+   "label": "Red Rooms (Furnace / King)"
+  },
+  {
+   "category": "blueprint",
+   "chance": 0.5,
+   "condition": "king_blueprint",
+   "label": "Blueprints (King)",
+   "meta": {
+    "confidence": "datamined",
+    "source": "sheet constants: King's Chess Piece / Banner of the King Blueprint bias",
+    "notes": "Shaped but inert: no Banner subsystem is modeled, so never emitted. Renamed from shared 'king' to king_<color> (mirrors scepter_<color>) because the Banner picks ONE color per day -- a bare tag would fire all five at once. Wiki says 40%; our datamined 50% kept (owner, 2026-08-06)."
+   }
+  },
+  {
+   "category": "hallway",
+   "chance": 0.3,
+   "condition": "king_hallway",
+   "label": "Hallways (King)",
+   "meta": {
+    "confidence": "datamined",
+    "source": "sheet constants: King's Chess Piece / Banner of the King Hallway bias",
+    "notes": "Shaped but inert: no Banner subsystem modeled. Renamed from 'king' to king_hallway; see king_blueprint's note. Matches wiki's 30% for Hallways -- no magnitude disagreement."
+   }
+  },
+  {
+   "category": "bedroom",
+   "chance": 0.28,
+   "condition": "king_bedroom",
+   "label": "Bedrooms (King)",
+   "meta": {
+    "confidence": "datamined",
+    "source": "sheet constants: King's Chess Piece / Banner of the King Bedroom bias",
+    "notes": "Shaped but inert: no Banner subsystem modeled. Renamed from 'king' to king_bedroom; see king_blueprint's note. Matches wiki's 28% for Bedrooms -- no magnitude disagreement."
+   }
+  },
+  {
+   "category": "shop",
+   "chance": 0.25,
+   "condition": "king_shop",
+   "label": "Shops (King)",
+   "meta": {
+    "confidence": "datamined",
+    "source": "sheet constants: King's Chess Piece / Banner of the King Shop bias",
+    "notes": "Shaped but inert: no Banner subsystem modeled. Renamed from 'king' to king_shop; see king_blueprint's note. Wiki gives 30% for Shops; our sheet says 25% -- kept sheet value, flagged for re-test."
+   }
+  },
+  {
+   "category": "blackprint",
+   "chance": 0.4,
+   "condition": "king_blackprint",
+   "label": "Blackprints (King)",
+   "meta": {
+    "confidence": "datamined",
+    "source": "sheet constants: King's Chess Piece / Banner of the King Blackprint bias",
+    "notes": "Shaped but inert: no Banner subsystem modeled. Renamed from 'king' to king_blackprint; see king_blueprint's note. Matches wiki's 40% for Blackprints -- no magnitude disagreement."
+   }
+  },
+  {
+   "layout": "cross",
+   "chance": 0.4,
+   "condition": "southern_cross_constellation",
+   "exclude_rooms": [
+    "mechanarium",
+    "chamber_of_mirrors"
+   ],
+   "exclude_upgrade_variants": true,
+   "label": "4-Door Rooms (Southern Cross Constellation)",
+   "meta": {
+    "confidence": "datamined",
+    "source": "sheet constants: 'Southern Cross 40% 4-Way'; https://blueprince.wiki.gg/wiki/Drafting/Advanced",
+    "notes": "Reachable via state.southern_cross_active, but nothing sets it: no star-count/night-sky/Observatory chain is modeled. Day-scoped stub so the bias is testable rather than dead. 40% datamined. The wiki's own query is Room_Shape=4-way AND NOT Type HOLDS Upgrade AND NOT Name=Mechanarium AND NOT Name=Chamber of Mirrors; the Mechanarium page repeats the Mechanarium exclusion verbatim ('It is also unaffected by the Southern Cross')."
+   }
+  },
+  {
+   "layout": "dead_end",
+   "chance": 0.3,
+   "condition": "draxus_constellation",
+   "label": "Dead Ends (Draxus Constellation)",
+   "meta": {
+    "confidence": "datamined",
+    "source": "sheet constants: 'Draxus 30% Dead End'; https://blueprince.wiki.gg/wiki/Drafting/Advanced",
+    "notes": "Same day-scoped stub as southern_cross_constellation: state.draxus_active is emitted but no activation source is modeled. Not cloister_of_draxus__ix36's own, unrelated 'only Dead Ends draftable here' rule -- shared name is coincidental theming, not a shared mechanism."
+   }
+  },
+  {
+   "rooms": [
+    "classroom"
+   ],
+   "chance": 0.35,
+   "condition": "schoolhouse",
+   "label": "Classrooms (Schoolhouse)",
+   "meta": {
+    "confidence": "datamined",
+    "source": "sheet constants: 'Schoolhouse 35% Classroom'; confirmed on Drafting/Advanced and the Schoolhouse wiki page",
+    "notes": "Live: state.schoolhouse_placed is set by the Schoolhouse's ON_PLACE room handler (effects/rooms/schoolhouse.py) and emitted by draft.py::_active_conditions. 35% datamined. NOTE the wiki also credits the Schoolhouse with boosting the Library and Studio Addition: Dormitory; neither magnitude is sourced anywhere in our data, so those entries are deliberately absent rather than guessed."
+   }
+  },
+  {
+   "category": "mechanical_or_rotunda",
+   "chance": 0.4,
+   "condition": "electromagnet",
+   "label": "Mechanical Rooms & Rotunda (Electromagnet)",
+   "meta": {
+    "confidence": "datamined",
+    "source": "sheet constants: 'Electro Magnet 40% Mechanical Rooms, plus Rotunda'; wiki.gg/Drafting/Advanced",
+    "notes": "Live: category 'mechanical_or_rotunda' is a union resolved by draft.py's CATEGORY_UNIONS/_category_matches -- the 8 Mechanical Rooms (category 'mechanical') plus the Rotunda by id, since the Rotunda itself carries category 'blueprint'. condition 'electromagnet' is emitted by _active_conditions while a Powered Electromagnet is held (special_items.json effect tag 'electromagnet', checked via electromagnet_active_from_state)."
+   },
+   "category_base": "mechanical",
+   "category_extra_rooms": [
+    "rotunda"
+   ]
+  },
+  {
+   "category": "tomorrow",
+   "chance": 0.4,
+   "condition": "chronograph",
+   "label": "Tomorrow Rooms (Chronograph)",
+   "meta": {
+    "confidence": "datamined",
+    "source": "sheet constants: 'Chronograph 40% Tomorrow Rooms'; wiki.gg/Drafting/Advanced",
+    "notes": "Left inert: category 'tomorrow' matches nothing in rooms.json -- Tomorrow Rooms span several existing categories. Would be a silent no-op as-is. Needs a fixed room-id list plus splitting this out of chronograph's unmodeled rewind mechanic (special_items.json: implemented false)."
+   }
+  },
+  {
+   "rooms": [
+    "bookshop"
+   ],
+   "chance": 0.5,
+   "condition": "drafting_from_library",
+   "label": "Bookshop (Library)",
+   "meta": {
+    "confidence": "inferred",
+    "source": "wiki.gg/Library; wiki.gg/Drafting/Advanced (confirms the Bookshop bias exists, no percentage published)",
+    "notes": "Live: fires when drafting from the Library (ctx.from_room.id == 'library'). Chance unsourced on the wiki -- kept the existing 50% sheet value, flagged inferred rather than datamined pending confirmation."
+   }
+  },
+  {
+   "flag": "powered",
+   "chance": 0.4,
+   "condition": "adjacent_duct",
+   "label": "Powered Rooms (From Duct Room)",
+   "meta": {
+    "confidence": "wiki",
+    "source": "wiki.gg/Drafting/Advanced (Duct Draw mechanic)",
+    "notes": "Left inert: real mechanic is a tiered 70%/25% per-slot 'Duct Draw' gated on an activated Boiler Room; wiki wording suggests both directions push toward MORE duct rooms, not the symmetric swap coded here. Needs a design conversation; ctx.from_room.duct/.powered plumbing is ready once resolved."
+   }
+  },
+  {
+   "flag": "duct",
+   "chance": 0.4,
+   "condition": "adjacent_powered",
+   "label": "Duct Rooms (From Powered Room)",
+   "meta": {
+    "confidence": "wiki",
+    "source": "https://blueprince.wiki.gg/wiki/Drafting/Advanced (Duct Draw mechanic)",
+    "notes": "Left inert deliberately -- see adjacent_duct's note; same tiered/asymmetric mechanic disagreement, same needs-design-conversation status."
+   }
+  },
+  {
+   "category": "blueprint",
+   "chance": 0.4,
+   "condition": "scepter_blueprint",
+   "label": "scepter_blueprint",
+   "meta": {
+    "confidence": "inferred",
+    "source": "https://blueprince.wiki.gg/wiki/Royal_Scepter",
+    "notes": "Magnitude unpublished; wiki states same effect as Banner of the King (no % given); 40% mirrors the Greenhouse/Green bias as a conservative inferred value"
+   }
+  },
+  {
+   "category": "green",
+   "chance": 0.4,
+   "condition": "scepter_green",
+   "label": "scepter_green",
+   "meta": {
+    "confidence": "inferred",
+    "source": "https://blueprince.wiki.gg/wiki/Royal_Scepter",
+    "notes": "Magnitude unpublished; wiki states same effect as Banner of the King (no % given); 40% mirrors the Greenhouse/Green bias as a conservative inferred value"
+   }
+  },
+  {
+   "category": "red",
+   "chance": 0.4,
+   "condition": "scepter_red",
+   "label": "scepter_red",
+   "meta": {
+    "confidence": "inferred",
+    "source": "https://blueprince.wiki.gg/wiki/Royal_Scepter",
+    "notes": "Magnitude unpublished; wiki states same effect as Banner of the King (no % given); 40% mirrors the Greenhouse/Green bias as a conservative inferred value"
+   }
+  },
+  {
+   "category": "bedroom",
+   "chance": 0.4,
+   "condition": "scepter_bedroom",
+   "label": "scepter_bedroom",
+   "meta": {
+    "confidence": "inferred",
+    "source": "https://blueprince.wiki.gg/wiki/Royal_Scepter",
+    "notes": "Magnitude unpublished; wiki states same effect as Banner of the King (no % given); 40% mirrors the Greenhouse/Green bias as a conservative inferred value"
+   }
+  },
+  {
+   "category": "hallway",
+   "chance": 0.4,
+   "condition": "scepter_hallway",
+   "label": "scepter_hallway",
+   "meta": {
+    "confidence": "inferred",
+    "source": "https://blueprince.wiki.gg/wiki/Royal_Scepter",
+    "notes": "Magnitude unpublished; wiki states same effect as Banner of the King (no % given); 40% mirrors the Greenhouse/Green bias as a conservative inferred value"
+   }
+  },
+  {
+   "category": "shop",
+   "chance": 0.4,
+   "condition": "scepter_shop",
+   "label": "scepter_shop",
+   "meta": {
+    "confidence": "inferred",
+    "source": "https://blueprince.wiki.gg/wiki/Royal_Scepter",
+    "notes": "Magnitude unpublished; wiki states same effect as Banner of the King (no % given); 40% mirrors the Greenhouse/Green bias as a conservative inferred value"
+   }
+  }
+ ],
+ "meta": {
+  "source": "TFMurphy decompiled sheet v1.3 constants block (extracted 2026-07-20); precedence order from wiki.gg Drafting/Advanced",
+  "confidence": "datamined",
+  "notes": "The exact procedural interpretation of category_biases (re-deal vs pre-filter) is TFMurphy prose, implemented as a biased re-deal hook."
+ }
 }
