@@ -1143,6 +1143,14 @@ def carryover(game) -> dict:
         "treasure_trove_blackprint": (
             cfg.treasure_trove_blackprint or state.treasure_trove_blackprint
         ),
+        # throne_room_blueprint: earned the first time the player arrives at
+        # Orindian Ruins and picks up the blueprint. ORed from state so the
+        # config is never mutated, same shape as treasure_trove_blackprint.
+        # Permanently adds the Throne Room to the draft pool
+        # (decks.py::eligible_pool) from the following day.
+        "throne_room_blueprint": (
+            cfg.throne_room_blueprint or state.throne_room_blueprint
+        ),
         # Room 46 first reached: permanent gem-deck gate; carries once True, forever.
         "room46_reached": cfg.room46_reached or state.room46_reached,
         # room8_solved: earned the first time Room 8 is solved. ORed from state

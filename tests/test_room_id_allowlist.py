@@ -71,6 +71,10 @@ ALLOWLIST: dict[str, set[str]] = {
         # Pool inclusion has an explicit Treasure Trove blackprint carve-out
         # (cfg.treasure_trove_blackprint) alongside the pool-tag rule.
         "treasure_trove",
+        # Pool inclusion has an explicit Throne Room blueprint carve-out
+        # (cfg.throne_room_blueprint), same shape as Treasure Trove above --
+        # the pool gate is inherently per-room.
+        "throne_room",
     },
     "draft.py": {
         # Module-level *_ID constants (CLOSET_ID, TUNNEL_ID, LIBRARY_ID,

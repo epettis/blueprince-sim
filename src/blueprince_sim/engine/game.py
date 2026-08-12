@@ -1247,6 +1247,12 @@ class Game:
             # so this call is unconditional -- not gated on cfg.special_items.
             if dest == "upper_rotating_gear":
                 special_items.on_area_arrival(self, dest)
+            # Orindian Ruins: grants the Throne Room blueprint permanently
+            # (owner spec, docs/open_tasks.md). Not an inventory item, so this
+            # call is unconditional -- not gated on cfg.special_items, same
+            # shape as Upper Rotating Gear above.
+            if dest == "orindian_ruins":
+                special_items.on_area_arrival(self, dest)
             # Sanctum Key sources at reservoir_north/safehouse: off-grid, no
             # rooms.json record, same shape as mine_south's disk above. Not
             # currently offered as a travel destination (areas.json

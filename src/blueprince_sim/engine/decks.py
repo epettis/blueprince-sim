@@ -30,6 +30,16 @@ def eligible_pool(registry: Registry, cfg: GameConfig) -> list[Room]:
     rather than mutating cfg.studio_additions, because the Treasure Trove's
     black-box/Key-of-Aries reward mechanics remain unmodelled (see
     rl/train.py::_STUDIO_ADDITION_EXCLUSIONS) -- only its basic draftability is.
+
+    The Throne Room (also ``pool == "studio_addition"``) has the same second
+    door: ``cfg.throne_room_blueprint``, set once the player has picked up its
+    blueprint at Orindian Ruins. Unlike Treasure Trove, the Throne Room's own
+    behaviour (its north Antechamber lever, its Mora Jai +2 allowance box) IS
+    modelled and it is already included in ``rl/train.py::all_studio_
+    additions()``, so this flag adds no new content under ``all_unlocks_
+    config`` -- it only matters under ``fresh_save_config``, which passes no
+    ``studio_additions``. The dedicated flag exists anyway because the pool
+    gate is inherently per-room, the same shape as Treasure Trove's.
     """
     replaced: set[str] = set()
     chosen_variants: list[Room] = []
@@ -51,6 +61,8 @@ def eligible_pool(registry: Registry, cfg: GameConfig) -> list[Room]:
         elif room.pool == "studio_addition" and room.id in cfg.studio_additions:
             out.append(room)
         elif room.id == "treasure_trove" and cfg.treasure_trove_blackprint:
+            out.append(room)
+        elif room.id == "throne_room" and cfg.throne_room_blueprint:
             out.append(room)
         # "outer": drafted at the dedicated outer location, not in decks
         # "pool_temp": injected by The Pool's effect during the day
