@@ -47,6 +47,11 @@ LAYOUT_OVERRIDE: dict[str, dict] = {
     # (Its special end-of-room draw lets you pick the next room's color.)
     "secret_passage": {"layout": "straight", "alt_layouts": [],
                        "note": "wiki: straight-shape"},
+    # Datamine "4-Door"; wiki says the Spare Great Hall does not inherit the
+    # Great Hall's shape, so it may be drafted along the edges of the house.
+    "spare_great_hall": {"layout": "straight", "alt_layouts": [],
+                         "note": "wiki: does not inherit the Great Hall's shape; "
+                                 "straight, drafts along edges"},
     # Datamine "Dead End"; wiki lists it as 4-way (cross). OPEN ITEM: the cross
     # arms have gated traversal (each door entered from outside), so its
     # connectivity is not a normal cross and is not yet modeled.

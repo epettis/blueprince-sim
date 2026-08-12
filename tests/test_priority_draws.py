@@ -65,7 +65,7 @@ def test_southern_cross_bias_skips_excluded_rooms_and_selects_an_ordinary_cross_
     state.decks = [DeckState() for _ in range(8)]
     mechanarium = registry.by_id["mechanarium"]
     chamber_of_mirrors = registry.by_id["chamber_of_mirrors"]
-    upgrade_variant = registry.by_id["spare_great_hall__ix139"]
+    upgrade_variant = registry.by_id["cloister_of_rynna__ix29"]
     great_hall = registry.by_id["great_hall"]
     assert upgrade_variant.layout == "cross" and upgrade_variant.variant_of is not None
     state.decks[0].order = [

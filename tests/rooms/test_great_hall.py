@@ -25,6 +25,8 @@ from blueprince_sim.config import GameConfig
 from blueprince_sim.engine.game import ANTECHAMBER_CELL, Game
 from blueprince_sim.engine.grid import E, N, S, W
 from blueprince_sim.engine.locks import DOOR_LOCKED, DOOR_OPEN, DOOR_SEALED, segment_key
+from blueprince_sim.engine.placement import legal_orientations
+from blueprince_sim.engine.state import GameState
 from blueprince_sim.env import actions as A
 
 
@@ -67,6 +69,23 @@ def _enter_at(g: Game, cell: int) -> None:
     g.state.pos = cell
     g._enter(cell)
     g.state.door_version += 1
+
+
+# ------------------------------------------------------- Spare Great Hall layout
+
+
+def test_spare_great_hall_drafts_on_a_wing_cell(registry, cfg):
+    """Unlike the base Great Hall (a 4-way, barred from every edge by the
+    outer-wall invariant), the Spare Great Hall is a straight room per the
+    wiki -- it does not inherit the Great Hall's shape -- so it can be
+    drafted on a wing cell when entered vertically."""
+    st = GameState()
+    spare = registry.by_id["spare_great_hall__ix139"]
+    # Cell 20: rank 5, west wing (col 0). Entering north, the back door (S)
+    # and the straight room's other end (N) both stay off the outer wall.
+    assert legal_orientations(spare, 20, N, st, cfg) == [N | S]
+    hall = registry.by_id["great_hall"]
+    assert legal_orientations(hall, 20, N, st, cfg) == []  # 4-way: still barred
 
 
 def test_great_hall_opens_east_costs_key(registry):
@@ -276,3 +295,31 @@ def test_corridor_doors_remain_always_open(registry):
     for d in (N, E, S, W):
         if corridor.door_mask & d:
             assert g.door_state_of(HALL_CELL, d) == DOOR_OPEN
+
+
+def test_spare_great_hall_grants_one_published_prize_bundle(registry):
+    """Entering it pays exactly one of the three published alcove bundles.
+
+    The room's "7 Locked Doors" text has no grid-granularity representation --
+    no side doorways, no lever, no disk -- so the prize is the only part of it
+    a player can observe, and paying a blend of the bundles or none at all
+    would both be wrong.
+    """
+    from blueprince_sim.engine import effects
+    from blueprince_sim.engine.effects import Hook
+    from blueprince_sim.engine.effects.rooms.spare_great_hall import PRIZE_BUNDLES
+
+    spare = registry.by_id["spare_great_hall__ix139"]
+    seen = set()
+    for seed in range(60):
+        g = Game(GameConfig(), seed=seed, registry=registry)
+        before = (g.state.gems, g.state.keys, g.state.coins)
+        # Fire the entry hooks directly: the room also carries a luck-gated
+        # extra-item roll, which would otherwise land in the same delta.
+        effects.fire(g, spare, Hook.ON_ENTER, None)
+        granted = (g.state.gems - before[0], g.state.keys - before[1],
+                   g.state.coins - before[2])
+        assert granted in PRIZE_BUNDLES, f"seed {seed} granted {granted}, not a published bundle"
+        seen.add(granted)
+
+    assert seen == set(PRIZE_BUNDLES), f"only {sorted(seen)} appeared over 60 seeds"

@@ -156,6 +156,20 @@ def test_boiler_and_gift_shop(registry, cfg):
     assert not satisfies_draft_conditions(gift, 2, S, st, cfg, set(), False)     # rank 1 southward
 
 
+def test_secret_passage_rank_restriction(registry, cfg):
+    """The Secret Passage and its Spare variant cannot be drafted on Rank 1
+    or Rank 9, but any Rank 2-8 cell is legal; the wiki's separate stateful
+    wing-block rule is a recorded gap, not modeled here."""
+    st = GameState()
+    for rid in ("secret_passage", "spare_secret_passage__ix138"):
+        room = registry.by_id[rid]
+        assert not satisfies_draft_conditions(room, 2, N, st, cfg, set(), False)   # rank 1
+        assert not satisfies_draft_conditions(room, 42, N, st, cfg, set(), False)  # rank 9
+        assert satisfies_draft_conditions(room, 7, N, st, cfg, set(), False)       # rank 2
+        assert satisfies_draft_conditions(room, 37, N, st, cfg, set(), False)      # rank 8
+        assert satisfies_draft_conditions(room, 22, N, st, cfg, set(), False)      # rank 5, interior
+
+
 def test_morning_room_direction(registry):
     """The Morning Room is breakfast-gated, and its fixed door sides bar
     northward drafts on the west wing and southward drafts on the east."""

@@ -48,6 +48,7 @@ from . import room_8  # noqa: F401
 from . import rotunda  # noqa: F401
 from . import schoolhouse  # noqa: F401
 from . import secret_garden  # noqa: F401
+from . import spare_great_hall  # noqa: F401
 from . import security  # noqa: F401
 from . import shelter  # noqa: F401
 from . import solarium  # noqa: F401
