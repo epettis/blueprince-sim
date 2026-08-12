@@ -625,7 +625,13 @@ def _roll_trade_graph(game) -> None:
     Then, per item independently:
       - dice_chance% → replace successor with "dice".
       - tier-5 only: t5_special_chance% (checked before dice) → replace with
-        the "allowance_token" or "upgrade_disk_trade" (50/50).  The traded disk
+        the "allowance_token" or "upgrade_disk_trade" (50/50). That chance is
+        100: the datamined tier-5 receive list contains the Upgrade Disk and
+        nothing else, so a tier-5 item never trades into another item. The
+        wiki's "50% chance to offer Allowance Token" is the split between the
+        two specials, not a chance of falling through to the cycle. Not
+        modelled: tier-5 items can sometimes yield a tier-4 item, but only
+        through a Trading Post menu-timing quirk this engine has no notion of.  The traded disk
         is the 16th and last in the game's supply (15 fixed locations hold the
         rest), and it is unique: once held it stops resolving, so repeat
         tier-5 trades decay to the graph's other outcomes.

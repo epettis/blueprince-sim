@@ -855,6 +855,47 @@ around 1,800 LOC.
 
 ## Decisions log
 
+- **2026-08-12, the Trading Post tier table was wrong in 54 places, not ~10,
+  and the sweep exposed a misread datamined rule.**
+
+  **My brief was wrong about three items.** It listed `ornate_compass`,
+  `emerald_bracelet` and `cursed_effigy` as wiki-receivable. Verified against
+  the raw page: **the tier-5 line carries no bold markers at all**, so every
+  tier-5 item is give-only. The datamine says it outright -- *"The Upgrade Disk
+  is in the list of items given as Tier 5 trades (which contains no other
+  items)."*
+
+  **Scope was 54 items.** The receivable/null gap was only half of it; the
+  give-only side had the same gap (all 8 contraptions, 16 upgrade disks, 8
+  sanctum keys, 6 tier-3 relics, and more). Also fixed a pre-existing bug:
+  `master_key` and `sanctum_key_room_46` already carried `tier: 5` but were
+  missing `no_receive`, so they were wrongly receivable before this branch
+  existed. All 102 items now match the wiki.
+
+  **Reward shaping moved and was deliberately left exposed.** `inventory_value`
+  keys off `tier`, so re-tiering changes worth: 1 item to tier 1 (-2.0), 10 to
+  tier 3 (+4.0 each), 30 to tier 4 (+9.0 each), 10 to tier 5 (+34.0 each). A
+  plausible held inventory goes **88.0 -> 161.0, a 1.83x increase**.
+  `items.json::special_item_values` was NOT adjusted to compensate -- doing so
+  would have hidden the effect the PR exists to expose. **No A/B was run.**
+
+  **`t5_special_chance: 50` was a misreading, and the sweep made it visible.**
+  The wiki's *"50% chance to offer Allowance Token"* is the split between the
+  two tier-5 specials, **not** a 50% chance of falling through to the cycle.
+  With tier 5 correctly all-give-only, that fall-through self-edged and
+  `master_key` had **no trade offer in 24 of 60 seeds**. Corrected to 100.
+  Tier-5 items now always trade into Allowance Token (~52% measured, matching
+  the published 50%) or the Upgrade Disk -- and when the disk is unavailable it
+  decays to a tier-4 item, which incidentally reproduces the wiki's *"tier 5
+  items can sometimes trade for tier 4 items"*. **Not modelled**: that decay is
+  the wiki's menu-timing quirk, which this engine has no notion of.
+
+  **Three tests changed, none by seed.** One was a change-detector pinning the
+  give-only id set literally (the thing `CLAUDE.md` warns against) and now
+  derives it from the registry; one asserted an item was untradeable that is now
+  correctly tier-1 give-only; one called `trade()` unconditionally and now
+  checks for an offer first. Each reflected a genuine behaviour change.
+
 - **2026-08-12, the Trading Post now has a give-only concept, and a vacuous
   test was found doing the opposite of its job.**
 

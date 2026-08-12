@@ -8,7 +8,7 @@
  "trading": {
   "trades_per_day": 20,
   "dice_chance": 10,
-  "t5_special_chance": 50
+  "t5_special_chance": 100
  },
  "shops": {
   "commissary": {

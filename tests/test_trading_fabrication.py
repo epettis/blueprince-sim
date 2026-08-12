@@ -91,21 +91,23 @@ def test_trade_offers_empty_after_trades_per_day_used():
 def test_trade_offers_lists_only_tradeable_items():
     """trade_offers includes only items whose SpecialItem.tier is not None.
 
-    royal_scepter (tier=None) and broken_lever (tier=None) must not appear;
-    shovel (tier=2) must appear.
+    royal_scepter (tier=None) and file_cabinet_key (tier=None, untradeable per
+    the wiki's Trading Post tier lists) must not appear; shovel (tier=2) must
+    appear. broken_lever is tier=1/no_receive now (give-only, wiki-verified),
+    so it is a valid "give" and is exercised separately in the no_receive tests.
     """
     game = _game(seed=0)
-    # royal_scepter is gated out by configure(); use broken_lever which is tier=None
-    # and shovel which is tier=2
+    # royal_scepter is gated out by configure(); use file_cabinet_key which is
+    # tier=None and shovel which is tier=2
     state = game.state
-    state.inventory["broken_lever"] = 1
+    state.inventory["file_cabinet_key"] = 1
     state.inventory["shovel"] = 1
     _set_trading_post_inner(game)
 
     offers = shops.trade_offers(game)
     give_ids = {o["give"] for o in offers}
     assert "shovel" in give_ids, "shovel (tier=2) should be tradeable"
-    assert "broken_lever" not in give_ids, "broken_lever (tier=None) must not appear"
+    assert "file_cabinet_key" not in give_ids, "file_cabinet_key (tier=None) must not appear"
 
 
 def test_trade_offers_excludes_keycard():
@@ -247,22 +249,36 @@ def test_trade_same_tier_return():
 def test_trade_t5_sometimes_yields_allowance_or_the_traded_disk():
     """A tier-5 trade sometimes returns allowance_token (upgrade_disk no longer from trade path).
 
-    With t5_special_chance=50%, across many seeds we should see at least one
-    allowance_token among the returns. Upgrade Disks are one-time-per-source items;
-    the repeatable trade path only yields allowance_token as the tier-5 special.
+    All five tier-5 item groups are wiki give-only (no plain item is ever
+    received from a tier-5 trade -- confirmed by the raw wiki page's Trading
+    Post spoiler box: none of the tier-5 entries are bolded, and the
+    datamined section states the Upgrade Disk trade list "contains no other
+    items"). So master_key's own tier-5 cycle has no receivable successor,
+    and a given day's roll can leave it a self-edge (untradeable that day,
+    same as any 1-receivable-item tier) whenever neither the t5-special nor
+    the dice override fires. Seeds where master_key has no active offer are
+    skipped rather than asserted on; with t5_special_chance=50%, across many
+    seeds we should still see at least one allowance_token among the offered
+    trades.
     """
     specials_seen = set()
+    saw_any_offer = False
     for seed in range(200):
         game = _game(seed=seed)
         state = game.state
         state.inventory["master_key"] = 1  # tier 5
         _set_trading_post_inner(game)
+        offers = shops.trade_offers(game)
+        if not any(o["give"] == "master_key" for o in offers):
+            continue  # self-edge this day: master_key untradeable, skip
+        saw_any_offer = True
         log_before = len(state.items_found_log)
         shops.trade(game, "master_key")
         new_entries = state.items_found_log[log_before:]
         for kind, _ in new_entries:
             if kind == "allowance_token":
                 specials_seen.add(kind)
+    assert saw_any_offer, "expected at least one seed where master_key had an active offer"
     assert specials_seen, (
         f"expected some t5 trades to yield allowance_token; got {specials_seen}"
     )
@@ -358,8 +374,9 @@ def test_trade_graph_successors_same_tier_or_sentinel():
 
     Items must only cycle within their own tier.  Dice and allowance_token are
     permitted cross-tier sentinels; upgrade_disk_trade is a tier-5-only special
-    outcome (shops.py::_roll_trade_graph) and also crosses tiers (its own tier
-    is None, untradeable), so it is allowed here too.
+    outcome (shops.py::_roll_trade_graph) assigned directly as a successor
+    string bypassing the normal same-tier cycle, so it also crosses tiers here
+    even though it carries its own real tier (4, for the give-away path).
     """
     game = _game(seed=0)
     state = game.state
@@ -382,9 +399,26 @@ def test_trade_graph_successors_same_tier_or_sentinel():
 def test_trade_graph_no_receive_ids_never_a_successor():
     """A give-only (no_receive) item is never anyone's successor in the graph.
 
-    microchip/treasure_map/watering_can are wiki give-only: they can be handed
-    over at the Trading Post but the real game never hands them back. Checked
-    across several seeds since the graph's shuffle is seed-dependent.
+    Every wiki-verified give-only item (microchip, treasure_map, watering_can,
+    plus the broader tier sweep: give-only keys, contraptions, Upgrade Disks,
+    and the entirely-give-only tier-5 group) can be handed over at the Trading
+    Post but the real game never hands any of them back. Checked across
+    several seeds since the graph's shuffle is seed-dependent. The set itself
+    is read from the registry rather than pinned here, since it is exactly
+    the data this PR is sweeping -- pinning it would make this a change
+    detector on data/special_items.json instead of a test of the graph
+    invariant.
+
+    Self-edges (an id mapped to itself) are excluded from "successors": tier 5
+    is now entirely give-only, so every tier-5 id's un-overridden successor is
+    itself (_next_receivable's no-receivable-in-tier fallback) -- that is
+    _resolve_trade's untradeable-today case, not another give reaching it, so
+    it must not trip this check. upgrade_disk_trade is also excluded: it is
+    marked no_receive (never handed back by the ordinary same-tier cycle,
+    matching the wiki's unbold "Upgrade Disk"), but the tier-5-only special
+    branch in _roll_trade_graph assigns it directly as a successor string,
+    bypassing that cycle entirely -- the same wiki-documented exception
+    test_trade_graph_successors_same_tier_or_sentinel treats as a sentinel.
     """
     reg_ids = None
     for seed in range(5):
@@ -395,11 +429,9 @@ def test_trade_graph_no_receive_ids_never_a_successor():
         shops.trade_offers(game)  # trigger roll
         reg = game.registry
         if reg_ids is None:
-            reg_ids = {it.id for it in reg.special.items if it.no_receive}
-            assert reg_ids == {"microchip", "treasure_map", "watering_can"}, (
-                "expected exactly the three give-only items introduced by this PR"
-            )
-        successors = set(state.shops.trade_graph.values())
+            reg_ids = {it.id for it in reg.special.items if it.no_receive} - {"upgrade_disk_trade"}
+            assert reg_ids, "expected at least one give-only item in the registry"
+        successors = {v for k, v in state.shops.trade_graph.items() if v != k}
         assert not (reg_ids & successors), (
             f"seed={seed}: give-only id(s) {reg_ids & successors} appear as a successor"
         )
