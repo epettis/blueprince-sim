@@ -81,6 +81,14 @@ EFFECTS_ITEMS_DIR = ENGINE_DIR / "effects" / "items"
 #: when the id's behaviour moves to effects/items/<id>.py; never grow one
 #: just to make a new branch pass -- that is the debt this file measures.
 ITEM_ALLOWLIST: dict[str, set[str]] = {
+    "draft.py": {
+        # Not an id branch: "chronograph" here is the effect TAG, which is
+        # spelled identically to the item id (one of the 13 collisions this
+        # file and test_item_tag_allowlist.py are kept separate for). The
+        # tag scanner is where it is really accounted for; this entry exists
+        # only because a dumb id scanner cannot tell the two apart.
+        "chronograph",
+    },
     "game.py": {
         # Silver Key: for_draft consumption + silver_key_draft bias flag
         # (locked-door open path) -- a genuine id branch.
@@ -134,6 +142,10 @@ ITEM_ALLOWLIST: dict[str, set[str]] = {
         "stopwatch",
     },
     "special_items.py": {
+        # Not an id branch: the effect TAG "chronograph", spelled identically
+        # to the item id, read by chronograph_active_from_state. Accounted
+        # for properly in test_item_tag_allowlist.py.
+        "chronograph",
         # Sanctum Key family: SANCTUM_KEY_IDS module constant (sorted for
         # deterministic spend order) plus the per-site grant call that names
         # each key individually when its own room/area is first reached.

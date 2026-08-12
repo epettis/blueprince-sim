@@ -1416,7 +1416,7 @@
     "absent_spawn_areas": [],
     "blocked_on": "redraw_history_not_retained",
     "reachability": "inert",
-    "notes": "The old note that it is 'obtainable when PR2 adds shop actions' is stale: shops.py::buy landed long ago and the Showroom sells it for 30 coins (data/shops.json). The item has a second effect that is one line from live: priority_draws.json already carries a 'Tomorrow Rooms (Chronograph)' entry at the datamined 40% with condition: 'chronograph', but draft.py::_active_conditions never emits that string, so the bias never fires. The primary rewind-to-a-past-draw effect needs redraw history retained across days, which nothing currently stores."
+    "notes": "Obtainable today: the Showroom sells it for 30 coins (data/shops.json), via shops.py::buy. Its Tomorrow-Rooms bias IS live -- priority_draws.json carries a Tomorrow Rooms (Chronograph) entry at the datamined 40%, and draft.py::_active_conditions emits condition 'chronograph' while the item is held, checked via chronograph_active_from_state. What remains unmodelled is the primary rewind-to-a-past-draw effect, which needs redraw history retained and nothing currently stores it -- see blocked_on."
    }
   },
   {

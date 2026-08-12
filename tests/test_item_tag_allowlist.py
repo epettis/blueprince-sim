@@ -89,6 +89,9 @@ ITEM_TAG_ALLOWLIST: dict[str, set[str]] = {
         # test_room_id_allowlist.py's draft.py entries already use for
         # schoolhouse/the_foundation/etc.
         "electromagnet",
+        # chronograph_active_from_state() feeds conds.add("chronograph") for
+        # the 40% Tomorrow-Rooms priority draw -- same shape as electromagnet.
+        "chronograph",
     },
     "effects/tier1.py": {
         # _grant()'s resource-kind dispatch: case "allowance": applies the
@@ -135,7 +138,8 @@ ITEM_TAG_ALLOWLIST: dict[str, set[str]] = {
         # somewhere in this module, gating that item's specific behaviour
         # (spawn/pickup/step/currency/luck modifiers). This is the module
         # task 22's per-item registry would eventually split apart.
-        "allowance", "auto_collect", "coin_interest", "coin_multiplier",
+        "allowance", "auto_collect", "chronograph", "coin_interest",
+        "coin_multiplier",
         "compass", "dig_tool", "electromagnet", "emerald_bracelet",
         "food_bonus", "food_multiplier", "free_hallway_moves",
         "free_move_interval", "lockpick", "luck_bonus", "mask_red_room",
@@ -158,10 +162,6 @@ ITEM_TAG_ALLOWLIST: dict[str, set[str]] = {
 #: still listed is *also* a failure, demanding the entry be removed. Every
 #: entry names the item that carries the tag and its meta.blocked_on.
 DEFERRED_UNREAD_TAGS: frozenset[str] = frozenset({
-    # chronograph item: meta.blocked_on=redraw_history_not_retained --
-    # effect authored (rewinds the day's redraw history) but the engine
-    # keeps no such history to rewind.
-    "chronograph",
     # crown_of_the_blueprints item (note: the item id is
     # "crown_of_the_blueprints", the tag is the shorter "crown_of_blueprints"
     # -- they are not one of the 13 identical-spelling collisions):
