@@ -1,0 +1,101 @@
+{
+ "schema_version": 1,
+ "meta": {
+  "source": "https://blueprince.wiki.gg/wiki/Shrine",
+  "confidence": "wiki",
+  "notes": [
+   "Deposit 1-80 gold in the stone bowl to receive one of eight blessings, lasting 3-7 days (the granting day counts as day 1). Only one blessing can be active at a time; taking the offering back curses the player for 2 days instead, per resources-lost-per-drafted-colour (engine/effects/rooms/shrine.py). Live in engine/effects/rooms/shrine.py plus dispatch sites in engine/game.py (draft-time hooks, redraw's dice bonus, rotation's Dancer source, reset()'s Gardener injection). Records carrying 'implemented': true are live; the rest (Chef, Monk) are inert and carry meta.blocked_on.",
+   "Coin costs below are the LOWER value of each published two-coin pair (e.g. Dancer/3-day is published as 1 or 2 coins; this data stores 1) -- the wiki itself notes 'there is little reason to offer an even number of coins... other than to deliberately deprive oneself of gold', so the odd/low value reproduces the identical blessing/duration outcome for the minimum spend. The action space (env/actions.py) exposes 8 blessings x 5 durations = 40 donate actions rather than 80 raw coin amounts, deriving the coin cost from this table.",
+   "The wiki records one irregularity: within the 3-day band only, the published Chef/Tinkerer costs (7-8 and 11-12) are swapped relative to the otherwise-consistent +16-per-band pattern every other blessing follows across all five bands. Both blessings' 3-day costs are stored here exactly as published (Chef=7, Tinkerer=11), not 'corrected' to the pattern."
+  ]
+ },
+ "bands": [
+  {"min_coins": 1, "max_coins": 16, "duration_days": 3},
+  {"min_coins": 17, "max_coins": 32, "duration_days": 4},
+  {"min_coins": 33, "max_coins": 48, "duration_days": 5},
+  {"min_coins": 49, "max_coins": 64, "duration_days": 6},
+  {"min_coins": 65, "max_coins": 80, "duration_days": 7}
+ ],
+ "blessings": [
+  {
+   "id": "dancer",
+   "name": "Blessing of the Dancer",
+   "text": "While drafting, you may pay 1 gem to spin floorplans.",
+   "costs": [1, 17, 33, 49, 65],
+   "implemented": true,
+   "meta": {"blocked_on": null}
+  },
+  {
+   "id": "high_roller",
+   "name": "Blessing of the High Roller",
+   "text": "Each time you draft a Shop, gain 1 die. Gain 5 extra coins each time you roll dice.",
+   "costs": [3, 19, 35, 51, 67],
+   "implemented": true,
+   "meta": {"blocked_on": null}
+  },
+  {
+   "id": "gardener",
+   "name": "Blessing of the Gardener",
+   "text": "Add 8 Courtyards to your draft pool",
+   "costs": [5, 21, 37, 53, 69],
+   "implemented": true,
+   "meta": {"blocked_on": null}
+  },
+  {
+   "id": "tinkerer",
+   "name": "Blessing of the Tinkerer",
+   "text": "Whenever you draft a Mechanical Room, trigger your current experiment.",
+   "costs": [11, 23, 39, 55, 71],
+   "implemented": true,
+   "meta": {"blocked_on": null}
+  },
+  {
+   "id": "general",
+   "name": "Blessing of the General",
+   "text": "After you draft a Red Room, if you have at least 5 different ranks containing Red Rooms, gain 5 gems.",
+   "costs": [9, 25, 41, 57, 73],
+   "implemented": true,
+   "meta": {"blocked_on": null}
+  },
+  {
+   "id": "chef",
+   "name": "Blessing of the Chef",
+   "text": "For each different type of spread addition that you do each day, add an extra dish to the Dining Room.",
+   "costs": [7, 27, 43, 59, 75],
+   "implemented": false,
+   "meta": {"blocked_on": "dining_room_spread_dish_tracking_not_modeled"}
+  },
+  {
+   "id": "monk",
+   "name": "Blessing of the Monk",
+   "text": "If you call it a day in a room in your house, you will have the opportunity to draft that room from the grounds the following day.",
+   "costs": [13, 29, 45, 61, 77],
+   "implemented": false,
+   "meta": {"blocked_on": "grounds_drafting_not_modeled"}
+  },
+  {
+   "id": "berry_picker",
+   "name": "Blessing of the Berry Picker",
+   "text": "While drafting, instead of picking a floorplan, you can pick a berry. If you do, draft a floorplan at random from your draft pool disregarding rarity.",
+   "costs": [15, 31, 47, 63, 79],
+   "implemented": true,
+   "meta": {"blocked_on": null}
+  }
+ ],
+ "curse": {
+  "duration_days": 2,
+  "source": "taking back a previously-offered donation; loses the active blessing immediately",
+  "resource_loss_per_category": {
+   "bedroom": {"steps": 1},
+   "hallway": {"keys": 1},
+   "green": {"gems": 1},
+   "shop": {"coins": 1},
+   "red": {"steps": 1, "keys": 1, "gems": 1, "coins": 1}
+  },
+  "exempt_room_ids": ["veranda"],
+  "notes": [
+   "Applied once per drafted room, additively across every colour category the room carries (Room.is_category) -- reproduces both published examples: the Maid's Chamber (primary red + extra bedroom) loses 2 steps/1 key/1 gem/1 coin, and the Aquarium (every colour) loses 2 of each.",
+   "veranda is exempt per the wiki's published bullet ('The Veranda does not incur any penalty'). NOT modelled: the wiki's own commented-out (unpublished) claim that the Veranda's exemption does not hold when its cost is bypassed. NOT modelled: the Corriyard is only treated as a Hallway not a Green Room, and colour-changing Cloister upgrades still count as Green Room -- both are published (non-commented) refinements this table does not encode."
+  ]
+ }
+}

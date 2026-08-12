@@ -116,12 +116,12 @@ def test_colour_choice_is_masked_only_in_colour_pending(cfg):
     _place_secret_passage(g)
 
     mask_before = A.action_mask(g)
-    assert not any(mask_before[A.CHOOSE_COLOUR_BASE:A.N_ACTIONS])
+    assert not any(mask_before[A.CHOOSE_COLOUR_BASE:A.DONATE_BASE])
 
     g.open_door(SECRET_PASSAGE_CELL, N)
     assert g.phase is Phase.COLOUR_PENDING
     mask_pending = A.action_mask(g)
-    colour_slice = mask_pending[A.CHOOSE_COLOUR_BASE:A.N_ACTIONS]
+    colour_slice = mask_pending[A.CHOOSE_COLOUR_BASE:A.DONATE_BASE]
     assert colour_slice == [True] * len(COLOUR_CATEGORIES)
     # Nothing else is legal while a colour pick is outstanding.
     assert sum(mask_pending) == len(COLOUR_CATEGORIES)
@@ -129,7 +129,7 @@ def test_colour_choice_is_masked_only_in_colour_pending(cfg):
     g.choose_colour("red")
     assert g.phase is Phase.DRAFTING
     mask_after = A.action_mask(g)
-    assert not any(mask_after[A.CHOOSE_COLOUR_BASE:A.N_ACTIONS])
+    assert not any(mask_after[A.CHOOSE_COLOUR_BASE:A.DONATE_BASE])
 
 
 def test_colour_choice_action_unavailable_at_an_ordinary_doorway(cfg):
@@ -141,7 +141,7 @@ def test_colour_choice_action_unavailable_at_an_ordinary_doorway(cfg):
     g.open_door(*doors[0])
     assert g.phase is Phase.DRAFTING
     mask = A.action_mask(g)
-    assert not any(mask[A.CHOOSE_COLOUR_BASE:A.N_ACTIONS])
+    assert not any(mask[A.CHOOSE_COLOUR_BASE:A.DONATE_BASE])
 
 
 def test_day_replays_clean_through_colour_pending(cfg):

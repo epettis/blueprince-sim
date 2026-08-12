@@ -52,6 +52,7 @@ from . import secret_passage  # noqa: F401
 from . import spare_great_hall  # noqa: F401
 from . import security  # noqa: F401
 from . import shelter  # noqa: F401
+from . import shrine  # noqa: F401  (no room_hook; donate/take-back are action-driven, see game.py)
 from . import solarium  # noqa: F401
 from . import study  # noqa: F401
 from . import the_kennel  # noqa: F401

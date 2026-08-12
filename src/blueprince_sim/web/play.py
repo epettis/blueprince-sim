@@ -105,7 +105,13 @@ def action_group(action_id: int) -> str:
         return "control"
     if action_id == A.TOGGLE_DARKROOM_ACTION:
         return "control"
-    if A.CHOOSE_COLOUR_BASE <= action_id < A.N_ACTIONS:
+    if A.CHOOSE_COLOUR_BASE <= action_id < A.DONATE_BASE:
+        return "choose"
+    if A.DONATE_BASE <= action_id < A.TAKE_BACK_OFFERING_ACTION:
+        return "buy"
+    if action_id == A.TAKE_BACK_OFFERING_ACTION:
+        return "use"
+    if action_id == A.BERRY_PICK_ACTION:
         return "choose"
     return "other"
 
