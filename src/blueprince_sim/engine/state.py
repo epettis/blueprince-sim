@@ -267,7 +267,6 @@ class GameState:
     pending_colour_direction: int = 0
     outer_room_drafted: bool = False  # today's single outer-room draft has been used
     # area-graph node id the player stands on, or None when on the 5x9 grid (pos is authoritative)
-    # Equivalences with the old outer_loc int: None=0, "west_path"=1, <outer_room_id>=2
     area: str | None = None
     outer_room_entered: bool = False  # True once ON_ENTER has fired for today's outer room
     # Set the first time the player reaches west_path today (only possible via the Garage

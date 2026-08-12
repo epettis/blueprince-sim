@@ -231,14 +231,11 @@ def _apply_day_config(base_cfg: GameConfig, day_config: dict) -> GameConfig:
 
     Keys naming a config field that no longer exists are DROPPED rather than
     raising.  A record is a historical artifact: it was written against whatever
-    GameConfig looked like at the time, and fields get renamed and deleted
-    (``outer_rooms_unlocked`` -> ``west_gate_unlatched`` in PR #41, the three
-    outer step costs in PR #40, ``garage_car_used_before`` earlier still).
-    Passing an unknown key to dataclasses.replace raises TypeError, which
-    surfaced as a 500 and made the whole run un-viewable — every older multi-day
-    run in runs/ was affected.  Dropping the key replays that day against the
-    base value instead, which is a divergence, so the dropped names are returned
-    for the caller to flag.
+    GameConfig looked like at the time, and fields do get renamed and deleted.
+    Passing an unknown key to dataclasses.replace raises TypeError instead,
+    which would surface as a 500 and make the whole run un-viewable.  Dropping
+    the key replays that day against the base value instead, which is a
+    divergence, so the dropped names are returned for the caller to flag.
     """
     frozenset_fields = {
         f.name
@@ -294,9 +291,9 @@ def build_frames(record: dict) -> tuple[list[dict], dict | None]:
     # preset selector (web/play.py).  Records without the field predate it and
     # default to all-unlocks, which is what the trainer's default produced.
     #
-    # This was a real silent-drift bug, not a hypothetical: before the field
-    # existed, a fresh-save record replayed onto the all-unlocks base and
-    # diverged at the first action whose legality differed.
+    # A record without the field, replayed onto the wrong base, silently
+    # diverges at the first action whose legality differs from what was
+    # recorded.
     reward = record.get("reward", "shaped")
     unlocks = record.get("unlocks", "all")
     base_cfg = fresh_save_config(reward) if unlocks in ("none", "fresh") \
@@ -373,12 +370,11 @@ def build_frames(record: dict) -> tuple[list[dict], dict | None]:
             # the UI must not misattribute it to the legacy format.
             "legacy_record": day_config is None,
             # Action ids are positional, so a record written against a different
-            # action space replays as nonsense.  PR #40 deleted three actions and
-            # renumbered everything above 186 (279 -> 312 slots), so EVERY record
-            # predating it diverges.  Without this the UI told the owner the
-            # divergence was "unexplained - worth reporting" for his whole replay
-            # archive.  None means the record predates the stamp, which is itself
-            # evidence it was written against the older space.
+            # action space replays as nonsense.  Comparing recorded_n_actions
+            # against current_n_actions lets the UI attribute a divergence to an
+            # action-space mismatch instead of surfacing it as unexplained.  None
+            # means the record predates this stamp, which is itself evidence it
+            # was written against an older action space.
             "recorded_n_actions": record.get("n_actions"),
             "current_n_actions": _current_n_actions(),
             # Config keys in the record that no longer exist on GameConfig; the
