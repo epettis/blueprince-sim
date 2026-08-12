@@ -257,6 +257,119 @@ def validate_item_registry(registry) -> list[str]:
          if item_id not in registry.special.by_id})
 
 
+class ItemHook(Enum):
+    """Game events an item handler can answer.
+
+    Mirrors ``Hook``, but the arity is different: exactly one room answers a
+    room event (the grid gives ``fire`` that exclusivity for free), while any
+    number of held items can register a handler for the same ``ItemHook`` --
+    Emerald Bracelet and Hall Pass both answer ``GEM_COST``, for instance.
+    That is why an item handler must return a value (the modified cost, the
+    bonus coins, a bool) rather than run for effect the way a room handler
+    does: the return value is what ``fire_item_chain``/``fold_item_chain``
+    arbitrate between. ``None`` always means "this item does not apply right
+    now" -- try the next one -- and is never itself a legitimate outcome for
+    any hook below.
+    """
+    GEM_COST = "gem_cost"  # drafting a room: waive/reduce its gem cost
+    MOVE_STEP_COST = "move_step_cost"  # one grid move: waive/reduce its step cost
+    COINS_GRANTED = "coins_granted"  # coins just collected: bonus coins owed on top
+    GEM_PAYMENT_WAIVER = "gem_payment_waiver"  # paying gems: waive the payment outright
+    RED_ROOM_NEGATE = "red_room_negate"  # a red room's negative effect: negate it
+    FOOD_STEP_BONUS = "food_step_bonus"  # one pipeline stage of a food item's step total
+
+
+# (item_id, ItemHook) -> handler. Unlike _ROOM_REGISTRY, more than one
+# item_id can be registered for the same hook -- callers arbitrate with
+# fire_item_chain (first applicable item wins) or fold_item_chain (every
+# applicable item transforms the value in turn), walking their own
+# engine-owned priority tuple rather than any order recorded here.
+ItemEventHandler = Callable  # (state, registry, *args) -> result, or None if inapplicable now
+_ITEM_HOOK_REGISTRY: dict[tuple[str, ItemHook], ItemEventHandler] = {}
+
+
+def item_hook(item_id: str, hook: ItemHook):
+    """Decorator registering ``item_id``'s handler for one ``ItemHook``.
+
+    Unlike ``room_hook``, whose handler fires only while the player actually
+    stands in that room (a fact ``fire`` establishes for it), an item
+    handler is called on every fire regardless of whether ``item_id`` is
+    held -- the handler itself must decide, the same way it decides any
+    other context predicate (a room category, a rank, a daily charge not
+    yet spent). Most handlers' first line is therefore a holding check
+    (directly, or via an already-registered ``item_capability_any``/``_sum``
+    fact); a handler keyed on nothing but an engine-owned counter (e.g. the
+    Stopwatch, whose charge count is never allowed to outlive its item being
+    held) may have none at all.
+    """
+    def deco(fn: ItemEventHandler) -> ItemEventHandler:
+        _ITEM_HOOK_REGISTRY[(item_id, hook)] = fn
+        return fn
+    return deco
+
+
+def fire_item(state, registry, item_id: str, hook: "ItemHook", *args):
+    """Call ``item_id``'s registered handler for ``hook``, or None if it has
+    none registered.
+
+    Does not check whether ``item_id`` is held -- that is the handler's own
+    context predicate to apply, per ``item_hook``'s docstring. None from a
+    called handler means it declined given the current context (not held,
+    wrong room category, charge already spent, ...); callers cannot and
+    don't need to tell those reasons apart.
+    """
+    handler = _ITEM_HOOK_REGISTRY.get((item_id, hook))
+    if handler is None:
+        return None
+    return handler(state, registry, *args)
+
+
+def fire_item_chain(state, registry, hook: "ItemHook", priority: tuple[str, ...], *args,
+                     default=None):
+    """First-match-wins arbitration over ``priority``, engine code's one
+    explicit total order for ``hook``.
+
+    Calls each item in ``priority`` order and returns the first non-None
+    result; items after the winner are never even queried, so a
+    charge-consuming handler later in the tuple cannot fire once an earlier
+    one has already answered.  Returns ``default`` if nothing in the tuple
+    is held, registered, or applicable.
+    """
+    for item_id in priority:
+        result = fire_item(state, registry, item_id, hook, *args)
+        if result is not None:
+            return result
+    return default
+
+
+def fold_item_chain(state, registry, hook: "ItemHook", priority: tuple[str, ...], value, *args):
+    """Ordered fold over ``priority``: every applicable item in the tuple
+    transforms ``value`` in turn, in that order.
+
+    Unlike ``fire_item_chain``, this does not stop at the first applicable
+    item -- each one's result becomes the input to the next.  An item that
+    is not held, not registered for ``hook``, or declines (returns None)
+    simply leaves ``value`` unchanged for that step.
+    """
+    for item_id in priority:
+        result = fire_item(state, registry, item_id, hook, value, *args)
+        if result is not None:
+            value = result
+    return value
+
+
+def validate_item_hook_registry(registry) -> list[str]:
+    """Return every item id registered via ``item_hook`` that ``registry`` lacks.
+
+    Mirrors ``validate_item_registry`` for the handler-chain registry: a
+    typo'd id in an ``item_hook`` decorator would otherwise just never match
+    a real item and silently never fire.
+    """
+    return sorted(
+        {item_id for item_id, _hook in _ITEM_HOOK_REGISTRY
+         if item_id not in registry.special.by_id})
+
+
 def fire(game, room, hook: Hook, context_room=None) -> None:
     """Run all of ``room``'s effects that belong to ``hook``, then its room-id handler.
 

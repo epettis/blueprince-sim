@@ -177,6 +177,17 @@ ITEM_ALLOWLIST: dict[str, set[str]] = {
         "compass", "lunch_box",
         "moon_pendant", "royal_scepter", "sleeping_mask",
         "stopwatch", "treasure_map", "watering_can",
+        # Task 22 phase 4's priority-chain tuples (GEM_COST_PRIORITY,
+        # MOVE_STEP_COST_PRIORITY, COINS_GRANTED_PRIORITY,
+        # GEM_PAYMENT_WAIVER_PRIORITY, RED_ROOM_NEGATE_PRIORITY,
+        # FOOD_STEPS_PIPELINE): the engine-owned total order for each
+        # ItemHook chain has to name its member item ids somewhere, by
+        # design (owner ruling: never a priority= number on the
+        # item_hook registration, which would scatter the order across
+        # the very modules it ranks). Each item's own applicability logic
+        # still lives in its engine/effects/items/<id>.py module.
+        "coin_purse", "emerald_bracelet", "hall_pass", "knights_shield",
+        "lucky_purse", "running_shoes", "salt_shaker", "silver_spoon",
     },
 }
 

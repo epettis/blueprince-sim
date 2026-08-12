@@ -130,13 +130,16 @@ ITEM_TAG_ALLOWLIST: dict[str, set[str]] = {
         # ornate_compass, master_key, emerald_bracelet, food_multiplier,
         # free_hallway_moves, coin_multiplier) moved to per-item
         # ItemCapability registrations in engine/effects/items/ and no
-        # longer appear here or in special_items.json.
-        "allowance", "auto_collect", "coin_interest",
+        # longer appear here or in special_items.json. Phase 4 moved five
+        # more (coin_interest, food_bonus, free_move_interval,
+        # mask_red_room, negate_red_once_per_day) to per-item ItemHook
+        # handlers in engine/effects/items/coin_purse.py, salt_shaker.py,
+        # running_shoes.py, and knights_shield.py.
+        "allowance", "auto_collect",
         "compass", "dig_tool",
-        "food_bonus",
-        "free_move_interval", "lockpick", "luck_bonus", "mask_red_room",
+        "lockpick", "luck_bonus",
         "metal_detector_spawns", "moon_pendant_carry",
-        "negate_red_once_per_day", "set_steps_on_pickup",
+        "set_steps_on_pickup",
         "sleeping_mask", "smash", "steps_at_rank", "stopwatch",
         # "treasure_map" section dict key (raw["treasure_map"]: cells,
         # rewards) plus has(state, "treasure_map") item-id lookups --

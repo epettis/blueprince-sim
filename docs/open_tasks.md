@@ -814,7 +814,7 @@ it comes first and stands alone.
 | 1 | Truth pass on the 14 records; delete the `ignition_tool` tag | XS | Low | **DONE in #199** |
 | 2 | `ItemCapability` primitives + `effects/items/`; migrate `coupon_book` as pattern-setter | S | Low | **DONE in #203** |
 | 3 | Pure-query **singleton** capabilities (8 modules) | M | Low | **DONE in #204** |
-| 4 | The folds -- **the engine's ordered capability tuple is written here** | M | **Med** |
+| 4 | Item handlers on game events + the engine-owned priority tuples | M | **Med** | **DONE in #205** |
 | 5 | Id-branch items with no tags (~15 modules) | M | Med |
 | 6 | RNG-touching migrations, **last and alone** | M | **High** |
 | 7 | Shrink both allowlists; delete `implemented`/`blocked_on` | S | Low |
@@ -854,6 +854,46 @@ allowlist entry** -- that rule alone catches `ignition_tool` today.
 around 1,800 LOC.
 
 ## Decisions log
+
+- **2026-08-12, phase 4 landed, and it moved the item-id debt UP -- correctly.**
+  Numbers: **item tag pairs 27 -> 22**, **room id pairs 79 -> 78**, but
+  **item id pairs 56 -> 64**.
+
+  The increase is the design working, not a regression. The engine-owned
+  priority tuples (`GEM_COST_PRIORITY`, `MOVE_STEP_COST_PRIORITY`,
+  `COINS_GRANTED_PRIORITY`, `GEM_PAYMENT_WAIVER_PRIORITY`,
+  `RED_ROOM_NEGATE_PRIORITY`, `FOOD_STEPS_PIPELINE`) **have to name their member
+  item ids somewhere** -- that is what an explicit total order *is*. The
+  alternative, a `priority=` number on each registration, is exactly what the
+  owner rejected because it scatters the order across the modules it ranks.
+
+  **Consequence: phase 0's "irreducible floor is ~8-10 of 58" is now wrong.**
+  The floor is that plus the priority-tuple members -- call it **~18-22**. More
+  importantly, **the item-id allowlist no longer measures one thing.** Part of
+  it is genuine debt (an engine module branching on an item id) and part is
+  permanent architecture (an arbitration order naming its members). A scoreboard
+  that conflates the two stops measuring anything, which is the failure its own
+  bidirectional check exists to prevent. **Phase 7 should split the allowlist
+  into those two sections** rather than report one number.
+
+  Bonus result: **the room-id debt fell without anyone targeting it.**
+  `"hallway"` sat in `special_items.py` only for the Hall Pass's
+  `is_category("hallway")` test; moving that into `hall_pass.py` (glob-excluded)
+  removed a *room*-id literal from a scanned module.
+
+- **2026-08-12, two stale-comment findings from phase 4, both pre-existing.**
+
+  1. **My phase 4 brief mis-attributed the "never burn a Stopwatch charge on a
+     free room" guard to `gem_cost_modifier`.** That function never touches
+     `stopwatch_left` at all -- its own comment says the waiver happens at PAY
+     time. The real guard is `stopwatch_waives_gems`'s own `cost > 0`
+     condition. The principle was right and the function was wrong; the agent
+     caught it and pinned the real guard with a test.
+  2. **`gem_cost_modifier`'s docstring said "Emerald Bracelet first, then Hall
+     Pass, then Stopwatch"** -- and the Stopwatch was never in that chain, as
+     the function's own body comment stated two lines below. A stale docstring
+     contradicted by the code beside it, surviving the task 16 sweep because it
+     reads as a specification rather than as history. Now corrected.
 
 - **2026-08-12, item handlers fire on game events, exactly like room handlers.
   The claim that "items have no natural event boundary" was wrong.** Owner
