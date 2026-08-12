@@ -71,10 +71,10 @@ SRC_DIR = ENGINE_DIR.parent.parent
 #: construction (non-recursive glob), matching the sibling scanners.
 EFFECTS_ROOMS_DIR = ENGINE_DIR / "effects" / "rooms"
 
-#: Where task 22's per-item registry migration puts item behaviour (phase 2
-#: landed it, holding only coupon_book.py so far) -- excluded from the
-#: allowlist scan by construction, same as the room-id scanner excludes
-#: effects/rooms/. See test_effects_subdirectories_are_excluded_by_construction.
+#: Where task 22's per-item registry migration puts item behaviour, one
+#: module per carrier item -- excluded from the allowlist scan by
+#: construction, same as the room-id scanner excludes effects/rooms/. See
+#: test_effects_subdirectories_are_excluded_by_construction.
 EFFECTS_ITEMS_DIR = ENGINE_DIR / "effects" / "items"
 
 #: module filename -> effect tags that module may name as string literals.
@@ -83,16 +83,6 @@ EFFECTS_ITEMS_DIR = ENGINE_DIR / "effects" / "items"
 #: module's scan (test_allowlist_has_no_stale_entries), and no other tag
 #: literal may appear anywhere unlisted (test_no_tag_literals_outside_the_allowlist).
 ITEM_TAG_ALLOWLIST: dict[str, set[str]] = {
-    "draft.py": {
-        # electromagnet_active_from_state() feeds conds.add("electromagnet")
-        # -- a priority_draws.json condition tag, the same pattern
-        # test_room_id_allowlist.py's draft.py entries already use for
-        # schoolhouse/the_foundation/etc.
-        "electromagnet",
-        # chronograph_active_from_state() feeds conds.add("chronograph") for
-        # the 40% Tomorrow-Rooms priority draw -- same shape as electromagnet.
-        "chronograph",
-    },
     "effects/tier1.py": {
         # _grant()'s resource-kind dispatch: case "allowance": applies the
         # delta to state.allowance. This is a room-effect currency-kind
@@ -135,14 +125,18 @@ ITEM_TAG_ALLOWLIST: dict[str, set[str]] = {
         # item.effect("<tag>") or _has_item_effect(state, registry, "<tag>")
         # somewhere in this module, gating that item's specific behaviour
         # (spawn/pickup/step/currency/luck modifiers). This is the module
-        # task 22's per-item registry would eventually split apart.
-        "allowance", "auto_collect", "chronograph", "coin_interest",
-        "coin_multiplier",
-        "compass", "dig_tool", "electromagnet", "emerald_bracelet",
-        "food_bonus", "food_multiplier", "free_hallway_moves",
+        # task 22's per-item registry would eventually split apart. Eight
+        # formerly-listed singleton tags (electromagnet, chronograph,
+        # ornate_compass, master_key, emerald_bracelet, food_multiplier,
+        # free_hallway_moves, coin_multiplier) moved to per-item
+        # ItemCapability registrations in engine/effects/items/ and no
+        # longer appear here or in special_items.json.
+        "allowance", "auto_collect", "coin_interest",
+        "compass", "dig_tool",
+        "food_bonus",
         "free_move_interval", "lockpick", "luck_bonus", "mask_red_room",
-        "master_key", "metal_detector_spawns", "moon_pendant_carry",
-        "negate_red_once_per_day", "ornate_compass", "set_steps_on_pickup",
+        "metal_detector_spawns", "moon_pendant_carry",
+        "negate_red_once_per_day", "set_steps_on_pickup",
         "sleeping_mask", "smash", "steps_at_rank", "stopwatch",
         # "treasure_map" section dict key (raw["treasure_map"]: cells,
         # rewards) plus has(state, "treasure_map") item-id lookups --
@@ -223,9 +217,9 @@ def _scanned_paths() -> list:
     """Every engine module the allowlist covers, in a stable order.
 
     ``engine/*.py`` plus ``engine/effects/*.py``, excluding
-    ``effects/rooms/`` and the not-yet-created ``effects/items/`` (both
-    excluded by construction: a non-recursive glob never walks into a
-    subdirectory). ``__init__.py`` files are skipped. Identical scope to
+    ``effects/rooms/`` and ``effects/items/`` (both excluded by
+    construction: a non-recursive glob never walks into a subdirectory).
+    ``__init__.py`` files are skipped. Identical scope to
     test_item_id_allowlist.py's ``_scanned_paths``.
     """
     paths = [p for p in ENGINE_DIR.glob("*.py") if p.name != "__init__.py"]
@@ -250,9 +244,9 @@ def _all_tags(registry) -> set[str]:
 
 def test_effects_subdirectories_are_excluded_by_construction():
     """The scan targets ``engine/*.py`` (non-recursive), so ``effects/rooms/``
-    and the not-yet-created ``effects/items/`` are never walked; this pins
-    both exclusions as holding by construction (a non-recursive glob), not
-    an allowlist entry that could silently rot."""
+    and ``effects/items/`` are never walked; this pins both exclusions as
+    holding by construction (a non-recursive glob), not an allowlist entry
+    that could silently rot."""
     assert EFFECTS_ROOMS_DIR.is_dir()
     assert not any(EFFECTS_ROOMS_DIR == p.parent for p in _scanned_paths())
     assert not any(EFFECTS_ITEMS_DIR == p.parent for p in _scanned_paths())

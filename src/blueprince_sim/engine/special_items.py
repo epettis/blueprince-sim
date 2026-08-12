@@ -23,6 +23,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from . import experiments
+from .effects import ItemCapability, item_capability_any
 from .model import Effect
 
 KINDS = ("standard", "special_key", "contraption", "showroom", "armory", "unique")
@@ -922,7 +923,7 @@ def move_step_cost(game, from_cell: int, direction: int, to_room) -> int:
     if from_idx >= 0:
         from_room = registry.rooms[from_idx]
         if (from_room.is_category("hallway") and to_room.is_category("hallway")
-                and _has_item_effect(state, registry, "free_hallway_moves")):
+                and item_capability_any(state, registry, ItemCapability.FREE_HALLWAY_MOVES)):
             return 0
 
     # Stopwatch: active free cost event
@@ -953,7 +954,7 @@ def move_step_cost(game, from_cell: int, direction: int, to_room) -> int:
 def can_open_locked_free(game) -> bool:
     """Deterministic free open of a locked door (Master Key), used by
     passability/nav so paths don't budget keys the player won't spend."""
-    return _has_item_effect(game.state, game.registry, "master_key")
+    return item_capability_any(game.state, game.registry, ItemCapability.MASTER_KEY)
 
 
 def open_locked_free(game) -> bool:
@@ -1025,7 +1026,7 @@ def gem_cost_modifier(game, room, cost: int) -> int:
         return cost
 
     # Emerald Bracelet: always waive gem cost
-    if _has_item_effect(state, registry, "emerald_bracelet"):
+    if item_capability_any(state, registry, ItemCapability.EMERALD_BRACELET):
         return 0
 
     # Hall Pass: waive if drafting a hallway room from a hallway room
@@ -1034,7 +1035,8 @@ def gem_cost_modifier(game, room, cost: int) -> int:
         if from_cell >= 0 and state.grid[from_cell] >= 0:
             from_room = registry.rooms[state.grid[from_cell]]
             if (from_room.is_category("hallway")
-                    and _has_item_effect(state, registry, "free_hallway_moves")):
+                    and item_capability_any(
+                        state, registry, ItemCapability.FREE_HALLWAY_MOVES)):
                 return 0
 
     # Stopwatch gem waiver happens at PAY time (stopwatch_waives_gems), never
@@ -1151,7 +1153,7 @@ def on_coins_granted(state, registry, amount: int) -> int:
     Coin Purse (coin_interest) pays 1 bonus per 3 coins across pickups.
     """
     # Lucky Purse: doubles the incoming amount (supersedes Coin Purse)
-    if _has_item_effect(state, registry, "coin_multiplier"):
+    if item_capability_any(state, registry, ItemCapability.COIN_MULTIPLIER):
         return amount
     # Coin Purse: accumulate interest; pay 1 per 3 coins collected
     for item_id, cnt in state.inventory.items():
@@ -1261,7 +1263,7 @@ def food_steps(state, registry, base: int) -> int:
         if e is not None:
             total += e.param("amount", 0)
     # Silver Spoon: then double
-    if _has_item_effect(state, registry, "food_multiplier"):
+    if item_capability_any(state, registry, ItemCapability.FOOD_MULTIPLIER):
         total *= 2
     return total
 
@@ -1285,8 +1287,8 @@ def compass_active(game) -> bool:
 
 def ornate_compass_active(game) -> bool:
     """Rotate-at-will on every draft: config flag or held Ornate Compass."""
-    return game.cfg.ornate_compass or _has_item_effect(
-        game.state, game.registry, "ornate_compass")
+    return game.cfg.ornate_compass or item_capability_any(
+        game.state, game.registry, ItemCapability.ORNATE_COMPASS)
 
 
 def compass_active_from_state(state, registry, cfg) -> bool:
@@ -1305,7 +1307,7 @@ def electromagnet_active_from_state(state, registry) -> bool:
     Electromagnet: its Mechanical-Rooms-plus-Rotunda draft bias persists while
     held, the same way its component Compass effect does.
     """
-    return _has_item_effect(state, registry, "electromagnet")
+    return item_capability_any(state, registry, ItemCapability.ELECTROMAGNET)
 
 
 def chronograph_active_from_state(state, registry) -> bool:
@@ -1316,7 +1318,7 @@ def chronograph_active_from_state(state, registry) -> bool:
     same shape as the Powered Electromagnet's bias above. The Chronograph's
     other effect, rewinding a redraw, is separate and unmodelled.
     """
-    return _has_item_effect(state, registry, "chronograph")
+    return item_capability_any(state, registry, ItemCapability.CHRONOGRAPH)
 
 
 def satisfied_condition_items(state) -> set[str]:

@@ -57,16 +57,15 @@ KNOWN_GUARANTEED_ITEM_KINDS = {"coins", "coins_exact", "key", "gem", "die", "ste
                                 "food", "fruit", "random"}
 KNOWN_ITEM_EFFECT_TAGS = {
     # PR1 functional set
-    "lockpick", "luck_bonus", "coin_interest", "coin_multiplier",
-    "food_bonus", "food_multiplier", "free_hallway_moves", "free_move_interval",
-    "stopwatch", "sleeping_mask", "watering_can", "master_key",
-    "compass", "ornate_compass", "emerald_bracelet", "dig_tool", "treasure_map",
+    "lockpick", "luck_bonus", "coin_interest",
+    "food_bonus", "free_move_interval",
+    "stopwatch", "sleeping_mask", "watering_can",
+    "compass", "dig_tool", "treasure_map",
     "metal_detector_spawns", "auto_collect", "mask_red_room", "paper_crown",
-    "electromagnet",
     "set_steps_on_pickup", "steps_at_rank", "negate_red_once_per_day",
     "allowance",
     # PR2+ / inert tags
-    "smash", "repellent", "scepter", "chronograph",
+    "smash", "repellent", "scepter",
     "crown_of_blueprints", "gear_wrench", "dowsing_rod", "locksmith_rob",
     # Multi-day carry-over (PR2 item persistence)
     "moon_pendant_carry",

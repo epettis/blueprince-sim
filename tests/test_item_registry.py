@@ -20,15 +20,28 @@ production call site beyond their own dedicated tests in
 test_room_registry.py -- there is no pytest-wide fixture or tools/ script
 that invokes them either. ``validate_item_registry`` is exercised the same
 way here, directly, rather than wired into some other call site.
+
+``item_capability_any`` is the boolean sibling of ``item_capability_sum``
+(an OR over held items' registrations rather than a sum of one param), added
+for task 22 phase 3's eight pure-boolean migrations below. Its own mechanics
+get the same probe-based tests as ``item_capability_sum`` above; each real
+module's registration then gets a dedicated liveness test -- importing
+``blueprince_sim.engine.game`` (the production import path every real
+registration flows through, the same way ``test_coupon_book_is_registered...``
+does above) and checking the query flips true only while the carrier item is
+actually held, so a popped registration would fail loudly rather than pass
+vacuously.
 """
 
 from __future__ import annotations
 
 import pytest
 
+import blueprince_sim.engine.game  # noqa: F401  (production import path; registers items)
 from blueprince_sim.engine.effects import (
     ItemCapability,
     _ITEM_CAPABILITY_REGISTRY,
+    item_capability_any,
     item_capability_sum,
     item_provides,
     validate_item_registry,
@@ -125,3 +138,76 @@ def test_coupon_book_is_registered_with_amount_one(registry):
     state.inventory["coupon_book"] = 1
 
     assert item_capability_sum(state, registry, ItemCapability.SHOP_DISCOUNT, "amount") == 1
+
+
+def test_any_true_only_while_held_with_a_positive_count(registry, item_capability_probe):
+    """item_capability_any is False with no registration, False at count 0,
+    and True at a positive count -- the same "held" rule item_capability_sum
+    uses, just folded with OR instead of +."""
+    item_capability_probe("stopwatch", ItemCapability.SHOP_DISCOUNT)
+    state = GameState()
+
+    assert item_capability_any(state, registry, ItemCapability.SHOP_DISCOUNT) is False
+
+    state.inventory["stopwatch"] = 0
+    assert item_capability_any(state, registry, ItemCapability.SHOP_DISCOUNT) is False
+
+    state.inventory["stopwatch"] = 1
+    assert item_capability_any(state, registry, ItemCapability.SHOP_DISCOUNT) is True
+
+
+def test_any_is_true_if_any_one_of_several_held_items_registers(registry, item_capability_probe):
+    """item_capability_any is a genuine OR: holding just one of two
+    registered items is enough to flip it true, unlike a sum which would
+    need both to reach a larger total."""
+    item_capability_probe("stopwatch", ItemCapability.SHOP_DISCOUNT)
+    item_capability_probe("master_key", ItemCapability.SHOP_DISCOUNT)
+    state = GameState()
+    state.inventory["master_key"] = 1
+
+    assert item_capability_any(state, registry, ItemCapability.SHOP_DISCOUNT) is True
+
+
+def test_any_ignores_a_different_capability(registry, item_capability_probe):
+    """A capability registration only answers a query for that same
+    capability -- querying a different capability for the same held item
+    returns False, not True."""
+    item_capability_probe("stopwatch", ItemCapability.SHOP_DISCOUNT)
+    state = GameState()
+    state.inventory["stopwatch"] = 1
+
+    other_capability = object()  # anything that cannot equal SHOP_DISCOUNT
+
+    assert item_capability_any(state, registry, other_capability) is False
+
+
+# item id -> ItemCapability member registered by its real
+# engine/effects/items/<item_id>.py module (task 22 phase 3's eight
+# pure-boolean migrations).
+_PHASE_3_CARRIERS = {
+    "powered_electromagnet": ItemCapability.ELECTROMAGNET,
+    "chronograph": ItemCapability.CHRONOGRAPH,
+    "ornate_compass": ItemCapability.ORNATE_COMPASS,
+    "master_key": ItemCapability.MASTER_KEY,
+    "emerald_bracelet": ItemCapability.EMERALD_BRACELET,
+    "silver_spoon": ItemCapability.FOOD_MULTIPLIER,
+    "hall_pass": ItemCapability.FREE_HALLWAY_MOVES,
+    "lucky_purse": ItemCapability.COIN_MULTIPLIER,
+}
+
+
+@pytest.mark.parametrize("item_id,capability", sorted(_PHASE_3_CARRIERS.items(), key=str))
+def test_phase_3_carrier_is_registered_and_reachable(registry, item_id, capability):
+    """Each of the eight phase-3 item modules actually registers its
+    capability at import time -- through the production import path
+    (``import blueprince_sim.engine.game`` at module scope above) -- and the
+    query it backs is False before the carrier is held and True once it is.
+    A capability that were registered but never reachable (or never
+    registered at all, e.g. a module missing from effects/items/__init__.py)
+    would fail here rather than pass vacuously."""
+    state = GameState()
+
+    assert item_capability_any(state, registry, capability) is False
+
+    state.inventory[item_id] = 1
+    assert item_capability_any(state, registry, capability) is True

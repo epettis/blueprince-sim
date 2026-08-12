@@ -813,7 +813,7 @@ it comes first and stands alone.
 | 0 | Two scanners + allowlists (`item_id`, `effect_tag`), bidirectional. **No code moves.** | S | Low | **DONE in #200** |
 | 1 | Truth pass on the 14 records; delete the `ignition_tool` tag | XS | Low | **DONE in #199** |
 | 2 | `ItemCapability` primitives + `effects/items/`; migrate `coupon_book` as pattern-setter | S | Low | **DONE in #203** |
-| 3 | Pure-query capabilities (~12 modules) | M | Low |
+| 3 | Pure-query **singleton** capabilities (8 modules) | M | Low | **DONE in #204** |
 | 4 | The folds -- **the engine's ordered capability tuple is written here** | M | **Med** |
 | 5 | Id-branch items with no tags (~15 modules) | M | Med |
 | 6 | RNG-touching migrations, **last and alone** | M | **High** |
@@ -854,6 +854,54 @@ allowlist entry** -- that rule alone catches `ignition_tool` today.
 around 1,800 LOC.
 
 ## Decisions log
+
+- **2026-08-12, the recorded phase table contradicted itself, and the
+  contradiction is resolved against migrating shared tags.** The architecture
+  pass listed phase 3 as migrating `luck_bonus`, `compass`, `dig_tool`,
+  `lockpick`, `metal_detector_spawns` and `smash`, **and separately said those
+  same six must stay in data** as shared parametric tags. Both statements were
+  in this file.
+
+  **Resolved: a tag carried by more than one item stays in data; singletons
+  migrate.** Two reasons, the second decisive:
+
+  1. The rooms rationale does not transfer. Task 17 kept shared parametric
+     tags in data because `items.py::expected_yields` introspects them
+     generically. **Nothing introspects item effect tags generically** --
+     `SpecialItem.effect(tag)` is a keyed lookup, and every
+     `for e in ... .effects` site in the engine iterates *room* effects.
+  2. **`CLAUDE.md`'s standing rule settles it regardless: published tables go
+     in data, not Python constants.** `lockpick` carries rates
+     `[54, 35, 30, 19]`, `metal_detector_spawns` carries
+     `{coins: 60, key: 25}`, `dig_tool` names three dig tables. Migrating them
+     would put published numbers in Python -- which three earlier PRs had to
+     undo in review.
+
+  This also matches task 17's precedent exactly: singletons move, shared
+  parametric stays. Phase 3's real scope was **8 tags, not ~12**.
+
+- **2026-08-12, phase 3 landed: 8 pure-query singleton capabilities migrated.**
+  `electromagnet`, `chronograph`, `ornate_compass`, `master_key`,
+  `emerald_bracelet`, `food_multiplier`, `free_hallway_moves`,
+  `coin_multiplier`. Added `item_capability_any` as the boolean sibling of
+  phase 2's `item_capability_sum` -- both commutative, so neither exercises
+  ordering. **Phase 4 remains the first real test of the fold-order design.**
+
+  **Debt: tag pairs 37 -> 27, id pairs 60 -> 56.** Be precise about what that
+  measures: **8 of the 10 tag pairs are genuine migrations; 2 are
+  reclassifications.** `draft.py`'s `"electromagnet"` and `"chronograph"`
+  literals are `priority_draws.json` **condition names**, which only ever
+  counted as item-tag debt because they were spelled identically to item tags.
+  Deleting the tags from data means the tag scanner correctly stops tracking
+  those strings -- the literals remain in `draft.py`, legitimately, as
+  condition names that no scanner covers because none ever did.
+
+  **`powered_electromagnet` is a deliberate half-migration**: `electromagnet`
+  moved to a module, while `compass` (multi-carrier), `auto_collect` and
+  `locksmith_rob` stay as data tags. Its module docstring names the split in
+  both directions. A half-migrated item is the most confusing state in the
+  system, and the comment is what stops someone later "finishing the job"
+  by moving a shared tag into Python.
 
 - **2026-08-12, task 22 phase 2 landed, and the item registry is a fold, not a
   hook.** The primitive is `item_provides(item_id, ItemCapability, **params)`:

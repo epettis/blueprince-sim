@@ -66,10 +66,10 @@ ENGINE_DIR = Path(_model_module.__file__).resolve().parent
 #: entry -- see test_effects_subdirectories_are_excluded_by_construction).
 EFFECTS_ROOMS_DIR = ENGINE_DIR / "effects" / "rooms"
 
-#: Where task 22's per-item registry migration puts item behaviour (phase 2
-#: landed it, holding only coupon_book.py so far); the scan excludes it by
-#: construction (non-recursive glob over effects/*.py) rather than by
-#: allowlist entry, so it required no edit here. See
+#: Where task 22's per-item registry migration puts item behaviour, one
+#: module per carrier item; the scan excludes it by construction
+#: (non-recursive glob over effects/*.py) rather than by allowlist entry, so
+#: it required no edit here. See
 #: test_effects_subdirectories_are_excluded_by_construction.
 EFFECTS_ITEMS_DIR = ENGINE_DIR / "effects" / "items"
 
@@ -142,10 +142,6 @@ ITEM_ALLOWLIST: dict[str, set[str]] = {
         "stopwatch",
     },
     "special_items.py": {
-        # Not an id branch: the effect TAG "chronograph", spelled identically
-        # to the item id, read by chronograph_active_from_state. Accounted
-        # for properly in test_item_tag_allowlist.py.
-        "chronograph",
         # Sanctum Key family: SANCTUM_KEY_IDS module constant (sorted for
         # deterministic spend order) plus the per-site grant call that names
         # each key individually when its own room/area is first reached.
@@ -174,9 +170,12 @@ ITEM_ALLOWLIST: dict[str, set[str]] = {
         "car_keys", "key_8", "keycard", "silver_key", "secret_garden_key",
         # Per-item bespoke behaviour hooks: each item's own effect handler
         # names its id directly (has()/remove()/_is_available() calls)
-        # rather than going through a shared tag dispatch.
-        "compass", "emerald_bracelet", "lunch_box", "master_key",
-        "moon_pendant", "ornate_compass", "royal_scepter", "sleeping_mask",
+        # rather than going through a shared tag dispatch. chronograph,
+        # emerald_bracelet, master_key, and ornate_compass moved off this
+        # list: their reads are now ItemCapability lookups in
+        # engine/effects/items/, which name no string literal here.
+        "compass", "lunch_box",
+        "moon_pendant", "royal_scepter", "sleeping_mask",
         "stopwatch", "treasure_map", "watering_can",
     },
 }
@@ -250,10 +249,9 @@ def _scan_engine_modules(item_ids: set[str]) -> dict[str, set[str]]:
 
 def test_effects_subdirectories_are_excluded_by_construction():
     """The scan targets ``engine/*.py`` (non-recursive), so ``effects/rooms/``
-    and the not-yet-created ``effects/items/`` are never walked; this pins
-    both exclusions as holding by construction (a non-recursive glob), not
-    an allowlist entry that could silently rot, and not a check that could
-    ever start passing vacuously once ``effects/items/`` is created."""
+    and ``effects/items/`` are never walked; this pins both exclusions as
+    holding by construction (a non-recursive glob), not an allowlist entry
+    that could silently rot."""
     assert EFFECTS_ROOMS_DIR.is_dir()
     assert not any(EFFECTS_ROOMS_DIR == p.parent for p in _scanned_paths())
     assert not any(EFFECTS_ITEMS_DIR == p.parent for p in _scanned_paths())

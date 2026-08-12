@@ -184,11 +184,11 @@ machines_used: list[str] # machine room ids that already took a Broken Lever tod
 ### Item effect tags (PR1 functional set)
 
 `lockpick` (rates/denominator/pity), `luck_bonus` (amount), `coin_interest`
-(per/bonus), `coin_multiplier`, `food_bonus` (amount), `food_multiplier`,
-`free_hallway_moves`, `free_move_interval` (Running Shoes, n=3, inferred),
+(per/bonus), `food_bonus` (amount),
+`free_move_interval` (Running Shoes, n=3, inferred),
 `stopwatch` (free_costs: 10, inferred — turn-based stand-in for 60 real-time seconds),
-`sleeping_mask` (steps: 5), `watering_can` (capacity: 3), `master_key`,
-`compass`, `ornate_compass`, `emerald_bracelet`, `dig_tool`
+`sleeping_mask` (steps: 5), `watering_can` (capacity: 3),
+`compass`, `dig_tool`
 (table id), `treasure_map`, `metal_detector_spawns` (coin/key chances, inferred),
 `auto_collect` (Electromagnet: implies metal_detector-style spawn grant),
 `mask_red_room` (Knight's Shield), `paper_crown`, `set_steps_on_pickup`
@@ -197,7 +197,7 @@ food-typed), `negate_red_once_per_day`.
 
 Tags NOT implemented in PR1 (records carry them for PR2+ or stay inert):
 `smash` (Sledge Hammer / Morning Star / Power
-Hammer — vase/trunks PR2+), `repellent`, `scepter`, `chronograph`, `crown_of_blueprints`,
+Hammer — vase/trunks PR2+), `repellent`, `scepter`, `crown_of_blueprints`,
 `gear_wrench`, `dowsing_rod`, `locksmith_rob`, and everything on `implemented: false`
 records.
 
@@ -205,6 +205,21 @@ The Coupon Book no longer carries a `shop_discount` effect tag: its
 discount is registered directly as `ItemCapability.SHOP_DISCOUNT` in
 `engine/effects/items/coupon_book.py` (task 22's per-item capability
 registry), which `shops.py` folds via `item_capability_sum`.
+
+Eight more pure-boolean effects moved the same way, each into its own
+`engine/effects/items/<item_id>.py` module folded via `item_capability_any`
+(the boolean sibling of `item_capability_sum`) instead of a data tag:
+`ItemCapability.ELECTROMAGNET` (Powered Electromagnet — its `compass`,
+`auto_collect`, and `locksmith_rob` tags stay in data; only its drafting
+bias moved), `ItemCapability.CHRONOGRAPH` (Chronograph),
+`ItemCapability.ORNATE_COMPASS` (Ornate Compass),
+`ItemCapability.MASTER_KEY` (Master Key),
+`ItemCapability.EMERALD_BRACELET` (Emerald Bracelet),
+`ItemCapability.FOOD_MULTIPLIER` (Silver Spoon),
+`ItemCapability.FREE_HALLWAY_MOVES` (Hall Pass), and
+`ItemCapability.COIN_MULTIPLIER` (Lucky Purse — its `luck_bonus` tag stays
+in data, shared with the Rabbit's Foot). None of these eight tags exist in
+`special_items.json` any more.
 
 `locksmith_rob` (Powered Electromagnet, PR2): approaching the Locksmith while holding
 the Electromagnet robs it —
