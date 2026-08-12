@@ -1,9 +1,8 @@
 """Chapel: the Keeper of Tithes entry penalty and altar payout.
 
-Split out of the old test_ignition.py, which keeps the generic ignition
-system tests (can_light rules, action mask wiring) that use the Chapel only
-as one interchangeable ignition-target vehicle among several; see
-tests/test_ignition.py for those.
+See tests/test_ignition.py for the generic ignition system tests (can_light
+rules, action mask wiring), which use the Chapel only as one interchangeable
+ignition-target vehicle among several.
 """
 
 from __future__ import annotations

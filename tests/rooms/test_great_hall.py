@@ -1,9 +1,8 @@
 """Great Hall: the east Antechamber segment lever and its key cost, plus its
 own "7 Locked Doors" guaranteed locks on the room's non-entry doorways.
 
-Split out of the old test_antechamber_levers.py; see
-tests/test_antechamber_levers.py for the cross-cutting lever-gate invariants
-that stayed there.
+See tests/test_antechamber_levers.py for the cross-cutting lever-gate
+invariants.
 
 The Great Hall is the only lever room whose pull costs a key, so its cost is
 charged to the walk itself (key_cost_map, the action mask's key budget, and

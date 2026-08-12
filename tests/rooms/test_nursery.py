@@ -1,6 +1,4 @@
 """Nursery: grants steps whenever a bedroom is drafted.
-
-Split out of the old test_game.py, which keeps the general game-loop tests.
 """
 
 from blueprince_sim.engine.game import Game

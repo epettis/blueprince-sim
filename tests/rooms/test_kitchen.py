@@ -1,7 +1,6 @@
 """Kitchen: per-dish step resolution and stock rolling.
 
-Split out of the old test_food.py -- see tests/rooms/test_dining_room.py for
-the Dining Room's main course, which used to share that file.
+See tests/rooms/test_dining_room.py for the Dining Room's main course.
 """
 
 from blueprince_sim.config import GameConfig

@@ -93,7 +93,7 @@ def test_north_door_reseals_on_next_day():
 
 
 # ---------------------------------------------------------------------------
-# 2. Antechamber arrival no longer terminates the day
+# 2. Antechamber arrival does not terminate the day
 # ---------------------------------------------------------------------------
 
 def test_antechamber_arrival_does_not_terminate():

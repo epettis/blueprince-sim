@@ -1,7 +1,8 @@
 """Servant's Spare Quarters (servants_spare_quarters__ix134), a second-level
 upgrade variant whose display name differs from its variant_of parent
-(Spare Bedroom), so the ingest pipeline's base-slug EFFECT_MAP entry never
-matched it and it previously carried no effect at all.
+(Spare Bedroom). Because the ingest pipeline's EFFECT_MAP keys off the base
+slug, a display-name mismatch like this one needs its own explicit entry to
+carry an effect at all.
 """
 
 from __future__ import annotations
@@ -27,9 +28,9 @@ def test_servants_spare_quarters_grants_a_key_per_bedroom_where_its_parent_grant
     """servants_spare_quarters__ix134's "+1 key for each Bedroom in your house"
     (glyph resolves to key per its meta.glyph_resolution, mirroring the base
     Servant's Quarters) grants 1 key per Bedroom-category room on the grid,
-    including itself -- while its variant_of parent, spare_bedroom__ix131,
-    which it previously modeled exactly, grants nothing regardless of how
-    many Bedrooms are present."""
+    including itself; its variant_of parent, spare_bedroom__ix131, has no
+    effect of its own and grants nothing regardless of how many Bedrooms are
+    present."""
     parent = registry.by_id["spare_bedroom__ix131"]
     variant = registry.by_id["servants_spare_quarters__ix134"]
 

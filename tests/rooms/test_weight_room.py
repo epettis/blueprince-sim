@@ -1,11 +1,9 @@
 """Weight Room: the power_hammer lever (south Antechamber segment) and the
 red-room halved-steps penalty.
 
-The lever tests are split out of the old test_antechamber_levers.py; see
-tests/test_antechamber_levers.py for the cross-cutting lever-gate invariants
-(sealed-segment reset, antechamber_levers=False baseline, etc.) that use the
-Weight Room only as a vehicle and stayed there. The halved-steps test is split
-out of the old test_game.py.
+See tests/test_antechamber_levers.py for the cross-cutting lever-gate
+invariants (sealed-segment reset, antechamber_levers=False baseline, etc.),
+which use the Weight Room only as a vehicle.
 """
 
 from __future__ import annotations

@@ -1,9 +1,8 @@
 """Casino: the Broken Lever machine's slot bonus loot, plus its own
 guaranteed die on first entry.
 
-Split out of the old test_ignition.py, which keeps the broken_lever item's
-generic consumption rules for any machine room; see tests/test_ignition.py
-for those.
+See tests/test_ignition.py for the broken_lever item's generic consumption
+rules, shared by any machine room.
 """
 
 from __future__ import annotations

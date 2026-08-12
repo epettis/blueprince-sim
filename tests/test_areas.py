@@ -73,8 +73,8 @@ def _all_open_ctx(outer_room_id: str | None = "tomb") -> GateContext:
     garage_door_breaker is now a real flag gate (not a stub) so it must be included.
     sealed_entrance_broken is a real flag gate — include it too.
     antechamber_north_door_open is a flag gate set when the north door lever is pulled.
-    boiler_room_steam is a real flag gate (graduated from an open stub, 2026-08-06)
-    gating Underpass -> Upper Rotating Gear — include it too.
+    boiler_room_steam is a real flag gate (not a stub) gating Underpass ->
+    Upper Rotating Gear — include it too.
     """
     return GateContext(
         held_items={
@@ -463,8 +463,8 @@ def test_three_microchips_open_orindian_ruins(graph: AreaGraph) -> None:
 def test_burning_glass_opens_crate_tunnel_gate(graph: AreaGraph) -> None:
     """A Burning Glass alone satisfies the ignition_torches_crate gate.
 
-    ignition_torches_crate lists both torch and burning_glass in item_ids (count=1).
-    Previously it hardcoded item_id='torch', wrongly blocking Burning Glass holders.
+    ignition_torches_crate lists both torch and burning_glass in item_ids
+    (count=1), so either ignition tool alone is sufficient.
     """
     ctx_bg = _ctx(held_items={"burning_glass": 1})
     assert gate_open(graph, "ignition_torches_crate", ctx_bg) is True
@@ -647,7 +647,7 @@ def test_garage_to_west_path_open_with_breaker_flag(graph: AreaGraph) -> None:
 
 
 # ---------------------------------------------------------------------------
-# I: reservoir_water_13 — the deliberate default-CLOSED exception (2026-08-06)
+# I: reservoir_water_13 — the deliberate default-CLOSED exception
 # ---------------------------------------------------------------------------
 
 
@@ -655,8 +655,8 @@ def test_reservoir_crossing_gate_defaults_closed(graph: AreaGraph) -> None:
     """reservoir_water_13 never passes, even with every other gate's context wide open.
 
     Every other deferred (unmodelled) gate in this graph defaults OPEN so no node
-    is stranded (2026-07-27 stub convention, stub=True). This one is a deliberate
-    exception (owner ruling, 2026-08-06): it is kind=unmodelled but stub=False, so
+    is stranded (stub=True). This one is a deliberate exception (owner ruling):
+    it is kind=unmodelled but stub=False, so
     gate_open's stub short-circuit never fires and the "unmodelled" case falls
     through to its unconditional False. If this gate is ever flipped to stub=True
     (the ordinary way to retire a deferred mechanism), this assertion catches it.
@@ -669,18 +669,16 @@ def test_reservoir_crossing_gate_defaults_closed(graph: AreaGraph) -> None:
 
 
 def test_reservoir_crossing_does_not_bypass_basement_key(graph: AreaGraph) -> None:
-    """The new reservoir_north<->reservoir_south edge must not open a key-free
+    """The reservoir_north<->reservoir_south edge must not open a key-free
     route to reservoir_south / safehouse (a Sanctum Key source).
 
     With an empty inventory and only sealed_entrance_broken set -- the free route
-    house->grounds->sealed_entrance->basement->reservoir_north that the 2026-08-06
-    Precipice writeup measured -- reservoir_south and safehouse must stay
-    unreachable, exactly as they were before this edge existed. An earlier reading
-    of the owner's ruling would have opened this crossing unconditionally, which
-    recreates precisely the loophole the Precipice fix closed: reservoir_north was
-    already free to reach (pallet_jack_puzzle is a passing puzzle gate), so an open
-    crossing here would walk straight around basement_key_well. Holding
-    basement_key must still be required to reach either node.
+    house->grounds->sealed_entrance->basement->reservoir_north that the Precipice
+    writeup (docs/areas.md) measured -- reservoir_south and safehouse must stay
+    unreachable. reservoir_north is already free to reach (pallet_jack_puzzle is
+    a passing puzzle gate), so an unconditional crossing here would walk straight
+    around basement_key_well: holding basement_key must still be required to
+    reach either node.
     """
     ctx_no_key = _ctx(flags=frozenset({"sealed_entrance_broken"}))
     dist_no_key = reachable(graph, "house", ctx_no_key)

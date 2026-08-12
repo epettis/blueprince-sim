@@ -1,8 +1,8 @@
 """Courtyard upgrade variants: ix48's gem prize and ix49's widened dig-spot count.
 
-Both variants previously modeled exactly the base Courtyard (no ON_ENTER
-effect, 1 dig spot) even though their own effect text promises "+2 gems" and
-"5 dig spots" respectively.
+Each variant's effect matches its own effect text ("+2 gems" for ix48, "5 dig
+spots" for ix49) rather than falling back to the base Courtyard's (no
+ON_ENTER effect, 1 dig spot).
 """
 
 from __future__ import annotations
@@ -15,8 +15,8 @@ CELL = 7  # rank 2, col 2 -- any on-grid cell works since _enter bypasses door l
 
 def test_courtyard_ix48_grants_two_gems_the_base_does_not(registry, cfg):
     """courtyard__ix48's "+2 gem" prize (glyph resolves to gem per its
-    meta.glyph_resolution) fires on first entry, while the base Courtyard --
-    whose empty effects list ix48 used to share -- grants nothing at all."""
+    meta.glyph_resolution) fires on first entry; the base Courtyard's empty
+    effects list grants nothing at all."""
     base = registry.by_id["courtyard"]
     ix48 = registry.by_id["courtyard__ix48"]
 

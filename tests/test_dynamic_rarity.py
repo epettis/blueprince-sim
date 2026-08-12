@@ -1,7 +1,7 @@
 """set_dynamic_rarity: moving a room's live-deck cards between rarity buckets.
 
-Groundwork for the add_aquariums experiment effect (unwired as of this PR --
-no production call site exists yet). A card's effective rarity IS the deck it
+Groundwork for the add_aquariums experiment effect (no production call site
+exists yet). A card's effective rarity IS the deck it
 sits in, so "override a room's rarity for the day" is a card move between the
 eight solitaire decks, not a lookup; these tests pin the move's three
 required properties: it relocates every copy, it preserves dealt-ness, and it

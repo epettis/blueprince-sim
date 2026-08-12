@@ -93,7 +93,7 @@ def test_new_hooks_are_no_ops_without_a_registered_handler(registry, probe_regis
     their probe tags to every room's effects list changes nothing
     observable: playing the same moves against the plain registry and the
     probe-tagged one ends in identical state, confirming the hooks are
-    behaviourally inert on their own (this PR is meant to be a no-op)."""
+    behaviourally inert on their own until a handler is registered."""
     def _play(reg):
         g = Game(cfg, seed=100, registry=reg)
         corridor = reg.by_id["corridor"]

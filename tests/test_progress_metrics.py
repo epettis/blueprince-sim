@@ -139,9 +139,9 @@ def test_metrics_sampler_carries_arbitrary_extra_keys_verbatim(tmp_path: Path):
 def test_observatory_metrics_surfaces_logger_keys(tmp_path: Path):
     """/api/metrics rows carry dashboard.SPECS keys present in metrics.jsonl.
 
-    Observatory.metrics() used to hand-pick only 6 fields when building each
-    row, silently dropping anything else metrics_sampler had already written
-    verbatim -- this pins that the SPECS keys now survive that step too.
+    Observatory.metrics() must not hand-pick a fixed subset of fields when
+    building each row: every SPECS key that metrics_sampler already wrote
+    verbatim must survive that step too.
     """
     row = {"episodes": 5, "timesteps": 50, "sampled_at": 1000.0,
            "win_rate_recent": 0.1, "train/approx_kl": 0.02, "time/fps": 1200}

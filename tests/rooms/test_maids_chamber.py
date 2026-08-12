@@ -1,6 +1,4 @@
 """Maid's Chamber: the anti-luck red-room penalty, and its dual red+bedroom membership.
-
-Split out of the old test_game.py, which keeps the general game-loop tests.
 """
 
 import dataclasses
@@ -53,9 +51,9 @@ def test_maids_chamber_is_category_red_and_bedroom(registry):
 
 def test_maids_chamber_counts_as_bedroom_for_dynamic_gem_cost(registry, cfg):
     """resolve_gem_cost's ``plus_one_per_bedroom`` modifier must count the Maid's
-    Chamber as a Bedroom, not just red -- the case the old counts_as_all_colors-only
-    model (a single Aquarium-only escape hatch) had no way to express, since Maid's
-    Chamber is a genuine second colour on an otherwise ordinary room.
+    Chamber as a Bedroom, not just red. This needs genuine dual-category
+    support: Aquarium's counts_as_all_colors is a single escape hatch, but
+    Maid's Chamber is a genuine second colour on an otherwise ordinary room.
     """
     g = Game(cfg, seed=1)
     g._place_room(registry.by_id["maids_chamber"], 7, S | E)

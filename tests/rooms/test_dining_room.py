@@ -1,7 +1,6 @@
 """Dining Room: the rank-8-gated Main Course.
 
-Split out of the old test_food.py -- see tests/rooms/test_kitchen.py for the
-Kitchen's per-dish menu, which used to share that file.
+See tests/rooms/test_kitchen.py for the Kitchen's per-dish menu.
 """
 
 from blueprince_sim.config import GameConfig

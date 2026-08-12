@@ -1,15 +1,15 @@
 """Equivalence and memo-invalidation tests for Game.area_route_costs().
 
-area_route_cost(dest) used to run a full per-anchor area-graph BFS for every
-single destination it was asked about; env/actions.py's travel mask loop and
-Game._outer_action_in_budget each called it once per area node, so one env
-step ran on the order of 40 BFS sweeps. area_route_costs() computes every
-destination's cost in one pass (one reachable() call per anchor, on grid; one
-off grid) and area_route_cost() becomes a lookup into it. This file pins:
+area_route_costs() computes every destination's cost in one pass (one
+reachable() call per anchor, on grid; one off grid), and area_route_cost()
+is a lookup into it -- rather than running a full per-anchor area-graph BFS
+per destination, which env/actions.py's travel mask loop and
+Game._outer_action_in_budget would otherwise each call once per area node,
+on the order of 40 BFS sweeps per env step. This file pins:
   1. the batch result agrees with an independent per-destination oracle
      across a spread of game states, including hundreds of masked-random-play
      states, and
-  2. the new memo (keyed on GateContext, since the _maps() fingerprint alone
+  2. the memo (keyed on GateContext, since the _maps() fingerprint alone
      doesn't cover everything gates read) does not go stale.
 """
 

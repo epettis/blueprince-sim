@@ -1,7 +1,7 @@
 """Tests for multi-day replay correctness.
 
-Pins the fix for the bug where replay.build_frames used a fresh all_unlocks_config
-instead of the per-day GameConfig, causing divergence in multi-day runs.
+replay.build_frames must use the per-day GameConfig, not a fresh
+all_unlocks_config, or multi-day runs diverge from the replay.
 
 Coverage:
   a) Round-trip: a DayChain episode with non-trivial per-day config replays
@@ -69,8 +69,8 @@ def test_multiday_replay_roundtrip_matches_live_run():
     """A multi-day episode replayed with its recorded day_config reproduces the
     live run's outcome (rooms placed, deepest rank, termination reason) exactly.
 
-    This is the regression test for the bug: without day_config in the record,
-    build_frames used a stale base config and diverged from the recorded run.
+    Without day_config in the record, build_frames would fall back to a
+    stale base config and diverge from the recorded run.
     We advance the chain a few days to build up non-trivial carry-over state
     before the day we actually check, so the config genuinely differs.
     """

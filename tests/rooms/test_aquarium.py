@@ -194,7 +194,7 @@ def test_experiment_aquarium_record_appended_without_shifting_existing_idx():
     trained RL policy's learned room embedding is keyed by that index, so
     adding a new record must never renumber an existing room. Pins a spread
     of pre-existing anchor rooms -- the first sheet row, the whole Aquarium
-    family, the Antechamber, and the room that used to be last -- against
+    family, the Antechamber, and the room at the end of the file -- against
     their known idx, plus the new record's own position at the very end.
     """
     registry = Registry.load()
@@ -205,7 +205,7 @@ def test_experiment_aquarium_record_appended_without_shifting_existing_idx():
     assert registry.by_id["starfish_aquarium__ix3"].idx == 75
     assert registry.by_id["electric_eel_aquarium__ix4"].idx == 76
     assert registry.by_id["antechamber"].idx == 77
-    assert registry.by_id["tunnel"].idx == 168  # previously the last room in the file
+    assert registry.by_id["tunnel"].idx == 168  # pinned: a mid-file insert would renumber this
     assert registry.by_id["aquarium__experiment"].idx == 169  # now appended last
 
 

@@ -1441,8 +1441,8 @@ def test_opening_entrance_hall_trunk_fires_trunks_opened():
 
 def test_obs_grid_containers_shows_the_entrance_hall_trunk():
     """grid_containers (env/obs.py) is routed through _container_kinds_at, so a
-    per-cell overlay like the Entrance Hall's added trunk is visible there too
-    -- not just the static per-room containers.json table it used to read."""
+    per-cell overlay like the Entrance Hall's added trunk is visible there too,
+    not just the static per-room containers.json table."""
     g = Game(GameConfig(), seed=0)
     g.state.special.entrance_hall_trunks = 1
     observation = obs_mod.encode(g)

@@ -1,9 +1,7 @@
 """Drawing Room's gem safe and drafting-room count.
 
-Split out of the old test_room_safes.py, which covered every gem-safe room
-(office, study, drawing_room, boudoir, shelter) in one file -- see
-tests/rooms/test_office.py, test_study.py, test_boudoir.py, and
-test_shelter.py for the others.
+See tests/rooms/test_office.py, test_study.py, test_boudoir.py, and
+test_shelter.py for the other gem-safe rooms.
 
 The sim assumes every puzzle in an entered room gets solved, so the safe in
 these rooms just hands over a gem the moment the player walks in - see

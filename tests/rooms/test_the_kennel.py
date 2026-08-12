@@ -83,10 +83,11 @@ def test_kennel_selectable_by_a_blueprint_category_targeted_draw():
 
 
 def test_kennel_was_unreachable_under_its_old_pool_name_category():
-    """The identical mechanism, with The Kennel's category reverted to
-    "studio_addition" (its value before the fix): the bias finds no matching
-    card anywhere in the deck and the original (placeholder) draw passes
-    through unchanged -- this is the exact exclusion the fix removes."""
+    """The identical mechanism, with The Kennel's category set to
+    "studio_addition" instead of "blueprint": the bias finds no matching
+    card anywhere in the deck, so the original (placeholder) draw passes
+    through unchanged -- the negative control showing the bias requires a
+    genuine category match."""
     registry = _registry_with_forced_bias(Registry.load(), "scepter_blueprint")
     kennel_idx = registry.by_id["the_kennel"].idx
     stale_kennel = dataclasses.replace(registry.rooms[kennel_idx], category="studio_addition")

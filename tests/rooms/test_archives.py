@@ -1,9 +1,7 @@
 """Archives: house-wide, non-stacking archiving of one dealt floorplan per draft.
 
-Split out of the old test_game.py, which keeps the general game-loop tests.
-Archives used to be modelled as a from-room effect that hid one option and
-always kept option 0 visible; it is neither -- see docs/drafting.md and
-engine/effects/rooms/archives.py.
+See docs/drafting.md and engine/effects/rooms/archives.py for how archiving is
+modelled.
 """
 
 from blueprince_sim.engine.game import Game, Phase, RedrawKind

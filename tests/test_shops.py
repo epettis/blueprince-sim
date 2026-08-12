@@ -102,8 +102,8 @@ def test_commissary_disk_is_offered_on_a_reasonable_share_of_days():
 
     It is one of 13 entries drawn 4 at a time, so it should appear on roughly 31%
     of days. The assertion is a wide band, not the exact rate: the point is that
-    the disk is reachable at all. It previously carried a reserve flag that made
-    it unobtainable in every roll, and a rate near zero would mean that regressed.
+    the disk is reachable at all -- a rate near zero would mean a reserve flag or
+    similar gate is silently excluding it from every roll.
     """
     hits = 0
     trials = 400

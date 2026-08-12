@@ -1,9 +1,7 @@
-"""Pantry exact coin grant (2026-08-09 ruling, docs/open_tasks.md).
+"""Pantry exact coin grant (see docs/open_tasks.md).
 
-effect_text states "+4 coins"; items.guaranteed used to spend that as a
-single PILE (rolling 1-5), averaging 3 and sometimes falling short of 4. This
-pins the fix: entering the Pantry now grants exactly 4 coins, unconditional
-on RNG.
+effect_text states "+4 coins", and entering the Pantry grants exactly 4
+coins every time, unconditional on RNG -- not a probabilistic 1-5 pile roll.
 """
 
 from __future__ import annotations
@@ -27,7 +25,7 @@ def test_pantry_entry_grants_exactly_4_coins_every_seed():
     Luck is pinned to the floor so the room's additional_max=1 luck-rolled
     bonus item never fires, isolating the guaranteed coins_exact grant from an
     unrelated (and still probabilistic) extra-item roll. Checked across many
-    seeds because under the old pile-roll code this ranged 1-5.
+    seeds because the grant must land on exactly 4 regardless of RNG.
     """
     cell = 5
     for seed in range(1, 31):

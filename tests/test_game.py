@@ -43,7 +43,7 @@ def test_cannot_decline_a_draft(cfg):
     fallback guarantees there is always a choosable option."""
     g = Game(cfg, seed=5)
     g.open_door(2, 1)
-    assert not hasattr(g, "decline")   # declining a draft no longer exists
+    assert not hasattr(g, "decline")   # no decline API exists
     # slot 1 is always the free forced fallback, so a choice is always possible
     assert any(o.slot == 0 for o in g.state.pending.options)
 
@@ -193,10 +193,10 @@ def test_outer_draft_available_while_already_at_the_doorstep():
     travel, not by opening the draft) must not refuse the outer draft, and
     opening it from there costs no extra steps.
 
-    Regression for the bug where ``outer_draft_available()`` unconditionally
-    returned False whenever ``off_grid`` was True -- refusing the one place
-    (the doorstep itself) where the draft is obviously legal, and forcing a
-    wasted round-trip back onto the grid and out again just to reopen it.
+    ``outer_draft_available()`` must not key off ``off_grid`` alone: the
+    doorstep itself is exactly where the draft is legal, and refusing it
+    there would force a wasted round-trip back onto the grid and out again
+    just to reopen it.
     """
     cfg = GameConfig(west_gate_unlatched=True)
     g = Game(cfg, seed=9)
@@ -379,8 +379,8 @@ def test_outer_hand_redraw_via_die_redeals_from_the_outer_pool():
     pipeline, which has no doorway to deal against for an outer hand and
     would silently misread ``state.grid[-1]`` as the "from room" if reused.
 
-    Regression for the bug where ``Game.redraw()`` asserted outer hands could
-    never be redrawn at all, no matter what the player held.
+    Redrawing an outer hand must be possible: ``Game.redraw()`` must not
+    assert it unreachable regardless of what the player holds.
     """
     cfg = GameConfig(west_gate_unlatched=True)
     g = Game(cfg, seed=9)
@@ -455,8 +455,8 @@ def test_outer_hand_redraw_via_free_source_spends_no_resource():
 def test_outer_hand_cannot_be_redrawn_without_any_source():
     """With no dice, no Study placed, and no free-redraw source, the outer
     hand's redraw stays refused in both the source lookup and the action
-    mask -- the fix must not make redraw unconditionally legal on an outer
-    hand."""
+    mask -- redraw must not become unconditionally legal on an outer hand
+    just because outer hands can be redrawn at all."""
     cfg = GameConfig(west_gate_unlatched=True)
     g = Game(cfg, seed=9)
     g.open_outer_draft()

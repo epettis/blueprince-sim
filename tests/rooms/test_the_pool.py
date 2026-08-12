@@ -1,6 +1,4 @@
 """The Pool: injects its 3 temp rooms into the draft decks.
-
-Split out of the old test_game.py, which keeps the general game-loop tests.
 """
 
 from blueprince_sim.engine.game import Game

@@ -1,9 +1,8 @@
 """Tomb: lighting does not require the Diary Key it rewards, plus its
 coins_per_deadend accumulation.
 
-Split out of the old test_ignition.py, which keeps the generic ignition
-system tests (can_light rules, action mask wiring); see tests/test_ignition.py
-for those.
+See tests/test_ignition.py for the generic ignition system tests (can_light
+rules, action mask wiring).
 
 The coins_per_deadend tests below cover Dead Ends drafted after the Tomb is
 placed. The Tomb's own placement is covered separately, alongside the

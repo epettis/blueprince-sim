@@ -1,16 +1,16 @@
 """Rotating Gear (upstairs) -- the `upper_rotating_gear` area node.
 
-Owner spec (docs/open_tasks.md decisions log, 2026-08-06): a room reached
+Owner spec (docs/open_tasks.md decisions log): a room reached
 through a hallway off the Underpass, opened by Boiler Room steam. The player
 unlocks it permanently the first time they enter the Boiler Room; from the
 Underpass it is 1 step to retrieve a gem and the Treasure Trove blackprint,
 then a free step back down. It is explicitly NOT reachable from the
 pre-existing `rotating_gear` node.
 
-This graduates the `boiler_room_steam` gate from an open stub
-(`kind: "unmodelled", stub: true`) to a real one (`kind: "flag", stub: false`),
-which TIGHTENS reachability -- so this file also pins that the tightening does
-not stand up an empty action mask anywhere around the gate.
+The `boiler_room_steam` gate is a real one (`kind: "flag", stub: false`, not
+an open stub), which TIGHTENS reachability relative to an unmodelled
+default-open gate -- so this file also pins that the tightening does not
+stand up an empty action mask anywhere around the gate.
 """
 
 from __future__ import annotations
@@ -46,8 +46,8 @@ def _place_and_enter(g: Game, room_id: str, cell: int) -> None:
 
 def test_upper_rotating_gear_unreachable_before_boiler_room(registry):
     """Standing at the Underpass with boiler_room_steam never earned, Upper
-    Rotating Gear is unreachable -- the gate is a real closed gate, not the
-    open stub it used to be."""
+    Rotating Gear is unreachable -- the gate is a real closed gate
+    (kind="flag", stub=False), not an open stub."""
     g = Game(GameConfig(), seed=1, registry=registry)
     g.state.steps = 200
     g.state.area = "underpass"
