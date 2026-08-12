@@ -814,7 +814,7 @@ it comes first and stands alone.
 | 1 | Truth pass on the 14 records; delete the `ignition_tool` tag | XS | Low | **DONE in #199** |
 | 2 | `ItemCapability` primitives + `effects/items/`; migrate `coupon_book` as pattern-setter | S | Low | **DONE in #203** |
 | 3 | Pure-query **singleton** capabilities (8 modules) | M | Low | **DONE in #204** |
-| 4 | The folds -- **the engine's ordered capability tuple is written here** | M | **Med** |
+| 4 | Item handlers on game events + the engine-owned priority tuples | M | **Med** | **DONE in #205** |
 | 5 | Id-branch items with no tags (~15 modules) | M | Med |
 | 6 | RNG-touching migrations, **last and alone** | M | **High** |
 | 7 | Shrink both allowlists; delete `implemented`/`blocked_on` | S | Low |
@@ -854,6 +854,98 @@ allowlist entry** -- that rule alone catches `ignition_tool` today.
 around 1,800 LOC.
 
 ## Decisions log
+
+- **2026-08-12, phase 4 landed, and it moved the item-id debt UP -- correctly.**
+  Numbers: **item tag pairs 27 -> 22**, **room id pairs 79 -> 78**, but
+  **item id pairs 56 -> 64**.
+
+  The increase is the design working, not a regression. The engine-owned
+  priority tuples (`GEM_COST_PRIORITY`, `MOVE_STEP_COST_PRIORITY`,
+  `COINS_GRANTED_PRIORITY`, `GEM_PAYMENT_WAIVER_PRIORITY`,
+  `RED_ROOM_NEGATE_PRIORITY`, `FOOD_STEPS_PIPELINE`) **have to name their member
+  item ids somewhere** -- that is what an explicit total order *is*. The
+  alternative, a `priority=` number on each registration, is exactly what the
+  owner rejected because it scatters the order across the modules it ranks.
+
+  **Consequence: phase 0's "irreducible floor is ~8-10 of 58" is now wrong.**
+  The floor is that plus the priority-tuple members -- call it **~18-22**. More
+  importantly, **the item-id allowlist no longer measures one thing.** Part of
+  it is genuine debt (an engine module branching on an item id) and part is
+  permanent architecture (an arbitration order naming its members). A scoreboard
+  that conflates the two stops measuring anything, which is the failure its own
+  bidirectional check exists to prevent. **Phase 7 should split the allowlist
+  into those two sections** rather than report one number.
+
+  Bonus result: **the room-id debt fell without anyone targeting it.**
+  `"hallway"` sat in `special_items.py` only for the Hall Pass's
+  `is_category("hallway")` test; moving that into `hall_pass.py` (glob-excluded)
+  removed a *room*-id literal from a scanned module.
+
+- **2026-08-12, two stale-comment findings from phase 4, both pre-existing.**
+
+  1. **My phase 4 brief mis-attributed the "never burn a Stopwatch charge on a
+     free room" guard to `gem_cost_modifier`.** That function never touches
+     `stopwatch_left` at all -- its own comment says the waiver happens at PAY
+     time. The real guard is `stopwatch_waives_gems`'s own `cost > 0`
+     condition. The principle was right and the function was wrong; the agent
+     caught it and pinned the real guard with a test.
+  2. **`gem_cost_modifier`'s docstring said "Emerald Bracelet first, then Hall
+     Pass, then Stopwatch"** -- and the Stopwatch was never in that chain, as
+     the function's own body comment stated two lines below. A stale docstring
+     contradicted by the code beside it, surviving the task 16 sweep because it
+     reads as a specification rather than as history. Now corrected.
+
+- **2026-08-12, item handlers fire on game events, exactly like room handlers.
+  The claim that "items have no natural event boundary" was wrong.** Owner
+  challenged it directly and the challenge holds: a payment, a move, a coin
+  grant and a red-room effect are game events, and an item handler on one is as
+  legitimate as a room handler on `ON_ENTER`. The claim had been repeated across
+  several PRs and shaped the phase 2 and 3 designs.
+
+  **The real difference is arity and arbitration:**
+
+  | | room handler | item handler |
+  |---|---|---|
+  | fire per event | exactly one | any number of held items |
+  | signature | `(game, room, context_room) -> None` | must return a value |
+  | conflict | impossible | routine, and rule-bearing |
+  | order | irrelevant | decides the outcome |
+
+  `fire(game, room, hook)` is called with *the* room the event is about and
+  dispatches to that one room's handler. Two rooms never answer the same event,
+  so **the room registry never needed arbitration -- the grid supplies
+  exclusivity for free.** Items have no such guarantee: `gem_cost_modifier`
+  must produce one number from N held items, and "only one waiver applies, no
+  double-decrement" is a game rule something has to enforce.
+
+  So the conclusion is not "avoid handlers" but **"use handlers, plus the one
+  thing rooms never needed: explicit arbitration."**
+
+- **2026-08-12, the phase 4 design, three owner rulings.**
+
+  1. **Item modules register handlers on game events.** Item hooks
+     (`ON_PAY`, `ON_MOVE`, `ON_COINS_GRANTED`, `ON_RED_EFFECT`, `ON_FOOD`),
+     mirroring `Hook`. This is what makes the charge-consuming effects
+     migratable at all -- an item that spends a Stopwatch charge cannot declare
+     a value, it has to run code.
+  2. **The engine owns one explicit priority tuple per chain**, in engine code:
+     e.g. `GEM_WAIVER_ORDER = (EMERALD_BRACELET, FREE_HALLWAY_MOVES, STOPWATCH)`.
+     Visible, diffable, testable in one place. **Never a `priority=` number on
+     the registration** -- that would scatter the total order across 40 modules
+     so no single place shows what beats what.
+  3. **Context predicates belong to the item.** The Hall Pass registers its own
+     hallway-from-hallway test rather than the engine hard-coding it, so each
+     item's rule is self-contained. Accepted cost: item modules gain some grid
+     and pending-draft knowledge.
+
+  **What phase 4 actually covers, corrected.** The architecture pass called
+  these six "folds", i.e. ordered reductions. **Five of six are first-match-wins
+  priority chains and four mutate state** -- `move_step_cost` consumes a
+  stopwatch charge, `on_coins_granted` accumulates `coin_interest`,
+  `shield_negates` sets `shield_used`, `stopwatch_waives_gems` spends a charge.
+  Only `food_steps` (Salt Shaker adds, then Silver Spoon doubles) is a genuine
+  ordered fold. Anyone briefing this work from the word "fold" will build the
+  wrong thing.
 
 - **2026-08-12, the recorded phase table contradicted itself, and the
   contradiction is resolved against migrating shared tags.** The architecture

@@ -23,7 +23,13 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from . import experiments
-from .effects import ItemCapability, item_capability_any
+from .effects import (
+    ItemCapability,
+    ItemHook,
+    fire_item_chain,
+    fold_item_chain,
+    item_capability_any,
+)
 from .model import Effect
 
 KINDS = ("standard", "special_key", "contraption", "showroom", "armory", "unique")
@@ -31,6 +37,64 @@ PERSISTENCE = ("day", "until_used", "permanent")
 
 # Dig-tool priority: better tables win; shared with shops.py (imported from there).
 DIG_PRIORITY: tuple[str, ...] = ("jack_hammer", "detector_shovel", "shovel")
+
+# --------------------------------------------------- item priority chains
+#
+# One named, ordered, engine-owned tuple per ItemHook this module fires --
+# never a priority= number on the item_hook registration itself, which would
+# scatter the total order across the very modules it is supposed to rank.
+# Five of these are first-match-wins chains (fire_item_chain: the first
+# applicable item in the tuple wins, and items after it are never even
+# queried); FOOD_STEPS_PIPELINE is the one genuine ordered fold
+# (fold_item_chain: every applicable item transforms the running total).
+
+# ItemHook.GEM_COST: first applicable item wins; only one waiver, ever.
+GEM_COST_PRIORITY: tuple[str, ...] = (
+    "emerald_bracelet",  # unconditional: waives every gem cost while held
+    "hall_pass",  # conditional: only a hallway room drafted from a hallway doorway
+)
+
+# ItemHook.MOVE_STEP_COST: first applicable item wins. Hall Pass sits first
+# so a free hallway-to-hallway move never touches the Stopwatch or Running
+# Shoes counters; Stopwatch outranks Running Shoes so an active timer is
+# spent down before cadence-based Running Shoes gets a turn.
+MOVE_STEP_COST_PRIORITY: tuple[str, ...] = (
+    "hall_pass",  # free hallway-to-hallway moves; consumes nothing
+    "stopwatch",  # active timer: spends one of its charges
+    "running_shoes",  # cadence: free every nth move; always advances the counter
+)
+
+# ItemHook.COINS_GRANTED: first applicable item wins. Lucky Purse's flat
+# doubling supersedes Coin Purse outright -- Coin Purse's interest
+# accumulator must not advance while Lucky Purse is held, so Lucky Purse
+# must be checked, and satisfied, before Coin Purse is even queried.
+COINS_GRANTED_PRIORITY: tuple[str, ...] = (
+    "lucky_purse",  # doubles every coin pickup; always applies once held
+    "coin_purse",  # pays 1 bonus per 3 coins collected; superseded by Lucky Purse
+)
+
+# ItemHook.GEM_PAYMENT_WAIVER: a single item today. Kept as a chain (rather
+# than an inline check) so a second free-gem-payment item would slot in
+# without reshaping stopwatch_waives_gems.
+GEM_PAYMENT_WAIVER_PRIORITY: tuple[str, ...] = (
+    "stopwatch",  # spends one charge to waive a gem payment (gems stay in hand)
+)
+
+# ItemHook.RED_ROOM_NEGATE: a single item today, same rationale as
+# GEM_PAYMENT_WAIVER_PRIORITY above.
+RED_ROOM_NEGATE_PRIORITY: tuple[str, ...] = (
+    "knights_shield",  # spends the once-per-day charge and negates the effect
+)
+
+# ItemHook.FOOD_STEP_BONUS: NOT a priority chain -- a genuine ordered fold
+# (fold_item_chain). Every held item in this tuple applies its own
+# transform to the running total, in this order: Salt Shaker's flat +1 must
+# land before Silver Spoon's doubling, per the wiki ((base+1)*2, not
+# base+(1*2)).
+FOOD_STEPS_PIPELINE: tuple[str, ...] = (
+    "salt_shaker",  # add a flat bonus first
+    "silver_spoon",  # then double the running total
+)
 
 # Items the generic SPAWN pipeline must never touch: the Keycard is owned by
 # engine/locks.py (state.has_keycard), kept there so the security door system
@@ -909,46 +973,18 @@ def end_of_day_carry(state, registry, rng) -> list[str]:
 # ------------------------------------------------------- movement & door costs
 
 def move_step_cost(game, from_cell: int, direction: int, to_room) -> int:
-    """Step cost of one move: 1, or 0 via Hall Pass (hallway to hallway),
-    Running Shoes cadence, or an active Stopwatch. Task C.
+    """Step cost of one move: 1, or 0 via Hall Pass (hallway to hallway), an
+    active Stopwatch, or Running Shoes cadence.
 
-    Priority: Hall Pass first (doesn't consume stopwatch/shoes charges),
-    then Stopwatch, then Running Shoes.
+    Priority: MOVE_STEP_COST_PRIORITY. Hall Pass first, so its free hallway
+    moves never consume a Stopwatch charge or advance the Running Shoes
+    cadence counter.
     """
     state = game.state
     registry = game.registry
-
-    # Hall Pass: hallway-to-hallway moves are free (no counter consumed)
-    from_idx = state.grid[from_cell]
-    if from_idx >= 0:
-        from_room = registry.rooms[from_idx]
-        if (from_room.is_category("hallway") and to_room.is_category("hallway")
-                and item_capability_any(state, registry, ItemCapability.FREE_HALLWAY_MOVES)):
-            return 0
-
-    # Stopwatch: active free cost event
-    if state.special.stopwatch_left > 0:
-        state.special.stopwatch_left -= 1
-        return 0
-
-    # Running Shoes: every n-th move is free
-    for item_id, cnt in state.inventory.items():
-        if cnt <= 0:
-            continue
-        item = registry.special.by_id.get(item_id)
-        if item is None:
-            continue
-        e = item.effect("free_move_interval")
-        if e is not None:
-            n = e.param("n", 3)
-            if (state.special.moves_since_free + 1) % n == 0:
-                state.special.moves_since_free = 0
-                return 0
-            else:
-                state.special.moves_since_free += 1
-                return 1
-
-    return 1
+    return fire_item_chain(
+        state, registry, ItemHook.MOVE_STEP_COST, MOVE_STEP_COST_PRIORITY,
+        from_cell, direction, to_room, default=1)
 
 
 def can_open_locked_free(game) -> bool:
@@ -1013,45 +1049,36 @@ def open_locked_free(game) -> bool:
 # ------------------------------------------------------------- draft-side hooks
 
 def gem_cost_modifier(game, room, cost: int) -> int:
-    """Emerald Bracelet waiver, Hall Pass hallway-from-hallway drafts,
-    Stopwatch waiver. Task C.
+    """Emerald Bracelet waiver, Hall Pass hallway-from-hallway drafts.
 
-    Priority: Emerald Bracelet first, then Hall Pass, then Stopwatch.
-    Only one waiver applies — no double-decrement.
+    Priority: GEM_COST_PRIORITY. Only one waiver applies -- no
+    double-decrement. The Stopwatch's gem waiver happens at PAY time
+    (stopwatch_waives_gems), never here: this runs on every affordability
+    query and must stay pure (no charge spent just from being asked).
     """
+    if cost <= 0:
+        # Nothing to waive.
+        return cost
     state = game.state
     registry = game.registry
-    if cost <= 0:
-        # Nothing to waive: never burn a Stopwatch charge on a free room.
-        return cost
-
-    # Emerald Bracelet: always waive gem cost
-    if item_capability_any(state, registry, ItemCapability.EMERALD_BRACELET):
-        return 0
-
-    # Hall Pass: waive if drafting a hallway room from a hallway room
-    if room.is_category("hallway") and state.pending is not None:
-        from_cell = state.pending.from_cell
-        if from_cell >= 0 and state.grid[from_cell] >= 0:
-            from_room = registry.rooms[state.grid[from_cell]]
-            if (from_room.is_category("hallway")
-                    and item_capability_any(
-                        state, registry, ItemCapability.FREE_HALLWAY_MOVES)):
-                return 0
-
-    # Stopwatch gem waiver happens at PAY time (stopwatch_waives_gems), never
-    # here: this runs on every affordability query and must stay pure.
-    return cost
+    return fire_item_chain(
+        state, registry, ItemHook.GEM_COST, GEM_COST_PRIORITY, room, cost, default=cost)
 
 
 def stopwatch_waives_gems(game, cost: int) -> bool:
     """Waive a gem payment via an active Stopwatch (gems must be in hand, per
-    the wiki). Called once per actual payment (Game._pay), spending a charge."""
+    the wiki). Called once per actual payment (Game._pay), spending a charge.
+
+    Priority: GEM_PAYMENT_WAIVER_PRIORITY.
+    """
+    if cost <= 0:
+        # Nothing to waive: never burn a Stopwatch charge on a free payment.
+        return False
     state = game.state
-    if cost > 0 and state.special.stopwatch_left > 0 and state.gems >= cost:
-        state.special.stopwatch_left -= 1
-        return True
-    return False
+    registry = game.registry
+    return fire_item_chain(
+        state, registry, ItemHook.GEM_PAYMENT_WAIVER, GEM_PAYMENT_WAIVER_PRIORITY, cost,
+        default=False)
 
 
 def inventory_value(state, registry) -> float:
@@ -1149,28 +1176,12 @@ def on_coins_granted(state, registry, amount: int) -> int:
     """Coin Purse / Lucky Purse interest owed on ``amount`` collected coins;
     returns bonus coins (caller adds them).
 
-    Lucky Purse (coin_multiplier) doubles coins and supersedes Coin Purse.
-    Coin Purse (coin_interest) pays 1 bonus per 3 coins across pickups.
+    Priority: COINS_GRANTED_PRIORITY. Lucky Purse's flat doubling supersedes
+    Coin Purse: its interest accumulator is not touched while Lucky Purse is
+    held.
     """
-    # Lucky Purse: doubles the incoming amount (supersedes Coin Purse)
-    if item_capability_any(state, registry, ItemCapability.COIN_MULTIPLIER):
-        return amount
-    # Coin Purse: accumulate interest; pay 1 per 3 coins collected
-    for item_id, cnt in state.inventory.items():
-        if cnt <= 0:
-            continue
-        item = registry.special.by_id.get(item_id)
-        if item is None:
-            continue
-        e = item.effect("coin_interest")
-        if e is not None:
-            per = e.param("per", 3)
-            bonus_per = e.param("bonus", 1)
-            state.special.coin_interest += amount
-            earned = state.special.coin_interest // per
-            state.special.coin_interest %= per
-            return earned * bonus_per
-    return 0
+    return fire_item_chain(
+        state, registry, ItemHook.COINS_GRANTED, COINS_GRANTED_PRIORITY, amount, default=0)
 
 
 def _resolve_food_base(state, registry, food_id: str) -> int:
@@ -1250,22 +1261,12 @@ def eat_food(game, food_id: str = "banana", count: int = 1) -> None:
 def food_steps(state, registry, base: int) -> int:
     """Steps granted by one food item: base, +1 with the Salt Shaker, then
     doubled by the Silver Spoon (in that order, per the wiki).
+
+    FOOD_STEPS_PIPELINE: the one genuine ordered fold among this module's
+    item chains (fold_item_chain) -- every held item in the tuple applies
+    its own transform to the running total, in order.
     """
-    total = base
-    # Salt Shaker: add food_bonus amount first
-    for item_id, cnt in state.inventory.items():
-        if cnt <= 0:
-            continue
-        item = registry.special.by_id.get(item_id)
-        if item is None:
-            continue
-        e = item.effect("food_bonus")
-        if e is not None:
-            total += e.param("amount", 0)
-    # Silver Spoon: then double
-    if item_capability_any(state, registry, ItemCapability.FOOD_MULTIPLIER):
-        total *= 2
-    return total
+    return fold_item_chain(state, registry, ItemHook.FOOD_STEP_BONUS, FOOD_STEPS_PIPELINE, base)
 
 
 def _has_item_effect(state, registry, tag: str) -> bool:
@@ -1341,26 +1342,13 @@ def satisfied_condition_items(state) -> set[str]:
 def shield_negates(game) -> bool:
     """Knight's Shield: negate the first red-room negative effect today.
 
-    Returns True and sets shield_used=True when a held item carries
-    ``mask_red_room`` or ``negate_red_once_per_day`` and the daily charge
-    has not yet been spent. Auto-applies to the first negative red-room
-    effect (simplification #6 in docs/special-items-design.md).
+    Priority: RED_ROOM_NEGATE_PRIORITY. Auto-applies to the first negative
+    red-room effect (simplification #6 in docs/special-items-design.md).
     """
     state = game.state
     registry = game.registry
-    if state.special.shield_used:
-        return False
-    for item_id, cnt in state.inventory.items():
-        if cnt <= 0:
-            continue
-        item = registry.special.by_id.get(item_id)
-        if item is None:
-            continue
-        if (item.effect("mask_red_room") is not None
-                or item.effect("negate_red_once_per_day") is not None):
-            state.special.shield_used = True
-            return True
-    return False
+    return fire_item_chain(
+        state, registry, ItemHook.RED_ROOM_NEGATE, RED_ROOM_NEGATE_PRIORITY, default=False)
 
 
 # ------------------------------------------------------------------- digging

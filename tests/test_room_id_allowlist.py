@@ -175,8 +175,6 @@ ALLOWLIST: dict[str, set[str]] = {
         "entrance_hall",
         # room.id != "garage" / membership in the Garage upgrade-id family.
         "garage",
-        # is_category("hallway") Hall Pass / free-hallway-move checks.
-        "hallway",
         # room.id == "lost_and_found" steal trigger, plus the same string
         # reused as an RNG substream name and a grant() source label.
         "lost_and_found",
