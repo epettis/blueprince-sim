@@ -91,14 +91,9 @@ ITEM_TAG_ALLOWLIST: dict[str, set[str]] = {
         # both name the same underlying resource.
         "allowance",
     },
-    "game.py": {
-        # special_items.has(st, "paper_crown") is an item-id lookup (the
-        # Paper Crown +1-redraw bonus), not a tag dispatch -- collides with
-        # the tag string only because paper_crown is one of the 13 ids
-        # spelled identically to its own effect tag. Also listed on
-        # ITEM_ALLOWLIST in test_item_id_allowlist.py for the same site.
-        "paper_crown",
-    },
+    # game.py no longer names any tag/id-collision literal (task 22 phase
+    # 5a): its former "paper_crown" site is now paper_crown.bonus_redraw in
+    # engine/effects/items/paper_crown.py.
     "shops.py": {
         # item.effect("locksmith_rob") gates the Locksmith's rob-on-theft
         # mechanic -- a genuine tag dispatch.
@@ -106,19 +101,13 @@ ITEM_TAG_ALLOWLIST: dict[str, set[str]] = {
         # _has_item_effect(..., "smash") gates smash-capable container
         # opening -- a genuine tag dispatch.
         "smash",
-        # item.effect("stopwatch") gates the free-cost-event check. Also an
-        # item id (has()/remove() elsewhere in this file) since stopwatch is
-        # one of the 13 collisions -- listed on both allowlists for the
-        # module, each site independently.
-        "stopwatch",
-        # si.has(game.state, "repellent") / si.remove(..., "repellent", ...)
-        # are item-id lookups (Repellent ban usage), not tag dispatch --
-        # collide with the tag string the same way paper_crown does above.
-        "repellent",
         # "allowance": state.allowance carry-over dict key (day-boundary
         # config export), not a tag read -- collides with the resource name
         # the same way effects/tier1.py's case does.
         "allowance",
+        # stopwatch and repellent moved off this entry (phase 5a): their
+        # former sites are now stopwatch.blocks_as_trade_return and
+        # repellent.held/consume in engine/effects/items/.
     },
     "special_items.py": {
         # The bulk of genuine tag dispatch: every one of these is read via
@@ -134,18 +123,22 @@ ITEM_TAG_ALLOWLIST: dict[str, set[str]] = {
         # more (coin_interest, food_bonus, free_move_interval,
         # mask_red_room, negate_red_once_per_day) to per-item ItemHook
         # handlers in engine/effects/items/coin_purse.py, salt_shaker.py,
-        # running_shoes.py, and knights_shield.py.
+        # running_shoes.py, and knights_shield.py. Phase 5a moved four more
+        # (compass -- the tag itself deleted from special_items.json since
+        # ItemCapability.COMPASS_BIAS replaced it -- plus sleeping_mask,
+        # steps_at_rank, and watering_can, whose reads are now
+        # engine/effects/items/sleeping_mask.py, lunch_box.py, and
+        # watering_can.py respectively).
         "allowance", "auto_collect",
-        "compass", "dig_tool",
+        "dig_tool",
         "lockpick", "luck_bonus",
         "metal_detector_spawns", "moon_pendant_carry",
         "set_steps_on_pickup",
-        "sleeping_mask", "smash", "steps_at_rank", "stopwatch",
+        "smash", "stopwatch",
         # "treasure_map" section dict key (raw["treasure_map"]: cells,
         # rewards) plus has(state, "treasure_map") item-id lookups --
         # coincides with the tag string spelling, not read via .effect().
         "treasure_map",
-        "watering_can",
     },
 }
 

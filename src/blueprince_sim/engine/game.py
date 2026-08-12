@@ -12,6 +12,7 @@ from .areas import GateContext, reachable
 from .decks import apply_upgrade, build_decks, inject_rooms
 from .draft import COLOUR_CATEGORIES, SECRET_PASSAGE_IDS, deal_draft, redeal
 from .effects import Capability, Hook
+from .effects.items import paper_crown, power_hammer, silver_key
 from .effects.rooms import dovecote, foyer, mail_room, shrine
 from .grid import (ADJACENT, DIRS, E, ENTRANCE_CELL, N, N_CELLS, OPPOSITE, W,
                    neighbor, rank_of, rotate_mask)
@@ -517,11 +518,10 @@ class Game:
             # to the spawn pool today (consumed=False keeps it pool-eligible tomorrow).
             # open_locked_free (Master Key / Stopwatch / Lock Pick Kit) waives
             # the search surcharge along with the base key.
-            if (for_draft and self.cfg.special_items
-                    and special_items.has(st, "silver_key")):
-                special_items.remove(st, "silver_key", consumed=False)
-                st.special.silver_key_draft = True
-            elif not (self.cfg.special_items and special_items.open_locked_free(self)):
+            used_silver_key = (for_draft and self.cfg.special_items
+                                and silver_key.consume_for_draft(st))
+            if not used_silver_key and not (self.cfg.special_items
+                                             and special_items.open_locked_free(self)):
                 cost = self.lock_open_cost(cell, direction)
                 assert st.keys >= cost, f"door is locked and costs {cost} keys; holding {st.keys}"
                 st.keys -= cost
@@ -904,10 +904,7 @@ class Game:
             effects.fire(self, self.registry.rooms[opt.room_idx], Hook.ON_HAND_DEALT)
         # Paper Crown: +1 free redraw on an all-non-red initial deal.
         # Hidden options are treated as potentially red (no crown bonus if any hidden).
-        if (self.cfg.special_items and special_items.has(st, "paper_crown")
-                and not any(o.hidden for o in pending.options)
-                and all(not self.registry.rooms[o.room_idx].is_category("red")
-                        for o in pending.options)):
+        if self.cfg.special_items and paper_crown.bonus_redraw(st, self.registry, pending):
             pending.redraws_left += 1
         self.doorway_drafts[(cell, direction)] = pending
         return pending
@@ -1043,7 +1040,7 @@ class Game:
         if self.cfg.boiler_room_steam or st.boiler_room_steam:
             flags.add("boiler_room_steam")
         if (self.cfg.sealed_entrance_broken or st.sealed_entrance_broken
-                or (self.cfg.special_items and special_items.has(st, "power_hammer"))):
+                or (self.cfg.special_items and power_hammer.held(st))):
             flags.add("sealed_entrance_broken")
         if "mine_south" in st.special.lit_targets or "mine_south" in self.cfg.lit_targets:
             flags.add("candlestick_stairway_lit")

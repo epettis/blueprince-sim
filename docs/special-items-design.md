@@ -188,7 +188,7 @@ machines_used: list[str] # machine room ids that already took a Broken Lever tod
 `free_move_interval` (Running Shoes, n=3, inferred),
 `stopwatch` (free_costs: 10, inferred — turn-based stand-in for 60 real-time seconds),
 `sleeping_mask` (steps: 5), `watering_can` (capacity: 3),
-`compass`, `dig_tool`
+`dig_tool`
 (table id), `treasure_map`, `metal_detector_spawns` (coin/key chances, inferred),
 `auto_collect` (Electromagnet: implies metal_detector-style spawn grant),
 `mask_red_room` (Knight's Shield), `paper_crown`, `set_steps_on_pickup`
@@ -209,9 +209,9 @@ registry), which `shops.py` folds via `item_capability_sum`.
 Eight more pure-boolean effects moved the same way, each into its own
 `engine/effects/items/<item_id>.py` module folded via `item_capability_any`
 (the boolean sibling of `item_capability_sum`) instead of a data tag:
-`ItemCapability.ELECTROMAGNET` (Powered Electromagnet — its `compass`,
-`auto_collect`, and `locksmith_rob` tags stay in data; only its drafting
-bias moved), `ItemCapability.CHRONOGRAPH` (Chronograph),
+`ItemCapability.ELECTROMAGNET` (Powered Electromagnet — its `auto_collect`
+and `locksmith_rob` tags stay in data; its drafting bias moved),
+`ItemCapability.CHRONOGRAPH` (Chronograph),
 `ItemCapability.ORNATE_COMPASS` (Ornate Compass),
 `ItemCapability.MASTER_KEY` (Master Key),
 `ItemCapability.EMERALD_BRACELET` (Emerald Bracelet),
@@ -220,6 +220,10 @@ bias moved), `ItemCapability.CHRONOGRAPH` (Chronograph),
 `ItemCapability.COIN_MULTIPLIER` (Lucky Purse — its `luck_bonus` tag stays
 in data, shared with the Rabbit's Foot). None of these eight tags exist in
 `special_items.json` any more.
+
+A ninth capability, `ItemCapability.COMPASS_BIAS` (task 22 phase 5a), moved
+the `compass` tag itself off both its carriers (Compass and Powered
+Electromagnet); the tag no longer exists in `special_items.json`.
 
 `locksmith_rob` (Powered Electromagnet, PR2): approaching the Locksmith while holding
 the Electromagnet robs it —
