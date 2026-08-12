@@ -30,6 +30,15 @@ from .effects import (
     fold_item_chain,
     item_capability_any,
 )
+from .effects.items import (
+    cursed_effigy,
+    key_8,
+    lunch_box,
+    royal_scepter,
+    silver_key,
+    sleeping_mask,
+    watering_can,
+)
 from .model import Effect
 
 KINDS = ("standard", "special_key", "contraption", "showroom", "armory", "unique")
@@ -384,34 +393,6 @@ def remove(state, item_id: str, *, consumed: bool = False) -> None:
         state.special.removed.append(item_id)
 
 
-def check_lunch_box(state, registry, item=None) -> None:
-    """Consume the Lunch Box and grant food-modified steps if held at rank >= its threshold.
-
-    The Lunch Box's step count (10, from data) is the *base* fed into the food
-    pipeline, so Salt Shaker / Silver Spoon modify it: 10 → 11 → 22.
-
-    Called from _on_pickup (pickup at high rank) and task C's on_arrive
-    (rank-crossing check on each arrival).
-    """
-    if item is None:
-        item = registry.special.by_id.get("lunch_box")
-        if item is None or not has(state, "lunch_box"):
-            return
-    e = item.effect("steps_at_rank")
-    if e is None:
-        return
-    from .grid import rank_of
-    if rank_of(state.pos) < e.param("rank", 5):
-        return
-    remove(state, "lunch_box", consumed=True)
-    # Use the item's own steps param as the food-pipeline base (10), so
-    # Salt Shaker (+1) and Silver Spoon (×2) modify it correctly.
-    base = e.param("steps", 3)
-    steps_gained = food_steps(state, registry, base)
-    state.steps += steps_gained
-    state.items_found_log.append(("food", 1))
-
-
 def _on_pickup(state, registry, item: SpecialItem) -> None:
     """Immediate effects of picking an item up.
 
@@ -426,10 +407,8 @@ def _on_pickup(state, registry, item: SpecialItem) -> None:
         if not only_if_above or state.steps > value:
             state.steps = value
 
-    # watering_can: fill charges to capacity on pickup
-    e = item.effect("watering_can")
-    if e is not None:
-        state.special.water = e.param("capacity", 3)
+    # Watering Can: fill charges to capacity on pickup
+    watering_can.on_pickup(state, item)
 
     # stopwatch: activate (grant already blocked a re-grant, so this always fires first time)
     e = item.effect("stopwatch")
@@ -438,10 +417,8 @@ def _on_pickup(state, registry, item: SpecialItem) -> None:
             state.special.stopwatch_left = e.param("free_costs", 10)
             state.special.stopwatch_used = True
 
-    # steps_at_rank (Lunch Box): consume immediately if already at/above rank threshold
-    e = item.effect("steps_at_rank")
-    if e is not None:
-        check_lunch_box(state, registry, item)
+    # Lunch Box: consume immediately if already at/above its rank threshold
+    lunch_box.check_rank_threshold(state, registry, item)
 
     # treasure_map: the marked cell is resolved lazily in on_arrive/dig_all
     # when game.rng is available. No action needed at pickup time.
@@ -472,15 +449,12 @@ def configure(state, cfg) -> None:
         return
     state.special.configured = True
     gated = []
-    if not cfg.lunch_box_unlocked:
-        gated.append("lunch_box")
-    if not cfg.cursed_effigy_unlocked:
-        gated.append("cursed_effigy")
+    lunch_box.gate(cfg, gated)
+    cursed_effigy.gate(cfg, gated)
     # Royal Scepter: gate out of spawn pool unless the carry-over flag is set.
     # (Finding the scepter in-run requires the unmodeled Treasure Trove / Key of
     # Aries puzzle; with royal_scepter_found it is granted at reset time instead.)
-    if not cfg.royal_scepter_found:
-        gated.append("royal_scepter")
+    royal_scepter.gate(cfg, gated)
     # Vault keys permanently used (across all days): never spawn again.
     for vk_id in getattr(cfg, "used_vault_keys", frozenset()):
         if vk_id not in gated:
@@ -708,10 +682,7 @@ def on_enter(game, room, cell: int) -> None:
     _maybe_serve_main_course(game)
 
     # Lunch Box: guaranteed in the Dining Room (and upgrade variants) when unlocked
-    if game.cfg.lunch_box_unlocked:
-        if room.id == "dining_room" or room.variant_of == "dining_room":
-            if _is_available(state, "lunch_box", registry):
-                grant(state, registry, "lunch_box", source="guaranteed")
+    lunch_box.grant_guaranteed(game, room)
 
     # Lost & Found: steal one held item and grant two draws from the pool. Fires
     # after the guaranteed-items loop above, so this room's own guaranteed
@@ -720,33 +691,10 @@ def on_enter(game, room, cell: int) -> None:
         lost_and_found_on_enter(game)
 
     # Sleeping Mask: grant steps when entering a bedroom (including Bunk Room x2)
-    for item_id, cnt in state.inventory.items():
-        if cnt <= 0:
-            continue
-        item = registry.special.by_id.get(item_id)
-        if item is None:
-            continue
-        e = item.effect("sleeping_mask")
-        if e is not None and room.is_category("bedroom"):
-            steps_per = e.param("steps", 5)
-            bed_count_effect = next(
-                (ef for ef in room.effects if ef.tag == "counts_as_bedrooms"), None)
-            amount = bed_count_effect.param("amount", 1) if bed_count_effect is not None else 1
-            state.steps += steps_per * amount
-            break  # only one sleeping mask can be held (unique)
+    sleeping_mask.apply_on_enter(state, registry, room)
 
     # Watering Can: convert one water charge to one gem on entering a green room
-    for item_id, cnt in state.inventory.items():
-        if cnt <= 0:
-            continue
-        item = registry.special.by_id.get(item_id)
-        if item is None:
-            continue
-        if item.effect("watering_can") is not None and room.is_category("green"):
-            if state.special.water > 0:
-                state.special.water -= 1
-                state.gems += 1
-            break
+    watering_can.apply_on_enter(state, registry, room)
 
 
 def _maybe_serve_main_course(game) -> None:
@@ -784,7 +732,7 @@ def on_arrive(game, cell: int) -> None:
     Lunch Box rank check, Dining Room main course (rank-8 gated return
     visits). Called from Game.move after entering. Task C.
     """
-    check_lunch_box(game.state, game.registry)
+    lunch_box.check_rank_threshold(game.state, game.registry)
     _maybe_serve_main_course(game)
 
     # Treasure Map: resolve the marked cell lazily on first arrival after pickup
@@ -1283,7 +1231,8 @@ def _has_item_effect(state, registry, tag: str) -> bool:
 def compass_active(game) -> bool:
     """North-bias rotation rolls: config flag, held Compass, or a Powered
     Electromagnet (its compass effect persists while held)."""
-    return game.cfg.compass or _has_item_effect(game.state, game.registry, "compass")
+    return game.cfg.compass or item_capability_any(
+        game.state, game.registry, ItemCapability.COMPASS_BIAS)
 
 
 def ornate_compass_active(game) -> bool:
@@ -1296,9 +1245,9 @@ def compass_active_from_state(state, registry, cfg) -> bool:
     """Compass-active check from state/registry/cfg (no game object).
 
     Used by draft.py where game is not available. Checks the config flag
-    and any held item carrying the ``compass`` effect tag.
+    and any held item registering ``ItemCapability.COMPASS_BIAS``.
     """
-    return cfg.compass or _has_item_effect(state, registry, "compass")
+    return cfg.compass or item_capability_any(state, registry, ItemCapability.COMPASS_BIAS)
 
 
 def electromagnet_active_from_state(state, registry) -> bool:
@@ -1331,7 +1280,7 @@ def satisfied_condition_items(state) -> set[str]:
     when Bacon & Eggs is eaten from the Kitchen).
     """
     conds: set[str] = set()
-    if state.inventory.get("key_8", 0) > 0:
+    if key_8.held(state):
         conds.add("room8_key")
     if state.inventory.get("secret_garden_key", 0) > 0:
         conds.add("secret_garden_key")
@@ -1943,8 +1892,9 @@ def _mechanarium_key_chain(game) -> str:
     already resolves "already held" correctly for them.
     """
     state, registry = game.state, game.registry
-    if not has(state, "silver_key") and _is_available(state, "silver_key", registry):
-        return _apply_grant(state, registry, game, {"kind": "item", "id": "silver_key"})
+    result = silver_key.mechanarium_grant(state, registry, game)
+    if result is not None:
+        return result
     if not state.has_keycard:
         return _apply_grant(state, registry, game, {"kind": "keycard"})
     if _is_available(state, "secret_garden_key", registry):

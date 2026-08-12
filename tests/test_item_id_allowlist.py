@@ -175,65 +175,67 @@ ITEM_ARCHITECTURE: dict[str, set[str]] = {
 #: ceiling so it cannot quietly grow either.
 ITEM_DEBT: dict[str, set[str]] = {
     "game.py": {
-        # Silver Key: for_draft consumption + silver_key_draft bias flag
-        # (locked-door open path) -- a genuine id branch.
-        "silver_key",
-        # Paper Crown: has(st, "paper_crown") gates the +1 free redraw on an
-        # all-non-red initial deal.
-        "paper_crown",
-        # Power Hammer: has(st, "power_hammer") feeds the sealed-entrance
-        # broken flag alongside the config/state fallbacks.
-        "power_hammer",
         # registry.lock_rules["keycard"] table lookup + items_found_log
         # label: the Keycard's own spawn-chance/state handling in game.py,
         # distinct from shops.py's PIPELINE_EXCLUDED carve-out (architecture).
+        # silver_key, paper_crown, and power_hammer moved off this list
+        # (task 22 phase 5a): their reads are now effects/items/ module
+        # functions (silver_key.consume_for_draft, paper_crown.bonus_redraw,
+        # power_hammer.held), which name no string literal here. Keycard
+        # stays: it is one of the six RNG-adjacent items deferred to phase 5b.
         "keycard",
     },
     "shops.py": {
-        # Special-key fallback list (car_keys / silver_key), rolled when no
-        # priority-list key is available.
-        "car_keys", "silver_key",
-        # Gift Shop one-time-purchase filter: lunch_box hidden once
-        # cfg.lunch_box_unlocked.
-        "lunch_box",
-        # Royal Scepter / Entrance Hall vase chip: day-start carry-over
-        # grants, plus can_activate_scepter's has() gate and the vase-smash
-        # microchip grant.
-        "royal_scepter", "microchip",
-        # can_use_repellent/use_repellent: has()/remove() on the Repellent
-        # item id (illegal-target room ids are a separate allowlist entry on
-        # test_room_id_allowlist.py, not this one).
-        "repellent",
-        # _trade_target_ok's Stopwatch carve-out: blocks offering a second
-        # Stopwatch as a trade return after one already ran today
-        # (item.effect("stopwatch") plus state.special.stopwatch_used).
-        "stopwatch",
+        # Special-key fallback list default (car_keys / silver_key). car_keys
+        # is one of the six RNG-adjacent items deferred to phase 5b; its
+        # literal shares this default-list line with silver_key's own last-
+        # resort default, so silver_key.ITEM_ID replaced silver_key's two
+        # literals here in place, without touching car_keys' own occurrence
+        # or its default-list position (task 22 phase 5a).
+        "car_keys",
+        # Royal Scepter / Entrance Hall vase chip: the vase-smash microchip
+        # grant belongs to the (out of scope) Microchip branch. royal_scepter
+        # moved off this list (phase 5a): its day-start grant and
+        # can_activate_scepter gate are now royal_scepter.grant_carry_over/
+        # held, which name no string literal here.
+        "microchip",
+        # lunch_box, repellent, and stopwatch moved off this list (phase 5a):
+        # their reads are now effects/items/ module functions
+        # (lunch_box.hide_from_gift_shop/on_purchased, repellent.held/
+        # consume, stopwatch.blocks_as_trade_return), which name no string
+        # literal here.
     },
     "special_items.py": {
         # Fabrication-chain ids: the individual has()/remove() calls each
         # recipe performs on its own inputs/output, plus the Mechanarium
         # third-compartment fallback sequence (Upgrade Disk, then Battery
         # Pack, Broken Lever, Sledge Hammer, else a Trunk roll) -- a
-        # room-specific loot order, not a cross-item tool ranking.
-        "battery_pack", "broken_lever", "cursed_effigy", "sledge_hammer",
+        # room-specific loot order, not a cross-item tool ranking. All three
+        # are RNG-adjacent items deferred to phase 5b.
+        "battery_pack", "broken_lever", "sledge_hammer",
         # Key-family ids with their own bespoke pickup/spend logic distinct
-        # from the generic spawn pipeline.
-        "car_keys", "key_8", "keycard", "silver_key", "secret_garden_key",
-        # Per-item bespoke behaviour hooks: each item's own effect handler
-        # names its id directly (has()/remove()/effect() calls) rather than
-        # going through a shared tag dispatch. chronograph, emerald_bracelet,
-        # master_key, and ornate_compass moved off this list: their reads
-        # are now ItemCapability lookups in engine/effects/items/, which
-        # name no string literal here.
-        "compass", "lunch_box", "moon_pendant", "royal_scepter",
-        "sleeping_mask", "treasure_map", "watering_can",
+        # from the generic spawn pipeline. car_keys, keycard, and
+        # secret_garden_key are RNG-adjacent items deferred to phase 5b.
+        # key_8 and silver_key moved off this list (phase 5a): key_8's
+        # room8_key condition-gate check is now key_8.held, and silver_key's
+        # Mechanarium grant is now silver_key.mechanarium_grant, neither of
+        # which names a string literal here.
+        "car_keys", "keycard", "secret_garden_key",
+        # moon_pendant and treasure_map are phase 6 items, migrated alone.
+        # compass, cursed_effigy, lunch_box, royal_scepter, sleeping_mask,
+        # and watering_can moved off this list (phase 5a), alongside
+        # chronograph, emerald_bracelet, master_key, and ornate_compass from
+        # earlier phases: their reads are now ItemCapability lookups or
+        # effects/items/ module functions, which name no string literal here.
+        "moon_pendant", "treasure_map",
     },
 }
 
-#: ITEM_DEBT's total size at the time of the split (task 22 phase 5). A later
-#: phase may lower this; test_item_debt_does_not_exceed_the_cap fails if a
-#: change raises it, so debt can only ratchet down from here.
-ITEM_DEBT_CAP = 27
+#: ITEM_DEBT's total size after task 22 phase 5a's migration (was 27 at the
+#: phase 5 split). A later phase may lower this further;
+#: test_item_debt_does_not_exceed_the_cap fails if a change raises it, so
+#: debt can only ratchet down from here.
+ITEM_DEBT_CAP = 11
 
 
 def _combined_allowlist() -> dict[str, set[str]]:

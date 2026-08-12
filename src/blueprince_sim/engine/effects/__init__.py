@@ -164,6 +164,7 @@ def validate_room_registry(registry) -> list[str]:
 class ItemCapability(Enum):
     SHOP_DISCOUNT = "shop_discount"  # coins off every shop price while held
     ELECTROMAGNET = "electromagnet"  # biases drafting toward Mechanical Rooms + Rotunda, held
+    COMPASS_BIAS = "compass_bias"  # biases orientation rolls north-facing, held (multi-carrier)
     CHRONOGRAPH = "chronograph"  # 40% Tomorrow-Rooms priority draw while held
     ORNATE_COMPASS = "ornate_compass"  # rotate-at-will on every draft while held
     MASTER_KEY = "master_key"  # opens any locked door for free, no key spent, while held

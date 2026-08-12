@@ -855,6 +855,131 @@ around 1,800 LOC.
 
 ## Decisions log
 
+- **2026-08-12, `effects: []` in `rooms.json` does NOT mean a room is
+  effectless, and I read it that way.** Owner correction, and it overturns the
+  analysis I gave against building the Ruins arm.
+
+  I reported the Throne Room as "a rare, 5-gem, `effects: []` room -- plausibly
+  negative for an agent". The owner: **it has a Mora Jai box (+2 allowance) and
+  a north Antechamber lever.** Both are **already modelled**, just not in the
+  `effects` array:
+
+  - `effects/rooms/throne_room.py` calls
+    `provides_lever("throne_room", pull_north_lever)`.
+  - `allowance_token_throne_room` carries `guaranteed_in: ["throne_room"]` and
+    the `allowance` effect.
+
+  **The lesson is structural and it cuts against task 22.** The registry
+  migration deliberately moves behaviour OUT of the `effects` array and into
+  code, which is the point -- but it means **`effects: []` is now uninformative
+  as a signal of what a room or item does.** I noted earlier that the registry
+  makes `implemented` *derivable*; the flip side is that it makes `effects: []`
+  *misleading*, and I then made exactly that mistake within the day. Anything
+  reading `effects` to judge whether something is inert must also check the room
+  registry, `provides*`, and guaranteed items.
+
+  **`throne_room.meta.effect_text` is also wrong**: it says "entirely out of
+  scope, no effect modeled" while the lever and the token are both modelled.
+  Fix when the Ruins arm lands.
+
+  **Ruling: build the whole Ruins arm.** Owner, on the corrected facts. The
+  Throne Room is worth adding to the pool for the lever and the allowance token
+  even though the Ruins themselves grant nothing further. My deferral
+  recommendation rested on the room being effectless and does not survive.
+
+- **2026-08-12, three owner rulings on the Microchip branch.**
+  1. **Experiments phases 5-8 are AUTHORISED**, scoped honestly: the Apple
+     Orchard sundial unlocks the Satellite Dish, whose packet is those phases.
+     Only ~6 of 8 triggers and ~4 of 8 effects are expressible --
+     `speed_40_seconds` and `map_view` never (no wall-clock, no interactive
+     map), `reservoir_water_level` needs a room that does not exist,
+     `remove_tunnel_crate` is the out-of-scope Crate Tunnel,
+     `permanent_lockpicking_skill` needs a stat that does not exist.
+     `keys_per_30_steps` is already implemented. **This reverses
+     `docs/experiments-design.md`'s written deferral, deliberately and on the
+     record** rather than by inference.
+  2. **Build the full Ruins reachability arm** (see the entry above).
+  3. **Build the no-receive trade concept AND sweep the tier table.** The table
+     is already broadly wrong independently of this branch: `treasure_map` and
+     `watering_can` are receivable in the sim but give-only on the wiki, and
+     eight wiki-receivable items carry `tier: null`. A spot fix for the
+     microchip alone would leave a known-wrong table wrong.
+
+- **2026-08-12, phase 5a landed: `ITEM_DEBT` 27 -> 11**, cap lowered to match.
+  The 11 remaining are exactly phase 5b's six RNG-adjacent items plus
+  `treasure_map`, `moon_pendant` (phase 6) and `microchip`.
+
+  **Refinement to the multi-carrier rule, from a deviation that was right.**
+  The rule was "a tag carried by more than one item stays in data". `compass` is
+  multi-carrier and was migrated anyway -- correctly, because **the rule's
+  rationale is `CLAUDE.md`'s "published tables go in data", and `compass` has no
+  parameters at all.** Nothing published moved into Python; it became one
+  capability with two registrants, which is what `item_capability_any` exists
+  for. OR-semantics verified preserved across both carriers.
+
+  **So the rule is properly: a multi-carrier tag WITH PARAMETERS stays in data;
+  a parameterless multi-carrier marker may become a capability.** By that test
+  `smash` (3 carriers, no params) is also migratable; `dig_tool`, `lockpick`,
+  `luck_bonus`, `metal_detector_spawns` and `allowance` all carry published
+  numbers and stay.
+
+  Phase 5a also shrank `tests/test_room_id_allowlist.py` -- `special_items.py`'s
+  `"bedroom"` entry went stale once the Sleeping Mask loop moved out. **Second
+  time an item migration has reduced ROOM debt as a side effect.**
+
+- **2026-08-12, the Microchip branch's payoff is already in the training config,
+  and nobody had recorded it.** Verified: `rl/train.py::all_studio_additions()`
+  derives its set from the registry, `throne_room` is in it, and
+  `all_unlocks_config` passes it wholesale. **`'throne_room' in
+  all_studio_additions()` is `True` today.**
+
+  So building the chain Grotto -> gate -> Ruins -> floorplan -> carryover ->
+  `eligible_pool` delivers **zero new content for the config the agent actually
+  trains on.** It matters only under `fresh_save_config`, which passes no
+  `studio_additions` -- and there it adds a **rare, 5-gem, `effects: []`** room
+  to the rare deck. `throne_room.meta.effect_text` says the room is "entirely
+  out of scope, no effect modeled". Adding an expensive effectless rare is
+  plausibly *negative* for an agent.
+
+  **And the route is not real.** `blackbridge_grotto` is reached through
+  `lab_steam_and_power`, which is `kind: "unmodelled", stub: true,
+  retire_in: "PR-power-system"` -- it passes unconditionally, standing in for
+  the unmodelled power system. `areas.py::stub_gates`' own docstring says
+  anything measured through a stub is an upper bound. Flipping the nodes to
+  `modelled: true` would make the Ruins "reachable" through a gate that does
+  not exist yet.
+
+  **Ruling to take: build the gate correction, not the reachability arm.** The
+  gate is a live latent bug -- unsatisfiable in play, and semantically wrong per
+  the 2026-08-12 owner ruling -- and fixing it is XS, changes no reachable
+  behaviour, and stops the wrong model propagating into the next brief. The
+  reachability arm is deferred **on its measured value**, not on difficulty.
+
+  This is the third time this session that a feature looked worth building until
+  someone checked whether it was reachable or whether its payoff already
+  existed. **Check the payoff before costing the work.**
+
+- **2026-08-12, the gate design, for when phase 1 is built.** `Gate` gains
+  `counts_flag: str | None`; `gate_open`'s item arm adds 1 to the held total
+  when that flag is in `ctx.flags`; `GameState.grotto_chip_taken` is
+  **day-scoped with NO carry-over key**.
+
+  That last point is the subtle one and it inverts the obvious reading of the
+  owner's "match `entrance_vase_broken` / `outer_chip_dug`". Those two are
+  `_CARRYOVER_KEYS` fields because they record a permanent **discovery** (the
+  vase is smashed forever), with the day-start re-grant layering respawn on top.
+  The Grotto chip has no discovery to record -- it is in the pedestal from day 1
+  with no prerequisite -- so respawn is just the field defaulting `False` at
+  every `reset()`. **Matching their semantics means NOT copying their plumbing.**
+  Consequence: `_CARRYOVER_KEYS` stays at 14, so the `carryover` observation Box
+  does not widen and this is not a retrain trigger.
+
+  Two alternatives rejected, recorded so they are not re-proposed: `count: 2`
+  plus a flag gate on the edge's `requires` list fails, because `requires` is
+  AND and "took the chip, still holding three" would be shut; and injecting a
+  synthetic microchip into `held_items` makes `held_items` lie to every other
+  item gate.
+
 - **2026-08-12, the item-id allowlist is split into architecture and debt.**
   Pulled forward from phase 7 because phase 5's whole job is to drive the debt
   number down, and a conflated number cannot show that -- a successful

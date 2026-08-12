@@ -138,11 +138,7 @@
    ],
    "spawn_rooms_high_luck": [],
    "guaranteed_in": [],
-   "effects": [
-    {
-     "tag": "compass"
-    }
-   ],
+   "effects": [],
    "implemented": true,
    "meta": {
     "source": "https://blueprince.wiki.gg/wiki/Compass",
@@ -1327,9 +1323,6 @@
    "spawn_rooms_high_luck": [],
    "guaranteed_in": [],
    "effects": [
-    {
-     "tag": "compass"
-    },
     {
      "tag": "auto_collect"
     },

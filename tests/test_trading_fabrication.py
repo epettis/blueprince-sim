@@ -420,6 +420,32 @@ def test_trade_self_cycle_item_untradeable():
     )
 
 
+def test_trade_already_used_stopwatch_is_skipped_as_a_trade_return():
+    """A second Stopwatch cannot come back as a trade return once one has
+    already run today (state.special.stopwatch_used); the walk must fall
+    through to the next node in the graph instead, the same way it falls
+    through a held item.
+
+    Pins the carve-out in shops._trade_target_ok ahead of task 22's
+    migration of its single literal "stopwatch" reference into
+    effects/items/stopwatch.py.
+    """
+    game = _game(seed=0)
+    state = game.state
+    state.inventory["shovel"] = 1  # tier 2, held: the trade root
+    _set_trading_post_inner(game)
+    # shovel -> stopwatch (blocked once used today) -> compass (a valid, unheld return)
+    state.shops.trade_graph = {"shovel": "stopwatch", "stopwatch": "compass", "compass": "shovel"}
+    state.shops.trade_graph_rolled = True
+    state.special.stopwatch_used = True
+    offers = shops.trade_offers(game)
+    shovel_offer = next(o for o in offers if o["give"] == "shovel")
+    assert shovel_offer["receive"] == "compass", (
+        "an already-used Stopwatch must be skipped as a trade return, "
+        "falling through to the next node in the graph"
+    )
+
+
 def test_trade_milking_loop_runs_until_trades_per_day():
     """An A→B→A two-cycle can be milked, and ONLY trades_per_day stops it.
 

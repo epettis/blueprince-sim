@@ -23,6 +23,7 @@ from pathlib import Path
 # would cycle at module load); special_items imports only model, so it's safe.
 from . import special_items as si
 from .effects import Capability, ItemCapability, item_capability_sum, provides_capability
+from .effects.items import lunch_box, repellent, royal_scepter, silver_key, stopwatch
 
 
 # Scepter colors are floorplan categories; the bias entries in
@@ -185,7 +186,7 @@ def _roll_locksmith(game, table: dict) -> None:
     special_key_data = table.get("special_key", {})
     rolls = special_key_data.get("rolls", [])
     price = special_key_data.get("price", 8)
-    fallback = special_key_data.get("fallback", ["car_keys", "silver_key"])
+    fallback = special_key_data.get("fallback", ["car_keys", silver_key.ITEM_ID])
 
     # Roll which priority list to use (cumulative chance)
     chosen_order = None
@@ -216,7 +217,7 @@ def _roll_locksmith(game, table: dict) -> None:
             # silver_key at end of fallback is non-unique so _is_available passes
         # If we still have nothing, force silver_key (non-unique; _is_available passes)
         if special_key_id is None:
-            special_key_id = fallback[-1] if fallback else "silver_key"
+            special_key_id = fallback[-1] if fallback else silver_key.ITEM_ID
 
     state.shops.special_key_offer = special_key_id
     # Append the synthetic special-key entry
@@ -260,8 +261,8 @@ def _roll_gift_shop(game, table: dict) -> None:
     for raw in table.get("stock", []):
         entry = dict(raw)
         entry.setdefault("sold", 0)
-        # lunch_box: only when not already unlocked
-        if raw.get("id") == "lunch_box" and cfg.lunch_box_unlocked:
+        # Lunch Box: only when not already unlocked
+        if lunch_box.hide_from_gift_shop(raw.get("id"), cfg):
             continue
         # cursed_coffers: only when not already unlocked
         if raw.get("id") == "cursed_coffers" and cfg.cursed_effigy_unlocked:
@@ -558,8 +559,7 @@ def buy(game, index: int) -> None:
         case "item":
             si.grant(state, game.registry, entry["id"], source="shop")
             entry["sold"] = entry.get("sold", 0) + 1
-            if entry["id"] == "lunch_box":  # one-time Gift Shop unlock
-                state.shops.gift_unlocks.append("lunch_box_unlocked")
+            lunch_box.on_purchased(entry["id"], state)  # one-time Gift Shop unlock
 
         case "container":
             # cursed_coffers: requires sledge_hammer, grants cursed_effigy
@@ -673,7 +673,7 @@ def _trade_target_ok(state, registry, item_id: str) -> bool:
         return False
     if item.unique and state.inventory.get(item_id, 0) > 0:
         return False
-    if item.effect("stopwatch") is not None and state.special.stopwatch_used:
+    if stopwatch.blocks_as_trade_return(item, state):
         return False
     return True
 
@@ -896,8 +896,7 @@ def on_day_start(game) -> None:
 
     # Royal Scepter: granted at day start when discovered via carry-over.
     # The Entrance Hall is pre-entered at reset, so this is the daily spawn moment.
-    if cfg.royal_scepter_found:
-        si.grant(state, registry, "royal_scepter", source="day_start")
+    royal_scepter.grant_carry_over(state, registry, cfg)
 
     # Entrance Hall vase chip: granted at day start when the vase was previously broken.
     if cfg.entrance_vase_broken:
@@ -934,7 +933,7 @@ def can_activate_scepter(game) -> bool:
 
     if game.phase is not Phase.NAVIGATE:
         return False
-    if not si.has(game.state, "royal_scepter"):
+    if not royal_scepter.held(game.state):
         return False
     if game.state.shops.scepter_color is not None:
         return False
@@ -1003,7 +1002,7 @@ def can_use_repellent(game) -> bool:
     return (
         game.phase is Phase.NAVIGATE
         and not game.off_grid
-        and si.has(game.state, "repellent")
+        and repellent.held(game.state)
     )
 
 
@@ -1030,7 +1029,7 @@ def use_repellent(game, room_id: str) -> None:
         f"unknown room id {room_id!r}"
     )
 
-    si.remove(game.state, "repellent", consumed=True)
+    repellent.consume(game.state)
     # Record or refresh the ban for this room (7 days from now)
     game.state.shops.repellent_bans[room_id] = _REPELLENT_BAN_DAYS
 

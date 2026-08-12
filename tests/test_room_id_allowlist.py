@@ -166,9 +166,9 @@ ALLOWLIST: dict[str, set[str]] = {
         "trading_post", "workshop",
     },
     "special_items.py": {
-        # is_category("bedroom") Sleeping Mask step-cost modifier.
-        "bedroom",
-        # room.id == "dining_room" / variant_of == "dining_room": Lunch Box.
+        # room.id == "dining_room" / variant_of == "dining_room": the Dining
+        # Room main course check (the same comparison for the Lunch Box's
+        # guaranteed grant moved to engine/effects/items/lunch_box.py).
         "dining_room",
         # ENTRANCE_HALL_ROOM_ID constant: containers_in() + room.id ==
         # comparison gating Entrance Hall container spawns.

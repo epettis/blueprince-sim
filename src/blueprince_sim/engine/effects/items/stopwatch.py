@@ -1,11 +1,14 @@
 """Stopwatch: once activated (on pickup, handled in special_items._on_pickup),
 spends its ``free_costs`` charges on the next moves and/or gem payments,
-whichever it is asked to cover first, until they run out.
+whichever it is asked to cover first, until they run out. Also unobtainable
+again today, including as a Trading Post return, once it has already run.
 """
 
 from __future__ import annotations
 
 from .. import ItemHook, item_hook
+
+ITEM_ID = "stopwatch"
 
 
 @item_hook("stopwatch", ItemHook.MOVE_STEP_COST)
@@ -25,3 +28,10 @@ def _waive_gem_payment(state, registry, cost):
         state.special.stopwatch_left -= 1
         return True
     return None
+
+
+def blocks_as_trade_return(item, state) -> bool:
+    """True once today's Stopwatch has already run: ``item`` (a trade-graph
+    candidate, which may or may not be the Stopwatch) becomes untradeable as
+    a return for the rest of the day."""
+    return item.effect(ITEM_ID) is not None and state.special.stopwatch_used
