@@ -196,10 +196,15 @@ machines_used: list[str] # machine room ids that already took a Broken Lever tod
 food-typed), `negate_red_once_per_day`.
 
 Tags NOT implemented in PR1 (records carry them for PR2+ or stay inert):
-`shop_discount` (Coupon Book — PR2), `smash` (Sledge Hammer / Morning Star / Power
+`smash` (Sledge Hammer / Morning Star / Power
 Hammer — vase/trunks PR2+), `repellent`, `scepter`, `chronograph`, `crown_of_blueprints`,
 `gear_wrench`, `dowsing_rod`, `locksmith_rob`, and everything on `implemented: false`
 records.
+
+The Coupon Book no longer carries a `shop_discount` effect tag: its
+discount is registered directly as `ItemCapability.SHOP_DISCOUNT` in
+`engine/effects/items/coupon_book.py` (task 22's per-item capability
+registry), which `shops.py` folds via `item_capability_sum`.
 
 `locksmith_rob` (Powered Electromagnet, PR2): approaching the Locksmith while holding
 the Electromagnet robs it —

@@ -161,6 +161,75 @@ def validate_room_registry(registry) -> list[str]:
     return sorted({room_id for room_id, _hook in _ROOM_REGISTRY if room_id not in registry.by_id})
 
 
+class ItemCapability(Enum):
+    SHOP_DISCOUNT = "shop_discount"  # coins off every shop price while held
+
+
+# (item_id, capability) -> its registered params, e.g. {"amount": 1}. Unlike
+# the room Capability registry above, an item capability always carries
+# parameters -- item_capability_sum needs a number to fold, not just a fact
+# -- so they are stored alongside the registration rather than in a second
+# lookup table.
+_ITEM_CAPABILITY_REGISTRY: dict[tuple[str, ItemCapability], dict[str, object]] = {}
+
+
+def item_provides(item_id: str, capability: ItemCapability, **params) -> None:
+    """Register that ``item_id`` provides ``capability`` with ``params``.
+
+    Call at import time from an item module (``effects/items/<item_id>.py``),
+    the same way a room module calls ``provides`` -- except an item's
+    contribution is only ever data (the fact, plus its parameters); the
+    ENGINE owns folding that data over the held inventory (see
+    ``item_capability_sum``) and the order in which multiple items'
+    contributions combine, rather than each item module registering a
+    handler function the way ``room_hook`` does for rooms. Items have no
+    natural event boundary the way a room's "player is standing in it" does,
+    so there is no hook to register a handler for.
+    """
+    _ITEM_CAPABILITY_REGISTRY[(item_id, capability)] = params
+
+
+def item_capability_sum(state, registry, capability: ItemCapability, param: str) -> int | float:
+    """Sum ``param`` over every currently-held item that registers ``capability``.
+
+    "Held" is decided exactly the way ``special_items._has_item_effect``
+    decides it: a positive count in ``state.inventory``, filtered to ids
+    ``registry`` actually knows about. This is the engine-owned fold itself
+    -- summation, not a per-item handler call -- and it is commutative, so
+    the order items are visited in cannot matter for any capability that
+    uses it today (SHOP_DISCOUNT). A future ordered, non-commutative fold
+    (e.g. a gem-cost or move-step modifier chain, where item A's discount
+    should apply before item B's multiplier) would be a sibling function
+    here, walking ``_ITEM_CAPABILITY_REGISTRY`` in a caller-supplied item
+    order and reducing with a combine function instead of summing -- it
+    would need no change to ``item_provides`` or this registry, since params
+    are already stored per (item_id, capability) rather than pre-flattened
+    into one number.
+    """
+    total = 0
+    for item_id, cnt in state.inventory.items():
+        if cnt <= 0 or item_id not in registry.special.by_id:
+            continue
+        params = _ITEM_CAPABILITY_REGISTRY.get((item_id, capability))
+        if params is not None:
+            total += params.get(param, 0)
+    return total
+
+
+def validate_item_registry(registry) -> list[str]:
+    """Return every item id registered via ``item_provides`` that ``registry`` lacks.
+
+    Mirrors ``validate_capability_registry``: ``item_provides`` runs at
+    import time, before any ``Registry`` exists, so a typo'd item id cannot
+    be caught at registration -- it would otherwise just never match a real
+    item, silently. Callers run this once a ``Registry`` exists (a dedicated
+    test, here) and treat a nonempty result as a hard failure.
+    """
+    return sorted(
+        {item_id for item_id, _cap in _ITEM_CAPABILITY_REGISTRY
+         if item_id not in registry.special.by_id})
+
+
 def fire(game, room, hook: Hook, context_room=None) -> None:
     """Run all of ``room``'s effects that belong to ``hook``, then its room-id handler.
 
@@ -188,3 +257,4 @@ def fire(game, room, hook: Hook, context_room=None) -> None:
 
 from . import tier1  # noqa: E402,F401  (registers handlers on import)
 from . import rooms  # noqa: E402,F401  (registers room_hook handlers on import)
+from . import items  # noqa: E402,F401  (registers item_provides capabilities on import)

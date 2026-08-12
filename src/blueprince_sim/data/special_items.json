@@ -176,19 +176,14 @@
     "secret_passage"
    ],
    "guaranteed_in": [],
-   "effects": [
-    {
-     "tag": "shop_discount",
-     "amount": 1
-    }
-   ],
+   "effects": [],
    "implemented": true,
    "meta": {
     "source": "https://blueprince.wiki.gg/wiki/Coupon_Book",
     "confidence": "wiki",
     "absent_spawn_areas": [],
     "blocked_on": null,
-    "notes": "Fully built and tested: shops.py's stock_for reads the shop_discount effect via si._has_item_effect and applies max(0, price-1) to every stock entry AND the dynamically-appended showroom trophy; affordable is computed against the reduced price. See tests/test_shops.py::test_coupon_book_reduces_price_by_1 and ::test_coupon_book_floors_at_0. Nothing is missing; implemented was flipped to true on the strength of those two tests."
+    "notes": "Fully built and tested: registered as ItemCapability.SHOP_DISCOUNT (amount=1) in engine/effects/items/coupon_book.py; shops.py's stock_for folds it via item_capability_sum and applies max(0, price-discount) to every stock entry AND the dynamically-appended showroom trophy; affordable is computed against the reduced price. See tests/test_shops.py::test_coupon_book_reduces_price_by_1 and ::test_coupon_book_floors_at_0. Nothing is missing; implemented was flipped to true on the strength of those two tests."
    }
   },
   {
