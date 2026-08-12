@@ -1163,6 +1163,13 @@ def carryover(game) -> dict:
         # (Game.reset) from the FOLLOWING day -- the current day's steps were
         # already set at reset() and are not topped up retroactively.
         "orchard_unlocked": cfg.orchard_unlocked or state.orchard_unlocked,
+        # satellite_dish_unlocked: earned the first time the player lights the
+        # Apple Orchard sundial (three held microchips + an ignition tool).
+        # ORed from state so the config is never mutated, same shape as
+        # west_gate_unlatched. Permanently unlocks the Satellite Dish.
+        "satellite_dish_unlocked": (
+            cfg.satellite_dish_unlocked or state.satellite_dish_unlocked
+        ),
         # Vault keys permanently used: accumulated union across all days.
         "used_vault_keys": sorted(
             set(getattr(cfg, "used_vault_keys", frozenset()))

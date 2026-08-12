@@ -300,10 +300,7 @@ def _cell_has_ignition_target(game: Game, cell: int) -> bool:
     if not any(st.inventory.get(t, 0) > 0 for t in tools):
         return False
     target_cfg = targets[room.id]
-    req = target_cfg.get("requires_item")
-    if req is not None and st.inventory.get(req, 0) <= 0:
-        return False
-    return True
+    return _si.ignition_requires_met(st.inventory, target_cfg)
 
 
 def _cell_has_machine(game: Game, cell: int) -> bool:

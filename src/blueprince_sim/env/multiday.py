@@ -43,6 +43,7 @@ _CARRYOVER_KEYS: frozenset[str] = frozenset({
     "treasure_trove_blackprint",  # set on Upper Rotating Gear arrival; adds Treasure Trove to pool
     "orchard_unlocked",        # set on apple_orchard arrival; grants +20 starting steps next day
     "throne_room_blueprint",   # set on Orindian Ruins arrival; adds Throne Room to pool
+    "satellite_dish_unlocked",  # set on lighting the apple_orchard sundial; unlocks Satellite Dish
 })
 
 

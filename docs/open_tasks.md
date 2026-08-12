@@ -855,6 +855,54 @@ around 1,800 LOC.
 
 ## Decisions log
 
+- **2026-08-12, the Apple Orchard sundial is built and CANNOT be lit.** Phase 6a
+  of the Microchip branch: the unlock only. `experiments.py`'s `or_packet` stays
+  hardcoded `False`; the packet's 8 triggers and 8 effects are a later PR.
+
+  **The chip economy does not close, and that is recorded rather than
+  papered over.** The sundial requires **three microchips held**; the engine's
+  ceiling is **two** (Entrance Hall vase, West Path dig -- verified in play). The
+  third chip sits in the Grotto pedestal and only ever contributes to the *area
+  gate* via `counts_flag`; it is never added to inventory. Verified
+  independently: at `apple_orchard` with 2 chips `can_light` is False and
+  `LIGHT_ACTION` is masked off; with 3 both are True.
+
+  **Deliberately built correct-but-unreachable**, mirroring the state #210 left
+  the `three_microchips` gate in. **No chip source was invented** -- doing so
+  would be making up a game rule to make a feature work, and nobody has ruled on
+  one. If the owner wants it lightable, the ruling needed is where a third
+  carried chip comes from.
+
+  **Retrain trigger: `_CARRYOVER_KEYS` 15 -> 16**, `carryover` Box `(15,) ->
+  `(16,)`. **`N_ACTIONS` unchanged at 375** -- `LIGHT_ACTION` already exists and
+  already masks off-grid area targets, so no id was added.
+
+  **`requires_item` was supported-but-unused and count-1 only.** Extended to
+  `requires_items` (item id -> minimum held), and the duplicate eligibility check
+  in `special_items.can_light` and `env/actions._cell_has_ignition_target` --
+  **two independent copies of the same logic** -- collapsed into one shared
+  helper. The old singular form still works; the validator now checks both.
+
+  **Wiki/owner conflict, recorded not resolved.** The wiki says the sundial takes
+  "an ignition tool"; the owner named the Burning Glass. Implemented as any
+  ignition tool, matching `ignition.tools` and the existing `_ignition_tools()`
+  machinery -- building a per-target tool restriction would be new machinery for
+  a fact the owner themselves flagged as "plausibly just what they were
+  carrying". Recorded in `special_items.json`'s ignition meta.
+
+  **Route is real, no stub**: `padlock_code` on `campsite -> apple_orchard` is
+  `kind: "puzzle"`, which passes under the assumed-solved doctrine -- a genuine
+  always-open gate, not a stub standing in for unmodelled work. Unlike the
+  Grotto route, which does ride a stub.
+
+  **Two pre-existing issues surfaced, neither caused here:**
+  `docs/special-items-design.md`'s ignition section is stale (wrong action-id
+  numbers, omits `mine_south`). And **git-bash `grep -c $''` is not
+  trustworthy for CRLF checks on these files** -- it reads them as LF-only. Use a
+  byte-level check: `open(p,'rb').read().replace(b'
+',b'').count(b'
+')`.
+
 - **2026-08-12, the Orindian Ruins are reachable end to end, and widening the
   action space destabilised three tests whose invariants were already
   luck-dependent.**

@@ -343,6 +343,12 @@ class GameState:
     # top up steps already spent this attempt, since st.steps is only set once
     # at reset().
     orchard_unlocked: bool = False
+    # Set when the Apple Orchard sundial is lit today (special_items.py::light(),
+    # requires three held microchips + an ignition tool). Same shape as
+    # west_gate_unlatched: an IN-RUN discovery recorded on STATE, never written
+    # back to GameConfig. carryover() ORs this with cfg.satellite_dish_unlocked;
+    # DayChain carries the result, permanently unlocking the Satellite Dish.
+    satellite_dish_unlocked: bool = False
     # Set the first time the player enters a Sauna today. Unlike orchard_unlocked
     # this is a ONE-DAY pulse, not a permanent unlock: carryover() reports only
     # today's own value (never ORed with cfg.sauna_bonus), and DayChain replaces
