@@ -816,6 +816,9 @@
    "id": "break_room__ix11",
    "name": "Break Room",
    "category": "blueprint",
+   "extra_categories": [
+    "tomorrow"
+   ],
    "rarity": "commonplace",
    "gem_cost": 0,
    "layout": "corner",
@@ -2510,6 +2513,9 @@
    "id": "sauna",
    "name": "Sauna",
    "category": "blueprint",
+   "extra_categories": [
+    "tomorrow"
+   ],
    "rarity": "standard",
    "gem_cost": 0,
    "layout": "dead_end",
@@ -2554,6 +2560,9 @@
    "id": "coat_check",
    "name": "Coat Check",
    "category": "blueprint",
+   "extra_categories": [
+    "tomorrow"
+   ],
    "rarity": "standard",
    "gem_cost": 0,
    "layout": "dead_end",
@@ -2585,6 +2594,9 @@
    "id": "mail_room",
    "name": "Mail Room",
    "category": "blueprint",
+   "extra_categories": [
+    "tomorrow"
+   ],
    "rarity": "unusual",
    "gem_cost": 0,
    "layout": "dead_end",
@@ -2616,6 +2628,9 @@
    "id": "mail_room__ix89",
    "name": "Mail Room",
    "category": "blueprint",
+   "extra_categories": [
+    "tomorrow"
+   ],
    "rarity": "unusual",
    "gem_cost": 0,
    "layout": "dead_end",
@@ -2649,6 +2664,9 @@
    "id": "mail_room__ix90",
    "name": "Mail Room",
    "category": "blueprint",
+   "extra_categories": [
+    "tomorrow"
+   ],
    "rarity": "unusual",
    "gem_cost": 0,
    "layout": "dead_end",
@@ -2682,6 +2700,9 @@
    "id": "mail_room__ix91",
    "name": "Mail Room",
    "category": "blueprint",
+   "extra_categories": [
+    "tomorrow"
+   ],
    "rarity": "unusual",
    "gem_cost": 0,
    "layout": "dead_end",
@@ -2715,6 +2736,9 @@
    "id": "freezer",
    "name": "Freezer",
    "category": "blueprint",
+   "extra_categories": [
+    "tomorrow"
+   ],
    "rarity": "unusual",
    "gem_cost": 0,
    "layout": "dead_end",
@@ -4105,6 +4129,9 @@
    "id": "hallway__ix76",
    "name": "Hallway",
    "category": "hallway",
+   "extra_categories": [
+    "tomorrow"
+   ],
    "rarity": "commonplace",
    "gem_cost": 0,
    "layout": "t",
@@ -4999,6 +5026,9 @@
    "id": "morning_room",
    "name": "Morning Room",
    "category": "green",
+   "extra_categories": [
+    "tomorrow"
+   ],
    "rarity": "commonplace",
    "gem_cost": 0,
    "layout": "corner",
@@ -5646,6 +5676,9 @@
    "id": "clock_tower",
    "name": "Clock Tower",
    "category": "blueprint",
+   "extra_categories": [
+    "tomorrow"
+   ],
    "rarity": "standard",
    "gem_cost": 1,
    "layout": "dead_end",
@@ -5669,7 +5702,7 @@
    "meta": {
     "source": "wiki",
     "confidence": "wiki",
-    "effect_text": "Tomorrow room: next day's starting keys +1 per Tomorrow room (cross-day; out of single-day scope)."
+    "effect_text": "Tomorrow room: at day end, grants next day's starting keys +1 per Tomorrow room present in the mansion, including itself (see engine/game.py::_terminate)."
    }
   },
   {
@@ -6185,6 +6218,9 @@
    "id": "planetarium",
    "name": "Planetarium",
    "category": "blueprint",
+   "extra_categories": [
+    "tomorrow"
+   ],
    "rarity": "standard",
    "gem_cost": 0,
    "layout": "dead_end",

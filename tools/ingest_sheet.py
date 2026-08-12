@@ -426,6 +426,14 @@ FLAG_OVERRIDE: dict[str, dict] = {
 # and Laboratory. The Electric Eel Aquarium is also on that list, gaining
 # "mechanical" on top of its existing every-colour membership rather than
 # replacing it.
+#
+# The wiki's Cargo Rooms table (Type HOLDS "Tomorrow") adds ten sheet-sourced
+# rooms to the membership set: Coat Check, Freezer, Mail Room plus its three
+# upgrades (Same Day/No Contact/Freight), Morning Room, Sauna, the Hallway's
+# "tomorrow" upgrade and the Billiard Room's Break Room upgrade. Clock Tower,
+# Planetarium and Mechanarium are also Cargo-tagged but are wiki-sourced
+# (studio_addition pool), so their extra_categories live directly in
+# tools/supplemental_rooms.json instead -- this table never reaches them.
 CATEGORY_OVERRIDE: dict[str, list[str]] = {
     "aquarium": ["red", "green", "hallway", "bedroom", "shop", "blackprint"],
     "goldfish_aquarium__ix2": ["red", "green", "hallway", "bedroom", "shop", "blackprint"],
@@ -438,6 +446,16 @@ CATEGORY_OVERRIDE: dict[str, list[str]] = {
     "security": ["mechanical"],
     "workshop": ["mechanical"],
     "laboratory": ["mechanical"],
+    "coat_check": ["tomorrow"],
+    "freezer": ["tomorrow"],
+    "mail_room": ["tomorrow"],
+    "mail_room__ix89": ["tomorrow"],
+    "mail_room__ix90": ["tomorrow"],
+    "mail_room__ix91": ["tomorrow"],
+    "morning_room": ["tomorrow"],
+    "sauna": ["tomorrow"],
+    "hallway__ix76": ["tomorrow"],
+    "break_room__ix11": ["tomorrow"],
 }
 
 

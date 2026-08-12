@@ -28,7 +28,8 @@ DATA = Path(__file__).resolve().parent.parent / "src" / "blueprince_sim" / "data
 VALID_RARITIES = {"commonplace", "standard", "unusual", "rare", None}
 VALID_LAYOUTS = {"dead_end", "straight", "corner", "t", "cross"}
 VALID_CATEGORIES = {"blueprint", "bedroom", "hallway", "green", "shop", "red",
-                    "blackprint", "studio_addition", "outer", "objective", "mechanical"}
+                    "blackprint", "studio_addition", "outer", "objective", "mechanical",
+                    "tomorrow"}
 VALID_POOLS = {"base", "studio_addition", "outer", "pool_temp", "upgrade_variant",
                "conditional", "none"}
 VALID_CONFIDENCE = {"datamined", "wiki", "inferred", "placeholder"}
@@ -111,6 +112,7 @@ _AUDIT_PYTHON_EXEMPT_IDS = {
     "aquarium": "engine/model.py",
     "break_room__ix11": "engine/game.py",        # day-end keycard pulse
     "chamber_of_mirrors": "engine/draft.py",     # duplicate-room drafting
+    "clock_tower": "engine/game.py",             # day-end Tomorrow-room key tally
     # Absorbing a spread is implemented by each spreader's own branch rather
     # than by the Conference Room; the Patio's is the representative one.
     "conference_room": "engine/effects/rooms/patio.py",
@@ -1230,8 +1232,9 @@ def main(argv: list[str] | None = None) -> int:
     # is what turns this into the membership set Room.is_category() checks.
     # Mirrored in tools/ingest_sheet.py's CATEGORY_OVERRIDE for the
     # sheet-sourced rooms (the Aquarium family, Utility Closet, Boiler Room,
-    # Pump Room, Security, Workshop, Laboratory); Maid's Chamber and the
-    # Mechanarium are supplemental-sourced and carry their own
+    # Pump Room, Security, Workshop, Laboratory, and the ten Tomorrow-typed
+    # rooms below); Maid's Chamber, the Mechanarium, Clock Tower and
+    # Planetarium are supplemental-sourced and carry their own
     # extra_categories directly.
     EXPECTED_EXTRA_CATEGORIES = {
         "aquarium": {"red", "green", "hallway", "bedroom", "shop", "blackprint"},
@@ -1249,6 +1252,18 @@ def main(argv: list[str] | None = None) -> int:
         "workshop": {"mechanical"},
         "laboratory": {"mechanical"},
         "mechanarium": {"mechanical"},
+        "clock_tower": {"tomorrow"},
+        "coat_check": {"tomorrow"},
+        "freezer": {"tomorrow"},
+        "mail_room": {"tomorrow"},
+        "mail_room__ix89": {"tomorrow"},
+        "mail_room__ix90": {"tomorrow"},
+        "mail_room__ix91": {"tomorrow"},
+        "morning_room": {"tomorrow"},
+        "planetarium": {"tomorrow"},
+        "sauna": {"tomorrow"},
+        "hallway__ix76": {"tomorrow"},
+        "break_room__ix11": {"tomorrow"},
     }
     actual_extra_categories = {
         r["id"]: set(r["extra_categories"]) for r in rooms if r.get("extra_categories")

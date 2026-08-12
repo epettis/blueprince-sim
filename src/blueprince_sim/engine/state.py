@@ -473,6 +473,16 @@ class GameState:
     # Hallway copies into tomorrow's draft pool at day start.
     hallway_tomorrow_count: int = 0
 
+    # Clock Tower's day-end tally: set by Game._terminate only when the Clock
+    # Tower is present on the grid at day end, to the count of Tomorrow-category
+    # rooms present in the mansion (including the Clock Tower itself); 0 on any
+    # day the Clock Tower is not standing. Per-day only. Reported by
+    # Game._room_pulse_carryover() as "clock_tower_tomorrow_keys" and carried by
+    # DayChain into tomorrow's GameConfig.clock_tower_tomorrow_keys, which sets
+    # tomorrow's starting keys at reset() -- the same one-day-pulse shape as
+    # hallway_tomorrow_count/sauna_visited.
+    clock_tower_tomorrow_keys: int = 0
+
     def deck(self, rarity_idx: int, is_gem: bool) -> DeckState:
         return self.decks[rarity_idx * 2 + (1 if is_gem else 0)]
 

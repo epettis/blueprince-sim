@@ -10,6 +10,7 @@ from blueprince_sim.config import GameConfig
 from blueprince_sim.engine import shops, special_items as si
 from blueprince_sim.engine.game import Game
 from blueprince_sim.engine.grid import N
+from blueprince_sim.env.multiday import DayChain
 
 
 # ------------------------------------------------------------------ helpers
@@ -491,3 +492,60 @@ def test_carryover_shape_is_complete():
         assert set(report.keys()) == expected_keys, (
             f"Missing/extra keys for cfg={cfg}: got {set(report.keys())}"
         )
+
+
+# ======================================================== CLOCK TOWER
+
+def test_clock_tower_day_end_carries_a_key_per_tomorrow_room_via_daychain():
+    """Ending a day with the Clock Tower and two other Tomorrow rooms standing
+    carries 3 starting keys (one per Tomorrow room, Clock Tower included) into
+    tomorrow's GameConfig, driven end-to-end through DayChain (Game.carryover()
+    -> DayChain.advance() -> next_config()), the same shape as the Tomorrow
+    Hallway's hallway_tomorrow_extra carry."""
+    chain = DayChain(GameConfig(), n_days=5)
+    g1 = Game(chain.next_config(), seed=1)
+    clock_tower = g1.registry.by_id["clock_tower"]
+    sauna = g1.registry.by_id["sauna"]
+    freezer = g1.registry.by_id["freezer"]
+    g1._place_room(clock_tower, 6, clock_tower.door_mask)
+    g1._place_room(sauna, 7, sauna.door_mask)
+    g1._place_room(freezer, 8, freezer.door_mask)
+    g1.state.steps = 0
+    g1._check_termination()
+
+    chain.advance(g1.carryover())
+    assert chain.next_config().clock_tower_tomorrow_keys == 3
+
+    g2 = Game(chain.next_config(), seed=2)
+    assert g2.state.keys == 3
+
+
+def test_clock_tower_bonus_lapses_the_day_after_it_is_granted():
+    """The key bonus applies only to the immediate next day: a later day
+    ending without the Clock Tower standing does not keep inheriting it --
+    a one-day pulse, not a permanent unlock."""
+    chain = DayChain(GameConfig(), n_days=5)
+    g1 = Game(chain.next_config(), seed=1)
+    clock_tower = g1.registry.by_id["clock_tower"]
+    g1._place_room(clock_tower, 6, clock_tower.door_mask)
+    g1.state.steps = 0
+    g1._check_termination()
+    chain.advance(g1.carryover())            # day 2 gets 1 key
+    g2 = Game(chain.next_config(), seed=2)
+    assert g2.state.keys == 1
+
+    chain.advance(g2.carryover())            # day 2 did not stand up a Clock Tower
+    g3 = Game(chain.next_config(), seed=3)
+    assert g3.state.keys == 0
+
+
+def test_clock_tower_carry_resets_on_daychain_attempt_wrap():
+    """The carried key count does not survive a DayChain attempt wrap -- a
+    fresh attempt starts with no Clock Tower bonus pending. Pins the carry as
+    PER-ATTEMPT, the same shape as hallway_tomorrow_extra/sauna_bonus, not
+    SAVE-scoped like stars/main_course_bonus."""
+    chain = DayChain(GameConfig(), n_days=2)
+    chain.advance({"clock_tower_tomorrow_keys": 5})   # day 1 -> day 2
+    chain.advance({})                                 # day 2 -> wraps to day 1
+
+    assert chain.next_config().clock_tower_tomorrow_keys == 0
