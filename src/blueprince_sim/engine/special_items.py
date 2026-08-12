@@ -38,11 +38,13 @@ from .effects.items import (
     key_8,
     keycard,
     lunch_box,
+    moon_pendant,
     royal_scepter,
     secret_garden_key,
     silver_key,
     sledge_hammer,
     sleeping_mask,
+    treasure_map,
     watering_can,
 )
 from .model import Effect
@@ -742,10 +744,7 @@ def on_arrive(game, cell: int) -> None:
     _maybe_serve_main_course(game)
 
     # Treasure Map: resolve the marked cell lazily on first arrival after pickup
-    state = game.state
-    if has(state, "treasure_map") and state.special.treasure_cell == -1:
-        cells = game.registry.special.treasure_map["cells"]
-        state.special.treasure_cell = game.rng.choice("treasure_map", cells)
+    treasure_map.resolve_cell(game)
 
     dig_all(game, cell)
 
@@ -902,19 +901,7 @@ def end_of_day_carry(state, registry, rng) -> list[str]:
         result.add(state.special.coat_check_item)
 
     # 3. Moon Pendant: 2 random distinct held items (pendant itself eligible)
-    if has(state, "moon_pendant"):
-        held_ids = sorted(
-            iid for iid, cnt in state.inventory.items() if cnt > 0
-        )
-        if len(held_ids) <= 2:
-            # Fewer than 2 held: all carry anyway
-            result.update(held_ids)
-        else:
-            # Draw 2 distinct ids uniformly at random from the held set
-            indices = list(range(len(held_ids)))
-            rng.shuffle("moon_pendant_carry", indices)
-            result.add(held_ids[indices[0]])
-            result.add(held_ids[indices[1]])
+    moon_pendant.carry_over(state, rng, result)
 
     return sorted(result)
 
@@ -1410,21 +1397,7 @@ def dig_all(game, cell: int) -> None:
             the_kennel.unlock_dug_room(game, cell)
 
     # Treasure Map: one-per-day dig at the marked cell
-    if (state.special.treasure_cell == cell
-            and not state.special.treasure_dug
-            and tool_item is not None):
-        rewards = registry.special.treasure_map["rewards"]
-        reward = game.rng.choice("treasure_map", rewards)
-        coins = reward.get("coins", 0)
-        gems = reward.get("gems", 0)
-        if coins > 0:
-            bonus = on_coins_granted(state, registry, coins)
-            state.coins += coins + bonus
-            state.items_found_log.append(("coins", coins))
-        if gems > 0:
-            state.gems += gems
-            state.items_found_log.append(("gem", gems))
-        state.special.treasure_dug = True
+    if treasure_map.dig_reward(game, cell, tool_item):
         the_kennel.unlock_dug_room(game, cell)
 
 
