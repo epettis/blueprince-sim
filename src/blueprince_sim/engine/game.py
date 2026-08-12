@@ -74,6 +74,7 @@ class Game:
                     + (20 if cfg.sauna_bonus else 0))
         st.gems = ((2 if cfg.mine_unlocked else 0) + (2 if cfg.morning_room_bonus else 0)
                    + cfg.frozen_gems)
+        st.keys = cfg.clock_tower_tomorrow_keys
         # The allowance packet: the sim assumes the player is already standing in
         # the Entrance Hall at reset(), so the daily gold packet is granted here
         # unconditionally rather than modelled as a pickup action -- adding zero
@@ -732,7 +733,7 @@ class Game:
 
     def _room_pulse_carryover(self) -> dict:
         """One-day-pulse cross-day bonuses: Sauna, Morning Room, Freezer, Break Room,
-        No Contact Delivery.
+        No Contact Delivery, Clock Tower.
 
         Unlike the permanent flags in ``shops.carryover`` (ORed with cfg so a
         discovery, once made, holds forever), these report only TODAY's own
@@ -750,6 +751,7 @@ class Game:
             "frozen_coins": st.coins if st.freezer_frozen else None,
             "frozen_gems": st.gems if st.freezer_frozen else None,
             "no_contact_due": st.no_contact_drafted,
+            "clock_tower_tomorrow_keys": st.clock_tower_tomorrow_keys,
         }
 
     def open_door(self, cell: int, direction: int) -> PendingDraft:
@@ -2025,6 +2027,16 @@ class Game:
         # no off-grid presence), and a one-day pulse -- see state.break_room_keycard.
         if room is not None and room.id == "break_room__ix11":
             st.break_room_keycard = True
+        # Clock Tower: a day-end tally over the WHOLE grid, not ON_DAY_END (which
+        # only fires for the room the player is standing in) -- the effect counts
+        # every Tomorrow room present in the mansion, including the Clock Tower
+        # itself, regardless of where the player ends the day.
+        clock_tower_idx = self.registry.by_id["clock_tower"].idx
+        if clock_tower_idx in st.grid:
+            st.clock_tower_tomorrow_keys = sum(
+                1 for idx in st.grid
+                if idx >= 0 and self.registry.rooms[idx].is_category("tomorrow")
+            )
 
     def _check_termination(self) -> None:
         """End the day when out of steps or no purposeful action remains.

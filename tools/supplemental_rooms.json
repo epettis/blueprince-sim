@@ -340,8 +340,11 @@
       "meta": {
         "source": "wiki",
         "confidence": "wiki",
-        "effect_text": "Tomorrow room: next day's starting keys +1 per Tomorrow room (cross-day; out of single-day scope)."
-      }
+        "effect_text": "Tomorrow room: at day end, grants next day's starting keys +1 per Tomorrow room present in the mansion, including itself (see engine/game.py::_terminate)."
+      },
+      "extra_categories": [
+        "tomorrow"
+      ]
     },
     {
       "id": "dormitory",
@@ -865,7 +868,10 @@
         "confidence": "wiki",
         "effect_text": "Ending the day in the Planetarium grants 2 Stars (Tomorrow-room cross-day currency). Stars are tracked nowhere in the current sim; the grant fires but no-ops, matching other out-of-scope currencies. Telescope and cross-day interactions are out of scope.",
         "rarity_confidence": "wiki"
-      }
+      },
+      "extra_categories": [
+        "tomorrow"
+      ]
     },
     {
       "id": "lost_and_found",

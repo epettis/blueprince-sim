@@ -135,6 +135,11 @@ class DayChain:
         # mail_transit_days -- a one-day pulse of extra Hallway copies for the
         # immediately following day's draft pool, not a running total.
         self.hallway_tomorrow_extra: int = base_cfg.hallway_tomorrow_extra
+        # Clock Tower carry: REPLACED (not merged) from each day's own carryover
+        # value every advance(), the same shape as hallway_tomorrow_extra -- a
+        # one-day pulse of starting keys for the immediately following day, not
+        # a running total.
+        self.clock_tower_tomorrow_keys: int = base_cfg.clock_tower_tomorrow_keys
         # Fixed-source Allowance Token ids collected (ever, across all days):
         # a Mora Jai box or the Cloister's own token, each with its own id.
         # Union-merged across days, same shape as collected_disks.
@@ -207,6 +212,7 @@ class DayChain:
             mail_cycle=self.mail_cycle,
             mail_transit_days=self.mail_transit_days,
             hallway_tomorrow_extra=self.hallway_tomorrow_extra,
+            clock_tower_tomorrow_keys=self.clock_tower_tomorrow_keys,
             collected_allowance_tokens=self.collected_allowance_tokens,
             collected_sanctum_keys=self.collected_sanctum_keys,
             sigil_doors_open=self.sigil_doors_open,
@@ -324,6 +330,11 @@ class DayChain:
         if hte_val is not None:
             self.hallway_tomorrow_extra = hte_val
 
+        # --- clock_tower_tomorrow_keys (Clock Tower pulse; replace each advance) ---
+        ctk_val = carryover.get("clock_tower_tomorrow_keys")
+        if ctk_val is not None:
+            self.clock_tower_tomorrow_keys = ctk_val
+
         # --- collected_allowance_tokens (fixed one-time sources; accumulate as union) ---
         cat_val = carryover.get("collected_allowance_tokens")
         if cat_val is not None:
@@ -418,6 +429,8 @@ class DayChain:
             self.mail_cycle = self.base_cfg.mail_cycle  # fresh attempt; back to the base preset
             self.mail_transit_days = self.base_cfg.mail_transit_days  # fresh attempt; back to base
             self.hallway_tomorrow_extra = self.base_cfg.hallway_tomorrow_extra  # fresh attempt
+            # fresh attempt; back to the base preset
+            self.clock_tower_tomorrow_keys = self.base_cfg.clock_tower_tomorrow_keys
             self.collected_allowance_tokens = frozenset(
                 self.base_cfg.collected_allowance_tokens
             )

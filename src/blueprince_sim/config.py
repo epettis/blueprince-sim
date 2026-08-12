@@ -201,6 +201,13 @@ class GameConfig:
     # as mail_cycle/mail_transit_days, so a day that drafts none clears the
     # bonus rather than compounding it forever.
     hallway_tomorrow_extra: int = 0
+    # Clock Tower carry: starting keys to grant TODAY (Game.reset -> state.keys),
+    # from yesterday's day-end Tomorrow-room tally (state.clock_tower_tomorrow_keys)
+    # if the Clock Tower was present in the mansion. A one-day pulse, not a running
+    # total -- replaced wholesale each advance(), the same shape as
+    # hallway_tomorrow_extra, so a day that ends without the Clock Tower standing
+    # clears the bonus rather than compounding it forever.
+    clock_tower_tomorrow_keys: int = 0
     # Sanctum Key source ids permanently spent (ever, across all days): opening a
     # Sigil Chamber door consumes one key and its own source id (e.g.
     # "sanctum_key_vault") is recorded here, so that source never spawns another

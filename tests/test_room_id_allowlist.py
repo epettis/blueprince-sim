@@ -108,6 +108,9 @@ ALLOWLIST: dict[str, set[str]] = {
         "entrance_hall", "antechamber",
         # room.id == "break_room__ix11": one-day keycard pulse grant.
         "break_room__ix11",
+        # by_id["clock_tower"].idx grid-presence check: day-end Tomorrow-room
+        # key tally, gated on the Clock Tower itself being on the grid.
+        "clock_tower",
         # Anchor-dict key + r.id.startswith("garage") upgrade-family match
         # (pathfinding hint) alongside the room_cells.get() lookup.
         "garage",
