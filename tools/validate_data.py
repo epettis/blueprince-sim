@@ -1563,6 +1563,11 @@ def main(argv: list[str] | None = None) -> int:
                 for iid in iids:
                     if iid not in si_by_id:
                         errors.append(f"{where}: item_ids entry {iid!r} not in special_items.json")
+        # counts_flag: only meaningful on kind=item gates (gate_open only reads it in the
+        # "item" arm). It is a synthetic engine flag name (set by game.py::_gate_ctx), not
+        # a gate id, so it is deliberately NOT checked against a_gate_id_set.
+        if g.get("counts_flag") is not None and g.get("kind") != "item":
+            errors.append(f"{where}: counts_flag is only meaningful on kind=item gates")
         # room gates: room_id field must exist and name a real room
         if g.get("kind") == "room":
             rid = g.get("room_id")

@@ -75,6 +75,9 @@ def _all_open_ctx(outer_room_id: str | None = "tomb") -> GateContext:
     antechamber_north_door_open is a flag gate set when the north door lever is pulled.
     boiler_room_steam is a real flag gate (not a stub) gating Underpass ->
     Upper Rotating Gear — include it too.
+    grotto_chip_in_place is the counts_flag on three_microchips; held microchip count
+    of 3 already satisfies that gate on its own, but the flag is included too since
+    this context claims every flag any gate checks.
     """
     return GateContext(
         held_items={
@@ -91,6 +94,7 @@ def _all_open_ctx(outer_room_id: str | None = "tomb") -> GateContext:
             "sealed_entrance_broken",
             "antechamber_north_door_open",
             "boiler_room_steam",
+            "grotto_chip_in_place",
         }),
         rooms_entered=frozenset({"tomb"}),
         outer_room_id=outer_room_id,
@@ -432,27 +436,72 @@ def test_path_length_matches_bfs_distance(graph: AreaGraph) -> None:
 
 
 # ---------------------------------------------------------------------------
-# B: three_microchips gate requires exactly 3 microchips
+# B: three_microchips gate — 2 held chips plus the Grotto's own in-place chip
 # ---------------------------------------------------------------------------
+#
+# The engine only ever grants 2 microchips (Entrance Hall vase + West Path dig);
+# a third sits from day 1 in the Blackbridge Grotto's own pedestal and does not
+# have to be carried. gate_open's "item" arm adds 1 to the held total whenever
+# gate.counts_flag ("grotto_chip_in_place") is set, so 2 held + the in-place
+# chip reaches count=3 exactly like 3 held would. The four rows below are the
+# full truth table (see brief section 4):
+#
+#   | held | flag | total | door           |
+#   |    2 |  yes |     3 | open           | test_two_held_chips_plus_grotto_chip_in_place_open_gate
+#   |    3 |   no |     3 | open           | test_three_held_chips_without_grotto_flag_open_gate
+#   |    2 |   no |     2 | shut today     | test_two_held_chips_without_grotto_flag_shut_gate
+#   |    2 |  yes |     3 | open next day  | test_grotto_chip_respawns_open_next_day
 
 
-def test_two_microchips_do_not_open_orindian_ruins(graph: AreaGraph) -> None:
-    """Holding 2 microchips is insufficient for the three_microchips gate (count=3).
+def test_two_held_chips_plus_grotto_chip_in_place_open_gate(graph: AreaGraph) -> None:
+    """Row 1: 2 held chips plus the Grotto's own in-place chip (flag) opens the gate.
 
-    The gate requires all 3 placed in the pedestal; 2 must be rejected. This pins
-    down the count field semantics: the gate checks the total across item_ids >= count.
+    This is the ordinary case: the player brings the 2 chips the engine can grant
+    and never disturbs the pedestal, so counts_flag supplies the third.
     """
-    ctx_two = _ctx(held_items={"microchip": 2})
-    assert gate_open(graph, "three_microchips", ctx_two) is False
+    ctx = _ctx(held_items={"microchip": 2}, flags=frozenset({"grotto_chip_in_place"}))
+    assert gate_open(graph, "three_microchips", ctx) is True
 
 
-def test_three_microchips_open_orindian_ruins(graph: AreaGraph) -> None:
-    """Holding exactly 3 microchips satisfies the three_microchips gate (count=3).
+def test_three_held_chips_without_grotto_flag_open_gate(graph: AreaGraph) -> None:
+    """Row 2: holding all 3 chips (having taken the Grotto's own) also opens the gate.
 
-    Confirms the boundary condition: count=3 means 3 is the minimum that opens the gate.
+    Taking the pedestal chip clears the flag, but carrying it raises held count to
+    3, which alone reaches count=3 -- the flag is one way to make the total, not
+    the only way.
     """
-    ctx_three = _ctx(held_items={"microchip": 3})
-    assert gate_open(graph, "three_microchips", ctx_three) is True
+    ctx = _ctx(held_items={"microchip": 3}, flags=frozenset())
+    assert gate_open(graph, "three_microchips", ctx) is True
+
+
+def test_two_held_chips_without_grotto_flag_shut_gate(graph: AreaGraph) -> None:
+    """Row 3: took the Grotto chip, then traded or lost it -- gate shuts, today only.
+
+    Held drops back to 2 and the flag is gone (the pedestal is empty), so the
+    total is 2 and the gate is closed for the rest of the day.
+    """
+    ctx = _ctx(held_items={"microchip": 2}, flags=frozenset())
+    assert gate_open(graph, "three_microchips", ctx) is False
+
+
+def test_grotto_chip_respawns_open_next_day() -> None:
+    """Row 4: the next day, the Grotto's chip is back in place and the gate reopens.
+
+    grotto_chip_taken is day-scoped with no GameConfig field and no _CARRYOVER_KEYS
+    entry, so a fresh GameState defaults it False regardless of what the previous
+    day did -- the respawn is "free" rather than plumbed through carryover(). This
+    pins that behaviour on a real Game/_gate_ctx() rather than a hand-built context.
+    """
+    cfg = GameConfig()
+    today = Game(cfg, seed=9)
+    today.state.grotto_chip_taken = True  # simulates taking the pedestal chip today
+    assert "grotto_chip_in_place" not in today._gate_ctx().flags
+
+    # A brand-new episode (the next day) on the same config: nothing carries the
+    # taken-ness forward, since grotto_chip_taken has no cfg field to read from.
+    tomorrow = Game(cfg, seed=10)
+    assert not tomorrow.state.grotto_chip_taken
+    assert "grotto_chip_in_place" in tomorrow._gate_ctx().flags
 
 
 # ---------------------------------------------------------------------------

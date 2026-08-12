@@ -40,6 +40,9 @@ class Gate:
     detail: str          # human-readable explanation of the real gate condition
     item_ids: tuple[str, ...]  # item ids (ANY of these count); non-empty only for kind="item"
     count: int           # how many items (summed across item_ids) the player must hold; default 1
+    # Flag whose presence contributes 1 to the item total: an in-place copy of
+    # the item the player does not have to carry. None on every other gate.
+    counts_flag: str | None
     room_id: str | None  # room that must have been entered today; non-None only for kind="room"
     # PR that replaces this placeholder with the real gate. Non-None on every
     # kind="unmodelled" gate, whether it defaults open (stub=True, passes) or closed
@@ -116,6 +119,7 @@ def load_areas(raw: dict) -> AreaGraph:
             detail=g["detail"],
             item_ids=tuple(g.get("item_ids", [])),
             count=g.get("count", 1),
+            counts_flag=g.get("counts_flag", None),
             room_id=g.get("room_id", None),
             retire_in=g.get("retire_in", None),
         )
@@ -163,8 +167,12 @@ def gate_open(
     match gate.kind:
         case "item":
             # item gate: player must hold at least gate.count items in total across
-            # gate.item_ids (ANY of the listed ids contribute to the count).
+            # gate.item_ids (ANY of the listed ids contribute to the count), plus 1
+            # more if counts_flag is set and present -- an in-place copy of the item
+            # that satisfies the gate without being carried in inventory.
             total = sum(ctx.held_items.get(iid, 0) for iid in gate.item_ids)
+            if gate.counts_flag is not None and gate.counts_flag in ctx.flags:
+                total += 1
             return total >= gate.count
 
         case "flag":

@@ -855,6 +855,34 @@ around 1,800 LOC.
 
 ## Decisions log
 
+- **2026-08-12, the Microchip gate is corrected. Phase 1 of the branch.**
+  `Gate.counts_flag` lets an item gate count an in-place copy the player does
+  not carry; `three_microchips` keeps `count: 3` and gains
+  `counts_flag: "grotto_chip_in_place"`, emitted by `_gate_ctx` while
+  `GameState.grotto_chip_taken` is false. All four rows of the owner's model
+  verified independently of the tests written alongside the code.
+
+  **`grotto_chip_taken` is day-scoped with no carry-over key**, and that is the
+  design point worth remembering: the owner said match `entrance_vase_broken` /
+  `outer_chip_dug`, but those are carry-over keys because they record a
+  permanent *discovery*, with the day-start re-grant layering respawn on top.
+  The Grotto chip has no discovery -- it is in the pedestal from day 1 -- so the
+  respawn rule falls out of the field defaulting `False` at every `reset()`.
+  **Matching their semantics meant not copying their plumbing.**
+  `_CARRYOVER_KEYS` stays at 14, so the observation width is untouched and this
+  is **not a retrain trigger.**
+
+  **Two tests were deleted, correctly.**
+  `test_two_microchips_do_not_open_orindian_ruins` and
+  `test_three_microchips_open_orindian_ruins` asserted the gate needs exactly
+  three *held* -- they pinned the bug. Replaced by four tests, one per row, with
+  the "next day" row driven through a real second `Game` on the shared config
+  rather than a hand-built context, so it exercises the actual respawn path.
+
+  **Nothing became reachable.** Both nodes stay `modelled: false`, so
+  `env/actions.py` still offers no travel there. The gate is now correct and
+  still unreachable, deliberately -- the reachability arm is its own PR.
+
 - **2026-08-12, task 22 is substantively complete. `ITEM_DEBT` = 1.** Phase 6
   migrated `treasure_map` and `moon_pendant`; the single remaining entry is
   `microchip` in `shops.py`, which the Microchip branch owns.
