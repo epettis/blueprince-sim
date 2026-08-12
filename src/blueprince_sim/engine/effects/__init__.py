@@ -163,6 +163,14 @@ def validate_room_registry(registry) -> list[str]:
 
 class ItemCapability(Enum):
     SHOP_DISCOUNT = "shop_discount"  # coins off every shop price while held
+    ELECTROMAGNET = "electromagnet"  # biases drafting toward Mechanical Rooms + Rotunda, held
+    CHRONOGRAPH = "chronograph"  # 40% Tomorrow-Rooms priority draw while held
+    ORNATE_COMPASS = "ornate_compass"  # rotate-at-will on every draft while held
+    MASTER_KEY = "master_key"  # opens any locked door for free, no key spent, while held
+    EMERALD_BRACELET = "emerald_bracelet"  # waives every gem cost while held
+    FOOD_MULTIPLIER = "food_multiplier"  # doubles food step gains while held
+    FREE_HALLWAY_MOVES = "free_hallway_moves"  # hallway<->hallway moves/drafts are free, held
+    COIN_MULTIPLIER = "coin_multiplier"  # doubles every coin pickup while held
 
 
 # (item_id, capability) -> its registered params, e.g. {"amount": 1}. Unlike
@@ -214,6 +222,25 @@ def item_capability_sum(state, registry, capability: ItemCapability, param: str)
         if params is not None:
             total += params.get(param, 0)
     return total
+
+
+def item_capability_any(state, registry, capability: ItemCapability) -> bool:
+    """True while any currently-held item registers ``capability``.
+
+    "Held" is decided exactly the way ``item_capability_sum`` (and
+    ``special_items._has_item_effect``, before this migration) decides it:
+    a positive count in ``state.inventory``, filtered to ids ``registry``
+    actually knows about. This is the engine-owned fold itself -- an OR over
+    held items' registrations, not a per-item handler call -- and it is
+    commutative, the same way summation is, so the order items are visited
+    in cannot matter.
+    """
+    for item_id, cnt in state.inventory.items():
+        if cnt <= 0 or item_id not in registry.special.by_id:
+            continue
+        if (item_id, capability) in _ITEM_CAPABILITY_REGISTRY:
+            return True
+    return False
 
 
 def validate_item_registry(registry) -> list[str]:

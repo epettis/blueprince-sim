@@ -16,4 +16,12 @@ per-room handler.
 
 from __future__ import annotations
 
+from . import chronograph  # noqa: F401  (registers chronograph capability on import)
 from . import coupon_book  # noqa: F401  (registers shop_discount capability on import)
+from . import emerald_bracelet  # noqa: F401  (registers emerald_bracelet capability on import)
+from . import hall_pass  # noqa: F401  (registers free_hallway_moves capability on import)
+from . import lucky_purse  # noqa: F401  (registers coin_multiplier capability on import)
+from . import master_key  # noqa: F401  (registers master_key capability on import)
+from . import ornate_compass  # noqa: F401  (registers ornate_compass capability on import)
+from . import powered_electromagnet  # noqa: F401  (registers electromagnet capability on import)
+from . import silver_spoon  # noqa: F401  (registers food_multiplier capability on import)
