@@ -368,11 +368,21 @@ there is evidence the draft math regressed, not a flaky test.
 `free_green_drafts`, `reduce_draft_options`. They carry 44 of 57 effect instances
 and are everything `items.py::expected_yields` introspects.
 
-**CLAUDE.md's "prefer changing behavior by editing data over editing code" needs
-rewording when phase 3 lands.** It remains correct for stats and for the shared
-parametric tags; it has been quietly wrong for singleton behaviour for a while.
+**Done.** CLAUDE.md no longer says "prefer changing behavior by editing data
+over editing code" -- it carries the three-way guidance instead: tabular facts
+in data, shared parametric tags in data, singleton behaviour in a room module.
 
-## 18. Divergence worklist triage (2026-08-10)
+## 18. Divergence worklist triage (2026-08-10) -- DONE
+
+**The worklist is empty: 80 findings at its peak, 0 as of PR #195.** Every
+one was either built, exempted through a guarded channel, or deferred with a
+stated reason and its own liveness check. The audit is not merely quiet --
+injecting an unmodelled effect into a non-exempt room still flags it.
+
+The five exemption channels each carry a guard now, the data one having been
+the last without: `_assert_data_exemptions_live` fails if a room stops
+carrying the field its entry names, or if that field goes empty, which is
+the likelier way such an entry rots.
 
 All 62 findings were triaged in one pass. Three classes:
 
@@ -460,7 +470,15 @@ All 62 findings were triaged in one pass. Three classes:
   going deep on one subsystem. Maximum findings cleared per unit of risk, and
   each PR stays reviewable.
 
-## 19. Laboratory / Experiments -- scoping (2026-08-10)
+## 19. Laboratory / Experiments -- scoping (2026-08-10) -- PHASES 0-4 DONE
+
+**All twelve base triggers and all twelve base effects are live** (PRs
+#162-#178, #182, #184-#187, #193). The Laboratory is playable: a setup
+terminal with its own masking site, exposed in the Play tab.
+
+Phases 5-8 (the Satellite Dish, the packet download flow, Packet Management
+and the eight packet triggers/effects) remain **explicitly unauthorised**.
+The packet pool's data is transcribed; its behaviour is not.
 
 Owner picked the Laboratory as the big subsystem. Full scoping done; the
 headline finding is that **it is not one subsystem.**
@@ -579,7 +597,27 @@ a static room flag for it.
 ## 21. Capability architecture: the engine provides, rooms declare
 
 Opened 2026-08-10 on an owner ruling (see the decisions log entry of the same
-date). **Queued behind the cheap-findings batch**, not started.
+date). **Started; the invariant is now measured rather than estimated.**
+
+`tests/test_room_id_allowlist.py` (PR #188) AST-scans `engine/*.py` and
+`engine/effects/*.py` for string literals equal to a real room id, against a
+per-module allowlist. It fails in **both** directions: a new literal in an
+unlisted module, and an allowlisted id that no longer appears. The second
+half is what makes it a ratchet rather than a record.
+
+**The measured starting point below is stale and was already wrong when
+written** -- the real count at the time the test landed was 55 pairs, not 45,
+because `draft.py` had grown and two modules with room-id literals did not
+exist when that table was made. That gap is the argument for the test.
+
+`Capability.LEVER` (PR #189) converted the first four rooms and taught us the
+shape: `COMMERCE`'s plain boolean is not enough for a capability that needs a
+per-room handler and a live cost query. **Expect locks and containers to need
+parameterised handlers too.**
+
+The ratchet has twice converted "just add it to the allowlist" into a better
+design -- the Electro Magnet's category union and colour drafting's default
+triples both moved to data rather than growing the list.
 
 The target is three layers:
 
@@ -638,9 +676,15 @@ into a number rather than a judgement call.
 
 ### Sequencing
 
-Capability by capability, each PR independently green, cheapest first:
-commerce (12 ids, and the pattern-setter) -> containers and digging -> locks ->
-the residual `game.py` branches.
+Capability by capability, each PR independently green, cheapest first.
+Done: commerce (the pattern-setter), containers and digging, the Antechamber
+levers. **Locks need nothing** -- `locks.py` reads `locks.json` and carries no
+room-id branch at all, which the allowlist confirms.
+
+Next, largest first: `shops.py`'s stock builders (12 ids), `draft.py`'s
+named-constant branches, `special_items.py`'s (10). The two day-end branches
+in `game.py` (`break_room__ix11`'s keycard pulse, `clock_tower`'s tally) want
+one shared `Capability.DAY_END` between them.
 
 ### What it buys
 
@@ -1326,9 +1370,12 @@ the residual `game.py` branches.
   already does for its Spare), and `prism_key`, whose `meta.blocked_on` is
   literally `color_biased_drafting_not_modeled`.
 
-  Separate side finding, not covered by this ruling:
-  `secret_passage.draft_conditions` is `[]` and nothing in `src/` references
-  the room, so **none** of its published placement restrictions are modelled --
+  Separate side finding, since **resolved in PR #190**: both Secret Passage
+  ids now carry `rank_gte_2`/`rank_lte_8`, so the rank half is modelled and
+  the stateful wing rule is recorded on both records as a named gap. What
+  follows describes the state before that:
+  `secret_passage.draft_conditions` was `[]` and nothing in `src/` referenced
+  the room, so **none** of its published placement restrictions were modelled --
   it cannot be drafted on Rank 1 or 9, and is blocked from wing drafts leading
   north into Rank 8 or south into Rank 2 until another vertical wing draft
   occurs. The rank rule is two existing primitives away; the stateful wing rule
