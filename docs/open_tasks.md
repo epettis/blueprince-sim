@@ -738,9 +738,9 @@ Note **"each item and special item"**: two distinct systems are in scope,
 | `(module, effect_tag)` pairs | 35, over 38 distinct tags |
 | item-logic LOC | 4,440 -- `special_items.py` 2,465, `shops.py` 1,200, `upgrades.py` 574, `items.py` 201 |
 
-**For comparison the room-id debt is 65 pairs and is held under an enforced
-ratchet (`tests/test_room_id_allowlist.py`). The item debt of 58 is of the same
-order and has no equivalent enforcement at all** -- it was unmeasured until
+**For comparison the room-id debt is 79 pairs and is held under an enforced
+ratchet (`tests/test_room_id_allowlist.py`). The item debt of 58 is 73% of that,
+and has no equivalent enforcement at all** -- it was unmeasured until
 this entry.
 
 The motivating link to task 16's neighbour work: `implemented: false` in
@@ -756,6 +756,59 @@ an enforcement mechanism that ratchets down rather than only growing.
 
 
 ## Decisions log
+
+- **2026-08-12, how the Microchips actually work, from play. This invalidates
+  the fix approved the day before, not just its details.** Owner, and it
+  outranks both the wiki's wording and the audit built on it.
+
+  1. **The third Microchip is already in the Blackbridge Grotto.** The player
+     only ever needs to *bring two* -- the Entrance Hall vase chip and the West
+     Path dig chip.
+  2. **The Grotto's chip can be removed**, and once removed it can be traded at
+     the Trading Post or lost in the Lost & Found.
+  3. **Every Microchip respawns the next day at its starting location** if it
+     was removed from the Grotto.
+
+  **What this overturns.** The 2026-08-11 audit concluded the ceiling was two
+  against a gate needing three, and called it a dead gate needing a third grant
+  site. The ceiling of two is correct and was reproduced against the live
+  engine; **the conclusion drawn from it was not.** Two is the right number to
+  carry, and the defect is in the gate, not in the grant sites:
+  `areas.json`'s `three_microchips` is `kind: "item", count: 3`, i.e. three held
+  *in inventory*. It should be satisfied by **two held plus the Grotto's own
+  chip in place**.
+
+  So the approved bundle's first step -- "grant a microchip on Grotto arrival"
+  -- **is wrong and must not be built.** The Grotto's chip is not a pickup that
+  tops the player up to three; it is a chip already sitting in the pedestal.
+  Granting it on arrival would model a fourth chip that does not exist.
+
+  **The shape that fits all three facts:**
+
+      gate opens when  (chips held) + (1 if grotto chip in place else 0) >= 3
+
+  - Bring two, never touch the Grotto's chip: `2 + 1 = 3`, opens.
+  - Take the Grotto's chip, hold all three: `3 + 0 = 3`, still opens.
+  - Take it and trade or lose it: `2 + 0 = 2`, locked out **for that day only**
+    -- rule 3 puts it back tomorrow.
+
+  This needs one new piece of day-scoped state for whether the Grotto's chip has
+  been removed, resetting daily rather than carrying over. Note the existing
+  `entrance_vase_broken` / `outer_chip_dug` day-start re-grants are already
+  exactly rule 3's respawn behaviour for the other two chips, so the convention
+  is established and should be matched, not reinvented.
+
+  **The wiki does not contradict this** -- "all three Microchips must be found
+  and inserted into the pedestal" is consistent with one of the three being
+  found *in situ*. Recorded because reading it as "hold three" is what produced
+  the wrong plan.
+
+- **2026-08-12, the room-id debt is 79 pairs, not 65.** `HANDOFF.md` and this
+  file's task 22 entry both carried 65; `ALLOWLIST` in
+  `tests/test_room_id_allowlist.py` contains 79 across 11 modules, and the test
+  passes in both directions, so the live scan equals it exactly. Corrected in
+  place above. Another instance of a number outliving its measurement -- and
+  one I propagated myself the same day I opened the task warning about it.
 
 - **2026-08-11, the stale-blocker retag widens to an audit of all 14
   unimplemented special items.** Owner. The queue named two records whose
