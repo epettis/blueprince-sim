@@ -37,6 +37,10 @@ class GameConfig:
     # (any prior day), permanently adding the Treasure Trove to the draft pool
     # (decks.py::eligible_pool) from the following day onward.
     treasure_trove_blackprint: bool = False
+    # The Throne Room blueprint has been picked up at Orindian Ruins (any prior
+    # day), permanently adding the Throne Room to the draft pool
+    # (decks.py::eligible_pool) from the following day onward.
+    throne_room_blueprint: bool = False
     # Room 8 solved on a prior day this attempt: later solves pay the reduced
     # repeat-solve reward instead of the first-solve one (effects/rooms/room_8.py).
     # Same carry shape as west_gate_unlatched (recorded on GameState, ORed in

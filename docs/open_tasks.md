@@ -855,6 +855,52 @@ around 1,800 LOC.
 
 ## Decisions log
 
+- **2026-08-12, the Orindian Ruins are reachable end to end, and widening the
+  action space destabilised three tests whose invariants were already
+  luck-dependent.**
+
+  Built by mirroring `treasure_trove_blackprint` at all six of its sites; every
+  one mapped cleanly. **Deliberate retrain trigger: `_CARRYOVER_KEYS` 14 -> 15**,
+  so the `carryover` Box widens `(14,) -> (15,)`. **`N_ACTIONS` is unchanged at
+  375** -- `env/actions.py` derives a travel slot per graph node regardless of
+  `modelled`, so flipping the flag is mask-only, exactly as documented.
+  **Room-id debt +1**: `decks.py`'s pool gate names `throne_room`, inherently
+  per-room, exactly as `treasure_trove` already is.
+
+  **The three test failures were exposed, not caused.** The agent bisected them
+  to `private_drive` alone -- the cheapest new destination -- and correctly left
+  them red rather than adjusting seeds.
+
+  1. **`test_day_replays_clean_through_colour_pending`** required all 5 seeds of
+     a *purely random* walk to open a forced Secret Passage door. That held only
+     because the action set was narrow. Fixed by **steering the rollout to prefer
+     opening doorways** -- the test's stated point is that a day replays clean
+     *through* colour selection, so passing through it should be guaranteed, not
+     hoped for.
+  2. **`test_replay_demo_raises_on_wrong_preset`** pinned one trajectory and
+     asserted a wrong-preset replay *must* diverge. **Measured on `HEAD`, before
+     this change: it diverges in only 2 of 12 trajectories.** The test was
+     already passing on luck; `action_rng_seed=3` was simply one of the two.
+     Now sweeps 3 game seeds x 20 action seeds and asserts the detector fires at
+     all (10/60), so it cannot pass on a single lucky draw.
+  3. **`test_pretrain_raises_agreement_with_demo_actions`** asserted an absolute
+     `acc_after > 0.5`. Untrained accuracy tracks 1/(legal actions), so an
+     absolute bar silently encodes the action-space size. Measured: **0.147 ->
+     0.441, a 3.0x improvement** -- BC learns fine. Replaced with
+     `acc_after > 2 * acc_before`, which is what the docstring actually claims.
+
+  **This is the third and fourth vacuous-by-luck test found this session**,
+  after `test_no_offer_list_exceeds_eight_rows` and the pinned give-only set.
+  The pattern is consistent: **a test that constructs its scenario by random
+  rollout, or asserts an absolute bar over a stochastic quantity, passes on the
+  seed it was written with and silently stops testing anything later.**
+
+  **Real gap recorded, not fixed:** a fresh-save record replayed under the
+  all-unlocks base diverges only ~17% of the time (10/60 measured). The rest
+  replay to the end without any recorded action becoming illegal -- i.e.
+  `replay_demo` can silently produce a wrong trajectory, which is exactly what
+  that test's docstring says must not happen. Worth its own investigation.
+
 - **2026-08-12, the Trading Post tier table was wrong in 54 places, not ~10,
   and the sweep exposed a misread datamined rule.**
 

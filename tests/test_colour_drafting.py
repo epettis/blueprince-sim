@@ -160,7 +160,12 @@ def test_day_replays_clean_through_colour_pending(cfg):
             assert legal, f"seed {seed}: all-zero mask in phase {env.game.phase.name}"
             if env.game.phase is Phase.COLOUR_PENDING:
                 reached_colour_pending = True
-            action = rng.choice(legal)
+            # Prefer opening a doorway while navigating: the point of this
+            # rollout is to pass THROUGH colour selection, and a purely random
+            # walk only reaches the forced Secret Passage by luck once the
+            # action space is wide enough to wander instead.
+            open_doors = [i for i in legal if i < A.CHOOSE_BASE]
+            action = rng.choice(open_doors or legal)
             _, _, term, trunc, _ = env.step(action)
             if term or trunc:
                 break

@@ -102,7 +102,7 @@
    "id": "private_drive",
    "name": "Private Drive",
    "kind": "area",
-   "modelled": false,
+   "modelled": true,
    "surface": true,
    "meta": {"source": "docs/areas.md", "confidence": "wiki"}
   },
@@ -110,7 +110,7 @@
    "id": "blackbridge_grotto",
    "name": "Blackbridge Grotto (5th disk terminal)",
    "kind": "area",
-   "modelled": false,
+   "modelled": true,
    "surface": true,
    "meta": {"source": "docs/areas.md", "confidence": "wiki", "notes": "5th Upgrade Disk reader terminal; no room record in rooms.json"}
   },
@@ -118,7 +118,7 @@
    "id": "orindian_ruins",
    "name": "Orindian Ruins (Throne Room floorplan)",
    "kind": "area",
-   "modelled": false,
+   "modelled": true,
    "surface": true,
    "meta": {"source": "docs/areas.md", "confidence": "wiki"}
   },

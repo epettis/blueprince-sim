@@ -572,7 +572,7 @@ def on_area_arrival(game, area_id: str) -> None:
     uniqueness check makes repeat calls within the same day a no-op, the same
     way re-entering a guaranteed_in room does.
 
-    Two grants live here:
+    Three grants live here:
 
     - The Abandoned Mine (South)'s Upgrade Disk, sitting openly on a table
       (docs/areas.md) — obtainable without an ignition tool, unlike the
@@ -586,6 +586,12 @@ def on_area_arrival(game, area_id: str) -> None:
       carried across days the same way ``west_gate_unlatched`` is, which
       ``decks.py::eligible_pool`` reads (via the carried ``GameConfig`` field)
       to add the Treasure Trove to the draft pool.
+    - Orindian Ruins' Throne Room blueprint, same shape as the Treasure
+      Trove blackprint above: not an inventory item, so it uses neither
+      ``grant`` nor ``_is_available``. Setting the permanent
+      ``state.throne_room_blueprint`` flag is unconditional on every arrival
+      (idempotent), and ``decks.py::eligible_pool`` reads it (via the
+      carried ``GameConfig`` field) to add the Throne Room to the draft pool.
     - Two of the eight Sanctum Key sources (``reservoir_north``, ``safehouse``)
       sit off-grid with no rooms.json record, same shape as the Abandoned
       Mine's disk above -- configure()'s room46_reached/collected_sanctum_keys
@@ -616,6 +622,8 @@ def on_area_arrival(game, area_id: str) -> None:
             state.upper_rotating_gear_gem_granted = True
             state.items_found_log.append(("gem", 1))
         state.treasure_trove_blackprint = True
+    elif area_id == "orindian_ruins":
+        game.state.throne_room_blueprint = True
     elif area_id == "reservoir_north":
         state = game.state
         registry = game.registry
