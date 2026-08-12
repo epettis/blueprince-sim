@@ -562,32 +562,33 @@ def test_trade_offers_all_minus_one_outside_trading_post():
     assert np.all(_obs(g)["trade_offers"] == -1)
 
 
-def test_no_offer_list_exceeds_eight_rows():
-    """No realistic set of held tradeables produces more than TRADE_OFFER_ROWS offers.
+def test_trade_offer_encoding_never_overflows_its_box():
+    """``_encode_trade_offers`` always returns exactly TRADE_OFFER_ROWS rows, even
+    when the player holds enough tradeables to generate more offers than that.
 
-    With 24 total tradeables a single player can hold all 24 simultaneously;
-    the observation cap is 8 which is well within the real-game display.
-    Checked by confirming the offers produced do not exceed 8 in simulated
-    high-tradeable inventories.
+    A full inventory really does exceed the cap -- with all 24 tradeables held,
+    most seeds produce well over 8 offers -- so the encoder truncates rather
+    than assuming it never has to. Swept over many seeds because the offer
+    count varies with the day's shuffled trade graph, and a single seed would
+    pin only whichever count that seed happened to produce.
     """
-    # Give the player many tradeables and simulate inside Trading Post.
-    # The Trading Post outer room is what _inside_trading_post() checks.
     tradeables = [it.id for it in _game().registry.special.items
                   if it.tier is not None and it.id != "keycard"]
-    sample = tradeables[:24]
-    g = _game(GameConfig(starting_items=frozenset(sample),
-                         west_gate_unlatched=True), seed=3)
-    # Place the trading_post outer room in placed_ids and stand inside it
-    reg = g.registry
-    tp_room = reg.by_id.get("trading_post")
-    if tp_room is None:
-        pytest.skip("trading_post room not in registry for this config")
-    g.placed_ids.add("trading_post")
-    g.state.area = "trading_post"  # simulate being inside the Trading Post outer room
-    # phase is already NAVIGATE at this point (game starts in NAVIGATE)
-    offers = g.trade_offers()
-    assert len(offers) <= O.TRADE_OFFER_ROWS, (
-        f"trade_offers() returned {len(offers)} offers; max is {O.TRADE_OFFER_ROWS}"
+    sample = frozenset(tradeables[:24])
+    seen_over_cap = False
+    for seed in range(40):
+        g = _game(GameConfig(starting_items=sample, west_gate_unlatched=True), seed=seed)
+        if g.registry.by_id.get("trading_post") is None:
+            pytest.skip("trading_post room not in registry for this config")
+        g.placed_ids.add("trading_post")
+        g.state.area = "trading_post"
+        arr = O._encode_trade_offers(g)
+        assert arr.shape == (O.TRADE_OFFER_ROWS, 2)
+        assert arr.dtype == np.int16
+        if len(g.trade_offers()) > O.TRADE_OFFER_ROWS:
+            seen_over_cap = True
+    assert seen_over_cap, (
+        "no seed exceeded TRADE_OFFER_ROWS, so this test never exercised truncation"
     )
 
 

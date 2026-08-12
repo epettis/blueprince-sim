@@ -379,6 +379,73 @@ def test_trade_graph_successors_same_tier_or_sentinel():
         )
 
 
+def test_trade_graph_no_receive_ids_never_a_successor():
+    """A give-only (no_receive) item is never anyone's successor in the graph.
+
+    microchip/treasure_map/watering_can are wiki give-only: they can be handed
+    over at the Trading Post but the real game never hands them back. Checked
+    across several seeds since the graph's shuffle is seed-dependent.
+    """
+    reg_ids = None
+    for seed in range(5):
+        game = _game(seed=seed)
+        state = game.state
+        state.inventory["shovel"] = 1
+        _set_trading_post_inner(game)
+        shops.trade_offers(game)  # trigger roll
+        reg = game.registry
+        if reg_ids is None:
+            reg_ids = {it.id for it in reg.special.items if it.no_receive}
+            assert reg_ids == {"microchip", "treasure_map", "watering_can"}, (
+                "expected exactly the three give-only items introduced by this PR"
+            )
+        successors = set(state.shops.trade_graph.values())
+        assert not (reg_ids & successors), (
+            f"seed={seed}: give-only id(s) {reg_ids & successors} appear as a successor"
+        )
+
+
+def test_trade_graph_no_receive_id_is_still_a_giveable_source():
+    """A give-only item is still a key in the graph — it can be given away,
+    just never received.  Its successor is a real (different, receivable)
+    item or a sentinel, never itself.
+    """
+    game = _game(seed=0)
+    state = game.state
+    state.inventory["shovel"] = 1
+    _set_trading_post_inner(game)
+    shops.trade_offers(game)
+    graph = state.shops.trade_graph
+    for no_receive_id in ("microchip", "treasure_map", "watering_can"):
+        assert no_receive_id in graph, f"{no_receive_id!r} must still be a graph source"
+        assert graph[no_receive_id] != no_receive_id, (
+            f"{no_receive_id!r} must not resolve to itself"
+        )
+
+
+def test_trade_no_receive_item_skipped_as_a_trade_return():
+    """A give-only item is skipped by the resolution walk even if it sits
+    directly in a (hand-built) chain, falling through to the next node —
+    the same carve-out as an already-held or already-used-Stopwatch node.
+
+    Pins shops._trade_target_ok's no_receive check directly, independent of
+    whether the real graph builder could ever produce this shape.
+    """
+    game = _game(seed=0)
+    state = game.state
+    state.inventory["shovel"] = 1  # tier 2, held: the trade root
+    _set_trading_post_inner(game)
+    # shovel -> microchip (give-only, must be skipped) -> compass (valid return)
+    state.shops.trade_graph = {"shovel": "microchip", "microchip": "compass", "compass": "shovel"}
+    state.shops.trade_graph_rolled = True
+    offers = shops.trade_offers(game)
+    shovel_offer = next(o for o in offers if o["give"] == "shovel")
+    assert shovel_offer["receive"] == "compass", (
+        "a give-only node must be skipped as a trade return, falling through "
+        "to the next node in the graph"
+    )
+
+
 def test_trade_offer_receive_never_already_held():
     """An offer's receive is never an item the player already holds.
 
