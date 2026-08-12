@@ -6376,7 +6376,7 @@
    "meta": {
     "source": "wiki",
     "confidence": "wiki",
-    "effect_text": "'Reclaim the crown' \u2014 cross-day meta-progression objective (Throne of the Blue Prince transformation); entirely out of scope, no effect modeled. Contains the Sanctum Key and random valuables (reduced to standard item slots). PLACEMENT NOTE: 'cannot be rotated / must face the throne head-on' needs a fixed-orientation mechanic the sim lacks; left permissive on orientation. rank_gte_2 + rank_lte_8 cover the rank 1/9 restriction.",
+    "effect_text": "'Reclaim the crown' \u2014 cross-day meta-progression objective (Throne of the Blue Prince transformation); the crown objective itself is out of scope. Two effects ARE modelled: the north Antechamber lever (effects/rooms/throne_room.py, via provides_lever) and the Mora Jai box's +2 allowance (allowance_token_throne_room, guaranteed_in). Also contains the Sanctum Key and random valuables (reduced to standard item slots). PLACEMENT NOTE: 'cannot be rotated / must face the throne head-on' needs a fixed-orientation mechanic the sim lacks; left permissive on orientation. rank_gte_2 + rank_lte_8 cover the rank 1/9 restriction.",
     "rarity_confidence": "wiki"
    }
   },
