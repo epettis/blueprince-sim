@@ -735,7 +735,7 @@ Note **"each item and special item"**: two distinct systems are in scope,
 | | count |
 |---|---|
 | `(module, item_id)` pairs | **58** -- `special_items.py` 42, `shops.py` 11, `game.py` 4, `placement.py` 1 |
-| `(module, effect_tag)` pairs | 35, over 38 distinct tags |
+| `(module, effect_tag)` pairs | **36**, over **37** distinct tags (corrected 2026-08-12: the original 35/38 scanned only `engine/*.py`, missing `effects/tier1.py`, and predates #199 deleting `ignition_tool`) |
 | item-logic LOC | 4,440 -- `special_items.py` 2,465, `shops.py` 1,200, `upgrades.py` 574, `items.py` 201 |
 
 **For comparison the room-id debt is 79 pairs and is held under an enforced
@@ -806,10 +806,12 @@ it comes first and stands alone.
 
 **Phases** (each independently mergeable, gates green throughout):
 
+**Phase 1 landed early, in #199**, before the phase table was written: that PR corrected all fourteen `blocked_on` strings, added `meta.reachability`, and deleted the `ignition_tool` tag. Six phases remain, not seven.
+
 | Phase | Content | Size | Risk |
 |---|---|---|---|
 | 0 | Two scanners + allowlists (`item_id`, `effect_tag`), bidirectional. Freezes 58 and 35. **No code moves.** | S | Low |
-| 1 | Truth pass on the 14 records; delete the `ignition_tool` tag | XS | Low |
+| 1 | Truth pass on the 14 records; delete the `ignition_tool` tag | XS | Low | **DONE in #199** |
 | 2 | `ItemCapability` primitives + `effects/items/`; migrate `coupon_book` as pattern-setter | S | Low |
 | 3 | Pure-query capabilities (~12 modules) | M | Low |
 | 4 | The folds -- **the engine's ordered capability tuple is written here** | M | **Med** |
@@ -852,6 +854,36 @@ allowlist entry** -- that rule alone catches `ignition_tool` today.
 around 1,800 LOC.
 
 ## Decisions log
+
+- **2026-08-12, `silver_key_bias` is a second dead effect tag, and nothing
+  would ever have flagged it.** Found by task 22 phase 0's tag scanner.
+
+  The tag has **zero readers** -- no code anywhere reads the string. The
+  silver-key draft bias itself *is* implemented, but through an id branch:
+  `game.py:521` tests `has(st, "silver_key")` and sets
+  `state.special.silver_key_draft`, which `draft.py` then reads. The name
+  `silver_key_bias` does appear at `draft.py:726` -- as a **local variable**,
+  which is why a substring grep says the tag is read and an exact
+  string-literal scan says it is not. My own measurement used the substring
+  method and reported four dead tags; there are five.
+
+  **This is the `ignition_tool` shape again** -- two sources of truth, one
+  never consulted -- but strictly worse to detect: `ignition_tool` sat on
+  records with `implemented: false`, whereas `silver_key` is
+  `implemented: true` with `blocked_on: null`, so no existing check, audit or
+  convention had anything to say about it.
+
+  Parked in `DEFERRED_UNREAD_TAGS` because phase 0 moves no code or data,
+  with a comment marking it as **not legitimately deferred** unlike the other
+  four. The follow-up decision is binary: wire a reader, or delete the
+  redundant effect record. **Deleting is probably right** -- the behaviour is
+  real and works; it is the *record* that is redundant. Left as a decision
+  rather than taken, because it is a data change with a live mechanic behind it.
+
+  **Generalisable lesson: grep for a tag name gives false negatives when the
+  tag is also spelled like an identifier.** Thirteen of the 37 item tags are
+  spelled identically to an item id, and at least one to a local variable. Use
+  an AST string-literal scan, which is what both phase 0 scanners do.
 
 - **2026-08-12, how the Microchips actually work, from play. This invalidates
   the fix approved the day before, not just its details.** Owner, and it
