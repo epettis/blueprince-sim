@@ -13,8 +13,8 @@ behaviour branch (``special_items.has(st, "paper_crown")``), a fixture
 lookup, or incidental data that happens to collide with an item id --
 guessing that distinction from syntax would hide exactly the cases a human
 most needs to re-examine after a refactor. Every occurrence must instead be
-justified by an entry on the allowlist below, and the comment on that entry
-records the judgement call.
+justified by an entry on one of the two allowlists below, and the comment on
+that entry records the judgement call.
 
 This is a SEPARATE scanner from the effect-tag one in
 ``test_item_tag_allowlist.py``, not a merged one, because 13 of the 37 effect
@@ -25,28 +25,46 @@ tags in ``data/special_items.json`` are spelled identically to a real item id
 ``dowsing_rod``, ``gear_wrench``). A merged scanner checking one combined
 literal universe would double-count every one of those and make the two
 kinds of debt (id branches vs. tag branches) impossible to tell apart in the
-allowlist. Item ids are DISJOINT from room ids (verified empirically, see
+allowlists. Item ids are DISJOINT from room ids (verified empirically, see
 ``test_item_ids_are_disjoint_from_room_ids``), so this scanner does not need
 the room scanner's category-name-collision handling for that pair -- but it
 still needs its own, since an item-id literal can just as easily be a
 resource dict key, a data-section name, or an argument that happens to spell
 an id.
 
-The allowlist is keyed ``module filename -> {item ids}``, matching
-``test_room_id_allowlist.py``'s own grain: per-module-id is the coarsest
-grain that still answers "did this module stop naming this item id", without
-being brittle to line-shuffling refactors that don't change which ids a
-module names.
+The allowlist is split into two dicts of the same shape, ``module filename ->
+{item ids}``, matching ``test_room_id_allowlist.py``'s own grain: per-module-id
+is the coarsest grain that still answers "did this module stop naming this
+item id", without being brittle to line-shuffling refactors that don't change
+which ids a module names.
 
-Two failure modes, both load-bearing:
-- an item-id literal appears in a scanned module for an id not listed for
-  that module (the architecture is regressing -- a new hardcoded id landed
-  and nobody updated the list), and
-- an allowlisted id no longer appears in its module (the refactor already
-  happened and nobody shrank the list -- left unchecked the list only ever
-  grows and stops measuring anything, exactly the failure mode task 22's
-  architecture pass flagged as missing entirely for items before this file
-  existed).
+- ``ITEM_ARCHITECTURE`` holds ids that name engine-owned, permanent
+  constructs -- a named draft-condition tag, an id-prefix family handled by
+  prefix, a table/graph carve-out, or a member of a named total-order tuple
+  (an ItemHook priority chain or an equivalent first-applicable-wins tool
+  ordering). These entries are not expected to shrink; the module docstring
+  on each id-prefix or priority-tuple block explains why the id has to be
+  named there.
+- ``ITEM_DEBT`` holds ids that name a genuine per-item behaviour branch --
+  the kind task 22's migration moves into ``engine/effects/items/<id>.py``.
+  This is the number later phases drive down.
+
+Both dicts are scanned together (see ``_combined_allowlist``), so splitting
+the list does not narrow what the bidirectional checks cover. Three failure
+modes are load-bearing:
+- an item-id literal appears in a scanned module for an id not listed in
+  either dict for that module (the architecture is regressing -- a new
+  hardcoded id landed and nobody updated a list),
+- an id listed in either dict no longer appears in its module (the refactor
+  already happened and nobody shrank the list -- left unchecked a list only
+  ever grows and stops measuring anything), and
+- the same id is listed in both dicts for the same module (the split itself
+  has become ambiguous about which bucket the id's debt belongs in).
+
+A fourth check, ``test_item_debt_does_not_exceed_the_cap``, pins
+``ITEM_DEBT``'s total at its current size: architecture may grow (a new
+priority tuple or id-prefix family is a legitimate engine addition), but
+debt may not -- that asymmetry is the entire point of the split.
 """
 
 from __future__ import annotations
@@ -73,37 +91,20 @@ EFFECTS_ROOMS_DIR = ENGINE_DIR / "effects" / "rooms"
 #: test_effects_subdirectories_are_excluded_by_construction.
 EFFECTS_ITEMS_DIR = ENGINE_DIR / "effects" / "items"
 
-#: module filename -> item ids that module may name as string literals.
-#: Every id here must currently appear in the module's scan (enforced by
-#: test_allowlist_has_no_stale_entries) and no other item-id literal may
-#: appear in a listed module or in any unlisted engine module (enforced by
-#: test_no_item_id_literals_outside_the_allowlist). Shrink an entry's set
-#: when the id's behaviour moves to effects/items/<id>.py; never grow one
-#: just to make a new branch pass -- that is the debt this file measures.
-ITEM_ALLOWLIST: dict[str, set[str]] = {
+#: module filename -> item ids that module names as string literals for a
+#: permanent, engine-owned reason: a named draft-condition tag, an
+#: id-prefix family handled by prefix, a table/graph carve-out, or a member
+#: of a named total-order tuple. These entries are not expected to shrink.
+ITEM_ARCHITECTURE: dict[str, set[str]] = {
     "draft.py": {
-        # Not an id branch: "chronograph" here is the effect TAG, which is
-        # spelled identically to the item id (one of the 13 collisions this
-        # file and test_item_tag_allowlist.py are kept separate for). The
-        # tag scanner is where it is really accounted for; this entry exists
-        # only because a dumb id scanner cannot tell the two apart.
+        # active_conditions_from_state emits "chronograph" as a
+        # priority_draws.json condition-tag name into the draft's active-condition
+        # set, right alongside non-item-id condition tags like "electromagnet" --
+        # the same condition-vocabulary machinery this function owns for every
+        # drafting bias flag, not an item-id branch. (The literal is also
+        # accounted for on the tag allowlist in test_item_tag_allowlist.py, since
+        # a dumb id scanner cannot tell a same-spelled tag from an id.)
         "chronograph",
-    },
-    "game.py": {
-        # Silver Key: for_draft consumption + silver_key_draft bias flag
-        # (locked-door open path) -- a genuine id branch.
-        "silver_key",
-        # Paper Crown: has(st, "paper_crown") gates the +1 free redraw on an
-        # all-non-red initial deal.
-        "paper_crown",
-        # Power Hammer: has(st, "power_hammer") feeds the sealed-entrance
-        # broken flag alongside the config/state fallbacks.
-        "power_hammer",
-        # registry.lock_rules["keycard"] table lookup + items_found_log
-        # label: the Keycard's spawn/state is owned by locks.py rather than
-        # the generic special_items pipeline (it is PIPELINE_EXCLUDED), so
-        # this is the one place its id is named outside special_items.py.
-        "keycard",
     },
     "placement.py": {
         # satisfies_draft_conditions: "secret_garden_key" is a named
@@ -115,31 +116,15 @@ ITEM_ALLOWLIST: dict[str, set[str]] = {
     "shops.py": {
         # _roll_trade_graph's tier-5 special outcome (50/50 with
         # allowance_token) and its item.tier == 5 exclusion of "keycard"
-        # from the shuffled cycle (spawned outside the generic pipeline).
+        # from the shuffled cycle (spawned outside the generic pipeline via
+        # special_items.PIPELINE_EXCLUDED) -- table/graph data, not a
+        # per-item behaviour branch.
         "upgrade_disk_trade", "allowance_token", "keycard",
-        # Special-key fallback list (car_keys / silver_key), rolled when no
-        # priority-list key is available.
-        "car_keys", "silver_key",
-        # Gift Shop one-time-purchase filter: lunch_box hidden once
-        # cfg.lunch_box_unlocked.
-        "lunch_box",
-        # Royal Scepter / Entrance Hall vase chip: day-start carry-over
-        # grants, plus can_activate_scepter's has() gate and the vase-smash
-        # microchip grant.
-        "royal_scepter", "microchip",
-        # can_use_repellent/use_repellent: has()/remove() on the Repellent
-        # item id (illegal-target room ids are a separate allowlist entry on
-        # test_room_id_allowlist.py, not this one).
-        "repellent",
-        # Bacon & Eggs inject_rooms gate-condition frozenset, mirroring
-        # placement.py's own condition tags so an injected room's draft
-        # condition is satisfied.
+        # Bacon & Eggs inject_rooms gate-condition frozenset: the same
+        # draft-condition tag vocabulary as placement.py's own condition
+        # dispatch above (the set also holds non-item tags "breakfast",
+        # "knight_chess_piece", "room8_key"), not an item-id branch.
         "secret_garden_key",
-        # item.effect("stopwatch") argument: the Stopwatch's item id and its
-        # own effect tag are spelled identically (one of the 13 collisions),
-        # so this same literal also appears on the tag allowlist for the
-        # same site.
-        "stopwatch",
     },
     "special_items.py": {
         # Sanctum Key family: SANCTUM_KEY_IDS module constant (sorted for
@@ -156,40 +141,110 @@ ITEM_ALLOWLIST: dict[str, set[str]] = {
         # available) that must name their own disk id individually.
         "upgrade_disk_garage", "upgrade_disk_mechanarium",
         "upgrade_disk_mine_south",
-        # Fabrication-chain and dig-tool ids: DIG_PRIORITY ordering plus the
-        # individual has()/remove() calls each recipe or dig-tool check
-        # performs on its own inputs/output.
-        "battery_pack", "broken_lever", "cursed_effigy", "detector_shovel",
-        "jack_hammer", "lock_pick_kit", "pick_sound_amplifier", "shovel",
-        "sledge_hammer",
         # Allowance Token pair: the Underpass-specific grant site names the
         # variant id alongside the base Allowance Token.
         "allowance_token", "allowance_token_underpass",
+        # DIG_PRIORITY (jack_hammer > detector_shovel > shovel, dig_all's
+        # table-selection order, shared with shops.py's doorstep auto-dig) and
+        # the lock-pick preference order in open_locked_free (prefer
+        # pick_sound_amplifier over lock_pick_kit when both are held): both
+        # are engine-owned first-applicable-wins tool orderings, the same
+        # shape as the ItemHook priority tuples below, naming their member
+        # ids by design.
+        "detector_shovel", "jack_hammer", "lock_pick_kit",
+        "pick_sound_amplifier", "shovel",
+        # The engine-owned total order for each ItemHook chain
+        # (GEM_COST_PRIORITY, MOVE_STEP_COST_PRIORITY, COINS_GRANTED_PRIORITY,
+        # GEM_PAYMENT_WAIVER_PRIORITY, RED_ROOM_NEGATE_PRIORITY,
+        # FOOD_STEPS_PIPELINE) has to name its member item ids somewhere --
+        # never a priority= number on the item_hook registration, which
+        # would scatter the order across the very modules it ranks. Each
+        # item's own applicability logic still lives in its
+        # engine/effects/items/<id>.py module.
+        "coin_purse", "emerald_bracelet", "hall_pass", "knights_shield",
+        "lucky_purse", "running_shoes", "salt_shaker", "silver_spoon",
+        "stopwatch",
+    },
+}
+
+#: module filename -> item ids that module names as string literals for a
+#: genuine per-item behaviour branch. Shrink an entry's set when the id's
+#: behaviour moves to effects/items/<id>.py; never grow one just to make a
+#: new branch pass -- that is the debt this file measures, and
+#: test_item_debt_does_not_exceed_the_cap pins the current total as a
+#: ceiling so it cannot quietly grow either.
+ITEM_DEBT: dict[str, set[str]] = {
+    "game.py": {
+        # Silver Key: for_draft consumption + silver_key_draft bias flag
+        # (locked-door open path) -- a genuine id branch.
+        "silver_key",
+        # Paper Crown: has(st, "paper_crown") gates the +1 free redraw on an
+        # all-non-red initial deal.
+        "paper_crown",
+        # Power Hammer: has(st, "power_hammer") feeds the sealed-entrance
+        # broken flag alongside the config/state fallbacks.
+        "power_hammer",
+        # registry.lock_rules["keycard"] table lookup + items_found_log
+        # label: the Keycard's own spawn-chance/state handling in game.py,
+        # distinct from shops.py's PIPELINE_EXCLUDED carve-out (architecture).
+        "keycard",
+    },
+    "shops.py": {
+        # Special-key fallback list (car_keys / silver_key), rolled when no
+        # priority-list key is available.
+        "car_keys", "silver_key",
+        # Gift Shop one-time-purchase filter: lunch_box hidden once
+        # cfg.lunch_box_unlocked.
+        "lunch_box",
+        # Royal Scepter / Entrance Hall vase chip: day-start carry-over
+        # grants, plus can_activate_scepter's has() gate and the vase-smash
+        # microchip grant.
+        "royal_scepter", "microchip",
+        # can_use_repellent/use_repellent: has()/remove() on the Repellent
+        # item id (illegal-target room ids are a separate allowlist entry on
+        # test_room_id_allowlist.py, not this one).
+        "repellent",
+        # _trade_target_ok's Stopwatch carve-out: blocks offering a second
+        # Stopwatch as a trade return after one already ran today
+        # (item.effect("stopwatch") plus state.special.stopwatch_used).
+        "stopwatch",
+    },
+    "special_items.py": {
+        # Fabrication-chain ids: the individual has()/remove() calls each
+        # recipe performs on its own inputs/output, plus the Mechanarium
+        # third-compartment fallback sequence (Upgrade Disk, then Battery
+        # Pack, Broken Lever, Sledge Hammer, else a Trunk roll) -- a
+        # room-specific loot order, not a cross-item tool ranking.
+        "battery_pack", "broken_lever", "cursed_effigy", "sledge_hammer",
         # Key-family ids with their own bespoke pickup/spend logic distinct
         # from the generic spawn pipeline.
         "car_keys", "key_8", "keycard", "silver_key", "secret_garden_key",
         # Per-item bespoke behaviour hooks: each item's own effect handler
-        # names its id directly (has()/remove()/_is_available() calls)
-        # rather than going through a shared tag dispatch. chronograph,
-        # emerald_bracelet, master_key, and ornate_compass moved off this
-        # list: their reads are now ItemCapability lookups in
-        # engine/effects/items/, which name no string literal here.
-        "compass", "lunch_box",
-        "moon_pendant", "royal_scepter", "sleeping_mask",
-        "stopwatch", "treasure_map", "watering_can",
-        # Task 22 phase 4's priority-chain tuples (GEM_COST_PRIORITY,
-        # MOVE_STEP_COST_PRIORITY, COINS_GRANTED_PRIORITY,
-        # GEM_PAYMENT_WAIVER_PRIORITY, RED_ROOM_NEGATE_PRIORITY,
-        # FOOD_STEPS_PIPELINE): the engine-owned total order for each
-        # ItemHook chain has to name its member item ids somewhere, by
-        # design (owner ruling: never a priority= number on the
-        # item_hook registration, which would scatter the order across
-        # the very modules it ranks). Each item's own applicability logic
-        # still lives in its engine/effects/items/<id>.py module.
-        "coin_purse", "emerald_bracelet", "hall_pass", "knights_shield",
-        "lucky_purse", "running_shoes", "salt_shaker", "silver_spoon",
+        # names its id directly (has()/remove()/effect() calls) rather than
+        # going through a shared tag dispatch. chronograph, emerald_bracelet,
+        # master_key, and ornate_compass moved off this list: their reads
+        # are now ItemCapability lookups in engine/effects/items/, which
+        # name no string literal here.
+        "compass", "lunch_box", "moon_pendant", "royal_scepter",
+        "sleeping_mask", "treasure_map", "watering_can",
     },
 }
+
+#: ITEM_DEBT's total size at the time of the split (task 22 phase 5). A later
+#: phase may lower this; test_item_debt_does_not_exceed_the_cap fails if a
+#: change raises it, so debt can only ratchet down from here.
+ITEM_DEBT_CAP = 27
+
+
+def _combined_allowlist() -> dict[str, set[str]]:
+    """Union of ``ITEM_ARCHITECTURE`` and ``ITEM_DEBT`` per module: the single
+    view the bidirectional-coverage tests scan against, so splitting the list
+    into two does not narrow what is checked."""
+    combined: dict[str, set[str]] = {}
+    for source in (ITEM_ARCHITECTURE, ITEM_DEBT):
+        for module, ids in source.items():
+            combined.setdefault(module, set()).update(ids)
+    return combined
 
 
 def _docstring_node_ids(tree: ast.AST) -> set[int]:
@@ -269,57 +324,93 @@ def test_effects_subdirectories_are_excluded_by_construction():
 
 
 def test_allowlist_keys_are_scanned_modules():
-    """A typo'd or stale filename key in ITEM_ALLOWLIST would silently never
-    be checked; every key must name a file the scanner actually walks."""
+    """A typo'd or stale filename key in either allowlist would silently
+    never be checked; every key in ITEM_ARCHITECTURE or ITEM_DEBT must name a
+    file the scanner actually walks."""
     scanned = {_module_key(p) for p in _scanned_paths()}
-    unknown = set(ITEM_ALLOWLIST) - scanned
-    assert not unknown, f"ITEM_ALLOWLIST keys not found under engine/: {sorted(unknown)}"
+    unknown = set(_combined_allowlist()) - scanned
+    assert not unknown, (
+        "ITEM_ARCHITECTURE/ITEM_DEBT keys not found under engine/: "
+        f"{sorted(unknown)}")
 
 
 def test_no_item_id_literals_outside_the_allowlist(registry):
     """An item-id literal in a module, or an id within a listed module, that
-    isn't on ITEM_ALLOWLIST means a new hardcoded item id landed in the
-    engine -- the same regression test_room_id_allowlist.py exists to catch
-    for rooms, now closed for items too."""
+    isn't on ITEM_ARCHITECTURE or ITEM_DEBT means a new hardcoded item id
+    landed in the engine -- the same regression test_room_id_allowlist.py
+    exists to catch for rooms, now closed for items too."""
     item_ids = {i.id for i in registry.special.items}
     hits = _scan_engine_modules(item_ids)
+    allowlist = _combined_allowlist()
     unexpected = {
-        module: sorted(found - ITEM_ALLOWLIST.get(module, set()))
+        module: sorted(found - allowlist.get(module, set()))
         for module, found in hits.items()
-        if found - ITEM_ALLOWLIST.get(module, set())
+        if found - allowlist.get(module, set())
     }
     assert not unexpected, (
-        "item-id literals found with no ITEM_ALLOWLIST entry (add an item "
-        "module under engine/effects/items/ instead of extending this "
-        "list):\n  " + "\n  ".join(f"{m}: {ids}" for m, ids in sorted(unexpected.items())))
+        "item-id literals found with no ITEM_ARCHITECTURE/ITEM_DEBT entry "
+        "(add an item module under engine/effects/items/ instead of "
+        "extending these lists):\n  "
+        + "\n  ".join(f"{m}: {ids}" for m, ids in sorted(unexpected.items())))
 
 
 def test_allowlist_has_no_stale_entries(registry):
-    """An allowlisted id that no longer appears in its module means the
-    refactor already happened and nobody shrank the list -- left unchecked
-    the allowlist only grows and stops measuring the debt task 22 tracks."""
+    """An id listed in ITEM_ARCHITECTURE or ITEM_DEBT that no longer appears
+    in its module means the refactor already happened and nobody shrank the
+    list -- left unchecked a list only grows and stops measuring the debt
+    task 22 tracks."""
     item_ids = {i.id for i in registry.special.items}
     hits = _scan_engine_modules(item_ids)
     stale = {
         module: sorted(ids - hits.get(module, set()))
-        for module, ids in ITEM_ALLOWLIST.items()
+        for module, ids in _combined_allowlist().items()
         if ids - hits.get(module, set())
     }
     assert not stale, (
-        "ITEM_ALLOWLIST entries no longer found by the scan -- shrink the "
-        "list (the refactor moving these ids to effects/items/ already "
-        "landed):\n  " + "\n  ".join(f"{m}: {ids}" for m, ids in sorted(stale.items())))
+        "ITEM_ARCHITECTURE/ITEM_DEBT entries no longer found by the scan -- "
+        "shrink the list (the refactor moving these ids to effects/items/ "
+        "already landed):\n  "
+        + "\n  ".join(f"{m}: {ids}" for m, ids in sorted(stale.items())))
+
+
+def test_architecture_and_debt_do_not_overlap():
+    """The same id must not be listed in both ITEM_ARCHITECTURE and ITEM_DEBT
+    for one module -- an id in both would mean the split can't tell whether
+    that occurrence is permanent or migratable, defeating the point of
+    separating the two."""
+    overlap = {
+        module: sorted(ITEM_ARCHITECTURE[module] & ITEM_DEBT[module])
+        for module in set(ITEM_ARCHITECTURE) & set(ITEM_DEBT)
+        if ITEM_ARCHITECTURE[module] & ITEM_DEBT[module]
+    }
+    assert not overlap, (
+        "ids listed in both ITEM_ARCHITECTURE and ITEM_DEBT for the same "
+        f"module: {overlap}")
+
+
+def test_item_debt_does_not_exceed_the_cap():
+    """ITEM_DEBT's total entry count must not exceed ITEM_DEBT_CAP: debt may
+    shrink as items migrate to effects/items/<id>.py, but it may not grow,
+    unlike ITEM_ARCHITECTURE which can legitimately gain a new priority-tuple
+    member or id-prefix family."""
+    total = sum(len(ids) for ids in ITEM_DEBT.values())
+    assert total <= ITEM_DEBT_CAP, (
+        f"ITEM_DEBT grew to {total} entries, above the {ITEM_DEBT_CAP} cap -- "
+        "a new debt entry was added instead of being migrated away")
 
 
 def test_allowlisted_ids_are_real_items(registry):
-    """Every id on the allowlist must be a real item id. A typo'd id would
+    """Every id on either allowlist must be a real item id. A typo'd id would
     also fail test_allowlist_has_no_stale_entries (it never appears in a
     scan), but that failure reads as "shrink the list" when the actual fix
     is "fix the typo" -- this gives the accurate message."""
     item_ids = {i.id for i in registry.special.items}
-    bad = {module: sorted(ids - item_ids) for module, ids in ITEM_ALLOWLIST.items()
-           if ids - item_ids}
-    assert not bad, f"ITEM_ALLOWLIST ids that are not real item ids: {bad}"
+    bad = {
+        module: sorted(ids - item_ids)
+        for module, ids in _combined_allowlist().items()
+        if ids - item_ids
+    }
+    assert not bad, f"ITEM_ARCHITECTURE/ITEM_DEBT ids that are not real item ids: {bad}"
 
 
 def test_item_ids_are_disjoint_from_room_ids(registry):

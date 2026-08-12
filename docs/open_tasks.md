@@ -855,6 +855,54 @@ around 1,800 LOC.
 
 ## Decisions log
 
+- **2026-08-12, the item-id allowlist is split into architecture and debt.**
+  Pulled forward from phase 7 because phase 5's whole job is to drive the debt
+  number down, and a conflated number cannot show that -- a successful
+  migration and a wash looked identical.
+
+  **`ITEM_ARCHITECTURE` = 37, `ITEM_DEBT` = 27** (sum 64, no overlap).
+  `ITEM_DEBT_CAP = 27` enforces the asymmetry that makes the split worth
+  having: **architecture may grow, debt may not.** Phase 5 will legitimately add
+  priority-tuple members as chains extend; that must not be able to hide a
+  failure to migrate anything.
+
+  Architecture is four kinds: engine-owned priority tuples (the six `ItemHook`
+  chains plus `DIG_PRIORITY` and the lockpick preference), id-prefix family
+  constants, named draft conditions, and trade-graph/pipeline carve-outs.
+
+  **The debt half is now a worklist, not a score:**
+
+  - `game.py` (4): `keycard`, `paper_crown`, `power_hammer`, `silver_key`
+  - `shops.py` (7): `car_keys`, `lunch_box`, `microchip`, `repellent`,
+    `royal_scepter`, `silver_key`, `stopwatch`
+  - `special_items.py` (16): `battery_pack`, `broken_lever`, `car_keys`,
+    `compass`, `cursed_effigy`, `key_8`, `keycard`, `lunch_box`, `moon_pendant`,
+    `royal_scepter`, `secret_garden_key`, `silver_key`, `sledge_hammer`,
+    `sleeping_mask`, `treasure_map`, `watering_can`
+
+  `treasure_map` and `moon_pendant` are **phase 6** (RNG-touching, migrate
+  alone). `microchip` overlaps the Microchip branch.
+
+  **Three corrections to my own taxonomy, all from reading the call sites:**
+
+  1. **`sledge_hammer` is debt, not architecture.** Its only occurrence is the
+     Mechanarium compartment fallback, on the same line and construct as
+     `battery_pack` and `broken_lever` -- which I had already classified as
+     debt. The same construct must classify the same way.
+  2. **`compass` is debt.** It never appears in a priority ordering; it is a
+     `_has_item_effect` tag-collision lookup. I had grouped it with the
+     tool-preference question by association rather than by evidence.
+  3. **`shops.py`'s `secret_garden_key` is architecture.** It sits in a
+     `frozenset` beside three strings that are not item ids at all -- the same
+     named-condition class as `placement.py`'s own exemption.
+
+  **And a mislabel in my mutation plan worth remembering:** removing an entry
+  for a still-present literal fires the *outside-the-allowlist* test, not the
+  *stale-entry* test. The genuine stale-entry direction is only exercised by
+  removing the literal from the **source** while keeping the dict entry. Both
+  were verified separately; a plan that conflates them would let the stale-entry
+  guard pass vacuously forever.
+
 - **2026-08-12, phase 4 landed, and it moved the item-id debt UP -- correctly.**
   Numbers: **item tag pairs 27 -> 22**, **room id pairs 79 -> 78**, but
   **item id pairs 56 -> 64**.
