@@ -375,7 +375,10 @@
    "gem_cost": 0,
    "layout": "straight",
    "alt_layouts": [],
-   "draft_conditions": [],
+   "draft_conditions": [
+    "rank_gte_2",
+    "rank_lte_8"
+   ],
    "flags": {
     "no_library_draft": false,
     "powered": false,
@@ -396,7 +399,8 @@
     "directory_number": "3",
     "internal_index": 138,
     "effect_text": "Leads to a room of a color of your choice.",
-    "unlock": "Upgrade Spare Hall"
+    "unlock": "Upgrade Spare Hall",
+    "gap": "wiki: inherits the base Secret Passage's rank restriction; also blocks wing drafts leading north into rank 8 or south into rank 2 until another vertical wing draft occurs, needing per-day state the sim doesn't track, not modeled"
    },
    "variant_of": "spare_hall__ix133"
   },
@@ -406,7 +410,7 @@
    "category": "hallway",
    "rarity": "commonplace",
    "gem_cost": 0,
-   "layout": "cross",
+   "layout": "straight",
    "alt_layouts": [],
    "draft_conditions": [],
    "flags": {
@@ -429,7 +433,8 @@
     "directory_number": "3",
     "internal_index": 139,
     "effect_text": "7 Locked Doors",
-    "unlock": "Upgrade Spare Hall"
+    "unlock": "Upgrade Spare Hall",
+    "layout_note": "wiki: does not inherit the Great Hall's shape; straight, drafts along edges"
    },
    "variant_of": "spare_hall__ix133"
   },
@@ -4270,7 +4275,10 @@
    "gem_cost": 1,
    "layout": "straight",
    "alt_layouts": [],
-   "draft_conditions": [],
+   "draft_conditions": [
+    "rank_gte_2",
+    "rank_lte_8"
+   ],
    "flags": {
     "no_library_draft": false,
     "powered": false,
@@ -4291,7 +4299,8 @@
     "directory_number": "60",
     "internal_index": 123,
     "effect_text": "Leads to a room of a color of your choice.",
-    "layout_note": "wiki: straight-shape"
+    "layout_note": "wiki: straight-shape",
+    "gap": "wiki also blocks wing drafts leading north into rank 8 or south into rank 2 until another vertical wing draft occurs; needs per-day state the sim doesn't track, not modeled"
    }
   },
   {
