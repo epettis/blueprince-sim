@@ -5,9 +5,8 @@ Covers the four conditions the wave-1 category-bias task lit up or deliberately
 left inert-but-shaped: the Southern Cross constellation stub (day-scoped flag,
 no in-game setter), the five king_<color> tags (never emitted -- no Banner of
 the King subsystem is modeled), and drafting_from_library's Bookshop re-deal
-bias. The Library's rarity-table override (previously a shaped-but-inert
-"Rare Rooms (Library)" category_biases entry under a renamed, never-emitted
-condition) is implemented directly in decks.py::roll_rarity instead -- see
+bias. The Library's rarity-table override is implemented directly in
+decks.py::roll_rarity rather than through the category_biases table -- see
 test_draft_stats.py for its statistical coverage.
 
 Also covers the Powered Electromagnet's "mechanical_or_rotunda" bias: the

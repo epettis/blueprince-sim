@@ -5,9 +5,9 @@ Per docs/open_tasks.md task 21, the engine may not branch on a room id or
 category to decide what a room does. commerce is the first capability: the
 eleven rooms a player can buy, sell, trade, or fabricate at register
 ``Capability.COMMERCE`` via ``provides`` (engine/effects/rooms/commerce.py),
-and the engine sites that used to check ``category == "shop"`` (plus the
-``or room.id == "workshop"`` special case) now ask
-``provides_capability(room_id, Capability.COMMERCE)`` instead.
+and the engine sites that decide commerce eligibility ask
+``provides_capability(room_id, Capability.COMMERCE)`` instead of checking
+``category == "shop"`` (plus the ``or room.id == "workshop"`` special case).
 """
 
 from __future__ import annotations

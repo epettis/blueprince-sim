@@ -1,8 +1,8 @@
 """Coat Check: auto-storing the best held item overnight.
 
-Split out of the old test_item_persistence.py, which keeps the generic
-persistence-channel tests (day/permanent/until_used, Moon Pendant, Repellent)
-that apply across items rather than to this one room.
+See tests/test_item_persistence.py for the generic persistence-channel tests
+(day/permanent/until_used, Moon Pendant, Repellent) that apply across items
+rather than to this one room.
 """
 
 from __future__ import annotations

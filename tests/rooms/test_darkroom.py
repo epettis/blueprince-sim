@@ -1,7 +1,5 @@
 """Darkroom: mystery drafts that conceal every option's identity, driven by
 the Utility Closet's "Darkroom" switch (state.darkroom_lights_on).
-
-Split out of the old test_game.py, which keeps the general game-loop tests.
 """
 
 from blueprince_sim.engine.game import Game, Phase

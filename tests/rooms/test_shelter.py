@@ -1,14 +1,12 @@
 """Shelter's gem safe and red-room negation.
 
-Split out of the old test_room_safes.py, which covered every gem-safe room
-(office, study, drawing_room, boudoir, shelter) in one file -- see
-tests/rooms/test_office.py, test_study.py, test_drawing_room.py, and
-test_boudoir.py for the others.
+See tests/rooms/test_office.py, test_study.py, test_drawing_room.py, and
+test_boudoir.py for the other gem-safe rooms.
 
 The sim assumes every puzzle in an entered room gets solved, so the safe in
 this room just hands over a gem the moment the player walks in - see
 docs/open_tasks.md task 3. That doctrine is why the Shelter is included
-despite its real-time time-lock (owner decision, 2026-08-06): solving the
+despite its real-time time-lock (owner decision): solving the
 lock is assumed, so it pays out.
 """
 

@@ -3,8 +3,8 @@
 Wiki (blueprince.wiki.gg/wiki/Secret_Passage, /wiki/Drafting_effects): pulling
 a book restricts the whole hand dealt from the revealed door to one of five
 colours (Bedroom, Hallway, Green Room, Shop, Red Room); a thin colour falls
-back to the published default triple. See docs/open_tasks.md's 2026-08-10
-ruling for the exact scope (filter + defaults, no reserve copies).
+back to the published default triple. See docs/open_tasks.md for the exact
+scope (filter + defaults, no reserve copies).
 """
 
 from __future__ import annotations

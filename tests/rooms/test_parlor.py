@@ -1,7 +1,6 @@
 """Parlor gem-grant system.
 
-Split out of the old test_vault_parlor.py -- see tests/rooms/test_vault.py
-for the Vault Key deposit-box tests that used to share this file.
+See tests/rooms/test_vault.py for the Vault Key deposit-box tests.
 """
 
 from __future__ import annotations

@@ -1,11 +1,9 @@
 """Greenhouse: the Broken Lever machine (south Antechamber segment).
 
-The Antechamber-lever regression test is split out of the old
-test_antechamber_levers.py (coverage for the pre-existing broken_lever path);
-see tests/test_antechamber_levers.py for the cross-cutting lever-gate
-invariants that stayed there. The remaining install_lever tests are split out
-of the old test_ignition.py, which keeps the broken_lever item's generic
-consumption rules for any machine room (see tests/test_ignition.py).
+See tests/test_antechamber_levers.py for the cross-cutting lever-gate
+invariants (coverage for the pre-existing broken_lever path), and
+tests/test_ignition.py for the broken_lever item's generic consumption rules,
+shared by any machine room.
 """
 
 from __future__ import annotations

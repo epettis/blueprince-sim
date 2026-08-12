@@ -1,6 +1,5 @@
 """Solarium: sets the flag that keys the slot-2/3 rarity flattening.
 
-Split out of the old test_game.py, which keeps the general game-loop tests.
 See tests/rooms/test_library.py for the Library-vs-Solarium precedence
 (the weights-table side of the Solarium's effect).
 """
@@ -23,9 +22,8 @@ def test_solarium_flag_set_on_place(registry):
 def test_terrace_frees_solarium_gem_cost(registry, cfg):
     """The Terrace's free_green_drafts effect (Hook.ON_PLACE) zeroes gem cost
     for any room whose category is "green" (Game._effective_cost,
-    game.py:1134). Solarium now qualifies, since its category is "green"
-    rather than the pool name "studio_addition" -- previously the Terrace
-    could never make it free."""
+    game.py:1134). This keys off category, not pool name, so the Solarium
+    (category "green", pool "studio_addition") qualifies too."""
     g = Game(cfg, seed=2)
     solarium = registry.by_id["solarium"]
     assert solarium.category == "green"

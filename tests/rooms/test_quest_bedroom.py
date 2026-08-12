@@ -190,9 +190,9 @@ def test_quest_bedroom_is_a_bedroom_not_an_objective(registry):
 def test_quest_bedroom_counts_toward_the_per_bedroom_gem_cost(registry):
     """A placed Quest Bedroom raises a plus_one_per_bedroom room's gem cost.
 
-    Pinned through a real mechanic rather than the predicate alone, because
-    the category was previously "objective" and every Bedroom count silently
-    skipped it."""
+    Pinned through a real mechanic rather than the predicate alone, since the
+    Quest Bedroom's category is "bedroom" (not "objective"), which is what
+    every Bedroom count must key off to see it."""
     import dataclasses
 
     from blueprince_sim.engine.state import resolve_gem_cost

@@ -194,13 +194,13 @@ def test_every_action_kind_has_a_masking_site():
     actually written by ``action_mask`` somewhere -- not merely declared and
     consumed by ``apply_action``/``describe_action``.
 
-    This is the regression guard for the ``ALT_BASE`` bug this PR removes:
-    ``ALT_BASE`` had ids reserved for it and was routed through
-    ``apply_action``/``describe_action``, but ``action_mask`` never contained
-    a ``mask[ALT_BASE...] = True`` anywhere, so it was permanently unmaskable
-    -- dead ids sitting in a masked space, which is exactly what misleads the
-    next investigation. A id can only ever become legal if some code path
-    assigns into it, so scanning ``action_mask``'s own source for
+    This guards against an id that has action-space slots reserved and is
+    routed through ``apply_action``/``describe_action`` but never assigned
+    ``mask[<NAME>...] = True`` anywhere in ``action_mask``: it becomes
+    permanently unmaskable -- a dead id sitting in a masked space, which is
+    exactly what misleads the next investigation. An id can only ever become
+    legal if some code path assigns into it, so scanning ``action_mask``'s own
+    source for
     ``mask[<NAME>`` for every declared name is a direct, cheap check of that
     property (rather than a probabilistic runtime sweep, which would have to
     separately reconstruct rare game states -- shop stock, Trading Post

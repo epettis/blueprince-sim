@@ -1,8 +1,9 @@
 """Spare Veranda (spare_veranda__ix140), a second-level upgrade variant whose
-display name differs from its variant_of parent (Spare Greenroom), so the
-ingest pipeline's base-slug EFFECT_MAP entry never matched it and it
-previously carried no effect at all, despite promising the same "Greater
-chance of finding items in Green Rooms" text as the base Veranda.
+display name differs from its variant_of parent (Spare Greenroom). Because
+the ingest pipeline's EFFECT_MAP keys off the base slug, a display-name
+mismatch like this one needs its own explicit entry to carry an effect,
+despite promising the same "Greater chance of finding items in Green Rooms"
+text as the base Veranda.
 """
 
 from __future__ import annotations
@@ -16,8 +17,8 @@ def test_spare_veranda_grants_three_luck_where_its_parent_grants_none(registry, 
     """spare_veranda__ix140 mirrors the base Veranda's "grant 3 luck" modeling
     of "greater chance of finding items" (the same magnitude used everywhere
     else in this codebase for that effect text, e.g. Root Cellar) on first
-    entry -- while its variant_of parent, spare_greenroom__ix132, which it
-    previously modeled exactly, leaves luck untouched."""
+    entry; its variant_of parent, spare_greenroom__ix132, has no effect of
+    its own and leaves luck untouched."""
     parent = registry.by_id["spare_greenroom__ix132"]
     variant = registry.by_id["spare_veranda__ix140"]
 

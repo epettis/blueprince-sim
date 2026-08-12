@@ -1,8 +1,8 @@
 """Tests for the Throne Room's lever: the backup path to Room 46.
 
-Split out of the old test_room46.py (see tests/rooms/test_room_46.py for the
-Room 46 objective itself and its Inner Sanctum route) because this behaviour
-belongs to the Throne Room, not to Room 46 or the Antechamber lever system.
+See tests/rooms/test_room_46.py for the Room 46 objective itself and its
+Inner Sanctum route; this behaviour belongs to the Throne Room, not to
+Room 46 or the Antechamber lever system.
 """
 
 from __future__ import annotations

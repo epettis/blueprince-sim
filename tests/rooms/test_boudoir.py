@@ -1,14 +1,12 @@
 """Boudoir's gem safe, including its upgrade variants.
 
-Split out of the old test_room_safes.py, which covered every gem-safe room
-(office, study, drawing_room, boudoir, shelter) in one file -- see
-tests/rooms/test_office.py, test_study.py, test_drawing_room.py, and
-test_shelter.py for the others.
+See tests/rooms/test_office.py, test_study.py, test_drawing_room.py, and
+test_shelter.py for the other gem-safe rooms.
 
 The sim assumes every puzzle in an entered room gets solved, so the safe in
 these rooms just hands over a gem the moment the player walks in - see
 docs/open_tasks.md task 3. That doctrine is why the Boudoir is included
-despite its 1225 code (owner decision, 2026-08-06): solving the lock is
+despite its 1225 code (owner decision): solving the lock is
 assumed, so it pays out.
 
 The Boudoir's safe is a fixture of the room, so it survives every upgrade -

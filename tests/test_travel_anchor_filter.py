@@ -1,15 +1,12 @@
-"""Pins the fix for the travel-to-anchor mask bug.
+"""On-grid travel to an anchor must obey MOVE_TO's "purposefulness" rule.
 
 On grid, ``env/actions.py``'s MOVE_TO loop already refuses to walk into an
-already-entered, non-re-enterable cell (the "purposefulness" rule). The
-travel loop (TRAVEL_BASE + i) applied no such filter for on-grid travel to a
-grid anchor (house/garage/the_foundation) -- it only skipped a destination
-whose route cost was 0 (already standing on it) -- so travelling to an
-anchor was a back door around MOVE_TO's own rule: the mask would offer a
-pointless round trip to a cell the player had already fully drained. The fix
-factors the rule into ``_cell_worth_entering`` and applies it to on-grid
-anchor travel while leaving off-grid anchor travel (the only way back onto
-the grid) and every non-anchor destination unconditional.
+already-entered, non-re-enterable cell. The travel loop (TRAVEL_BASE + i)
+applies the same rule -- via ``_cell_worth_entering`` -- to on-grid travel to
+a grid anchor (house/garage/the_foundation), not just destinations whose
+route cost is 0; otherwise the mask would offer a pointless round trip to a
+cell the player has already fully drained. Off-grid anchor travel (the only
+way back onto the grid) and every non-anchor destination stay unconditional.
 """
 
 import random

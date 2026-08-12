@@ -1,7 +1,6 @@
 """Vault Key deposit boxes.
 
-Split out of the old test_vault_parlor.py -- see tests/rooms/test_parlor.py
-for the Parlor's gem-grant tests that used to share this file.
+See tests/rooms/test_parlor.py for the Parlor's gem-grant tests.
 """
 
 from __future__ import annotations
@@ -294,12 +293,11 @@ def test_apply_vault_box_action():
     assert "vault_key_233" in g.state.special.vault_boxes_opened
 
 
-# ====================================================== exact coin grant (2026-08-09 ruling)
+# ====================================================== exact coin grant (see docs/open_tasks.md)
 #
-# The Vault's effect_text states "+40 coins" but items.guaranteed used to spend
-# it as 8 PILES (each rolling 1-5), averaging 24 and ranging 8-40 -- see
-# docs/open_tasks.md. These tests pin the fix: entering the Vault now grants
-# exactly 40 coins, unconditional on RNG.
+# The Vault's effect_text states "+40 coins", and entering the Vault grants
+# exactly 40 coins every time, unconditional on RNG -- not a probabilistic
+# 8-40 pile roll.
 
 
 def test_vault_entry_grants_exactly_40_coins_every_seed():
@@ -308,9 +306,8 @@ def test_vault_entry_grants_exactly_40_coins_every_seed():
     Luck is pinned to the floor so the room's additional_max=1 luck-rolled
     bonus item never fires; that isolates the guaranteed coins_exact grant
     under test from an unrelated (and still probabilistic) extra-item roll.
-    Checked across many seeds because the whole point of the fix is that the
-    result is no longer a distribution -- under the old pile-roll code this
-    ranged 8-40 and a handful of seeds would have failed a fixed assertion.
+    Checked across many seeds because the grant must land on exactly 40
+    regardless of RNG.
     """
     cell = 5
     for seed in range(1, 31):
@@ -347,10 +344,9 @@ def test_vault_single_exact_entry_does_not_trigger_two_plus_items_luck_penalty()
     """A single coins_exact guaranteed entry counts as ONE item found, not per pile.
 
     roll_room_items increments `found` once per items.guaranteed ENTRY and only
-    applies the luck.penalty_two_plus_items penalty when found >= 2. Before the
-    ruling the Vault's 8 piles were still one entry (found=1); the fix must not
-    change that -- it would be easy to accidentally split the exact amount into
-    per-unit entries and flip the room into the 2+-items penalty.
+    applies the luck.penalty_two_plus_items penalty when found >= 2. The exact
+    40-coin grant must stay one entry (found=1) rather than splitting into
+    per-unit entries, which would flip the room into the 2+-items penalty.
     """
     cell = 5
     g = _game_with_room("vault", cell)

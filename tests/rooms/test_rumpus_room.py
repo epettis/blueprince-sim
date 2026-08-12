@@ -1,8 +1,7 @@
-"""Rumpus Room exact coin grant (2026-08-09 ruling, docs/open_tasks.md).
+"""Rumpus Room exact coin grant (see docs/open_tasks.md).
 
-effect_text states "+8 coins"; items.guaranteed used to spend that as 2 PILES
-(each rolling 1-5), ranging 2-10 and averaging 6. This pins the fix: entering
-the Rumpus Room now grants exactly 8 coins, unconditional on RNG.
+effect_text states "+8 coins", and entering the Rumpus Room grants exactly 8
+coins every time, unconditional on RNG -- not a probabilistic 2-10 pile roll.
 """
 
 from __future__ import annotations
@@ -26,7 +25,7 @@ def test_rumpus_room_entry_grants_exactly_8_coins_every_seed():
     Luck is pinned to the floor so the room's additional_max=1 luck-rolled
     bonus item never fires, isolating the guaranteed coins_exact grant from an
     unrelated (and still probabilistic) extra-item roll. Checked across many
-    seeds because under the old pile-roll code this ranged 2-10.
+    seeds because the grant must land on exactly 8 regardless of RNG.
     """
     cell = 5
     for seed in range(1, 31):

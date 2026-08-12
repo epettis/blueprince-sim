@@ -19,10 +19,9 @@ from blueprince_sim.engine.model import Registry
 
 
 def test_root_cellar_lets_watering_can_convert_water_to_a_gem():
-    """The Watering Can's on_enter hook only fires in a "green"-category room.
-    Root Cellar now qualifies, since its category is "green" rather than the
-    pool name "outer" -- previously entering it with the can equipped
-    converted nothing."""
+    """The Watering Can's on_enter hook keys off the room's category, not its
+    pool name, so the Root Cellar (category "green", pool "outer") converts
+    water to a gem too."""
     # Seed 1's outer-room hand deals Root Cellar into slot 2 (verified by
     # construction; shared with tests/rooms/test_trading_post.py's seed).
     g = Game(GameConfig(west_gate_unlatched=True, special_items=True), seed=1)

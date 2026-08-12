@@ -1,15 +1,12 @@
 """The Abandoned Mine (South) <-> Precipice stairway.
 
-Regression coverage for the owner-confirmed bug: `precipice -> mine_south` was
-ungated while `mine_south -> precipice` carried an item gate (torch/burning
-glass held), making the Precipice a free front door into the mine. The real
-mechanic is the reverse: the mine is reached from the house side (Catacombs
-via the Tomb puzzle, the drained Fountain + Basement Key, or the lowered
-Reservoir crossing from the north), and the stairway to the Precipice is
-something the player *creates* by lighting all 8 candlesticks from *inside*
-the mine. Both directions now share one `candlestick_stairway_lit` flag gate,
-set from `state.special.lit_targets` via the existing ignition system
-(`engine/special_items.py::can_light`/`light`) rather than a bespoke item gate.
+The mine is reached from the house side (Catacombs via the Tomb puzzle, the
+drained Fountain + Basement Key, or the lowered Reservoir crossing from the
+north); the stairway to the Precipice is something the player *creates* by
+lighting all 8 candlesticks from *inside* the mine. Both directions share one
+`candlestick_stairway_lit` flag gate, set from `state.special.lit_targets`
+via the existing ignition system (`engine/special_items.py::can_light`/
+`light`) rather than a bespoke item gate.
 See `docs/areas.md`'s "Corrections already applied" for the full writeup.
 """
 
@@ -24,9 +21,8 @@ from blueprince_sim.rl.train import all_unlocks_config, fresh_save_config
 
 def test_mine_unreachable_on_day_one_under_both_baseline_configs(registry):
     """With an empty inventory and nothing earned, mine_south is unreachable
-    on day 1 under both training baseline configs -- the regression this fix
-    closes. Previously the ungated precipice -> mine_south backdoor made it
-    reachable in 3 steps regardless of config."""
+    on day 1 under both training baseline configs, since reaching it requires
+    candlestick_stairway_lit and nothing sets that flag for free."""
     for cfg in (all_unlocks_config(), fresh_save_config()):
         g = Game(cfg, seed=1, registry=registry)
         g.state.steps = 200

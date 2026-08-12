@@ -1,6 +1,4 @@
 """Hovel: paying gem costs in steps instead.
-
-Split out of the old test_game.py, which keeps the general game-loop tests.
 """
 
 from blueprince_sim.config import GameConfig
@@ -30,9 +28,8 @@ def test_hovel_pays_gem_costs_with_steps(registry, cfg):
 
 def test_hovel_grants_sleeping_mask_bonus_steps(registry):
     """The Sleeping Mask's bonus (special_items.py::on_enter, ON_ENTER hook)
-    fires when the entered room's category is "bedroom". Hovel now qualifies,
-    since its category is "bedroom" rather than the pool name "outer" --
-    previously entering it while holding a Sleeping Mask granted nothing."""
+    keys off the entered room's category, not its pool name, so the Hovel
+    (category "bedroom", pool "outer") pays it."""
     # Seed 4's outer-room hand deals Hovel into slot 0 (verified by construction).
     g = Game(GameConfig(west_gate_unlatched=True, special_items=True), seed=4)
     assert registry.by_id["hovel"].category == "bedroom"

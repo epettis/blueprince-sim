@@ -15,9 +15,9 @@ card.  Tests cover:
       killing it, then ends naturally at rank 9 with a normal 3-option hand
   (c) drafting from a Tunnel through the south door (non-north) deals
       normally, with no guaranteed Tunnel
-  (d) determinism: the same seed deals the same hand (including which rooms
-      land in slots 1/2, since those now consume RNG that the old one-card
-      chain never touched)
+  (d) determinism: the same seed deals the same hand, including which rooms
+      land in slots 1/2, since the full three-option hand consumes RNG for
+      every slot
   (e) non-Tunnel drafting across a full episode remains deterministic and
       seed-sensitive (unaffected by the Tunnel-chain change)
 """
@@ -169,8 +169,8 @@ def test_tunnel_south_draft_is_normal(registry, cfg):
 
 def test_tunnel_chain_hand_is_deterministic(registry, cfg):
     """Two games built from the same seed deal bit-identical Tunnel-chain hands,
-    including slots 1/2 -- which now consume RNG the old one-card chain never
-    touched, so this is the seeded-determinism invariant for the new code path."""
+    including slots 1/2, since the full three-option hand consumes RNG for
+    every slot -- the seeded-determinism invariant for this code path."""
 
     def deal(seed: int) -> list[tuple[int, int, int, int, bool]]:
         g = _make_game(registry, cfg, seed=seed)

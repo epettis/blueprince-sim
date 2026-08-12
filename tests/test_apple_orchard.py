@@ -1,12 +1,10 @@
 """Tests for the Apple Orchard: reachability as a travel destination, and
 earning the permanent +20 starting-steps bonus.
 
-Two bugs stacked (owner report, 2026-08-08): (1) apple_orchard/campsite were
-never offered as travel destinations because both carried ``modelled:
-false``, even though the graph path (house -> ... -> campsite ->
-apple_orchard) was always routable; (2) GameConfig.orchard_unlocked was never
-set anywhere in-run, so even arriving granted nothing. This file pins the fix
-for both, following the exact carry-over shape used by west_gate_unlatched /
+apple_orchard and campsite are offered as travel destinations (the graph path
+house -> ... -> campsite -> apple_orchard is routable), and reaching the
+Orchard sets GameConfig.orchard_unlocked so the bonus is granted. This file
+follows the exact carry-over shape used by west_gate_unlatched /
 sealed_entrance_broken: the discovery is recorded on GameState, never written
 back to GameConfig (one config object is shared by every episode of a
 trainer worker -- see test_orchard_unlocked_does_not_leak_into_a_fresh_game).
@@ -150,10 +148,10 @@ def test_orchard_unlocked_clears_on_attempt_wrap(registry):
 # ---------------------------------------------------------------------------
 
 def test_orchard_unlocked_does_not_leak_into_a_fresh_game(registry):
-    """The 2026-07-28 config-mutation regression, applied to the Orchard: a
-    second episode built straight from the SAME GameConfig object (bypassing
-    DayChain, as the trainer does per worker) must NOT inherit the bonus just
-    because an earlier episode on that config reached the Orchard.
+    """A second episode built straight from the SAME GameConfig object
+    (bypassing DayChain, as the trainer does per worker) must NOT inherit the
+    bonus just because an earlier episode on that config reached the Orchard:
+    one shared config object must not accumulate state across episodes.
     """
     cfg = GameConfig(day=1, orchard_unlocked=False, starting_steps=50)
 

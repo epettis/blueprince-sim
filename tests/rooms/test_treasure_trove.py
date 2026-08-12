@@ -1,6 +1,6 @@
 """Tests for the Treasure Trove's per-draft coin-pile accumulation.
 
-Owner ruling (2026-08-06, clarified 2026-08-07): the Treasure Trove permanently
+Owner ruling: the Treasure Trove permanently
 gains a 5-coin pile every time it is drafted, and each draft collects the whole
 surface -- so the Nth draft this attempt pays ``5 * N``. The pile count caps at
 32 (blueprince.wiki.gg/wiki/Treasure_Trove: "One pile appears per time the room

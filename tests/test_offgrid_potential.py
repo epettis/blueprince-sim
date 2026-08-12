@@ -1,20 +1,20 @@
 """The path-preservation potential is a function of the grid, not of the
 player's position.
 
-Covers the off-grid collapse bug: ``_ante_paths`` used to fall through to
-``Game.frontier_doorways()``, which unconditionally returns ``[]`` while
-``game.off_grid`` is True — a fact about where the player is standing, not
-about the house's connectivity. That made every off-grid excursion (Outer
-Room drafting, area-graph travel) read as "all routes sealed" and back,
-which happened to cancel out under potential-based shaping (so it was
-invisible in aggregate reward) while still corrupting the *signal* a step at
-a time: a genuine 1-open-path danger state read as 0 while outside, and
-empirically it made a trained policy loop off-grid travel actions for free.
+``_ante_paths`` must not fall through to ``Game.frontier_doorways()``, which
+unconditionally returns ``[]`` while ``game.off_grid`` is True — a fact about
+where the player is standing, not about the house's connectivity. Reading
+"all routes sealed" for every off-grid excursion (Outer Room drafting,
+area-graph travel) and back would cancel out under potential-based shaping
+(invisible in aggregate reward) while still corrupting the *signal* a step at
+a time: a genuine 1-open-path danger state must not read as 0 while outside,
+since a trained policy can learn to loop off-grid travel actions for free
+against exactly that blind spot.
 
-Also covers the companion instrumentation bug: ``BluePrinceEnv._info()``
-never set ``"room46_reached"``/``"antechamber_reached"``, so every consumer
-reading them with ``.get()`` (the win-rate counter in rl/train.py, the
-training dashboard, ``EpisodeRecorder``'s "win" tag) silently saw ``None``.
+``BluePrinceEnv._info()`` must set ``"room46_reached"``/``"antechamber_reached"``
+on every step, since every consumer reads them with ``.get()`` (the win-rate
+counter in rl/train.py, the training dashboard, ``EpisodeRecorder``'s "win"
+tag) and would otherwise silently see ``None``.
 """
 
 from __future__ import annotations
@@ -163,8 +163,8 @@ def test_sealing_last_route_still_charges_full_penalty_off_grid(registry):
 def test_win_flags_present_and_track_underlying_state():
     """room46_reached and antechamber_reached must be present in info at every
     step (reset and step alike) and must flip to True exactly when the
-    corresponding GameState flag does -- the fix for the silently-None info
-    keys that made every consumer's win rate read as zero.
+    corresponding GameState flag does: silently-None info keys here would
+    make every consumer's win rate read as zero.
     """
     env = BluePrinceEnv(cfg=GameConfig())
     obs, info = env.reset(seed=1)

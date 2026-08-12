@@ -94,10 +94,9 @@ def test_mine_south_visit_persists_across_days(registry):
 # ---------------------------------------------------------------------------
 
 def test_mine_south_visited_flag_gates_the_underpass_route(registry):
-    """_gate_ctx() only contributes "mine_south_visited" once state or config
-    record the visit, and that flag is what makes rotating_gear -> underpass ->
-    inner_sanctum traversable -- pinning the fix to the bug where _gate_ctx never
-    added the flag at all (docs/foundation-design.md)."""
+    """_gate_ctx() must contribute "mine_south_visited" once state or config
+    record the visit, since that flag is what makes rotating_gear -> underpass
+    -> inner_sanctum traversable (docs/foundation-design.md)."""
     g = Game(GameConfig(special_items=True), seed=1, registry=registry)
 
     ctx_before = g._gate_ctx()
@@ -152,8 +151,8 @@ def test_foundation_basement_door_blocked_without_basement_key(registry):
     """The wiki treats the three Basement doors as independent instances, each
     unlocked only by a Basement Key. Without one held, the_foundation -> basement
     must not traverse, and basement must be unreachable even though the
-    Foundation is drafted and grid-connected -- pins the gate this PR adds
-    (basement_key_foundation) rather than relying only on the open elevator stub."""
+    Foundation is drafted and grid-connected: the basement_key_foundation gate
+    applies independently of the open elevator stub."""
     g = Game(GameConfig(special_items=True), seed=1, registry=registry)
     g.state.steps = 200
     assert g.state.inventory.get("basement_key", 0) == 0
@@ -222,10 +221,9 @@ def test_precipice_still_reachable_with_empty_inventory(registry):
     the_foundation -> basement on the Basement Key must not accidentally
     close this unrelated route (docs/foundation-design.md).
 
-    mine_south is deliberately NOT reached through precipice here: the
-    candlestick_stairway_lit fix (docs/areas.md correction, 2026-08-05) closed
-    the free precipice -> mine_south backdoor this test used to exercise --
-    see test_candlestick_stairway.py for that property.
+    mine_south is deliberately NOT reached through precipice here: reaching
+    mine_south requires candlestick_stairway_lit (docs/areas.md correction)
+    -- see test_candlestick_stairway.py for that property.
     """
     g = Game(GameConfig(), seed=1, registry=registry)
     g.state.steps = 200

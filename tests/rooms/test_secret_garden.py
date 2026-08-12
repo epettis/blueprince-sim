@@ -1,9 +1,8 @@
 """Secret Garden: the west Antechamber segment lever, and the fruit spread
 ("Spread Fruit throughout the House.") effect.
 
-Split out of the old test_antechamber_levers.py; see
-tests/test_antechamber_levers.py for the cross-cutting lever-gate invariants
-that stayed there.
+See tests/test_antechamber_levers.py for the cross-cutting lever-gate
+invariants.
 """
 
 from __future__ import annotations

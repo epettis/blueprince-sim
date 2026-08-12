@@ -6,10 +6,9 @@ The Forced Draw tests cover data/priority_draws.json "forced_draws"
 mechanism (patio group / commissary-observatory / classroom), which this does
 not touch.
 
-The car trunk tests are split out of the old test_containers.py, which keeps
-the generic container-kind system (trunks/chests/lockers) that uses other
-rooms (Attic, Locker Room) as vehicles; the car trunk is a Garage-only
-mechanic, so it belongs here instead.
+See tests/test_containers.py for the generic container-kind system
+(trunks/chests/lockers), which uses other rooms (Attic, Locker Room) as
+vehicles; the car trunk is a Garage-only mechanic and belongs here instead.
 """
 
 from __future__ import annotations

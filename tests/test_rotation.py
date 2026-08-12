@@ -179,11 +179,11 @@ def test_ornate_compass_rotates_every_draft():
 
 def test_outer_draft_is_never_rotatable():
     """Off-grid outer drafts (fixed orientation, no entry doorway) are never
-    rotatable - regression guard for a KeyError crash in legal_orientations."""
+    rotatable, even with a rotation source in play, since OPPOSITE[direction]
+    is undefined for direction == 0."""
     # Outer rooms sit off-grid with a fixed orientation and no entry doorway
-    # (target_cell == -1, direction == 0). Even with a rotation source in play,
-    # rotation must not apply - previously this crashed in legal_orientations
-    # with KeyError: 0 on OPPOSITE[direction].
+    # (target_cell == -1, direction == 0), so OPPOSITE[direction] is undefined;
+    # rotation must not apply even with a rotation source in play.
     g = Game(GameConfig(ornate_compass=True), seed=1)
     troom = next(r for r in g.registry.rooms if r.layout == "t" and r.rarity)
     g.phase = Phase.DRAFTING

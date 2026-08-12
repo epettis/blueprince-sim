@@ -149,12 +149,12 @@ def test_sealed_doors_reset_overnight(registry):
     assert g2.door_state_of(ANTECHAMBER_CELL, S) == DOOR_OPEN
 
 
-# Test 8: antechamber_levers=False is unchanged from old behavior
+# Test 8: antechamber_levers=False leaves segments as ordinary locked doors
 
 def test_levers_false_all_doors_open_or_locked_only(registry):
     """With antechamber_levers=False, no segment starts DOOR_SEALED: the three
-    Antechamber segments roll locked (as before this PR) and can be opened with
-    keys, reproducing the old open-door baseline."""
+    Antechamber segments roll locked and can be opened with keys, same as any
+    other locked door."""
     g = _game(levers=False, registry=registry)
     # None of the three segments should be DOOR_SEALED
     for d in (S, E, W):
