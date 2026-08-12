@@ -22,7 +22,7 @@ from pathlib import Path
 # NOTE: engine.items must stay a deferred import (items -> state -> shops
 # would cycle at module load); special_items imports only model, so it's safe.
 from . import special_items as si
-from .effects import Capability, provides_capability
+from .effects import Capability, ItemCapability, item_capability_sum, provides_capability
 
 
 # Scepter colors are floorplan categories; the bias entries in
@@ -381,7 +381,7 @@ def stock_display(game, shop_id: str) -> list:
 
     sale_days = game.registry.shop_rules.sale.get("days", [])
     is_sale = state.day in sale_days
-    has_coupon = si._has_item_effect(state, game.registry, "shop_discount")
+    discount = item_capability_sum(state, game.registry, ItemCapability.SHOP_DISCOUNT, "amount")
 
     stored = state.shops.stock[shop_id]
     display = []
@@ -403,9 +403,9 @@ def stock_display(game, shop_id: str) -> list:
         # Sale day: ceil(price / 2)
         if is_sale:
             raw_price = math.ceil(raw_price / 2)
-        # Coupon Book: max(0, price - 1)
-        if has_coupon:
-            raw_price = max(0, raw_price - 1)
+        # Coupon Book (and any future SHOP_DISCOUNT item): max(0, price - discount)
+        if discount:
+            raw_price = max(0, raw_price - discount)
 
         # Determine sold_out
         sold_out = False
@@ -448,8 +448,8 @@ def stock_display(game, shop_id: str) -> list:
             raw_price = showroom_trophy["price"]
             if is_sale:
                 raw_price = math.ceil(raw_price / 2)
-            if has_coupon:
-                raw_price = max(0, raw_price - 1)
+            if discount:
+                raw_price = max(0, raw_price - discount)
             display.append({
                 "id": showroom_trophy["id"],
                 "kind": "item",

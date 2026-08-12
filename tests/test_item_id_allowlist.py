@@ -66,11 +66,11 @@ ENGINE_DIR = Path(_model_module.__file__).resolve().parent
 #: entry -- see test_effects_subdirectories_are_excluded_by_construction).
 EFFECTS_ROOMS_DIR = ENGINE_DIR / "effects" / "rooms"
 
-#: Where task 22's per-item registry migration would eventually put item
-#: behaviour. Does NOT exist yet -- phase 0 must not create it -- and the
-#: scan excludes it by construction (non-recursive glob over effects/*.py)
-#: rather than by allowlist entry, so its arrival later requires no edit
-#: here. See test_effects_subdirectories_are_excluded_by_construction.
+#: Where task 22's per-item registry migration puts item behaviour (phase 2
+#: landed it, holding only coupon_book.py so far); the scan excludes it by
+#: construction (non-recursive glob over effects/*.py) rather than by
+#: allowlist entry, so it required no edit here. See
+#: test_effects_subdirectories_are_excluded_by_construction.
 EFFECTS_ITEMS_DIR = ENGINE_DIR / "effects" / "items"
 
 #: module filename -> item ids that module may name as string literals.

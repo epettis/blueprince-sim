@@ -810,9 +810,9 @@ it comes first and stands alone.
 
 | Phase | Content | Size | Risk |
 |---|---|---|---|
-| 0 | Two scanners + allowlists (`item_id`, `effect_tag`), bidirectional. Freezes 58 and 35. **No code moves.** | S | Low |
+| 0 | Two scanners + allowlists (`item_id`, `effect_tag`), bidirectional. **No code moves.** | S | Low | **DONE in #200** |
 | 1 | Truth pass on the 14 records; delete the `ignition_tool` tag | XS | Low | **DONE in #199** |
-| 2 | `ItemCapability` primitives + `effects/items/`; migrate `coupon_book` as pattern-setter | S | Low |
+| 2 | `ItemCapability` primitives + `effects/items/`; migrate `coupon_book` as pattern-setter | S | Low | **DONE in #203** |
 | 3 | Pure-query capabilities (~12 modules) | M | Low |
 | 4 | The folds -- **the engine's ordered capability tuple is written here** | M | **Med** |
 | 5 | Id-branch items with no tags (~15 modules) | M | Med |
@@ -854,6 +854,46 @@ allowlist entry** -- that rule alone catches `ignition_tool` today.
 around 1,800 LOC.
 
 ## Decisions log
+
+- **2026-08-12, task 22 phase 2 landed, and the item registry is a fold, not a
+  hook.** The primitive is `item_provides(item_id, ItemCapability, **params)`:
+  the item declares only the *fact and its parameters*, and the **engine owns
+  the fold** (`item_capability_sum` in `engine/effects/__init__.py`). No item
+  module registers a handler function.
+
+  This is the deliberate divergence from `room_hook`, and the reason it matters
+  is worth keeping: a room has a natural event boundary -- the player standing
+  in it -- so firing a handler there maps onto a real moment. **Items have no
+  such boundary.** Item behaviour is overwhelmingly "the engine is about to
+  charge N; ask every held item whether it changes N". Registering 40 modules
+  against a constantly-firing hook would also make fold *order* implicit in
+  import order, where today it is visible as sequential lines.
+
+  **`SHOP_DISCOUNT` is a sum and therefore commutative, so phase 2 cannot by
+  itself prove the ordering design.** The API is shaped so it does not need
+  redesigning: params are stored per `(item_id, capability)` rather than
+  pre-flattened, so phase 4's ordered folds become a *sibling* function walking
+  the same registry in a caller-supplied order with a combine step. **Phase 4
+  is where that gets tested for real** -- treat its ordered tuple as the
+  load-bearing artefact and pin the current arithmetic before moving anything.
+
+  **The data tag was deleted, not left alongside.** Once `coupon_book`
+  registers the capability in a module, its `shop_discount` effect tag is a
+  second source of truth for the same fact -- the defect deleted twice this
+  week (`ignition_tool` #199, `silver_key_bias` #202). Building a registry
+  while leaving the tag would have recreated the problem the registry exists
+  to solve.
+
+  **The tag allowlist shrank 6 -> 5 for `shops.py`: the first downward movement
+  of the item debt**, and the measure phases 3-7 are judged by.
+
+  **Brief error worth recording: there is no production call site for
+  `validate_capability_registry` or `validate_room_registry`.** Both are
+  exercised only by dedicated tests; nothing in `game.py` or
+  `validate_data.py` invokes them. `validate_item_registry` follows that same
+  pattern. So a typo'd id in any of the three registries is caught by the test
+  suite, never by the data validator -- worth knowing before anyone assumes
+  `tools/validate_data.py` covers it.
 
 - **2026-08-12, delete the `silver_key_bias` effect record rather than wiring a
   reader.** Owner, resolving the binary question phase 0 raised.

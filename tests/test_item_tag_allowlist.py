@@ -71,10 +71,10 @@ SRC_DIR = ENGINE_DIR.parent.parent
 #: construction (non-recursive glob), matching the sibling scanners.
 EFFECTS_ROOMS_DIR = ENGINE_DIR / "effects" / "rooms"
 
-#: Where task 22's per-item registry migration would eventually put item
-#: behaviour. Does NOT exist yet -- phase 0 must not create it -- excluded
-#: from the allowlist scan by construction, same as the room-id scanner
-#: excludes effects/rooms/. See test_effects_subdirectories_are_excluded_by_construction.
+#: Where task 22's per-item registry migration puts item behaviour (phase 2
+#: landed it, holding only coupon_book.py so far) -- excluded from the
+#: allowlist scan by construction, same as the room-id scanner excludes
+#: effects/rooms/. See test_effects_subdirectories_are_excluded_by_construction.
 EFFECTS_ITEMS_DIR = ENGINE_DIR / "effects" / "items"
 
 #: module filename -> effect tags that module may name as string literals.
@@ -113,8 +113,6 @@ ITEM_TAG_ALLOWLIST: dict[str, set[str]] = {
         # item.effect("locksmith_rob") gates the Locksmith's rob-on-theft
         # mechanic -- a genuine tag dispatch.
         "locksmith_rob",
-        # _has_item_effect(..., "shop_discount") gates the coupon price cut.
-        "shop_discount",
         # _has_item_effect(..., "smash") gates smash-capable container
         # opening -- a genuine tag dispatch.
         "smash",
