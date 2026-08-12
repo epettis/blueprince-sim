@@ -26,6 +26,7 @@ from tools.validate_data import (  # noqa: E402
     _AUDIT_DOCTRINE_EXEMPT_IDS,
     _AUDIT_PYTHON_EXEMPT_IDS,
     _AUDIT_STRUCTURAL_EXEMPT_IDS,
+    _assert_data_exemptions_live,
     _assert_deferred_exemptions_live,
     _assert_python_exemptions_live,
     find_divergences,
@@ -401,6 +402,46 @@ def test_deferred_exemption_liveness_check_fires_when_the_id_becomes_modelled():
 
     with pytest.raises(AssertionError, match=re.escape(now_modelled)):
         _assert_deferred_exemptions_live(rooms, by_id, EMPTY_LOCKS, shop_rules={})
+
+
+def test_data_exemption_liveness_check_fires_when_the_field_is_gone():
+    """The check must fail when a data-exempt room no longer carries the field
+    its entry names.
+
+    That entry claims the room's text merely restates a value the record already
+    holds; delete the value and the claim is false, but nothing else would
+    notice -- the room would stay off the worklist while its text promised
+    something no longer there."""
+    rid, path = sorted(_AUDIT_DATA_EXEMPT_IDS.items())[0]
+    rec = _room(rid, text="Something this room does.")
+    rec.pop(path.split(".")[0], None)
+
+    with pytest.raises(AssertionError, match=re.escape(rid)):
+        _assert_data_exemptions_live({rid: rec})
+
+
+def test_data_exemption_liveness_check_fires_when_the_field_is_empty():
+    """An emptied field fails the check too, not just a missing one.
+
+    A record can keep the key while losing the value -- extra_categories going
+    to [], dig_spots to 0 -- which leaves the exemption's claim just as false
+    as deleting it outright, and is the likelier way it rots."""
+    rid, path = sorted(_AUDIT_DATA_EXEMPT_IDS.items())[0]
+    rec = _room(rid, text="Something this room does.")
+    parts = path.split(".")
+    node = rec
+    for part in parts[:-1]:
+        node = node.setdefault(part, {})
+    node[parts[-1]] = []
+
+    with pytest.raises(AssertionError, match=re.escape(rid)):
+        _assert_data_exemptions_live({rid: rec})
+
+
+def test_data_exemption_liveness_check_passes_on_the_real_tree():
+    """Every shipped data exemption names a field its room actually carries."""
+    rooms = json.loads((DATA / "rooms.json").read_text(encoding="utf-8"))["rooms"]
+    _assert_data_exemptions_live({r["id"]: r for r in rooms})
 
 
 def test_deferred_exemption_liveness_check_passes_on_the_real_tree():

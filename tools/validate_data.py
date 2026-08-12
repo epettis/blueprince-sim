@@ -160,6 +160,11 @@ _AUDIT_DATA_EXEMPT_IDS = {
     "courtyard__ix49": "items.dig_spots",        # "5 dig spots"
     "electric_eel_aquarium__ix4": "flags.powered",  # "Power Source"
     "lavatory": "items.additional_max",          # "Has no items (never spawns loot)"
+    # "AQUARIUM is every color of room" -- carried by the record's own
+    # extra_categories, read generically through Room.is_category. The base
+    # Aquarium's identical text is Python-exempt against engine/model.py,
+    # which names the family only in prose, so this id needs the field itself.
+    "aquarium__experiment": "extra_categories",
 }
 
 # Rooms whose effect is genuinely unmodelled and deliberately deferred, with a
@@ -319,6 +324,30 @@ def find_divergences(
             )
 
     return kind1, kind2
+
+
+def _assert_data_exemptions_live(by_id: dict[str, dict]) -> None:
+    """Fail if a data-exempt room no longer carries the field its entry names.
+
+    The exemption asserts the room's text merely restates a value its own
+    record already holds. Delete or empty that value and the claim is false,
+    but nothing else would notice -- the room would simply stay off the
+    worklist while its text promised something no longer there.
+    """
+    for rid, path in sorted(_AUDIT_DATA_EXEMPT_IDS.items()):
+        rec = by_id.get(rid)
+        assert rec is not None, f"_AUDIT_DATA_EXEMPT_IDS: {rid} is not a room"
+        node = rec
+        for part in path.split("."):
+            assert isinstance(node, dict) and part in node, (
+                f"_AUDIT_DATA_EXEMPT_IDS: {rid!r} no longer carries {path!r}; "
+                f"either the field moved or the exemption is stale"
+            )
+            node = node[part]
+        assert node not in (None, "", [], {}), (
+            f"_AUDIT_DATA_EXEMPT_IDS: {rid!r}'s {path!r} is empty, so the "
+            f"exemption's claim that its text restates a real value is false"
+        )
 
 
 def _assert_deferred_exemptions_live(
@@ -1590,6 +1619,7 @@ def main(argv: list[str] | None = None) -> int:
     # summary line can advertise the count, but only printed under --audit and
     # never folded into errors/warnings -- see find_divergences' docstring.
     _assert_python_exemptions_live(DATA.parent)
+    _assert_data_exemptions_live(by_id)
     _assert_deferred_exemptions_live(rooms, by_id, lock_rules, shops_doc)
     audit_kind1, audit_kind2 = find_divergences(rooms, by_id, lock_rules,
                                                 shop_rules=shops_doc)
