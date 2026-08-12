@@ -345,7 +345,7 @@
    "detail": "Blackbridge Grotto -> Orindian Ruins: all 3 microchips placed in the pedestal.",
    "item_ids": ["microchip"],
    "count": 3,
-   "meta": {"source": "docs/areas.md", "confidence": "wiki"}
+   "meta": {"source": "docs/areas.md", "confidence": "wiki", "notes": "count: 3 is wrong and the gate is therefore currently unsatisfiable in play. Owner ruling, from play, 2026-08-12: the third microchip already sits in the Blackbridge Grotto's own pedestal; the player only ever brings the other two in inventory. This gate should be satisfiable by two held chips plus the in-place Grotto chip, not by holding three. Do not change count until the Grotto-chip state (in-place vs. removed) is modelled -- see special_items.json's microchip record for the target gate shape."}
   },
   {
    "id": "padlock_code",

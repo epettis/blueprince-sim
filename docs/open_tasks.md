@@ -755,6 +755,102 @@ and **deliberately left 9 shared parametric ones in data** -- and must propose
 an enforcement mechanism that ratchets down rather than only growing.
 
 
+**Recommendation, 2026-08-12: qualified yes, in two parts.**
+
+**`engine/items.py` is out of scope and already right.** It has zero item-id
+branches and dispatches on eight resource kinds via `match`. That is what task
+21 asks an engine capability to look like; there is nothing to break out.
+
+**`special_items.py` + the item half of `shops.py` (~3,665 LOC): migrate.**
+
+**The finding that decides the shape: items are the mirror image of rooms.**
+Task 17 moved 13 singleton tags and left 9 shared parametric ones carrying 77%
+of instances. Items are **30 singletons against 7 genuinely shared tags**
+(16 instances). By task 17's own rule -- singleton behaviour belongs in a
+module -- **items are a stronger migration candidate than rooms ever were.**
+
+Two refinements to that count, both load-bearing:
+
+- **`allowance` is a false shared tag.** All 19 instances are the same
+  `+2 allowance` payload on 19 differently-*sourced* tokens; the variation is
+  one-shot bookkeeping, not effect. It still stays in data -- `env/obs.py` and
+  `env/multiday.py` read it.
+- **`ignition_tool` is dead data.** Nothing reads the tag; `_ignition_tools()`
+  reads `registry.special.ignition["tools"]`, a separate list in the same file
+  naming the same items. Two sources of truth, one never consulted.
+
+**The registration primitive must NOT be a `room_hook` clone.** A room has a
+natural event boundary; an item does not. Item behaviour is overwhelmingly a
+**fold over the inventory** -- `move_step_cost`, `gem_cost_modifier`,
+`food_steps`, `shield_negates` all ask "does any held item modify this number".
+Copying the hook shape yields 40 modules registered against a constantly-firing
+hook, and makes fold *order* implicit in import order where today it is visible
+as sequential lines. **A bad item registry is strictly worse than the current
+2,465 lines, which are at least readable top to bottom.** The shape is
+`provides(item_id, Capability, **params)` -- following `Capability.LEVER` --
+with the **engine owning the fold and its order** as one explicit tuple, and
+the item declaring only its contribution. Genuine hooks are the minority:
+`ON_PICKUP`, `ON_ENTER_ROOM`, `ON_DAY_END`.
+
+**Scope is ~40 modules, not 102.** The four id-prefix families
+(`upgrade_disk_*` 16, `sanctum_key_*` 8, `vault_key_*` 4, `allowance_token*`
+19 -- 47 items) stay generic; `upgrades.py` already matches them by prefix.
+
+**What it does and does not buy.** It makes the *flag* derivable and kills
+`implemented`/`blocked_on` for `coupon_book`, `microchip` and
+`trophy_of_wealth`. **It does not make the *reason* derivable** -- a blocker is
+a claim about a subsystem, not about the item, so `dowsing_rod` and
+`crown_of_the_blueprints` stay asserted. Roughly 60% of the observed failure.
+**Phase 0 catches more of it, sooner, than the migration does**, which is why
+it comes first and stands alone.
+
+**Phases** (each independently mergeable, gates green throughout):
+
+| Phase | Content | Size | Risk |
+|---|---|---|---|
+| 0 | Two scanners + allowlists (`item_id`, `effect_tag`), bidirectional. Freezes 58 and 35. **No code moves.** | S | Low |
+| 1 | Truth pass on the 14 records; delete the `ignition_tool` tag | XS | Low |
+| 2 | `ItemCapability` primitives + `effects/items/`; migrate `coupon_book` as pattern-setter | S | Low |
+| 3 | Pure-query capabilities (~12 modules) | M | Low |
+| 4 | The folds -- **the engine's ordered capability tuple is written here** | M | **Med** |
+| 5 | Id-branch items with no tags (~15 modules) | M | Med |
+| 6 | RNG-touching migrations, **last and alone** | M | **High** |
+| 7 | Shrink both allowlists; delete `implemented`/`blocked_on` | S | Low |
+
+**No phase is a retrain trigger provided the `items` array is never reordered
+and nothing is inserted mid-array.** `env/obs.py` enumerates it positionally
+for the `inventory` Box -- structurally identical to `Room.idx`. `env/actions.py`
+is item-count-independent (`BUY_BASE` etc. are display slots), so the action
+space is unaffected.
+
+**Two constraints the scoping brief got wrong, corrected here:**
+
+- **`special_items.json` is hand-maintained.** `ingest_sheet.py` touches only
+  `rooms.json`, so the silent-revert hazard does not apply to item data.
+- **RNG risk is narrower than feared.** `rng.py` substreams are independent per
+  label, so only *same-label* ordering matters. Three item-relevant labels have
+  multiple draw sites: `treasure_map` (two functions, one stream -- migrate
+  alone), `lost_and_found` (contained), and **`extra_item_kind`, which spans
+  `game.py` and `items.py`** -- in the module this plan puts out of scope, so
+  it is a hazard for anything touching `roll_extra_items`, independent of this
+  work.
+
+**There is no item-side divergence audit at all.** The five guarded exemption
+channels are room-only; the entire validation of item implementation status is
+a check that `blocked_on` is non-empty -- never that it is *true*. A registry
+does not create a sixth exemption channel, it creates the **first** item audit.
+
+**Enforcement floor: ~10 of 58**, better than rooms will ever reach, because
+**item ids and room ids are disjoint** -- none of the `"bedroom"`-is-also-a-
+category ambiguity that permanently pins ~20 of the room allowlist. Two
+separate scanners are required: **13 of the 38 effect tags are spelled
+identically to an item id**, so a merged scanner would double-count. The tag
+scanner gets a second job: **a tag with zero readers is a hard failure, not an
+allowlist entry** -- that rule alone catches `ignition_tool` today.
+
+**Cost: ~8 PRs, ~650 LOC moved, ~500 LOC new.** `special_items.py` should land
+around 1,800 LOC.
+
 ## Decisions log
 
 - **2026-08-12, how the Microchips actually work, from play. This invalidates

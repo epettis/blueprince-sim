@@ -74,6 +74,10 @@ KNOWN_ITEM_EFFECT_TAGS = {
 }
 VALID_ITEM_KINDS = {"standard", "special_key", "contraption", "showroom", "armory", "unique"}
 VALID_ITEM_PERSISTENCE = {"day", "until_used", "permanent"}
+# meta.reachability, required whenever implemented=false: "inert" (the engine
+# spawns/grants/reads the item but it does nothing, or only partly what it
+# should) vs "absent" (nothing in the engine touches it; unobtainable in play).
+VALID_ITEM_REACHABILITY = {"inert", "absent"}
 VALID_DIG_OUTCOME_KINDS = {"junk", "nothing", "coins", "gold_coin", "turnip", "key", "item", "gems"}
 
 KNOWN_EFFECT_TAGS = {"grant", "grant_per_category", "grant_on_draft_category",
@@ -661,6 +665,12 @@ def main(argv: list[str] | None = None) -> int:
         if not item.get("implemented", True):
             if not item.get("meta", {}).get("blocked_on"):
                 errors.append(f"{where}: implemented=false requires meta.blocked_on")
+            reachability = item.get("meta", {}).get("reachability")
+            if reachability not in VALID_ITEM_REACHABILITY:
+                errors.append(
+                    f"{where}: implemented=false requires meta.reachability to be "
+                    f"one of {sorted(VALID_ITEM_REACHABILITY)}, got {reachability!r}"
+                )
         for eff in item.get("effects", []):
             tag = eff.get("tag")
             if tag not in KNOWN_ITEM_EFFECT_TAGS:
