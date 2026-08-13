@@ -12,7 +12,8 @@ from .areas import GateContext, reachable
 from .decks import apply_upgrade, build_decks, inject_rooms
 from .draft import COLOUR_CATEGORIES, SECRET_PASSAGE_IDS, deal_draft, redeal
 from .effects import Capability, Hook
-from .effects.items import crown_of_the_blueprints, keycard, paper_crown, power_hammer, silver_key
+from .effects.items import (crown_of_the_blueprints, keycard, paper_crown, power_hammer,
+                            silver_key, the_axe)
 from .effects.rooms import dovecote, foyer, mail_room, shrine
 from .grid import (ADJACENT, DIRS, E, ENTRANCE_CELL, N, N_CELLS, OPPOSITE, W,
                    neighbor, rank_of, rotate_mask)
@@ -95,6 +96,7 @@ class Game:
         st.special.enabled = cfg.special_items
         st.draft_counts = dict(cfg.draft_counts)
         st.applied_upgrades = set(cfg.upgrade_disks)
+        st.axed_rooms = tuple(cfg.axed_rooms)
         st.pending_upgrade_slot = None
         st.pending_upgrade_options = ()
         st.shrine_blessing_id = cfg.shrine_blessing_id
@@ -110,7 +112,7 @@ class Game:
         # Seed the config-carried running values (mail cycle and transit days,
         # tithes, permanently gated item ids) before anything reads them, so the
         # day's first observation reports what was carried, not the field defaults.
-        special_items.configure(st, cfg)
+        special_items.configure(st, cfg, self.registry)
         if cfg.special_items:
             for item_id in sorted(cfg.starting_items):
                 special_items.grant(st, self.registry, item_id, source="config")
@@ -780,12 +782,68 @@ class Game:
         assert self.cfg.special_items
         shops.use_repellent(self, room_id)
 
+    def can_axe_room(self, target_id: str) -> bool:
+        """Is axing ``target_id`` legal right now?
+
+        Requires: special items enabled, an Axe held, NAVIGATE phase, the
+        save-scoped 3-use cap (the_axe.max_active) not yet reached,
+        ``target_id`` not already axed, and ``target_id`` itself a real,
+        currently gem-costed floorplan FAMILY root (``upgrades.root_base_id``
+        of the room equals ``target_id`` -- so a variant id, or a free room,
+        is never a legal target). Not gated on standing anywhere in
+        particular: the wiki's "Room Directory" is a menu, not a physical
+        room, and the sim has no Room Directory subsystem to stand in.
+        """
+        if self.phase is not Phase.NAVIGATE:
+            return False
+        if not self.cfg.special_items:
+            return False
+        if not the_axe.held(self.state):
+            return False
+        if target_id in self.state.axed_rooms:
+            return False
+        if len(self.state.axed_rooms) >= the_axe.max_active(self.registry):
+            return False
+        room = self.registry.by_id.get(target_id)
+        if room is None or room.gem_cost <= 0:
+            return False
+        return root_base_id(self.registry, room) == target_id
+
+    def axe_room(self, target_id: str) -> None:
+        """Consume the held Axe and permanently zero ``target_id``'s
+        floorplan family's gem cost for the rest of the save.
+
+        The override itself lives in ``engine/state.py::resolve_gem_cost``,
+        applied at cost-resolution time (both dealing and paying route
+        through it); this method only records the permanent fact and spends
+        the item. ``state.axed_rooms`` is an ordered tuple (see
+        ``GameConfig.axed_rooms``), appended to, never rewritten.
+        """
+        assert self.can_axe_room(target_id), f"cannot axe {target_id!r} right now"
+        the_axe.consume(self.state)
+        self.state.axed_rooms = (*self.state.axed_rooms, target_id)
+
+    def _axe_carryover(self) -> dict:
+        """Cross-day carry for The Axe's permanent record.
+
+        Reports the FULL current ordered tuple every day (state.axed_rooms is
+        seeded from cfg at reset() and only ever grows via axe_room), so
+        DayChain.advance() can replace its own running value from this the
+        same "state already IS the accumulated total" shape as
+        draft_counts/foundation_cell -- except, per the owner's SAVE-scoped
+        ruling, DayChain must NOT clear this at the attempt wrap the way
+        draft_counts/foundation_cell are cleared (see that module's own
+        wrap-block comment).
+        """
+        return {"axed_rooms": list(self.state.axed_rooms)}
+
     def carryover(self) -> dict:
         """Cross-day discoveries to feed into tomorrow's GameConfig."""
         result = shops.carryover(self)
         result.update(self._room_pulse_carryover())
         result.update(self._sigil_carryover())
         result.update(self._shrine_carryover())
+        result.update(self._axe_carryover())
         return result
 
     def _shrine_carryover(self) -> dict:

@@ -224,3 +224,43 @@ def test_deck_groundwork_ships_inert(cfg):
     after = (game.rng.stream("deck_inject_undealt").getstate(),
             game.rng.stream("dynamic_rarity").getstate())
     assert before == after, "a full hand deal consumed the new deck-groundwork substreams"
+
+
+def test_axing_a_room_never_moves_its_cards_between_decks(registry):
+    """The Axe zeroes a room's CHARGED gem cost at payment time; it must never
+    move the family's cards into the free deck or otherwise change any of the
+    8 deck sizes. A card's effective rarity IS the deck it sits in, and deck
+    SIZES feed decks.py::rarity_deck_ok's legality gate -- so an
+    implementation that "makes the room free" by moving its cards to the free
+    deck would silently change which rarities are legal to roll for the rest
+    of the day, on top of letting the axed room be dealt into slot 0 (which
+    must always be a statically-free room). kitchen is deck-resident
+    (pool == "base"), so a wrongly-implemented bucket move is actually
+    exercised by this test, not a no-op (the Crown PR's own first version of
+    this guard forced an upgrade_variant room, which is never deck-resident
+    at all, so its mutation test was theatre -- see docs/open_tasks.md)."""
+    room = registry.by_id["kitchen"]
+    assert room.pool == "base", "must be deck-resident for this guard to mean anything"
+    assert room.gem_cost > 0
+    gem_idx = room.rarity_idx * 2 + 1
+    free_idx = room.rarity_idx * 2
+
+    cfg = GameConfig(special_items=True, starting_items=frozenset({"the_axe"}))
+    game = Game(cfg, seed=3, registry=registry)
+    sizes_before = [d.size() for d in game.state.decks]
+    assert game.state.decks[gem_idx].order.count(room.idx) == room.deck_copies
+    assert game.state.decks[free_idx].order.count(room.idx) == 0
+
+    assert game.can_axe_room("kitchen")
+    game.axe_room("kitchen")
+
+    sizes_after = [d.size() for d in game.state.decks]
+    assert sizes_after == sizes_before, (
+        f"axing changed deck sizes: before={sizes_before} after={sizes_after}"
+    )
+    assert game.state.decks[gem_idx].order.count(room.idx) == room.deck_copies, (
+        "the axed room's cards left the gem deck"
+    )
+    assert game.state.decks[free_idx].order.count(room.idx) == 0, (
+        "the axed room's cards were moved into the free deck"
+    )

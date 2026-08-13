@@ -253,6 +253,23 @@ class GameConfig:
     # drafting, see data/shrine.json): would hold the cell the day ended in, to
     # offer that room from the grounds the next day. Always -1 today.
     shrine_monk_room: int = -1
+    # --- The Axe (engine/effects/items/the_axe.py; data/special_items.json) ---
+    # Ordered tuple of floorplan-family root ids (upgrades.root_base_id)
+    # permanently axed this SAVE: each one's gem cost is zeroed forever
+    # (engine/state.py::resolve_gem_cost), capped at 3 simultaneously active
+    # (the_axe's own data-driven max_active). SAVE-scoped like stars/
+    # main_course_bonus/the shrine_* fields -- env/multiday.py::DayChain does
+    # NOT clear this at the attempt wrap, unlike draft_counts/upgrade_disks.
+    # An ORDERED TUPLE, not a frozenset: the wiki's unmodelled "a 4th axe
+    # overwrites the 3rd" rule (unreachable today once the Armory gate stops
+    # selling at the cap) would need insertion order to ever be implemented,
+    # and a frozenset would have already thrown that away. Deliberately NOT a
+    # "frozenset" annotation, so _SET_VALUED_FIELDS (which matches on that
+    # substring) does not try to coerce it -- coercing a tuple field the way
+    # a comma-separated string is split for set-valued fields would silently
+    # turn a real override into something else, the exact failure mode
+    # from_dict's own docstring warns about for string inputs generally.
+    axed_rooms: tuple[str, ...] = ()
     # --- reward selection for the env ---
     reward: str = "sparse"              # sparse|shaped|phased
     data_dir: Path | None = None        # alternate data/*.json directory (None = packaged data)

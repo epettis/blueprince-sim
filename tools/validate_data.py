@@ -81,6 +81,10 @@ KNOWN_ITEM_EFFECT_TAGS = {
     # Multi-day carry-over (PR2 item persistence)
     "moon_pendant_carry",
     "ignition_tool",
+    # The Axe: permanent gem-cost override, capped at max_active
+    # (effects/items/the_axe.py). Read directly via item.effect(TAG); not an
+    # engine/effects hook registration (the discount outlives the item).
+    "axe_room",
 }
 VALID_ITEM_KINDS = {"standard", "special_key", "contraption", "showroom", "armory", "unique"}
 VALID_ITEM_PERSISTENCE = {"day", "until_used", "permanent"}

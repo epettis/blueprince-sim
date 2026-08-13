@@ -511,6 +511,16 @@ class GameState:
     # hallway_tomorrow_count/sauna_visited.
     clock_tower_tomorrow_keys: int = 0
 
+    # The Axe: ordered tuple of floorplan-family root ids (upgrades.root_base_id)
+    # whose gem cost has been permanently zeroed, capped at 3
+    # (effects/items/the_axe.py::max_active). Seeded from cfg.axed_rooms at
+    # Game.reset; grown (never shrunk) by Game.axe_room -- an ordered tuple,
+    # not a set, see GameConfig.axed_rooms for why. resolve_gem_cost below is
+    # the only reader; decks.py::build_decks never consults this, so an axed
+    # room's cards never move between the free and gem decks (see that
+    # function's own docstring).
+    axed_rooms: tuple[str, ...] = ()
+
     # --- Shrine blessings/curse (engine/effects/rooms/shrine.py) ---
     # Seeded each day from the matching GameConfig.shrine_* fields (Game.reset);
     # a blessing/curse this GameState grants or clears is reported by
@@ -541,8 +551,44 @@ class GameState:
         )
 
 
+def _axe_root_id(room: Room, registry_rooms) -> str:
+    """Walk ``room.variant_of`` up to its floorplan family's root id.
+
+    Mirrors ``upgrades.root_base_id``, duplicated here rather than imported:
+    that helper takes a full ``Registry`` (for ``by_id``), while
+    ``resolve_gem_cost`` only ever receives the plain room sequence its two
+    call sites already pass (``registry.rooms``) -- see that function's own
+    docstring for why its signature does not grow to take a ``Registry``. The
+    common case (a non-variant room) costs nothing extra: the id dict is only
+    built when a chain actually needs walking.
+    """
+    if room.variant_of is None:
+        return room.id
+    by_id = {r.id: r for r in registry_rooms}
+    current = room
+    while current.variant_of is not None:
+        parent = by_id.get(current.variant_of)
+        if parent is None:
+            break
+        current = parent
+    return current.id
+
+
 def resolve_gem_cost(room: Room, state: GameState, registry_rooms) -> int:
-    """Resolve a room's gem cost, evaluating dynamic modifiers."""
+    """Resolve a room's gem cost, evaluating dynamic modifiers.
+
+    The Axe's discount is applied here, at cost-RESOLUTION time (both when a
+    hand is dealt and when an option is paid for -- draft.py and game.py's
+    _effective_cost both route through this one function): an axed floorplan
+    family (its root id, via ``upgrades.root_base_id``) always costs 0,
+    short-circuiting gem_cost_dynamic entirely. This is a payment-time price
+    override, never a deck change -- decks.py::build_decks reads
+    Room.gem_cost/is_free directly and never calls this function, matching
+    the datamined rule that deck membership uses "the actual gem cost of the
+    room, ignoring any modifiers like The Axe".
+    """
+    if state.axed_rooms and _axe_root_id(room, registry_rooms) in state.axed_rooms:
+        return 0
     cost = room.gem_cost
     if room.gem_cost_dynamic == "plus_one_per_bedroom":
         n_bedrooms = sum(

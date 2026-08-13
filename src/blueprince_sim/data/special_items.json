@@ -1561,15 +1561,19 @@
    "spawn_rooms": [],
    "spawn_rooms_high_luck": [],
    "guaranteed_in": [],
-   "effects": [],
-   "implemented": false,
+   "effects": [
+    {
+     "tag": "axe_room",
+     "max_active": 3
+    }
+   ],
+   "implemented": true,
    "meta": {
     "source": "https://blueprince.wiki.gg/wiki/Armory",
     "confidence": "wiki",
     "absent_spawn_areas": [],
-    "blocked_on": "permanent_gem_cost_override_not_modeled",
-    "reachability": "inert",
-    "notes": "Slug is accurate but imprecise: the override must persist across days, and nothing in engine/ references the_axe at all today (zero handler code). Preserve the datamined subtlety when this is built: axed rooms still behave as gem rooms for drafting purposes (they still pair with a free floorplan and still scale with gems in hand and rank) -- this is a payment-time price override, NOT a bucket move, so decks.py::set_dynamic_rarity is the wrong template for it."
+    "blocked_on": null,
+    "notes": "Purchase-only (Armory). Permanently zeroes one floorplan family's CHARGED gem cost (engine/state.py::resolve_gem_cost), capped at max_active simultaneously-axed families (Armory stops selling once spent, engine/special_items.py::configure). Deck membership is untouched: axed rooms still behave as gem rooms for drafting purposes (still pair with a free floorplan, still scale with gems in hand and rank) -- a payment-time price override, never a bucket move."
    }
   },
   {
