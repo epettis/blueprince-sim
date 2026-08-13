@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import dataclasses
 
-from ..config import GameConfig
+from ..config import GameConfig, config_digest
 from ..engine.game import Game, Phase, RedrawKind
 from ..engine.grid import DIR_NAMES
 from ..engine.items import expected_yields
@@ -268,12 +268,25 @@ def build_frames(record: dict) -> tuple[list[dict], dict | None]:
     """Frame 0 is the post-reset state; frame i+1 follows ``actions[i]``.
 
     Returns ``(frames, divergence)`` where ``divergence`` is ``None`` when the
-    replay matched the recorded actions exactly, or a dict with keys:
+    replay matched the recorded actions exactly AND (when the record carries
+    one) the recorded ``config_digest`` matches the reconstructed config, or
+    a dict with keys:
       - ``"first_invalid_index"``: index of the first action that could not be
-        applied (was not in the action mask at that step).
+        applied (was not in the action mask at that step), or ``None`` if
+        every recorded action stayed legal.
       - ``"invalid_count"``: total number of such actions across the episode.
-    A divergence means the replayed house is incomplete and the frames should
-    be rendered with a warning.
+      - ``"config_digest_mismatch"``: ``True`` when the record carries a
+        ``config_digest`` that doesn't match ``config.config_digest`` of the
+        reconstructed config. Advisory only (this function never raises on
+        it, unlike ``rl.behavioral_cloning.config_for_record``): a record
+        with no ``config_digest`` (predates the field) is treated as absent,
+        not mismatched, so legacy records replay exactly as before. A
+        mismatch can occur even with zero invalid actions -- replaying under
+        the wrong config usually completes without any action becoming
+        illegal, so this is often the ONLY signal a replay diverged.
+    A divergence means the replayed house may be wrong (incomplete, in the
+    invalid-action case, or exact-but-under-the-wrong-config in the digest
+    case) and the frames should be rendered with a warning.
 
     Records carrying ``"day_config"`` (multi-day mode) are replayed with the
     day's exact GameConfig; records without it (single-day or legacy) use the
@@ -359,8 +372,17 @@ def build_frames(record: dict) -> tuple[list[dict], dict | None]:
             break
 
     stale_keys = set(_STALE_DAY_CONFIG_KEYS)
+    # Advisory-only digest check: never raises (unlike
+    # rl.behavioral_cloning.config_for_record), since an unviewable replay
+    # would turn a legacy/tampered record into a 500 in this UI. A missing
+    # recorded digest (predates the field) is treated as absent, not
+    # mismatched, so existing records with no config_digest keep replaying
+    # exactly as before.
+    recorded_digest = record.get("config_digest")
+    digest_mismatch = (recorded_digest is not None
+                        and recorded_digest != config_digest(cfg))
     divergence = None
-    if first_invalid is not None:
+    if first_invalid is not None or digest_mismatch:
         divergence = {
             "first_invalid_index": first_invalid,
             "invalid_count": invalid_count,
@@ -380,5 +402,10 @@ def build_frames(record: dict) -> tuple[list[dict], dict | None]:
             # Config keys in the record that no longer exist on GameConfig; the
             # day was replayed against base values for those, so it can diverge.
             "stale_config_keys": sorted(stale_keys),
+            # True when the record's stamped config_digest doesn't match the
+            # reconstructed config's -- see this function's docstring. Can be
+            # the ONLY signal of a divergence: replaying under the wrong
+            # config usually leaves every recorded action legal.
+            "config_digest_mismatch": digest_mismatch,
         }
     return frames, divergence

@@ -338,6 +338,11 @@ class EpisodeRecorder:
             "n_actions": _n_actions(),
             # See self.unlocks: names the base that day_config diffs against.
             "unlocks": self.unlocks,
+            # Digest of the exact GameConfig this episode ran under
+            # (config.config_digest, stamped into info by BluePrinceEnv._info
+            # from _episode_config_digest). config_for_record raises if a
+            # reconstructed replay's digest doesn't match this record's.
+            "config_digest": info.get("config_digest"),
         }
         # Only include day_config when present (multi-day mode); omit the key
         # entirely for single-day records so their format stays byte-identical.

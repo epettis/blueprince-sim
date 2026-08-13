@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field, fields
+import hashlib
+import json
+from dataclasses import MISSING, dataclass, field, fields
 from pathlib import Path
 
 STAGES = ("week1", "week2", "late", "auto")
@@ -315,3 +317,49 @@ class GameConfig:
 _SET_VALUED_FIELDS: frozenset[str] = frozenset(
     f.name for f in fields(GameConfig) if "frozenset" in f.type
 )
+
+
+def _field_default(f):
+    """The declared default of dataclass field ``f``, factories called."""
+    if f.default is not MISSING:
+        return f.default
+    return f.default_factory()
+
+
+def _canonical_config_value(v):
+    """JSON-ready, order-independent form of one ``GameConfig`` field value.
+
+    frozenset -> sorted list; dict -> key-sorted dict; Path -> str;
+    bool/int/str/None -> unchanged. Never touches ``hash()``.
+    """
+    if isinstance(v, frozenset):
+        return sorted(v)
+    if isinstance(v, dict):
+        return {k: v[k] for k in sorted(v)}
+    if isinstance(v, Path):
+        return str(v)
+    return v
+
+
+def config_digest(cfg: GameConfig) -> str:
+    """16-hex-char blake2b digest of every non-default field of ``cfg``.
+
+    Only fields whose value differs from the field's declared default are
+    hashed, so appending a new ``GameConfig`` field never changes the digest
+    of an existing config that leaves it at default -- a demo record stamped
+    before the field existed still matches after one is added.  The accepted
+    cost of that design: changing a field's *default* (rather than adding a
+    field) is invisible to the digest, since a config left at the new default
+    hashes identically to one left at the old default.
+
+    Never uses ``hash()``: ``PYTHONHASHSEED`` randomises ``str.__hash__``
+    per-process, so a hash-based digest would not be stable across processes
+    (``GameConfig`` is not frozen and has ``__hash__ is None`` in any case).
+    """
+    payload = {}
+    for f in fields(cfg):
+        value = getattr(cfg, f.name)
+        if value != _field_default(f):
+            payload[f.name] = _canonical_config_value(value)
+    blob = json.dumps(payload, sort_keys=True, separators=(",", ":"))
+    return hashlib.blake2b(blob.encode(), digest_size=8).hexdigest()

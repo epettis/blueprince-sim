@@ -293,6 +293,12 @@ class PlaySession:
             # fresh-save record silently replays onto the all-unlocks base and
             # drifts.
             "unlocks": self.unlocks,
+            # Digest of the exact GameConfig this day ran under (see
+            # config.config_digest / BluePrinceEnv._episode_config_digest).
+            # bc.config_for_record raises if a reconstructed replay's digest
+            # doesn't match this -- catches a wrong unlocks/day_config
+            # reconstruction at step 0 instead of a silently wrong replay.
+            "config_digest": info["config_digest"],
         }
         # A PlaySession always drives a DayChain, so info["day_config"] is
         # always present (see BluePrinceEnv._info) -- unlike the trainer's

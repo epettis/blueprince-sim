@@ -8,7 +8,7 @@ import numpy as np
 import gymnasium
 from gymnasium import spaces
 
-from ..config import GameConfig
+from ..config import GameConfig, config_digest
 from ..engine.game import Game, Phase
 from ..engine.upgrades import all_slot_ids
 from . import actions as A
@@ -107,6 +107,13 @@ class BluePrinceEnv(gymnasium.Env):
         # base_cfg; only present (non-empty) when a day_chain is active.
         # Captured at reset() for use in info["day_config"].
         self._episode_day_config: dict = {}
+        # Digest (config.config_digest) of this episode's exact GameConfig,
+        # captured once at reset() -- covers both the day_chain and no-chain
+        # branches, since a single-day record needs the same replay-under-the-
+        # wrong-config check a multi-day one does. Exposed as
+        # info["config_digest"] so recorders can stamp it and BC's
+        # config_for_record can catch a mismatched reconstruction at step 0.
+        self._episode_config_digest: str = ""
 
     def reset(self, *, seed: int | None = None, options: dict | None = None):
         """Start a new day, returning ``(obs, info)``.
@@ -122,7 +129,10 @@ class BluePrinceEnv(gymnasium.Env):
         avoid re-parsing data files on every reset.  A JSON-serializable diff
         of the day's config vs. the chain's base config is captured in
         ``_episode_day_config`` and exposed as ``info["day_config"]`` so
-        recorders can store it for faithful replay.
+        recorders can store it for faithful replay.  A digest of the exact
+        ``GameConfig`` this episode runs under (``config.config_digest``) is
+        captured in ``_episode_config_digest`` and exposed as
+        ``info["config_digest"]`` in both branches, single-day included.
         """
         super().reset(seed=seed)
         game_seed = seed if seed is not None else int(self.np_random.integers(0, 2**31))
@@ -140,6 +150,7 @@ class BluePrinceEnv(gymnasium.Env):
             self._episode_carryover = {}
             self._episode_day_config = {}
             self.game.reset(game_seed)
+        self._episode_config_digest = config_digest(self.game.cfg)
         self._env_steps = 0
         self._episode_seed = game_seed
         self._prev_action = None
@@ -265,6 +276,10 @@ class BluePrinceEnv(gymnasium.Env):
         ``EpisodeRecorder``'s per-replay "win" tag — so an absent key reads
         as ``None``/falsy rather than raising, which is exactly what made
         every win metric silently report 0 before these keys were added here.
+
+        ``"config_digest"`` is also always present (single-day mode included):
+        it is ``_episode_config_digest``, captured once at ``reset()`` rather
+        than recomputed here, since this method runs every step.
         """
         if mask is None:
             mask = A.action_mask(self.game, self._prev_action)
@@ -278,6 +293,7 @@ class BluePrinceEnv(gymnasium.Env):
             "action_mask": np.array(mask, dtype=bool),
             "room46_reached": self.game.state.room46_reached,
             "antechamber_reached": self.game.state.antechamber_reached,
+            "config_digest": self._episode_config_digest,
         }
         if self.day_chain is not None:
             # state.day is the in-game day index that was injected via next_config().

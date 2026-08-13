@@ -1,21 +1,27 @@
 """Behavioural-cloning warm start: demo loading/replay (no torch) and pretraining (torch).
 
 Uses ``rl.behavioral_cloning.synthetic_demo_records`` throughout instead of a
-checked-in ``demos.jsonl`` fixture: no real human demo file exists anywhere in
-this repo yet (the Play tab that records them ships, but nobody has played
-and saved a session), so a seeded uniform-random masked policy stands in as
-the fixture generator for both the loader tests and the BC training tests.
+checked-in ``demos.jsonl`` fixture: real demo files (human-played sessions,
+via the Play tab) land only under the gitignored ``runs/`` tree, never in the
+repo itself, so a seeded uniform-random masked policy stands in as a
+reproducible fixture generator for both the loader tests and the BC training
+tests.
 """
 
 from __future__ import annotations
 
 import json
+import os
+import subprocess
+import sys
 
 import numpy as np
 import pytest
 
+from blueprince_sim.config import GameConfig, config_digest
 from blueprince_sim.env import actions as A
 from blueprince_sim.rl.behavioral_cloning import (
+    ConfigDigestError,
     MixedPresetError,
     ReplayDivergenceError,
     StaleDemoError,
@@ -28,6 +34,8 @@ from blueprince_sim.rl.behavioral_cloning import (
     replay_demo,
     synthetic_demo_records,
 )
+from blueprince_sim.rl.train import all_unlocks_config
+from blueprince_sim.web import replay
 
 # --------------------------------------------------------------------------
 # normalize_unlocks / synthetic fixtures
@@ -203,17 +211,16 @@ def test_replay_dataset_flattens_across_records():
 
 
 def test_replay_demo_raises_on_wrong_preset():
-    """Replaying a record under the WRONG unlocks preset can surface as a
-    divergence: forcing a fresh-save record through the all-unlocks base
-    changes what doors and rooms are legal, so a recorded action may stop
-    being legal at replay time.
-
-    Swept over trajectories rather than pinned to one, because divergence is
-    NOT guaranteed -- most tampered records replay to the end without any
-    recorded action becoming illegal, so a single trajectory asserts only
-    which one it happened to draw. Sweeping proves the detector fires at all;
-    that it fires rarely is a known gap, recorded in docs/open_tasks.md.
+    """Replaying a record under the WRONG unlocks preset is refused
+    deterministically at config reconstruction, before any replay happens:
+    config_for_record's digest comparison rejects every tampered record in
+    this sweep, by exact type (ConfigDigestError), regardless of whether the
+    wrong preset would also have made some recorded action illegal. Swept
+    over many trajectories (not pinned to one) to demonstrate this holds
+    across the whole population, not just a trajectory that happens to also
+    trip the mask-based detector.
     """
+    total = 0
     raised = 0
     for seed in (14, 21, 33):
         for action_rng_seed in range(20):
@@ -222,29 +229,65 @@ def test_replay_demo_raises_on_wrong_preset():
                                             use_chain=False)[0]
             assert record["actions"], "a demo with no actions cannot diverge"
             tampered = dict(record, unlocks="all")  # lie about the preset
+            total += 1
             try:
                 replay_demo(tampered)
-            except ReplayDivergenceError:
+            except ConfigDigestError:
                 raised += 1
-    assert raised, "no tampered record diverged; divergence detection is dead"
+    assert raised == total, f"only {raised}/{total} tampered records raised ConfigDigestError"
 
 
 def test_replay_demo_raises_when_terminal_reached_with_actions_remaining():
     """A wrong reconstructed config can end the day EARLIER than the real one
     did, reaching Phase.TERMINAL while recorded actions remain -- distinct
     from an outright illegal action, since every action up to that point
-    stayed legal under the (wrong) replayed config. The old code's ``break``
-    on this condition returned the triples collected so far with no error,
-    silently discarding the rest of the demo; this pins one deterministic
-    case (seed=24) rather than relying on the sweep in
-    test_replay_demo_raises_on_wrong_preset, which may hit either failure
-    mode depending on the trajectory it draws.
+    stayed legal under the (wrong) replayed config. This pins one
+    deterministic case (seed=24) rather than relying on the sweep in
+    test_replay_demo_raises_on_wrong_preset, which asserts a different
+    property (the digest guard, not this detector).
+
+    The tampered record's ``config_digest`` is re-stamped to match what the
+    wrong (``unlocks="all"``) reconstruction actually hashes to, so
+    config_for_record's digest guard passes and this test isolates the
+    terminal-reached detector: without the re-stamp, the digest guard would
+    raise ConfigDigestError first and this detector would never run.
     """
     record = synthetic_demo_records("fresh", "shaped", n_days=1, seed=24,
                                     action_rng_seed=0, use_chain=False)[0]
     assert len(record["actions"]) > 1
     tampered = dict(record, unlocks="all")  # lie about the preset
+    # Re-stamp so the digest matches the lie: use_chain=False means no
+    # day_config diff is layered on, so the wrong reconstruction is exactly
+    # all_unlocks_config(reward) -- see config_for_record.
+    tampered["config_digest"] = config_digest(all_unlocks_config(tampered["reward"]))
     with pytest.raises(ReplayDivergenceError, match="terminal state"):
+        replay_demo(tampered)
+
+
+def test_replay_demo_raises_on_a_record_with_a_corrupted_action():
+    """The mask-based detector inside replay_demo -- raising
+    ReplayDivergenceError when a recorded action is not legal at its
+    replayed step -- must still fire on its own, reached via a corrupted
+    ``"actions"`` list rather than a wrong ``unlocks``/``config_digest``.
+
+    Both are left correct (the record's own, untouched stamp), so
+    config_for_record's digest guard passes and replay proceeds into the
+    action loop: the digest guard now sits in front of this detector for
+    every replay, so this pins that the mask check underneath it is still
+    reachable and still fires, not quietly dead code.
+    """
+    from blueprince_sim.env.blueprince_env import BluePrinceEnv
+
+    record = synthetic_demo_records("all", "shaped", n_days=1, seed=26,
+                                    action_rng_seed=0, use_chain=False)[0]
+    env = BluePrinceEnv(cfg=config_for_record(record))
+    env.reset(seed=record["seed"])
+    mask_at_start = env.action_masks()
+    illegal_action = next((i for i, ok in enumerate(mask_at_start) if not ok), None)
+    assert illegal_action is not None, "all actions legal at step 0 -- cannot construct test"
+
+    tampered = dict(record, actions=[illegal_action] + list(record["actions"]))
+    with pytest.raises(ReplayDivergenceError, match="not legal"):
         replay_demo(tampered)
 
 
@@ -258,6 +301,106 @@ def test_replay_demo_raises_on_a_record_missing_the_unlocks_stamp():
     del record["unlocks"]  # simulate a pre-stamp legacy record
     with pytest.raises(UnstampedDemoError):
         replay_demo(record)
+
+
+# --------------------------------------------------------------------------
+# config_digest
+# --------------------------------------------------------------------------
+
+
+def test_config_for_record_raises_config_digest_error_on_tampered_unlocks():
+    """Replaying a record whose unlocks stamp was tampered with must raise
+    ConfigDigestError, by exact type rather than the base DemoError or the
+    older ReplayDivergenceError: config_for_record's digest comparison
+    catches the wrong reconstruction unconditionally, at reconstruction
+    time, rather than only when the wrong config happens to make some
+    recorded action illegal.
+
+    Seed 30 is a measured case (seeds 30-59) where a tampered wrong-preset
+    replay completes to the end with every recorded action still legal, so a
+    config_for_record that computed the digest but never compared it (the
+    mutation this test is meant to catch) would let this exact record
+    through with no error raised at all -- do not change this seed.
+    """
+    record = synthetic_demo_records("fresh", "shaped", n_days=1, seed=30,
+                                    action_rng_seed=0, use_chain=False)[0]
+    tampered = dict(record, unlocks="all")  # lie about the preset
+    with pytest.raises(ConfigDigestError):
+        replay_demo(tampered)
+
+
+def test_config_digest_is_stable_across_a_fresh_process():
+    """config_digest must never depend on hash(): PYTHONHASHSEED randomises
+    str.__hash__ per process, so a digest built from it would differ between
+    the process that recorded a demo and the process that later replays it.
+    Verified by comparing against a subprocess run under a different, fixed
+    PYTHONHASHSEED rather than pinning a literal hex value, which would only
+    be a change-detector test."""
+    in_process = config_digest(GameConfig())
+    code = (
+        "from blueprince_sim.config import GameConfig, config_digest\n"
+        "print(config_digest(GameConfig()))\n"
+    )
+    result = subprocess.run(
+        [sys.executable, "-c", code],
+        env=dict(os.environ, PYTHONHASHSEED="1"),
+        capture_output=True, text=True, check=True,
+    )
+    assert result.stdout.strip() == in_process
+
+
+def test_config_digest_round_trips_across_a_multiday_chain():
+    """config_for_record's reconstructed GameConfig must hash to the exact
+    digest its own record was stamped with, independently for every day of a
+    multi-day chain -- the regression test for the draft_counts dict-diff
+    fix landing just before this digest: draft_counts is the only dict-typed
+    GameConfig field, and before that fix it silently dropped out of every
+    day_config diff, so a reconstructed day-2+ config would have differed
+    from the live one even though nothing here inspects draft_counts
+    directly."""
+    records = synthetic_demo_records("all", "shaped", n_days=3, seed=40, action_rng_seed=3)
+    assert len(records) == 3
+    for record in records:
+        assert config_digest(config_for_record(record)) == record["config_digest"]
+
+
+def test_config_digest_ignores_a_field_set_to_its_own_default():
+    """A field explicitly set to its own declared default must not change
+    the digest, while a genuinely non-default value must: this is what lets
+    a new GameConfig field be appended without invalidating every already-
+    stamped record, since an old record simply never mentions the new
+    field and so is read as its default."""
+    base = GameConfig()
+    explicit_default = GameConfig(day=base.day)
+    non_default = GameConfig(day=base.day + 1)
+    assert config_digest(base) == config_digest(explicit_default)
+    assert config_digest(base) != config_digest(non_default)
+
+
+def test_config_for_record_raises_on_a_record_missing_config_digest():
+    """A record with no config_digest key must be refused outright rather
+    than silently trusting an unverifiable reconstruction -- same refuse-
+    don't-guess precedent as UnstampedDemoError for a missing 'unlocks'."""
+    record = synthetic_demo_records("all", "shaped", n_days=1, seed=41,
+                                    action_rng_seed=0, use_chain=False)[0]
+    del record["config_digest"]  # simulate a pre-stamp legacy record
+    with pytest.raises(ConfigDigestError):
+        config_for_record(record)
+
+
+def test_build_frames_flags_a_config_digest_mismatch_without_raising():
+    """web/replay.py::build_frames must surface a config_digest mismatch as
+    an advisory divergence flag and keep returning frames, never raise --
+    unlike config_for_record's refusal, a raise here would turn an
+    unviewable historical run into a 500 in the replay UI instead of a
+    rendered warning."""
+    record = synthetic_demo_records("all", "shaped", n_days=1, seed=42,
+                                    action_rng_seed=0, use_chain=False)[0]
+    tampered = dict(record, config_digest="deadbeefdeadbeef")
+    frames, divergence = replay.build_frames(tampered)
+    assert frames
+    assert divergence is not None
+    assert divergence["config_digest_mismatch"] is True
 
 
 # --------------------------------------------------------------------------
