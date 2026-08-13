@@ -45,6 +45,7 @@ from .effects.items import (
     silver_key,
     sledge_hammer,
     sleeping_mask,
+    the_axe,
     treasure_map,
     watering_can,
 )
@@ -486,8 +487,18 @@ def resolve_battery_pack(game) -> None:
 
 # ------------------------------------------------------------------ config gates
 
-def configure(state, cfg) -> None:
-    """Populate config-gated item exclusions; idempotent (safe to call every on_enter)."""
+def configure(state, cfg, registry=None) -> None:
+    """Populate config-gated item exclusions; idempotent (safe to call every on_enter).
+
+    ``registry`` is only consulted by the Axe's cap gate below (it needs the
+    item's own data-driven max_active); every other gate here reads cfg
+    alone. Optional (default None, skipping just that one gate) because this
+    function's four effects/rooms/mail_room.py call sites are pure no-ops
+    after the first real call from Game.reset() -- the ``configured`` guard
+    above returns before registry would ever be read on those calls -- so
+    they need not be forced to thread it through just to satisfy a branch
+    they can never reach.
+    """
     if state.special.configured:
         return
     state.special.configured = True
@@ -531,6 +542,14 @@ def configure(state, cfg) -> None:
     # Crown of the Blueprints: reads the same cfg.room46_reached flag, for its
     # own wiki reason ("cannot be obtained the first time the room is reached").
     crown_of_the_blueprints.gate(cfg, gated)
+    # The Axe: the Armory stops selling once the permanent, save-scoped cap of
+    # simultaneously-axed families (cfg.axed_rooms, capped at the_axe's own
+    # data-driven max_active) has been spent. Same gated_out channel as
+    # collected_disks/collected_sanctum_keys above.
+    if registry is not None:
+        axed = getattr(cfg, "axed_rooms", ())
+        if len(axed) >= the_axe.max_active(registry) and the_axe.ITEM_ID not in gated:
+            gated.append(the_axe.ITEM_ID)
     state.special.gated_out = gated
     # Ignition targets permanently lit across days: pre-populate lit_targets so
     # can_light() blocks them on day N+1 just as it would mid-day.

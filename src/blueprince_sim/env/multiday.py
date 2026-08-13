@@ -194,6 +194,15 @@ class DayChain:
         self.shrine_curse_days: int = base_cfg.shrine_curse_days
         self.shrine_offered_coins: int = base_cfg.shrine_offered_coins
         self.shrine_monk_room: int = base_cfg.shrine_monk_room
+        # The Axe: ordered tuple of permanently-axed floorplan-family root ids.
+        # REPLACED (not merged) from each day's own carryover value every
+        # advance() -- state.axed_rooms already IS the full accumulated
+        # history (seeded from cfg at reset, only ever grown), the same
+        # "state already is the running total" shape as draft_counts/
+        # foundation_cell. SAVE-scoped like stars/main_course_bonus/the
+        # shrine_* fields above: deliberately NOT cleared in the attempt-wrap
+        # block below, unlike draft_counts/foundation_cell.
+        self.axed_rooms: tuple[str, ...] = tuple(base_cfg.axed_rooms)
 
     def next_config(self) -> GameConfig:
         """Return the ``GameConfig`` for the current day.
@@ -243,6 +252,7 @@ class DayChain:
             shrine_curse_days=self.shrine_curse_days,
             shrine_offered_coins=self.shrine_offered_coins,
             shrine_monk_room=self.shrine_monk_room,
+            axed_rooms=self.axed_rooms,
             **self.carried_flags,          # unpack only the True flags
         )
 
@@ -420,6 +430,13 @@ class DayChain:
         if smr_val is not None:
             self.shrine_monk_room = smr_val
 
+        # --- axed_rooms (The Axe's permanent record; replace each advance, the
+        #     same draft_counts/foundation_cell shape -- state.axed_rooms
+        #     already IS the full ordered history) ---
+        ar_val = carryover.get("axed_rooms")
+        if ar_val is not None:
+            self.axed_rooms = tuple(ar_val)
+
         # --- banned_rooms (Repellent bans from this day) ---
         # Decrement PRE-EXISTING bans first (one day has elapsed for them),
         # then merge the NEW bans from this day.  New bans are not decremented
@@ -460,10 +477,10 @@ class DayChain:
             self.collected_disks = frozenset()  # fresh attempt; disks back in the house
             self.chapel_tithes = 0            # fresh attempt; tithe bank reset
             self.allowance = self.base_cfg.allowance  # fresh attempt; back to the base preset
-            # stars, main_course_bonus, letters_delivered and the five shrine_*
-            # fields are deliberately absent here: all are save-scoped and carry
-            # through the wrap into the next attempt, unlike every other value
-            # reset above.
+            # stars, main_course_bonus, letters_delivered, the five shrine_*
+            # fields, and axed_rooms are deliberately absent here: all are
+            # save-scoped and carry through the wrap into the next attempt,
+            # unlike every other value reset above.
             self.mail_cycle = self.base_cfg.mail_cycle  # fresh attempt; back to the base preset
             self.mail_transit_days = self.base_cfg.mail_transit_days  # fresh attempt; back to base
             self.hallway_tomorrow_extra = self.base_cfg.hallway_tomorrow_extra  # fresh attempt

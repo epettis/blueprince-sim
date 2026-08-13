@@ -5,7 +5,7 @@ to draft, or a room to enter) and the engine walks the shortest connected
 path, paying the normal one-step-per-room cost. Re-entering rooms grants
 nothing, so free-form single-tile moves were retired.
 
-Layout (Discrete(379)):
+Layout (Discrete(427)):
   0..179   draft at doorway: cell (45) x direction (4: N,E,S,W) ->
            cell*4 + dir_index. Walks to the room first if needed. Legal for
            every frontier doorway reachable with at least one step to spare
@@ -113,6 +113,16 @@ Layout (Discrete(379)):
            rest of today (no exemption for colour-selective drafts, the
            Silver Key, the Prism Key, or ducts -- owner ruling), grants 1
            gem, and redeals the hand for free (Game.crown_block).
+  379..426 use The Axe on one of the 48 axeable floorplan families
+           (_build_axe_target_ids order: every room with a rarity and a gem
+           cost, reduced to its upgrades.root_base_id, sorted alphabetically):
+           NAVIGATE, legal with an Axe held, the target not already axed, and
+           the save-scoped 3-use cap not yet reached. Not gated on standing
+           anywhere in particular (the wiki's "Room Directory" is a menu, not
+           a physical room). Consumes the Axe and permanently zeroes the
+           family's gem cost for the rest of the save -- a payment-time price
+           override (engine/state.py::resolve_gem_cost), never a deck change
+           (Game.can_axe_room/axe_room).
 """
 
 from __future__ import annotations
@@ -126,6 +136,7 @@ from ..engine import special_items as _si
 from ..engine.effects import Capability, provides_capability
 from ..engine.effects.rooms import shrine as _shrine
 from ..engine.model import Registry
+from ..engine.upgrades import root_base_id
 
 # ---------------------------------------------------------------------------
 # Area-graph node ordering (derived from registry; never hand-maintained)
@@ -139,6 +150,27 @@ def _build_area_node_ids(registry: Registry) -> tuple[str, ...]:
     Both the action space and the observation encoder use this single source.
     """
     return tuple(sorted(registry.area_graph.nodes.keys()))
+
+
+def _build_axe_target_ids(registry: Registry) -> tuple[str, ...]:
+    """Sorted tuple of every floorplan family The Axe can target (48 today).
+
+    A "family" is one Room.id keyed by ``upgrades.root_base_id``: axing
+    "cloister" zeroes every Cloister upgrade variant's gem cost too, since the
+    override lives on the family, not one specific room record (owner
+    ruling, docs/open_tasks.md). Derived from every room with a rarity and a
+    gem cost, reduced to its root id, so this cannot drift from rooms.json;
+    sorted alphabetically for determinism, matching
+    _build_area_node_ids/special_items.SIGIL_REALMS. The action index for a
+    target is AXE_TARGET_BASE + the index here. Both the action space and the
+    observation encoder use this single source.
+    """
+    roots = {
+        root_base_id(registry, r)
+        for r in registry.rooms
+        if r.rarity is not None and r.gem_cost > 0
+    }
+    return tuple(sorted(roots))
 
 
 # ---------------------------------------------------------------------------
@@ -210,8 +242,15 @@ TAKE_GROTTO_CHIP_ACTION = BERRY_PICK_ACTION + 1  # 375
 # DRAFTING only; see Game.can_crown_block/crown_block.
 CROWN_BLOCK_BASE = TAKE_GROTTO_CHIP_ACTION + 1  # 376
 
-# N_ACTIONS = first slot after the Crown block range.
-N_ACTIONS = CROWN_BLOCK_BASE + 3  # 379
+# 379..426: use The Axe on one of the 48 axeable floorplan families
+# (_build_axe_target_ids order), appended at the end so no earlier id shifts.
+# NAVIGATE only, not gated on position; see Game.can_axe_room/axe_room.
+AXE_TARGET_BASE = CROWN_BLOCK_BASE + 3  # 379
+_N_AXE_TARGETS = 48  # width pinned as a constant (like _N_AREA_NODES) so
+                      # N_ACTIONS stays importable with no Registry loaded
+
+# N_ACTIONS = first slot after the Axe-target range.
+N_ACTIONS = AXE_TARGET_BASE + _N_AXE_TARGETS  # 427
 
 DIR_INDEX = {d: i for i, d in enumerate(DIRS)}
 
@@ -485,6 +524,12 @@ def action_mask(game: Game, prev_action: int | None = None) -> list[bool]:
             if game.can_open_sigil_door(realm):
                 mask[OPEN_SIGIL_DOOR_BASE + i] = True
 
+        # The Axe: legal on-grid AND off-grid, like the Sigil doors above --
+        # can_axe_room already checks phase/item/cap/target, no position guard.
+        for i, target_id in enumerate(_build_axe_target_ids(game.registry)):
+            if game.can_axe_room(target_id):
+                mask[AXE_TARGET_BASE + i] = True
+
         if game.off_grid:
             # Off-grid: only outer-area actions are legal (besides travel above).
             # Buy actions are valid inside any outer shop (inside_outer_room)
@@ -749,8 +794,11 @@ def apply_action(game: Game, action: int) -> None:
         game.berry_pick()
     elif action == TAKE_GROTTO_CHIP_ACTION:
         game.take_grotto_chip()
-    elif CROWN_BLOCK_BASE <= action < N_ACTIONS:
+    elif CROWN_BLOCK_BASE <= action < AXE_TARGET_BASE:
         game.crown_block(action - CROWN_BLOCK_BASE)
+    elif AXE_TARGET_BASE <= action < N_ACTIONS:
+        target_ids = _build_axe_target_ids(game.registry)
+        game.axe_room(target_ids[action - AXE_TARGET_BASE])
     else:
         raise ValueError(f"unimplemented action {action}")
 
@@ -895,11 +943,17 @@ def describe_action(game: Game, action: int) -> str:
         return "pick a berry"
     if action == TAKE_GROTTO_CHIP_ACTION:
         return "take the Grotto pedestal chip"
-    if CROWN_BLOCK_BASE <= action < N_ACTIONS:
+    if CROWN_BLOCK_BASE <= action < AXE_TARGET_BASE:
         slot = action - CROWN_BLOCK_BASE
         pending = game.state.pending
         if pending is not None and slot < len(pending.options):
             name = game.registry.rooms[pending.options[slot].room_idx].name
             return f"filter #{slot + 1} {name} (Crown of the Blueprints)"
         return f"filter #{slot + 1} (Crown of the Blueprints)"
+    if AXE_TARGET_BASE <= action < N_ACTIONS:
+        target_ids = _build_axe_target_ids(game.registry)
+        target_id = target_ids[action - AXE_TARGET_BASE]
+        room = game.registry.by_id.get(target_id)
+        name = room.name if room is not None else target_id
+        return f"axe {name} (The Axe)"
     return f"action {action}"

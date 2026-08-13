@@ -14,7 +14,7 @@ from ..engine.model import LAYOUTS
 from ..engine.shops import SCEPTER_COLORS, current_shop_id
 from ..engine.special_items import SIGIL_REALMS, _container_kinds_at
 from ..engine.upgrades import all_slot_ids, upgraded_slots
-from .actions import _build_area_node_ids
+from .actions import _build_area_node_ids, _build_axe_target_ids
 from .multiday import DayChain
 
 CATEGORIES = ("blueprint", "bedroom", "hallway", "green", "shop", "red",
@@ -59,7 +59,8 @@ SCEPTER_COLOR_INDEX = {c: i for i, c in enumerate(SCEPTER_COLORS)}
 def observation_space(n_rooms: int, n_items: int, n_recipes: int,
                       n_area_nodes: int = 38,
                       n_carryover: int = len(DayChain._CARRYOVER_KEYS),
-                      n_slots: int = 16) -> spaces.Dict:
+                      n_slots: int = 16,
+                      n_axe_targets: int = 48) -> spaces.Dict:
     """Dict observation space over the 9x5 (rank-major) grid; see :func:`encode`.
 
     Room ids are shifted by +1 so 0 means "empty cell"; -1 is the sentinel for
@@ -71,6 +72,9 @@ def observation_space(n_rooms: int, n_items: int, n_recipes: int,
     count is passed in from the registry so the space cannot drift from areas.json.
     ``n_carryover`` is the number of carry-over bool flags (``len(DayChain._CARRYOVER_KEYS)``),
     always passed from ``BluePrinceEnv`` so the space and encoder stay in sync.
+    ``n_axe_targets`` is the number of Axe-axeable floorplan families
+    (``len(actions._build_axe_target_ids(registry))``, 48 today), the same
+    registry-derived-but-defaulted convention as ``n_slots``.
     """
     return spaces.Dict({
         "grid_room": spaces.Box(0, n_rooms, shape=(9, 5), dtype=np.int16),
@@ -202,6 +206,13 @@ def observation_space(n_rooms: int, n_items: int, n_recipes: int,
         # union cfg.sigil_doors_open). A door never re-seals, so this is another
         # cross-day investment V(s) needs to see, same rationale as upgrade_slots.
         "sigil_doors_open": spaces.Box(0, 1, shape=(len(SIGIL_REALMS),), dtype=np.uint8),
+        # axed_rooms: 1 bit per axeable floorplan family, in
+        # actions._build_axe_target_ids (sorted root-id) order, 1 = The Axe has
+        # permanently zeroed that family's gem cost. Same additive-key shape as
+        # sigil_doors_open: a permanent cross-day investment V(s) needs to see,
+        # never a shape change to an existing key (options[].gem_cost already
+        # reads 0 for an axed room via _effective_cost/resolve_gem_cost).
+        "axed_rooms": spaces.Box(0, 1, shape=(n_axe_targets,), dtype=np.uint8),
     })
 
 
@@ -582,6 +593,16 @@ def encode(game: Game, day_chain: DayChain | None = None) -> dict:
         [1 if r in _opened_realms else 0 for r in SIGIL_REALMS], dtype=np.uint8
     )
 
+    # axed_rooms: which floorplan families The Axe has permanently zeroed,
+    # in _build_axe_target_ids order. state.axed_rooms is already the full
+    # history (seeded from cfg at reset, only ever grown), the same read
+    # shape as upgrade_slots/sigil_doors_open above.
+    _axe_target_ids = _build_axe_target_ids(registry)
+    _axed = set(st.axed_rooms)
+    axed_rooms_obs = np.array(
+        [1 if t in _axed else 0 for t in _axe_target_ids], dtype=np.uint8
+    )
+
     return {
         "grid_room": grid_room,
         "grid_doors": grid_doors,
@@ -621,4 +642,5 @@ def encode(game: Game, day_chain: DayChain | None = None) -> dict:
         "sigil_doors_open": sigil_doors_open_obs,
         "mail": mail_obs,
         "shrine": shrine_obs,
+        "axed_rooms": axed_rooms_obs,
     }
