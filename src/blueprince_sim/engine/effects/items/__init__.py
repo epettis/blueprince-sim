@@ -25,6 +25,7 @@ facets of the same item.
 
 from __future__ import annotations
 
+from . import basement_key  # noqa: F401  (exposes its own held/fits lock-menu predicates)
 from . import chronograph  # noqa: F401  (registers chronograph capability on import)
 from . import coin_purse  # noqa: F401  (registers coins_granted handler on import)
 from . import compass  # noqa: F401  (registers compass_bias capability on import)
@@ -37,7 +38,7 @@ from . import key_8  # noqa: F401  (exposes its own room8_key held-fact predicat
 from . import knights_shield  # noqa: F401  (registers red_room_negate handler on import)
 from . import lucky_purse  # noqa: F401  (registers coin_multiplier capability + hook)
 from . import lunch_box  # noqa: F401  (exposes its own gate/purchase/consumption functions)
-from . import master_key  # noqa: F401  (registers master_key capability on import)
+from . import master_key  # noqa: F401  (registers master_key capability; exposes held/fits)
 from . import ornate_compass  # noqa: F401  (registers ornate_compass capability on import)
 from . import paper_crown  # noqa: F401  (exposes its own bonus-redraw predicate)
 from . import powered_electromagnet  # noqa: F401  (registers electromagnet + compass_bias)
@@ -46,7 +47,7 @@ from . import repellent  # noqa: F401  (exposes its own held/consume functions)
 from . import royal_scepter  # noqa: F401  (exposes its own gate/carry-over/held functions)
 from . import running_shoes  # noqa: F401  (registers move_step_cost handler on import)
 from . import salt_shaker  # noqa: F401  (registers food_step_bonus handler on import)
-from . import silver_key  # noqa: F401  (exposes its own draft-consume/mechanarium functions)
+from . import silver_key  # noqa: F401  (exposes its own draft-consume/mechanarium/lock-menu funcs)
 from . import silver_spoon  # noqa: F401  (registers food_multiplier capability + hook)
 from . import sleeping_mask  # noqa: F401  (exposes its own on-enter effect function)
 from . import stopwatch  # noqa: F401  (registers move_step_cost/gem_payment_waiver handlers)

@@ -12,8 +12,8 @@ from .areas import GateContext, reachable
 from .decks import apply_upgrade, build_decks, inject_rooms
 from .draft import COLOUR_CATEGORIES, SECRET_PASSAGE_IDS, deal_draft, redeal
 from .effects import Capability, Hook
-from .effects.items import (crown_of_the_blueprints, keycard, paper_crown, power_hammer,
-                            silver_key, the_axe)
+from .effects.items import (basement_key, crown_of_the_blueprints, keycard, master_key,
+                            paper_crown, power_hammer, silver_key, the_axe)
 from .effects.rooms import dovecote, foyer, mail_room, shrine
 from .grid import (ADJACENT, DIRS, E, ENTRANCE_CELL, N, N_CELLS, OPPOSITE, W,
                    neighbor, rank_of, rotate_mask)
@@ -38,6 +38,7 @@ class Phase(Enum):
     UPGRADE_PENDING = 3
     EXPERIMENT_PENDING = 4
     COLOUR_PENDING = 5  # Secret Passage: awaiting a colour pick before the hand is dealt
+    LOCK_PENDING = 6  # locked doorway: awaiting use_key/lockpick/a special key/abandon
 
 
 class RedrawKind(Enum):
@@ -466,16 +467,42 @@ class Game:
         return 1 + self.door_search_cost.get(segment_key(cell, direction), 0)
 
     def doorway_passable(self, cell: int, direction: int) -> bool:
-        """Can the doorway be opened from where it stands: a locked door with
-        enough keys in hand, a security door while the system allows it, or any
-        open/unlocked door. Path key costs are the caller's concern (see
-        :meth:`key_cost_map`)."""
+        """Can the doorway be WALKED through from where it stands: a locked
+        door with enough keys in hand, a security door while the system
+        allows it, or any open/unlocked door. Path key costs are the
+        caller's concern (see :meth:`key_cost_map`). This is the MOVEMENT
+        precondition (:meth:`move`'s ``_unlock_for_passage(for_draft=False)``
+        auto-cascade into an already-placed room, e.g. walking into the
+        Antechamber) -- for trying a FRESH frontier doorway (drafting), see
+        :meth:`frontier_doorway_triable` instead: trying a locked door there
+        is always free (Phase.LOCK_PENDING), so it does not budget keys."""
         state = self.door_state_of(cell, direction)
         if state == DOOR_SEALED:
             return False  # sealed: impassable, no item or key can open it
         if state == DOOR_LOCKED:
             return (self.state.keys >= self.lock_open_cost(cell, direction)
                     or special_items.can_open_locked_free(self))
+        if state == DOOR_SECURITY:
+            return self.security_openable()
+        return True
+
+    def frontier_doorway_triable(self, cell: int, direction: int) -> bool:
+        """Can this frontier doorway (a placed room's boundary to an empty
+        cell) be TRIED right now, i.e. is :meth:`open_door` legal on it?
+
+        DOOR_SEALED: never. DOOR_SECURITY: only while the keycard system
+        allows it (unaffected by this PR -- no menu, same as always).
+        DOOR_LOCKED and DOOR_OPEN: always -- trying a locked door costs
+        nothing and is how the player finds out it's locked at all
+        (Phase.LOCK_PENDING); no key is budgeted here. The single source
+        both :func:`env.actions.action_mask`'s OPEN_BASE range and
+        :meth:`draft_from` read, so the two cannot silently diverge (the
+        precise class of drift that produced the bug this feature fixes --
+        see the Silver Key's old, unconditional auto-spend).
+        """
+        state = self.door_state_of(cell, direction)
+        if state == DOOR_SEALED:
+            return False
         if state == DOOR_SECURITY:
             return self.security_openable()
         return True
@@ -912,38 +939,49 @@ class Game:
         }
 
     def open_door(self, cell: int, direction: int) -> PendingDraft | None:
-        """Draft (but do not enter) through a doorway of the current room.
+        """Try (but do not necessarily open) a doorway of the current room.
 
         Drafting only deals a hand and, on :meth:`choose`, places a room; it
         costs no step and grants no resources. The player pays the step and
         receives the room's effects only when they :meth:`move` into it.
-        Opening a locked doorway consumes a key first; a security doorway
-        needs the keycard system to allow it (:meth:`security_openable`).
+        A security doorway needs the keycard system to allow it
+        (:meth:`security_openable`); trying it is otherwise free.
         Checks termination at the end: the security_door trigger can fire from
         this method's own :meth:`_unlock_for_passage` call, and a steps-draining
         effect (e.g. steps_for_gold) could otherwise go unnoticed until the
         next NAVIGATE-phase action. A caller must check ``phase`` afterward,
         same as every other termination-checking action.
 
+        Returns None, and enters LOCK_PENDING instead of unlocking, when the
+        doorway is DOOR_LOCKED -- trying a locked door is how the player finds
+        out it is locked at all (owner ruling); nothing is spent here, only
+        :meth:`use_key_at_lock`/:meth:`lockpick_at_lock`/:meth:`use_special_key_at_lock`
+        actually open it, or :meth:`abandon_lock` leaves it locked and returns
+        to NAVIGATE. A structural clone of the COLOUR_PENDING branch below,
+        parking ``st.pending_lock_cell``/``pending_lock_direction`` instead of
+        ``pending_colour_*``.
+
         Returns None, and enters COLOUR_PENDING instead of dealing, when this
         is the FIRST opening of a doorway whose from-room is a Secret Passage
         variant (SECRET_PASSAGE_IDS) -- the player must :meth:`choose_colour`
         before a hand can be dealt. Reopening that same doorway once its
         colour has already been chosen (cached in doorway_drafts) skips the
-        pick and returns the cached hand, same as any other doorway.
+        pick and returns the cached hand, same as any other doorway. A locked
+        doorway resolves LOCK_PENDING first (above) -- there is no order to
+        choose between the two, since a locked Secret Passage doorway cannot
+        reach this check until the lock itself is opened.
 
         Also returns None, staying in NAVIGATE instead of entering DRAFTING,
         when the dealt hand comes up wholly empty (only reachable through a
         colour-selective draft whose published default triple is also
         exhausted -- see draft.py's draw_slot docstring). There is nothing to
-        choose, so the draft never happened: the key or Silver Key already
-        spent above by :meth:`_unlock_for_passage` (if the segment was
-        locked) is NOT refunded, since the segment really is open now,
-        independent of what the failed deal found behind it; no step is
-        affected either way, since opening a doorway never costs one (see
-        above). ``_deal_and_cache`` never caches an empty result, so
-        reopening this doorway later re-deals from scratch rather than
-        replaying the same dead end.
+        choose, so the draft never happened: a key or special key already
+        spent resolving LOCK_PENDING (if the segment was locked) is NOT
+        refunded, since the segment really is open now, independent of what
+        the failed deal found behind it; no step is affected either way,
+        since opening a doorway never costs one (see above). ``_deal_and_cache``
+        never caches an empty result, so reopening this doorway later
+        re-deals from scratch rather than replaying the same dead end.
         """
         assert self.phase is Phase.NAVIGATE, "not in NAVIGATE phase"
         st = self.state
@@ -951,7 +989,23 @@ class Game:
         assert st.placed_doors[cell] & direction, "no door in that direction"
         target = neighbor(cell, direction)
         assert target != -1 and st.grid[target] < 0, "invalid doorway"
+        if self.door_state_of(cell, direction) == DOOR_LOCKED:
+            st.pending_lock_cell = cell
+            st.pending_lock_direction = direction
+            self.phase = Phase.LOCK_PENDING
+            self._check_termination()
+            return None
         self._unlock_for_passage(cell, direction, for_draft=True)
+        return self._continue_draft(cell, direction, target)
+
+    def _continue_draft(self, cell: int, direction: int, target: int) -> PendingDraft | None:
+        """Shared tail of :meth:`open_door` (once past any lock) and every
+        LOCK_PENDING resolver (:meth:`use_key_at_lock`/:meth:`lockpick_at_lock`/
+        :meth:`use_special_key_at_lock`): the colour-pick check and dealing
+        that used to sit directly in :meth:`open_door`. See that method's own
+        docstring for the COLOUR_PENDING and empty-hand branches this mirrors.
+        """
+        st = self.state
         key = (cell, direction)
         pending = self.doorway_drafts.get(key)
         if pending is None:
@@ -972,6 +1026,147 @@ class Game:
         self.phase = Phase.DRAFTING
         self._check_termination()
         return pending
+
+    # ------------------------------------------------------------ LOCK_PENDING
+
+    _RESERVED_SPECIAL_KEYS = frozenset({"secret_garden_key", "key_8", "prism_key"})
+
+    def _lock_pending_target(self) -> tuple[int, int]:
+        """The (cell, direction) doorway parked in LOCK_PENDING."""
+        st = self.state
+        assert st.pending_lock_cell >= 0, "not awaiting a lock choice"
+        return st.pending_lock_cell, st.pending_lock_direction
+
+    def can_use_key_at_lock(self) -> bool:
+        """A regular key can be spent at the pending lock right now.
+
+        The full :meth:`lock_open_cost` (base 1, plus a Great Hall side
+        door's search surcharge) is required, UNLESS an active Stopwatch
+        would refund the whole spend -- the wiki: "At least one key is still
+        required for the option to use a key to appear, even though it
+        isn't spent", so only >=1 key is then required.
+        """
+        if self.phase is not Phase.LOCK_PENDING:
+            return False
+        cell, direction = self._lock_pending_target()
+        st = self.state
+        refund = (self.cfg.special_items and st.special.stopwatch_left > 0)
+        needed = 1 if refund else self.lock_open_cost(cell, direction)
+        return st.keys >= needed
+
+    def use_key_at_lock(self) -> PendingDraft | None:
+        """Spend a regular key (or an active Stopwatch charge) to open the
+        pending lock, then continue the draft. See :meth:`can_use_key_at_lock`
+        for the Stopwatch refund rule; the Stopwatch itself is not a menu
+        row (owner ruling), only a passive modifier of this one."""
+        assert self.can_use_key_at_lock(), "no key to spend at this lock"
+        cell, direction = self._lock_pending_target()
+        st = self.state
+        if self.cfg.special_items and st.special.stopwatch_left > 0 and st.keys >= 1:
+            st.special.stopwatch_left -= 1
+        else:
+            st.keys -= self.lock_open_cost(cell, direction)
+        return self._resolve_lock_open(cell, direction)
+
+    def can_lockpick_at_lock(self) -> bool:
+        """A Lock Pick Kit or Pick Sound Amplifier is held. Restricted to
+        doors that take a regular key -- automatic here, since LOCK_PENDING
+        is only ever entered on a DOOR_LOCKED segment, never a security
+        door (see :meth:`open_door`)."""
+        if self.phase is not Phase.LOCK_PENDING or not self.cfg.special_items:
+            return False
+        return special_items.can_attempt_lockpick(self.state, self.registry)
+
+    def lockpick_at_lock(self) -> PendingDraft | None:
+        """One Lock Pick Kit / Pick Sound Amplifier attempt at the pending lock.
+
+        Success opens the door for free and continues the draft. Failure
+        spends nothing, does not consume the tool (day-persistent per
+        special_items.json), and does NOT exit the menu -- the player may
+        retry, spend a key, try a special key, or :meth:`abandon_lock`. See
+        :func:`special_items._attempt_lockpick` for the known simplification
+        (global, not per-doorway, attempt tracking) this shares with the
+        movement-path Lock Pick Kit. Returns None on failure (still LOCK_PENDING).
+        """
+        assert self.can_lockpick_at_lock(), "no lockpick tool held"
+        cell, direction = self._lock_pending_target()
+        if special_items._attempt_lockpick(self):
+            return self._resolve_lock_open(cell, direction)
+        self._check_termination()
+        return None
+
+    def can_abandon_lock(self) -> bool:
+        """Always legal in LOCK_PENDING -- the wiki's "option to exit the
+        menu", and this sim's own guarantee that the phase is never a dead
+        end regardless of what is or isn't held."""
+        return self.phase is Phase.LOCK_PENDING
+
+    def abandon_lock(self) -> None:
+        """Exit the lock menu without opening the door: back to NAVIGATE,
+        the segment still DOOR_LOCKED, nothing spent."""
+        assert self.can_abandon_lock(), "not awaiting a lock choice"
+        self.state.pending_lock_cell = -1
+        self.state.pending_lock_direction = 0
+        self.phase = Phase.NAVIGATE
+        self._check_termination()
+
+    def _special_key_held(self, key_id: str) -> bool:
+        if key_id == "master_key":
+            return master_key.held(self.state, self.registry)
+        if key_id == "silver_key":
+            return silver_key.held(self.state)
+        if key_id == "basement_key":
+            return basement_key.held(self.state)
+        return False  # secret_garden_key / key_8 / prism_key: reserved (see below)
+
+    def _special_key_fits(self, key_id: str, cell: int, direction: int) -> bool:
+        if key_id == "master_key":
+            return master_key.fits(self, cell, direction)
+        if key_id == "silver_key":
+            return silver_key.fits(self, cell, direction)
+        if key_id == "basement_key":
+            return basement_key.fits(self, cell, direction)
+        return False  # secret_garden_key / key_8 / prism_key: reserved (see below)
+
+    def can_use_special_key_at_lock(self, key_id: str) -> bool:
+        """Is ``key_id`` a legal special-keys-menu row at the pending lock?
+
+        ``secret_garden_key``/``key_8`` are modelled in this sim as
+        draft_conditions tags rather than door keys (their menu behaviour is
+        unimplemented in both directions), and ``prism_key`` stays
+        ``implemented: false`` in special_items.json -- all three are
+        reserved action ids, permanently masked off, per
+        data/locks.json's special_key_menu comment.
+        """
+        if self.phase is not Phase.LOCK_PENDING or not self.cfg.special_items:
+            return False
+        if key_id in self._RESERVED_SPECIAL_KEYS:
+            return False
+        if not self._special_key_held(key_id):
+            return False
+        cell, direction = self._lock_pending_target()
+        return self._special_key_fits(key_id, cell, direction)
+
+    def use_special_key_at_lock(self, key_id: str) -> PendingDraft | None:
+        """Use special key ``key_id`` on the pending lock, then continue the draft."""
+        assert self.can_use_special_key_at_lock(key_id), f"cannot use {key_id!r} here"
+        cell, direction = self._lock_pending_target()
+        if key_id == "silver_key":
+            used = silver_key.consume_for_draft(self.state)
+            assert used, "silver key vanished mid-resolution"
+        elif key_id == "master_key":
+            pass  # never consumed (wiki)
+        else:
+            raise AssertionError(f"no resolver wired for {key_id!r}")
+        return self._resolve_lock_open(cell, direction)
+
+    def _resolve_lock_open(self, cell: int, direction: int) -> PendingDraft | None:
+        """Common tail of every successful lock resolution: clear the pending
+        target, open the segment, and continue the draft."""
+        self.state.pending_lock_cell = -1
+        self.state.pending_lock_direction = 0
+        self._open_segment(cell, direction)
+        return self._continue_draft(cell, direction, neighbor(cell, direction))
 
     def _deal_and_cache(self, cell: int, direction: int, target: int,
                         colour: str | None = None) -> PendingDraft:
@@ -1063,18 +1258,20 @@ class Game:
         Returns None if the walk ends the day before the draft can happen, if
         the walk itself gets stranded short of ``cell`` (see
         :meth:`move_to`), if arriving at ``cell`` changed the ``direction``
-        doorway's own lock state out from under the caller's plan (the
-        Vestibule can do this on its own arrival) so that it is no longer
-        affordable, or if the doorway's from-room is a Secret Passage variant
-        and this is its first opening -- see :meth:`open_door`, which enters
-        COLOUR_PENDING in that case instead of dealing.
+        doorway's own state out from under the caller's plan (the Vestibule
+        can do this on its own arrival) so it is no longer triable (see
+        :meth:`frontier_doorway_triable` -- a DOOR_SEALED or unopenable
+        DOOR_SECURITY segment; a DOOR_LOCKED one is always triable), or if
+        the doorway's from-room is a Secret Passage variant and this is its
+        first opening -- see :meth:`open_door`, which enters COLOUR_PENDING
+        in that case instead of dealing (or LOCK_PENDING first, if locked).
         """
         assert self.phase is Phase.NAVIGATE
         if cell != self.state.pos:
             self.move_to(cell)
         if self.phase is not Phase.NAVIGATE:
             return None
-        if self.state.pos != cell or not self.doorway_passable(cell, direction):
+        if self.state.pos != cell or not self.frontier_doorway_triable(cell, direction):
             return None
         return self.open_door(cell, direction)
 

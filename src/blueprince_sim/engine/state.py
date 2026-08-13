@@ -559,6 +559,14 @@ class GameState:
     shrine_offered_coins: int = 0   # coins parked in the bowl; returned in full on take-back
     shrine_monk_room: int = -1      # reserved for Blessing of the Monk (not implemented): always -1
 
+    # --- LOCK_PENDING (engine/game.py's Game.open_door / lock-menu resolvers) ---
+    # The doorway (cell, direction) awaiting a lock-menu choice (use_key/lockpick/
+    # a special key/abandon), set by Game.open_door instead of opening the segment
+    # when it is DOOR_LOCKED. Same shape as pending_colour_cell/pending_colour_direction
+    # above: -1 outside LOCK_PENDING; direction is only meaningful while cell >= 0.
+    pending_lock_cell: int = -1
+    pending_lock_direction: int = 0
+
     def deck(self, rarity_idx: int, is_gem: bool) -> DeckState:
         return self.decks[rarity_idx * 2 + (1 if is_gem else 0)]
 

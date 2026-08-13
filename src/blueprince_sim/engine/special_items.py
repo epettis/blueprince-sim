@@ -1018,25 +1018,26 @@ def can_open_locked_free(game) -> bool:
     return item_capability_any(game.state, game.registry, ItemCapability.MASTER_KEY)
 
 
-def open_locked_free(game) -> bool:
-    """Try to open a locked door without spending a key: Master Key,
-    active Stopwatch (needs a key in hand, per the wiki), else a Lock Pick
-    Kit / Pick Sound Amplifier attempt with the datamined rates and pity
-    rule. Called once per locked-door opening. Task C."""
+def can_attempt_lockpick(state, registry) -> bool:
+    """A Lock Pick Kit or Pick Sound Amplifier is held (either qualifies)."""
+    return has(state, "lock_pick_kit") or has(state, "pick_sound_amplifier")
+
+
+def _attempt_lockpick(game) -> bool:
+    """One Lock Pick Kit / Pick Sound Amplifier attempt: probabilistic with
+    the datamined rates and pity rule, prefering the Amplifier when both are
+    held (better rates, no pity drain). Tracked by GLOBAL per-day counters
+    (``state.special.lockpick_attempts``/``lockpick_fails``), not per
+    doorway -- the wiki documents retrying the SAME door as pointless once
+    it has failed once ("attempting to use the Lock Pick Kit on that door
+    again still does not open the door"), which this sim does not model;
+    a retry here draws a fresh roll off the same global counters instead of
+    an automatic re-fail. False, with no counters touched, when neither tool
+    is held. Shared by :func:`open_locked_free` (movement, auto-cascade) and
+    Game.lockpick_at_lock (LOCK_PENDING, the player's own explicit choice).
+    """
     state = game.state
     registry = game.registry
-
-    # Master Key: always free, deterministic
-    if can_open_locked_free(game):
-        return True
-
-    # Stopwatch: free if active and a key is in hand (key is kept, per wiki)
-    if state.special.stopwatch_left > 0 and state.keys >= 1:
-        state.special.stopwatch_left -= 1
-        return True
-
-    # Lock Pick Kit / Pick Sound Amplifier: probabilistic with pity
-    # Prefer the Amplifier when both are held (better rates, no pity drain)
     lockpick_effect = None
     for preferred in ("pick_sound_amplifier", "lock_pick_kit"):
         if has(state, preferred):
@@ -1069,6 +1070,31 @@ def open_locked_free(game) -> bool:
     else:
         state.special.lockpick_fails += 1
         return False
+
+
+def open_locked_free(game) -> bool:
+    """Try to open a locked door without spending a key: Master Key,
+    active Stopwatch (needs a key in hand, per the wiki), else a Lock Pick
+    Kit / Pick Sound Amplifier attempt (:func:`_attempt_lockpick`). Called
+    once per locked-door opening while walking (Game._unlock_for_passage,
+    ``for_draft=False``) -- the auto-cascade movement path across an
+    already-open-or-drafted segment. Drafting through a fresh DOOR_LOCKED
+    segment instead parks in Phase.LOCK_PENDING (Game.open_door) and offers
+    Master Key / use-a-key-with-Stopwatch-refund / lockpick / a special key
+    as the player's own explicit choice -- see Game.can_use_key_at_lock,
+    Game.can_lockpick_at_lock, Game.can_use_special_key_at_lock."""
+    state = game.state
+
+    # Master Key: always free, deterministic
+    if can_open_locked_free(game):
+        return True
+
+    # Stopwatch: free if active and a key is in hand (key is kept, per wiki)
+    if state.special.stopwatch_left > 0 and state.keys >= 1:
+        state.special.stopwatch_left -= 1
+        return True
+
+    return _attempt_lockpick(game)
 
 
 # ------------------------------------------------------------- draft-side hooks

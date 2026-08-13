@@ -117,8 +117,10 @@ def action_group(action_id: int) -> str:
         return "use"
     if A.CROWN_BLOCK_BASE <= action_id < A.AXE_TARGET_BASE:
         return "control"
-    if A.AXE_TARGET_BASE <= action_id < A.N_ACTIONS:
+    if A.AXE_TARGET_BASE <= action_id < A.LOCK_MENU_BASE:
         return "use"
+    if A.LOCK_MENU_BASE <= action_id < A.N_ACTIONS:
+        return "choose"
     return "other"
 
 

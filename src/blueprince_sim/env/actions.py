@@ -123,6 +123,32 @@ Layout (Discrete(427)):
            family's gem cost for the rest of the save -- a payment-time price
            override (engine/state.py::resolve_gem_cost), never a deck change
            (Game.can_axe_room/axe_room).
+  427..435 the locked-door menu (Phase.LOCK_PENDING only), entered by
+           opening a doorway (0..179 above) that turns out to be DOOR_LOCKED
+           -- trying it is free, only a menu choice actually opens it (owner
+           ruling: the player decides how, not the engine):
+             427     use a key: spends lock_open_cost keys (base 1, plus a
+                     Great Hall side door's search surcharge), or refunds
+                     entirely to an active Stopwatch charge given >=1 key in
+                     hand (Game.can_use_key_at_lock/use_key_at_lock).
+             428     lockpick: one Lock Pick Kit / Pick Sound Amplifier
+                     attempt; failure spends nothing and does not exit the
+                     menu (Game.can_lockpick_at_lock/lockpick_at_lock).
+             429     abandon: exits back to NAVIGATE, door still locked,
+                     nothing spent -- always legal in LOCK_PENDING, so the
+                     phase is never a dead end (Game.can_abandon_lock/
+                     abandon_lock).
+             430..435 a special key, data/locks.json's special_key_menu.order
+                     (the wiki's published fixed row order: Basement Key,
+                     Secret Garden Key, Silver Key, Key 8, Master Key, Prism
+                     Key). secret_garden_key/key_8 are modelled in this sim
+                     as draft_conditions tags rather than door keys, and
+                     prism_key stays unimplemented -- all three are reserved
+                     ids, permanently masked off (Game.can_use_special_key_at_lock).
+                     Basement Key's own fits() is also always False: this sim
+                     has no on-grid Basement door (see effects/items/basement_key.py).
+                     Silver Key and Master Key are the only two rows ever
+                     actually selectable today.
 """
 
 from __future__ import annotations
@@ -130,7 +156,7 @@ from __future__ import annotations
 from ..engine.draft import COLOUR_CATEGORIES
 from ..engine.game import Game, Phase, RedrawKind
 from ..engine.grid import DIR_NAMES, DIRS, N_CELLS, rank_of
-from ..engine.locks import DOOR_LOCKED, DOOR_SEALED, DOOR_SECURITY, SECURITY_LEVELS
+from ..engine.locks import SECURITY_LEVELS
 from ..engine import shops as _shops
 from ..engine import special_items as _si
 from ..engine.effects import Capability, provides_capability
@@ -249,10 +275,35 @@ AXE_TARGET_BASE = CROWN_BLOCK_BASE + 3  # 379
 _N_AXE_TARGETS = 48  # width pinned as a constant (like _N_AREA_NODES) so
                       # N_ACTIONS stays importable with no Registry loaded
 
-# N_ACTIONS = first slot after the Axe-target range.
-N_ACTIONS = AXE_TARGET_BASE + _N_AXE_TARGETS  # 427
+# 427..435: the locked-door menu (Phase.LOCK_PENDING only), appended at the
+# end so no earlier id shifts. See Game.can_use_key_at_lock/use_key_at_lock,
+# can_lockpick_at_lock/lockpick_at_lock, can_use_special_key_at_lock/
+# use_special_key_at_lock, can_abandon_lock/abandon_lock.
+LOCK_MENU_BASE = AXE_TARGET_BASE + _N_AXE_TARGETS  # 427
+LOCK_USE_KEY_ACTION = LOCK_MENU_BASE          # 427: spend a regular key (Stopwatch may refund it)
+LOCK_LOCKPICK_ACTION = LOCK_MENU_BASE + 1     # 428: one Lock Pick Kit / Amplifier attempt
+LOCK_ABANDON_ACTION = LOCK_MENU_BASE + 2      # 429: exit the menu; the door stays locked
+LOCK_SPECIAL_KEY_BASE = LOCK_MENU_BASE + 3    # 430..435: a special key, data/locks.json's
+                                               # special_key_menu.order (the wiki's published
+                                               # fixed row order: Basement/Secret Garden/Silver/
+                                               # Key 8/Master/Prism). secret_garden_key, key_8
+                                               # and prism_key are reserved ids, permanently
+                                               # masked off -- see Game.can_use_special_key_at_lock.
+_N_LOCK_SPECIAL_KEYS = 6  # width pinned as a constant, like _N_AREA_NODES/_N_AXE_TARGETS
+
+# N_ACTIONS = first slot after the lock-menu special-key range.
+N_ACTIONS = LOCK_SPECIAL_KEY_BASE + _N_LOCK_SPECIAL_KEYS  # 436
 
 DIR_INDEX = {d: i for i, d in enumerate(DIRS)}
+
+
+def _build_lock_special_key_order(registry: Registry) -> tuple[str, ...]:
+    """The special-keys-menu row order (data/locks.json's special_key_menu.order),
+    a published wiki table rather than a Python constant. The action index for
+    a row is LOCK_SPECIAL_KEY_BASE + the index here; both the action space and
+    the observation encoder would use this single source (matching
+    _build_area_node_ids/_build_axe_target_ids)."""
+    return tuple(registry.lock_rules["special_key_menu"]["order"])
 
 
 def _cell_is_shop_re_enterable(game: Game, cell: int) -> bool:
@@ -560,37 +611,22 @@ def action_mask(game: Game, prev_action: int | None = None) -> list[bool]:
         else:
             dist = game.distance_map()
             key_cost = game.key_cost_map()
-            # Draft any reachable, openable frontier doorway; arriving must
-            # leave >= 1 step (so the drafted room can still be entered) and,
-            # for locked doorways, a key beyond those the walk itself spends.
-            # This doorway's OWN cost (not the walk's, which key_cost[cell]
-            # already accounts for) is waived when open_door's own
-            # _unlock_for_passage would waive it: a Master Key
-            # (can_open_locked_free -- deterministic, never consumed) or a
-            # held Silver Key (consumed on a draft-open only, per
-            # silver_key.consume_for_draft; mirrors _unlock_for_passage's
-            # own cfg.special_items gate). The Lock Pick Kit / Pick Sound
-            # Amplifier are deliberately NOT waived here: a pick attempt is
-            # probabilistic and a failed one falls back to spending a real
-            # key in _unlock_for_passage, which asserts if none are held --
-            # so at 0 keys the action must stay illegal, not "legal but may
-            # crash". The Stopwatch is a refund, not an opener, and already
-            # requires >=1 key in hand, so it needs no waiver either.
+            # Draft any reachable, triable frontier doorway; arriving must
+            # leave >= 1 step (so the drafted room can still be entered) and
+            # afford the WALK's own key spend (key_cost[cell], from crossing
+            # other locked doors en route). Whether the doorway itself can be
+            # TRIED at all (sealed never; security only while openable; a
+            # locked one always -- trying it is free, it parks
+            # Phase.LOCK_PENDING rather than spending anything) is
+            # Game.frontier_doorway_triable's call, the single source shared
+            # with Game.draft_from so the two cannot silently diverge.
             for cell, d in game.frontier_doorways():
                 if not 0 <= dist[cell] <= st.steps - 1:
                     continue
-                seg = game.door_state_of(cell, d)
-                if seg == DOOR_SEALED:
-                    continue  # sealed: no action can open it
-                if seg == DOOR_LOCKED:
-                    door_cost = game.lock_open_cost(cell, d)
-                    if _si.can_open_locked_free(game) or (
-                            game.cfg.special_items and _si.has(st, "silver_key")):
-                        door_cost = 0
-                    if st.keys < key_cost[cell] + door_cost:
-                        continue
-                if seg == DOOR_SECURITY and not game.security_openable():
+                if not game.frontier_doorway_triable(cell, d):
                     continue
+                if st.keys < key_cost[cell]:
+                    continue  # can't even afford the walk there
                 mask[OPEN_BASE + cell * 4 + DIR_INDEX[d]] = True
             # Walk to an unentered room (first entry grants its resources), the
             # Antechamber (never marked entered while the game is live), or a
@@ -680,6 +716,19 @@ def action_mask(game: Game, prev_action: int | None = None) -> list[bool]:
         # -- the player must pick one (Game.choose_colour).
         for i in range(len(COLOUR_CATEGORIES)):
             mask[CHOOSE_COLOUR_BASE + i] = True
+    elif game.phase is Phase.LOCK_PENDING:
+        # abandon is unconditionally legal (the wiki's "option to exit the
+        # menu") so this phase is never a dead end; the other rows depend on
+        # what's held/affordable (Game.can_use_key_at_lock/can_lockpick_at_lock/
+        # can_use_special_key_at_lock).
+        if game.can_use_key_at_lock():
+            mask[LOCK_USE_KEY_ACTION] = True
+        if game.can_lockpick_at_lock():
+            mask[LOCK_LOCKPICK_ACTION] = True
+        for i, key_id in enumerate(_build_lock_special_key_order(game.registry)):
+            if game.can_use_special_key_at_lock(key_id):
+                mask[LOCK_SPECIAL_KEY_BASE + i] = True
+        mask[LOCK_ABANDON_ACTION] = True
     # Security-setpoint repeat guard: if the last applied action was a
     # set-level id, mask all three off so the agent must do something else
     # before touching the setpoint again.
@@ -796,9 +845,18 @@ def apply_action(game: Game, action: int) -> None:
         game.take_grotto_chip()
     elif CROWN_BLOCK_BASE <= action < AXE_TARGET_BASE:
         game.crown_block(action - CROWN_BLOCK_BASE)
-    elif AXE_TARGET_BASE <= action < N_ACTIONS:
+    elif AXE_TARGET_BASE <= action < LOCK_MENU_BASE:
         target_ids = _build_axe_target_ids(game.registry)
         game.axe_room(target_ids[action - AXE_TARGET_BASE])
+    elif action == LOCK_USE_KEY_ACTION:
+        game.use_key_at_lock()
+    elif action == LOCK_LOCKPICK_ACTION:
+        game.lockpick_at_lock()
+    elif action == LOCK_ABANDON_ACTION:
+        game.abandon_lock()
+    elif LOCK_SPECIAL_KEY_BASE <= action < N_ACTIONS:
+        key_id = _build_lock_special_key_order(game.registry)[action - LOCK_SPECIAL_KEY_BASE]
+        game.use_special_key_at_lock(key_id)
     else:
         raise ValueError(f"unimplemented action {action}")
 
@@ -950,10 +1008,21 @@ def describe_action(game: Game, action: int) -> str:
             name = game.registry.rooms[pending.options[slot].room_idx].name
             return f"filter #{slot + 1} {name} (Crown of the Blueprints)"
         return f"filter #{slot + 1} (Crown of the Blueprints)"
-    if AXE_TARGET_BASE <= action < N_ACTIONS:
+    if AXE_TARGET_BASE <= action < LOCK_MENU_BASE:
         target_ids = _build_axe_target_ids(game.registry)
         target_id = target_ids[action - AXE_TARGET_BASE]
         room = game.registry.by_id.get(target_id)
         name = room.name if room is not None else target_id
         return f"axe {name} (The Axe)"
+    if action == LOCK_USE_KEY_ACTION:
+        return "use a key"
+    if action == LOCK_LOCKPICK_ACTION:
+        return "pick the lock"
+    if action == LOCK_ABANDON_ACTION:
+        return "abandon (leave the door locked)"
+    if LOCK_SPECIAL_KEY_BASE <= action < N_ACTIONS:
+        key_id = _build_lock_special_key_order(game.registry)[action - LOCK_SPECIAL_KEY_BASE]
+        item = game.registry.special.by_id.get(key_id)
+        name = item.name if item is not None else key_id
+        return f"use special key: {name}"
     return f"action {action}"

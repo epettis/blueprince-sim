@@ -13,6 +13,7 @@ import pytest
 
 from blueprince_sim.config import GameConfig
 from blueprince_sim.engine import locks
+from blueprince_sim.engine import special_items
 from blueprince_sim.engine.game import ANTECHAMBER_CELL, Game, Phase
 from blueprince_sim.engine.grid import DIRS, E, N, S, W, neighbor
 from blueprince_sim.engine.locks import (DOOR_LOCKED, DOOR_OPEN, DOOR_SECURITY,
@@ -179,18 +180,35 @@ def test_bias_drops_after_locked_and_recovers_after_unlocked(registry):
 
 
 def test_locked_doorway_needs_and_spends_a_key(registry):
-    """Opening a locked frontier doorway requires a key, spends exactly one,
-    and leaves the door permanently open."""
+    """Trying a locked frontier doorway is free and always legal (it parks
+    Phase.LOCK_PENDING); spending a key there via use_key_at_lock requires
+    one, spends exactly one, and leaves the door permanently open.
+
+    Setup rebuilt, not the property: opening a locked doorway no longer
+    resolves in one call -- Game.open_door parks Phase.LOCK_PENDING instead
+    of raising when no key is held (the owner's "try the door first, then
+    choose how to open it" ruling) or dealing outright when one is. The
+    "requires a key, spends exactly one" property now lives on
+    use_key_at_lock, exercised below via that menu row.
+    """
     g = _game(registry)
     doors = g.open_doorways()
     assert doors
     cell, d = doors[0]
     _force_state(g, cell, d, DOOR_LOCKED)
     g.state.keys = 0
-    with pytest.raises(AssertionError):
-        g.open_door(cell, d)
+    g.open_door(cell, d)  # trying is free: no raise, no key spent
+    assert g.phase is Phase.LOCK_PENDING
+    assert g.state.keys == 0
+    assert not g.can_use_key_at_lock(), "0 keys: the use-a-key row must not be legal"
+    g.abandon_lock()
+    assert g.phase is Phase.NAVIGATE
+    assert g.door_state_of(cell, d) == DOOR_LOCKED  # abandon leaves it locked
+
     g.state.keys = 2
     g.open_door(cell, d)
+    assert g.phase is Phase.LOCK_PENDING
+    g.use_key_at_lock()
     assert g.phase is Phase.DRAFTING
     assert g.state.keys == 1
     assert g.door_state_of(cell, d) == DOOR_OPEN  # unlocked for good
@@ -256,6 +274,201 @@ def test_security_door_blocks_until_openable(registry):
     g.open_door(cell, d)
     assert g.state.keys == 0  # no key spent
     assert g.door_state_of(cell, d) == DOOR_OPEN
+
+
+# --------------------------------------------------- LOCK_PENDING: the menu
+
+
+class _FixedChance:
+    """Deterministic engine.rng.Rng stand-in: .chance always returns a fixed
+    outcome, so a lockpick attempt's success/failure branch can be built
+    without hunting for a seed (never build a scenario by random rollout)."""
+
+    def __init__(self, outcome: bool) -> None:
+        self._outcome = outcome
+
+    def chance(self, label: str, p: float) -> bool:
+        return self._outcome
+
+
+def test_lock_pending_entered_only_on_a_locked_doorway(registry):
+    """Phase.LOCK_PENDING is entered on a DOOR_LOCKED doorway and only
+    then -- an open doorway deals a hand directly, same as before this
+    feature."""
+    g = _game(registry)
+    cell, d = g.open_doorways()[0]
+    assert g.door_state_of(cell, d) == DOOR_OPEN  # setup: unlocked by default
+    g.open_door(cell, d)
+    assert g.phase is Phase.DRAFTING
+
+    g2 = _game(registry)
+    cell2, d2 = g2.open_doorways()[0]
+    _force_state(g2, cell2, d2, DOOR_LOCKED)
+    g2.open_door(cell2, d2)
+    assert g2.phase is Phase.LOCK_PENDING
+
+
+def test_use_key_row_legality_and_effect(registry):
+    """use_key: illegal at 0 keys, legal and spends exactly 1 once held,
+    and continues straight to a dealt hand."""
+    g = _game(registry)
+    cell, d = g.open_doorways()[0]
+    _force_state(g, cell, d, DOOR_LOCKED)
+    g.state.keys = 0
+    g.open_door(cell, d)
+    assert not g.can_use_key_at_lock()
+
+    g.abandon_lock()
+    g.state.keys = 3
+    g.open_door(cell, d)
+    assert g.can_use_key_at_lock()
+    pending = g.use_key_at_lock()
+    assert g.phase is Phase.DRAFTING
+    assert pending is not None and pending.options
+    assert g.state.keys == 2
+    assert g.door_state_of(cell, d) == DOOR_OPEN
+
+
+def test_lockpick_row_success_opens_for_free_and_continues_the_draft(registry):
+    """lockpick: legal at 0 keys (holding the tool is all it needs); a
+    success opens the door for free (no key spent) and continues the draft.
+    Forced deterministically via the pity rule (3 consecutive fails
+    auto-succeeds, special_items.json's lock_pick_kit pity=3) rather than a
+    seed hunt."""
+    g = _game(registry, starting_items=frozenset({"lock_pick_kit"}))
+    cell, d = g.open_doorways()[0]
+    _force_state(g, cell, d, DOOR_LOCKED)
+    g.state.keys = 0
+    g.open_door(cell, d)
+    assert g.can_lockpick_at_lock(), "holding the kit is enough, no keys needed"
+    g.state.special.lockpick_fails = 3  # pity: the next attempt auto-succeeds
+    pending = g.lockpick_at_lock()
+    assert g.phase is Phase.DRAFTING
+    assert pending is not None and pending.options
+    assert g.state.keys == 0, "lockpicking never spends a key"
+    assert g.door_state_of(cell, d) == DOOR_OPEN
+    assert special_items.has(g.state, "lock_pick_kit"), "the kit is reusable, not consumed"
+
+
+def test_lockpick_row_failure_stays_parked_and_spends_nothing(registry):
+    """A failed lockpick attempt spends nothing, does not consume the tool,
+    and does NOT exit the menu -- abandon (and a retry) stay available.
+    Forced deterministically via a stub Rng, not a seed hunt."""
+    g = _game(registry, starting_items=frozenset({"lock_pick_kit"}))
+    cell, d = g.open_doorways()[0]
+    _force_state(g, cell, d, DOOR_LOCKED)
+    g.state.keys = 0
+    g.open_door(cell, d)
+    g.rng = _FixedChance(False)
+    result = g.lockpick_at_lock()
+    assert result is None
+    assert g.phase is Phase.LOCK_PENDING, "a failed pick stays in the menu, not a dead end"
+    assert g.door_state_of(cell, d) == DOOR_LOCKED
+    assert g.state.keys == 0
+    assert special_items.has(g.state, "lock_pick_kit")
+    assert g.can_abandon_lock()
+
+
+def test_abandon_row_restores_navigate_with_the_door_still_locked(registry):
+    """abandon: always legal, returns to NAVIGATE, the door stays locked,
+    nothing is spent -- the wiki's "option to exit the menu"."""
+    g = _game(registry)
+    cell, d = g.open_doorways()[0]
+    _force_state(g, cell, d, DOOR_LOCKED)
+    g.state.keys = 5
+    g.open_door(cell, d)
+    assert g.can_abandon_lock()
+    g.abandon_lock()
+    assert g.phase is Phase.NAVIGATE
+    assert g.door_state_of(cell, d) == DOOR_LOCKED
+    assert g.state.keys == 5
+
+
+def test_lock_pending_never_a_dead_end(registry):
+    """LOCK_PENDING always offers at least one legal action (abandon, if
+    nothing else) across a spread of held items and zero keys -- a
+    dead-end phase is worse than the bug it replaces."""
+    for items in (frozenset(), frozenset({"master_key"}), frozenset({"silver_key"}),
+                  frozenset({"lock_pick_kit"}), frozenset({"basement_key"})):
+        g = _game(registry, starting_items=items)
+        cell, d = g.open_doorways()[0]
+        _force_state(g, cell, d, DOOR_LOCKED)
+        g.state.keys = 0
+        g.open_door(cell, d)
+        assert g.phase is Phase.LOCK_PENDING
+        mask = A.action_mask(g)
+        assert any(mask), f"items={sorted(items)}: LOCK_PENDING mask is all-False"
+        assert mask[A.LOCK_ABANDON_ACTION], f"items={sorted(items)}: abandon must stay legal"
+
+
+def test_master_key_opens_for_free_at_zero_keys_never_consumed(registry):
+    """Master Key: legal at 0 keys, never consumed, opens the door for free."""
+    g = _game(registry, starting_items=frozenset({"master_key"}))
+    cell, d = g.open_doorways()[0]
+    _force_state(g, cell, d, DOOR_LOCKED)
+    g.state.keys = 0
+    g.open_door(cell, d)
+    assert g.can_use_special_key_at_lock("master_key")
+    pending = g.use_special_key_at_lock("master_key")
+    assert g.phase is Phase.DRAFTING
+    assert pending is not None and pending.options
+    assert g.state.keys == 0
+    assert special_items.has(g.state, "master_key"), "Master Key is never consumed"
+    assert g.door_state_of(cell, d) == DOOR_OPEN
+
+
+def test_silver_key_no_longer_auto_spent_on_open(registry):
+    """Opening a locked doorway no longer auto-spends a held Silver Key --
+    it stays in inventory until the special-keys-menu row is explicitly
+    chosen. This is the bug this feature fixes: previously
+    _unlock_for_passage spent the Silver Key unconditionally on every
+    locked draft-open while held."""
+    g = _game(registry, starting_items=frozenset({"silver_key"}))
+    cell, d = g.open_doorways()[0]
+    _force_state(g, cell, d, DOOR_LOCKED)
+    g.state.keys = 0
+    g.open_door(cell, d)
+    assert g.phase is Phase.LOCK_PENDING
+    assert special_items.has(g.state, "silver_key"), "must not be auto-spent by merely opening"
+    assert g.state.keys == 0
+
+
+def test_reserved_special_keys_always_masked_off(registry):
+    """secret_garden_key, key_8, and prism_key are permanently reserved
+    special-keys-menu ids: masked off even when force-held, since their
+    menu behaviour is unimplemented (secret_garden_key/key_8 are modelled
+    in this sim as draft_conditions tags, not door keys; prism_key stays
+    implemented:false in special_items.json)."""
+    g = _game(registry)
+    cell, d = g.open_doorways()[0]
+    _force_state(g, cell, d, DOOR_LOCKED)
+    for key_id in ("secret_garden_key", "key_8", "prism_key"):
+        g.state.inventory[key_id] = 1  # force-held, bypassing normal spawn gating
+    g.open_door(cell, d)
+    assert g.phase is Phase.LOCK_PENDING
+    order = list(g.registry.lock_rules["special_key_menu"]["order"])
+    mask = A.action_mask(g)
+    for key_id in ("secret_garden_key", "key_8", "prism_key"):
+        idx = A.LOCK_SPECIAL_KEY_BASE + order.index(key_id)
+        assert not mask[idx], f"{key_id} must stay masked off even when held"
+        assert not g.can_use_special_key_at_lock(key_id)
+
+
+def test_basement_key_never_fits_an_on_grid_door(registry):
+    """Basement Key is held but never legal at an on-grid locked doorway:
+    this sim models the Basement purely as an off-grid area-graph
+    destination (no on-grid room is ever a "Basement door"), so fits() is
+    correctly always False here -- see effects/items/basement_key.py."""
+    g = _game(registry, starting_items=frozenset({"basement_key"}))
+    cell, d = g.open_doorways()[0]
+    _force_state(g, cell, d, DOOR_LOCKED)
+    g.open_door(cell, d)
+    assert g.phase is Phase.LOCK_PENDING
+    assert special_items.has(g.state, "basement_key")
+    assert not g.can_use_special_key_at_lock("basement_key")
+    order = list(g.registry.lock_rules["special_key_menu"]["order"])
+    idx = A.LOCK_SPECIAL_KEY_BASE + order.index("basement_key")
+    assert not A.action_mask(g)[idx]
 
 
 # ------------------------------------------------------- keycard system
@@ -404,35 +617,76 @@ def test_mask_seals_and_reopens_security_doorways(registry):
     assert A.action_mask(g)[idx]
 
 
-def test_mask_locked_doorway_requires_a_key(registry):
-    """Drafting a locked doorway is only legal in the action mask when the
-    player holds a key to spend on it."""
+def test_mask_locked_doorway_is_legal_to_try_at_zero_keys(registry):
+    """Trying a locked doorway is legal in the action mask at any key count,
+    including zero -- trying costs nothing (Phase.LOCK_PENDING). Only the
+    use-a-key row inside that menu is gated on holding a key.
+
+    Renamed and rebuilt, not just its setup: the OLD property ("only legal
+    with a key") is the exact "player never chooses" bug this feature
+    fixes -- see Game.can_use_key_at_lock for where the key-count gate
+    actually lives now.
+    """
     g = _game(registry)
     cell, d = g.open_doorways()[0]
     _force_state(g, cell, d, DOOR_LOCKED)
     idx = A.OPEN_BASE + cell * 4 + A.DIR_INDEX[d]
     g.state.keys = 0
-    assert not A.action_mask(g)[idx]
+    assert A.action_mask(g)[idx], "trying a locked doorway is always legal"
+    g.open_door(cell, d)
+    assert g.phase is Phase.LOCK_PENDING
+    assert not g.can_use_key_at_lock(), "0 keys: use-a-key must not be legal"
+    g.abandon_lock()
+
     g.state.keys = 1
     assert A.action_mask(g)[idx]
+    g.open_door(cell, d)
+    assert g.can_use_key_at_lock(), "1 key: use-a-key must be legal"
 
 
-def test_mask_locked_doorway_accounts_for_keys_the_walk_spends(registry):
-    """The mask budgets keys for the whole plan, not just the doorway: a
-    locked doorway beyond a locked interior door needs two keys."""
-    # A locked frontier doorway beyond a locked interior door needs two keys:
-    # one for the walk, one for the doorway itself.
-    g = _game(registry)
+def test_mask_accounts_for_the_walks_keys_but_the_door_itself_is_free_to_try(registry):
+    """The mask still budgets keys for the WALK (crossing a locked interior
+    door to reach the doorway); trying the frontier doorway itself, once
+    there, is free regardless -- only spending a key on it (use_key_at_lock)
+    needs a key left over after the walk.
+
+    Setup rebuilt, not fully replaced: the OLD property bundled the walk's
+    key cost with the frontier door's own into one mask check ("needs two
+    keys"); the walk's own key gate is real and unchanged (key_cost_map),
+    but the door's own gate now lives on Game.can_use_key_at_lock instead of
+    the mask -- see test_mask_locked_doorway_is_legal_to_try_at_zero_keys.
+    """
     straight = next(r for r in registry.rooms
                     if r.layout == "straight" and r.rarity is not None)
-    g._place_room(straight, 7, N | S)
-    _force_state(g, 2, N, DOOR_LOCKED)
-    _force_state(g, 7, N, DOOR_LOCKED)
     idx = A.OPEN_BASE + 7 * 4 + A.DIR_INDEX[N]
-    g.state.keys = 1
-    assert not A.action_mask(g)[idx]
-    g.state.keys = 2
-    assert A.action_mask(g)[idx]
+
+    g0 = _game(registry)
+    g0._place_room(straight, 7, N | S)
+    _force_state(g0, 2, N, DOOR_LOCKED)
+    _force_state(g0, 7, N, DOOR_LOCKED)
+    g0.state.keys = 0
+    assert not A.action_mask(g0)[idx], "0 keys: can't even afford the walk there"
+
+    g1 = _game(registry)
+    g1._place_room(straight, 7, N | S)
+    _force_state(g1, 2, N, DOOR_LOCKED)
+    _force_state(g1, 7, N, DOOR_LOCKED)
+    g1.state.keys = 1
+    assert A.action_mask(g1)[idx], "1 key: the walk is affordable, trying the door is free"
+    g1.draft_from(7, N)
+    assert g1.state.keys == 0, "the walk spent the interior door's key"
+    assert g1.phase is Phase.LOCK_PENDING
+    assert not g1.can_use_key_at_lock(), "nothing left over to spend on the door itself"
+
+    g2 = _game(registry)
+    g2._place_room(straight, 7, N | S)
+    _force_state(g2, 2, N, DOOR_LOCKED)
+    _force_state(g2, 7, N, DOOR_LOCKED)
+    g2.state.keys = 2
+    g2.draft_from(7, N)
+    assert g2.state.keys == 1, "the walk spent one key, one left for the door"
+    assert g2.phase is Phase.LOCK_PENDING
+    assert g2.can_use_key_at_lock()
 
 
 def test_mask_allows_revisiting_control_rooms(registry):
@@ -468,6 +722,31 @@ def test_obs_planes_mark_both_sides_of_a_segment(registry):
     assert flat_locked[2] & N
     assert flat_locked[7] & S
     assert enc["house_flags"][9] == 1  # keycard power starts on
+
+
+def test_grid_search_cost_plane_reports_extra_keys_on_both_sides(registry):
+    """grid_search_cost encodes the extra keys (beyond the base 1) a
+    currently-locked segment costs, painted on both cells like grid_locked;
+    0 for a plain lock with no surcharge, and 0 again once the segment
+    opens (an opened segment's own extra-key cost stops mattering, even
+    though Game.door_search_cost's entry is never cleared)."""
+    from blueprince_sim.env import obs as O
+
+    g = _game(registry)
+    cell, d = g.open_doorways()[0]
+    _force_state(g, cell, d, DOOR_LOCKED)
+    nb = neighbor(cell, d)
+
+    flat = O.encode(g)["grid_search_cost"].reshape(-1)
+    assert flat[cell] == 0 and flat[nb] == 0, "a plain lock carries no search surcharge"
+
+    g.door_search_cost[segment_key(cell, d)] = 2
+    flat2 = O.encode(g)["grid_search_cost"].reshape(-1)
+    assert flat2[cell] == 2 and flat2[nb] == 2, "both sides of the segment report the surcharge"
+
+    g._open_segment(cell, d)
+    flat3 = O.encode(g)["grid_search_cost"].reshape(-1)
+    assert flat3[cell] == 0 and flat3[nb] == 0, "an opened segment's surcharge no longer applies"
 
 
 def test_determinism_with_locks(registry):

@@ -133,9 +133,64 @@ def _colour_pending(game: Game, rnd: random.Random) -> bool:
     return True
 
 
+def _lock_pending_choices(game: Game) -> list:
+    """Every legal LOCK_PENDING action right now, as zero-arg callables.
+
+    ``abandon`` is always included (Game.can_abandon_lock is unconditional
+    in this phase), so the list is never empty."""
+    choices = []
+    if game.can_use_key_at_lock():
+        choices.append(game.use_key_at_lock)
+    if game.can_lockpick_at_lock():
+        choices.append(game.lockpick_at_lock)
+    for key_id in game.registry.lock_rules["special_key_menu"]["order"]:
+        if game.can_use_special_key_at_lock(key_id):
+            choices.append(lambda g=game, k=key_id: g.use_special_key_at_lock(k))
+    choices.append(game.abandon_lock)
+    return choices
+
+
+def _lock_pending_random(game: Game, rnd: random.Random) -> bool:
+    """LOCK_PENDING decision: pick uniformly among every legal row (matching
+    _colour_pending's uniform-random spirit for random_policy). True if a
+    decision was taken, so callers can return immediately. A lockpick
+    failure leaves the phase unchanged (Game.lockpick_at_lock), so this may
+    need to be called again on the next tick -- the same shape as any other
+    still-NAVIGATE decision that made no progress."""
+    if game.phase is not Phase.LOCK_PENDING:
+        return False
+    rnd.choice(_lock_pending_choices(game))()
+    return True
+
+
+def _lock_pending_greedy(game: Game, rnd: random.Random) -> bool:
+    """LOCK_PENDING decision for the greedy/economy/frontier policies: prefer
+    a reusable Master Key, then spend a regular key, then any other held and
+    fitting special key, else abandon. Deliberately skips the lockpick row
+    (probabilistic; a scripted heuristic has no use for a chance of staying
+    parked in the same phase) so this always makes progress in one call.
+    True if a decision was taken, so callers can return immediately.
+    """
+    if game.phase is not Phase.LOCK_PENDING:
+        return False
+    if game.can_use_special_key_at_lock("master_key"):
+        game.use_special_key_at_lock("master_key")
+    elif game.can_use_key_at_lock():
+        game.use_key_at_lock()
+    else:
+        for key_id in game.registry.lock_rules["special_key_menu"]["order"]:
+            if key_id != "master_key" and game.can_use_special_key_at_lock(key_id):
+                game.use_special_key_at_lock(key_id)
+                return True
+        game.abandon_lock()
+    return True
+
+
 def random_policy(game: Game, rnd: random.Random) -> None:
     """Uniform random baseline: pick any affordable option / any legal move or draft."""
     if _colour_pending(game, rnd):
+        return
+    if _lock_pending_random(game, rnd):
         return
     if game.phase is Phase.DRAFTING:
         opts = _affordable(game)
@@ -242,6 +297,8 @@ def frontier_greedy(game: Game, rnd: random.Random) -> None:
     """Draft anywhere reachable, best-first toward the Antechamber."""
     if _colour_pending(game, rnd):
         return
+    if _lock_pending_greedy(game, rnd):
+        return
     if game.phase is Phase.NAVIGATE:
         _navigate_frontier(game)
     else:
@@ -252,6 +309,8 @@ def greedy_rank(game: Game, rnd: random.Random) -> None:
     """Push north; prefer high-connectivity rooms with north doors."""
     if _colour_pending(game, rnd):
         return
+    if _lock_pending_greedy(game, rnd):
+        return
     if game.phase is Phase.NAVIGATE:
         _navigate_north(game)
     else:
@@ -261,6 +320,8 @@ def greedy_rank(game: Game, rnd: random.Random) -> None:
 def economy(game: Game, rnd: random.Random) -> None:
     """Like greedy_rank but values resource rooms and redraws on bad hands."""
     if _colour_pending(game, rnd):
+        return
+    if _lock_pending_greedy(game, rnd):
         return
     if game.phase is Phase.NAVIGATE:
         _navigate_north(game)

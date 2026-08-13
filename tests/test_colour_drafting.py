@@ -16,7 +16,8 @@ import pytest
 from blueprince_sim.engine.draft import (COLOUR_CATEGORIES, DraftContext,
                                          room_draftable)
 from blueprince_sim.engine.game import Game, Phase
-from blueprince_sim.engine.grid import N, S
+from blueprince_sim.engine.grid import DIRS, N, S
+from blueprince_sim.engine.locks import DOOR_LOCKED
 from blueprince_sim.engine.rng import Rng
 from blueprince_sim.engine.state import GameState
 from blueprince_sim.env import actions as A
@@ -180,10 +181,33 @@ def test_colour_choice_action_unavailable_at_an_ordinary_doorway(cfg):
     assert not any(mask[A.CHOOSE_COLOUR_BASE:A.DONATE_BASE])
 
 
+def _targets_a_locked_door(env: BluePrinceEnv, action: int) -> bool:
+    """True for a draft (open-doorway) action id whose segment is DOOR_LOCKED.
+
+    A locked doorway is now always legal to TRY (Phase.LOCK_PENDING; trying
+    costs nothing) even at 0 keys, so unlike before this PR "legal to open"
+    no longer implies "opening it makes progress" -- see the rollout below.
+    """
+    cell, dir_idx = divmod(action, 4)
+    return env.game.door_state_of(cell, DIRS[dir_idx]) == DOOR_LOCKED
+
+
 def test_day_replays_clean_through_colour_pending(cfg):
     """A masked-random rollout that forces a Secret Passage onto the grid
     reaches a normal termination with no crash and no illegal action, even
-    though it must pass through the new COLOUR_PENDING phase along the way."""
+    though it must pass through the new COLOUR_PENDING phase along the way.
+
+    Excludes locked doorways from the "prefer opening a door" bias (see
+    _targets_a_locked_door): trying one is always legal now, at any key
+    count, so blindly preferring it here would deterministically loop
+    open(locked, free) -> LOCK_PENDING -> abandon (free) -> NAVIGATE ->
+    open(the SAME locked door) forever whenever it is the only doorway
+    action offered, burning the whole rollout budget without ever spending
+    a step. That loop is a real, intended consequence of the owner's
+    walk-away ruling, not a bug -- this test is about COLOUR_PENDING
+    pass-through, not lock choice-making (see test_locks.py for that), so
+    it steers around locked doors here instead of learning to resolve them.
+    """
     rng = random.Random(11)
     for seed in range(5):
         env = BluePrinceEnv(cfg)
@@ -196,11 +220,12 @@ def test_day_replays_clean_through_colour_pending(cfg):
             assert legal, f"seed {seed}: all-zero mask in phase {env.game.phase.name}"
             if env.game.phase is Phase.COLOUR_PENDING:
                 reached_colour_pending = True
-            # Prefer opening a doorway while navigating: the point of this
-            # rollout is to pass THROUGH colour selection, and a purely random
-            # walk only reaches the forced Secret Passage by luck once the
-            # action space is wide enough to wander instead.
-            open_doors = [i for i in legal if i < A.CHOOSE_BASE]
+            # Prefer opening an UNLOCKED doorway while navigating: the point
+            # of this rollout is to pass THROUGH colour selection, and a
+            # purely random walk only reaches the forced Secret Passage by
+            # luck once the action space is wide enough to wander instead.
+            open_doors = [i for i in legal
+                          if i < A.CHOOSE_BASE and not _targets_a_locked_door(env, i)]
             action = rng.choice(open_doors or legal)
             _, _, term, trunc, _ = env.step(action)
             if term or trunc:
