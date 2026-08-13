@@ -855,6 +855,124 @@ around 1,800 LOC.
 
 ## Decisions log
 
+- **2026-08-12, OWNER RULING: opening a locked door becomes an explicit player
+  decision. This supersedes `prism_key` as a one-item change and creates a
+  subsystem.** In the owner's words:
+
+  > "First, you have to try the door to determine if it is locked or not. If
+  > it's locked, you have to choose how to open it. You can try a lockpicking
+  > tool, a standard key, or a special key. This order is important because the
+  > player may want to save their keys and use more steps to find an unlocked
+  > door rather than using a key in the current room. This also facilitates
+  > using special keys like Room 8 Key, Secret Garden Key, Silver Key, and
+  > Prism Key even when a regular key can do the trick because they bias the
+  > pool towards a single room or particular type of room."
+
+  **Four things this makes true that were not before:**
+  1. **Trying a door is a distinct step from opening it**, and it is what
+     reveals whether the door is locked.
+  2. **The opening method is chosen**, not inferred: lockpicking tool vs
+     standard key vs special key.
+  3. **Declining is a real play.** Spending steps to find an unlocked door
+     instead of spending a key is a strategy the model must be able to express.
+  4. **A special key may be used even when a standard key would work**, because
+     the special key biases the draft pool. This is the point the current code
+     forecloses most completely.
+
+  **What this says about the code today, none of which was previously
+  flagged as a defect:** `game.py::_unlock_for_passage` spends the **Silver Key
+  automatically and unconditionally** on every locked draft-open while it is
+  held -- no choice, no decline -- and `special_items.py::open_locked_free` then
+  hardcodes the precedence Master Key -> Stopwatch -> `pick_sound_amplifier` ->
+  `lock_pick_kit`. The player never chooses, so ruling 4 is not merely
+  unimplemented: it is actively prevented.
+
+  **Two narrow designs were on the table and are both dead**: a single "arm the
+  Prism Key" action (+1 action id, +1 obs slot), and a
+  `Phase.SPECIAL_KEY_PENDING` covering only special keys (+2 ids, phase
+  `Discrete(6)` -> `Discrete(7)`). Both were approximations of this subsystem.
+  Scoped separately before anything is built.
+
+  **Generalisable: a question can be answered by rejecting its frame.** Both
+  options offered were reasonable and both were too small, because the question
+  presupposed that only the Prism Key's own path needed to change. **When the
+  owner answers a multiple-choice question with prose, the prose is the
+  ruling.**
+
+- **2026-08-12, `prism_key`: the colour is a property of the ROOM, not a free
+  player pick -- and in a multi-colour room it is ONE RNG DRAW.** Owner ruled
+  the literal reading of the wiki's *"the color is chosen at random from all
+  valid choices"* over the reroll clause (*"may be rechosen by unhovering and
+  rehovering"*), which would have made it a de facto player choice.
+
+  This kills the plan to reuse `Phase.COLOUR_PENDING` as-is: that phase's mask
+  unconditionally offers all five colours (`actions.py:599-603`), and the Prism
+  Key **does not fit purely blue or black rooms at all**. Affects only 6 rooms
+  (the 5 Aquarium variants and `maids_chamber`); everywhere else the colour is
+  forced by the room and no draw is needed.
+
+  Also corrected: **a comment describes its own code backwards, in two
+  places.** `game.py:521-523` and `prism_key`'s `meta.notes` both gloss
+  `remove(..., consumed=False)` as "consumed today, pool-eligible tomorrow". In
+  fact `_is_available` consults only `state.special.removed`, and
+  `consumed=False` never appends to it -- so the item is pool-eligible
+  **today**, which is exactly what the wiki requires. **The behaviour is
+  correct and both comments describe it backwards.**
+
+- **2026-08-12, `battery_pack`: defer the draw now, thread `rng` later if
+  wanted -- and the "37 `grant()` call sites" figure was wrong by 4.7x.**
+
+  **The measurement.** An AST scan (not a grep -- string search gives false
+  negatives here repeatedly) counts **173** `special_items.grant` call sites:
+  **32 in `src/`, 141 in `tests/`**. The 37 appears to have been copied from
+  `tests/test_item_tag_allowlist.py:9`, *"13 of the 37 effect tags"* -- **a tag
+  count that got written into a call-site slot.**
+
+  **And the cost was in the wrong place.** 31 of the 32 `src/` sites already
+  have `rng` reachable, and the 32nd (`royal_scepter.grant_carry_over`) needs
+  exactly one propagated line from a caller that already has `game`. The real
+  blast radius is the **83 test sites that call `grant()` against a bare
+  `GameState` with no `rng` or `game` anywhere in scope.** Whoever prices this
+  should price the test suite, not the engine.
+
+  **Owner ruling: defer the draw** -- record the pickup in state, resolve the
+  50/50 at the next deal where `rng` is in scope. **0 call sites change.**
+  This is not an invention: it is **the repo's own established idiom**, already
+  declared in `_on_pickup`'s docstring (*"resolved lazily in on_arrive/dig_all
+  where game.rng is available; no action is taken here at pickup time"*) and
+  implemented by `treasure_map`, with `tests/test_digging.py:272` pinning it as
+  deliberate. It is provably unobservable: `dynamic_rarity` appears **nowhere in
+  `src/blueprince_sim/env/`**, so no agent can see the gap between pickup and
+  resolution. The signature change remains available later with no data or
+  test-semantics consequence.
+
+  **Owner ruling: the effect is day-scoped.** `state.dynamic_rarity` is already
+  a fresh dict per `GameState`, so **no carryover entry and no width change.**
+
+  **The mechanic is a toggle, not a coin flip, after the first trigger.** Both
+  the Battery Pack and Workshop wiki pages say a second trigger in the same day
+  *"will always switch to the other one"*. The item's own `meta.notes` omitted
+  this. A second pickup **is** reachable despite `unique: true`, because
+  `grant()` only blocks a re-grant while the item is *currently held*, and
+  fabricating the pack away frees a later grant.
+
+- **2026-08-12, `gear_wrench`'s blocker also rests on a misreading -- found
+  while researching `battery_pack`, not yet acted on.**
+  `special_items.json` says *"the wiki says the wrench's rarity change is
+  permanent."* The wiki says the pickup effect sets the Workshop and Boiler Room
+  to Standard **"that day."** What is permanent is a *different* effect: once a
+  room's rarity has been set by the Conservatory or Gear Wrench, that room's
+  Dynamic Rarity is permanently *ignored*. So
+  `blocked_on: rarity_change_not_persisted_across_days` names a persistence
+  requirement the game does not have, and the item may be implementable by the
+  same day-scoped mechanism as `battery_pack`. Its remaining genuine gap is the
+  player-choice action for which Mechanical Room to target.
+
+  **That is now three blockers in one session found to name a mechanic the game
+  does not have** (`crown_of_the_blueprints`, `gear_wrench`, and the digest's
+  "~15 lines"). The pattern is strong enough to act on: **re-derive a
+  `blocked_on` before building on it, every time.**
+
 - **2026-08-12, `crown_of_the_blueprints`: four owner rulings, and the blocker
   that ordered the queue turns out to have named a mechanic the game does not
   have.**
