@@ -15,6 +15,7 @@ from blueprince_sim.env.actions import (
     OPEN_VAULT_BOX_ACTION, action_mask, apply_action,
 )
 from blueprince_sim.env.multiday import DayChain
+from luck_utils import suppress_luck
 
 
 # ----------------------------------------------------------------- helpers
@@ -312,7 +313,7 @@ def test_vault_entry_grants_exactly_40_coins_every_seed():
     cell = 5
     for seed in range(1, 31):
         g = _game_with_room("vault", cell, seed=seed)
-        g.state.luck = 0
+        suppress_luck(g)
         g._enter(cell)
         assert g.state.coins == 40, f"seed {seed}: expected exactly 40 coins, got {g.state.coins}"
 
@@ -329,7 +330,7 @@ def test_vault_exact_grant_still_pays_coin_purse_interest():
     """
     cell = 5
     g = _game_with_room("vault", cell)
-    g.state.luck = 0  # isolate the guaranteed grant from the luck-rolled extra item
+    suppress_luck(g)  # isolate the guaranteed grant from the luck-rolled extra item
     si.grant(g.state, g.registry, "coin_purse", source="test")
 
     g._enter(cell)
@@ -340,21 +341,29 @@ def test_vault_exact_grant_still_pays_coin_purse_interest():
     assert g.state.special.coin_interest == 40 % 3
 
 
-def test_vault_single_exact_entry_does_not_trigger_two_plus_items_luck_penalty():
-    """A single coins_exact guaranteed entry counts as ONE item found, not per pile.
+def test_vault_single_exact_entry_leaves_luck_penalty_at_zero():
+    """A single coins_exact guaranteed entry logs as ONE item, not per pile,
+    and leaves state.luck_penalty untouched.
 
-    roll_room_items increments `found` once per items.guaranteed ENTRY and only
-    applies the luck.penalty_two_plus_items penalty when found >= 2. The exact
-    40-coin grant must stay one entry (found=1) rather than splitting into
-    per-unit entries, which would flip the room into the 2+-items penalty.
+    The sim previously invented a "found >= 2 items -> luck -= 1" rule and
+    this test pinned that a single coins_exact entry did not trip it. No such
+    game mechanic exists and it has been deleted (owner ruling,
+    docs/open_tasks.md decisions log 2026-08-13) -- the real mechanic is the
+    Luck Penalty accumulator, which only grows from high-luck item_ladder
+    outcomes (bands 23-28/29+ and the variable sub-table), never from a
+    guaranteed grant. This checks the real invariant instead: with the
+    luck-rolled additional item suppressed, the exact 40-coin grant logs as
+    exactly one items_found_log entry (not per pile) and never touches
+    luck_penalty.
     """
     cell = 5
     g = _game_with_room("vault", cell)
-    g.state.luck = 0  # pin at floor: no luck-rolled additional item can fire
-    luck_before = g.state.luck
+    suppress_luck(g)  # no luck-rolled additional item can fire
+    log_before = len(g.state.items_found_log)
 
     g._enter(cell)
 
-    assert g.state.luck == luck_before, (
-        "a lone coins_exact guaranteed entry must not trip the 2+ items luck penalty"
+    assert len(g.state.items_found_log) - log_before == 1, (
+        "the exact 40-coin grant must log as ONE entry, not per pile"
     )
+    assert g.state.luck_penalty == 0, "a guaranteed exact grant must never touch the Luck Penalty"

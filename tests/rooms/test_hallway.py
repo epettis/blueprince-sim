@@ -14,6 +14,7 @@ from blueprince_sim.config import GameConfig
 from blueprince_sim.engine import special_items as si
 from blueprince_sim.engine.game import Game
 from blueprince_sim.env.multiday import DayChain
+from luck_utils import suppress_luck
 
 
 def test_hallway_ix74_grants_one_key():
@@ -24,7 +25,7 @@ def test_hallway_ix74_grants_one_key():
     cell = 5
     cfg = GameConfig(special_items=True)
     g = Game(cfg, seed=0)
-    g.state.luck = 0
+    suppress_luck(g)
     room = g.registry.by_id["hallway__ix74"]
     g.state.grid[cell] = room.idx
     g.state.placed_doors[cell] = room.door_mask

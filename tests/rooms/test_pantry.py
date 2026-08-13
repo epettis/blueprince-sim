@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from blueprince_sim.config import GameConfig
 from blueprince_sim.engine.game import Game
+from luck_utils import suppress_luck
 
 
 def _game_with_room(room_id: str, cell: int, seed: int = 0) -> Game:
@@ -30,7 +31,7 @@ def test_pantry_entry_grants_exactly_4_coins_every_seed():
     cell = 5
     for seed in range(1, 31):
         g = _game_with_room("pantry", cell, seed=seed)
-        g.state.luck = 0
+        suppress_luck(g)
         g._enter(cell)
         assert g.state.coins == 4, f"seed {seed}: expected exactly 4 coins, got {g.state.coins}"
 
@@ -47,7 +48,7 @@ def test_pantry_entry_grants_exactly_one_fruit_every_seed():
     cell = 5
     for seed in range(1, 31):
         g = _game_with_room("pantry", cell, seed=seed)
-        g.state.luck = 0
+        suppress_luck(g)
         before = g.state.steps
         g._enter(cell)
         delta = g.state.steps - before
@@ -67,7 +68,7 @@ def test_pantry_fruit_distribution_favors_apple():
     counts = {2: 0, 3: 0, 5: 0}
     for seed in range(1, 501):
         g = _game_with_room("pantry", cell, seed=seed)
-        g.state.luck = 0
+        suppress_luck(g)
         before = g.state.steps
         g._enter(cell)
         delta = g.state.steps - before

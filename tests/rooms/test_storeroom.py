@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from blueprince_sim.config import GameConfig
 from blueprince_sim.engine.game import Game
+from luck_utils import suppress_luck
 
 PILE_MIN, PILE_MAX = 1, 5
 
@@ -21,7 +22,7 @@ def _game_with_room(room_id: str, cell: int, seed: int = 0, **cfg_kwargs) -> Gam
     fires, keeping the guaranteed-item assertions deterministic.
     """
     g = Game(GameConfig(**cfg_kwargs), seed=seed)
-    g.state.luck = 0
+    suppress_luck(g)
     room = g.registry.by_id[room_id]
     g.state.grid[cell] = room.idx
     g.state.placed_doors[cell] = room.door_mask

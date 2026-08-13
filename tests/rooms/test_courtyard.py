@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from blueprince_sim.engine import special_items as si
 from blueprince_sim.engine.game import Game
+from luck_utils import suppress_luck
 
 CELL = 7  # rank 2, col 2 -- any on-grid cell works since _enter bypasses door legality
 
@@ -21,7 +22,7 @@ def test_courtyard_ix48_grants_two_gems_the_base_does_not(registry, cfg):
     ix48 = registry.by_id["courtyard__ix48"]
 
     g = Game(cfg, seed=0)
-    g.state.luck = 0
+    suppress_luck(g)
     g.state.grid[CELL] = base.idx
     g.state.placed_doors[CELL] = base.door_mask
     gems_before = g.state.gems
@@ -29,7 +30,7 @@ def test_courtyard_ix48_grants_two_gems_the_base_does_not(registry, cfg):
     assert g.state.gems == gems_before, "base Courtyard grants no gems"
 
     g2 = Game(cfg, seed=0)
-    g2.state.luck = 0
+    suppress_luck(g2)
     g2.state.grid[CELL] = ix48.idx
     g2.state.placed_doors[CELL] = ix48.door_mask
     gems_before2 = g2.state.gems

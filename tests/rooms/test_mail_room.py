@@ -6,6 +6,7 @@ from blueprince_sim.config import GameConfig
 from blueprince_sim.engine import special_items as si
 from blueprince_sim.engine.game import Game
 from blueprince_sim.env.multiday import DayChain
+from luck_utils import suppress_luck
 
 CELL = 5
 RANK8_CELL = 35  # rank 8, col 0 -- (rank-1)*5+col with rank=8, col=0
@@ -14,7 +15,7 @@ RANK8_CELL = 35  # rank 8, col 0 -- (rank-1)*5+col with rank=8, col=0
 def _game(cfg: GameConfig | None = None, seed: int = 0) -> Game:
     """A Game with luck floored, so additional_max rolls cannot contaminate assertions."""
     g = Game(cfg if cfg is not None else GameConfig(special_items=True), seed=seed)
-    g.state.luck = 0
+    suppress_luck(g)
     return g
 
 

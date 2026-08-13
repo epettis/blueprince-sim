@@ -110,13 +110,26 @@ def test_expected_yields_formula(registry):
     """Guaranteed items count in full; "random" items and luck-rolled extras
     contribute their table-weighted expectation; grant/anti_luck effects add
     (or subtract) flat amounts. Verified on synthetic rooms so the test pins
-    the formula, not the data."""
+    the formula, not the data.
+
+    p_extra is hard-coded from the wiki rather than derived from
+    engine/items.py or data/items.json's item_ladder (the same dict
+    expected_yields itself reads) -- deriving it from either would make this
+    test pass for any value, the anti-pattern docs/open_tasks.md's 2026-08-13
+    decisions log found here. items.json's luck.day_start is 10, which the
+    item_ladder bands to 5-10 luck; the wiki (Luck page, "Luck effects") says:
+    "5-10 Luck: The chance to get 1 item is the first line of the above that
+    applies: ... If Veteran Mode is enabled, 15%." expected_yields assumes day
+    1 (so the Day>=6/Day>=3 rows don't match), Room 46 not reached, and
+    Veteran Mode on (GameConfig.veteran_mode's own default) -- under those
+    assumptions "Veteran Mode is enabled" is the first row that matches.
+    """
     base = registry.rooms[0]
     weights = dict(EXTRA_ITEM_TABLE)
     p_key = weights["key"] / sum(weights.values())
     p_coins = weights["coins"] / sum(weights.values())
-    luck = registry.item_rules["luck"]
-    p_extra = (luck["day_start"] - luck["floor"]) / (luck["max_effect_at"] - luck["floor"])
+    assert registry.item_rules["luck"]["day_start"] == 10, "test assumes the 5-10 luck band"
+    p_extra = 0.15
     pile = registry.item_rules["coins"]
     pile_avg = (pile["pile_min"] + pile["pile_max"]) / 2
 
@@ -126,11 +139,14 @@ def test_expected_yields_formula(registry):
     assert y == {"steps": 0.0, "keys": 2.0, "gems": 1.0,
                  "coins": 2 * pile_avg, "luck": 0.0}
 
+    # additional_max=2 does not multiply p_extra: a ladder roll gives a TOTAL
+    # item count for the whole room (already p_extra), clamped to
+    # additional_max -- not additional_max independent p_extra-chance slots.
     lucky = replace(base, items=ItemSpec(guaranteed=(("random", 4),), additional_max=2),
                     effects=())
     y = expected_yields(lucky, registry)
-    assert y["keys"] == pytest.approx((4 + 2 * p_extra) * p_key)
-    assert y["coins"] == pytest.approx((4 + 2 * p_extra) * p_coins * pile_avg)
+    assert y["keys"] == pytest.approx((4 + p_extra) * p_key)
+    assert y["coins"] == pytest.approx((4 + p_extra) * p_coins * pile_avg)
 
     effectful = replace(base, items=ItemSpec(), effects=(
         Effect(tag="grant", params=(("amount", 2), ("resource", "steps"))),

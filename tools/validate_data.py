@@ -689,6 +689,83 @@ def main(argv: list[str] | None = None) -> int:
         if not isinstance(weight, (int, float)) or weight <= 0:
             errors.append(f"food.fruit_weights: {fruit_id!r} has non-positive weight {weight!r}")
 
+    # items.json: item_ladder -- the published item-count ladder engine/items.py's
+    # roll_ladder_count reads. Previously unvalidated entirely (an unvalidated data
+    # section fails open); checks band coverage/contiguity, per-kind row shape, and
+    # percentage ranges. See items.json's item_ladder.meta for the wiki source.
+    VALID_LADDER_BAND_KINDS = {"flat", "chain", "variable_mix", "always_variable", "fixed"}
+    VALID_LADDER_VARIABLE_KINDS = {"fixed", "roll"}
+    VALID_CHAIN_CONDITIONS = {"room46_reached", "day_gte",
+                              "day1_veteran_by_fast_early_drafts", "veteran_mode", "otherwise"}
+
+    def _pct(where: str, val) -> None:
+        if not isinstance(val, (int, float)) or not 0 <= val <= 100:
+            errors.append(f"{where}: percentage out of range 0-100: {val!r}")
+
+    def _check_ladder_rows(rows: list, valid_kinds: set, label: str) -> None:
+        if not rows:
+            errors.append(f"{label}: must be non-empty")
+        prev_max = None
+        for i, band in enumerate(rows):
+            where = f"{label}[{i}]"
+            kind = band.get("kind")
+            if kind not in valid_kinds:
+                errors.append(f"{where}: bad kind {kind!r}")
+            lo, hi = band.get("min"), band.get("max")
+            if i == 0 and lo is not None:
+                errors.append(f"{where}: first row must be unbounded below (no 'min')")
+            if i == len(rows) - 1 and hi is not None:
+                errors.append(f"{where}: last row must be unbounded above (no 'max')")
+            if lo is not None and hi is not None and lo > hi:
+                errors.append(f"{where}: min {lo} > max {hi}")
+            if prev_max is not None and lo != prev_max + 1:
+                errors.append(
+                    f"{where}: not contiguous with previous row "
+                    f"(prev max {prev_max}, this min {lo})")
+            prev_max = hi
+            if kind == "fixed":
+                items_n = band.get("items")
+                if not isinstance(items_n, int) or items_n < 0:
+                    errors.append(f"{where}.items: bad value {items_n!r}")
+                penalty = band.get("penalty")
+                if not isinstance(penalty, int) or penalty < 0:
+                    errors.append(f"{where}.penalty: bad value {penalty!r}")
+            elif kind == "flat":
+                _pct(f"{where}.p_one_pct", band.get("p_one_pct"))
+            elif kind == "chain":
+                chain = band.get("chain", [])
+                if not chain or chain[-1].get("if") != "otherwise":
+                    errors.append(f"{where}.chain: last row must be the 'otherwise' fallback")
+                for j, row in enumerate(chain):
+                    cwhere = f"{where}.chain[{j}]"
+                    cond = row.get("if")
+                    if cond not in VALID_CHAIN_CONDITIONS:
+                        errors.append(f"{cwhere}: unknown condition {cond!r}")
+                    _pct(f"{cwhere}.p_one_pct", row.get("p_one_pct"))
+                    if cond == "day_gte" and not isinstance(row.get("day"), int):
+                        errors.append(f"{cwhere}: day_gte row needs an integer 'day'")
+            elif kind == "variable_mix":
+                _pct(f"{where}.p_variable_pct", band.get("p_variable_pct"))
+                _pct(f"{where}.p_one_pct", band.get("p_one_pct"))
+                total = (band.get("p_variable_pct") or 0) + (band.get("p_one_pct") or 0)
+                if total > 100:
+                    errors.append(f"{where}: p_variable_pct + p_one_pct exceeds 100 ({total})")
+            elif kind == "roll":
+                _pct(f"{where}.p_three_pct", band.get("p_three_pct"))
+                for key in ("three_penalty", "two_penalty"):
+                    val = band.get(key)
+                    if not isinstance(val, int) or val < 0:
+                        errors.append(f"{where}.{key}: bad value {val!r}")
+            # "always_variable" carries no extra fields to check.
+
+    ladder = items_doc.get("item_ladder", {})
+    lconf = ladder.get("meta", {}).get("confidence")
+    if lconf not in VALID_CONFIDENCE:
+        errors.append(f"item_ladder.meta: bad confidence {lconf!r}")
+    _check_ladder_rows(ladder.get("bands", []), VALID_LADDER_BAND_KINDS, "item_ladder.bands")
+    _check_ladder_rows(ladder.get("variable", []), VALID_LADDER_VARIABLE_KINDS,
+                       "item_ladder.variable")
+
     # locks.json: table shape, referential integrity, sane probabilities
     ew = lock_rules["lock_chance"]["ew_by_rank"]
     if set(ew) != {str(i) for i in range(1, 10)}:

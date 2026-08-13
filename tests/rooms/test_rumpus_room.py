@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from blueprince_sim.config import GameConfig
 from blueprince_sim.engine.game import Game
+from luck_utils import suppress_luck
 
 
 def _game_with_room(room_id: str, cell: int, seed: int = 0) -> Game:
@@ -30,6 +31,6 @@ def test_rumpus_room_entry_grants_exactly_8_coins_every_seed():
     cell = 5
     for seed in range(1, 31):
         g = _game_with_room("rumpus_room", cell, seed=seed)
-        g.state.luck = 0
+        suppress_luck(g)
         g._enter(cell)
         assert g.state.coins == 8, f"seed {seed}: expected exactly 8 coins, got {g.state.coins}"

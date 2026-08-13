@@ -11,6 +11,7 @@ from __future__ import annotations
 from blueprince_sim.config import GameConfig
 from blueprince_sim.engine.game import ANTECHAMBER_CELL, Game
 from blueprince_sim.engine.grid import N, S
+from luck_utils import suppress_luck
 
 
 def _game(*, registry=None, seed: int = 1) -> Game:
@@ -20,7 +21,7 @@ def _game(*, registry=None, seed: int = 1) -> Game:
     """
     cfg = GameConfig(antechamber_levers=False, door_locks=False, starting_steps=100)
     g = Game(cfg, seed=seed, **({"registry": registry} if registry is not None else {}))
-    g.state.luck = 0
+    suppress_luck(g)
     return g
 
 

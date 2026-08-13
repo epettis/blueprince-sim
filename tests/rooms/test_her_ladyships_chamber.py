@@ -17,6 +17,7 @@ diff isolates exactly the Chamber/Spare Room bonus.
 from __future__ import annotations
 
 from blueprince_sim.engine.game import Game
+from luck_utils import suppress_luck
 
 CHAMBER_CELL = 7  # rank 2, col 2 -- any on-grid cell works; _enter bypasses door legality
 BOUDOIR_CELL = 12  # rank 3, col 2
@@ -49,7 +50,7 @@ def test_boudoir_after_the_chamber_grants_ten_steps_only_the_first_time(registry
     """Entering a Boudoir after Her Ladyship's Chamber has been drafted grants
     10 steps exactly once; re-entering the same Boudoir grants nothing more."""
     g = Game(cfg, seed=1)
-    g.state.luck = 0  # floors Boudoir's own luck-gated additional_max roll to 0
+    suppress_luck(g)  # floors Boudoir's own luck-gated additional_max roll to 0
     chamber = registry.by_id["her_ladyships_chamber"]
     boudoir = registry.by_id["boudoir"]
     g._place_room(chamber, CHAMBER_CELL, chamber.door_mask)
@@ -78,7 +79,7 @@ def test_boudoir_upgrade_variants_also_pay_the_bonus(registry, cfg):
     a stacked gem bonus) count as the target room too."""
     for variant_id in ("boudoir__ix16", "boudoir__ix17", "boudoir__ix18"):
         g = Game(cfg, seed=1)
-        g.state.luck = 0
+        suppress_luck(g)
         chamber = registry.by_id["her_ladyships_chamber"]
         variant = registry.by_id[variant_id]
         g._place_room(chamber, CHAMBER_CELL, chamber.door_mask)
@@ -93,7 +94,7 @@ def test_boudoir_with_no_chamber_drafted_grants_nothing(registry, cfg):
     """Entering a Boudoir with no Her Ladyship's Chamber (or Spare Room) on
     the estate grants no bonus steps -- only Boudoir's own base +1 gem."""
     g = Game(cfg, seed=1)
-    g.state.luck = 0
+    suppress_luck(g)
     boudoir = registry.by_id["boudoir"]
     _place(g, boudoir, BOUDOIR_CELL)
 
@@ -106,7 +107,7 @@ def test_chamber_and_spare_room_together_grant_twenty_steps(registry, cfg):
     """Her Ladyship's Chamber and Her Ladyship's Spare Room stack: with both
     drafted, entering one Boudoir pays both 10-step bonuses, for 20 total."""
     g = Game(cfg, seed=1)
-    g.state.luck = 0
+    suppress_luck(g)
     chamber = registry.by_id["her_ladyships_chamber"]
     spare_room = registry.by_id["her_ladyships_spare_room__ix135"]
     boudoir = registry.by_id["boudoir"]
@@ -135,7 +136,7 @@ def test_a_boudoir_already_entered_before_the_chamber_is_drafted_never_pays(regi
     lands, does not retroactively pay -- ON_ENTER never refires for a cell
     the engine already marked entered."""
     g = Game(cfg, seed=1)
-    g.state.luck = 0
+    suppress_luck(g)
     boudoir = registry.by_id["boudoir"]
     _place(g, boudoir, BOUDOIR_CELL)
     g._enter(BOUDOIR_CELL)  # entered before any Chamber exists

@@ -15,6 +15,7 @@ from blueprince_sim.engine.grid import N, S
 from blueprince_sim.engine.model import Registry
 from blueprince_sim.engine.rng import Rng
 from blueprince_sim.engine.state import GameState
+from luck_utils import suppress_luck
 
 
 def _state_with_registry():
@@ -87,7 +88,7 @@ def test_casino_grants_one_die_on_first_entry():
     assert casino.items.guaranteed == (("die", 1),)
 
     game = Game(GameConfig(special_items=False), seed=0, registry=reg)
-    game.state.luck = 0
+    suppress_luck(game)
     game._place_room(casino, 7, N | S)  # orientation is irrelevant to the grant
     dice_before = game.state.dice
     game.move(N)

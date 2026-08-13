@@ -9,6 +9,7 @@ from __future__ import annotations
 from blueprince_sim.config import GameConfig
 from blueprince_sim.engine.effects import Hook, fire
 from blueprince_sim.engine.game import ANTECHAMBER_CELL, ENTRANCE_CELL, Game
+from luck_utils import suppress_luck
 
 # The 18 rooms the wiki names as never receiving a spread key (rooms.json's
 # flags.no_locker_keys), verbatim from the module under test's docstring.
@@ -29,7 +30,7 @@ def _game(*, registry=None, **extra) -> Game:
     """
     cfg = GameConfig(**extra)
     g = Game(cfg, seed=1, **({"registry": registry} if registry is not None else {}))
-    g.state.luck = 0
+    suppress_luck(g)
     return g
 
 
@@ -75,7 +76,7 @@ def test_locker_room_can_seed_itself(registry):
     for seed in range(30):
         cfg = GameConfig()
         g = Game(cfg, seed=seed, registry=registry)
-        g.state.luck = 0
+        suppress_luck(g)
         locker_cell = 10
         _place_at(g, "locker_room", locker_cell)
         locker_room = g.registry.by_id["locker_room"]
@@ -103,7 +104,7 @@ def test_none_of_the_eighteen_excluded_rooms_ever_receives_a_key(registry):
     for seed in range(20):
         cfg = GameConfig()
         g = Game(cfg, seed=seed, registry=registry)
-        g.state.luck = 0
+        suppress_luck(g)
         _place_at(g, "locker_room", locker_cell)
         for room_id, cell in zip(EXCLUDED_ROOM_IDS, excluded_cells):
             _place_at(g, room_id, cell)
