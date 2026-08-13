@@ -855,6 +855,88 @@ around 1,800 LOC.
 
 ## Decisions log
 
+- **2026-08-12, `the_axe`: four owner rulings, and a wiki sentence that may
+  describe a mechanic this repo does not have AT ALL.**
+
+  **The rulings:**
+  1. **Targets are root-base keyed -- 48, not 170 or 64.** One target per
+     floorplan family with a gem cost, via `upgrades.root_base_id`, matching how
+     the Room Directory holds one entry per family and how `draft_counts`
+     already does family-level accounting. **`N_ACTIONS` 376 -> 424**, appended.
+     Axing `cloister` covers its upgrade variants.
+  2. **Save-scoped**: axed rooms and the 3-use cap survive the `DayChain` wrap,
+     joining `stars` / `main_course_bonus` / shrine as explicit save-scoped
+     carve-outs. The strongest reading of "permanently", and it makes the
+     32-coin purchase a real long-horizon investment.
+  3. **An unused Axe drops overnight** -- confirms the record's existing
+     `persistence: "day"`, which was an *unsourced* value the wiki does not
+     settle. Buying it is a same-day commitment.
+  4. **Investigate the missing gems-in-hand draft bias BEFORE building the
+     item.** See below.
+
+  **The thing that stopped the item: `weights.json` has no gems-in-hand table.**
+  The Axe's datamined note says axed rooms *"spawn at the same rates as gem
+  rooms (**more often with more gems in hand**, and on higher rank)"*. The rank
+  half is modelled. The gems-in-hand half appears to be modelled **nowhere** --
+  `weights.json` carries only `tables` / `solarium_slot23` / `library_override`
+  / `deck_size_gates`, and the only gem-adjacent gate, `cfg.gem_gate_active()`,
+  is veteran-mode/Room-46/day-based, **not** gems-in-hand.
+
+  **Owner ruled this outranks the item that surfaced it**, and the reasoning is
+  worth keeping: a missing draft-rate input would affect **every gem room in
+  every draft**, not just axed ones -- and if it is real, then
+  `tests/test_draft_stats.py`, the chi-square suite treated as the sharpest
+  guard in the repo, **is currently asserting a distribution that is wrong.**
+  A guard that pins the wrong number is worse than no guard.
+
+  **Live prior, stated so the investigation is honest: the sentence may simply
+  be loose.** Three `blocked_on` strings this session named mechanics the game
+  does not have. "The wiki is loosely worded and there is no separate mechanic"
+  is a perfectly good outcome and cheaper than building something imaginary.
+
+  **Three of my own brief's premises were wrong**, all found by re-derivation:
+  - *"`_CARRYOVER_KEYS` must grow to hold this."* **False.** It is a
+    `frozenset` of **bool** `GameConfig` fields only; ordered and set-valued
+    permanent state lives in a separate documented channel alongside
+    `sigil_doors_open` and `collected_sanctum_keys`. **16 stays 16.** ("Append
+    at the end" is meaningless for a frozenset anyway -- only `sorted()` order
+    matters, and inserting a key *does* shift the `carryover` obs vector.)
+  - *"It needs an observation width change."* **Misleading.** No existing obs
+    key changes shape; it is an additive Dict key. And the gem cost the agent
+    actually drafts against **already reads 0 for free**, because
+    `options[].gem_cost` routes through `_effective_cost`.
+  - *"Confirm `tests/test_draft_stats.py` would catch a deck-move
+    mis-implementation."* **It would not**, and this is the most actionable
+    finding: `test_rarity_roll_matches_table` recomputes its own expected
+    weights through the very same `rarity_deck_ok` the engine uses, so a
+    free/gem bucket move changes deck sizes, the gate self-adjusts, and the
+    test still passes. **The repo currently has NO guard against the exact trap
+    the Axe is most likely to fall into.** Writing that guard is a required part
+    of the item's work, and it must be written *before* the action layer.
+
+  **The Room Directory does not exist in the sim.** The only trace is
+  `meta.directory_number` in `rooms.json`, which is never parsed into `Room`,
+  is missing on 34 of 170 rooms, and has only 77 distinct values across 136
+  rooms (13 rooms share `"3"`). **Not usable as an action index.** "Room
+  Directory action" means: invent a target-selection block, do not build a
+  Directory subsystem.
+
+  **The Axe does NOT belong on `ItemHook.GEM_COST`.** Both existing gem chains
+  are *held-item* chains -- every handler guards on `item_capability_any`. The
+  Axe is **consumed at use time and its discount outlives the item**, so
+  registering it there would mean a handler that deliberately fires when its
+  item is not held, inverting the contract the chain is built on. The override
+  is a two-line branch in `resolve_gem_cost`, which already takes `GameState`
+  -- so **no signature changes propagate anywhere.**
+
+  **Re-derived size: ~520-570 lines** (~220 source, ~300-350 tests), not "obs +
+  action width change", which accounts for maybe 60 of the 220. The real cost is
+  that the item introduces a **new kind of persistent state** -- an ordered,
+  capped, room-keyed permanent price override -- touching the
+  config -> state -> carryover -> config loop end to end, plus a shop-supply
+  gate. Mitigating that: `sigil_doors_open` is a near-exact structural template
+  for all of it, so this is a port, not a design.
+
 - **2026-08-12, OWNER CORRECTION: the Crown of the Blueprints filters a Red Room
   from ALL draws for the rest of the day. There is no exemption -- and this
   VOIDS an earlier ruling rather than amending it.**
