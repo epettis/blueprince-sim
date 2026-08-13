@@ -1411,7 +1411,7 @@
     "absent_spawn_areas": [],
     "blocked_on": "redraw_history_not_retained",
     "reachability": "inert",
-    "notes": "Obtainable today: the Showroom sells it for 30 coins (data/shops.json), via shops.py::buy. Its Tomorrow-Rooms bias IS live -- priority_draws.json carries a Tomorrow Rooms (Chronograph) entry at the datamined 40%, and draft.py::_active_conditions emits condition 'chronograph' while the item is held, checked via chronograph_active_from_state, which reads ItemCapability.CHRONOGRAPH (engine/effects/items/chronograph.py) rather than a data effect tag. What remains unmodelled is the primary rewind-to-a-past-draw effect, which needs redraw history retained and nothing currently stores it -- see blocked_on."
+    "notes": "Obtainable today: the Showroom sells it for 30 coins (data/shops.json), via shops.py::buy. Its Tomorrow-Rooms bias IS live -- priority_draws.json's priority_draws list carries a Tomorrow Rooms (Chronograph) entry at the datamined 40%, matching the wiki's own framing ('This is a Priority Draw (40% for all Tomorrow Rooms)'): it fires once into slot 3 only, not as a per-slot category re-deal. draft.py::_active_conditions emits condition 'chronograph' while the item is held, checked via chronograph_active_from_state, which reads ItemCapability.CHRONOGRAPH (engine/effects/items/chronograph.py) rather than a data effect tag. What remains unmodelled is the primary rewind-to-a-past-draw effect, which needs redraw history retained and nothing currently stores it -- see blocked_on."
    }
   },
   {

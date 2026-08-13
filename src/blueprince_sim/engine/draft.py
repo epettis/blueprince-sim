@@ -192,7 +192,8 @@ def _deal_from_rarity(ctx: DraftContext, rarity_idx: int, slot: int, cell: int,
 
 def _priority_draw(ctx: DraftContext, cell: int, entry_dir: int,
                    exclude: set[int]) -> Room | None:
-    """Roll the slot-3 priority draws (Patio group, Commissary/Observatory, Classroom).
+    """Roll the slot-3 priority draws (Patio group, Commissary/Observatory, Classroom,
+    Tomorrow Rooms).
 
     An entry may carry an optional ``condition`` tag (the same vocabulary
     ``_active_conditions`` feeds to ``_apply_category_bias``'s ``category_biases``
@@ -200,6 +201,13 @@ def _priority_draw(ctx: DraftContext, cell: int, entry_dir: int,
     isn't active. The active-condition set is computed lazily, only once some
     entry actually carries a ``condition``, so the common (today: universal)
     unconditional path never pays for it.
+
+    An entry targets its candidate rooms either with an explicit ``rooms`` list
+    (a named, fixed set) or with a ``category`` selector, resolved here to every
+    room currently carrying that category (``Room.is_category``) -- the
+    Chronograph's Tomorrow Rooms bias uses ``category`` so its twelve room ids
+    (including the Mail Room's three upgrade variants) are never hand-typed and
+    stay correct if a variant is added later.
     """
     pool_ids = {ctx.registry.rooms[c].id
                 for d in ctx.state.decks for c in d.order}
@@ -216,7 +224,10 @@ def _priority_draw(ctx: DraftContext, cell: int, entry_dir: int,
             chance = entry["chance_with_greenhouse"]
         if not ctx.rng.chance(f"priority_{entry['label']}", chance):
             continue
-        candidates = [rid for rid in entry["rooms"]
+        entry_rooms = entry.get("rooms")
+        if not entry_rooms:
+            entry_rooms = [r.id for r in ctx.registry.rooms if r.is_category(entry["category"])]
+        candidates = [rid for rid in entry_rooms
                       if rid in pool_ids or rid in ctx.registry.by_id and
                       ctx.registry.by_id[rid].pool == "base"]
         for rid in candidates:
