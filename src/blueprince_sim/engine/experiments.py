@@ -22,14 +22,19 @@ not have), ``reservoir_water_level`` (the Reservoir is an area node only, not
 a room in rooms.json), ``remove_tunnel_crate`` (the Crate Tunnel -- owner
 ruled out of scope), ``permanent_lockpicking_skill`` (needs a lockpicking
 stat that does not exist, and its own magnitude is unpublished besides).
+:func:`load_experiments` filters these four (plus two inert packet triggers,
+see below) out of ``ExperimentsRegistry.packet_trigger_ids``/
+``packet_effect_ids`` at load time, so they can never reach
+:func:`draw_offers`'s sampling pool regardless of ``cfg.satellite_dish_unlocked``
+-- unlike ``base_trigger_ids``/``base_effect_ids``, which carry no such filter
+because every base record happens to be implemented already.
 ``keys_per_30_steps``, ``unseal_antechamber_door``, ``random_item_then_zero_keys``,
 and ``half_steps_for_dice`` (all packet pool) ARE implemented mechanically
 below -- see :func:`_apply_unseal_antechamber_door`,
 :func:`_apply_random_item_then_zero_keys`, and
-:func:`_apply_half_steps_for_dice` for the latter three -- but stay
-undrawable until the packet subsystem (phases 5-8) is authorised, since
-:func:`draw_offers` only samples the base pool. All twelve base effects are
-now implemented.
+:func:`_apply_half_steps_for_dice` for the latter three -- and are drawable
+once ``cfg.satellite_dish_unlocked`` is set (see :func:`draw_offers`). All
+twelve base effects are now implemented.
 
 ``add_aquariums`` (the last base effect, uncapped) injects ``aquariums_added``
 (3) copies of the ``aquarium__experiment`` floorplan into the live decks via
@@ -84,11 +89,12 @@ six are now wired: ``rank9_first_entry``, ``upgraded_floorplan_draft``,
 ``terminal_access`` (see each's own section below). ``speed_40_seconds`` and
 ``map_view`` stay permanently unimplemented -- this simulator has no wall
 clock and no interactive map, so neither condition can ever be observed,
-regardless of the packet subsystem's own phase. None of the eight packet
-triggers is reachable in play yet even though six now have firing sites: the
-packet pool is still never sampled by :func:`draw_offers` (``or_packet``
-stays hardcoded False in :func:`_effect_offerable`), so wiring the firing
-sites is dead code today, ready for the day a later PR flips that gate.
+regardless of the packet subsystem's own phase; :func:`load_experiments`
+excludes both from ``ExperimentsRegistry.packet_trigger_ids``, so they can
+never reach :func:`draw_offers`'s sampling pool. The six wired packet
+triggers become reachable in play once ``cfg.satellite_dish_unlocked`` is
+set -- the permanent carry-over flag lit by the Apple Orchard sundial (see
+:func:`_effect_offerable`'s ``or_packet`` read and :func:`draw_offers`).
 ``immediately`` fires once, at setup completion, from
 :meth:`Game._maybe_finish_experiment_setup`. Six -- ``shops``, ``gems_spent``,
 ``bedrooms_after_second``, ``hallway_from_hallway``, ``red_room_draft``,
@@ -126,8 +132,8 @@ hook at all three ON_HAND_DEALT sites (the initial grid deal, the initial
 outer deal, and every redraw), so no new call site was needed. A hidden or
 archived Drawing Room still counts, per the wiki's plain "drawn" wording.
 
-Six of the eight packet triggers now have firing sites (still unreachable in
-play -- see above). ``rank9_first_entry`` fires from :func:`on_room_entered`,
+Six of the eight packet triggers now have firing sites (see above for when
+they become reachable). ``rank9_first_entry`` fires from :func:`on_room_entered`,
 called from ``Game._enter`` right after its own ``entered[cell]`` guard
 confirms this is the cell's first entry today; a Rank 9 room (including the
 Antechamber) entered before the experiment was configured never reaches this
@@ -172,9 +178,10 @@ Two of the twelve base triggers carry a ``day_gate`` availability
 :func:`draw_offers`'s sampling pool before day 8 unless ``cfg.veteran_mode``
 is set (the default). One of the twelve base effects carries a
 ``day_or_packet_gate`` availability (``mail_room_letter``): excluded before
-day 11 (``or_packet`` is permanently False -- see :func:`_effect_offerable`);
-also excluded once its cap is spent, though see that function's docstring
-for why this half of the check cannot yet see a prior day's deliveries.
+day 11 unless ``cfg.satellite_dish_unlocked`` is set (``or_packet`` -- see
+:func:`_effect_offerable`); also excluded once its cap is spent, though see
+that function's docstring for why this half of the check cannot yet see a
+prior day's deliveries.
 Another base effect carries a ``cross_column_exclude`` availability
 (``spread_dig_spots``): excluded whenever ``trash_while_digging`` is among
 the 3 triggers offered that same setup (not merely eligible to be offered --
@@ -231,6 +238,15 @@ class ExperimentsRegistry:
     effect_by_id: dict[str, ExperimentEffect]
     base_trigger_ids: tuple[str, ...]  # pool == "base", file order
     base_effect_ids: tuple[str, ...]  # pool == "base", file order
+    # pool == "packet" AND implemented, file order. Filtered here at load time
+    # (not draw time) so every consumer of this tuple gets a safe-by-construction
+    # id set -- unlike base_trigger_ids/base_effect_ids, which carry no implemented
+    # filter because every base record happens to be implemented, the packet pool
+    # has 2 genuinely inert triggers that must never reach draw_offers's sampling.
+    packet_trigger_ids: tuple[str, ...]
+    # pool == "packet" AND implemented, file order. Same reasoning as
+    # packet_trigger_ids -- the packet pool has 4 genuinely inert effects.
+    packet_effect_ids: tuple[str, ...]
 
 
 def load_experiments(data_dir: Path) -> ExperimentsRegistry:
@@ -270,6 +286,8 @@ def load_experiments(data_dir: Path) -> ExperimentsRegistry:
         effect_by_id={e.id: e for e in effects},
         base_trigger_ids=tuple(t.id for t in triggers if t.pool == "base"),
         base_effect_ids=tuple(e.id for e in effects if e.pool == "base"),
+        packet_trigger_ids=tuple(t.id for t in triggers if t.pool == "packet" and t.implemented),
+        packet_effect_ids=tuple(e.id for e in effects if e.pool == "packet" and e.implemented),
     )
 
 
@@ -351,9 +369,15 @@ def _effect_offerable(effect: ExperimentEffect, cfg, ex: ExperimentState,
     entrance_hall_trunk carries no availability record at all (it stays
     offerable forever and simply no-ops past its cap in :func:`apply_effect`;
     the wiki never says it stops being offered, unlike mail_room_letter's
-    explicit "never offered again"). ``or_packet`` is permanently False here:
-    the packet subsystem (phases 5-8) is not authorised, so no custom
-    experiment packet can ever exist to satisfy it.
+    explicit "never offered again"). ``or_packet`` reads
+    ``cfg.satellite_dish_unlocked`` -- the permanent carry-over flag set the
+    first time the Apple Orchard sundial is lit (special_items.py::light()) --
+    so mail_room_letter's day-11 gate opens early once a custom experiment
+    packet exists, exactly as its own record's ``availability.text`` says.
+    Reading ``cfg`` rather than ``state.satellite_dish_unlocked`` means the
+    gate opens from the FOLLOWING day, the same "cfg, not state" shape
+    orchard_unlocked's own steps bonus already uses -- lighting the sundial
+    does not retroactively unlock anything drawn earlier the same day.
 
     ``cross_column_exclude`` reads ``offered_triggers`` -- the 3 triggers
     already drawn for today's setup, per :func:`draw_offers`'s own ordering
@@ -371,7 +395,7 @@ def _effect_offerable(effect: ExperimentEffect, cfg, ex: ExperimentState,
     """
     gate = effect.availability
     if gate is not None and gate.get("kind") == "day_or_packet_gate":
-        or_packet = False  # packet subsystem (phases 5-8) unauthorised; never satisfiable
+        or_packet = cfg.satellite_dish_unlocked
         if not (cfg.day >= gate.get("day", 0) or or_packet):
             return False
     if gate is not None and gate.get("kind") == "cross_column_exclude":
@@ -384,7 +408,8 @@ def _effect_offerable(effect: ExperimentEffect, cfg, ex: ExperimentState,
 
 
 def draw_offers(registry, rng, cfg, state) -> tuple[tuple[str, ...], tuple[str, ...]]:
-    """Draw 3 triggers and 3 effects uniformly from the base pool.
+    """Draw 3 triggers and 3 effects uniformly from the base pool, plus the
+    packet pool once ``cfg.satellite_dish_unlocked`` is set.
 
     Sampled without replacement via named RNG substreams (seed-deterministic),
     then restored to the registry's own file order -- the same "sample, then
@@ -392,8 +417,25 @@ def draw_offers(registry, rng, cfg, state) -> tuple[tuple[str, ...], tuple[str, 
     -- so the offered order is stable and readable rather than reflecting
     sample order.
 
-    Only the base pool is ever drawn: the packet pool (Satellite Dish, phases
-    5-8) is out of scope, so its 8 triggers and 8 effects are never offered.
+    With ``cfg.satellite_dish_unlocked`` False, ``trigger_ids``/``effect_ids``
+    below are exactly ``ex.base_trigger_ids``/``ex.base_effect_ids`` -- the
+    same tuples, unfiltered further -- so the sampling pools, and therefore
+    every RNG draw this function makes, are byte-identical to before this
+    packet gate existed. Once the flag is set, ``ex.packet_trigger_ids``/
+    ``ex.packet_effect_ids`` are appended: those tuples are already filtered
+    to ``implemented`` records at load time (see :func:`load_experiments`), so
+    only the six wired packet triggers and four wired packet effects ever
+    enter either pool -- the two inert triggers (``speed_40_seconds``,
+    ``map_view``) and four inert effects (``pantry_fruit``,
+    ``reservoir_water_level``, ``remove_tunnel_crate``,
+    ``permanent_lockpicking_skill``) can never be sampled, flag or no flag.
+    File order places every packet id after every base id, so appending
+    (rather than interleaving) still yields the canonical order the final
+    ``.sort(key=...index)`` restores. This does not implement Packet
+    Management (the wiki's own ``>=8``-of-20 selection screen) -- every
+    implemented packet id becomes sample-eligible the moment the flag is set,
+    which is a documented simplification (see docs/experiments-design.md).
+
     Triggers gated by a ``day_gate`` availability (see :func:`_trigger_offerable`)
     are dropped from the trigger sampling pool and sampled first -- their
     result then feeds the effect pool's own ``cross_column_exclude`` filter
@@ -402,18 +444,24 @@ def draw_offers(registry, rng, cfg, state) -> tuple[tuple[str, ...], tuple[str, 
     no RNG substream draw is reordered by the dependency, only the effect
     pool's filtering moment. Effects also gated by their own availability/cap
     are dropped from the effect sampling pool before that draw. None of the 2
-    day-gated triggers, the single gated/cappable effect (mail_room_letter),
-    or spread_dig_spots's cross-column exclusion (which can drop at most 1 of
-    the 12 base effects) can ever shrink either pool below the 3 the draw
-    needs.
+    day-gated triggers, the single gated/cappable base effect
+    (mail_room_letter), or spread_dig_spots's cross-column exclusion (which
+    can drop at most 1 of the 12 base effects) can ever shrink either pool
+    below the 3 the draw needs, with or without the packet pool appended.
     """
     ex = registry.experiments
-    trig_pool = [t for t in ex.base_trigger_ids if _trigger_offerable(ex.trigger_by_id[t], cfg)]
+    trigger_ids = ex.base_trigger_ids
+    if cfg.satellite_dish_unlocked:
+        trigger_ids = trigger_ids + ex.packet_trigger_ids
+    trig_pool = [t for t in trigger_ids if _trigger_offerable(ex.trigger_by_id[t], cfg)]
     assert len(trig_pool) >= 3, "day_gate filtering must never shrink the trigger pool below 3"
     sampled_triggers = rng.stream("experiment_triggers").sample(trig_pool, 3)
     sampled_triggers.sort(key=trig_pool.index)
 
-    eff_pool = [e for e in ex.base_effect_ids
+    effect_ids = ex.base_effect_ids
+    if cfg.satellite_dish_unlocked:
+        effect_ids = effect_ids + ex.packet_effect_ids
+    eff_pool = [e for e in effect_ids
                 if _effect_offerable(ex.effect_by_id[e], cfg, state.experiment, sampled_triggers)]
     assert len(eff_pool) >= 3, "effect availability filtering must never shrink the pool below 3"
     sampled_effects = rng.stream("experiment_effects").sample(eff_pool, 3)

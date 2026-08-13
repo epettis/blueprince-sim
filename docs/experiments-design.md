@@ -1,10 +1,12 @@
 # Laboratory / Experiments — design
 
-Status: **phase 0 — data and validation only.** `src/blueprince_sim/data/experiments.json`
-transcribes every trigger and effect the wiki publishes; `tools/validate_data.py`
-checks it for referential integrity and shape. There is no engine module, no
-`GameState` wiring, no hooks, and no player-facing actions yet — every record in
-the data file carries `"implemented": false`. Mirrors the shape of
+Status: **phases 0-8 landed** (see "Phase plan" / "Status" below for the
+detailed history). `src/blueprince_sim/data/experiments.json` transcribes
+every trigger and effect the wiki publishes; `tools/validate_data.py` checks
+it for referential integrity and shape; `engine/experiments.py` holds the
+registry, setup draw, trigger detection, and effect application for both the
+base pool (always available) and the packet pool (sample-eligible once
+`cfg.satellite_dish_unlocked` is set). Mirrors the shape of
 `docs/special-items-design.md`; read that doc for the idiom this one follows.
 
 Scope of this document: the Experiments mechanic itself (triggers, effects, the
@@ -87,13 +89,15 @@ there in practice, since no base/packet effect names specific rooms).
 ### `pool`
 
 `"base"` (12 triggers, 12 effects, always available) or `"packet"` (the 8+8
-the Satellite Dish data packet adds). The packet pool is transcribed here for
-completeness even though the packet *subsystem* — Satellite Dish, Packet
-Management, the radio/network flow that unlocks it — is out of scope for
-phases 0–4 (see "Phase plan" below). A `packet`-pool record can still be
-implemented mechanically as a trigger/effect in phases 1–4; what stays out of
-scope is the download-and-select machinery that makes it choosable in the
-first place.
+the Satellite Dish data packet adds, sample-eligible once `cfg.
+satellite_dish_unlocked` is set -- see "Phase plan" below). A `packet`-pool
+record's own `implemented` flag governs whether it has a trigger/effect
+detection or apply site at all; `pool` and `implemented` are independent
+fields, so a packet record can be (and six currently are) `implemented:
+false` regardless of whether the packet pool itself is open. Packet
+Management (the wiki's own `>=8`-of-20 selection screen, letting the player
+choose which packet records may actually appear) is not modelled -- every
+`implemented` packet record is sample-eligible the instant the flag is set.
 
 ### `availability`
 
@@ -127,8 +131,11 @@ which is why `draw_offers` samples the 3 triggers before filtering the effect
 pool: the exclusion reads which triggers were actually *offered* that setup
 (the sampled 3), not the whole eligible trigger pool, so the trigger draw must
 finish first. `cross_column_probability` (`map_view`) stays unenforced --
-`map_view` is a packet-pool trigger, and the packet pool is never offered
-(phases 5-8, out of scope), so the rule it would gate can never fire anyway.
+`map_view` is a packet-pool trigger that stays `implemented: false` (no wall
+clock in this simulator), so `load_experiments` excludes it from
+`ExperimentsRegistry.packet_trigger_ids` and it can never be offered,
+regardless of whether the packet pool itself is open, so the rule it would
+gate can never fire anyway.
 
 ### `cap`
 
@@ -254,8 +261,11 @@ that is out of scope on its own terms:
 
 ## Phase plan
 
-Phases 0–4 are authorised. Phases 5–8 are a separate subsystem and are
-explicitly **not** in scope for this work — see below for why.
+Phases 0–8 are all now authorised and landed, in the sense described below —
+"phase" here tracks the order this subsystem's authorization actually
+happened in, not a strict prerequisite chain (phases 5–7 landed the Satellite
+Dish prerequisite and packet triggers/effects piecemeal before phase 8 opened
+the pool they draw from).
 
 0. **This document and this data file.** Transcription and validation only.
    No engine code, no `GameState`, no hooks, no actions. Makes the research
@@ -267,26 +277,48 @@ explicitly **not** in scope for this work — see below for why.
    setup time).
 2. **Setup + the twelve base triggers/effects.** `Game.setup_experiment`,
    `pause_experiment`/`resume_experiment`; wire the base-pool availability
-   rules (`day_gate`, `room_drafted_gate`, `item_obtained_gate`). Packet-pool
-   records stay undrawable (no Satellite Dish/packet system yet), but their
-   `implemented` flag can flip once their trigger/effect logic is written,
-   independent of whether the packet *download* flow exists.
+   rules (`day_gate`, `room_drafted_gate`, `item_obtained_gate`).
 3. **Trigger detection hooks.** Wire each base trigger's condition into the
    relevant call sites (draft, move, dig, lock-open, apple-eat) the way
    `special_items.py`'s hooks are wired into `game.py` today.
 4. **Effect application + env/obs wiring.** Apply each base effect on trigger
    success; expose active-experiment state (trigger id, effect id, today's
    trigger count) to the observation space; add setup/pause/resume actions.
+5. **The Satellite Dish prerequisite.** Lighting the Apple Orchard sundial
+   (three held microchips + an ignition tool) permanently sets
+   `GameConfig.satellite_dish_unlocked` (`special_items.py::light()`).
+6. **Packet trigger detection hooks.** Six of the eight packet triggers
+   (`rank9_first_entry`, `upgraded_floorplan_draft`, `tomorrow_room_draft`,
+   `antechamber_lever_pull`, `fireplace_draft`, `terminal_access`) got firing
+   sites, the same shape as phase 3's base triggers. `speed_40_seconds` and
+   `map_view` stay permanently unimplemented (no wall clock, no interactive
+   map in this simulator).
+7. **Packet effect application.** Four of the eight packet effects
+   (`unseal_antechamber_door`, `keys_per_30_steps`, `random_item_then_zero_keys`,
+   `half_steps_for_dice`) apply their effect, the same shape as phase 4's base
+   effects. `pantry_fruit`, `reservoir_water_level`, `remove_tunnel_crate`, and
+   `permanent_lockpicking_skill` stay `implemented: false` (see "Status"
+   below for why each is blocked).
+8. **Opening the packet pool.** `draw_offers` samples `ExperimentsRegistry.
+   packet_trigger_ids`/`packet_effect_ids` alongside the base pool once
+   `cfg.satellite_dish_unlocked` is set, and `_effect_offerable`'s `or_packet`
+   reads the same flag instead of a hardcoded `False`. Both packet id tuples
+   are filtered to `implemented` records at load time (`load_experiments`),
+   so the six inert packet records from phases 6–7 can never be offered —
+   unlike `base_trigger_ids`/`base_effect_ids`, which carry no such filter
+   because every base record happens to be implemented already, and must not
+   start filtering on `implemented` as a side effect of this change (nothing
+   about the base pool's own sampling changed). With the flag unset, the
+   sampling pools -- and therefore every RNG draw `draw_offers` makes -- are
+   exactly the pre-phase-8 base-only tuples, unchanged.
 
-**Phases 5–8 (not authorised, separate subsystem):** the Satellite Dish
-prerequisite chain, the data-packet download flow, Packet Management (the
-≥8-of-20 selection UI), and the eight packet triggers/effects' own detection
-and application logic. These are gated behind the Satellite Dish being raised
-at all — a Grounds/outer-area prerequisite this codebase does not yet model —
-so building packet *behavior* ahead of that prerequisite would be simulating a
-state the player can never actually reach yet. The packet pool's *data* is
-transcribed now (phase 0) because the table is more reviewable complete than
-partial; its *behavior* waits for its own authorization.
+   **Not built:** Packet Management, the wiki's own screen for choosing which
+   ≥8 of the 20 triggers/effects may actually appear once packets are
+   unlocked. This phase does not model that selection: every `implemented`
+   packet record becomes sample-eligible the instant the flag is set, which
+   is a deliberate simplification (equivalent to assuming the player always
+   enables the maximal legal set) rather than a partial implementation of the
+   selection screen.
 
 ### Status
 
@@ -526,14 +558,15 @@ never even be *offered* together — the `cross_column_exclude` enforcement
 above. The comment now states this argument directly instead of pointing at
 an unimplemented effect.
 
-Most recently, three of the eight packet effects landed:
+Three of the eight packet effects landed next:
 `unseal_antechamber_door`, `random_item_then_zero_keys`, and
 `half_steps_for_dice` (`_apply_unseal_antechamber_door`,
 `_apply_random_item_then_zero_keys`, `_apply_half_steps_for_dice` in
-`engine/experiments.py`). All three stay undrawable — `pool="packet"`, and
-`draw_offers` still only samples the base pool — the same shape
-`keys_per_30_steps` already established; only `apply_effect` is reachable
-directly. `unseal_antechamber_door` reuses `Game._open_segment`, the same
+`engine/experiments.py`) — the same shape `keys_per_30_steps` already
+established. At the time these landed, all four stayed undrawable
+(`draw_offers` sampled the base pool only); they became drawable once the
+packet pool itself opened (see below). `unseal_antechamber_door` reuses
+`Game._open_segment`, the same
 low-level call every Antechamber lever room already makes to unseal a
 segment, rather than `Game._open_north_door`'s wrapper (which also
 attributes the open to the `antechamber_lever_pull` trigger and the env
@@ -579,6 +612,29 @@ record (it is an area node only), the Crate Tunnel is owner-ruled out of
 scope, and no lockpicking-skill stat exists (its magnitude is unpublished
 besides).
 
+Most recently, the packet pool itself opened (phase 8), keyed on
+`cfg.satellite_dish_unlocked` -- the permanent carry-over flag lit by the
+Apple Orchard sundial. `ExperimentsRegistry` gained `packet_trigger_ids`/
+`packet_effect_ids`, built at load time (`load_experiments`) the same way as
+`base_trigger_ids`/`base_effect_ids` except *with* an `implemented` filter:
+the packet pool has six genuinely inert records (`speed_40_seconds`,
+`map_view`, `pantry_fruit`, `reservoir_water_level`, `remove_tunnel_crate`,
+`permanent_lockpicking_skill`) that must never reach `draw_offers`'s
+sampling, unlike the base pool, where every record happens to be
+implemented so the same filter was never needed. `draw_offers` appends
+`packet_trigger_ids`/`packet_effect_ids` to the base tuples only when the
+flag is set, and `_effect_offerable`'s `or_packet` (previously hardcoded
+`False`) now reads the same flag -- which also opens `mail_room_letter`'s
+existing `day_or_packet_gate` early, exactly as that record's own
+`availability.text` already said it should, with no further change needed.
+With the flag unset, both sampling pools are the unmodified base tuples, so
+every RNG draw `draw_offers` makes is unchanged from before phase 8 --
+verified across 500 seeds against the pre-phase-8 code, byte-identical
+trigger/effect offers throughout, and pinned by a seed-0 regression test.
+This does not build Packet Management (the wiki's own `>=8`-of-20 selection
+screen) -- see the phase 8 entry above for why that is a deliberate
+simplification, not a partial implementation.
+
 ## Validation (`tools/validate_data.py`)
 
 - Every trigger/effect `id` is unique (checked across triggers and effects
@@ -595,8 +651,10 @@ besides).
 - `cap`, when present, is a positive int.
 - `availability.chance_pct` and `magnitude.priority_draw_chance_pct` entries
   fall in `[0, 100]`.
-- `implemented` must be `false` for every record in phase 0; `implemented:
-  false` requires `meta.blocked_on` (same rule `special_items.json` enforces).
+- `implemented: false` requires `meta.blocked_on` (same rule
+  `special_items.json` enforces); `implemented` was `false` for every record
+  at phase 0 (data/validation only, no engine yet) and now varies per record
+  as each trigger/effect's detection/apply site lands.
 - `meta.confidence` is one of the standard four values.
 
 These are **errors**, not warnings, per this task's own instruction: a
