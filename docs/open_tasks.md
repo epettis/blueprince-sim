@@ -855,6 +855,41 @@ around 1,800 LOC.
 
 ## Decisions log
 
+- **2026-08-12, demo replay's two silent-failure paths are closed.** Both had
+  the same shape: **the code chose to continue rather than complain**, handing
+  back plausible-looking data instead of raising.
+
+  1. **Silent truncation.** `replay_demo` broke out on a TERMINAL phase and
+     returned normally, discarding the remaining recorded actions -- one record
+     dropped 24 of 33 and raised nothing. Now raises. **Verified no legitimate
+     replay ends early**: both producers (`web/play.py::PlaySession._close_day`,
+     `rl/train.py::EpisodeRecorder.on_episode_end`) append the action *before*
+     checking termination, and `Phase.TERMINAL` is set in exactly one place, so a
+     record's last action is always the one that ends the day. Pinned by a test.
+     The new branch is genuinely reachable, not theoretical: **7 of 659** tampered
+     replays hit it, and seed 24 reproduces it deterministically.
+  2. **A missing `unlocks` stamp defaulted to `"all"`** -- which for a legacy
+     fresh-save record is precisely the tampering the divergence test simulates.
+     Now raises `UnstampedDemoError`, following the module's own precedent
+     (`StaleDemoError` refuses outright rather than guessing) rather than
+     `web/replay.py`'s tolerant default, which exists because that path has a UI
+     to surface the doubt to a human. This one has no such side-channel.
+
+  **The defect was at TWO sites, not the one I cited.** `load_demo_dataset:149`
+  *and* `config_for_record:199` -- and `replay_demo` calls the latter directly,
+  so fixing only the line in my brief would have left the main path still
+  guessing. Both now route through one `_record_unlocks()` helper.
+
+  **No existing test needed changing**, because every one builds records via
+  `synthetic_demo_records`, which always stamps `unlocks`. And the one real demo
+  file on disk (`runs/postfix-v2/demos.jsonl`, 2 human days) already carries
+  `"unlocks": "fresh"`, so nothing real breaks.
+
+  **Still open, and needing a ruling:** the config-digest recommendation. These
+  two fixes close the *silent* paths; they do not make a wrong-preset replay
+  detectable in general, which remains ~17% on the synthetic fixture and ~72%
+  on a human-like action mix.
+
 - **2026-08-12, the Grotto pedestal chip is takeable, and that makes the sundial
   lightable.** `TAKE_GROTTO_CHIP` is legal at `blackbridge_grotto` while the
   chip is in place; taking it grants a microchip and sets `grotto_chip_taken`.

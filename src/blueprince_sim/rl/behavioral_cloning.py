@@ -69,14 +69,33 @@ class MixedPresetError(DemoError):
 
 
 class ReplayDivergenceError(DemoError):
-    """A recorded action was not legal when replayed.
+    """A recorded action was not legal when replayed, or replay ended early.
 
     Both known producers (``PlaySession.act`` and the trainer's
     ``EpisodeRecorder``, fed from ``env.action_masks()``/``env.step()``) only
     ever record actions that were legal in the live mask at record time, so a
     divergence on replay means the reconstructed ``GameConfig`` doesn't match
     what produced the recording (wrong ``unlocks``/``day_config``), not that
-    the demo itself is corrupt busywork to silently paper over.
+    the demo itself is corrupt busywork to silently paper over. The same is
+    true of reaching ``Phase.TERMINAL`` before every recorded action has been
+    consumed: both producers close a record's ``"actions"`` list exactly at
+    the step that ends the day (see ``replay_demo``), so a real record never
+    has actions left over once terminal.
+    """
+
+
+class UnstampedDemoError(DemoError):
+    """A demo record has no ``"unlocks"`` field.
+
+    ``"unlocks"`` says which ``GameConfig`` preset (``fresh_save_config`` or
+    ``all_unlocks_config``) a record's ``day_config`` diffs against; guessing
+    it is exactly the tampering ``test_replay_demo_raises_on_wrong_preset``
+    simulates, and every record on disk (``PlaySession._close_day``,
+    ``EpisodeRecorder.on_episode_end``) has stamped it since the field was
+    added. An unstamped record predates the stamp and cannot be safely
+    replayed -- refused loudly, same precedent as :class:`StaleDemoError`
+    refusing a record with a mismatched ``n_actions`` rather than replaying
+    it as if the ids still meant the same thing.
     """
 
 
@@ -92,6 +111,25 @@ def normalize_unlocks(unlocks: str) -> str:
     mixing presets.
     """
     return "fresh" if unlocks in ("none", "fresh") else "all"
+
+
+def _record_unlocks(record: dict, where: str = "") -> str:
+    """The record's normalized ``unlocks`` preset, or raise if unstamped.
+
+    Centralizes the one place a record's ``"unlocks"`` is read so neither
+    :func:`load_demo_dataset` nor :func:`config_for_record` can independently
+    default a missing stamp to ``"all"`` -- see :class:`UnstampedDemoError`.
+    ``where`` prefixes the error with a file:line when the caller has one.
+    """
+    if "unlocks" not in record:
+        prefix = f"{where}: " if where else ""
+        raise UnstampedDemoError(
+            f"{prefix}demo (episode={record.get('episode')}, "
+            f"seed={record.get('seed')}) has no 'unlocks' stamp -- it predates "
+            "the field and cannot be safely replayed; guessing the preset is "
+            "exactly the tampering test_replay_demo_raises_on_wrong_preset "
+            "simulates")
+    return normalize_unlocks(record["unlocks"])
 
 
 def _iter_jsonl_records(paths: Iterable[str | Path]) -> Iterator[tuple[Path, int, dict]]:
@@ -146,7 +184,7 @@ def load_demo_dataset(paths: Iterable[str | Path], n_actions: int,
                 f"seed={rec.get('seed')}) was recorded with n_actions={rec_n!r}, "
                 f"but the current action space has {n_actions} actions -- "
                 "refusing to replay it as if the ids still meant the same thing")
-        preset = normalize_unlocks(rec.get("unlocks", "all"))
+        preset = _record_unlocks(rec, f"{f}:{line_no}")
         if wanted is not None and preset != wanted:
             continue
         seen_presets.add(preset)
@@ -190,13 +228,15 @@ def config_for_record(record: dict) -> GameConfig:
 
     Selects ``all_unlocks_config``/``fresh_save_config`` (imported lazily to
     avoid a training-module import at load time) by the record's normalized
-    ``unlocks``, using its own ``reward`` name (mirrors ``web/replay.py``'s
-    per-record reconstruction), then layers ``day_config`` on top when present.
+    ``unlocks`` (:class:`UnstampedDemoError` if missing -- see
+    :func:`_record_unlocks`), using its own ``reward`` name (mirrors
+    ``web/replay.py``'s per-record reconstruction), then layers ``day_config``
+    on top when present.
     """
     from .train import all_unlocks_config, fresh_save_config  # local: avoid import cycle noise
 
     reward = record.get("reward", "shaped")
-    base_cfg = (fresh_save_config(reward) if normalize_unlocks(record.get("unlocks", "all")) == "fresh"
+    base_cfg = (fresh_save_config(reward) if _record_unlocks(record) == "fresh"
                 else all_unlocks_config(reward))
     return _apply_day_config_diff(base_cfg, record.get("day_config"))
 
@@ -210,6 +250,15 @@ def replay_demo(record: dict) -> list[tuple[dict, int, np.ndarray]]:
     exactly the supervision signal a BC loss needs. Follows the reconstruction
     order ``PlaySession._rebuild`` uses: build the config, ``reset(seed=...)``,
     then step through the full recorded action list.
+
+    Raises :class:`ReplayDivergenceError` if the env goes ``Phase.TERMINAL``
+    before every recorded action has been consumed. Both known producers
+    (``PlaySession._close_day``, ``EpisodeRecorder.on_episode_end``) append
+    the action that ends the day as the LAST element of ``"actions"``, so a
+    genuine record is always fully consumed exactly when the day ends -- this
+    never fires for one. It fires only when the reconstructed ``GameConfig``
+    ends the day earlier than the recording did, in which case returning the
+    triples collected so far would silently discard the rest of the demo.
     """
     from ..env.blueprince_env import BluePrinceEnv  # local: keeps env import out of load-only paths
 
@@ -217,9 +266,15 @@ def replay_demo(record: dict) -> list[tuple[dict, int, np.ndarray]]:
     env = BluePrinceEnv(cfg=cfg)
     obs, _info = env.reset(seed=int(record["seed"]))
     triples: list[tuple[dict, int, np.ndarray]] = []
-    for raw_action in record["actions"]:
+    actions = record["actions"]
+    for i, raw_action in enumerate(actions):
         if env.game.phase is Phase.TERMINAL:
-            break  # defensive: never replay past a terminal state
+            raise ReplayDivergenceError(
+                f"demo episode={record.get('episode')} seed={record.get('seed')}: "
+                f"replay reached a terminal state after consuming {i} of "
+                f"{len(actions)} recorded actions -- the reconstructed "
+                "GameConfig (unlocks/day_config) likely doesn't match what "
+                "actually produced this recording")
         action = int(raw_action)
         mask = env.action_masks()
         if not (0 <= action < len(mask)) or not mask[action]:

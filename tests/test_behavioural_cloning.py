@@ -19,6 +19,7 @@ from blueprince_sim.rl.behavioral_cloning import (
     MixedPresetError,
     ReplayDivergenceError,
     StaleDemoError,
+    UnstampedDemoError,
     collate,
     config_for_record,
     load_demo_dataset,
@@ -115,6 +116,19 @@ def test_load_demo_dataset_rejects_stale_n_actions(tmp_path):
         load_demo_dataset([demo_file], n_actions=A.N_ACTIONS)
 
 
+def test_load_demo_dataset_rejects_a_record_missing_the_unlocks_stamp(tmp_path):
+    """A record with no 'unlocks' key must be refused loudly rather than
+    defaulting to 'all' -- for a legacy fresh-save record, that default IS
+    exactly the tampering test_replay_demo_raises_on_wrong_preset simulates."""
+    records = synthetic_demo_records("all", "shaped", n_days=1, seed=16, action_rng_seed=0)
+    del records[0]["unlocks"]  # simulate a pre-stamp legacy record
+    demo_file = tmp_path / "demos.jsonl"
+    _write_jsonl(demo_file, records)
+
+    with pytest.raises(UnstampedDemoError):
+        load_demo_dataset([demo_file], n_actions=A.N_ACTIONS)
+
+
 def test_load_demo_dataset_reads_a_directory_of_jsonl_files(tmp_path):
     """Directories are expanded to their *.jsonl children, matching a
     per-session demos folder layout rather than requiring one merged file."""
@@ -152,6 +166,17 @@ def test_replay_demo_triples_are_legal_under_their_own_mask():
     assert triples  # the fixture actually produced some actions
     for _obs, action, mask in triples:
         assert mask[action]
+
+
+def test_replay_demo_does_not_raise_when_the_last_action_ends_the_day():
+    """A genuine record's last recorded action is the one that ends the day
+    (PlaySession._close_day/EpisodeRecorder.on_episode_end both append it
+    before checking terminated/truncated), so replay reaching Phase.TERMINAL
+    with zero actions left over is the NORMAL case and must not raise."""
+    record = synthetic_demo_records("all", "shaped", n_days=1, seed=17,
+                                    action_rng_seed=0, use_chain=False)[0]
+    triples = replay_demo(record)  # must not raise
+    assert len(triples) == len(record["actions"])
 
 
 def test_replay_multiday_record_reconstructs_the_correct_day_index():
@@ -202,6 +227,37 @@ def test_replay_demo_raises_on_wrong_preset():
             except ReplayDivergenceError:
                 raised += 1
     assert raised, "no tampered record diverged; divergence detection is dead"
+
+
+def test_replay_demo_raises_when_terminal_reached_with_actions_remaining():
+    """A wrong reconstructed config can end the day EARLIER than the real one
+    did, reaching Phase.TERMINAL while recorded actions remain -- distinct
+    from an outright illegal action, since every action up to that point
+    stayed legal under the (wrong) replayed config. The old code's ``break``
+    on this condition returned the triples collected so far with no error,
+    silently discarding the rest of the demo; this pins one deterministic
+    case (seed=24) rather than relying on the sweep in
+    test_replay_demo_raises_on_wrong_preset, which may hit either failure
+    mode depending on the trajectory it draws.
+    """
+    record = synthetic_demo_records("fresh", "shaped", n_days=1, seed=24,
+                                    action_rng_seed=0, use_chain=False)[0]
+    assert len(record["actions"]) > 1
+    tampered = dict(record, unlocks="all")  # lie about the preset
+    with pytest.raises(ReplayDivergenceError, match="terminal state"):
+        replay_demo(tampered)
+
+
+def test_replay_demo_raises_on_a_record_missing_the_unlocks_stamp():
+    """replay_demo goes through config_for_record, which must refuse an
+    unstamped record the same way load_demo_dataset does -- a record can
+    reach replay directly (e.g. from replay_dataset) without ever passing
+    through the loader's own check."""
+    record = synthetic_demo_records("all", "shaped", n_days=1, seed=25,
+                                    action_rng_seed=0, use_chain=False)[0]
+    del record["unlocks"]  # simulate a pre-stamp legacy record
+    with pytest.raises(UnstampedDemoError):
+        replay_demo(record)
 
 
 # --------------------------------------------------------------------------
