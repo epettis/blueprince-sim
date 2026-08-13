@@ -855,6 +855,78 @@ around 1,800 LOC.
 
 ## Decisions log
 
+- **2026-08-12, the three microchips, confirmed by the owner, and this unblocks
+  the sundial.** The three sources are: **the Entrance Hall vase** (sledgehammer
+  or power hammer), **the West Path dig** (any digging item), and **the
+  Blackbridge Grotto pedestal**.
+
+  The engine already models the first two, and #210 modelled the third as an
+  in-place chip via `counts_flag`. **What is missing is the ability to take the
+  pedestal chip** -- `GameState.grotto_chip_taken` exists and `gate_open` reads
+  it, but nothing ever sets it True, because no action exists. That, combined
+  with the earlier ruling that the Grotto chip can be removed and then traded or
+  lost, is the third *carried* chip the sundial needs.
+
+  **The two features are not mutually exclusive**, which the #210 truth table
+  already implies: take the chip and you hold three, which satisfies the Ruins
+  gate (3 held + 0 in place) **and** the sundial (3 held). You only lose the
+  Ruins by then trading or losing the chip -- and it respawns the next day.
+
+  So the sequencing is: build the take action, and the sundial becomes lightable
+  without a chip source being invented. **This is a retrain trigger --
+  `N_ACTIONS` 375 -> 376** -- and is the first action-space change of the
+  session; the standing rule is that model correctness outranks action-space
+  stability while no run is live, provided every width change is recorded.
+
+- **2026-08-12, the "~17% divergence" figure I recorded is misleading in BOTH
+  directions. Corrected.** Investigated properly; the 10/60 measurement
+  reproduces exactly, but neither half of what I inferred from it holds.
+
+  **Understated: it is not "17% wrong". 100% of the triples a wrong-preset
+  replay emits carry a wrong observation** (1426/1426 measured), 20.5% of them
+  wrong in a structural key (grid contents, dealt options). Every one of the 50
+  non-diverging replays differs from the correct replay **at step 0** -- the
+  resources and the rarity stage are already different before a single action is
+  taken. Legality catches 17% of *trajectories*; the trajectory is wrong in all
+  of them.
+
+  **Overstated: the 17% is an artifact of the test fixture, not a property of
+  `replay_demo`.** The synthetic fixture's actions are **73.5% travel**, whose
+  legality is nearly config-independent. Real human demos are **27.8% draft /
+  29.1% choose**. All 10 divergences fired on a draft action and none on any
+  other class -- drafting is the only action whose legality tracks grid drift.
+  Re-run with a human-like mix, **divergence fires 43/60 = 71.7%**.
+
+  **Severity: LOW today, MEDIUM latent.** The trainer cannot produce the
+  mismatch -- `train.py` filters records by their own `unlocks` stamp and
+  reconstructs the config from that same stamp, so the two cannot disagree. The
+  one real demo file on disk is already rejected by a *different, working* guard
+  (`StaleDemoError`, `n_actions` 311 vs 375). It needs a corrupt, hand-edited or
+  pre-stamp legacy record.
+
+  **Two unambiguous defects found alongside, neither a design question:**
+  1. **Silent truncation.** `replay_demo` breaks out on a TERMINAL phase and
+     returns **normally**; one seed dropped **24 of 33 recorded actions** and
+     raised nothing. Under the correct config replay length matched the record
+     in all 60 cases, so `len(triples) != len(actions)` is a **free divergence
+     signal currently thrown away**.
+  2. **A missing `unlocks` stamp defaults to `"all"`** -- and for a legacy
+     fresh-save record that default *is* precisely the tampering the test
+     simulates, applied silently.
+
+  **Recommended fix (needs a ruling): stamp a `GameConfig` digest in the record
+  and verify it at load.** ~15 lines, catches 100% of wrong-preset and
+  wrong-`day_config` cases, fires at step 0 before any triple is emitted, and
+  costs nothing at runtime. The rejected alternatives: comparing rewards (lossy
+  scalar, couples demos to the reward function), comparing observations
+  (contradicts the module's stated premise that records carry actions only),
+  per-step state digests (catches engine drift too, but **any intentional
+  `data/*.json` change would invalidate the whole demo corpus**).
+
+  **Also: `test_replay_demo_raises_on_wrong_preset` does not test what its name
+  says.** It asserts the detector is not completely dead. The name should change
+  with the fix.
+
 - **2026-08-12, the sundial takes any ignition tool: trust the wiki.** Owner,
   resolving the conflict #215 recorded rather than decided. The wiki says "an
   ignition tool"; an owner play-report had named the Burning Glass specifically.
