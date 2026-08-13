@@ -855,6 +855,37 @@ around 1,800 LOC.
 
 ## Decisions log
 
+- **2026-08-12, the "cheap wins" in the item backlog are gone, and my sizing was
+  wrong.** I repeated the 2026-08-11 audit's XS/S sizing for `battery_pack`,
+  `gear_wrench` and `chronograph` without re-checking it against the code. All
+  three are M, each for a structural reason:
+
+  | item | what it actually needs |
+  |---|---|
+  | `battery_pack` | Its pickup side effect (Workshop rarity 50/50) needs a **draw**, but `_on_pickup` is reached only through `grant()`, which deliberately takes `(state, registry, ...)` with **no `game` and no `rng`** -- and has **37 call sites**. Threading RNG through all of them is the real cost. An optional `rng=None` would be worse: the effect would silently not fire on every path that omitted it. |
+  | `gear_wrench` | `set_dynamic_rarity` is a general primitive and works. The gap is **cross-day persistence** -- a `_CARRYOVER_KEYS` entry (**observation width change**) -- plus a player action to choose which Mechanical Room (**action width change**). Two width changes for one item. |
+  | `chronograph` | Nothing stores redraw history: no `prev_options`, no `last_options`. It needs new state **and** a rewind action (**action width change**). |
+
+  **So all nine remaining items are M or larger.** The four "real but understood"
+  ones (`prism_key`, `crown_of_the_blueprints`, `dowsing_rod`, `the_axe`) were
+  already sized that way; the two subsystem-blocked ones (`telescope`,
+  `file_cabinet_key`) are L.
+
+  **This is the predicted shape, arriving on schedule.** The 2026-08-12 backlog
+  estimate said the remaining work is "systematically harder than what has been
+  done -- 72 PRs consumed the cheap wins", and that the observed throughput came
+  from a mix that no longer exists. It was right, and the sizing table lagged it.
+
+  **Generalisable: a size estimate made before the work is a hypothesis, and it
+  decays as the surrounding code changes.** `battery_pack` was genuinely cheap
+  when the audit ran -- what changed is that intervening PRs did not add an
+  `rng`-carrying pickup path, so the gap that was "one side effect" became "one
+  side effect plus a 37-site signature change". **Re-measure before picking, not
+  after committing.**
+
+  **The only bounded item left is the config digest** (~15 lines, an owner
+  ruling outstanding). Everything else needs a width change or a new subsystem.
+
 - **2026-08-12, three owner rulings, and a new `meta.wont_implement` marker to
   hold them.** "Blocked" and "decided against" were the same field; they are
   not the same thing, and conflating them left permanent exclusions sitting in
