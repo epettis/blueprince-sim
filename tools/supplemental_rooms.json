@@ -97,7 +97,7 @@
       "meta": {
         "source": "wiki",
         "confidence": "wiki",
-        "effect_text": "Counts as red room AND bedroom; items less likely in rooms drafted after it (modeled: -3 luck on placement, approximating Root Cellar's +3 precedent; negated by Shelter).",
+        "effect_text": "Counts as red room AND bedroom; items less likely in rooms drafted after it (modeled: -3 luck on placement; negated by Shelter).",
         "rarity_confidence": "inferred"
       }
     },
@@ -569,13 +569,7 @@
         "duct": false
       },
       "deck_copies": 1,
-      "effects": [
-        {
-          "tag": "grant",
-          "resource": "luck",
-          "amount": 3
-        }
-      ],
+      "effects": [],
       "items": {
         "guaranteed": [],
         "additional_max": 0,
@@ -583,9 +577,9 @@
       },
       "pool": "outer",
       "meta": {
-        "source": "wiki (effect approximated)",
-        "confidence": "inferred",
-        "effect_text": "Rooms more likely to contain dig spots today (dig spots out of scope; modeled as +3 luck)."
+        "source": "wiki",
+        "confidence": "wiki",
+        "effect_text": "Rooms more likely to contain dig spots today. The dig-spot spreading effect is not modelled; the room keeps its own dig_spots: 1. No luck effect -- the wiki's datamined luck-modifier list does not include the Root Cellar and its own page never mentions luck."
       }
     },
     {

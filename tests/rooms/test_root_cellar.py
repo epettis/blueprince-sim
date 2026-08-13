@@ -45,14 +45,21 @@ def test_root_cellar_lets_watering_can_convert_water_to_a_gem():
     assert g.state.gems == gems_before + 1
 
 
-def test_root_cellar_grants_three_luck_on_first_entry():
-    """Root Cellar's own effects list carries an unconditional "grant 3 luck"
-    (the wiki's dig-spot boost, approximated as +3 luck per meta.effect_text),
-    granted the moment the room is entered -- floor luck to 0 first so the
-    delta is exact regardless of the default day-20 luck-10 baseline."""
+def test_root_cellar_does_not_touch_luck():
+    """Entering the Root Cellar leaves luck untouched, and the room declares no
+    effects at all.
+
+    Its real effect is spreading dig spots to OTHER rooms, which this sim does
+    not model; the room keeps only its own dig_spots. It has no luck effect in
+    the game: the wiki's datamined luck-modifier list enumerates every modifier
+    (Spiral of Stars, Cloister of Rynna, Maid's Chamber, Veranda, Spare
+    Veranda, Lucky Rabbit's Foot) and does not include the Root Cellar, and the
+    room's own page never uses the word "luck". Pinned rather than simply
+    deleted because luck band boundaries make a stray +3 worth roughly +66%
+    expected items, so re-introducing the approximation would be materially
+    wrong rather than cosmetic."""
     root_cellar = Registry.load().by_id["root_cellar"]
-    eff = root_cellar.effects[0]
-    assert eff.tag == "grant" and eff.param("resource") == "luck" and eff.param("amount") == 3
+    assert not root_cellar.effects
 
     g = Game(GameConfig(west_gate_unlatched=True, special_items=False), seed=1)
     g.state.luck = 0
@@ -64,4 +71,4 @@ def test_root_cellar_grants_three_luck_on_first_entry():
     g.travel_to("root_cellar")
 
     assert g.state.outer_room_entered
-    assert g.state.luck == 3
+    assert g.state.luck == 0

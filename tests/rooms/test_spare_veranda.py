@@ -15,10 +15,13 @@ CELL = 7  # rank 2, col 2
 
 def test_spare_veranda_grants_three_luck_where_its_parent_grants_none(registry, cfg):
     """spare_veranda__ix140 mirrors the base Veranda's "grant 3 luck" modeling
-    of "greater chance of finding items" (the same magnitude used everywhere
-    else in this codebase for that effect text, e.g. Root Cellar) on first
-    entry; its variant_of parent, spare_greenroom__ix132, has no effect of
-    its own and leaves luck untouched."""
+    of "greater chance of finding items" on first entry; its variant_of parent,
+    spare_greenroom__ix132, has no effect of its own and leaves luck untouched.
+
+    The magnitude is an inferred placeholder, not a datamined figure: the
+    datamined value is +6 per Spare Veranda, applied per draft and only when
+    the drafted room is green. Correcting it is queued with the luck-model
+    rebuild."""
     parent = registry.by_id["spare_greenroom__ix132"]
     variant = registry.by_id["spare_veranda__ix140"]
 

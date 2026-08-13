@@ -188,7 +188,9 @@ def conceal_all_floorplans(game, room, eff, ctx_room) -> None:
 def anti_luck(game, room, eff, ctx_room) -> None:
     """Maid's Chamber: items less likely in rooms drafted after it.
 
-    Approximated as -N luck on placement (default N=3, mirroring Root Cellar's +3).
+    Modelled as -N luck on placement (default N=3). The datamined magnitude is
+    -7; correcting it is queued with the luck-model rebuild, because -7 also
+    requires removing the clamp below (four Maid's Chambers must reach -18).
     Clamped at floor (0) so negative luck never misbehaves with luck_probability.
     As a red-room penalty, it is negated by Shelter.
     """
