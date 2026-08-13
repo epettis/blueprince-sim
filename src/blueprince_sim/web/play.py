@@ -113,6 +113,8 @@ def action_group(action_id: int) -> str:
         return "use"
     if action_id == A.BERRY_PICK_ACTION:
         return "choose"
+    if action_id == A.TAKE_GROTTO_CHIP_ACTION:
+        return "use"
     return "other"
 
 

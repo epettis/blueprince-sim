@@ -1019,6 +1019,38 @@ def smash_vase(game) -> None:
     game.state.shops.vase_smashed = True
 
 
+def can_take_grotto_chip(game) -> bool:
+    """Special items enabled, standing at blackbridge_grotto, pedestal chip in place.
+
+    Day-scoped: ``state.grotto_chip_taken`` starts False every ``reset()`` and
+    this predicate goes False the instant it flips True, which is what makes
+    the action a one-shot (no double-take) and what makes the pedestal
+    respawn its chip the next day with no carry-over key involved.
+    """
+    state = game.state
+    if not state.special.enabled:
+        return False
+    if state.area != "blackbridge_grotto":
+        return False
+    return not state.grotto_chip_taken
+
+
+def take_grotto_chip(game) -> None:
+    """Take the Blackbridge Grotto pedestal's microchip and grant it.
+
+    Uses the ordinary grant() path (source="grotto_pedestal"), the same one
+    the Entrance Hall vase and West Path dig sites use above. Setting
+    ``grotto_chip_taken`` removes "grotto_chip_in_place" from
+    ``Game._gate_ctx``'s flags, so the pedestal itself stops contributing to
+    the ``three_microchips`` gate -- but the chip now sits in
+    ``held_items`` instead, so the gate's total held-plus-in-place count is
+    unchanged (see ``docs/areas.md``'s truth table).
+    """
+    assert can_take_grotto_chip(game), "cannot take the grotto chip right now"
+    si.grant(game.state, game.registry, "microchip", source="grotto_pedestal")
+    game.state.grotto_chip_taken = True
+
+
 # Rooms that can never be banned by the Repellent (wiki-documented exclusions):
 # the Entrance Hall (the day always starts here), the Antechamber (the win
 # condition), and Room 46 (the special secret room).  Room ids are stable

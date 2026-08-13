@@ -855,6 +855,49 @@ around 1,800 LOC.
 
 ## Decisions log
 
+- **2026-08-12, the Grotto pedestal chip is takeable, and that makes the sundial
+  lightable.** `TAKE_GROTTO_CHIP` is legal at `blackbridge_grotto` while the
+  chip is in place; taking it grants a microchip and sets `grotto_chip_taken`.
+  **`N_ACTIONS` 375 -> 376** -- the session's first action-space change, appended
+  so no existing id shifts. **`_CARRYOVER_KEYS` stays at 16**: the flag defaults
+  `False` at every `reset()`, which IS the owner's respawn rule; carrying it
+  would make the chip stay taken forever.
+
+  Verified end to end: 2 carried -> take -> 3 held, **the Ruins stay reachable**
+  (row 2 of #210's truth table) **and the sundial lights**, which it could not
+  before. The two features were never mutually exclusive.
+
+  **Two brief gaps the agent found by running the suite rather than guessing:**
+  1. It first put the functions in `special_items.py`, which broke the item-id
+     allowlist -- `ITEM_DEBT_CAP` is pinned at **1** and `"microchip"` already
+     occupies that slot for `shops.py`. Moving them beside `smash_vase` in
+     `shops.py` fixed it with **no allowlist edit**, and is the correct call path
+     anyway, since `on_day_start`/`on_doorstep`/`smash_vase` already grant this
+     exact item. **The ratchet steered the design rather than merely measuring
+     it** -- the debt cap made the wrong home fail loudly.
+  2. `web/play.py` has its own exhaustive action classifier with a test that no
+     id falls into `"other"`. Action 375 did. A one-line gap the brief's file
+     list missed.
+
+  Also fixed in passing: `actions.py`'s module docstring said `Discrete(333)`,
+  stale by 43 actions.
+
+- **2026-08-12, orchestration error worth recording: two implementation agents
+  were dispatched into one working tree.** Git branches share a tree, so
+  creating the second branch mid-flight silently moved the first agent's
+  uncommitted work onto it. Both edited side by side for ~20 minutes.
+
+  **Recovered with nothing lost** -- the file sets happened to be disjoint, so
+  the work separated cleanly by path into #217 and this PR, each gated in
+  isolation. **That disjointness was luck, not design.**
+
+  The cost was real: the task 23 agent hit two failures from the other agent's
+  half-wired action, spent time proving via `git diff` they were not its own, and
+  fell back to scoped test runs -- so **task 23 never had a clean full-suite gate
+  until it was separated**. The rule: **one implementation agent per working tree
+  at a time.** Read-only research agents are safe to run alongside; implementers
+  are not.
+
 - **2026-08-12, the three microchips, confirmed by the owner, and this unblocks
   the sundial.** The three sources are: **the Entrance Hall vase** (sledgehammer
   or power hammer), **the West Path dig** (any digging item), and **the

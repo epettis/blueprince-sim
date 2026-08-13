@@ -751,6 +751,15 @@ class Game:
         assert self.cfg.special_items
         return special_items.open_sigil_door(self, realm)
 
+    def can_take_grotto_chip(self) -> bool:
+        """Standing at the Blackbridge Grotto with the pedestal's chip still in place."""
+        return shops.can_take_grotto_chip(self)
+
+    def take_grotto_chip(self) -> None:
+        """Take the Blackbridge Grotto pedestal's microchip into inventory."""
+        assert self.cfg.special_items
+        shops.take_grotto_chip(self)
+
 
     def can_use_repellent(self) -> bool:
         """Is using the Repellent available right now (held + NAVIGATE phase)?"""
