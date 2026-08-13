@@ -10,6 +10,21 @@ from __future__ import annotations
 ITEM_ID = "silver_key"
 
 
+def held(state) -> bool:
+    """True while at least one Silver Key is in inventory."""
+    from ...special_items import has
+    return has(state, ITEM_ID)
+
+
+def fits(game, cell: int, direction: int) -> bool:
+    """The Silver Key opens any standard locked door, same as a regular key
+    (wiki: 'Unlocks: Any standard locked door'). Phase.LOCK_PENDING only ever
+    parks on a DOOR_LOCKED segment (Game.open_door), so this is trivially
+    True whenever it can be asked -- a real predicate, not hardcoded in the
+    engine, matching master_key.fits."""
+    return True
+
+
 def consume_for_draft(state) -> bool:
     """Consumes a held Silver Key for a draft-time (not movement) locked-door
     open, flagging the next deal for cross/t-layout bias.

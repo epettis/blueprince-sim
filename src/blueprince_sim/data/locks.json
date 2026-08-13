@@ -6,7 +6,18 @@
    "Lock chances are percent per doorway SEGMENT (the shared edge between two cells),",
    "keyed by rank and orientation. Values over 100 mean guaranteed-locked at bias 1.",
    "The sim rolls a segment when the first door on it is placed (the real game rolls",
-   "lazily on first click); see README 'Known simplifications'."
+   "lazily on first click); see README 'Known simplifications'.",
+   "Named gap: the Silver Key used on a Secret Passage doorway is consumed and its",
+   "cross/t-layout bias (state.special.silver_key_draft) is set, but Game.open_door",
+   "resolves the Secret Passage's own colour pick (Phase.COLOUR_PENDING) before any",
+   "deal happens, and draft.py's colour-selective draw does not consult the bias flag",
+   "-- so the bias is silently discarded on that one doorway type. The wiki settles",
+   "only the Prism Key's Secret-Passage interaction ('the Prism Key takes priority and",
+   "the Secret Passage's chosen color is ignored'), not the Silver Key's; not fixed here.",
+   "Named gap: special key 'warping' (e.g. a Great Hall side door that unlocks with no",
+   "following draft, sending the player straight to a different room) is unmodellable",
+   "as this engine is structured -- Game.open_door always deals a hand once a locked",
+   "segment resolves open, with no code path that skips straight to placement. Not built."
   ]
  },
  "lock_chance": {
@@ -81,5 +92,10 @@
    "archives", "office", "laboratory", "vault", "security",
    "darkroom", "dormitory", "billiard_room"
   ]
+ },
+ "special_key_menu": {
+  "comment": "The published fixed row order of the locked-door special-keys menu (Special_keys/Menu_keys template, 'the special keys menu always lists keys in a fixed order'), regardless of pickup order or which are held -- a data table, not a Python constant. env/actions.py's LOCK_SPECIAL_KEY_BASE range indexes this array 1:1. secret_garden_key and key_8 are modelled in this sim as draft_conditions tags rather than door keys (see their effects/items modules), and prism_key stays implemented:false (special_items.json) -- all three are reserved slots, permanently masked off in the action mask rather than removed, so their ids never shift if a later PR wires them up. basement_key's own fits() is also always False here: this sim models the Basement purely as an off-grid area-graph destination (docs/areas.md's basement_key_foundation/basement_key_well gates), so no on-grid DOOR_LOCKED segment is ever a basement door (Doors wiki page: 'any normal or special key other than a Basement Key does not fit' a basement door, and the converse also holds -- a Basement Key does not fit an ordinary locked door).",
+  "confidence": "wiki",
+  "order": ["basement_key", "secret_garden_key", "silver_key", "key_8", "master_key", "prism_key"]
  }
 }

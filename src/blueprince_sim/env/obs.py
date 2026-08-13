@@ -89,6 +89,20 @@ def observation_space(n_rooms: int, n_items: int, n_recipes: int,
         # 4-bit masks of locked / security / sealed doorway segments per cell
         # (both sides carry the bit; opened/unsealed doors drop out).
         "grid_locked": spaces.Box(0, 15, shape=(9, 5), dtype=np.uint8),
+        # Extra keys (beyond the base 1) a currently-locked segment costs to
+        # open, from Game.door_search_cost (locks.json's side_search_cost --
+        # today only the Great Hall's two side doorways). Painted on both
+        # cells of the segment, like grid_locked; a cell touching more than
+        # one such segment reports the max (a scalar per-cell magnitude, not
+        # a per-direction bitmask like the boolean grid_* planes above/below).
+        # 0 everywhere a locked door costs only the base key, or a segment
+        # carrying a search cost has already been opened. An additive Dict
+        # key (never a shape change to grid_locked, which would silently
+        # reinterpret trained weights) -- without it, a 3-key Great Hall side
+        # door is indistinguishable from an ordinary 1-key door, so "spend
+        # keys versus walk further" is unlearnable at exactly the doors
+        # where it matters most.
+        "grid_search_cost": spaces.Box(0, 99, shape=(9, 5), dtype=np.uint8),
         "grid_security": spaces.Box(0, 15, shape=(9, 5), dtype=np.uint8),
         # Sealed Antechamber doorway segments: impassable until a lever is pulled.
         # Non-zero only on the three sealed cells and the Antechamber when the
@@ -115,7 +129,7 @@ def observation_space(n_rooms: int, n_items: int, n_recipes: int,
         #   [8]   paused (0/1)
         #   [9]   success_count today, clamped to 999
         "experiment": spaces.Box(0, 999, shape=(10,), dtype=np.int16),
-        "phase": spaces.Discrete(6),
+        "phase": spaces.Discrete(len(Phase)),
         # secret_passage_colour: 1 + COLOUR_CATEGORIES index of the dealt hand's
         # colour-selective restriction (state.pending.colour) while DRAFTING;
         # 0 in COLOUR_PENDING (no colour chosen yet -- that IS the pending
@@ -321,6 +335,7 @@ def encode(game: Game, day_chain: DayChain | None = None) -> dict:
     grid_locked = np.zeros((9, 5), dtype=np.uint8)
     grid_security = np.zeros((9, 5), dtype=np.uint8)
     grid_sealed = np.zeros((9, 5), dtype=np.uint8)
+    grid_search_cost = np.zeros((9, 5), dtype=np.uint8)
     for (cell, d), seg in st.door_state.items():
         if seg == DOOR_LOCKED:
             plane = grid_locked
@@ -333,6 +348,13 @@ def encode(game: Game, day_chain: DayChain | None = None) -> dict:
         plane[cell // 5, cell % 5] |= d
         nb = neighbor(cell, d)
         plane[nb // 5, nb % 5] |= OPPOSITE[d]
+        if seg == DOOR_LOCKED:
+            extra = game.door_search_cost.get((cell, d), 0)
+            if extra:
+                grid_search_cost[cell // 5, cell % 5] = max(
+                    grid_search_cost[cell // 5, cell % 5], extra)
+                grid_search_cost[nb // 5, nb % 5] = max(
+                    grid_search_cost[nb // 5, nb % 5], extra)
 
     pending = st.pending
     redraws = pending.redraws_left if pending else 0
@@ -610,6 +632,7 @@ def encode(game: Game, day_chain: DayChain | None = None) -> dict:
         "grid_ante_dist": grid_ante_dist,
         "grid_frontier": grid_frontier,
         "grid_locked": grid_locked,
+        "grid_search_cost": grid_search_cost,
         "grid_security": grid_security,
         "grid_sealed": grid_sealed,
         "grid_entered": grid_entered,

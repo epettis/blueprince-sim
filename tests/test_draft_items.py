@@ -190,8 +190,14 @@ def test_knights_shield_not_used_without_item(registry):
 # ------------------------------------------------------------------- silver key
 
 def test_silver_key_consumed_and_sets_draft_flag_on_locked_door(registry):
-    """Opening a locked frontier door for drafting while holding the Silver Key
-    consumes the key (not a regular key) and sets silver_key_draft=True.
+    """Selecting the Silver Key from the locked-door menu consumes the key
+    (not a regular key) and sets silver_key_draft=True.
+
+    Opening a locked doorway now parks Phase.LOCK_PENDING instead of
+    resolving it automatically (the owner's "player chooses how to open it"
+    ruling) -- this rebuilds the old direct-open setup to go through
+    Game.use_special_key_at_lock, the menu row the Silver Key now is,
+    keeping the same consumed-not-a-regular-key assertion.
     """
     g = _game(registry, items=("silver_key",), seed=1, door_locks=True)
     g.state.steps = 100
@@ -202,6 +208,8 @@ def test_silver_key_consumed_and_sets_draft_flag_on_locked_door(registry):
 
     assert special_items.has(g.state, "silver_key")
     g.open_door(2, N)
+    assert g.phase is Phase.LOCK_PENDING
+    g.use_special_key_at_lock("silver_key")
 
     assert not special_items.has(g.state, "silver_key"), "Silver Key must be consumed"
     assert g.state.keys == 0, "No regular key should have been spent"
@@ -214,6 +222,7 @@ def test_silver_key_draft_flag_cleared_after_deal(registry):
 
     _force_locked(g, 2, N)
     g.open_door(2, N)
+    g.use_special_key_at_lock("silver_key")
 
     assert not g.state.special.silver_key_draft, (
         "silver_key_draft must be cleared after the initial deal")
@@ -232,7 +241,9 @@ def test_silver_key_hand_biased_toward_cross_t(registry):
         g = _game(registry, items=("silver_key",), seed=seed, door_locks=True)
         g.state.steps = 100
         _force_locked(g, 2, N)
-        pending = g.open_door(2, N)
+        g.open_door(2, N)
+        assert g.phase is Phase.LOCK_PENDING
+        pending = g.use_special_key_at_lock("silver_key")
         assert pending.options, f"seed={seed}: empty hand"
         for o in pending.options:
             assert registry.rooms[o.room_idx].layout in ("cross", "t"), (
