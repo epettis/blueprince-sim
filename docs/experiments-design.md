@@ -526,6 +526,59 @@ never even be *offered* together — the `cross_column_exclude` enforcement
 above. The comment now states this argument directly instead of pointing at
 an unimplemented effect.
 
+Most recently, three of the eight packet effects landed:
+`unseal_antechamber_door`, `random_item_then_zero_keys`, and
+`half_steps_for_dice` (`_apply_unseal_antechamber_door`,
+`_apply_random_item_then_zero_keys`, `_apply_half_steps_for_dice` in
+`engine/experiments.py`). All three stay undrawable — `pool="packet"`, and
+`draw_offers` still only samples the base pool — the same shape
+`keys_per_30_steps` already established; only `apply_effect` is reachable
+directly. `unseal_antechamber_door` reuses `Game._open_segment`, the same
+low-level call every Antechamber lever room already makes to unseal a
+segment, rather than `Game._open_north_door`'s wrapper (which also
+attributes the open to the `antechamber_lever_pull` trigger and the env
+reward's `north_door_opened` flag — neither applies to a door unsealed by an
+experiment effect rather than a genuine lever pull). It picks the first
+still-sealed segment in west/south/east/north order, copied verbatim from
+`Game.__init__`'s own sealing loop: the wiki states west/east/south "appear
+to be preferred" over north with no numbers (`magnitude.weighting` stays
+null), and the order among west/south/east is unstated either way, so this
+resolves that half of the ambiguity by reusing the one ordering already in
+the codebase instead of inventing a second one. `random_item_then_zero_keys`
+grants its item from the shared `items.EXTRA_ITEM_TABLE` (coins/key/gem/die)
+via the existing `"extra_item_kind"` RNG label — reused, not invented — since
+the wiki's true item pool (a live Cargo query) is unpublished and
+`magnitude.item_pool` stays null; the item is granted before keys are
+zeroed, pinned by a test that exploits the seed-0 draw landing on "key" (a
+reversed order would leave the final count at 1, not 0). `half_steps_for_dice`
+floors the halved step count (`math.floor`, so 7 steps becomes 3, not 4) and
+loses it before granting the 4 Ivory Die, matching the wiki's stated order;
+the dice are granted unconditionally even when the step loss alone ends the
+day, matching every other step-draining effect/trigger in this module
+(`steps_for_gold`, `set_steps`, a triggering `red_room_draft`'s own
+`steps_lost`) — none of them call `Game._check_termination` themselves,
+relying instead on whichever action method is already about to check
+termination as its own last statement. That reliance has one identified gap,
+specific to this effect since it (unlike the draft-site-only precedents) can
+be paired with any trigger: `Game.insert_disk` (the sole `terminal_access`
+call site) and `Game.choose_upgrade` afterward never call
+`_check_termination` at all, so a day ended by this effect while configured
+with `terminal_access` is caught one action late, by the env layer's
+post-step "no legal action" fallback or a CLI policy's own explicit check,
+under the `"dead_end"` reason instead of `"out_of_steps"`. This is pre-existing
+(already latent for `steps_for_gold`/`set_steps`, which could already be
+paired with `terminal_access`) and deliberately not patched here — adding a
+`_check_termination` call inside the effect itself would diverge from every
+other step-draining effect above and risks firing mid-`Game._place_room`
+when reached via a draft-site trigger instead, ahead of ON_PLACE/
+ON_DRAFT_ROOM hooks that still run afterward. The four remaining packet
+effects (`pantry_fruit`, `reservoir_water_level`, `remove_tunnel_crate`,
+`permanent_lockpicking_skill`) stay `implemented: false`, each for a
+distinct, verified reason: no Pantry-stocking mechanic, no `reservoir` room
+record (it is an area node only), the Crate Tunnel is owner-ruled out of
+scope, and no lockpicking-skill stat exists (its magnitude is unpublished
+besides).
+
 ## Validation (`tools/validate_data.py`)
 
 - Every trigger/effect `id` is unique (checked across triggers and effects

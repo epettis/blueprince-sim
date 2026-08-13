@@ -16,15 +16,20 @@ loader, and this module imports only model/rng-adjacent types.
 
 ## Not modelled (this phase)
 
-Seven of the twenty effects stay inert (``implemented: false`` or, for
-``keys_per_30_steps``, undrawable — see below), all packet pool:
-``pantry_fruit``, ``reservoir_water_level``, ``remove_tunnel_crate``,
-``unseal_antechamber_door``, ``permanent_lockpicking_skill``,
-``random_item_then_zero_keys``, ``half_steps_for_dice``.
-``keys_per_30_steps`` (packet pool) IS implemented mechanically below, but
-stays undrawable until the packet subsystem (phases 5-8) is authorised,
-since :func:`draw_offers` only samples the base pool. All twelve base
-effects are now implemented.
+Four of the twenty effects stay inert (``implemented: false``), all packet
+pool: ``pantry_fruit`` (needs a Pantry-stocking mechanic this simulator does
+not have), ``reservoir_water_level`` (the Reservoir is an area node only, not
+a room in rooms.json), ``remove_tunnel_crate`` (the Crate Tunnel -- owner
+ruled out of scope), ``permanent_lockpicking_skill`` (needs a lockpicking
+stat that does not exist, and its own magnitude is unpublished besides).
+``keys_per_30_steps``, ``unseal_antechamber_door``, ``random_item_then_zero_keys``,
+and ``half_steps_for_dice`` (all packet pool) ARE implemented mechanically
+below -- see :func:`_apply_unseal_antechamber_door`,
+:func:`_apply_random_item_then_zero_keys`, and
+:func:`_apply_half_steps_for_dice` for the latter three -- but stay
+undrawable until the packet subsystem (phases 5-8) is authorised, since
+:func:`draw_offers` only samples the base pool. All twelve base effects are
+now implemented.
 
 ``add_aquariums`` (the last base effect, uncapped) injects ``aquariums_added``
 (3) copies of the ``aquarium__experiment`` floorplan into the live decks via
@@ -180,10 +185,11 @@ triggers or effects, is enforced yet.
 from __future__ import annotations
 
 import json
+import math
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from .grid import is_center_column, neighbor, rank_of
+from .grid import E, N, W, is_center_column, neighbor, rank_of
 from .model import RARITY_INDEX
 
 # Aquarium ids the add_aquariums effect touches. model.py's top-level import
@@ -751,6 +757,12 @@ def apply_effect(game, effect_id: str) -> None:
             _apply_add_aquariums(game, effect)
         case "spread_dig_spots":
             _apply_spread_dig_spots(game, effect)
+        case "unseal_antechamber_door":
+            _apply_unseal_antechamber_door(game)
+        case "random_item_then_zero_keys":
+            _apply_random_item_then_zero_keys(game, effect)
+        case "half_steps_for_dice":
+            _apply_half_steps_for_dice(game, effect)
         case _:
             pass  # inert effect id; nothing to apply
 
@@ -850,3 +862,141 @@ def _apply_spread_dig_spots(game, effect: ExperimentEffect) -> None:
     st.special.conference_room_dig_spots += batch
     bonus = st.special.veia_dig_bonus
     bonus[conference_cell] = bonus.get(conference_cell, 0) + batch
+
+
+def _apply_unseal_antechamber_door(game) -> None:
+    """Unseal the first still-sealed Antechamber segment, west/south/east/north.
+
+    Reuses ``Game._open_segment`` -- the exact call every lever room already
+    makes to unseal one of the Antechamber's four segments (Great Hall's
+    ``pull_east_lever``, Secret Garden's ``pull_west_lever``, Weight Room's
+    ``pull_south_lever``, and ``special_items.install_lever``'s Greenhouse
+    branch all call it directly; the two north levers share
+    ``Game._open_north_door``, which itself wraps the same call) -- rather
+    than writing new door-state logic.
+
+    Deliberately does NOT go through ``_open_north_door`` for the north
+    segment, and does not call ``on_lever_pulled`` for any segment: those
+    exist to attribute a genuine player lever-pull to the antechamber_lever_pull
+    trigger and (for north only) the env reward's north_door_opened flag; this
+    effect unseals a door programmatically, not by pulling a lever, so
+    crediting either would misattribute an unrelated experiment's trigger/
+    reward to this one. Only ``_open_segment`` -- the shared low-level
+    mechanism both paths bottom out in -- is reused.
+
+    The (cell, direction) segments and their order are copied verbatim from
+    Game.__init__'s own antechamber_levers sealing loop (west (41, E), south
+    (37, N), east (43, W), north (ANTECHAMBER_CELL, N) -- ANTECHAMBER_CELL is
+    42, hardcoded here since importing it from game.py would cycle, per the
+    module docstring). "First still-sealed in that order" reproduces the
+    wiki's unweighted "west/east/south appear to be preferred over north"
+    without inventing the unpublished per-door weights (magnitude.weighting
+    stays null; see this id's own meta.notes) -- the order among west/south/
+    east itself is not stated by the wiki either, so this resolves that half
+    of the ambiguity by reusing the one ordering already in the codebase
+    rather than inventing a second one.
+
+    If every segment is already unsealed (including when antechamber_levers
+    is off, so none was ever sealed), this is a no-op -- "has no effect once
+    all four doors are unsealed (still triggers, no-op)" per the record's own
+    notes.
+
+    locks.py is imported locally: importing it at module scope would cycle
+    (experiments -> locks -> state -> experiments), per the module docstring.
+    """
+    from .locks import DOOR_SEALED, segment_key
+
+    st = game.state
+    segments = (
+        (41, E),  # West door: Antechamber's west face (Secret Garden lever)
+        (37, N),  # South door: Antechamber's south face (Weight Room lever)
+        (43, W),  # East door: Antechamber's east face (Great Hall lever)
+        (42, N),  # North door: off-grid door to Room 46 (Inner Sanctum/Throne Room lever)
+    )
+    for cell, direction in segments:
+        if st.door_state.get(segment_key(cell, direction)) == DOOR_SEALED:
+            game._open_segment(cell, direction)
+            return
+
+
+def _apply_random_item_then_zero_keys(game, effect: ExperimentEffect) -> None:
+    """Grant one random item via the shared extra-item table, THEN zero keys.
+
+    magnitude.item_pool is deliberately null: the wiki's true pool is a live
+    Cargo query ("Items where Locations HOLDS 'Experiment'") not present in
+    static wikitext, and the record's own meta.notes says not to invent one.
+    Rather than fabricate a list of special items, this reuses the SAME
+    generic random-item table and RNG label (items.EXTRA_ITEM_TABLE,
+    "extra_item_kind") that Closet/Walk-In/Attic's own "random" guaranteed
+    entries, the Closet-family adjacency bonus (items.roll_extra_items), and
+    gain_key_gem_or_die's own weighted-roll pattern already draw from -- an
+    existing label, not an invented one, per the module's RNG discipline. The
+    wiki's "grant a Silver Key instead when fewer than 2 pool items are
+    currently available" fallback has no analogue here since this table is a
+    fixed 4 entries, never that small; not modelled for that reason, not
+    overlooked.
+
+    Order matters and is pinned by a test: the item is granted FIRST, and
+    keys are zeroed SECOND -- reversing this would let a "key" roll from the
+    table survive the zeroing (final keys == 1 instead of 0) whenever the
+    extra-item table happens to resolve to "key".
+
+    items.py is imported locally: importing it at module scope would cycle
+    (experiments -> items -> state -> experiments), per the module docstring.
+    """
+    from .items import EXTRA_ITEM_TABLE, grant_item
+
+    weights = tuple(w for _, w in EXTRA_ITEM_TABLE)
+    idx = game.rng.roll_weighted("extra_item_kind", weights)
+    grant_item(game, EXTRA_ITEM_TABLE[idx][0], 1)
+    game.state.keys = effect.magnitude.get("keys_after", 0)
+
+
+def _apply_half_steps_for_dice(game, effect: ExperimentEffect) -> None:
+    """Halve steps (floored), THEN grant Ivory Die -- both halves apply unconditionally.
+
+    Order matters and is pinned by a test: the step loss is applied FIRST
+    (``math.floor(steps * steps_multiplier)``, so an odd count like 7 becomes
+    3, not 4), and the dice are granted SECOND, regardless of whether the
+    step loss already brought steps to 0. Nothing in this function checks
+    termination -- granting the dice unconditionally, even when the step loss
+    alone is enough to end the day, matches the wiki's plain "lose half your
+    steps, then gain 4 Ivory Die" (a sequential description of one atomic
+    effect, not a conditional grant) and matches this module's own existing
+    precedent for every other step-draining effect/trigger (steps_for_gold,
+    set_steps, and a triggering red_room_draft's own steps_lost in
+    trigger_success): none of them call ``game._check_termination()``
+    themselves either, instead relying on whichever action method
+    (``choose``, ``move``, ``redraw``, ``open_door``) is already about to
+    check termination as its own last statement once the whole action --
+    including this effect -- has finished.
+
+    That reliance has one genuine gap, investigated for this effect
+    specifically since it (unlike the draft-site-only steps_for_gold/
+    set_steps precedent) can be paired with ANY trigger, including
+    interaction-site ones: ``Game.insert_disk`` (the only call site for the
+    packet ``terminal_access`` trigger) never calls ``_check_termination``
+    at all, and neither does ``Game.choose_upgrade`` afterward, so a day that
+    hits 0 steps here while configured with ``terminal_access`` would not be
+    marked TERMINAL until the *next* NAVIGATE-phase action re-checks (the env
+    layer's own post-step "no legal action" fallback, or a CLI policy's
+    explicit ``_check_termination()`` call, both eventually catch it one
+    action late, just under the "dead_end" reason rather than
+    "out_of_steps"). This is a pre-existing gap in ``insert_disk``/
+    ``choose_upgrade`` themselves -- already latent for steps_for_gold and
+    set_steps, since either could already be paired with terminal_access
+    today -- not something introduced here, and deliberately NOT patched by
+    adding a ``_check_termination()`` call inside this function: that would
+    diverge from every other step-draining effect above and, worse, risks
+    firing mid-``Game._place_room`` when this effect is reached via a
+    draft-site trigger instead -- ON_PLACE/ON_DRAFT_ROOM hooks for the room
+    being placed still run AFTER ``on_room_drafted`` returns, and would then
+    run on a state ``_terminate`` has already swept for day-end. Fixing
+    ``insert_disk``/``choose_upgrade`` generally is out of scope for a
+    three-effect pass; see the id's own test for what this function does and
+    does not guarantee.
+    """
+    st = game.state
+    multiplier = effect.magnitude.get("steps_multiplier", 0.5)
+    st.steps = math.floor(st.steps * multiplier)
+    st.dice += effect.magnitude.get("dice_gained", 4)

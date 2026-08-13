@@ -740,14 +740,15 @@
     "doors_total": 4,
     "weighting": null
    },
-   "implemented": false,
+   "implemented": true,
    "meta": {
     "source": "https://blueprince.wiki.gg/wiki/Spoilers:Experiments/Effects",
     "confidence": "wiki",
-    "blocked_on": "phase 0: no experiments engine exists yet (data/validation only); the packet subsystem itself is phases 5-8, not yet authorised",
+    "blocked_on": null,
     "notes": [
      "The wiki states west/east/south doors 'appear to be preferred' over north but gives no numbers; magnitude.weighting left null (gap -- do not invent).",
-     "Has no effect once all four doors are unsealed (still triggers, no-op)."
+     "Has no effect once all four doors are unsealed (still triggers, no-op).",
+     "Mechanically implemented (engine/experiments.py::_apply_unseal_antechamber_door), but pool=\"packet\" keeps it undrawable in setup until the packet subsystem itself (phases 5-8) is authorised -- see the packet_note in this file's mechanic block. Unseals the first still-sealed segment in west/south/east/north order (the same order Game.__init__ seals them in), reusing Game._open_segment -- the same low-level call every Antechamber lever room already makes -- rather than a weighted pick, since magnitude.weighting is unpublished."
     ]
    }
   },
@@ -801,13 +802,14 @@
     "keys_after": 0,
     "item_pool": null
    },
-   "implemented": false,
+   "implemented": true,
    "meta": {
     "source": "https://blueprince.wiki.gg/wiki/Spoilers:Experiments/Effects",
     "confidence": "wiki",
-    "blocked_on": "phase 0: no experiments engine exists yet (data/validation only); the packet subsystem itself is phases 5-8, not yet authorised",
+    "blocked_on": null,
     "notes": [
-     "The eligible item pool is a live wiki Cargo query (Items where Locations HOLDS 'Experiment'), not present in static wikitext; magnitude.item_pool left null (gap -- do not invent). If fewer than 2 pool items are currently available to spawn, a Silver Key is granted instead."
+     "The eligible item pool is a live wiki Cargo query (Items where Locations HOLDS 'Experiment'), not present in static wikitext; magnitude.item_pool left null (gap -- do not invent). If fewer than 2 pool items are currently available to spawn, a Silver Key is granted instead.",
+     "Mechanically implemented (engine/experiments.py::_apply_random_item_then_zero_keys), but pool=\"packet\" keeps it undrawable in setup until the packet subsystem itself (phases 5-8) is authorised -- see the packet_note in this file's mechanic block. Since the true item pool is unpublished (above), the random item is instead drawn from the same generic extra-item table (items.EXTRA_ITEM_TABLE: coins/key/gem/die) Closet/Walk-In/Attic and gain_key_gem_or_die already use, rather than inventing a special-item list; the wiki's fewer-than-2-available Silver Key fallback is not modelled since that table is a fixed 4 entries and never that small."
     ]
    }
   },
@@ -822,11 +824,14 @@
     "steps_rounding": "floor",
     "dice_gained": 4
    },
-   "implemented": false,
+   "implemented": true,
    "meta": {
     "source": "https://blueprince.wiki.gg/wiki/Spoilers:Experiments/Effects",
     "confidence": "wiki",
-    "blocked_on": "phase 0: no experiments engine exists yet (data/validation only); the packet subsystem itself is phases 5-8, not yet authorised"
+    "blocked_on": null,
+    "notes": [
+     "Mechanically implemented (engine/experiments.py::_apply_half_steps_for_dice), but pool=\"packet\" keeps it undrawable in setup until the packet subsystem itself (phases 5-8) is authorised -- see the packet_note in this file's mechanic block. Steps are floored (math.floor(steps * 0.5), so an odd count like 7 becomes 3, not 4) and lost before the 4 Ivory Die are granted, per the wiki's stated order; the dice are still granted even when the step loss alone ends the day (see the function's own docstring for why no termination check is added here)."
+    ]
    }
   }
  ]

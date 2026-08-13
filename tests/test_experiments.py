@@ -44,7 +44,9 @@ from blueprince_sim.engine.draft import (DraftContext, _active_conditions, _prio
                                          room_draftable)
 from blueprince_sim.engine.game import ANTECHAMBER_CELL, Game, Phase, RedrawKind
 from blueprince_sim.engine.grid import E, ENTRANCE_CELL, N, S, W
-from blueprince_sim.engine.locks import DOOR_LOCKED, DOOR_OPEN, DOOR_SECURITY, segment_key
+from blueprince_sim.engine.items import EXTRA_ITEM_TABLE
+from blueprince_sim.engine.locks import (DOOR_LOCKED, DOOR_OPEN, DOOR_SEALED, DOOR_SECURITY,
+                                         segment_key)
 from blueprince_sim.engine.model import RARITY_INDEX
 from blueprince_sim.engine.rng import Rng
 from blueprince_sim.engine.state import DraftOption, GameState, PendingDraft
@@ -407,6 +409,120 @@ def test_gain_star_effect_adds_one_star():
     g.state.stars = 2
     experiments.apply_effect(g, "gain_star")
     assert g.state.stars == 3
+
+
+# ---------------------------------------------------------------------------
+# Three packet effects: unseal_antechamber_door, random_item_then_zero_keys,
+# half_steps_for_dice. All three are mechanically implemented but stay
+# undrawable (pool="packet", or_packet stays False in _effect_offerable), the
+# same shape keys_per_30_steps already established -- reachable only via
+# direct apply_effect, as every test below does.
+# ---------------------------------------------------------------------------
+
+def test_unseal_antechamber_door_opens_west_first():
+    """Unseals the Antechamber's west segment first, leaving south/east/north
+    still sealed -- pins the west/south/east/north order _apply_unseal_antechamber_door
+    copies from Game.__init__'s own sealing loop."""
+    g = _game_at_laboratory()
+    experiments.apply_effect(g, "unseal_antechamber_door")
+    assert g.door_state_of(41, E) == DOOR_OPEN
+    assert g.door_state_of(37, N) == DOOR_SEALED
+    assert g.door_state_of(43, W) == DOOR_SEALED
+    assert g.door_state_of(ANTECHAMBER_CELL, N) == DOOR_SEALED
+
+
+def test_unseal_antechamber_door_unseals_all_four_in_order_then_no_ops():
+    """Four successive applications unseal west, south, east, north in that
+    order; a fifth application (all four already open) changes nothing --
+    the record's own notes say it "still triggers, no-op" past that point."""
+    g = _game_at_laboratory()
+    segments = [(41, E), (37, N), (43, W), (ANTECHAMBER_CELL, N)]
+    for cell, direction in segments:
+        assert g.door_state_of(cell, direction) == DOOR_SEALED  # sealed to start
+        experiments.apply_effect(g, "unseal_antechamber_door")
+        assert g.door_state_of(cell, direction) == DOOR_OPEN
+    experiments.apply_effect(g, "unseal_antechamber_door")  # no-op: none left sealed
+    for cell, direction in segments:
+        assert g.door_state_of(cell, direction) == DOOR_OPEN
+
+
+def test_random_item_then_zero_keys_grants_before_zeroing():
+    """Order matters: at seed 0 (_game_at_laboratory's default), the shared
+    extra-item roll's first draw lands on 'key' (index 1 of items.EXTRA_ITEM_TABLE).
+    If keys were zeroed BEFORE the grant, the final count would be 1, not 0 --
+    this pins 'gain 1 random item, THEN set your keys to 0' in that order."""
+    g = _game_at_laboratory()
+    g.state.keys = 5
+    experiments.apply_effect(g, "random_item_then_zero_keys")
+    assert g.state.keys == 0
+    assert g.state.items_found_log[-1] == ("key", 1)
+
+
+def test_random_item_then_zero_keys_is_the_only_new_draw():
+    """apply_effect consumes exactly one value from 'extra_item_kind' (an
+    existing, reused label -- see the function's own docstring) -- not zero,
+    not two. A fresh, untouched Rng on the same seed gives that substream's
+    first two draws (1, then 2, all three of the seed-0 sequence's first
+    three values are distinct); the game's own stream, after apply_effect
+    runs once, must land on the SECOND of those, proving exactly one draw
+    was consumed by the effect itself."""
+    weights = tuple(w for _, w in EXTRA_ITEM_TABLE)
+    reference = Rng(0)
+    reference.roll_weighted("extra_item_kind", weights)  # the draw apply_effect also makes
+    second = reference.roll_weighted("extra_item_kind", weights)
+
+    g = _game_at_laboratory()  # seed 0, same as `reference`
+    experiments.apply_effect(g, "random_item_then_zero_keys")
+    next_roll = g.rng.roll_weighted("extra_item_kind", weights)
+    assert next_roll == second
+
+
+def test_half_steps_for_dice_floors_an_odd_step_count():
+    """7 steps halve to 3, not 4 -- math.floor(7 * 0.5), pinning the rounding
+    direction the record's own magnitude.steps_rounding: 'floor' specifies."""
+    g = _game_at_laboratory()
+    g.state.steps = 7
+    g.state.dice = 0
+    experiments.apply_effect(g, "half_steps_for_dice")
+    assert g.state.steps == 3
+    assert g.state.dice == 4
+
+
+def test_half_steps_for_dice_grants_dice_even_when_steps_hit_zero():
+    """1 step (odd) floors to 0 steps, and the 4 Ivory Die are still granted
+    afterward even though that alone is enough to end the day -- pins that the
+    destructive first half never skips the second half's grant. Termination
+    is not checked by apply_effect itself (see the function's own docstring),
+    so the day is confirmed over only once _check_termination is called."""
+    g = _game_at_laboratory()
+    g.state.steps = 1
+    g.state.dice = 0
+    experiments.apply_effect(g, "half_steps_for_dice")
+    assert g.state.steps == 0
+    assert g.state.dice == 4
+    assert g.phase is Phase.NAVIGATE  # not yet re-checked
+    g._check_termination()
+    assert g.phase is Phase.TERMINAL
+    assert g.termination_reason == "out_of_steps"
+
+
+def test_four_packet_effects_stay_genuinely_inert():
+    """pantry_fruit, reservoir_water_level, remove_tunnel_crate, and
+    permanent_lockpicking_skill are still implemented=false and apply_effect
+    still no-ops for each -- the four the brief for this pass ruled out of
+    scope (missing mechanics or an owner-scoped exclusion), not merely
+    claimed inert without checking."""
+    g = _game_at_laboratory()
+    for effect_id in ("pantry_fruit", "reservoir_water_level",
+                      "remove_tunnel_crate", "permanent_lockpicking_skill"):
+        record = g.registry.experiments.effect_by_id[effect_id]
+        assert not record.implemented
+        before = (g.state.keys, g.state.gems, g.state.dice, g.state.coins,
+                  g.state.steps, g.state.stars)
+        experiments.apply_effect(g, effect_id)
+        after = (g.state.keys, g.state.gems, g.state.dice, g.state.coins,
+                 g.state.steps, g.state.stars)
+        assert before == after
 
 
 # ---------------------------------------------------------------------------
