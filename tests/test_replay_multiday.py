@@ -258,3 +258,46 @@ def test_day_config_diff_only_differs():
     diff2 = _day_config_diff(day_cfg, base_cfg)
     assert set(diff2.keys()) == {"day"}
     assert diff2["day"] == 5
+
+
+def test_day_config_diff_carries_draft_counts_across_days():
+    """draft_counts (a dict[str, int] field) must round-trip through the
+    day_config diff so config_for_record reconstructs the same cumulative
+    draft counts the live chain accumulated, across multiple days.
+
+    draft_counts is the only dict-typed GameConfig field: if
+    _serialize_config_value's dispatch has no branch for dict, it silently
+    drops the field from every diff, so reconstructed configs would see an
+    empty draft_counts from day 2 onward even though the live chain has
+    non-trivial counts. draft_counts gates upgrade-disk offers and the
+    Treasure Trove pile, so a dropped diff means those replay wrong from
+    day 2 on. We drive a deterministic 3-day chain (fixed seeds throughout,
+    masked-random but seeded action choice) and compare against
+    chain.draft_counts itself -- the true live value, not a value derived
+    from the diff under test -- so the assertion cannot pass vacuously.
+    Exact equality only, no random-rollout-derived bound.
+    """
+    from blueprince_sim.rl.behavioral_cloning import config_for_record
+
+    base_cfg = all_unlocks_config("shaped")
+    chain = DayChain(base_cfg, n_days=3)
+
+    for day in range(3):
+        # Snapshot BEFORE playing the day: chain.draft_counts is exactly what
+        # next_config() will feed into that day's GameConfig (multiday.py:
+        # next_config() passes draft_counts=dict(self.draft_counts)), and
+        # _play_day_with_chain's env.reset() -> chain.advance() will mutate
+        # this attribute by the time the call returns.
+        live_draft_counts = dict(chain.draft_counts)
+        record, _live_info = _play_day_with_chain(chain, seed=day * 1000 + 7)
+
+        reconstructed = config_for_record({**record, "unlocks": "all"})
+        assert reconstructed.draft_counts == live_draft_counts, (
+            f"day {day + 1}: reconstructed draft_counts "
+            f"{reconstructed.draft_counts} != live {live_draft_counts}"
+        )
+        if day > 0:
+            # From day 2 on the chain has accumulated at least one draft, so
+            # this also pins the regression rather than passing vacuously on
+            # an empty-dict comparison.
+            assert live_draft_counts, f"day {day + 1}: expected non-empty draft_counts by now"

@@ -22,11 +22,14 @@ def _serialize_config_value(v):
 
     Rules:
     - frozenset[str] -> sorted list[str]
+    - dict -> new dict with keys in sorted order (order-independent canonical form)
     - bool, int, str -> pass through
     - anything else (e.g. Path) -> None (skip)
     """
     if isinstance(v, frozenset):
         return sorted(v)
+    if isinstance(v, dict):
+        return {k: v[k] for k in sorted(v)}
     if isinstance(v, (bool, int, str)):
         return v
     # Path, None, and anything else: not serializable for our purposes
