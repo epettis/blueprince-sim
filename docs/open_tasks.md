@@ -855,6 +855,145 @@ around 1,800 LOC.
 
 ## Decisions log
 
+- **2026-08-12, `crown_of_the_blueprints`: four owner rulings, and the blocker
+  that ordered the queue turns out to have named a mechanic the game does not
+  have.**
+
+  **The blocker was a misread.** `blocked_on:
+  "within_day_pool_removal_not_modeled"` asserted that the Crown removes a Red
+  Room from today's draft pool. The wiki says the opposite in as many words:
+  *"Although it claims to remove the room from the draft pool, it actually only
+  blocks it from normal drafting."* `Drafting/Advanced` files the Crown under
+  **filters** and explicitly contrasts it with effects that *"actually remove
+  the room from the draft pool"* (Blessing of the Monk). The exemptions the
+  wiki lists -- Silver Key, Prism Key, duct drafting -- only make sense for a
+  filter. **Modelled as a filter this is S, not M.**
+
+  **Three further claims in that note were also false**, each of which would
+  have misdirected an implementer:
+  - *"There is no mechanism to pull a room out of an already-built deck
+    mid-day."* `DeckState.remove_card` has existed at `state.py:70` the whole
+    time and is called twice mid-day from `decks.py` (255, 292). Whoever wrote
+    the note read `build_decks` and stopped.
+  - *"`cfg.banned_rooms` is consumed at `decks.py:47`."* It is read at
+    **`decks.py:57`** and again at 74-75; line 47 is the `upgrade_disks` check.
+  - *"`Hook.ON_HAND_DEALT` is the right trigger."* **A category error, not a
+    detail.** `Hook` and `ItemHook` are disjoint enums with disjoint
+    registries, and `effects.fire` never consults items at any `Hook`. An item
+    cannot register for `ON_HAND_DEALT` at all. Implementing from the note as
+    written produces a `@room_hook` that fires whether or not the Crown is
+    held.
+
+  **And "the only one of the four that needs no new width at all" is false.**
+  The effect is a player choice -- *"an option appears"*, *"you **may**"*,
+  *"**Selecting** this option awards..."* -- so it needs `N_ACTIONS`
+  **376 -> 379** and `item_state` **11 -> 12**. That was the entire reason it
+  was sequenced first. **The reason is dead; the item stays first anyway**, on
+  the owner's sequencing ruling below.
+
+  **The four rulings:**
+  1. **Fires once per hand**, unlimited hands. The wiki self-contradicts here
+     (infobox *"The first time you draw a RED ROOM"* against four statements
+     implying no limit, incl. Gems: *"gives 1 gem per use"*). Owner ruled the
+     middle reading from play. Neither pure reading was correct.
+  2. **One option per Red Room slot** -- 3 action ids, `N_ACTIONS` 376 -> 379,
+     appended, no existing id shifts. Resolves the wiki's silence on two reds
+     in one hand.
+  3. **Reachability first, effect after** -- two PRs, in that order. See below.
+  4. **Exempt colour-selective drafting AND rework the Silver Key** so its
+     exemption is real. This is the expensive ruling and it was taken with the
+     collision surfaced: it puts the Crown-effect PR into the same code as
+     `prism_key`, so **those two can no longer run in parallel.**
+
+  **The Crown cannot be picked up in the sim at all today, for a reason
+  unrelated to its effect.** `spawn_rooms: ["room_46"]` is dead:
+  `roll_special_spawn` is reached only from `items.py:187` under
+  `range(room.items.additional_max)`, and `room_46` has `additional_max: 0`.
+  Worse, `room_46` is an **area-graph node** reached via `Game.travel_to`, which
+  never calls `roll_room_items` for it. Verified by execution. So implementing
+  the effect alone would have given a correct mechanic that nothing can ever
+  trigger -- **the mirror of the "contents before the gate" lesson**, and the
+  owner sequenced against it. `sanctum_key_room_46` sits in the same dead pool
+  marked `implemented: true` with no `reachability` field: **a latent falsehood
+  in the data**, worth its own look.
+
+  **Generalisable, and this is the third time it has bitten:** a blocker is a
+  claim about the world, and it decays exactly like a size estimate. This one
+  was written confidently enough to carry a file:line, and the file:line was
+  wrong too. **A `blocked_on` string is not evidence; re-derive it before
+  building on it, and treat a precise-looking citation inside one as a reason
+  for more suspicion rather than less.**
+
+- **2026-08-12, the config digest is ~185 lines, not ~15, and it is a two-part
+  PR -- the first part being a defect nobody had recorded.**
+
+  **The unrecorded defect:** `env/blueprince_env.py::_serialize_config_value`
+  (lines 20-33) returns `None` for any value that is not
+  `frozenset`/`bool`/`int`/`str`, and lines 51-53 then skip it. `draft_counts`
+  is a `dict`, so **it is silently dropped from every `day_config` diff.**
+  Measured over a 5-day chain under `all_unlocks_config`, seed 42: day 1
+  reconstructs exactly; days 2-5 all mismatch, live `draft_counts`
+  `{'gymnasium': 1, ...}` against reconstructed `{}`. So **multi-day replay is
+  already not exact from day 2 onward, on the working trainer path**, entirely
+  independently of the wrong-preset bug the digest exists to catch.
+  `draft_counts` feeds the observation (`env/obs.py:549`) and gates upgrade-disk
+  offers (`engine/upgrades.py:275,310`) and the Treasure Trove pile.
+
+  **This inverts the digest's cost.** Shipped without that fix, the digest
+  fires on **100% of legitimate multi-day day>=2 records** rather than 0% --
+  verified: match was `True, False, False, False` unpatched, `True` for all five
+  days with a two-line dict branch added. The `draft_counts` fix is therefore
+  a behaviour fix in its own right, lands first, and carries its own test.
+
+  **It also falsifies a verified-facts entry.** *"`train.py` filters records by
+  their own `unlocks` stamp and rebuilds the config from that same stamp, so the
+  two cannot disagree"* is true of the **preset** and false of the whole config:
+  nothing checks `day_config`, and `day_config` is precisely where the
+  reconstruction is lossy. Severity stays low-ish -- `draft_counts` gates
+  upgrade-disk offers, not the common draft/travel actions -- but the claim as
+  written is wrong.
+
+  **Design ruling, taken as assume-build:** hash **only non-default fields**,
+  canonicalised (`frozenset` -> sorted list, `dict` -> key-sorted, `Path` ->
+  `str`), `json.dumps(sort_keys=True)` -> `blake2b(digest_size=8)`. Never
+  `hash()`. `GameConfig` is **not frozen and not hashable at all**
+  (`__hash__ is None`) -- 63 fields, 11 frozensets, one dict, one `Path | None`.
+  The non-default filter is what makes the corpus survivable: `config.py` took
+  **47 commits since 2026-06-01**, ~40 of them field additions, and hashing every
+  field would invalidate the whole corpus roughly weekly. **Known hole,
+  accepted: a change to a field's *default* is invisible to the digest** (2 real
+  instances in ~10 weeks, always a deliberate semantics PR). Mitigation is
+  procedural -- pair a default change with deleting the corpus, the convention
+  `n_actions` already carries. Do not close it by hashing defaults; that
+  reintroduces the weekly churn.
+
+  **Missing digest is refused, not defaulted**, in `behavioral_cloning` only,
+  via a new `ConfigDigestError(DemoError)` raised from `config_for_record` --
+  the single choke point, per the precedent at `UnstampedDemoError`.
+  `web/replay.py` keeps its deliberate asymmetry and only **flags** a mismatch
+  in the `divergence` dict; raising there would 500 the replay UI.
+
+  **The corpus is disposable, which is what licenses all of the above.**
+  `runs/postfix-v2/demos.jsonl` is the only demo file on disk -- 2 records,
+  untracked (`.gitignore: runs/`), and **already unloadable**: `n_actions=311`
+  against today's 376, so `StaleDemoError` rejects both. Two comments assert the
+  opposite and are now false (`behavioral_cloning.py:319` and
+  `tests/test_behavioural_cloning.py:4`, both "no real demos.jsonl exists
+  anywhere in the repo yet"); they get swept with this work under the
+  comments-state-current-behaviour rule.
+
+- **2026-08-12, N implementation agents run in N git worktrees -- the
+  one-agent-per-tree rule bounds agents per tree, not agents total.** Measured,
+  not assumed. A real `git worktree` is fully isolated and the single `.venv` in
+  the main checkout serves every tree, provided **`PYTHONPATH=src` is set so the
+  worktree's own `src` beats the editable install**, which otherwise resolves to
+  the main checkout. Mutation-tested both directions: a marker added in the
+  worktree is visible there and invisible in `main`. All three gates pass inside
+  a worktree (2030 passed, ruff clean, 0 errors / 0 warnings). **Parallelism is
+  now a file-contention question, not a tooling one** -- `actions.py` is the
+  contended file across `prism_key`, `the_axe`, `gear_wrench` and `chronograph`,
+  and ruling 4 above adds the Crown effect to that set.
+
 - **2026-08-12, observation and action width changes are ACCEPTABLE: a retrain
   is already required.** Owner. This unblocks the whole remaining item backlog,
   which #227 had just re-sized as M-or-larger precisely because every item costs
