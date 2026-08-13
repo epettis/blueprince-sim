@@ -758,9 +758,27 @@ def main(argv: list[str] | None = None) -> int:
                 )
             else:
                 absent_area_refs.append((where, aid))
+        wont = item.get("meta", {}).get("wont_implement")
+        if wont is not None and item.get("implemented", True):
+            errors.append(
+                f"{where}: meta.wont_implement is only meaningful while "
+                "implemented=false"
+            )
         if not item.get("implemented", True):
-            if not item.get("meta", {}).get("blocked_on"):
-                errors.append(f"{where}: implemented=false requires meta.blocked_on")
+            # wont_implement records a DECISION never to build this, so it stands in
+            # for blocked_on: there is no blocker to name, only a reason to decline.
+            if not (item.get("meta", {}).get("blocked_on") or wont):
+                errors.append(
+                    f"{where}: implemented=false requires meta.blocked_on "
+                    "or meta.wont_implement"
+                )
+            if wont and item.get("meta", {}).get("blocked_on"):
+                errors.append(
+                    f"{where}: meta.wont_implement and meta.blocked_on are "
+                    "mutually exclusive -- a decision not to build is not a blocker"
+                )
+            if wont is not None and not str(wont).strip():
+                errors.append(f"{where}: meta.wont_implement must state the reason")
             reachability = item.get("meta", {}).get("reachability")
             if reachability not in VALID_ITEM_REACHABILITY:
                 errors.append(
@@ -1850,8 +1868,15 @@ def main(argv: list[str] | None = None) -> int:
         f"; {n_audit} divergence-audit findings (run with --audit to list)"
         if n_audit else ""
     )
+    # Unimplemented items split into work still queued vs decisions never to build,
+    # so the backlog number reflects what is actually left rather than counting
+    # deliberate exclusions forever.
+    _unimpl = [i for i in si_items if not i.get("implemented", True)]
+    _wont = [i for i in _unimpl if i.get("meta", {}).get("wont_implement")]
     print(f"{len(rooms)} rooms ({len(base)} base pool); "
-          f"{len(si_items)} special items; "
+          f"{len(si_items)} special items "
+          f"({len(_unimpl) - len(_wont)} unimplemented, "
+          f"{len(_wont)} deliberately not modelled); "
           f"{n_shops} shops; "
           f"{len(ex_triggers)} experiment triggers, {len(ex_effects)} experiment effects; "
           f"{len(errors)} errors, {len(warnings)} warnings{audit_note}")

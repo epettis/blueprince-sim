@@ -855,6 +855,52 @@ around 1,800 LOC.
 
 ## Decisions log
 
+- **2026-08-12, three owner rulings, and a new `meta.wont_implement` marker to
+  hold them.** "Blocked" and "decided against" were the same field; they are
+  not the same thing, and conflating them left permanent exclusions sitting in
+  the backlog forever looking like pending work.
+
+  1. **Trophies are achievement-only and need no effects.** `trophy_of_wealth`
+     stays `implemented: true` -- it is a real 100-coin Showroom purchase an
+     agent can make, with `effects: []` deliberately. Nothing further queued.
+  2. **The Magnifying Glass is decided against**: puzzle-only effect, and the
+     sim has no lore layer and will not gain one.
+  3. **The Key of Aries is decided against**: no RL policy will learn the
+     castling puzzle, and its payoff is already granted regardless --
+     `royal_scepter_found` defaults `True` **deliberately**, so the scepter is
+     exercised as a mechanic without the unlock chain.
+
+  **The consequence I surfaced before acting, which changed the shape of the
+  ruling:** the Magnifying Glass's own effect is puzzle-only, but it is the
+  **sole input to the Burning Glass**, which has no spawn source of its own and
+  is one of only **two** ignition tools. Dropping it from the spawn pools would
+  have silently removed an ignition path and one of the sundial's two lighting
+  routes. Owner ruled: **keep it spawning, stop counting it.**
+
+  Deleting the records outright was also rejected: `env/obs.py` enumerates the
+  `items` array **positionally**, so removing `magnifying_glass` at index 9
+  would shift 92 later items -- **a retrain trigger for a bookkeeping change.**
+
+  **`meta.wont_implement` is mutually exclusive with `blocked_on`**, enforced by
+  the validator and pinned by a test: a blocker names something missing that
+  could be built; `wont_implement` records a decision that it never will be.
+
+  **The validator now prints the split**: `102 special items (9 unimplemented,
+  2 deliberately not modelled)`. Previously the backlog number could only be
+  obtained by hand-counting the JSON -- which is how I came to assert twice that
+  the validator already reported it.
+
+  **The real remaining backlog is 9**, not 12: `battery_pack`, `chronograph`,
+  `gear_wrench` (cheap); `prism_key`, `crown_of_the_blueprints`, `dowsing_rod`,
+  `the_axe` (real but understood); `telescope`, `file_cabinet_key` (blocked on a
+  subsystem).
+
+  **A process note worth keeping:** I mutation-tested the new validator rule by
+  editing the data in place and reverting with `git checkout --`, which wiped
+  the *intended* uncommitted changes in that same file along with the mutation.
+  Mutation-test against a copy, or stash first -- never `git checkout` a file
+  that is holding work you want.
+
 - **2026-08-12, the Trophy of Wealth is verified and implemented. 12 -> 11
   unimplemented items.** Its blocker was the only one of the twelve that named
   no missing mechanism -- `purchase_path_unverified_end_to_end`, written that
