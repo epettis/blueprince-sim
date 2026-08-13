@@ -1,5 +1,6 @@
 """Draft-side special-item behavior: compass unification, paper crown, knight's shield,
-silver key, and placement-condition gates from held items.
+silver key, placement-condition gates from held items, and the Battery Pack's
+deferred Dynamic Rarity flip/toggle.
 """
 
 from __future__ import annotations
@@ -263,3 +264,131 @@ def test_courtyard_dig_spot_dug_exactly_once(registry):
     special_items.dig_all(g, cell)  # re-arrival: nothing new dug or granted
     assert g.state.special.dug.get(cell, 0) == 1
     assert len(g.state.items_found_log) == log_len
+
+
+# ------------------------------------------------------------------ battery pack
+
+def test_battery_pack_pickup_records_pending_without_touching_decks(registry):
+    """Picking up the Battery Pack only increments the pending-trigger counter;
+    it must not itself touch dynamic_rarity or move any deck cards, since the
+    50/50 is deferred to the next deal (grant() has no rng in scope)."""
+    g = _game(registry, seed=3)
+    before = [list(d.order) for d in g.state.decks]
+    special_items.grant(g.state, g.registry, "battery_pack", source="test")
+    assert g.state.special.battery_pack_pending == 1
+    assert g.state.dynamic_rarity == {}
+    assert [list(d.order) for d in g.state.decks] == before
+
+
+def test_battery_pack_first_deal_moves_workshop_cards_and_drains_pending(registry):
+    """After the first hand is dealt following pickup, the Workshop's cards sit
+    in the chosen rarity's deck and the pending counter is back to 0 -- pins
+    that Game._deal_and_cache's resolve_battery_pack call actually fires.
+
+    Seed 2 is pinned because it draws index 0 ("standard") on the
+    "battery_pack_rarity" substream -- a bucket that differs from the
+    Workshop's own static "unusual" rarity, so the move is observable.
+    """
+    workshop = registry.by_id["workshop"]
+    g = _game(registry, items=("battery_pack",), seed=2)
+    assert g.state.special.battery_pack_pending == 1
+    g.state.steps = 100
+    doors = g.open_doorways()
+    cell, direction = doors[0]
+    g.open_door(cell, direction)
+
+    assert g.state.special.battery_pack_pending == 0
+    assert g.state.dynamic_rarity == {"workshop": 1}  # 1 == standard
+    standard_deck = g.state.deck(1, not workshop.is_free)
+    unusual_deck = g.state.deck(workshop.rarity_idx, not workshop.is_free)
+    assert workshop.idx in standard_deck.order
+    assert workshop.idx not in unusual_deck.order
+
+
+def test_battery_pack_landing_on_static_bucket_is_a_noop(registry):
+    """When the flip picks the Workshop's own static rarity (Unusual), the
+    resolution is a documented no-op: dynamic_rarity stays empty and no card
+    moves -- the "roughly half of all firings are free" property from
+    set_dynamic_rarity's own idempotency guard.
+
+    Seed 0 is pinned because it draws index 1 ("unusual") on the
+    "battery_pack_rarity" substream, matching the Workshop's own rarity.
+    """
+    workshop = registry.by_id["workshop"]
+    assert workshop.rarity == "unusual"  # premise: static bucket is Unusual
+    g = _game(registry, items=("battery_pack",), seed=0)
+    before = [list(d.order) for d in g.state.decks]
+    g.state.steps = 100
+    doors = g.open_doorways()
+    cell, direction = doors[0]
+    g.open_door(cell, direction)
+
+    assert g.state.special.battery_pack_pending == 0
+    assert g.state.special.battery_pack_last_rarity == 1  # unusual chosen
+    assert g.state.dynamic_rarity == {}  # no override recorded: no-op
+    assert [list(d.order) for d in g.state.decks] == before  # no card moved
+
+
+def test_battery_pack_second_pickup_same_day_toggles_to_the_other_option(registry):
+    """The wiki rule the item's own notes omit: a second (or later) trigger in
+    the same day does not re-roll -- it deterministically switches to the
+    other option. Reachable despite unique=True because grant() only blocks a
+    re-grant while the item is currently held (fabricating it away frees the
+    next grant), mirrored here with remove(consumed=True)."""
+    g = _game(registry, items=("battery_pack",), seed=2)
+    special_items.resolve_battery_pack(g)
+    first_choice = g.state.special.battery_pack_last_rarity
+    assert first_choice != -1  # premise: the first trigger actually resolved
+
+    # Fabricate the pack away (consumed=True, same as shops.fabricate does),
+    # then a second pickup -- unique=True does not block it since it is no
+    # longer held.
+    special_items.remove(g.state, "battery_pack", consumed=True)
+    special_items.grant(g.state, g.registry, "battery_pack", source="test")
+    assert g.state.special.battery_pack_pending == 1
+    special_items.resolve_battery_pack(g)
+
+    options = g.registry.special.battery_pack["options"]
+    second_choice = g.state.special.battery_pack_last_rarity
+    assert second_choice == (first_choice + 1) % len(options)
+
+
+def test_battery_pack_first_trigger_is_roughly_uniform_over_seeds(registry):
+    """The first trigger of the day is a genuine 50/50, checked as a
+    proportion over many seeds (not a chi-square -- that machinery already
+    lives in test_draft_stats.py and this suite must not duplicate it)."""
+    n = 200
+    standard_count = 0
+    for seed in range(n):
+        g = _game(registry, seed=seed)
+        special_items.grant(g.state, g.registry, "battery_pack", source="test")
+        special_items.resolve_battery_pack(g)
+        if g.state.special.battery_pack_last_rarity == 0:
+            standard_count += 1
+    proportion = standard_count / n
+    assert 0.35 < proportion < 0.65, f"proportion choosing 'standard': {proportion}"
+
+
+def test_battery_pack_pickup_fires_via_container_grant_path(registry):
+    """The deferred pickup effect fires identically through a non-spawn grant
+    path (special_items._apply_grant's "item" case, the same one containers
+    use), proving the deferral to resolve_battery_pack is path-independent
+    rather than something only the spawn pipeline triggers."""
+    g = _game(registry, seed=5)
+    tag = special_items._apply_grant(
+        g.state, g.registry, g, {"kind": "item", "id": "battery_pack"})
+    assert tag == "battery_pack"
+    assert g.state.special.battery_pack_pending == 1
+
+
+def test_battery_pack_resolution_is_deterministic_for_a_fixed_seed(registry):
+    """Two independent games built from the identical seed resolve the same
+    rarity choice -- the determinism every rng-consuming feature in this
+    engine must hold, since golden transcripts depend on it."""
+    def _resolve(seed: int) -> int:
+        g = _game(registry, seed=seed)
+        special_items.grant(g.state, g.registry, "battery_pack", source="test")
+        special_items.resolve_battery_pack(g)
+        return g.state.special.battery_pack_last_rarity
+
+    assert _resolve(7) == _resolve(7)

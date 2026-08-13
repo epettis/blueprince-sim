@@ -34,15 +34,18 @@
     "kitchen"
    ],
    "guaranteed_in": [],
-   "effects": [],
-   "implemented": false,
+   "effects": [
+    {
+     "tag": "battery_pack"
+    }
+   ],
+   "implemented": true,
    "meta": {
     "source": "https://blueprince.wiki.gg/wiki/Battery_Pack",
     "confidence": "wiki",
     "absent_spawn_areas": [],
-    "blocked_on": "component_only",
-    "reachability": "inert",
-    "notes": "All three fabrication recipes are built and match the wiki (shovel+battery_pack+broken_lever->jack_hammer, sledge_hammer+battery_pack+broken_lever->power_hammer, compass+battery_pack->powered_electromagnet). The only unmodelled part is a datamined side effect: on pickup, the Workshop's Dynamic Rarity is set to Standard or Unusual at 50/50."
+    "blocked_on": null,
+    "notes": "All three fabrication recipes are built and match the wiki (shovel+battery_pack+broken_lever->jack_hammer, sledge_hammer+battery_pack+broken_lever->power_hammer, compass+battery_pack->powered_electromagnet). On pickup, the Workshop's Dynamic Rarity is set to Standard or Unusual at 50/50 (room/options in the top-level battery_pack data section); the roll is deferred to the next hand dealt, where RNG is in scope. The second and later triggers in the same day do not re-roll -- they deterministically toggle to the other option (wiki: 'Triggering this effect multiple times in a day will always switch to the other one')."
    }
   },
   {
@@ -2903,6 +2906,13 @@
     "coins": 25,
     "gems": 3
    }
+  ]
+ },
+ "battery_pack": {
+  "room": "workshop",
+  "options": [
+   "standard",
+   "unusual"
   ]
  },
  "lost_and_found": {

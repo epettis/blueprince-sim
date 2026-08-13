@@ -17,12 +17,12 @@ justified by an entry on one of the two allowlists below, and the comment on
 that entry records the judgement call.
 
 This is a SEPARATE scanner from the effect-tag one in
-``test_item_tag_allowlist.py``, not a merged one, because 13 of the 37 effect
+``test_item_tag_allowlist.py``, not a merged one, because 14 of the 37 effect
 tags in ``data/special_items.json`` are spelled identically to a real item id
 (``compass``, ``stopwatch``, ``treasure_map``, ``master_key``,
 ``sleeping_mask``, ``watering_can``, ``emerald_bracelet``,
 ``ornate_compass``, ``paper_crown``, ``repellent``, ``chronograph``,
-``dowsing_rod``, ``gear_wrench``). A merged scanner checking one combined
+``dowsing_rod``, ``gear_wrench``, ``battery_pack``). A merged scanner checking one combined
 literal universe would double-count every one of those and make the two
 kinds of debt (id branches vs. tag branches) impossible to tell apart in the
 allowlists. Item ids are DISJOINT from room ids (verified empirically, see
@@ -168,9 +168,15 @@ ITEM_ARCHITECTURE: dict[str, set[str]] = {
         # the "treasure_map" data SECTION (cells/rewards table), a published
         # table this module keeps loading -- not the item-id branch, which
         # moved to effects/items/treasure_map.py (phase 6). Coincidentally
-        # spelled the same as the item id, like the 13 id/tag collisions
+        # spelled the same as the item id, like the 14 id/tag collisions
         # test_item_id_allowlist.py's docstring documents.
         "treasure_map",
+        # SpecialItemsRegistry.battery_pack field load
+        # (raw.get("battery_pack", {})): the "battery_pack" data SECTION
+        # (room id, rarity options), the same table-carve-out shape as
+        # treasure_map directly above -- the item-id behaviour branch itself
+        # (grant/pickup) lives in effects/items/battery_pack.py, not here.
+        "battery_pack",
     },
 }
 
