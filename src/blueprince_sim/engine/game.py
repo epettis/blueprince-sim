@@ -1294,8 +1294,16 @@ class Game:
                 if st.door_state.get(north_seg) == DOOR_SEALED:
                     self._open_north_door()
             # Room 46: record first arrival (permanent via carryover; see shops.carryover).
-            if dest == "room_46" and not st.room46_reached:
+            # It also holds two guaranteed items (Crown of the Blueprints, Sanctum
+            # Key), and since it is an area node that is never placed on the grid,
+            # this arrival is the only site that can grant them -- _enter/on_enter
+            # never run for it. Gated on cfg.special_items like mine_south's disk,
+            # both being inventory items; each item's own first-visit gate lives in
+            # special_items.configure, not here.
+            if dest == "room_46":
                 st.room46_reached = True
+                if self.cfg.special_items:
+                    special_items.on_area_arrival(self, dest)
             # Apple Orchard: the +20 starting-steps bonus is permanent from first
             # arrival. Recorded on STATE, never on cfg -- same shape as
             # west_gate_unlatched/mine_south_visited/sealed_entrance_broken.
