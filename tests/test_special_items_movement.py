@@ -7,6 +7,7 @@ from blueprince_sim.engine.grid import N
 from blueprince_sim.engine.locks import DOOR_LOCKED, DOOR_SECURITY, segment_key
 from blueprince_sim.engine.model import Registry
 from blueprince_sim.engine.state import GameState
+from blueprince_sim.env import actions as A
 
 
 # ----------------------------------------------------------------- helpers
@@ -217,6 +218,127 @@ def test_lockpick_pity_auto_succeeds_after_3_fails():
     result = si.open_locked_free(_FakeGame())
     assert result is True, "pity should auto-succeed after 3 consecutive fails"
     assert st.special.lockpick_fails == 0, "pity success must reset fail counter"
+
+
+# ------------------------------------------------ OPEN action mask: locked doorways
+
+def _force_lock(game: Game, cell: int, d: int) -> None:
+    """Force a doorway segment to DOOR_LOCKED, bumping door_version so cached
+    distance/mask state notices the change."""
+    game.state.door_state[segment_key(cell, d)] = DOOR_LOCKED
+    game.state.door_version += 1
+
+
+def _open_action_legal(game: Game, cell: int, d: int) -> bool:
+    """Whether action_mask() marks the draft-open of (cell, d) legal."""
+    mask = A.action_mask(game)
+    return mask[A.OPEN_BASE + cell * 4 + A.DIR_INDEX[d]]
+
+
+def test_open_action_master_key_legal_at_zero_keys():
+    """Drafting through a locked frontier doorway is legal at 0 keys when a
+    Master Key is held.
+
+    This is the bug this PR fixes: action_mask()'s OPEN branch gated on
+    st.keys alone and never consulted special_items.can_open_locked_free
+    (unlike game.doorway_passable), so a Master Key holder with 0 regular
+    keys could never use the highest-tier unlock item at all.
+    """
+    game = _game(frozenset({"master_key"}))
+    cell, d = game.open_doorways()[0]
+    _force_lock(game, cell, d)
+    game.state.keys = 0
+    assert _open_action_legal(game, cell, d)
+
+
+def test_open_action_stopwatch_does_not_open_at_zero_keys():
+    """The Stopwatch must NOT make a 0-key locked-door draft legal.
+
+    open_locked_free() only waives a locked door via the Stopwatch when
+    state.keys >= 1 (the wiki: a key must be in hand, though it is not
+    spent), so at 0 keys the Stopwatch grants no bypass and the OPEN action
+    must stay illegal, same as before this fix.
+    """
+    game = _game(frozenset({"stopwatch"}))
+    cell, d = game.open_doorways()[0]
+    _force_lock(game, cell, d)
+    game.state.keys = 0
+    assert not _open_action_legal(game, cell, d)
+
+
+def test_open_action_silver_key_legal_at_zero_keys():
+    """A held Silver Key makes a locked frontier doorway's draft-open legal
+    at 0 keys: it is consumed instead of a regular key on a draft-open
+    (open_door passes for_draft=True to _unlock_for_passage), unlike a
+    plain move through an already-open segment.
+
+    doorway_passable() does not know about this bypass -- its
+    can_open_locked_free check only recognizes the Master Key -- so the
+    mask cannot rely on doorway_passable alone here; it asks about a held
+    Silver Key directly, mirroring _unlock_for_passage's own for_draft
+    branch. Also confirms the engine actually honours it end-to-end: the
+    draft succeeds and the Silver Key (not a nonexistent regular key) is
+    what gets spent.
+    """
+    game = _game(frozenset({"silver_key"}))
+    cell, d = game.open_doorways()[0]
+    _force_lock(game, cell, d)
+    game.state.keys = 0
+    assert _open_action_legal(game, cell, d)
+    game.open_door(cell, d)
+    assert game.state.keys == 0
+    assert not si.has(game.state, "silver_key")
+
+
+def test_open_action_lockpick_does_not_open_at_zero_keys():
+    """A held Lock Pick Kit does NOT make a 0-key locked-door draft legal.
+
+    A pick attempt is probabilistic (special_items.open_locked_free); on
+    failure _unlock_for_passage falls back to spending a real key and
+    asserts st.keys >= cost. At 0 keys that assert would fail, so unlike
+    the Master/Silver Key the lockpick cannot make this action a *safe*
+    legal move -- the mask must stay conservative (illegal), same as
+    before this fix.
+    """
+    game = _game(frozenset({"lock_pick_kit"}))
+    cell, d = game.open_doorways()[0]
+    _force_lock(game, cell, d)
+    game.state.keys = 0
+    assert not _open_action_legal(game, cell, d)
+
+
+def test_open_action_mask_agrees_with_engine_predicate():
+    """The OPEN mask bit for the current room's own locked doorway must
+    exactly match what the engine will actually accept, across several
+    items and key counts.
+
+    Scoped to the player's own room (key_cost_map()[cell] == 0 there, since
+    no path is walked to reach it) so the mask's affordability arithmetic
+    and doorway_passable's segment-local check are directly comparable.
+    The ground truth used here is doorway_passable() OR a held Silver Key
+    with special_items enabled -- doorway_passable alone does not model
+    the Silver Key's draft-only bypass (see
+    test_open_action_silver_key_legal_at_zero_keys above). This is exactly
+    the class of drift -- a second, silently-diverging copy of a passability
+    rule -- that produced the bug this PR fixes.
+    """
+    for items in (
+        frozenset(),
+        frozenset({"master_key"}),
+        frozenset({"silver_key"}),
+        frozenset({"lock_pick_kit"}),
+        frozenset({"stopwatch"}),
+    ):
+        for keys in (0, 1, 2):
+            game = _game(items)
+            cell, d = game.open_doorways()[0]
+            _force_lock(game, cell, d)
+            game.state.keys = keys
+            expected = game.doorway_passable(cell, d) or (
+                game.cfg.special_items and si.has(game.state, "silver_key"))
+            actual = _open_action_legal(game, cell, d)
+            assert actual == expected, (
+                f"items={sorted(items)} keys={keys}: mask={actual} expected={expected}")
 
 
 # ------------------------------------------------ Emerald Bracelet gem cost

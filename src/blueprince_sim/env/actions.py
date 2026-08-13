@@ -505,14 +505,32 @@ def action_mask(game: Game, prev_action: int | None = None) -> list[bool]:
             # Draft any reachable, openable frontier doorway; arriving must
             # leave >= 1 step (so the drafted room can still be entered) and,
             # for locked doorways, a key beyond those the walk itself spends.
+            # This doorway's OWN cost (not the walk's, which key_cost[cell]
+            # already accounts for) is waived when open_door's own
+            # _unlock_for_passage would waive it: a Master Key
+            # (can_open_locked_free -- deterministic, never consumed) or a
+            # held Silver Key (consumed on a draft-open only, per
+            # silver_key.consume_for_draft; mirrors _unlock_for_passage's
+            # own cfg.special_items gate). The Lock Pick Kit / Pick Sound
+            # Amplifier are deliberately NOT waived here: a pick attempt is
+            # probabilistic and a failed one falls back to spending a real
+            # key in _unlock_for_passage, which asserts if none are held --
+            # so at 0 keys the action must stay illegal, not "legal but may
+            # crash". The Stopwatch is a refund, not an opener, and already
+            # requires >=1 key in hand, so it needs no waiver either.
             for cell, d in game.frontier_doorways():
                 if not 0 <= dist[cell] <= st.steps - 1:
                     continue
                 seg = game.door_state_of(cell, d)
                 if seg == DOOR_SEALED:
                     continue  # sealed: no action can open it
-                if seg == DOOR_LOCKED and st.keys < key_cost[cell] + game.lock_open_cost(cell, d):
-                    continue
+                if seg == DOOR_LOCKED:
+                    door_cost = game.lock_open_cost(cell, d)
+                    if _si.can_open_locked_free(game) or (
+                            game.cfg.special_items and _si.has(st, "silver_key")):
+                        door_cost = 0
+                    if st.keys < key_cost[cell] + door_cost:
+                        continue
                 if seg == DOOR_SECURITY and not game.security_openable():
                     continue
                 mask[OPEN_BASE + cell * 4 + DIR_INDEX[d]] = True
