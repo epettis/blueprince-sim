@@ -4,8 +4,9 @@ Scope of this document: the special-item system, delivered across PRs #17–#20.
 Source data: `docs/research/special-items-wiki.md`. Status: implemented — items
 exist and spawn, commerce works (shop purchases, Trading Post trades, Workshop
 fabrication), item-use actions work (Royal Scepter, Repellent), and the
-observation/action space is wired. `microchip` remains inert
-(`implemented: false`, `blocked_on: outer_areas_not_modeled`).
+observation/action space is wired. All 102 item records that are reachable in
+play are `implemented: true`; the remainder carry a `meta.blocked_on` naming
+what is missing and a `meta.reachability` of `inert` or `absent`.
 
 **Observability requirements** (delivered; `env/obs.py` now encodes all of these):
 - inventory vector (per-item held flags/counts, indexed by registry order);
@@ -397,14 +398,26 @@ duck-typed `game`). game.py gains thin action methods; env untouched until PR3.
   shop} — once per day, irrevocable for the day; sets a `scepter_<color>` condition
   consumed by the existing data-driven `category_biases` machinery
   (priority_draws.json entries; chance 40, magnitude unpublished — inferred).
-- **Microchips**: `smash_vase()` (standing in the Entrance Hall with a Sledge
-  Hammer, once) grants a `microchip` and records the vase discovery; with
+- **Microchips**: three exist, and all three respawn at their starting location
+  the next day. `smash_vase()` (standing in the Entrance Hall with any item
+  carrying the `smash` tag -- the wiki says "a Sledge Hammer or equivalent",
+  once) grants a `microchip` and records the vase discovery; with
   `entrance_vase_broken` the chip is instead granted at day start. West Path chip:
   with `outer_chip_dug`, granted on reaching the doorstep (`state.area == "west_path"` — same
   walking cost as the Outer Room door, per the game); the first-time dig happens
   automatically at the doorstep while holding a digging tool, recording the
-  discovery. Chip holders/placement are not modeled (outer areas out of scope) —
-  chips stay inert, tier-2, give-only (`no_receive`) in the Trading Post graph.
+  discovery. Grotto chip: it starts in the Blackbridge Grotto pedestal and is
+  taken with `TAKE_GROTTO_CHIP`, legal there while `GameState.grotto_chip_taken`
+  is False -- a day-scoped flag with no carry-over, which is what makes the chip
+  reappear in the pedestal tomorrow.
+
+  Both holders are modelled. `areas.json`'s `three_microchips` gate counts held
+  chips **plus** the pedestal chip while it is in place (`counts_flag`), so two
+  carried chips open the Orindian Ruins; taking the pedestal chip gives three
+  held, which keeps that gate open and also lights the Apple Orchard sundial
+  (`ignition.targets.apple_orchard`, `requires_items: {"microchip": 3}`).
+  Chips are tier-2 give-only (`no_receive`) in the Trading Post graph, so they
+  can be traded away or lost to the Lost & Found but never received.
 - **Carry-over report**: `Game.carryover() -> dict[str, bool]` — today's discoveries
   for a multi-day wrapper to feed into tomorrow's GameConfig: keys
   `lunch_box_unlocked`, `cursed_effigy_unlocked`, `entrance_vase_broken`,
