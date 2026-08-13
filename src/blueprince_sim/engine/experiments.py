@@ -73,9 +73,18 @@ neither says the trigger stops firing). This is a different shape from a
 *trigger's* own cap (``trunks_opened``, ``map_view``), which suppresses the
 whole fire including the trigger's ``steps_lost``.
 
-All twelve base triggers are now implemented; the eight packet triggers stay
-unimplemented pending the packet subsystem (phases 5-8). ``immediately``
-fires once, at setup completion, from
+All twelve base triggers are now implemented. Of the eight packet triggers,
+six are now wired: ``rank9_first_entry``, ``upgraded_floorplan_draft``,
+``tomorrow_room_draft``, ``antechamber_lever_pull``, ``fireplace_draft``, and
+``terminal_access`` (see each's own section below). ``speed_40_seconds`` and
+``map_view`` stay permanently unimplemented -- this simulator has no wall
+clock and no interactive map, so neither condition can ever be observed,
+regardless of the packet subsystem's own phase. None of the eight packet
+triggers is reachable in play yet even though six now have firing sites: the
+packet pool is still never sampled by :func:`draw_offers` (``or_packet``
+stays hardcoded False in :func:`_effect_offerable`), so wiring the firing
+sites is dead code today, ready for the day a later PR flips that gate.
+``immediately`` fires once, at setup completion, from
 :meth:`Game._maybe_finish_experiment_setup`. Six -- ``shops``, ``gems_spent``,
 ``bedrooms_after_second``, ``hallway_from_hallway``, ``red_room_draft``,
 ``archived_floorplan`` -- are all detected by :func:`on_room_drafted`, called
@@ -112,6 +121,47 @@ hook at all three ON_HAND_DEALT sites (the initial grid deal, the initial
 outer deal, and every redraw), so no new call site was needed. A hidden or
 archived Drawing Room still counts, per the wiki's plain "drawn" wording.
 
+Six of the eight packet triggers now have firing sites (still unreachable in
+play -- see above). ``rank9_first_entry`` fires from :func:`on_room_entered`,
+called from ``Game._enter`` right after its own ``entered[cell]`` guard
+confirms this is the cell's first entry today; a Rank 9 room (including the
+Antechamber) entered before the experiment was configured never reaches this
+call site a second time, which is exactly the wiki's "prior visits ... do not
+count." ``upgraded_floorplan_draft`` and ``tomorrow_room_draft`` are detected
+by :func:`on_room_drafted` alongside the six base draft-site triggers:
+the former on ``room.variant_of is not None`` (every ``pool ==
+"upgrade_variant"`` record carries one, and only those records do), firing
+twice for an upgraded Bunk Room via :func:`_fire_upgraded_floorplan_draft`
+(mirrors :func:`_fire_archived_floorplan`'s own ``counts_as_bedrooms`` read);
+the latter on ``room.is_category("tomorrow")`` (the 12 records carrying
+``extra_categories: ["tomorrow"]``). ``fireplace_draft`` is also detected by
+:func:`on_room_drafted`, via :func:`_room_has_fireplace`: six of the seven
+fireplace rooms read straight off ``Room.has_fireplace``; the Dining Room's
+case is decided against the cell it lands on (centre columns or Rank 9)
+instead, duplicating ``effects/rooms/cloister.py``'s
+``_dining_room_has_fireplace`` rather than importing it, since that would
+cycle back through ``effects.rooms.drawing_room``'s own import of this
+module. ``antechamber_lever_pull`` fires from :func:`on_lever_pulled`, called
+from every site that actually opens one of the Antechamber's four sealed
+segments as a lever pull -- ``Game._open_north_door`` (shared by the Inner
+Sanctum's main lever and the Throne Room's backup lever), ``great_hall.
+pull_east_lever``, ``secret_garden.pull_west_lever``, ``weight_room.
+pull_south_lever``, and ``special_items.install_lever``'s Greenhouse
+``antechamber_lever`` branch, which targets the same south segment as the
+Weight Room's own lever through a wholly separate guard (``machines_used``,
+not door state) -- so ``ExperimentState.levers_pulled`` (a per-day distinct
+segment set, the same shape as ``GameState.areas_visited``) is what actually
+keeps a Weight-Room-then-Greenhouse day from double-counting the south
+lever, not any incidental one-shot behaviour of the door state.
+``terminal_access`` fires from :func:`on_terminal_accessed`, called from
+``Game.insert_disk`` after a disk is actually inserted (not on a failed
+insert with no selectable slot): this is the only discrete "operate a
+terminal" action modelled, shared by every ``disk_reader`` room (Security,
+Laboratory, Office, Shelter); Blackbridge Grotto's off-grid 5th reader has no
+room record and can never fire this. ``ExperimentState.terminals_accessed``
+(room ids, per-day distinct set) is the dedup, since a player can insert
+several disks at the same terminal in one day.
+
 Two of the twelve base triggers carry a ``day_gate`` availability
 (``security_door``, ``drawing_room_drawn``): both are excluded from
 :func:`draw_offers`'s sampling pool before day 8 unless ``cfg.veteran_mode``
@@ -133,7 +183,7 @@ import json
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from .grid import neighbor
+from .grid import is_center_column, neighbor, rank_of
 from .model import RARITY_INDEX
 
 # Aquarium ids the add_aquariums effect touches. model.py's top-level import
@@ -243,6 +293,17 @@ class ExperimentState:
     # _effect_offerable's docstring for why this can't yet enforce the wiki's
     # cross-day "16 ever, never offered again" rule.
     letters_delivered: int = 0
+    # Antechamber lever segments (cell, direction) already counted toward
+    # antechamber_lever_pull today -- a per-day distinct set, the same shape
+    # as GameState.areas_visited, since a lever can be reached by more than
+    # one call site (see on_lever_pulled's own docstring for the Weight
+    # Room / Greenhouse case this specifically guards against).
+    levers_pulled: set[tuple[int, int]] = field(default_factory=set)
+    # Upgrade Disk terminal room ids already counted toward terminal_access
+    # today -- a per-day distinct set; a player can insert several disks at
+    # the same terminal, so this is not a plain counter (see
+    # on_terminal_accessed).
+    terminals_accessed: set[str] = field(default_factory=set)
 
     @property
     def configured(self) -> bool:
@@ -402,7 +463,7 @@ def trigger_success(game) -> bool:
 
 def on_room_drafted(game, room, cell: int, entry_dir: int | None, gem_cost: int,
                     archived: bool = False) -> None:
-    """Detect and fire the six placement-site triggers for a freshly-placed room.
+    """Detect and fire the nine placement-site triggers for a freshly-placed room.
 
     Called from Game._place_room after the room is written to the grid and
     before its ON_PLACE hook fires, for every non-entrance draft (never for
@@ -414,7 +475,9 @@ def on_room_drafted(game, room, cell: int, entry_dir: int | None, gem_cost: int,
     DraftOption's own ``archived`` flag -- an outer-room draft never sets it
     (draft.py's Archives pass only ever touches a grid hand), so that path
     (which does not route through this function at all) can never fire
-    archived_floorplan.
+    archived_floorplan. Three of the nine are packet triggers (still
+    unreachable in play, see the module docstring): ``upgraded_floorplan_draft``,
+    ``tomorrow_room_draft``, and ``fireplace_draft``.
     """
     ex = game.state.experiment
     match ex.trigger_id:
@@ -429,8 +492,47 @@ def on_room_drafted(game, room, cell: int, entry_dir: int | None, gem_cost: int,
             trigger_success(game)
         case "archived_floorplan" if archived:
             _fire_archived_floorplan(game, room)
+        case "upgraded_floorplan_draft" if room.variant_of is not None:
+            _fire_upgraded_floorplan_draft(game, room)
+        case "tomorrow_room_draft" if room.is_category("tomorrow"):
+            trigger_success(game)
+        case "fireplace_draft" if _room_has_fireplace(room, cell):
+            trigger_success(game)
     if room.is_category("bedroom"):
         _count_bedroom_draft(game, room, ex.trigger_id)
+
+
+def _room_has_fireplace(room, cell: int) -> bool:
+    """True when ``room``, placed at ``cell``, has a fireplace today.
+
+    Six of the seven fireplace rooms read straight off the static
+    ``Room.has_fireplace`` flag; the Dining Room's fireplace instead depends
+    on the cell it lands on -- centre columns or Rank 9 have one, the wings
+    and Rank 1 have windows instead (per the packet trigger's own
+    ``meta.notes``). Duplicates ``effects/rooms/cloister.py``'s
+    ``_dining_room_has_fireplace`` rather than importing it: this module ->
+    ``effects.rooms.cloister`` would import the ``effects.rooms`` package,
+    which imports ``effects.rooms.drawing_room``, which itself imports this
+    module (``from ... import experiments``) -- a cycle.
+    """
+    if room.id == "dining_room" or room.variant_of == "dining_room":
+        return (is_center_column(cell) and rank_of(cell) != 1) or rank_of(cell) == 9
+    return room.has_fireplace
+
+
+def _fire_upgraded_floorplan_draft(game, room) -> None:
+    """Fire upgraded_floorplan_draft once, or twice for an upgraded Bunk Room.
+
+    Mirrors :func:`_fire_archived_floorplan`'s own ``counts_as_bedrooms``
+    read: an upgraded Bunk Room (``bunk_room__ixNN``, ``variant_of ==
+    "bunk_room"``) carries the same tag/amount as the base Bunk Room, so the
+    two agree by construction ("an upgraded Bunk Room triggers twice", per
+    the trigger's own ``meta.notes``).
+    """
+    bed_effect = next((e for e in room.effects if e.tag == "counts_as_bedrooms"), None)
+    times = bed_effect.param("amount", 1) if bed_effect is not None else 1
+    for _ in range(times):
+        trigger_success(game)
 
 
 def _fire_archived_floorplan(game, room) -> None:
@@ -499,6 +601,72 @@ def _count_bedroom_draft(game, room, trigger_id: str | None) -> None:
     crossed = max(0, after - 2) - max(0, before - 2)
     for _ in range(crossed):
         trigger_success(game)
+
+
+# ------------------------------------------------------------------ interaction-site packet triggers
+
+def on_room_entered(game, cell: int) -> None:
+    """Fire rank9_first_entry: ``cell`` (a Rank 9 room, possibly the Antechamber)
+    was just entered for the first time today.
+
+    Called from Game._enter right after its own ``entered[cell]`` guard has
+    confirmed this call is genuinely the first entry to ``cell`` today -- a
+    Rank 9 room entered before the experiment was configured has already set
+    ``entered[cell]``, so this site is never reached for it again, which is
+    exactly the trigger's own "prior visits before the experiment started do
+    not count" (``meta.notes``).
+    """
+    if game.state.experiment.trigger_id == "rank9_first_entry" and rank_of(cell) == 9:
+        trigger_success(game)
+
+
+def on_lever_pulled(game, cell: int, direction: int) -> None:
+    """Fire antechamber_lever_pull once per distinct Antechamber lever segment.
+
+    Called from every site that actually opens one of the Antechamber's four
+    sealed doorway segments as a lever pull: ``Game._open_north_door`` (the
+    Inner Sanctum's main lever and the Throne Room's backup lever both route
+    through it), ``great_hall.pull_east_lever``, ``secret_garden.
+    pull_west_lever``, ``weight_room.pull_south_lever``, and
+    ``special_items.install_lever``'s Greenhouse ``antechamber_lever``
+    branch. The last of those targets the SAME south segment as the Weight
+    Room's own lever, through an entirely separate guard
+    (``machines_used``, not door state) -- so a day that pulls the Weight
+    Room's lever and then installs a Broken Lever in the Greenhouse would
+    double-count the south lever without ``ExperimentState.levers_pulled``,
+    a per-day distinct segment set (the same shape as
+    ``GameState.areas_visited``).
+    """
+    ex = game.state.experiment
+    if ex.trigger_id != "antechamber_lever_pull":
+        return
+    seg = (cell, direction)
+    if seg in ex.levers_pulled:
+        return
+    ex.levers_pulled.add(seg)
+    trigger_success(game)
+
+
+def on_terminal_accessed(game, room_id: str) -> None:
+    """Fire terminal_access once per distinct Upgrade Disk terminal today.
+
+    Called from Game.insert_disk after a disk has actually been inserted
+    (not on a failed attempt where no slot was selectable and nothing was
+    consumed) -- this is the only discrete "operate a terminal" action this
+    simulator models, shared by every ``disk_reader`` room (Security,
+    Laboratory, Office, Shelter). Blackbridge Grotto's off-grid 5th disk
+    reader has no room record, so it can never fire this.
+    ``ExperimentState.terminals_accessed`` (room ids, per-day distinct set)
+    is the dedup: a player can insert several disks at the same terminal in
+    one day, so a plain counter would overcount.
+    """
+    ex = game.state.experiment
+    if ex.trigger_id != "terminal_access":
+        return
+    if room_id in ex.terminals_accessed:
+        return
+    ex.terminals_accessed.add(room_id)
+    trigger_success(game)
 
 
 def _effect_apply_count(state, effect_id: str) -> int:

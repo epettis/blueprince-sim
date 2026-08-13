@@ -246,11 +246,11 @@
    "pool": "packet",
    "availability": null,
    "cap": null,
-   "implemented": false,
+   "implemented": true,
    "meta": {
     "source": "https://blueprince.wiki.gg/wiki/Spoilers:Experiments/Triggers",
     "confidence": "wiki",
-    "blocked_on": "phase 0: no experiments engine exists yet (data/validation only); the packet subsystem itself is phases 5-8, not yet authorised",
+    "blocked_on": null,
     "notes": [
      "Includes the Antechamber. Prior visits before the experiment started do not count."
     ]
@@ -273,11 +273,11 @@
     "trophy_room",
     "the_armory"
    ],
-   "implemented": false,
+   "implemented": true,
    "meta": {
     "source": "https://blueprince.wiki.gg/wiki/Spoilers:Experiments/Triggers",
     "confidence": "wiki",
-    "blocked_on": "phase 0: no experiments engine exists yet (data/validation only); the packet subsystem itself is phases 5-8, not yet authorised",
+    "blocked_on": null,
     "notes": [
      "The Dining Room only counts when drafted in the center of the house or on Rank 9; on the wings or Rank 1 its fireplace wall is windows instead."
     ]
@@ -305,11 +305,11 @@
    "pool": "packet",
    "availability": null,
    "cap": null,
-   "implemented": false,
+   "implemented": true,
    "meta": {
     "source": "https://blueprince.wiki.gg/wiki/Spoilers:Experiments/Triggers",
     "confidence": "wiki",
-    "blocked_on": "phase 0: no experiments engine exists yet (data/validation only); the packet subsystem itself is phases 5-8, not yet authorised",
+    "blocked_on": null,
     "notes": [
      "First access per terminal since the experiment started, including via Remote Terminal Access."
     ]
@@ -321,11 +321,11 @@
    "pool": "packet",
    "availability": null,
    "cap": null,
-   "implemented": false,
+   "implemented": true,
    "meta": {
     "source": "https://blueprince.wiki.gg/wiki/Spoilers:Experiments/Triggers",
     "confidence": "wiki",
-    "blocked_on": "phase 0: no experiments engine exists yet (data/validation only); the packet subsystem itself is phases 5-8, not yet authorised",
+    "blocked_on": null,
     "notes": [
      "Multiple copies of the same upgraded floorplan each trigger separately; an upgraded Bunk Room triggers twice."
     ]
@@ -337,11 +337,11 @@
    "pool": "packet",
    "availability": null,
    "cap": null,
-   "implemented": false,
+   "implemented": true,
    "meta": {
     "source": "https://blueprince.wiki.gg/wiki/Spoilers:Experiments/Triggers",
     "confidence": "wiki",
-    "blocked_on": "phase 0: no experiments engine exists yet (data/validation only); the packet subsystem itself is phases 5-8, not yet authorised",
+    "blocked_on": null,
     "notes": [
      "Only unique levers pulled after the experiment started count; levers pulled beforehand never (re)trigger it."
     ]
@@ -377,13 +377,13 @@
    "pool": "packet",
    "availability": null,
    "cap": null,
-   "implemented": false,
+   "implemented": true,
    "meta": {
     "source": "https://blueprince.wiki.gg/wiki/Spoilers:Experiments/Triggers",
     "confidence": "wiki",
-    "blocked_on": "phase 0: no experiments engine exists yet (data/validation only); the packet subsystem itself is phases 5-8, not yet authorised",
+    "blocked_on": null,
     "notes": [
-     "'Tomorrow Rooms' (upgrade-disk-granted next-day room injections) have no dedicated flag or enumerable room list in this sim's rooms.json, so no room id list is transcribed here."
+     "'Tomorrow Rooms' are the 12 records carrying extra_categories: [\"tomorrow\"] in rooms.json (break_room__ix11, sauna, coat_check, mail_room, mail_room__ix89/90/91, freezer, hallway__ix76, morning_room, clock_tower, planetarium) -- the same category Game.end_day already reads for the Clock Tower's own next-day key pulse. This record's own note previously claimed no such flag existed; that was stale."
     ]
    }
   }

@@ -9,6 +9,7 @@ Chamber's anti-luck.
 
 from __future__ import annotations
 
+from ... import experiments
 from ...grid import N
 from ...locks import DOOR_SEALED, segment_key
 from .. import Hook, provides_lever, room_hook
@@ -47,6 +48,7 @@ def pull_south_lever(game, cell: int) -> None:
         return
     st.shops.weight_room_wall_broken = True
     game._open_segment(SOUTH_SEGMENT_CELL, N)
+    experiments.on_lever_pulled(game, SOUTH_SEGMENT_CELL, N)
 
 
 provides_lever("weight_room", pull_south_lever)

@@ -2376,7 +2376,10 @@ def install_lever(game) -> None:
     Dispatches effects:
     - antechamber_lever: unlock the Antechamber south doorway (cell 37's north side,
       segment (37, N)); the wiki calls this the "south Antechamber door" because it
-      connects rank-8 center (cell 37) to the Antechamber (cell 42) from below
+      connects rank-8 center (cell 37) to the Antechamber (cell 42) from below.
+      Also fires the antechamber_lever_pull experiment trigger (dedup'd against
+      the Weight Room's own south lever by experiments.on_lever_pulled, since
+      both target the same segment).
     - slot_bonus: grant the casino loot from machines.casino.grants
     """
     state = game.state
@@ -2404,6 +2407,7 @@ def install_lever(game) -> None:
             # Sanctum lever — neither is modeled.
             ante_cell = 37  # rank-8 center; neighbor(37, N) == ANTECHAMBER_CELL(42)
             game._open_segment(ante_cell, N)
+            experiments.on_lever_pulled(game, ante_cell, N)
         case "slot_bonus":
             for reward in machine_cfg.get("grants", []):
                 kind = reward.get("kind")

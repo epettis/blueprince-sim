@@ -112,6 +112,11 @@ ALLOWLIST: dict[str, set[str]] = {
         # room_cells.get("conference_room") existence gate for the Grounds
         # dig-spot-cap effect.
         "conference_room",
+        # room.id == "dining_room" / variant_of == "dining_room": the
+        # fireplace_draft packet trigger's own cell-dependent case (same
+        # comparison shape as special_items.py's Dining Room main-course
+        # check below).
+        "dining_room",
     },
     "game.py": {
         # Fixture lookups in reset()/anchor-building: the day always starts
