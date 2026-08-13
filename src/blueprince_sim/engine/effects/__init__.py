@@ -42,6 +42,16 @@ def provides_capability(room_id: str, capability: Capability) -> bool:
     return (room_id, capability) in _CAPABILITY_REGISTRY
 
 
+def registered_capability_rooms() -> frozenset[str]:
+    """Room ids with any ``Capability`` registered via ``provides``/``provides_lever``.
+
+    Mirrors ``registered_rooms()`` for the capability registry. Callers
+    outside this module use this rather than reading ``_CAPABILITY_REGISTRY``
+    directly.
+    """
+    return frozenset(room_id for room_id, _cap in _CAPABILITY_REGISTRY)
+
+
 def validate_capability_registry(registry) -> list[str]:
     """Return every room id registered via ``provides`` that ``registry`` lacks.
 
@@ -244,6 +254,16 @@ def item_capability_any(state, registry, capability: ItemCapability) -> bool:
     return False
 
 
+def registered_item_capability_ids() -> frozenset[str]:
+    """Item ids with any ``ItemCapability`` registered via ``item_provides``.
+
+    Mirrors ``registered_rooms()`` for the item capability registry. Callers
+    outside this module use this rather than reading
+    ``_ITEM_CAPABILITY_REGISTRY`` directly.
+    """
+    return frozenset(item_id for item_id, _cap in _ITEM_CAPABILITY_REGISTRY)
+
+
 def validate_item_registry(registry) -> list[str]:
     """Return every item id registered via ``item_provides`` that ``registry`` lacks.
 
@@ -357,6 +377,16 @@ def fold_item_chain(state, registry, hook: "ItemHook", priority: tuple[str, ...]
         if result is not None:
             value = result
     return value
+
+
+def registered_item_hook_ids() -> frozenset[str]:
+    """Item ids with a handler registered via ``item_hook`` for any ``ItemHook``.
+
+    Mirrors ``registered_rooms()`` for the item hook registry. Callers
+    outside this module use this rather than reading ``_ITEM_HOOK_REGISTRY``
+    directly.
+    """
+    return frozenset(item_id for item_id, _hook in _ITEM_HOOK_REGISTRY)
 
 
 def validate_item_hook_registry(registry) -> list[str]:

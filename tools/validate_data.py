@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import sys
 from pathlib import Path
 
@@ -21,7 +22,17 @@ from pathlib import Path
 # that is the point, not a side effect to work around. Needs blueprince_sim
 # on the import path (editable install, or PYTHONPATH=src), same as every
 # other tools/ script that imports it (e.g. benchmark_env.py).
-from blueprince_sim.engine.effects import registered_rooms
+from blueprince_sim.engine.effects import (
+    registered_capability_rooms,
+    registered_item_capability_ids,
+    registered_item_hook_ids,
+    registered_rooms,
+    validate_capability_registry,
+    validate_item_hook_registry,
+    validate_item_registry,
+    validate_room_registry,
+)
+from blueprince_sim.engine.model import Registry
 
 DATA = Path(__file__).resolve().parent.parent / "src" / "blueprince_sim" / "data"
 
@@ -333,6 +344,84 @@ def find_divergences(
             )
 
     return kind1, kind2
+
+
+_NO_EFFECT_CLAIM = re.compile(r"no effect model", re.IGNORECASE)
+
+
+def find_empty_effects_findings(
+    rooms: list[dict],
+    si_items: list[dict],
+    room_registered_ids: frozenset,
+    item_registered_ids: frozenset,
+) -> tuple[list[str], int, int, int, int]:
+    """Census every room/item with an empty ``effects`` list against the
+    engine/effects registries, and flag prose that contradicts its own
+    registration.
+
+    Task 22 moved a lot of behaviour OUT of the ``effects`` array and into
+    per-room/per-item Python (``room_hook``, ``Capability`` via
+    ``provides``/``provides_lever``, ``ItemCapability`` via
+    ``item_provides``, ``ItemHook`` via ``item_hook``). The cost: ``effects:
+    []`` no longer means "does nothing" -- it means "does nothing HERE".
+    Rather than trust that distinction stays documented correctly by hand,
+    this derives it: for every room/item whose ``effects`` list is empty, it
+    asks whether the id is registered in ``room_registered_ids`` (rooms) /
+    ``item_registered_ids`` (items) -- callers pass
+    ``registered_rooms() | registered_capability_rooms()`` and
+    ``registered_item_capability_ids() | registered_item_hook_ids()``
+    respectively, so this function itself never imports ``engine.effects``
+    and stays testable against constructed sets.
+
+    Being empty-but-registered is not itself a finding -- it is exactly what
+    task 22 intended, and a record can also be modelled by a hand-written
+    branch these two registries can't see (engine/game.py,
+    engine/special_items.py; see ``_AUDIT_PYTHON_EXEMPT_IDS`` and --audit
+    above), so "not found here" does not mean "genuinely does nothing", only
+    "not found in these registries". A warning fires in exactly one case:
+    the record IS registered, but its own prose (``meta.effect_text`` for
+    rooms, ``meta.notes`` for items) claims no effect is modelled anyway.
+    That is the throne_room incident this task exists to catch -- its
+    effect_text once said "no effect modeled" while its Antechamber lever
+    was already registered via ``provides_lever``; the prose had drifted to
+    match the empty array rather than the code that actually runs.
+
+    Returns ``(warnings, n_empty_rooms, n_room_registered, n_empty_items,
+    n_item_registered)``.
+    """
+    findings: list[str] = []
+
+    empty_rooms = [r for r in rooms if not r.get("effects")]
+    n_room_registered = 0
+    for r in empty_rooms:
+        rid = r["id"]
+        if rid not in room_registered_ids:
+            continue
+        n_room_registered += 1
+        text = r.get("meta", {}).get("effect_text") or ""
+        if _NO_EFFECT_CLAIM.search(text):
+            findings.append(
+                f"{rid}: effects=[] and effect_text claims no effect is modelled, but the "
+                f"room IS registered in engine/effects (room_hook or Capability) -- prose "
+                f"has drifted from the code"
+            )
+
+    empty_items = [it for it in si_items if not it.get("effects")]
+    n_item_registered = 0
+    for it in empty_items:
+        iid = it["id"]
+        if iid not in item_registered_ids:
+            continue
+        n_item_registered += 1
+        notes = it.get("meta", {}).get("notes") or ""
+        if _NO_EFFECT_CLAIM.search(notes):
+            findings.append(
+                f"{iid}: effects=[] and meta.notes claims no effect is modelled, but the "
+                f"item IS registered in engine/effects (item_provides or item_hook) -- "
+                f"prose has drifted from the code"
+            )
+
+    return findings, len(empty_rooms), n_room_registered, len(empty_items), n_item_registered
 
 
 def _assert_data_exemptions_live(by_id: dict[str, dict]) -> None:
@@ -1701,6 +1790,49 @@ def main(argv: list[str] | None = None) -> int:
             f"areas: edge count is {actual_edge_count}, spec says {SPEC_EDGE_COUNT}; "
             f"update docs/areas.md if the graph has changed"
         )
+
+    # ── engine/effects registries ─────────────────────────────────────────────
+    # Four registries (room_hook, Capability via provides/provides_lever,
+    # ItemCapability via item_provides, ItemHook via item_hook) all register ids
+    # at IMPORT TIME, before any Registry exists -- so a typo'd id (a mistyped
+    # room_hook("dovecot", ...) or item_provides("emerlad_bracelet", ...))
+    # cannot be checked at the call site; it would otherwise just never match
+    # anything real and silently never fire. Previously the four validate_*
+    # functions below existed only in engine/effects/__init__.py and were
+    # exercised solely by tests/test_room_registry.py, test_item_registry.py
+    # and test_item_hook_registry.py -- a typo was caught only if someone ran
+    # pytest. Wiring them in here means a bare `validate_data.py` run catches
+    # it too.
+    effects_registry = Registry.load()
+    for rid in validate_room_registry(effects_registry):
+        errors.append(f"engine/effects: room_hook registered for unknown room id {rid!r}")
+    for rid in validate_capability_registry(effects_registry):
+        errors.append(
+            f"engine/effects: provides/provides_lever registered for unknown room id {rid!r}")
+    for iid in validate_item_registry(effects_registry):
+        errors.append(f"engine/effects: item_provides registered for unknown item id {iid!r}")
+    for iid in validate_item_hook_registry(effects_registry):
+        errors.append(f"engine/effects: item_hook registered for unknown item id {iid!r}")
+
+    # ── effects=[] census (derived, not a data marker) ────────────────────────
+    # See find_empty_effects_findings' docstring for what this measures and
+    # why: informational counts, plus a warning only where a record's own
+    # prose claims no effect is modelled while it IS registered above.
+    room_registered_ids = registered_rooms() | registered_capability_rooms()
+    item_registered_ids = registered_item_capability_ids() | registered_item_hook_ids()
+    (empty_effects_warnings, n_empty_rooms, n_room_registered,
+     n_empty_items, n_item_registered) = find_empty_effects_findings(
+        rooms, si_items, room_registered_ids, item_registered_ids)
+    warnings.extend(empty_effects_warnings)
+
+    print(
+        f"effects=[] census: {n_empty_rooms} rooms with empty effects "
+        f"({n_room_registered} registered via room_hook/Capability, "
+        f"{n_empty_rooms - n_room_registered} not found in those registries); "
+        f"{n_empty_items} items with empty effects "
+        f"({n_item_registered} registered via item_provides/item_hook, "
+        f"{n_empty_items - n_item_registered} not found in those registries)"
+    )
 
     # Room-fidelity divergence audit: its own channel, always computed so the
     # summary line can advertise the count, but only printed under --audit and
