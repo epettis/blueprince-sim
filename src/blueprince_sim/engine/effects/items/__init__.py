@@ -29,6 +29,7 @@ from . import chronograph  # noqa: F401  (registers chronograph capability on im
 from . import coin_purse  # noqa: F401  (registers coins_granted handler on import)
 from . import compass  # noqa: F401  (registers compass_bias capability on import)
 from . import coupon_book  # noqa: F401  (registers shop_discount capability on import)
+from . import crown_of_the_blueprints  # noqa: F401  (exposes its own spawn-gate predicate)
 from . import cursed_effigy  # noqa: F401  (exposes its own spawn-gate predicate)
 from . import emerald_bracelet  # noqa: F401  (registers emerald_bracelet capability + hook)
 from . import hall_pass  # noqa: F401  (registers free_hallway_moves capability + hooks)

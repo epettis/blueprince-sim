@@ -1,9 +1,11 @@
-"""Tests for Room 46 — the north door, two-tier objective, and reward split.
+"""Tests for Room 46 — the north door, two-tier objective, reward split, and
+the two items the room always contains.
 
 These tests pin the observable behaviour introduced by the Room 46 objective:
 the north door sealing, the two-tier win condition (Antechamber + Room 46),
-and the arrival-based reward split.  All assertions go through the public
-Game / carryover / reward API.
+the arrival-based reward split, and the Crown of the Blueprints / Sanctum Key
+grants on arrival.  All assertions go through the public Game / carryover /
+reward API.
 """
 
 from __future__ import annotations
@@ -11,11 +13,16 @@ from __future__ import annotations
 import pytest
 
 from blueprince_sim.config import GameConfig
+from blueprince_sim.engine import special_items as si
 from blueprince_sim.engine.game import ANTECHAMBER_CELL, Game
 from blueprince_sim.engine.grid import N
 from blueprince_sim.engine.locks import DOOR_OPEN, DOOR_SEALED
+from blueprince_sim.engine.model import Registry
 from blueprince_sim.engine.shops import carryover
 from blueprince_sim.env import rewards as R
+
+#: The two items the wiki says Room 46 always contains.
+ROOM46_ITEMS = ("crown_of_the_blueprints", "sanctum_key_room_46")
 
 
 # ---------------------------------------------------------------------------
@@ -230,6 +237,88 @@ def test_room46_not_reached_does_not_carry():
     g = _game()
     carry = carryover(g)
     assert carry["room46_reached"] is False
+
+
+# ---------------------------------------------------------------------------
+# 7b. The two items Room 46 always contains
+# ---------------------------------------------------------------------------
+
+def test_room46_items_are_declared_guaranteed_not_spawn_pool():
+    """Both Room 46 items are declared ``guaranteed_in`` the room, and nothing
+    declares them into its luck-spawn pool.
+
+    The distinction is the whole reason either item is obtainable at all: a
+    spawn-pool entry for room_46 can never fire, because roll_special_spawn is
+    only reached from roll_room_items under ``range(additional_max)`` and
+    room_46's additional_max is 0 — and room_46 is an area-graph node that
+    travel_to reaches without ever calling roll_room_items in the first place.
+    Asserting the declaration shape, not just the grant, keeps a future data
+    edit from silently moving them back into the dead pool.
+    """
+    registry = Registry.load()
+    assert registry.by_id["room_46"].items.additional_max == 0
+    assert "room_46" not in registry.special.spawn_pool_by_room
+    assert set(registry.special.guaranteed_by_room["room_46"]) == set(ROOM46_ITEMS)
+
+
+def test_room46_items_withheld_on_the_day_it_is_first_reached():
+    """Neither Room 46 item is granted on the day the room is first reached.
+
+    The wiki says the Crown "cannot be obtained the first time the room is
+    reached", and the owner's Sanctum Key ruling gates every key on
+    room46_reached; both read the permanent carry-over flag, which is still
+    False for the whole of that first day. Without this the player would bank
+    a Sanctum Key a day earlier than the game allows.
+    """
+    g = _game()
+    assert not g.cfg.room46_reached
+    _travel_to_inner_sanctum(g)
+    _travel_to_room46(g)
+    assert g.state.room46_reached, "precondition: the arrival really happened"
+    for item_id in ROOM46_ITEMS:
+        assert not si.has(g.state, item_id), f"{item_id} must not be obtainable yet"
+
+
+def test_room46_grants_both_items_once_on_a_later_day():
+    """Once room46_reached carries over, arriving grants both items — and a
+    second arrival the same day does not mint a second copy.
+
+    This is the reachability fix: before it, both records pointed at a dead
+    spawn pool and neither item could enter the inventory by any route. The
+    repeat-arrival half matters because travel_to fires the arrival hook on
+    every arrival, not only the first, so the uniqueness guard is what stops
+    an agent from shuttling in and out for infinite Sanctum Keys.
+    """
+    g = _game(room46_reached=True)
+    _travel_to_inner_sanctum(g)
+    _travel_to_room46(g)
+    for item_id in ROOM46_ITEMS:
+        assert g.state.inventory.get(item_id, 0) == 1, f"{item_id} not granted exactly once"
+    _travel_to_room46(g)
+    for item_id in ROOM46_ITEMS:
+        assert g.state.inventory.get(item_id, 0) == 1, f"{item_id} duplicated on re-arrival"
+
+
+def test_room46_items_become_obtainable_the_day_after_the_first_visit():
+    """Reaching Room 46 on day 1 and carrying the flag forward makes both items
+    obtainable on day 2, driven through the real carryover rather than a
+    hand-set config flag.
+
+    Pins the two halves as one chain: the withholding above must be temporary,
+    and the exact thing that lifts it is the carryover key the day boundary
+    already computes.
+    """
+    g1 = _game()
+    _travel_to_inner_sanctum(g1)
+    _travel_to_room46(g1)
+    carry = carryover(g1)
+
+    g2 = Game(GameConfig(antechamber_levers=True, starting_steps=100,
+                         room46_reached=carry["room46_reached"]), seed=2)
+    _travel_to_inner_sanctum(g2)
+    _travel_to_room46(g2)
+    for item_id in ROOM46_ITEMS:
+        assert si.has(g2.state, item_id), f"{item_id} still unobtainable on day 2"
 
 
 # ---------------------------------------------------------------------------

@@ -34,6 +34,7 @@ from .effects.items import (
     battery_pack,
     broken_lever,
     car_keys,
+    crown_of_the_blueprints,
     cursed_effigy,
     key_8,
     keycard,
@@ -495,6 +496,9 @@ def configure(state, cfg) -> None:
         for key_id in SANCTUM_KEY_IDS:
             if key_id not in gated:
                 gated.append(key_id)
+    # Crown of the Blueprints: reads the same cfg.room46_reached flag, for its
+    # own wiki reason ("cannot be obtained the first time the room is reached").
+    crown_of_the_blueprints.gate(cfg, gated)
     state.special.gated_out = gated
     # Ignition targets permanently lit across days: pre-populate lit_targets so
     # can_light() blocks them on day N+1 just as it would mid-day.
@@ -564,15 +568,33 @@ def roll_special_spawn(state, registry, room, rng) -> str | None:
 
 
 def on_area_arrival(game, area_id: str) -> None:
-    """Arrival hooks for off-grid area nodes that have no rooms.json record.
+    """Arrival hooks for off-grid area nodes reached via Game.travel_to.
 
-    ``guaranteed_by_room`` only keys off room ids, so area nodes like
-    ``mine_south`` need a bespoke grant site instead — this is that site,
-    called from Game.travel_to on every arrival. ``_is_available``'s
-    uniqueness check makes repeat calls within the same day a no-op, the same
-    way re-entering a guaranteed_in room does.
+    Called on every arrival; ``_is_available``'s uniqueness check makes repeat
+    calls within the same day a no-op, the same way re-entering a
+    ``guaranteed_in`` room does.
 
-    Three grants live here:
+    Two mechanisms, in this order:
+
+    First, ``guaranteed_by_room[area_id]`` is granted generically, exactly as
+    ``on_enter`` does for grid rooms. This is the path for an area node that
+    also has a rooms.json record and so can carry ``guaranteed_in`` in its
+    items' data (Room 46 and its Crown of the Blueprints / Sanctum Key): the
+    node is never placed on the grid, so ``on_enter`` never runs for it and
+    this is the only site that reads its guaranteed list.
+
+    The other nodes that reach this function -- mine_south, upper_rotating_gear,
+    orindian_ruins, reservoir_north, safehouse, underpass -- are off-grid with
+    no rooms.json record, so the lookup cannot key on them and the block is a
+    no-op on their arrivals. **That is a property of which nodes call this
+    function, not of area nodes in general**: ``antechamber``, ``tomb``,
+    ``trading_post`` and ``the_foundation`` are each both a room record and an
+    area node, and each carries guaranteed items that the grid ``on_enter``
+    path already grants. Adding a travel_to call here for any of them would
+    start granting those items on arrival too -- check that against the grid
+    path before doing it.
+
+    Second, the bespoke grants for those record-less nodes:
 
     - The Abandoned Mine (South)'s Upgrade Disk, sitting openly on a table
       (docs/areas.md) — obtainable without an ignition tool, unlike the
@@ -610,6 +632,9 @@ def on_area_arrival(game, area_id: str) -> None:
     no-op on every call after the first for the day.
     """
     configure(game.state, game.cfg)
+    for item_id in game.registry.special.guaranteed_by_room.get(area_id, ()):
+        if _is_available(game.state, item_id, game.registry):
+            grant(game.state, game.registry, item_id, source="guaranteed")
     if area_id == "mine_south":
         state = game.state
         registry = game.registry
