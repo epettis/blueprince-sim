@@ -24,13 +24,17 @@ gate so it composes for free with the priority draws, forced draws, and
 category bias that already call it -- none of those need their own colour
 guard. A thin colour's pool draw (the ordinary rank/rarity attempts 1-3)
 falls back to the wiki's published default triple (priority_draws.json's
-colour_defaults) before
-the universal forced-Closet attempt 4; reserve copies -- the wiki's other
-thin-pool fallback -- are deliberately not modelled (see docs/open_tasks.md's
+colour_defaults); for a colour-locked slot this default triple IS the final
+fallback, standing in for the universal forced-Closet attempt 4, since
+Closet's category is never one of the five selectable colours and the wiki
+states the colour invariant with no exhaustion exception. Reserve copies --
+the wiki's other thin-pool fallback, tried between the pool and the default
+triple -- are deliberately not modelled (see docs/open_tasks.md's
 colour-selective drafting ruling), so a default is still filtered through
 room_draftable and can lose to the one-copy-per-grid rule like any other
-candidate. Game.open_door/choose_colour own the doorway-level phase gating;
-this module only owns the deal itself.
+candidate; if every default is unavailable too, the slot is left unfilled
+rather than dealing an off-colour Closet. Game.open_door/choose_colour own
+the doorway-level phase gating; this module only owns the deal itself.
 
 Crown of the Blueprints: the same ``room_draftable`` gate also excludes any
 room id the Crown has filtered for the rest of today, unconditionally (no
@@ -516,15 +520,38 @@ def draw_slot(ctx: DraftContext, slot: int, cell: int, entry_dir: int,
             return _make_option(ctx, room, slot, cell, entry_dir)
 
     # Colour-selective draft (Secret Passage): the pool is thin, so fall back
-    # to the published default triple before the universal forced-Closet
-    # attempt below -- see _deal_colour_default.
+    # to the published default triple -- see _deal_colour_default. This is
+    # the wiki's own fallback ladder for a colour-selective draft (draft pool
+    # -> reserve copies [not modelled, see this module's docstring] ->
+    # default triple); "During a color-selective draft, only floorplans of
+    # that color can be drawn" is stated with no exhaustion exception
+    # (blueprince.wiki.gg/wiki/Drafting_effects#Color-selective_drafting), so
+    # the universal forced-Closet attempt below -- which belongs to
+    # *ordinary* drafting only (Drafting/Advanced#Normal Draws: "Normal
+    # drawing does not normally occur when ... drafting [from a] Secret
+    # Passage") -- must never run for a colour-locked slot: Closet's category
+    # is "blueprint", never one of the five selectable colours.
     if ctx.colour is not None:
         room = _deal_colour_default(ctx, cell, entry_dir, exclude)
         if room is not None:
             return _make_option(ctx, room, slot, cell, entry_dir, forced_draw=True)
+        # Every default is also unavailable here (all three already placed or
+        # geometrically illegal at this doorway). This branch is reachable
+        # ONLY because the wiki's reserve-copies tier -- which sits between
+        # the pool and the default triple and would almost certainly have
+        # supplied something on-colour before exhaustion -- is not modelled
+        # (see this module's docstring); it is a modelling artifact, not a
+        # game rule. The slot is left unfilled, the same already-precedented
+        # outcome as the ordinary forced-Closet-already-excluded edge case
+        # below (see _fill_options' Reading Nook docstring); the caller
+        # (Game.open_door/choose_colour) falls back to NAVIGATE when the
+        # whole hand ends up empty this way, rather than parking in DRAFTING
+        # with nothing to choose.
+        return None
 
     # Attempt 4: forced Closet - cannot fail (Closet is a free commonplace
-    # dead end, so it always has a legal orientation).
+    # dead end, so it always has a legal orientation). Ordinary drafting
+    # only -- a colour-selective draft never reaches this line (see above).
     closet = registry.by_id.get(CLOSET_ID)
     if closet is not None and closet.idx not in exclude:
         return _make_option(ctx, closet, slot, cell, entry_dir, forced_draw=True)

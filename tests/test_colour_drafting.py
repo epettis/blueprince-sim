@@ -69,6 +69,42 @@ def test_thin_colour_falls_back_to_published_defaults_not_off_colour(cfg):
     assert slot0.gem_cost == 0
 
 
+def test_exhausted_colour_defaults_leave_the_slot_unfilled_not_off_colour(cfg):
+    """When every deck is drained AND all three of a colour's published
+    defaults are already on the grid, the colour-selective fallback ladder
+    (pool -> defaults) is fully exhausted -- the hand must come up empty,
+    never fall through to the universal forced-Closet: Closet's category is
+    "blueprint", never one of the five selectable colours, and the wiki
+    states the colour invariant ("only floorplans of that color can be
+    drawn") with no exhaustion exception
+    (blueprince.wiki.gg/wiki/Drafting_effects#Color-selective_drafting).
+    This is the exact condition that used to raise
+    ``secret_passage.py``'s ON_DRAFT_FROM assertion with 'dealt closet, not
+    a "red" room'.
+
+    An empty hand must also be *escapable*: Game.choose_colour falls back to
+    NAVIGATE (see its docstring) rather than parking in DRAFTING with nothing
+    to choose, which would leave every action illegal -- unsurvivable for a
+    masked policy. Asserting only emptiness (as an earlier version of this
+    test did) would pass even if the game deadlocked there, since it never
+    checks that any action remains; this checks the escape itself."""
+    g = Game(cfg, seed=9)
+    _place_secret_passage(g)
+    for deck in g.state.decks:
+        deck.order = []
+    # "red"'s three published defaults (gymnasium, darkroom, chapel) are all
+    # already on the grid, so room_draftable's one-copy rule blocks every one
+    # of them for every slot -- the fallback ladder has nothing left to try.
+    g.placed_ids |= {"gymnasium", "darkroom", "chapel"}
+    g.open_door(SECRET_PASSAGE_CELL, N)
+    pending = g.choose_colour("red")  # must not raise
+    assert pending is None, "every red default was exhausted; the deal must not happen at all"
+    assert g.phase is Phase.NAVIGATE, (
+        "an exhausted deal must fall back to NAVIGATE, not park in DRAFTING")
+    mask = A.action_mask(g)
+    assert sum(mask) > 0, "the exhausted-deal state must still have a legal action (no deadlock)"
+
+
 @pytest.mark.parametrize("colour", COLOUR_CATEGORIES)
 def test_aquarium_counts_for_every_colour_in_colour_selective_draft(registry, cfg, colour):
     """The Aquarium ("every color of room") passes room_draftable's colour gate
