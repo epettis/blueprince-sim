@@ -8,17 +8,15 @@ before this file existed.
 
 The sundial needs THREE held microchips plus any ignition tool (torch or
 burning_glass -- the wiki says "an ignition tool" without naming one, and the
-tools list already treats the two as interchangeable everywhere else). The
-engine's microchip ceiling is two held at once (Entrance Hall vase +
-West Path doorstep, engine/shops.py::on_day_start/on_doorstep); the third
-microchip sits permanently in the Blackbridge Grotto's pedestal, counted by
-the three_microchips area gate's counts_flag without ever being carried (see
-GameState.grotto_chip_taken, which nothing in play ever sets True). So the
-sundial is built correctly here but is NOT reachable in a real episode today
--- the same deliberately-left state the pre-#210 three_microchips gate was in
-before the pedestal chip was modelled. test_sundial_not_reachable_with_the_
-engines_microchip_ceiling below pins that fact directly so it cannot regress
-silently into looking reachable.
+tools list already treats the two as interchangeable everywhere else). Two
+sources grant a chip automatically as the day is played (Entrance Hall vase +
+West Path doorstep, engine/shops.py::on_day_start/on_doorstep), capping
+automatic holding at two; the third sits in the Blackbridge Grotto's pedestal
+and only reaches inventory when the player deliberately takes it
+(TAKE_GROTTO_CHIP_ACTION, engine/special_items.py::take_grotto_chip). Tests
+below at the two-chip ceiling (before the pedestal chip is taken) pin the
+sundial as unlightable; tests/test_grotto_chip.py covers taking the pedestal
+chip and the sundial becoming lightable afterward.
 """
 
 from __future__ import annotations
@@ -166,14 +164,12 @@ def test_apple_orchard_itself_is_reachable_and_offered(registry):
 
 
 def test_sundial_not_reachable_with_the_engines_microchip_ceiling(registry):
-    """The engine never grants a player 3 held microchips at once -- the two
-    permanent sources (Entrance Hall vase, West Path doorstep dig) cap holding
-    at 2, and the third microchip is the Blackbridge Grotto pedestal chip,
-    which only ever counts toward the three_microchips area gate in place
-    (GameState.grotto_chip_taken) and is never added to inventory. So even a
-    player who has discovered every microchip source cannot satisfy the
-    sundial's requires_items -- this pins that as a fact about the current
-    build, not a bug to silently fix by adding a third grant site."""
+    """The two automatic microchip sources (Entrance Hall vase, West Path
+    doorstep dig) cap holding at 2 by themselves -- the third held chip only
+    comes from deliberately taking the Blackbridge Grotto pedestal chip
+    (TAKE_GROTTO_CHIP_ACTION, see tests/test_grotto_chip.py), not from these
+    two. So a player who has only discovered the vase and doorstep sources
+    still cannot satisfy the sundial's requires_items."""
     from blueprince_sim.engine import shops as shops_mod
 
     cfg = GameConfig(

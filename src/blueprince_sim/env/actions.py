@@ -5,7 +5,7 @@ to draft, or a room to enter) and the engine walks the shortest connected
 path, paying the normal one-step-per-room cost. Re-entering rooms grants
 nothing, so free-form single-tile moves were retired.
 
-Layout (Discrete(333)):
+Layout (Discrete(376)):
   0..179   draft at doorway: cell (45) x direction (4: N,E,S,W) ->
            cell*4 + dir_index. Walks to the room first if needed. Legal for
            every frontier doorway reachable with at least one step to spare
@@ -100,6 +100,11 @@ Layout (Discrete(333)):
            random legal room from the doorway's whole draft pool, disregarding
            rarity. Legal only for an on-grid hand (never an outer-room draft)
            with the blessing active and at least one affordable candidate.
+  375      take the Blackbridge Grotto pedestal's microchip: legal standing at
+           the blackbridge_grotto area node while the pedestal chip is still
+           in place (not yet taken today). Grants one microchip and flips
+           GameState.grotto_chip_taken, a one-shot per day (no double-take);
+           the chip respawns at the pedestal next day (no carry-over).
 """
 
 from __future__ import annotations
@@ -187,8 +192,13 @@ TAKE_BACK_OFFERING_ACTION = DONATE_BASE + _N_SHRINE_BLESSINGS * _N_SHRINE_DURATI
 # 374: pick a berry (Blessing of the Berry Picker), DRAFTING phase only.
 BERRY_PICK_ACTION = TAKE_BACK_OFFERING_ACTION + 1  # 374
 
-# N_ACTIONS = first slot after the berry pick.
-N_ACTIONS = BERRY_PICK_ACTION + 1  # 375
+# 375: take the Blackbridge Grotto pedestal's microchip, appended at the end
+# so no earlier id shifts. Standing at blackbridge_grotto with the pedestal
+# chip still in place (see Game.can_take_grotto_chip).
+TAKE_GROTTO_CHIP_ACTION = BERRY_PICK_ACTION + 1  # 375
+
+# N_ACTIONS = first slot after the grotto chip take.
+N_ACTIONS = TAKE_GROTTO_CHIP_ACTION + 1  # 376
 
 DIR_INDEX = {d: i for i, d in enumerate(DIRS)}
 
@@ -485,6 +495,10 @@ def action_mask(game: Game, prev_action: int | None = None) -> list[bool]:
                         mask[DONATE_BASE + bi * _N_SHRINE_DURATIONS + di] = True
             if game.can_take_back_shrine_offering():
                 mask[TAKE_BACK_OFFERING_ACTION] = True
+            # Grotto pedestal chip (blackbridge_grotto); can_take_grotto_chip
+            # already checks position and the not-yet-taken-today flag.
+            if game.can_take_grotto_chip():
+                mask[TAKE_GROTTO_CHIP_ACTION] = True
         else:
             dist = game.distance_map()
             key_cost = game.key_cost_map()
@@ -699,6 +713,8 @@ def apply_action(game: Game, action: int) -> None:
         game.take_back_shrine_offering()
     elif action == BERRY_PICK_ACTION:
         game.berry_pick()
+    elif action == TAKE_GROTTO_CHIP_ACTION:
+        game.take_grotto_chip()
     else:
         raise ValueError(f"unimplemented action {action}")
 
@@ -841,4 +857,6 @@ def describe_action(game: Game, action: int) -> str:
         return "take back Shrine offering"
     if action == BERRY_PICK_ACTION:
         return "pick a berry"
+    if action == TAKE_GROTTO_CHIP_ACTION:
+        return "take the Grotto pedestal chip"
     return f"action {action}"
