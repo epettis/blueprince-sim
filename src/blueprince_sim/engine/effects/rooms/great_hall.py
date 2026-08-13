@@ -5,6 +5,7 @@ antechamber-lever-design.md). No key in hand means the lever is not pulled.
 
 from __future__ import annotations
 
+from ... import experiments
 from ...grid import W
 from ...locks import DOOR_SEALED, segment_key
 from .. import provides_lever
@@ -33,6 +34,7 @@ def pull_east_lever(game, cell: int) -> None:
         return
     st.keys -= cost
     game._open_segment(EAST_SEGMENT_CELL, W)
+    experiments.on_lever_pulled(game, EAST_SEGMENT_CELL, W)
 
 
 provides_lever("great_hall", pull_east_lever, lever_cost)

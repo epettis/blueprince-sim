@@ -5,7 +5,13 @@ the generic cap machinery, the trunks_opened, security_door,
 trash_while_digging, apples, and drawing_room_drawn interaction-site
 triggers, the day_gate availability filter, and the scoped termination
 checks added at open_door/open_container/move/redraw/
-_maybe_finish_experiment_setup.
+_maybe_finish_experiment_setup. Also covers the six packet triggers with
+firing sites (rank9_first_entry, upgraded_floorplan_draft,
+tomorrow_room_draft, fireplace_draft, antechamber_lever_pull,
+terminal_access) -- all still unreachable in play (or_packet stays False),
+so every test below configures the experiment directly via ``_configure``
+and drives the actual engine event, the same shape the base-trigger tests
+above use.
 
 Mirrors test_upgrade_env.py's shape (direct Game construction plus the flat
 action space) for the setup flow, and calls engine.experiments functions
@@ -65,6 +71,26 @@ def _place(game: Game, room_id: str, cell: int) -> None:
     """Place ``room_id`` directly at ``cell`` with its canonical orientation."""
     room = game.registry.by_id[room_id]
     game._place_room(room, cell, room.rotations[0])
+
+
+def _place_at(game: Game, room_id: str, cell: int, mask: int) -> None:
+    """Place ``room_id`` on the grid directly (test setup, no drafting, no ON_PLACE
+    hook) -- matches tests/rooms/test_weight_room.py's own helper of the same name,
+    used here so entering a lever room does not also fire an unrelated ON_PLACE
+    effect (e.g. the Secret Garden's own fruit spread, which touches RNG)."""
+    room = game.registry.by_id[room_id]
+    game.state.grid[cell] = room.idx
+    game.state.placed_doors[cell] = mask
+    game.state.entered[cell] = False
+    game.room_cells[room_id] = cell
+    game.placed_ids.add(room_id)
+    game.state.door_version += 1
+
+
+def _enter_at(game: Game, cell: int) -> None:
+    """Teleport the player to ``cell`` and fire ON_ENTER, without spending steps."""
+    game.state.pos = cell
+    game._enter(cell)
 
 
 def _configure(game: Game, trigger_id: str, effect_id: str) -> None:
@@ -1873,3 +1899,296 @@ def test_effect_offerable_excludes_spread_dig_spots_when_trash_while_digging_off
     assert experiments._effect_offerable(
         effect, g.cfg, g.state.experiment, ("shops", "red_room_draft", "apples")
     ) is True
+
+
+# ---------------------------------------------------------------------------
+# Packet triggers with firing sites (still unreachable in play: or_packet
+# stays False, so draw_offers can never sample any of these; every test
+# below configures the experiment directly via _configure and drives the
+# real engine event).
+# ---------------------------------------------------------------------------
+
+def _grant_disk(game: Game, disk_id: str) -> None:
+    """Add one Upgrade Disk item to ``game``'s inventory."""
+    si.grant(game.state, game.registry, disk_id, source="test")
+
+
+# --------------------------------------------------- rank9_first_entry
+
+def test_rank9_first_entry_fires_on_first_entry_to_a_rank9_room():
+    """rank9_first_entry fires the first time a Rank 9 cell (not the
+    Antechamber) is entered -- Game._enter's own entered[cell] guard is what
+    makes this genuinely "first entry", not a helper re-implementing it."""
+    g = Game(GameConfig(), seed=0)
+    _configure(g, "rank9_first_entry", "permanent_allowance")
+    _place_at(g, "hallway", 40, g.registry.by_id["hallway"].door_mask)  # rank 9, west wing
+    _enter_at(g, 40)
+    assert g.state.experiment.success_count == 1
+
+
+def test_rank9_first_entry_fires_for_the_antechamber():
+    """"Includes the Antechamber" (meta.notes): entering cell 42 for the first
+    time this day fires the trigger like any other Rank 9 room."""
+    g = Game(GameConfig(), seed=0)
+    _configure(g, "rank9_first_entry", "permanent_allowance")
+    assert not g.state.entered[ANTECHAMBER_CELL]
+    _enter_at(g, ANTECHAMBER_CELL)
+    assert g.state.experiment.success_count == 1
+
+
+def test_rank9_first_entry_does_not_refire_on_a_second_entry_to_the_same_room():
+    """Re-entering an already-entered Rank 9 room never reaches Game._enter's
+    body a second time, so success_count cannot advance twice for one room."""
+    g = Game(GameConfig(), seed=0)
+    _configure(g, "rank9_first_entry", "permanent_allowance")
+    _place_at(g, "hallway", 40, g.registry.by_id["hallway"].door_mask)
+    _enter_at(g, 40)
+    assert g.state.experiment.success_count == 1
+    _enter_at(g, 40)
+    assert g.state.experiment.success_count == 1
+
+
+def test_rank9_first_entry_does_not_fire_for_a_rank8_room():
+    """A Rank 8 first entry is not Rank 9 and must not fire the trigger."""
+    g = Game(GameConfig(), seed=0)
+    _configure(g, "rank9_first_entry", "permanent_allowance")
+    _place_at(g, "hallway", 35, g.registry.by_id["hallway"].door_mask)  # rank 8
+    _enter_at(g, 35)
+    assert g.state.experiment.success_count == 0
+
+
+def test_rank9_first_entry_does_not_fire_for_a_different_configured_trigger():
+    """Entering a fresh Rank 9 room while an unrelated trigger is configured
+    must not fire rank9_first_entry."""
+    g = Game(GameConfig(), seed=0)
+    _configure(g, "shops", "permanent_allowance")
+    _place_at(g, "hallway", 40, g.registry.by_id["hallway"].door_mask)
+    _enter_at(g, 40)
+    assert g.state.experiment.success_count == 0
+
+
+# --------------------------------------------------- fireplace_draft
+
+def test_fireplace_draft_fires_for_a_static_fireplace_room():
+    """A room carrying the static has_fireplace flag (the Den) fires on draft."""
+    g = _game_at_laboratory()
+    _configure(g, "fireplace_draft", "permanent_allowance")
+    _place(g, "den", 11)
+    assert g.state.experiment.success_count == 1
+
+
+def test_fireplace_draft_does_not_fire_for_a_room_without_a_fireplace():
+    """An ordinary Hallway (no fireplace) drafted while configured must not fire."""
+    g = _game_at_laboratory()
+    _configure(g, "fireplace_draft", "permanent_allowance")
+    _place(g, "hallway", 11)
+    assert g.state.experiment.success_count == 0
+
+
+def test_fireplace_draft_dining_room_fires_in_a_center_column():
+    """The Dining Room's fireplace is cell-dependent: centre columns qualify
+    (per meta.notes), unlike its static-flag siblings."""
+    g = _game_at_laboratory()
+    _configure(g, "fireplace_draft", "permanent_allowance")
+    _place(g, "dining_room", 21)  # rank 5, column 1 (centre)
+    assert g.state.experiment.success_count == 1
+
+
+def test_fireplace_draft_dining_room_does_not_fire_on_a_wing():
+    """Off the centre columns and off Rank 9, the Dining Room's fireplace wall
+    is windows instead (meta.notes) -- no fire."""
+    g = _game_at_laboratory()
+    _configure(g, "fireplace_draft", "permanent_allowance")
+    _place(g, "dining_room", 20)  # rank 5, column 0 (west wing)
+    assert g.state.experiment.success_count == 0
+
+
+def test_fireplace_draft_dining_room_fires_on_rank9_even_on_a_wing():
+    """Rank 9 is its own alternative qualifier, independent of column
+    (meta.notes) -- a wing Dining Room on Rank 9 still has its fireplace."""
+    g = _game_at_laboratory()
+    _configure(g, "fireplace_draft", "permanent_allowance")
+    _place(g, "dining_room", 40)  # rank 9, column 0 (west wing)
+    assert g.state.experiment.success_count == 1
+
+
+# --------------------------------------------------- upgraded_floorplan_draft
+
+def test_upgraded_floorplan_draft_fires_for_an_upgrade_variant():
+    """Any record with pool == "upgrade_variant" (variant_of is not None) fires."""
+    g = _game_at_laboratory()
+    _configure(g, "upgraded_floorplan_draft", "permanent_allowance")
+    _place(g, "mail_room__ix89", 11)
+    assert g.state.experiment.success_count == 1
+
+
+def test_upgraded_floorplan_draft_does_not_fire_for_the_base_room():
+    """The base (non-upgraded) Bunk Room has variant_of == None and must not
+    fire, even though it carries the same counts_as_bedrooms tag as its
+    upgrade variants."""
+    g = _game_at_laboratory()
+    _configure(g, "upgraded_floorplan_draft", "permanent_allowance")
+    _place(g, "bunk_room", 11)
+    assert g.state.experiment.success_count == 0
+
+
+def test_upgraded_floorplan_draft_fires_twice_for_an_upgraded_bunk_room():
+    """"An upgraded Bunk Room triggers twice" (meta.notes) -- mirrors
+    archived_floorplan's own Bunk Room doubling."""
+    g = _game_at_laboratory()
+    _configure(g, "upgraded_floorplan_draft", "permanent_allowance")
+    _place(g, "bunk_room__ix20", 11)
+    assert g.state.experiment.success_count == 2
+
+
+# --------------------------------------------------- tomorrow_room_draft
+
+def test_tomorrow_room_draft_fires_for_a_tomorrow_category_room():
+    """A room carrying extra_categories: ["tomorrow"] (the Mail Room) fires."""
+    g = _game_at_laboratory()
+    _configure(g, "tomorrow_room_draft", "permanent_allowance")
+    _place(g, "mail_room", 11)
+    assert g.state.experiment.success_count == 1
+
+
+def test_tomorrow_room_draft_does_not_fire_for_a_non_tomorrow_room():
+    """An ordinary Hallway (not a Tomorrow room) drafted while configured
+    must not fire."""
+    g = _game_at_laboratory()
+    _configure(g, "tomorrow_room_draft", "permanent_allowance")
+    _place(g, "hallway", 11)
+    assert g.state.experiment.success_count == 0
+
+
+# --------------------------------------------------- antechamber_lever_pull
+
+def test_antechamber_lever_pull_fires_once_per_distinct_lever():
+    """Pulling two different Antechamber levers (Weight Room's south, Secret
+    Garden's west) fires the trigger once each, for a total of 2."""
+    g = Game(GameConfig(antechamber_levers=True,
+                        starting_items=frozenset({"power_hammer"})), seed=0)
+    _configure(g, "antechamber_lever_pull", "permanent_allowance")
+
+    _place_at(g, "weight_room", 37, N | S)
+    _enter_at(g, 37)
+    assert g.state.experiment.success_count == 1
+
+    secret_garden = g.registry.by_id["secret_garden"]
+    _place_at(g, "secret_garden", 41, secret_garden.door_mask)
+    _enter_at(g, 41)
+    assert g.state.experiment.success_count == 2
+    assert g.state.experiment.levers_pulled == {(37, N), (41, E)}
+
+
+def test_antechamber_lever_pull_does_not_double_count_the_south_lever_via_greenhouse():
+    """The Weight Room's south lever and the Greenhouse's Broken Lever both
+    open segment (37, N) through entirely independent guards (door state vs.
+    machines_used) -- pulling the Weight Room's lever and then installing a
+    Broken Lever in the Greenhouse must count as ONE distinct lever, not two,
+    proving ExperimentState.levers_pulled (not the door state) is what
+    prevents the double count."""
+    g = Game(GameConfig(antechamber_levers=True,
+                        starting_items=frozenset({"power_hammer", "broken_lever"})), seed=0)
+    _configure(g, "antechamber_lever_pull", "permanent_allowance")
+
+    _place_at(g, "weight_room", 37, N | S)
+    _enter_at(g, 37)
+    assert g.state.experiment.success_count == 1
+
+    greenhouse = g.registry.by_id["greenhouse"]
+    _place_at(g, "greenhouse", 5, greenhouse.door_mask)
+    g.state.pos = 5
+    assert si.can_install_lever(g)
+    si.install_lever(g)
+    assert g.state.experiment.success_count == 1, "same south lever must not double-count"
+    assert g.state.experiment.levers_pulled == {(37, N)}
+
+
+def test_antechamber_lever_pull_fires_for_the_north_lever_via_the_throne_room():
+    """The Throne Room's backup north lever routes through Game._open_north_door,
+    the same call site the Inner Sanctum's own lever uses -- confirms that
+    shared site fires the packet trigger too."""
+    g = Game(GameConfig(antechamber_levers=True), seed=0)
+    _configure(g, "antechamber_lever_pull", "permanent_allowance")
+    throne_room = g.registry.by_id["throne_room"]
+    throne_cell = 11  # the north segment is off-grid, so any ordinary cell works
+    _place_at(g, "throne_room", throne_cell, throne_room.rotations[0])
+    _enter_at(g, throne_cell)
+    assert g.state.experiment.success_count == 1
+    assert g.state.experiment.levers_pulled == {(ANTECHAMBER_CELL, N)}
+
+
+def test_antechamber_lever_pull_does_not_fire_for_a_different_configured_trigger():
+    """Pulling a lever while an unrelated trigger is configured must not fire
+    antechamber_lever_pull."""
+    g = Game(GameConfig(antechamber_levers=True,
+                        starting_items=frozenset({"power_hammer"})), seed=0)
+    _configure(g, "shops", "permanent_allowance")
+    _place_at(g, "weight_room", 37, N | S)
+    _enter_at(g, 37)
+    assert g.state.experiment.success_count == 0
+
+
+# --------------------------------------------------- terminal_access
+
+def _game_with_two_terminals(seed: int = 1) -> Game:
+    """Fresh game with Security at cell 7 and Laboratory at cell 8, player at Security."""
+    g = Game(GameConfig(special_items=True), seed=seed)
+    sec = g.registry.by_id["security"]
+    g._place_room(sec, 7, 14)  # E|S|W
+    lab = g.registry.by_id["laboratory"]
+    g._place_room(lab, 8, lab.rotations[0])
+    g.state.pos = 7
+    g.state.entered[7] = True
+    return g
+
+
+def test_terminal_access_fires_on_the_first_disk_insert_at_a_terminal():
+    """Inserting a disk at a disk-reader room (Security) fires the trigger."""
+    g = _game_with_two_terminals()
+    _configure(g, "terminal_access", "permanent_allowance")
+    _grant_disk(g, "upgrade_disk_vault_304")
+    assert g.insert_disk() is True
+    assert g.state.experiment.success_count == 1
+    assert g.state.experiment.terminals_accessed == {"security"}
+
+
+def test_terminal_access_does_not_refire_for_a_second_disk_at_the_same_terminal():
+    """A second disk inserted at the SAME terminal (Security again) does not
+    advance the count -- "first access per terminal" (meta.notes), so this is
+    a distinct-set dedup, not a plain counter."""
+    g = _game_with_two_terminals()
+    _configure(g, "terminal_access", "permanent_allowance")
+    _grant_disk(g, "upgrade_disk_vault_304")
+    _grant_disk(g, "upgrade_disk_commissary")
+    assert g.insert_disk() is True
+    assert g.state.experiment.success_count == 1
+    g.choose_upgrade(0)
+    assert g.insert_disk() is True
+    assert g.state.experiment.success_count == 1, "same terminal twice must not double-count"
+    assert g.state.experiment.terminals_accessed == {"security"}
+
+
+def test_terminal_access_fires_again_for_a_different_terminal():
+    """Moving to a different disk-reader room (Laboratory) and inserting there
+    fires the trigger a second time -- a genuinely different terminal."""
+    g = _game_with_two_terminals()
+    _configure(g, "terminal_access", "permanent_allowance")
+    _grant_disk(g, "upgrade_disk_vault_304")
+    _grant_disk(g, "upgrade_disk_commissary")
+    assert g.insert_disk() is True
+    g.choose_upgrade(0)
+    g.state.pos = 8  # Laboratory
+    assert g.insert_disk() is True
+    assert g.state.experiment.success_count == 2
+    assert g.state.experiment.terminals_accessed == {"security", "laboratory"}
+
+
+def test_terminal_access_does_not_fire_for_a_different_configured_trigger():
+    """Inserting a disk while an unrelated trigger is configured must not fire
+    terminal_access."""
+    g = _game_with_two_terminals()
+    _configure(g, "shops", "permanent_allowance")
+    _grant_disk(g, "upgrade_disk_vault_304")
+    assert g.insert_disk() is True
+    assert g.state.experiment.success_count == 0

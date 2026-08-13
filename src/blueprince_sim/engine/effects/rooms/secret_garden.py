@@ -26,6 +26,7 @@ Not modelled:
 
 from __future__ import annotations
 
+from ... import experiments
 from ...grid import E
 from ...locks import DOOR_SEALED, segment_key
 from .. import Hook, provides_lever, room_hook
@@ -60,6 +61,7 @@ def pull_west_lever(game, cell: int) -> None:
     if game.state.door_state.get(seg) != DOOR_SEALED:
         return
     game._open_segment(WEST_SEGMENT_CELL, E)
+    experiments.on_lever_pulled(game, WEST_SEGMENT_CELL, E)
 
 
 provides_lever("secret_garden", pull_west_lever)

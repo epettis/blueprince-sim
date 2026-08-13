@@ -855,6 +855,41 @@ around 1,800 LOC.
 
 ## Decisions log
 
+- **2026-08-12, six of the eight Satellite Dish packet triggers are wired.**
+  Experiments phases 5-8, first slice. `speed_40_seconds` and `map_view` stay
+  inert and always will -- no wall clock, no interactive map.
+
+  **Both triggers I flagged as uncertain turned out to be expressible, because
+  the concepts exist under different names:**
+  - `fireplace_draft` -> `Room.has_fireplace`, already used by
+    `effects/rooms/cloister.py` (Cloister of Veia), Dining Room caveat included.
+  - `terminal_access` -> **`disk_reader` IS this codebase's "terminal"**,
+    deliberately renamed to dodge a name collision, as
+    `docs/upgrade-disks-design.md` says. Scoped to a successful disk insert.
+
+  **The subtle catch: two independent code paths open the same Antechamber
+  lever.** The Weight Room's south lever and the Greenhouse's Broken Lever
+  target the **same segment** through wholly separate guards, so a
+  Weight-Room-then-Greenhouse day would have double-counted a "different lever"
+  trigger. Tracked with a per-day distinct `set` on `ExperimentState` (mirroring
+  `GameState.areas_visited`), not a counter, and pinned by a dedicated test.
+  **A counter would have looked correct and been wrong only on the one day
+  ordering that matters.**
+
+  **A stale data note found and corrected**: `tomorrow_room_draft.meta.notes`
+  claimed no Tomorrow flag existed in `rooms.json`. False --
+  `room.is_category("tomorrow")` is in production use at `game.py:2238` for the
+  Clock Tower's own day-end pulse.
+
+  **Ordering is deliberate: contents before the gate.** `or_packet` stays
+  hardcoded `False` and `draw_offers` filters on `pool == "base"` regardless, so
+  the packet is still never sampled. Flipping the gate first would have made 16
+  records drawable while 15 did nothing -- reachable content that silently does
+  nothing, the inverse of the unreachable-feature failure and just as invisible.
+
+  **Room-id debt +1** (`experiments.py: "dining_room"`), matching the identical
+  entry `special_items.py` already carries for the same Dining Room comparison.
+
 - **2026-08-12, the microchip record is finished and consistent. Owner: "model it
   as I described."** Audited against their description; three inconsistencies
   found, of which only two were real.

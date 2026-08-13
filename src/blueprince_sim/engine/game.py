@@ -495,10 +495,14 @@ class Game:
         so they cannot drift.  Sets ``state.north_door_opened`` here — at the lever, not derived
         from the segment's door state — so env/rewards.py can pay NORTH_DOOR_REWARD
         exactly once without paying it "for free" under antechamber_levers=False,
-        where the segment is never sealed to begin with.
+        where the segment is never sealed to begin with. Also the single call
+        site for the north lever's own antechamber_lever_pull firing (see
+        experiments.on_lever_pulled) -- same reasoning, so the packet trigger
+        cannot double-fire off two independent north-lever call sites either.
         """
         self._open_segment(ANTECHAMBER_CELL, N)
         self.state.north_door_opened = True
+        experiments.on_lever_pulled(self, ANTECHAMBER_CELL, N)
 
     def _unlock_for_passage(self, cell: int, direction: int,
                             for_draft: bool = False) -> None:
@@ -1911,6 +1915,7 @@ class Game:
         if st.entered[cell]:
             return
         st.entered[cell] = True
+        experiments.on_room_entered(self, cell)
         room = self.registry.rooms[st.grid[cell]]
         effects.fire(self, room, Hook.ON_ENTER)
         roll_room_items(self, room)
@@ -1997,6 +2002,22 @@ class Game:
             item_id for item_id in self.state.inventory if item_id.startswith("upgrade_disk_")
         )
 
+    def _terminal_room_id_here(self) -> str | None:
+        """Room id of the Upgrade Disk terminal at the player's current location.
+
+        Mirrors :meth:`disk_reader_here`'s own outer-room/grid split, for
+        experiments.on_terminal_accessed's per-terminal dedup key. None only
+        where disk_reader_here() would be False, which insert_disk already
+        rules out via can_insert_disk().
+        """
+        if self.inside_outer_room:
+            outer_room = self.drafted_outer_room
+            return outer_room.id if outer_room is not None else None
+        st = self.state
+        if 0 <= st.pos < len(st.grid) and st.grid[st.pos] >= 0:
+            return self.registry.rooms[st.grid[st.pos]].id
+        return None
+
     def can_insert_disk(self) -> bool:
         """True when inserting a disk is a legal action right now."""
         return (
@@ -2012,6 +2033,9 @@ class Game:
         consumes the disk, sets pending_upgrade_slot and pending_upgrade_options,
         and advances phase to UPGRADE_PENDING. Returns True if the disk was
         inserted (phase changed), False if no slot was selectable (disk NOT consumed).
+        A successful insert also fires the terminal_access experiment trigger
+        (experiments.on_terminal_accessed) -- a failed one (no slot selectable)
+        does not, since nothing was actually consumed or changed.
 
         Inserting a disk costs no step and has no per-day limit — the wiki
         mentions neither constraint.
@@ -2037,6 +2061,7 @@ class Game:
         st.pending_upgrade_slot = slot
         st.pending_upgrade_options = tuple(options)
         self.phase = Phase.UPGRADE_PENDING
+        experiments.on_terminal_accessed(self, self._terminal_room_id_here())
         return True
 
     def choose_upgrade(self, index: int) -> None:
