@@ -855,6 +855,39 @@ around 1,800 LOC.
 
 ## Decisions log
 
+- **2026-08-12, the Trophy of Wealth is verified and implemented. 12 -> 11
+  unimplemented items.** Its blocker was the only one of the twelve that named
+  no missing mechanism -- `purchase_path_unverified_end_to_end`, written that
+  way in #199 rather than flipping the flag on a code read.
+
+  **The code read was right, and the caution was still correct.** The
+  `is_trophy` branch at `shops.py:501-508` had **never been exercised by any
+  test**. It worked: buying all stored Showroom entries appends the trophy,
+  buying it grants the item and deducts the display price. Prices exact in all
+  three cases -- **100 base, 50 on a sale day (ceil 100/2), 99 with a Coupon
+  Book** -- and once owned it never reappears in `stock_for`.
+
+  **The stocking method, recorded because I got it wrong:** the Showroom's stock
+  is populated by `on_enter_shop` -> `_roll_showroom` **when a shop room is
+  entered**, not on a fresh `Game`. My harness inspected
+  `state.shops.stock` on a new game across 60 seeds and found nothing -- I read
+  that as difficulty finding a stocked seed, when in fact the key is never
+  populated until entry. `tests/test_shops.py::_place_shop` already had the
+  answer, writing grid/pos state directly and calling `on_enter_shop`.
+
+  **A brief error of mine, corrected:** I claimed `tools/validate_data.py`
+  reports an unimplemented-item count that would visibly go 12 -> 11. It does
+  not -- #217 added the `effects: []` census, not an unimplemented count. The
+  validator prints only a flat `102 special items`. **Surfacing the
+  unimplemented count there would be a cheap, genuinely useful addition**, since
+  it is the number this backlog is actually measured by, but it was not in
+  scope here.
+
+  **Remaining 11, by kind:** never-buildable (`magnifying_glass`,
+  `key_of_aries`); cheap (`battery_pack`, `chronograph`, `gear_wrench`); real
+  but well-understood (`prism_key`, `crown_of_the_blueprints`, `dowsing_rod`,
+  `the_axe`); blocked on a subsystem (`telescope`, `file_cabinet_key`).
+
 - **2026-08-12, TASK 22 IS COMPLETE -- and its final step is cancelled, on
   evidence.** Phases 0-6 landed across #200-#209; phase 7's allowlist split
   landed in #206. The remaining half, **"delete `implemented`/`blocked_on`", is

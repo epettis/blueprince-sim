@@ -1485,14 +1485,13 @@
    "spawn_rooms_high_luck": [],
    "guaranteed_in": [],
    "effects": [],
-   "implemented": false,
+   "implemented": true,
    "meta": {
     "source": "https://blueprince.wiki.gg/wiki/Showroom",
     "confidence": "wiki",
     "absent_spawn_areas": [],
-    "blocked_on": "purchase_path_unverified_end_to_end",
-    "reachability": "inert",
-    "notes": "Showroom completion IS modelled: shops.py:389-399 and :444-460 append the trophy to the showroom's display once every stored entry is sold, priced (with sale/coupon adjustments) from data/shops.json's 'trophy' entry; trophy_room is already pool: 'base' in rooms.json, so its only wiki consequence (unlocking the Trophy Room) is already satisfied by default. Nothing is known to be missing, but the trophy has never been purchased end to end in a test or a live scenario -- the claim rests on reading shops.py, not on exercising it. Flip implemented once a test drives a showroom to completion and buys the trophy."
+    "blocked_on": null,
+    "notes": "Purchase-only reward for clearing the Showroom: once all 4 stocked entries are bought, the trophy is appended to the display (shops.py:389-399/:444-460), priced from data/shops.json's 'trophy' entry with sale-day and Coupon Book adjustments applied like any other entry. Buying it (shops.py:501-508) grants it via the normal si.grant path. trophy_room is pool: 'base' in rooms.json, so its only wiki-documented consequence is satisfied by default. Verified end to end in tests/test_shops.py (test_trophy_purchase_*): stock rolled, all 4 entries sold, trophy purchased, lands in inventory with coins deducted at the correct price."
    }
   },
   {

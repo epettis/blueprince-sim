@@ -505,6 +505,97 @@ def test_showroom_trophy_absent_if_already_owned():
     assert all(d["id"] != "trophy_of_wealth" for d in stock)
 
 
+def test_trophy_purchase_lands_in_inventory_and_deducts_coins():
+    """Buying the appended Trophy of Wealth entry grants it and spends coins.
+
+    Exercises the real buy() path end to end (shops.py's is_trophy branch,
+    never exercised by the appearance-only tests above): sell all 4 stored
+    showroom entries, confirm the trophy shows at its base price (day 15 is
+    not a sale day, no discount item held), buy it, and assert it lands in
+    the inventory with coins deducted by exactly that price. Also confirms
+    the trophy is never offered again once owned.
+    """
+    g = _game(GameConfig(day=15), seed=42)
+    _enter_shop(g, "showroom")
+    state = g.state
+    state.coins = 500
+
+    for _ in range(4):
+        stock = shops.stock_for(g)
+        idx = next(i for i, d in enumerate(stock) if not d["sold_out"])
+        shops.buy(g, idx)
+
+    stock = shops.stock_for(g)
+    assert stock[-1]["id"] == "trophy_of_wealth"
+    assert stock[-1]["price"] == 100  # base price from shops.json's "trophy" entry
+    coins_before = state.coins
+
+    shops.buy(g, len(stock) - 1)
+
+    assert si.has(state, "trophy_of_wealth")
+    assert state.coins == coins_before - 100
+
+    stock_after = shops.stock_for(g)
+    assert all(d["id"] != "trophy_of_wealth" for d in stock_after)
+
+
+def test_trophy_purchase_price_respects_sale_day():
+    """The trophy's displayed and charged price is ceil(base/2) on a sale day.
+
+    Day 20 is a sale day per shops.json; the halved price must both be shown
+    in the display and be the amount actually deducted on purchase.
+    """
+    g = _game(GameConfig(day=20), seed=42)
+    _enter_shop(g, "showroom")
+    state = g.state
+    state.coins = 500
+
+    for _ in range(4):
+        stock = shops.stock_for(g)
+        idx = next(i for i, d in enumerate(stock) if not d["sold_out"])
+        shops.buy(g, idx)
+
+    stock = shops.stock_for(g)
+    assert stock[-1]["id"] == "trophy_of_wealth"
+    expected = math.ceil(100 / 2)
+    assert stock[-1]["price"] == expected
+    coins_before = state.coins
+
+    shops.buy(g, len(stock) - 1)
+
+    assert si.has(state, "trophy_of_wealth")
+    assert state.coins == coins_before - expected
+
+
+def test_trophy_purchase_price_respects_coupon_book():
+    """A held Coupon Book reduces the trophy's price by 1, charged at purchase.
+
+    Same display-time discount rule as every other shop entry (SHOP_DISCOUNT
+    capability, floored at 0); the trophy's dynamically-appended entry must
+    receive it too.
+    """
+    g = _game(GameConfig(day=15, starting_items=frozenset({"coupon_book"})), seed=42)
+    _enter_shop(g, "showroom")
+    state = g.state
+    state.coins = 500
+
+    for _ in range(4):
+        stock = shops.stock_for(g)
+        idx = next(i for i, d in enumerate(stock) if not d["sold_out"])
+        shops.buy(g, idx)
+
+    stock = shops.stock_for(g)
+    assert stock[-1]["id"] == "trophy_of_wealth"
+    expected = 100 - 1
+    assert stock[-1]["price"] == expected
+    coins_before = state.coins
+
+    shops.buy(g, len(stock) - 1)
+
+    assert si.has(state, "trophy_of_wealth")
+    assert state.coins == coins_before - expected
+
+
 # ---------------------------------------------------------- gift shop
 
 def test_gift_shop_excludes_lunch_box_when_unlocked():
