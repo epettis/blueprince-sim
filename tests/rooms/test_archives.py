@@ -6,7 +6,25 @@ modelled.
 
 from blueprince_sim.engine.game import Game, Phase, RedrawKind
 from blueprince_sim.engine.grid import N, S
+from blueprince_sim.engine.model import Room
 from blueprince_sim.engine.state import DraftOption
+
+
+def _own_step_grant(room: Room) -> int:
+    """Steps ``room`` grants itself purely by being drafted (e.g. the Nursery's
+    "whenever you draft a Bedroom, gain 5 steps" firing on its own draft via
+    include_self) -- read generically off the room's own data-declared
+    effects rather than hardcoded, so whichever room a test happens to deal
+    is accounted for instead of assumed to be step-neutral. Only covers a
+    room's grant to ITSELF; a relational grant from some other already-placed
+    room is a different, scenario-specific case this helper does not need to
+    handle (see its call site)."""
+    total = 0
+    for eff in room.effects:
+        if (eff.tag == "grant_on_draft_category" and eff.param("resource") == "steps"
+                and eff.param("include_self", False) and room.is_category(eff.param("category"))):
+            total += eff.param("amount", 0)
+    return total
 
 
 def _house_with_archives(seed: int, registry, cfg) -> Game:
@@ -84,15 +102,28 @@ def test_archived_slot_is_uniformly_random_and_seed_deterministic(registry, cfg)
 
 def test_archived_option_still_selectable_and_placeable(registry, cfg):
     """The archived floorplan is a real room: choosing its slot places it at
-    no step cost, same as any other draft."""
+    no step cost, same as any other draft.
+
+    Net of whatever the dealt room's OWN effects grant on its own draft (see
+    _own_step_grant) -- at seed=3 the archived slot happens to deal the
+    Nursery, which grants +5 steps whenever a Bedroom is drafted, including
+    itself (data-declared include_self). That grant is real and unrelated to
+    what this test checks (drafting itself costs no step); asserting a bare
+    steps_before == steps_after would fail on the Nursery's own effect, not
+    on a drafting-step-cost regression, so the assertion nets that grant out
+    explicitly instead of assuming whichever room lands here is step-neutral.
+    Do not swap the seed to dodge this -- the coupling between "which room
+    got dealt" and "what this test asserts" is exactly the fragility being
+    fixed."""
     g = _house_with_archives(seed=3, registry=registry, cfg=cfg)
     pending = g.open_door(12, N)
     archived = next(o for o in pending.options if o.archived)
+    archived_room = registry.rooms[archived.room_idx]
     steps_before = g.state.steps
     g.choose(archived.slot)
     assert g.state.grid[17] >= 0  # room placed at the north cell (12 + 5)
     assert g.phase is Phase.NAVIGATE
-    assert g.state.steps == steps_before
+    assert g.state.steps == steps_before + _own_step_grant(archived_room)
 
 
 def test_redraw_rearchives_the_fresh_hand(registry, cfg):

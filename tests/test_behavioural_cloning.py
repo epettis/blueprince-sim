@@ -34,7 +34,6 @@ from blueprince_sim.rl.behavioral_cloning import (
     replay_demo,
     synthetic_demo_records,
 )
-from blueprince_sim.rl.train import all_unlocks_config
 from blueprince_sim.web import replay
 
 # --------------------------------------------------------------------------
@@ -238,30 +237,55 @@ def test_replay_demo_raises_on_wrong_preset():
 
 
 def test_replay_demo_raises_when_terminal_reached_with_actions_remaining():
-    """A wrong reconstructed config can end the day EARLIER than the real one
-    did, reaching Phase.TERMINAL while recorded actions remain -- distinct
-    from an outright illegal action, since every action up to that point
-    stayed legal under the (wrong) replayed config. This pins one
-    deterministic case (seed=24) rather than relying on the sweep in
-    test_replay_demo_raises_on_wrong_preset, which asserts a different
-    property (the digest guard, not this detector).
+    """Reaching Phase.TERMINAL while recorded actions still remain raises
+    ReplayDivergenceError (message mentions "terminal state") rather than
+    silently truncating the replay -- distinct from the OTHER divergence
+    detector in replay_demo (an illegal recorded action; see
+    test_replay_demo_raises_on_a_record_with_a_corrupted_action) and from
+    config_for_record's digest guard (test_replay_demo_raises_on_wrong_preset,
+    which never re-stamps, so ConfigDigestError always fires there first).
+    Tested nowhere else.
 
-    The tampered record's ``config_digest`` is re-stamped to match what the
-    wrong (``unlocks="all"``) reconstruction actually hashes to, so
-    config_for_record's digest guard passes and this test isolates the
-    terminal-reached detector: without the re-stamp, the digest guard would
-    raise ConfigDigestError first and this detector would never run.
+    DEVIATION FROM THE ORIGINAL DESIGN, reported rather than silently kept:
+    the previous version of this test reconstructed the record under a
+    deliberately WRONG preset (``unlocks="all"`` on a "fresh"-recorded demo,
+    with config_digest re-stamped to match the lie) and relied on seed=24's
+    specific draft outcomes making that wrong config's day end earlier than
+    the real one. That is exactly the fragility being removed here, but
+    combining "wrong config" with a construction guaranteed to hit the
+    TERMINAL branch specifically turns out not to be possible without
+    reintroducing seed-dependence: a mismatched preset generically changes
+    which rooms are drafted, so replaying the ORIGINAL recorded actions under
+    the wrong config just as often (in fact, more often, empirically) makes
+    some action ILLEGAL somewhere in the middle of the sequence -- a real,
+    valid divergence, just the WRONG detector for what this test isolates.
+    Confirmed directly: padding a wrong-config ("all") replay of seed 24's
+    "fresh" actions past their real end raises on "action ... was not legal",
+    not "terminal state" -- the two failure modes race, and which one wins is
+    itself seed-dependent, i.e. exactly the thing being fixed.
+
+    Constructed instead entirely from the CORRECT config (no lie, no
+    config_digest re-stamp needed -- it already matches), so every real
+    recorded action stays legal throughout and the ONLY possible divergence
+    is the one under test. Both known record producers append the action
+    that ends the day as the LAST list element (replay_demo's own docstring),
+    so a real record's action list already stops exactly at its own true
+    terminal step; appending padding past that point -- well beyond
+    BluePrinceEnv.max_env_steps (1000), the hard per-day truncation bound --
+    guarantees the replay reaches Phase.TERMINAL with actions still queued.
+    Verified deterministic across seeds 0-9, not just one pinned seed.
     """
     record = synthetic_demo_records("fresh", "shaped", n_days=1, seed=24,
                                     action_rng_seed=0, use_chain=False)[0]
     assert len(record["actions"]) > 1
-    tampered = dict(record, unlocks="all")  # lie about the preset
-    # Re-stamp so the digest matches the lie: use_chain=False means no
-    # day_config diff is layered on, so the wrong reconstruction is exactly
-    # all_unlocks_config(reward) -- see config_for_record.
-    tampered["config_digest"] = config_digest(all_unlocks_config(tampered["reward"]))
+    padded = dict(record)
+    # Padding value is never actually read: replay_demo checks Phase.TERMINAL
+    # before it ever inspects an action, so once terminal fires (guaranteed
+    # well before this padding is reached) the padded values are never
+    # touched -- their number is what matters, not their content.
+    padded["actions"] = list(record["actions"]) + [0] * 2000
     with pytest.raises(ReplayDivergenceError, match="terminal state"):
-        replay_demo(tampered)
+        replay_demo(padded)
 
 
 def test_replay_demo_raises_on_a_record_with_a_corrupted_action():

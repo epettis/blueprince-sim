@@ -12,6 +12,7 @@ from scipy import stats
 
 from blueprince_sim.config import GameConfig
 from blueprince_sim.engine import shops
+from blueprince_sim.engine.draft import deal_draft
 from blueprince_sim.engine.game import Game
 from blueprince_sim.engine.grid import N, S
 from blueprince_sim.engine.model import Registry
@@ -26,6 +27,27 @@ DRAFT_TARGET = 7
 # draft target at cell 7. _place_room fires ON_PLACE which sets
 # schoolhouse_placed=True (and injects 8 Classrooms into today's decks).
 SCHOOLHOUSE_CELL = 3
+
+# Classroom (the bias's own target room) is gem-cost 1: an ordinary Gem Draw
+# must actually be likely for either the category-bias re-deal or the 8
+# injected decks to ever reach it (see tests/test_free_gem_draws.py, which
+# pins the table this depends on). DRAFT_TARGET above (rank 2) is now a
+# datamined ~0% Gem Draw cell -- that is CORRECT per the wiki table, not a
+# bug, but it means test_schoolhouse_raises_classroom_rate needs its own
+# rank/gem setup, deliberately at the table's high cell (rank 8/9, 4+ gems ->
+# 59.26% Slot-2 / 93.75% Slot-3) rather than DRAFT_TARGET. Do not "simplify"
+# this back to DRAFT_TARGET/rank 2 -- that silently re-vacuums this test the
+# same way the pre-fix sim's size-sort bug used to paper over it. Dealt
+# directly via draft.deal_draft (not Game.open_door) since no real doorway
+# chain connects the Entrance Hall to rank 8 in this synthetic setup, and
+# deal_draft (like Game._place_room) does not require one -- only rank_of()
+# and each room's own draft conditions/orientation legality.
+BIAS_FROM_CELL = 32     # rank 7, col 2 (unplaced; from_room resolves to None)
+BIAS_TARGET_CELL = 37   # rank 8, col 2
+BIAS_DIRECTION = N
+BIAS_GEMS = 5            # the "4+ gems" column
+BIAS_DRAFTS_TODAY = 6    # past the first-five-drafts low-gem carve-out,
+                         # so Slot 3 also uses the high rank-keyed chance
 
 # Number of drafts per condition; 3 options per draft -> ~N*3 option samples.
 N_DRAFTS = 10_000
@@ -64,13 +86,20 @@ def test_schoolhouse_flag_does_not_leak_across_days():
 
 
 def _count_classroom_options(game: Game, seed: int, place_schoolhouse: bool) -> tuple[int, int]:
-    """Return (classroom_count, total_count) across all options dealt for one draft."""
+    """Return (classroom_count, total_count) across all options dealt for one draft.
+
+    Dealt at BIAS_TARGET_CELL/BIAS_GEMS/BIAS_DRAFTS_TODAY (rank 8, 4+ gems,
+    past the early-drafts carve-out) -- see that block's comment for why this
+    is not the module's ordinary DRAFT_TARGET (rank 2, 0 gems)."""
     game.reset(seed)
     if place_schoolhouse:
         schoolhouse = game.registry.by_id["schoolhouse"]
         game._place_room(schoolhouse, SCHOOLHOUSE_CELL, S)
     game.state.steps = 999  # prevent step exhaustion
-    pending = game.open_door(DRAFT_FROM, DRAFT_DIR)
+    game.state.gems = BIAS_GEMS
+    game.state.drafts_today = BIAS_DRAFTS_TODAY
+    pending = deal_draft(game.state, game.registry, game.cfg, game.rng, game.placed_ids,
+                         BIAS_FROM_CELL, BIAS_DIRECTION, BIAS_TARGET_CELL)
     classroom = sum(
         1 for opt in pending.options
         if game.registry.rooms[opt.room_idx].id == "classroom"
@@ -113,7 +142,14 @@ def test_schoolhouse_raises_classroom_rate(schoolhouse_bias_counts):
     low. A plain chi-square against a zero expected frequency is degenerate,
     so this asserts the exact zero baseline directly and then uses a
     one-sided binomial test to confirm the with-Schoolhouse rate is
-    significantly above a small epsilon rather than comparing two rates."""
+    significantly above a small epsilon rather than comparing two rates.
+
+    Sampled at BIAS_TARGET_CELL (rank 8, 4+ gems), not the module's ordinary
+    rank-2/0-gems DRAFT_TARGET: Classroom is gem-cost 1, and rank 2 at 0
+    gems is a datamined 0% Gem Draw cell (tests/test_free_gem_draws.py), so
+    neither the bias nor the injected decks could ever reach it there --
+    that is the CORRECT post-fix behaviour, not something to route around by
+    lowering the epsilon."""
     classroom_with, total_with, classroom_without, total_without = schoolhouse_bias_counts
 
     assert classroom_without == 0, (

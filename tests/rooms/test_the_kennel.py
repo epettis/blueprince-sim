@@ -65,8 +65,10 @@ def _deal_only_card(registry: Registry, cfg: GameConfig, room, scepter_color: st
     state.shops.scepter_color = scepter_color
     ctx = DraftContext(state, registry, cfg, Rng(0), set(), None)
     placeholder = registry.by_id["closet"]  # already-dealt filler; replaced if the bias hits
+    # is_gem must match deck_idx above, or the round's Free/Gem Draw gate
+    # would hide the only card in the deck.
     return _apply_category_bias(ctx, placeholder, slot=1, cell=TARGET_CELL,
-                                entry_dir=DIRECTION, exclude=set())
+                                entry_dir=DIRECTION, exclude=set(), is_gem=not room.is_free)
 
 
 def test_kennel_selectable_by_a_blueprint_category_targeted_draw():

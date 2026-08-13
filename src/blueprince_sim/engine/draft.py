@@ -1,10 +1,13 @@
 """The drafting algorithm.
 
-Implements the datamined procedure: for each of the 3 option slots -
-(1) roll a rarity from the weight table (rank x slot x stage x Solarium),
-(2) deal a room of that rarity solitaire-style from the free deck (slot 1)
-or the union of free+gem decks (slots 2 & 3), subject to the doorway's
-filters. Four attempts per slot: full rules -> ignore priority filters ->
+Implements the datamined procedure: once per round (see _resolve_free_gem),
+roll whether Slot 2/3 (this engine's 0-indexed slots 1/2) are Free or Gem
+Draws -- Slot 1 (engine slot 0) is always free. Then, for each of the 3
+option slots: (1) roll a rarity from the weight table (rank x slot x stage x
+Solarium), (2) deal a room of that rarity solitaire-style from ONLY the deck
+class (free or gem) the round's Free/Gem Draw decision picked for that slot,
+subject to the doorway's filters -- a Free Draw and a Gem Draw never share a
+deal. Four attempts per slot: full rules -> ignore priority filters ->
 reshuffle decks -> forced Closet. Priority draws can force specific rooms
 into slot 3.
 
@@ -166,24 +169,25 @@ def room_draftable(ctx: DraftContext, room: Room, cell: int, entry_dir: int,
 
 
 def _deal_from_rarity(ctx: DraftContext, rarity_idx: int, slot: int, cell: int,
-                      entry_dir: int, exclude: set[int]) -> Room | None:
-    """Deal the next eligible room of a rarity (solitaire semantics)."""
+                      entry_dir: int, exclude: set[int], is_gem: bool) -> Room | None:
+    """Deal the next eligible room of a rarity from the round's Free/Gem-classified
+    deck (solitaire semantics).
+
+    ``is_gem`` is this round's already-rolled Free/Gem Draw decision for
+    ``slot`` (see :func:`_resolve_free_gem`; always False for slot 0, which the
+    wiki pins as always-free). A Free Draw searches ONLY the free deck of
+    ``rarity_idx``, a Gem Draw ONLY the gem deck -- the two are never combined
+    for a single draw (blueprince.wiki.gg/wiki/Drafting/Advanced: "Free Draws
+    only use the four decks made out of free rooms, while Gem Draws only use
+    the four decks made out of gem rooms").
+    """
     rooms = ctx.registry.rooms
 
     def pred(card: int) -> bool:
         return room_draftable(ctx, rooms[card], cell, entry_dir, exclude)
 
-    decks = [ctx.state.deck(rarity_idx, False)]
-    if slot != 0:
-        decks.append(ctx.state.deck(rarity_idx, True))
-        # Deal from whichever deck has proportionally more undealt cards so the
-        # union behaves like one combined deck.
-        decks.sort(key=lambda d: -d.remaining())
-    for deck in decks:
-        card = deck.deal_next(pred)
-        if card is not None:
-            return rooms[card]
-    return None
+    card = ctx.state.deck(rarity_idx, is_gem).deal_next(pred)
+    return rooms[card] if card is not None else None
 
 
 def _priority_draw(ctx: DraftContext, cell: int, entry_dir: int,
@@ -329,27 +333,26 @@ def _active_conditions(ctx: DraftContext) -> set[str]:
 
 def _deal_biased(ctx: DraftContext, slot: int, cell: int,
                  entry_dir: int, exclude: set[int],
-                 pred) -> Room | None:
-    """Deal the first card passing ``pred``, respecting slot 0 free-only rule."""
+                 pred, is_gem: bool) -> Room | None:
+    """Deal the first card passing ``pred`` from the round's Free/Gem-classified
+    decks across all four rarities.
+
+    ``is_gem`` is the same once-per-round decision ``_deal_from_rarity`` uses
+    (see :func:`_resolve_free_gem`); callers pass False for slot 0, which is
+    always free-only. Like ``_deal_from_rarity``, only ONE of the free/gem
+    classes is ever searched -- the Silver Key cross/t bias and every
+    category bias are still ordinary draws for Free/Gem Draw purposes.
+    """
     rooms = ctx.registry.rooms
-    if slot == 0:
-        # Slot 0 is free-only: search only the free decks across all rarities.
-        for rarity_idx in range(4):
-            card = ctx.state.deck(rarity_idx, False).deal_next(pred)
-            if card is not None:
-                return rooms[card]
-    else:
-        # Slots 1/2 draw from the union of free+gem decks.
-        for rarity_idx in range(4):
-            for is_gem in (False, True):
-                card = ctx.state.deck(rarity_idx, is_gem).deal_next(pred)
-                if card is not None:
-                    return rooms[card]
+    for rarity_idx in range(4):
+        card = ctx.state.deck(rarity_idx, is_gem).deal_next(pred)
+        if card is not None:
+            return rooms[card]
     return None
 
 
 def _deal_cross_t_biased(ctx: DraftContext, slot: int, cell: int,
-                         entry_dir: int, exclude: set[int]) -> DraftOption | None:
+                         entry_dir: int, exclude: set[int], is_gem: bool) -> DraftOption | None:
     """Try to deal a cross/t-layout room for the Silver Key draft bias.
 
     Returns a DraftOption or None if no cross/t card qualifies; the caller
@@ -362,15 +365,21 @@ def _deal_cross_t_biased(ctx: DraftContext, slot: int, cell: int,
         r = rooms[card]
         return r.layout in ("cross", "t") and room_draftable(ctx, r, cell, entry_dir, exclude)
 
-    room = _deal_biased(ctx, slot, cell, entry_dir, exclude, pred_cross_t)
+    room = _deal_biased(ctx, slot, cell, entry_dir, exclude, pred_cross_t, is_gem)
     if room is None:
         return None
     return _make_option(ctx, room, slot, cell, entry_dir)
 
 
 def _apply_category_bias(ctx: DraftContext, room: Room, slot: int, cell: int,
-                         entry_dir: int, exclude: set[int]) -> Room:
+                         entry_dir: int, exclude: set[int], is_gem: bool) -> Room:
     """After a normal draw, apply any active category biases.
+
+    ``is_gem`` is the round's Free/Gem Draw decision for ``slot`` (see
+    :func:`_resolve_free_gem`), threaded through to ``_deal_biased`` so a
+    category-bias substitution still only searches the deck class the round
+    already committed to for this slot -- it never lets a Free Draw slot
+    surface a gem room, or vice versa.
 
     For each bias whose condition holds, roll its chance (via a dedicated named
     RNG substream that is only consumed when the bias is active).  On a hit,
@@ -433,7 +442,7 @@ def _apply_category_bias(ctx: DraftContext, room: Room, slot: int, cell: int,
                 return False
             return room_draftable(ctx, r, cell, entry_dir, exclude)
 
-        biased = _deal_biased(ctx, slot, cell, entry_dir, exclude, _pred)
+        biased = _deal_biased(ctx, slot, cell, entry_dir, exclude, _pred, is_gem)
         if biased is not None:
             room = biased
 
@@ -476,13 +485,97 @@ def _deal_colour_default(ctx: DraftContext, cell: int, entry_dir: int,
     return None
 
 
+def _free_gem_table(ctx: DraftContext) -> dict:
+    """The ``free_gem_draws`` section of weights.json (published table, not code)."""
+    return ctx.registry.weights["free_gem_draws"]
+
+
+def _resolve_free_gem(ctx: DraftContext, rank: int, round_num: int) -> tuple[bool, bool]:
+    """Roll the once-per-round Free/Gem Draw decision (blueprince.wiki.gg/wiki/
+    Drafting/Advanced "Free/Gem Draws"). Returns ``(slot1_is_gem, slot2_is_gem)``
+    using THIS ENGINE's 0-indexed slots: wiki Slot 2 -> engine slot 1, wiki
+    Slot 3 -> engine slot 2 (wiki Slot 1 -> engine slot 0 is always free and is
+    handled entirely by callers, never here).
+
+    Rolled exactly once per round (not once per slot) via ``_fill_options``,
+    since a single Slot-2 success also forces Slot 3 to Gem. Two fresh named
+    RNG substreams are used (``free_gem_slot2``/``free_gem_slot3``), neither
+    reused anywhere else in the engine, so this cannot perturb any existing
+    golden transcript.
+
+    Quoting the wiki verbatim, in the order this function evaluates it:
+
+        First, certain draws are always Free Draws:
+        * Slot 1 always makes a Free Draw.
+        * On Day 1-3, all draws will be Free Draws in the first few drafts:
+        ** If Veteran Mode is enabled, the first 2 drafts always produce Free
+           Draws.
+        ** Otherwise, the first (6-Day) drafts always produce Free Draws.
+
+        If the condition above is not met, Slot 2 has a chance to become a
+        Gem Draw, based on rank and the amount of gems you have: [see
+        weights.json's free_gem_draws.slot2_gem_chance for the 9x3 table]
+
+        If this chance succeeds, both Slot 2 and Slot 3 become Gem Draws.
+        Otherwise, Slot 2 is a Free Draw, and there is an additional chance
+        for Slot 3 to become a Gem Draw:
+        * If this is the third round or later this draft, Slot 3 is always a
+          Gem Draw.
+        * In the first two drafts:
+        ** If you have 2+ gems, there is a 20% chance for a Gem Draw, 80% for
+           a Free Draw.
+        ** Otherwise, it is always a Free Draw.
+        * In the first five drafts: If you have 0-1 gems, there is a 20%
+          chance for a Gem Draw, 80% for a Free Draw.
+        * Otherwise, the probability for a Gem Draw is based on rank: [see
+          weights.json's free_gem_draws.slot3_rank_chance]
+        Otherwise, Slot 3 becomes a Free Draw.
+
+    The day-1-3/Veteran-Mode carve-out and the "third round or later"/"first
+    two drafts"/"first five drafts" thresholds are formulas, not published
+    numbers, so they are code here rather than duplicated into weights.json
+    (matching deck_size_gates.gem_gate_condition's existing code/data split);
+    only the percentages themselves (the 9x3 table, 20%, 93.75/87.5/75) are
+    read from ``free_gem_draws``.
+    """
+    state, cfg, rng = ctx.state, ctx.cfg, ctx.rng
+
+    if state.day in (1, 2, 3):
+        limit = 2 if cfg.veteran_mode else (6 - state.day)
+        if state.drafts_today <= limit:
+            return False, False
+
+    table = _free_gem_table(ctx)
+    gems = state.gems
+    gem_bucket = 0 if gems == 0 else (1 if gems <= 3 else 2)
+    slot2_chance = table["slot2_gem_chance"][str(rank)][gem_bucket] / 100.0
+    if rng.chance("free_gem_slot2", slot2_chance):
+        return True, True
+
+    if round_num >= 3:
+        return False, True
+    low_chance = table["slot3_low_gem_chance"] / 100.0
+    if state.drafts_today <= 2:
+        if gems < 2:
+            return False, False
+        return False, rng.chance("free_gem_slot3", low_chance)
+    if state.drafts_today <= 5 and gems <= 1:
+        return False, rng.chance("free_gem_slot3", low_chance)
+    rank_chance = table["slot3_rank_chance"][str(rank)] / 100.0
+    return False, rng.chance("free_gem_slot3", rank_chance)
+
+
 def draw_slot(ctx: DraftContext, slot: int, cell: int, entry_dir: int,
-              exclude: set[int], earlier_options: list[DraftOption] = ()) -> DraftOption | None:
+              exclude: set[int], earlier_options: list[DraftOption] = (),
+              is_gem: bool = False) -> DraftOption | None:
     """Fill one option slot via the four-attempt procedure.
 
     ``earlier_options`` holds the already-dealt slot-0/1 options of this hand
     (only meaningful, and only passed, at ``slot == 2``); it feeds the Garage
-    Forced Draw's Dead-End gate.
+    Forced Draw's Dead-End gate. ``is_gem`` is this round's Free/Gem Draw
+    decision for ``slot`` (see :func:`_resolve_free_gem`; callers pass False
+    for slot 0, always-free by the wiki's own rule) -- attempts 1-3 below only
+    ever deal from the matching free-or-gem deck class, never both.
     """
     state, registry, cfg, rng = ctx.state, ctx.registry, ctx.cfg, ctx.rng
     rank = rank_of(cell)
@@ -504,9 +597,9 @@ def draw_slot(ctx: DraftContext, slot: int, cell: int, entry_dir: int,
     for _attempt in (1, 2):
         rarity = roll_rarity(state, registry, cfg, rng, slot, rank, ctx.from_library)
         if rarity is not None:
-            room = _deal_from_rarity(ctx, rarity, slot, cell, entry_dir, exclude)
+            room = _deal_from_rarity(ctx, rarity, slot, cell, entry_dir, exclude, is_gem)
             if room is not None:
-                room = _apply_category_bias(ctx, room, slot, cell, entry_dir, exclude)
+                room = _apply_category_bias(ctx, room, slot, cell, entry_dir, exclude, is_gem)
                 return _make_option(ctx, room, slot, cell, entry_dir)
 
     # Attempt 3: reshuffle every deck and retry once.
@@ -514,9 +607,9 @@ def draw_slot(ctx: DraftContext, slot: int, cell: int, entry_dir: int,
         deck.reshuffle(lambda lst, i=i: rng.shuffle(f"reshuffle_{i}", lst))
     rarity = roll_rarity(state, registry, cfg, rng, slot, rank, ctx.from_library)
     if rarity is not None:
-        room = _deal_from_rarity(ctx, rarity, slot, cell, entry_dir, exclude)
+        room = _deal_from_rarity(ctx, rarity, slot, cell, entry_dir, exclude, is_gem)
         if room is not None:
-            room = _apply_category_bias(ctx, room, slot, cell, entry_dir, exclude)
+            room = _apply_category_bias(ctx, room, slot, cell, entry_dir, exclude, is_gem)
             return _make_option(ctx, room, slot, cell, entry_dir)
 
     # Colour-selective draft (Secret Passage): the pool is thin, so fall back
@@ -777,6 +870,14 @@ def _fill_options(ctx: DraftContext, pending: PendingDraft, from_room: Room | No
             and ctx.rng.chance("foundation_rank3", 0.90)):
         exclude.add(foundation.idx)
 
+    # Free/Gem Draws: rolled ONCE per round (draft.py::_resolve_free_gem),
+    # ahead of the per-slot loop, since a Slot-2 Gem success also forces
+    # Slot 3 to Gem -- see that function's docstring for the full cascade and
+    # the wiki passage it implements. Engine slot 0 (wiki Slot 1) is always
+    # free and never consults this.
+    is_gem_by_slot = (False,) + _resolve_free_gem(
+        ctx, rank_of(pending.target_cell), pending.round_num)
+
     # Silver Key: on the initial deal, try cross/t layouts first for each slot,
     # falling back to the normal draw when no cross/t card qualifies. Ignored
     # outright during a colour-selective draft (see docstring above).
@@ -795,10 +896,10 @@ def _fill_options(ctx: DraftContext, pending: PendingDraft, from_room: Room | No
             opt = None
             if silver_key_bias:
                 opt = _deal_cross_t_biased(ctx, slot, pending.target_cell,
-                                           pending.direction, exclude)
+                                           pending.direction, exclude, is_gem_by_slot[slot])
             if opt is None:
                 opt = draw_slot(ctx, slot, pending.target_cell, pending.direction, exclude,
-                                pending.options)
+                                pending.options, is_gem=is_gem_by_slot[slot])
         if opt is not None:
             pending.options.append(opt)
             exclude.add(opt.room_idx)
@@ -836,7 +937,15 @@ def deal_draft(state: GameState, registry: Registry, cfg: GameConfig, rng: Rng,
     variants only); it is stamped onto the returned ``PendingDraft`` so a
     later ``redeal`` of this same hand stays on-colour without the caller
     having to pass it again.
+
+    Increments ``state.drafts_today`` first, so the hand being dealt sees its
+    own (1-indexed) draft number -- draft.py::_resolve_free_gem's "first N
+    drafts" rules read this. A cached-hand reopen of the same doorway never
+    reaches this function at all (Game._deal_and_cache only calls it on a
+    cache miss), so a doorway only ever counts once no matter how many times
+    it is reopened.
     """
+    state.drafts_today += 1
     from_room = registry.rooms[state.grid[from_cell]] if state.grid[from_cell] >= 0 else None
     ctx = DraftContext(state, registry, cfg, rng, placed_ids, from_room, colour=colour)
     pending = PendingDraft(from_cell=from_cell, direction=direction, target_cell=target_cell,
@@ -851,7 +960,12 @@ def redeal(state: GameState, registry: Registry, cfg: GameConfig, rng: Rng,
 
     Reuses ``pending.colour`` (set by the original ``deal_draft``) so a
     redraw of a colour-selective hand stays restricted to the same colour.
+    Bumps ``pending.round_num`` first (this is a new round of the SAME draft,
+    not a new draft -- ``state.drafts_today`` is untouched), which is what
+    lets draft.py::_resolve_free_gem's "third round or later this draft"
+    Slot 3 rule ever fire.
     """
+    pending.round_num += 1
     from_room = registry.rooms[state.grid[pending.from_cell]] \
         if state.grid[pending.from_cell] >= 0 else None
     ctx = DraftContext(state, registry, cfg, rng, placed_ids, from_room, colour=pending.colour)

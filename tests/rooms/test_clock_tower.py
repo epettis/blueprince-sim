@@ -97,8 +97,11 @@ def test_clock_tower_selectable_by_a_blueprint_category_targeted_draw():
     ctx = DraftContext(state, registry, GameConfig(), Rng(0), set(), None)
     placeholder = registry.by_id["closet"]
 
+    # is_gem must match the deck Clock Tower's card actually sits in (deck_idx
+    # above), or the round's Free/Gem Draw gate would hide the only card.
     result = _apply_category_bias(ctx, placeholder, slot=1, cell=TARGET_CELL,
-                                  entry_dir=DIRECTION, exclude=set())
+                                  entry_dir=DIRECTION, exclude=set(),
+                                  is_gem=not clock_tower.is_free)
 
     assert result.id == "clock_tower"
 

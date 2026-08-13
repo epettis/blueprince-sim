@@ -76,6 +76,8 @@ def test_southern_cross_bias_skips_excluded_rooms_and_selects_an_ordinary_cross_
     ctx = DraftContext(state, registry, cfg, Rng(0), set(), None)
     original = registry.by_id["closet"]  # a non-cross room the bias should replace
 
-    biased = _apply_category_bias(ctx, original, 1, TARGET_CELL, DIRECTION, set())
+    # All four candidates sit in decks[0] (rarity 0, free), so this round's
+    # Free/Gem Draw decision for slot 1 must be Free (is_gem=False) to see them.
+    biased = _apply_category_bias(ctx, original, 1, TARGET_CELL, DIRECTION, set(), False)
 
     assert biased.id == "great_hall"
