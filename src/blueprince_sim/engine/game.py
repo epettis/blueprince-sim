@@ -872,6 +872,19 @@ class Game:
         before a hand can be dealt. Reopening that same doorway once its
         colour has already been chosen (cached in doorway_drafts) skips the
         pick and returns the cached hand, same as any other doorway.
+
+        Also returns None, staying in NAVIGATE instead of entering DRAFTING,
+        when the dealt hand comes up wholly empty (only reachable through a
+        colour-selective draft whose published default triple is also
+        exhausted -- see draft.py's draw_slot docstring). There is nothing to
+        choose, so the draft never happened: the key or Silver Key already
+        spent above by :meth:`_unlock_for_passage` (if the segment was
+        locked) is NOT refunded, since the segment really is open now,
+        independent of what the failed deal found behind it; no step is
+        affected either way, since opening a doorway never costs one (see
+        above). ``_deal_and_cache`` never caches an empty result, so
+        reopening this doorway later re-deals from scratch rather than
+        replaying the same dead end.
         """
         assert self.phase is Phase.NAVIGATE, "not in NAVIGATE phase"
         st = self.state
@@ -891,6 +904,11 @@ class Game:
                 self._check_termination()
                 return None
             pending = self._deal_and_cache(cell, direction, target)
+        if not pending.options:
+            st.pending = None
+            self.phase = Phase.NAVIGATE
+            self._check_termination()
+            return None
         st.pending = pending
         self.phase = Phase.DRAFTING
         self._check_termination()
@@ -911,6 +929,15 @@ class Game:
         pickup where ``self.rng`` is in scope, and ``dynamic_rarity`` is
         never surfaced to env/obs, so there is no observable moment between
         pickup and this resolution for a policy to exploit.
+
+        A wholly empty ``pending.options`` (only reachable via a
+        colour-selective draft whose default triple is also exhausted -- a
+        modelling artifact of not implementing the wiki's reserve-copies
+        tier, see draft.py's draw_slot docstring) is deliberately NOT cached
+        here: callers (:meth:`open_door`/:meth:`choose_colour`) fall back to
+        NAVIGATE instead of entering DRAFTING on an empty hand, and caching it
+        would trap a later reopen of this same doorway in that dead result
+        forever instead of letting it re-deal.
         """
         st = self.state
         if self.cfg.special_items:
@@ -929,10 +956,11 @@ class Game:
         # Hidden options are treated as potentially red (no crown bonus if any hidden).
         if self.cfg.special_items and paper_crown.bonus_redraw(st, self.registry, pending):
             pending.redraws_left += 1
-        self.doorway_drafts[(cell, direction)] = pending
+        if pending.options:
+            self.doorway_drafts[(cell, direction)] = pending
         return pending
 
-    def choose_colour(self, colour: str) -> PendingDraft:
+    def choose_colour(self, colour: str) -> PendingDraft | None:
         """Resolve the Secret Passage's colour pick and deal the restricted hand.
 
         Only legal in COLOUR_PENDING; ``colour`` must be one of
@@ -941,6 +969,13 @@ class Game:
         ``colour``, then returns to DRAFTING. Checks termination at the end,
         same as :meth:`open_door` (colour_pending itself already checked
         termination on entry; this covers whatever the deal's own hooks do).
+
+        Returns None, staying in NAVIGATE instead of entering DRAFTING, when
+        the restricted deal comes up wholly empty (its default triple also
+        exhausted) -- see :meth:`open_door`'s matching exhaustion branch,
+        which this mirrors exactly; no key was spent here (the door was
+        already unlocked when :meth:`open_door` first parked in
+        COLOUR_PENDING), so there is nothing to account for beyond that.
         """
         assert self.phase is Phase.COLOUR_PENDING, "choose_colour only legal in COLOUR_PENDING"
         assert colour in COLOUR_CATEGORIES, f"unknown colour {colour!r}"
@@ -950,6 +985,11 @@ class Game:
         st.pending_colour_cell = -1
         st.pending_colour_direction = 0
         pending = self._deal_and_cache(cell, direction, target, colour=colour)
+        if not pending.options:
+            st.pending = None
+            self.phase = Phase.NAVIGATE
+            self._check_termination()
+            return None
         st.pending = pending
         self.phase = Phase.DRAFTING
         self._check_termination()
