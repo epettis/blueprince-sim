@@ -2235,14 +2235,13 @@
    "spawn_rooms_high_luck": [],
    "guaranteed_in": [],
    "effects": [],
-   "implemented": false,
+   "implemented": true,
    "meta": {
     "source": "https://blueprince.wiki.gg/wiki/Microchip",
     "confidence": "wiki",
     "absent_spawn_areas": [],
-    "blocked_on": "orindian_ruins_not_reachable",
-    "reachability": "inert",
-    "notes": "Granted by shops.py at four sites: source='day_start' (carry-over of the Entrance Hall vase chip), 'vase_smash' (smashing that vase in play), 'doorstep_dig' (first-time West Path dig) and 'doorstep' (its carry-over). The ceiling is two held chips, which is CORRECT: the third sits in the Blackbridge Grotto pedestal and is never carried. The gate models that -- areas.json three_microchips is count 3 with counts_flag grotto_chip_in_place, contributed by GameState.grotto_chip_taken (day-scoped, no carry-over: every chip respawns at its starting location the next day). What remains: blackbridge_grotto and orindian_ruins are both modelled:false, so env/actions.py offers no travel to either, and travel_to has no orindian_ruins arrival handler -- the gate is correct but nothing can reach it. Note the Ruins payoff, the Throne Room floorplan, is ALREADY in rl/train.py::all_studio_additions() and therefore in all_unlocks_config; the arm adds content only under fresh_save_config. Owner ruled it worth building anyway for the room's north Antechamber lever and its Mora Jai +2 allowance box, both already modelled. Tier 2, no-receive per the wiki: it can be traded away but the trade graph never offers it back (each Microchip is a separate item, so three held chips give three distinct trade sources)."
+    "blocked_on": null,
+    "notes": "Three chips exist. The Entrance Hall vase holds one, smashed with any item carrying the smash tag (wiki: 'a Sledge Hammer or equivalent'); the West Path holds one, dug with any dig_tool item; the third sits in the Blackbridge Grotto pedestal and is taken with TAKE_GROTTO_CHIP. All three respawn at their starting location the next day -- the first two via the entrance_vase_broken / outer_chip_dug day-start re-grants, the third because GameState.grotto_chip_taken is day-scoped with no carry-over. The three_microchips gate counts held chips plus the pedestal chip while it is in place (areas.json counts_flag), so two carried chips open the Orindian Ruins; taking the pedestal chip gives three held, which keeps that gate open and also lights the Apple Orchard sundial. Tier 2 and no_receive: giveable at the Trading Post and losable to the Lost & Found, never received."
    }
   },
   {

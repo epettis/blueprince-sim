@@ -855,6 +855,42 @@ around 1,800 LOC.
 
 ## Decisions log
 
+- **2026-08-12, the microchip record is finished and consistent. Owner: "model it
+  as I described."** Audited against their description; three inconsistencies
+  found, of which only two were real.
+
+  **1. `implemented: false` was stale for the THIRD time on this one record.**
+  It said `blocked_on: orindian_ruins_not_reachable`, which #214 falsified. The
+  chain is complete and was re-verified end to end: three sources
+  (vase carry-over, West Path dig, Grotto pedestal take), the gate, reachable
+  Ruins, a lightable sundial, tier-2 give-only trading. Now
+  `implemented: true`, `blocked_on: null`, and `meta.reachability` removed --
+  the validator only requires it while `implemented` is false.
+
+  **This record alone has had three stale blockers**: `outer_areas_not_modeled`
+  (false once the area graph landed), `grotto_pedestal_chip_not_modeled` (false
+  the moment #210 merged), and `orindian_ruins_not_reachable` (false the moment
+  #214 merged). Each was true when written. **A blocker on a record whose
+  feature is actively being built goes stale about as fast as it is written**;
+  the answer is not better prose but the derived check task 23 added.
+
+  **2. `docs/special-items-design.md` was false in three places** -- it said the
+  microchip "remains inert (`blocked_on: outer_areas_not_modeled`)", that "chip
+  holders/placement are not modeled (outer areas out of scope)", and it never
+  mentioned the third chip at all. All corrected, including the respawn rule and
+  the `counts_flag` arithmetic.
+
+  **3. NOT a discrepancy: the vase accepts the Morning Star.** The owner named
+  "sledgehammer or power hammer", and the `smash` tag also carries
+  `morning_star`. The wiki settles it -- **"A Sledge Hammer or equivalent is
+  needed to smash the vase"** -- so the tag is right and the owner named the two
+  they use. Checked before changing anything; changing it would have narrowed
+  correct behaviour to match an incomplete list.
+
+  The wiki also independently confirms the respawn rule the owner gave: "If this
+  microchip is lost without being placed, it reappears on the table right beside
+  the broken vase the next day."
+
 - **2026-08-12, demo replay's two silent-failure paths are closed.** Both had
   the same shape: **the code chose to continue rather than complain**, handing
   back plausible-looking data instead of raising.
