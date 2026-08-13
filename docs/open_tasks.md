@@ -855,6 +855,187 @@ around 1,800 LOC.
 
 ## Decisions log
 
+- **2026-08-12, THE FREE/GEM DRAW STEP IS MISSING ENTIRELY. Owner ruled: model
+  it fully. This is the largest divergence found this session.**
+
+  The investigation was commissioned to check one sentence on `The_Axe`
+  (*"spawn at the same rates as gem rooms (more often with more gems in hand,
+  and on higher rank)"*). **The sentence is precise and traceable to a datamined
+  table, and the gap is bigger than the question.** It is not a missing *bias*
+  on an existing roll -- there is **no Free/Gem Draw step in this codebase at
+  all.**
+
+  **What the sim does instead**, `draft.py::_deal_from_rarity`: it takes the free
+  and gem decks for the rolled rarity, sorts them by `remaining()`, and deals
+  from **whichever currently holds more undealt cards**. Deterministic, consumes
+  no RNG. Whether slot 2/3 shows a gem room is an artifact of pool composition.
+  The comment there claims this makes the pair "behave like one combined deck";
+  it does not -- it is "always deal from the larger deck".
+
+  **What the game does**, `Drafting/Advanced` -> "Free/Gem Draws": slot 2's
+  chance to be a Gem Draw is a published rank x gems-in-hand table (buckets
+  **0 / 1-3 / 4+**, ranging 0% at rank 1-3 with no gems to **59.26%** at rank
+  8-9 with 4+), **slot 2 succeeding forces slot 3**, slot 1 is always free, and
+  early drafts are carved out (veteran: first 2 drafts all free; otherwise the
+  first `6-Day`). Slot 3 has its own rank table when slot 2 stayed free
+  (75% / 87.5% / 93.75%). Corroborated on `Gems`: *"When more gems are held, the
+  odds of drawing Special Floorplans is higher than with fewer gems."*
+
+  **`state.gems` reaches the draft pipeline nowhere.** Proved by execution, not
+  grep: every `GameState` slot and `GameConfig` field was wrapped in a
+  read-tracing descriptor over 240 drafts. `gems` was **never read** from
+  `decks.py` or `draft.py`, and dealt hands were **bit-identical** for starting
+  gems in {0, 1, 3, 4, 10, 50} at fixed seed. The gem-rate/gem-count correlation
+  the sim *does* show is confounded -- gems accumulate with time of day, which
+  correlates with deck depletion.
+
+  **Measured divergence**, 250 episodes x 3 days, `greedy_rank`: sim slot 3 runs
+  **~44%** gem where the real game past its carve-outs is **75-93.75%** by rank
+  plus slot-2 spill-over; and day 1 should force **0%** for the first 2 drafts
+  under veteran mode (the repo default) where the sim deals **8.6%**.
+
+  **I was wrong about the consequence, and the correction matters more than the
+  claim.** I recorded that this would mean `tests/test_draft_stats.py` is
+  asserting a wrong distribution. **It is not.** That suite tests the *rarity*
+  axis only, and the rarity tables are correct. **The free/gem axis has never
+  been tested at all.** A missing guard, not a lying one -- and that absence is
+  precisely why a whole decision step could go unmodelled without anything going
+  red. **When a suite is called "the sharpest guard in the repo", ask what axis
+  it guards before trusting it with a different one.** That is now three times
+  this session the same suite has been credited with coverage it does not have.
+
+  **Not previously recorded anywhere.** `docs/drafting.md` says only "Slot 1 is
+  always free; slots 2-3 may deal gem-cost rooms" and never states how slots 2-3
+  choose -- so the deck-size heuristic was undocumented rather than
+  documented-as-simplified. A genuine discovery.
+
+  **Owner ruled Option B, model it fully** (~150-220 lines): the table into
+  `weights.json` as `confidence: datamined`, a `drafts_today` counter (none
+  exists -- `draft_counts` is cumulative per-room), a per-draft round counter,
+  the free/gem decision rolled once per round and threaded through
+  `draw_slot`/`_deal_from_rarity`/`_deal_biased`, replacing the size-sort.
+  **Materially changes the gem economy a policy trades against; a retrain is
+  already owed.** The required new guard is a chi-square on the **free/gem
+  axis**, which has no existing coverage.
+
+  **Note for `the_axe` when it resumes:** `Drafting/Advanced` says deck
+  membership "uses the actual gem cost of the room, **ignoring any modifiers
+  like The Axe**". So an axed room stays in the Gem decks -- zero the *charged*
+  cost, never `Room.is_free`. That is independent of this work.
+
+- **2026-08-12, OWNER RULING: fix the forced-Closet colour crash next, ahead of
+  the item queue.** Found incidentally by the free/gem investigation and
+  reproducible without instrumentation: `greedy_rank`, day 10, seeds 4 and 97,
+  ~2 in 250 episodes, `AssertionError: secret_passage dealt 'closet', not a
+  'hallway' room`. `draw_slot`'s 4th-attempt forced-Closet fallback escapes the
+  colour filter that the Secret Passage's handler asserts on.
+
+  **It is being fixed as a correctness question, not silenced.** Three outcomes
+  are open -- the Closet is legitimate and the assertion is too strict; the
+  Closet is illegitimate and the fallback must respect `ctx.colour`; or the
+  fallback should prefer an on-colour room first. The wiki decides, and if it
+  does not, the owner does. **An assertion that fires twice in 250 episodes is
+  doing its job**; weakening it to make a crash go away would trade a loud
+  failure for a silent draft-math divergence.
+
+- **2026-08-12, `gear_wrench`: the target is the RARITY, not the room -- an
+  error repeated in three places, mine included.**
+
+  The wiki's own one-line description: *"Each time you draft a mechanical
+  floorplan, you may permanently adjust its rarity."* The room is **whichever
+  Mechanical Room you just drafted**; the **choice is over the four rarity
+  levels**, seeded at the room's current one. So the action block is **4 ids,
+  not 8 (rooms) and not 32 (rooms x rarities)**.
+
+  **That error is written in three places and all three need correcting**: this
+  file's earlier entry, `special_items.json`'s `meta.notes`, and my brief.
+
+  **Why the earlier "misreading" finding was itself a misreading.** The retracted
+  claim came from reading only the item's `DataMinedBox` -- the *pickup* side
+  effect, which really is scoped "that day" -- and missing the infobox and Usage
+  text, which say **"permanently"**. **The Gear Wrench has two separate effects
+  with two different scopes and two different blockers**, and collapsing them is
+  what produced both the original error and my retraction of it:
+  - **Main effect**: drafting a Mechanical Room while holding it -> permanent
+    rarity set. Fires in `Game.choose_option`, where `self.rng` exists. **Not
+    blocked.**
+  - **Pickup effect**: Workshop + Boiler Room -> Standard, that day. Needs `rng`
+    inside `_on_pickup`, i.e. exactly `battery_pack`'s constraint. **Still
+    blocked, and must keep a named blocker rather than having it deleted when
+    the main half ships.**
+
+  **The second permanent rule is free.** `Rarity` says that once a room's rarity
+  has been set by the Conservatory or Gear Wrench, *"that room's Dynamic Rarity
+  is **permanently** ignored"*, surviving even a Conservatory reset. **This sim
+  does not model Dynamic Rarity at all** -- `state.dynamic_rarity` is
+  bookkeeping for the card-move primitive, not the game's hidden per-room table,
+  and `weights.json`/`rooms.json` carry no such data. So the headline rule has
+  nothing to ignore and costs **zero lines**.
+
+  **The Conservatory is NOT the template**, contrary to my brief's hope that it
+  would make this cheap. `reroll_random_rarities` is a *random* 3-undealt-card
+  reroll, day-scoped, that never writes `state.dynamic_rarity` and has no config
+  field. The real saving came from Dynamic Rarity being unmodelled instead.
+  **Flagged: the sim's Conservatory and the wrench would model the same game
+  mechanic two incompatible ways** -- an owner question before the wrench lands.
+
+  **A reachable silent-corruption hazard, found by the researcher and not in any
+  brief:** `decks.py::inject_rooms` and `apply_upgrade` index decks by
+  `room.rarity_idx` **without consulting `dynamic_rarity`**, while
+  `inject_rooms_undealt` does. `pump_room` is both Mechanical and `pool_temp`,
+  so **The Pool plus a wrenched Pump Room is a reachable corruption**, not a
+  theoretical one. Every Mechanical Room has `deck_copies == 1` and
+  `room_draftable` enforces one copy on the grid, so the right implementation is
+  a **build-time bucket assignment** folded into `build_decks` -- which consumes
+  **no RNG at all**.
+
+  Re-derived size **~400-450 lines**, not the "cheap" of the 2026-08-11 audit.
+
+- **2026-08-12, `chronograph`: the half everyone believed was finished is
+  ~3x too strong.**
+
+  The Tomorrow-Rooms bias is wired -- as a **`category_biases` entry rolling 40%
+  per slot, on all three slots including the free-only slot 0**. The wiki's
+  datamined box says it is a **Priority Draw (40% for all Tomorrow Rooms)**,
+  which fires **once, into slot 3 only**. Measured over 500 seeds, first
+  doorway: **0.93% of options are Tomorrow Rooms without the item, 37.7% with
+  it.** A slot-3 priority draw would give ~13%. P(at least one Tomorrow Room in
+  a hand) is ~78% rather than 40%.
+
+  **So `chronograph` is not "half implemented with the easy half done" -- the
+  done half is wrong.** Fix it as its own PR, landed before the rewind: it is an
+  independent distribution regression, and coupling a 3x change to an
+  action-width change makes both un-bisectable. Caveat for whoever takes it: the
+  12 Tomorrow-Room ids include four `mail_room__ix*` variants and
+  `hallway__ix76`, so the list must be **generated, not hand-typed**, or
+  `_priority_draw` needs a category selector it does not have.
+
+  **The rewind is not time travel, and that collapses the hard problem.** The
+  wiki: *"This acts as a normal redraw but with the three rooms drawn being
+  fixed, **activating** effects that rely on drawing a floorplan."* So it is a
+  **forward-pinned re-deal** -- overwrite `pending.options` from a saved stack,
+  re-fire `ON_HAND_DEALT`, reset `rotations_used`. **No RNG restore, no deck
+  rewind, no refund.** A true state restore would need a deep copy of all eight
+  decks plus stream states, would cost ~250 lines more, and **would still be
+  wrong**, because it models a mechanic the game does not have. Recorded as the
+  design, not as an approximation.
+
+  State belongs on **`PendingDraft`** (per-hand, alongside `study_redraws_used`
+  and `colour`), not on `GameState` and not in any carryover channel -- the item
+  is `persistence: "day"`, so **`_CARRYOVER_KEYS` is irrelevant here**, a third
+  brief of mine in which that worry did not apply.
+
+  **`prev_options` must be in the observation**, as an **additive Dict key** --
+  never a shape change to `options`, which would silently reinterpret trained
+  weights. Without it the agent knows a rewind is *legal* but has no signal on
+  whether the previous hand was better, so it is noise and will be learned as
+  "never press". Re-derived size **~485 lines**.
+
+  **A correction to a correction, worth keeping:** I had recorded that
+  `test_draft_stats.py` "never constructs a `Game` in its chi-square tests".
+  The chi-square tests indeed do not, but `test_slot1_always_free` **does**. The
+  conclusion (not at risk here) survives; the stated reason did not.
+
 - **2026-08-12, `the_axe`: four owner rulings, and a wiki sentence that may
   describe a mechanic this repo does not have AT ALL.**
 
