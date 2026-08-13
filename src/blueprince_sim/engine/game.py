@@ -518,8 +518,10 @@ class Game:
         st = self.state
         state = self.door_state_of(cell, direction)
         if state == DOOR_LOCKED:
-            # Silver Key: consumed for drafting (not movement); does not return
-            # to the spawn pool today (consumed=False keeps it pool-eligible tomorrow).
+            # Silver Key: consumed for drafting (not movement). consumed=False
+            # leaves it out of state.special.removed, which is the only thing
+            # _is_available consults -- so it returns to the spawn pool
+            # immediately and can be obtained again the same day.
             # open_locked_free (Master Key / Stopwatch / Lock Pick Kit) waives
             # the search surcharge along with the base key.
             used_silver_key = (for_draft and self.cfg.special_items
