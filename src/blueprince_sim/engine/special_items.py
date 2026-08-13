@@ -187,6 +187,7 @@ class SpecialItemsRegistry:
     machines: dict = field(default_factory=dict)   # "machines" section from special_items.json
     mail_packages: dict = field(default_factory=dict)  # "mail_packages" section: slot1/slot2/slot3
     freight_packages: dict = field(default_factory=dict)  # "freight_packages" section (ix91)
+    battery_pack: dict = field(default_factory=dict)  # "battery_pack" section: room, rarity options
     # room id -> item ids that can spawn there (derived; excludes guaranteed_in)
     spawn_pool_by_room: dict[str, tuple[str, ...]] = field(default_factory=dict)
     spawn_pool_high_luck: dict[str, tuple[str, ...]] = field(default_factory=dict)
@@ -247,6 +248,7 @@ def load_special_items(data_dir: Path) -> SpecialItemsRegistry:
         machines=raw.get("machines", {}),
         mail_packages=raw.get("mail_packages", {}),
         freight_packages=raw.get("freight_packages", {}),
+        battery_pack=raw.get("battery_pack", {}),
         spawn_pool_by_room={k: tuple(v) for k, v in pool.items()},
         spawn_pool_high_luck={k: tuple(v) for k, v in pool_hl.items()},
         guaranteed_by_room={k: tuple(v) for k, v in guaranteed.items()},
@@ -279,6 +281,14 @@ class SpecialItemsState:
     # excluded from spawn pools and (PR2) trade offers
     removed: list[str] = field(default_factory=list)
     spawned_today: list[str] = field(default_factory=list)  # unique ids already spawned
+    # Battery Pack: pickups today whose Dynamic Rarity flip/toggle has not
+    # resolved yet (drained by battery_pack.resolve_pending, deferred until
+    # rng is in scope -- see _on_pickup and effects/items/battery_pack.py).
+    battery_pack_pending: int = 0
+    # Battery Pack: index into battery_pack.options of the last rarity chosen
+    # today; -1 = none chosen yet this day (sentinel), so the next resolution
+    # knows whether to roll fresh or toggle to the other option.
+    battery_pack_last_rarity: int = -1
     # config gates: item ids excluded by unlock flags (populated by configure())
     gated_out: list[str] = field(default_factory=list)
     configured: bool = False  # True once configure() has been called this episode
@@ -421,6 +431,10 @@ def _on_pickup(state, registry, item: SpecialItem) -> None:
     # Watering Can: fill charges to capacity on pickup
     watering_can.on_pickup(state, item)
 
+    # Battery Pack: record a pending Dynamic Rarity flip/toggle, resolved
+    # lazily at the next deal (resolve_battery_pack below) where rng is in scope.
+    battery_pack.on_pickup(state, item)
+
     # stopwatch: activate (grant already blocked a re-grant, so this always fires first time)
     e = item.effect("stopwatch")
     if e is not None:
@@ -450,6 +464,14 @@ def _on_pickup(state, registry, item: SpecialItem) -> None:
     if e is not None:
         state.allowance += e.param("amount", 2)
         remove(state, item.id, consumed=(item.id != "allowance_token"))
+
+
+def resolve_battery_pack(game) -> None:
+    """Drains any pending Battery Pack Dynamic Rarity triggers recorded at
+    pickup, the same lazy-resolution shape as treasure_map.resolve_cell but
+    fired from Game._deal_and_cache (just before the deal) rather than
+    on_arrive -- see effects/items/battery_pack.py::resolve_pending."""
+    battery_pack.resolve_pending(game)
 
 
 # ------------------------------------------------------------------ config gates

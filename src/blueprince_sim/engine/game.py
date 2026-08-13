@@ -905,8 +905,16 @@ class Game:
         ON_HAND_DEALT and apply the Paper Crown bonus identically. ``colour``
         restricts the deal to one category (Secret Passage variants only);
         None for an ordinary doorway.
+
+        Battery Pack's Dynamic Rarity trigger(s) are drained first, before
+        ``deal_draft`` reads the decks: this is the earliest point after
+        pickup where ``self.rng`` is in scope, and ``dynamic_rarity`` is
+        never surfaced to env/obs, so there is no observable moment between
+        pickup and this resolution for a policy to exploit.
         """
         st = self.state
+        if self.cfg.special_items:
+            special_items.resolve_battery_pack(self)
         pending = deal_draft(st, self.registry, self.cfg, self.rng,
                              self.placed_ids, cell, direction, target, colour=colour)
         # Visible to ON_DRAFT_FROM handlers below (the Classroom's free-redraw

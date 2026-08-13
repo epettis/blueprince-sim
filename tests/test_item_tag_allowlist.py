@@ -6,12 +6,12 @@ and code that never read it -- until #199 deleted the tag).
 Companion to ``test_item_id_allowlist.py``: read that module's docstring
 first for the shared design (deliberately-dumb AST literal scan, per-module
 allowlist grain, both load-bearing failure modes). This file is the SEPARATE
-tag-side scanner -- required, not stylistic, because 13 of the 37 effect
+tag-side scanner -- required, not stylistic, because 14 of the 37 effect
 tags in ``data/special_items.json`` are spelled identically to a real item id
 (``compass``, ``stopwatch``, ``treasure_map``, ``master_key``,
 ``sleeping_mask``, ``watering_can``, ``emerald_bracelet``,
 ``ornate_compass``, ``paper_crown``, ``repellent``, ``chronograph``,
-``dowsing_rod``, ``gear_wrench``). A single merged scanner would see one
+``dowsing_rod``, ``gear_wrench``, ``battery_pack``). A single merged scanner would see one
 string literal like ``"stopwatch"`` and be unable to tell whether the site
 names the item or its effect tag, double-counting every collision and
 conflating two different kinds of debt.
@@ -144,6 +144,12 @@ ITEM_TAG_ALLOWLIST: dict[str, set[str]] = {
         # engine/effects/items/treasure_map.py (phase 6); this data-section
         # load is the only reason the tag literal still appears here.
         "treasure_map",
+        # "battery_pack" section dict key (raw.get("battery_pack", {}): room,
+        # options) -- same shape as "treasure_map" directly above. The
+        # item-id behaviour (on_pickup/resolve_pending) lives in
+        # engine/effects/items/battery_pack.py; this data-section load is the
+        # only reason the tag literal still appears here.
+        "battery_pack",
     },
 }
 
