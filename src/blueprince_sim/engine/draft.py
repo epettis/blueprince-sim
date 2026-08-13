@@ -31,6 +31,13 @@ colour-selective drafting ruling), so a default is still filtered through
 room_draftable and can lose to the one-copy-per-grid rule like any other
 candidate. Game.open_door/choose_colour own the doorway-level phase gating;
 this module only owns the deal itself.
+
+Crown of the Blueprints: the same ``room_draftable`` gate also excludes any
+room id the Crown has filtered for the rest of today, unconditionally (no
+colour exemption -- owner ruling 2026-08-12 voids the wiki's claim that
+colour-selective drafts, the Silver Key, the Prism Key, and ducts can still
+draw a blocked Red Room). Game.can_crown_block/crown_block own the
+player-choice side; this module only enforces the resulting filter.
 """
 
 from __future__ import annotations
@@ -45,6 +52,7 @@ from .rotation import orientation_weights
 from .special_items import (
     chronograph_active_from_state,
     compass_active_from_state,
+    crown_room_blocked_from_state,
     electromagnet_active_from_state,
 )
 from .state import DraftOption, GameState, PendingDraft, resolve_gem_cost
@@ -114,8 +122,18 @@ def room_draftable(ctx: DraftContext, room: Room, cell: int, entry_dir: int,
     also needs to carry that colour (Room.is_category) and must not itself be
     a Secret Passage variant -- "The Secret Passage cannot itself be drawn
     during a color-selective draft" (wiki).
+
+    Also excludes any room id the Crown of the Blueprints has filtered for
+    the rest of today (``SpecialItemsState.crown_blocked_rooms``), with NO
+    colour exemption -- owner ruling 2026-08-12 overrides the wiki's claim
+    that a blocked Red Room stays obtainable through colour-selective drafts,
+    the Silver Key, the Prism Key, or ducts. Checked unconditionally, ahead
+    of the colour gate, so it applies to every candidate this function ever
+    sees.
     """
     if room.idx in exclude:
+        return False
+    if crown_room_blocked_from_state(ctx.state, room.id):
         return False
     if ctx.colour is not None:
         if room.id in SECRET_PASSAGE_IDS:
@@ -702,7 +720,14 @@ def _fill_options(ctx: DraftContext, pending: PendingDraft, from_room: Room | No
     Every other pass (Foundation removal, Darkroom/Archives concealment) is
     unaffected; ``room_draftable`` (see its docstring) is what keeps every
     slot on-colour.
+
+    Crown of the Blueprints: every call here deals a fresh hand (the initial
+    deal via ``deal_draft``, or a redraw via ``redeal``), so the Crown's
+    once-per-hand filter option becomes available again right here --
+    "unlimited hands" per the owner ruling. See
+    ``SpecialItemsState.crown_block_used``.
     """
+    ctx.state.special.crown_block_used = False
     # Tunnel chain-draft: north exit of a placed Tunnel guarantees a Tunnel in
     # slot 0 of an otherwise-normal three-slot hand (see docstring above).
     exclude: set[int] = set()

@@ -7,7 +7,8 @@ import pytest
 from blueprince_sim import GameConfig, make_env
 from blueprince_sim.engine import shops, special_items as si
 from blueprince_sim.engine.game import Game
-from blueprince_sim.engine.grid import rank_of
+from blueprince_sim.engine.grid import N, rank_of
+from blueprince_sim.engine.state import DraftOption
 from blueprince_sim.env import actions as A
 
 
@@ -759,3 +760,60 @@ def test_describe_smash_vase_mentions_vase():
     assert "vase" in desc.lower(), (
         f"describe for smash vase should mention 'vase': {desc!r}"
     )
+
+
+# ============================================================ CROWN_BLOCK (376..378)
+
+def _drafting_with_forced_red_slot0(item_held: bool = True, seed: int = 0):
+    """Build a Game in DRAFTING at a real doorway (cell 2, north -- the
+    Entrance Hall's own door, already proven open at day 1 by the silver-key
+    tests in test_draft_items.py), then overwrite slot 0 with a known Red
+    Room directly. Deterministic: no seed-hunting for a hand that happens to
+    contain a Red Room.
+    """
+    items = frozenset(("crown_of_the_blueprints",)) if item_held else frozenset()
+    game = _game(GameConfig(starting_items=items), seed=seed)
+    game.state.steps = 100
+    pending = game.open_door(2, N)
+    red = next(r for r in game.registry.rooms if r.is_category("red") and r.rarity is not None)
+    pending.options[0] = DraftOption(room_idx=red.idx, orientation=red.door_mask,
+                                     gem_cost=0, slot=0)
+    return game, pending, red
+
+
+def test_crown_block_mask_true_for_red_slot_with_item_held():
+    """CROWN_BLOCK_BASE + 0 is legal in the mask when slot 0 is a Red Room
+    and the Crown is held; slots 1/2 stay masked off since they are not."""
+    game, pending, red = _drafting_with_forced_red_slot0()
+    mask = A.action_mask(game)
+    assert mask[A.CROWN_BLOCK_BASE + 0]
+    assert not mask[A.CROWN_BLOCK_BASE + 1]
+    assert not mask[A.CROWN_BLOCK_BASE + 2]
+
+
+def test_crown_block_mask_false_without_item_even_for_red_slot():
+    """Without the Crown held, CROWN_BLOCK_BASE + 0 stays masked off even
+    though slot 0 is a Red Room -- the item, not just the room, gates it."""
+    game, pending, red = _drafting_with_forced_red_slot0(item_held=False)
+    mask = A.action_mask(game)
+    assert not mask[A.CROWN_BLOCK_BASE + 0]
+
+
+def test_apply_action_crown_block_grants_gem_and_redeals():
+    """Dispatching CROWN_BLOCK_BASE + 0 through apply_action (not calling
+    Game.crown_block directly) grants 1 gem, records the block, and the
+    redealt hand never includes the just-blocked room."""
+    game, pending, red = _drafting_with_forced_red_slot0(seed=1)
+    gems_before = game.state.gems
+    A.apply_action(game, A.CROWN_BLOCK_BASE + 0)
+    assert game.state.gems == gems_before + 1
+    assert red.id in game.state.special.crown_blocked_rooms
+    assert all(game.registry.rooms[o.room_idx].id != red.id for o in game.state.pending.options)
+
+
+def test_describe_action_crown_block_mentions_room_name():
+    """describe_action for a CROWN_BLOCK id includes the dealt room's name,
+    matching the 'choose #n <name>' convention used for CHOOSE_BASE."""
+    game, pending, red = _drafting_with_forced_red_slot0(seed=2)
+    desc = A.describe_action(game, A.CROWN_BLOCK_BASE + 0)
+    assert red.name in desc

@@ -12,7 +12,7 @@ from .areas import GateContext, reachable
 from .decks import apply_upgrade, build_decks, inject_rooms
 from .draft import COLOUR_CATEGORIES, SECRET_PASSAGE_IDS, deal_draft, redeal
 from .effects import Capability, Hook
-from .effects.items import keycard, paper_crown, power_hammer, silver_key
+from .effects.items import crown_of_the_blueprints, keycard, paper_crown, power_hammer, silver_key
 from .effects.rooms import dovecote, foyer, mail_room, shrine
 from .grid import (ADJACENT, DIRS, E, ENTRANCE_CELL, N, N_CELLS, OPPOSITE, W,
                    neighbor, rank_of, rotate_mask)
@@ -1565,17 +1565,71 @@ class Game:
             st.dice -= 1
             if shrine.blessing_active(self, "high_roller"):
                 st.coins += 5
+        self._redeal_pending(pending)
+        self._check_termination()
+
+    def _redeal_pending(self, pending: PendingDraft) -> None:
+        """Redeal ``pending`` in place and re-fire ON_HAND_DEALT for its new options.
+
+        Shared tail of :meth:`redraw` (STUDY/FREE/DIE, each a paid cost) and
+        :meth:`crown_block` (free): both hand off here once their own cost/
+        recording logic is done. Splits outer-room drafts (fixed pool,
+        ``target_cell == -1``) from the grid pipeline exactly as
+        :meth:`redraw` always has. Does not check termination itself --
+        callers do that after, since a caller-specific action (spending a
+        die, granting a gem) may itself need to run first.
+        """
+        pending.options.clear()
+        pending.rotations_used = 0  # fresh hand, fresh rotation budget
         if pending.target_cell == -1:  # outer-room draft: fixed pool, not the grid pipeline
-            pending.options.clear()
-            pending.rotations_used = 0  # fresh hand, fresh rotation budget
             pending.options.extend(self._deal_outer_options("outer_redraw"))
         else:
-            redeal(st, self.registry, self.cfg, self.rng, self.placed_ids, pending)
+            redeal(self.state, self.registry, self.cfg, self.rng, self.placed_ids, pending)
         # ON_HAND_DEALT fires again for the freshly redealt options -- unlike
         # ON_DRAFT_FROM (initial deal only), a room re-entering the hand on a
         # redraw is itself the event this hook exists to model.
         for opt in pending.options:
             effects.fire(self, self.registry.rooms[opt.room_idx], Hook.ON_HAND_DEALT)
+
+    def can_crown_block(self, slot: int) -> bool:
+        """True when the Crown of the Blueprints' once-per-hand filter can be
+        used on the room dealt in ``slot`` of the current hand.
+
+        DRAFTING only, a real dealt slot, special items enabled, and
+        crown_of_the_blueprints.block_offered's own gates (item held, its
+        data record still carries the tag, not already spent this hand, and
+        the dealt room is a Red Room).
+        """
+        if self.phase is not Phase.DRAFTING or self.state.pending is None:
+            return False
+        if not self.cfg.special_items:
+            return False
+        pending = self.state.pending
+        if not (0 <= slot < len(pending.options)):
+            return False
+        room = self.registry.rooms[pending.options[slot].room_idx]
+        return crown_of_the_blueprints.block_offered(self.state, self.registry, room)
+
+    def crown_block(self, slot: int) -> None:
+        """Spend the Crown of the Blueprints' once-per-hand filter on the Red
+        Room dealt in ``slot``.
+
+        Filters that room id from every draw for the rest of today (recorded
+        in ``SpecialItemsState.crown_blocked_rooms``, read by
+        draft.py::room_draftable -- a draw-time filter, never a deck removal,
+        so deck sizes and rarity legality are untouched), grants 1 gem, and
+        redeals the hand for free via :meth:`_redeal_pending` (which also
+        resets ``crown_block_used`` so a later hand can use it again).
+        """
+        assert self.can_crown_block(slot), "Crown of the Blueprints filter not available"
+        st = self.state
+        pending = st.pending
+        room_id = self.registry.rooms[pending.options[slot].room_idx].id
+        if room_id not in st.special.crown_blocked_rooms:
+            st.special.crown_blocked_rooms.append(room_id)
+        st.special.crown_block_used = True
+        st.gems += 1
+        self._redeal_pending(pending)
         self._check_termination()
 
     def _free_rotation_source(self) -> bool:

@@ -343,6 +343,16 @@ class SpecialItemsState:
     # veia_dig_bonus at the same cell. Per-day only, same reset shape as
     # entrance_hall_trunks.
     conference_room_dig_spots: int = 0
+    # Crown of the Blueprints: room ids filtered from every draw for the rest
+    # of today (owner ruling 2026-08-12 -- no exemption for colour-selective
+    # drafts, the Silver Key, the Prism Key, or ducts). A filter, not a deck
+    # mutation: draft.py::room_draftable excludes these ids at draw time, so
+    # deck sizes (and therefore rarity legality) never change.
+    crown_blocked_rooms: list[str] = field(default_factory=list)
+    # Crown of the Blueprints: its once-per-hand filter option already spent
+    # on the CURRENT hand. Reset to False every time a hand is dealt or
+    # redealt (engine/draft.py::_fill_options) -- unlimited hands per day.
+    crown_block_used: bool = False
 
 
 # --------------------------------------------------------------- inventory ops
@@ -1314,6 +1324,17 @@ def chronograph_active_from_state(state, registry) -> bool:
     other effect, rewinding a redraw, is separate and unmodelled.
     """
     return item_capability_any(state, registry, ItemCapability.CHRONOGRAPH)
+
+
+def crown_room_blocked_from_state(state, room_id: str) -> bool:
+    """Crown of the Blueprints block check from state (no registry needed).
+
+    Used by draft.py's room_draftable gate. Delegates to
+    effects.items.crown_of_the_blueprints, which owns the item id literal,
+    so this stays a thin, id-free wrapper -- the same shape as the
+    ``*_from_state`` helpers above.
+    """
+    return crown_of_the_blueprints.is_blocked(state, room_id)
 
 
 def satisfied_condition_items(state) -> set[str]:

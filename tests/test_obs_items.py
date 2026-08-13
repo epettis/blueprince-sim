@@ -72,7 +72,7 @@ def test_all_six_new_keys_present_in_observation_space():
     assert "fabricate"    in space.spaces
 
     assert space.spaces["inventory"].shape    == (n_items,)
-    assert space.spaces["item_state"].shape   == (11,)
+    assert space.spaces["item_state"].shape   == (12,)
     assert space.spaces["grid_dig"].shape     == (9, 5)
     assert space.spaces["shop_stock"].shape   == (O.SHOP_STOCK_ROWS, 5)
     assert space.spaces["trade_offers"].shape == (O.TRADE_OFFER_ROWS, 2)
@@ -313,6 +313,17 @@ def test_item_state_dining_room_served_flips():
     assert _obs(g)["item_state"][9] == 0
     g.state.special.dining_room_served = True
     assert _obs(g)["item_state"][9] == 1
+
+
+def test_item_state_crown_blocked_room_count():
+    """item_state[11] equals the number of rooms the Crown of the Blueprints
+    has filtered today (len(special.crown_blocked_rooms)), 0 by default."""
+    g = _game()
+    assert _obs(g)["item_state"][11] == 0
+    g.state.special.crown_blocked_rooms.append("gymnasium")
+    assert _obs(g)["item_state"][11] == 1
+    g.state.special.crown_blocked_rooms.append("furnace")
+    assert _obs(g)["item_state"][11] == 2
 
 
 # ------------------------------------------------------------------ grid_dig

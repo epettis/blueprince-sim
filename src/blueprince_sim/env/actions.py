@@ -5,7 +5,7 @@ to draft, or a room to enter) and the engine walks the shortest connected
 path, paying the normal one-step-per-room cost. Re-entering rooms grants
 nothing, so free-form single-tile moves were retired.
 
-Layout (Discrete(376)):
+Layout (Discrete(379)):
   0..179   draft at doorway: cell (45) x direction (4: N,E,S,W) ->
            cell*4 + dir_index. Walks to the room first if needed. Legal for
            every frontier doorway reachable with at least one step to spare
@@ -105,6 +105,14 @@ Layout (Discrete(376)):
            in place (not yet taken today). Grants one microchip and flips
            GameState.grotto_chip_taken, a one-shot per day (no double-take);
            the chip respawns at the pedestal next day (no carry-over).
+  376..378 filter Red Room option slot 0/1/2 via the Crown of the Blueprints
+           (DRAFTING; once per hand, unlimited hands per day): legal only for
+           a slot whose dealt room is a Red Room (Room.is_category('red'))
+           while the Crown is held and its filter has not already been spent
+           on the current hand. Blocks that room id from every draw for the
+           rest of today (no exemption for colour-selective drafts, the
+           Silver Key, the Prism Key, or ducts -- owner ruling), grants 1
+           gem, and redeals the hand for free (Game.crown_block).
 """
 
 from __future__ import annotations
@@ -197,8 +205,13 @@ BERRY_PICK_ACTION = TAKE_BACK_OFFERING_ACTION + 1  # 374
 # chip still in place (see Game.can_take_grotto_chip).
 TAKE_GROTTO_CHIP_ACTION = BERRY_PICK_ACTION + 1  # 375
 
-# N_ACTIONS = first slot after the grotto chip take.
-N_ACTIONS = TAKE_GROTTO_CHIP_ACTION + 1  # 376
+# 376..378: filter a dealt Red Room option via the Crown of the Blueprints,
+# one id per option slot, appended at the end so no earlier id shifts.
+# DRAFTING only; see Game.can_crown_block/crown_block.
+CROWN_BLOCK_BASE = TAKE_GROTTO_CHIP_ACTION + 1  # 376
+
+# N_ACTIONS = first slot after the Crown block range.
+N_ACTIONS = CROWN_BLOCK_BASE + 3  # 379
 
 DIR_INDEX = {d: i for i, d in enumerate(DIRS)}
 
@@ -373,8 +386,8 @@ def action_mask(game: Game, prev_action: int | None = None) -> list[bool]:
     On-grid NAVIGATE permits frontier drafts that arrive with a step (and,
     behind locked doors, a key) to spare, walks to unentered rooms and the
     control rooms, and the outer-draft/switch actions. DRAFTING permits
-    affordable slots plus redraw/rotate when available. TERMINAL masks
-    everything off.
+    affordable slots plus redraw/rotate/Crown-block when available. TERMINAL
+    masks everything off.
 
     Travel actions (TRAVEL_BASE + i) are legal when ALL of: the destination is
     reachable via area_route_cost, the player can strictly afford it (steps >
@@ -598,6 +611,9 @@ def action_mask(game: Game, prev_action: int | None = None) -> list[bool]:
             mask[ROTATE_ACTION] = True
         if game.can_berry_pick():
             mask[BERRY_PICK_ACTION] = True
+        for i in range(3):
+            if game.can_crown_block(i):
+                mask[CROWN_BLOCK_BASE + i] = True
     elif game.phase is Phase.UPGRADE_PENDING:
         # Exactly three upgrade variants are always offered; enable all three.
         # No other actions are legal in this phase — the player must choose.
@@ -733,6 +749,8 @@ def apply_action(game: Game, action: int) -> None:
         game.berry_pick()
     elif action == TAKE_GROTTO_CHIP_ACTION:
         game.take_grotto_chip()
+    elif CROWN_BLOCK_BASE <= action < N_ACTIONS:
+        game.crown_block(action - CROWN_BLOCK_BASE)
     else:
         raise ValueError(f"unimplemented action {action}")
 
@@ -877,4 +895,11 @@ def describe_action(game: Game, action: int) -> str:
         return "pick a berry"
     if action == TAKE_GROTTO_CHIP_ACTION:
         return "take the Grotto pedestal chip"
+    if CROWN_BLOCK_BASE <= action < N_ACTIONS:
+        slot = action - CROWN_BLOCK_BASE
+        pending = game.state.pending
+        if pending is not None and slot < len(pending.options):
+            name = game.registry.rooms[pending.options[slot].room_idx].name
+            return f"filter #{slot + 1} {name} (Crown of the Blueprints)"
+        return f"filter #{slot + 1} (Crown of the Blueprints)"
     return f"action {action}"
