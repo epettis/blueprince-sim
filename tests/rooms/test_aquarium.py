@@ -15,6 +15,7 @@ from blueprince_sim.engine.game import Game
 from blueprince_sim.engine.grid import N, S
 from blueprince_sim.engine.model import Registry
 from blueprince_sim.engine.state import DraftOption, PendingDraft
+from luck_utils import suppress_luck
 
 # Every colour category the base Room.category field ever takes, other than
 # "objective" (a room role -- Antechamber, Room 46, Quest Bedroom -- not a
@@ -32,7 +33,7 @@ def _game_with_room(room_id: str, cell: int, seed: int = 0) -> Game:
     ``_place_room`` instead (see test_starfish_aquarium_grants_one_star_on_draft).
     """
     g = Game(GameConfig(), seed=seed)
-    g.state.luck = 0
+    suppress_luck(g)
     room = g.registry.by_id[room_id]
     g.state.grid[cell] = room.idx
     g.state.placed_doors[cell] = room.door_mask

@@ -20,6 +20,7 @@ from blueprince_sim.engine.locks import DOOR_OPEN, DOOR_SEALED, segment_key
 from blueprince_sim.engine.shops import carryover
 from blueprince_sim.engine.state import PendingDraft
 from blueprince_sim.env.multiday import DayChain
+from luck_utils import suppress_luck
 
 ANTECHAMBER_CELL = 42
 
@@ -52,7 +53,7 @@ def test_rynna_raises_luck_for_a_green_room_drafted_from_it_but_base_cloister_do
     assert patio.category == "green", "setup: Patio must be a green room"
     for room_id, expected_luck in (("cloister", 0), ("cloister_of_rynna__ix29", 6)):
         g = Game(cfg, seed=1)
-        g.state.luck = 0
+        suppress_luck(g)
         cloister = registry.by_id[room_id]
         g._place_room(cloister, 10, cloister.door_mask)
         _draft_from(g, 10, 11, patio)
@@ -63,7 +64,7 @@ def test_rynna_does_not_react_to_a_green_room_drafted_from_elsewhere(registry, c
     """Luck stays put when the green room's doorway is some other placed
     room's, even with Cloister of Rynna elsewhere on the grid."""
     g = Game(cfg, seed=1)
-    g.state.luck = 0
+    suppress_luck(g)
     rynna = registry.by_id["cloister_of_rynna__ix29"]
     closet = registry.by_id["closet"]
     patio = registry.by_id["patio"]
@@ -77,7 +78,7 @@ def test_rynna_does_not_react_to_a_non_green_room_from_its_own_doorway(registry,
     """A non-green room dealt from Rynna's own doorway grants no luck --
     the trigger is ctx_room.category == "green", not the doorway alone."""
     g = Game(cfg, seed=1)
-    g.state.luck = 0
+    suppress_luck(g)
     rynna = registry.by_id["cloister_of_rynna__ix29"]
     closet = registry.by_id["closet"]  # category "blueprint", not green
     g._place_room(rynna, 10, rynna.door_mask)
@@ -92,7 +93,7 @@ def test_mila_grants_an_item_only_when_its_flagged_bedroom_is_entered(registry, 
     assert bedroom.category == "bedroom" and bedroom.items.additional_max == 1
     for room_id, expected_extra in (("cloister", 0), ("cloister_of_mila__ix33", 1)):
         g = Game(cfg, seed=1)
-        g.state.luck = 0  # floors the room's own luck-gated additional_max roll to 0
+        suppress_luck(g)  # floors the room's own luck-gated additional_max roll to 0
         cloister = registry.by_id[room_id]
         g._place_room(cloister, 10, cloister.door_mask)
         _draft_from(g, 10, 11, bedroom)
@@ -105,7 +106,7 @@ def test_mila_does_not_mark_a_bedroom_drafted_from_elsewhere(registry, cfg):
     """A Bedroom dealt from a doorway that is not Mila's own is never marked
     for the bonus item, even with Cloister of Mila elsewhere on the grid."""
     g = Game(cfg, seed=1)
-    g.state.luck = 0
+    suppress_luck(g)
     mila = registry.by_id["cloister_of_mila__ix33"]
     closet = registry.by_id["closet"]
     bedroom = registry.by_id["bedroom"]
@@ -175,7 +176,7 @@ def test_two_cloisters_each_track_only_their_own_doorway(registry, cfg):
     doorway only ever raises luck, and a room dealt from Draxus's doorway
     only ever grants dice -- the two trackers never cross-react."""
     g = Game(cfg, seed=1)
-    g.state.luck = 0
+    suppress_luck(g)
     rynna = registry.by_id["cloister_of_rynna__ix29"]
     draxus = registry.by_id["cloister_of_draxus__ix36"]
     patio = registry.by_id["patio"]  # green, for Rynna
@@ -198,7 +199,7 @@ def test_lydia_raises_allowance_for_a_shop_drafted_from_it_but_base_cloister_doe
     assert commissary.category == "shop", "setup: Commissary must be a Shop"
     for room_id, expected_allowance in (("cloister", 0), ("cloister_of_lydia__ix34", 2)):
         g = Game(cfg, seed=1)
-        g.state.luck = 0
+        suppress_luck(g)
         cloister = registry.by_id[room_id]
         g._place_room(cloister, 10, cloister.door_mask)
         _draft_from(g, 10, 11, commissary)
@@ -209,7 +210,7 @@ def test_lydia_does_not_react_to_a_non_shop_room_from_its_own_doorway(registry, 
     """A non-Shop room dealt from Lydia's own doorway raises no allowance --
     the trigger is ctx_room.category == "shop", not the doorway alone."""
     g = Game(cfg, seed=1)
-    g.state.luck = 0
+    suppress_luck(g)
     lydia = registry.by_id["cloister_of_lydia__ix34"]
     closet = registry.by_id["closet"]  # category "blueprint", not shop
     g._place_room(lydia, 10, lydia.door_mask)
@@ -221,7 +222,7 @@ def test_lydia_does_not_react_to_a_shop_drafted_from_elsewhere(registry, cfg):
     """Allowance stays put when the Shop's doorway is some other placed
     room's, even with Cloister of Lydia elsewhere on the grid."""
     g = Game(cfg, seed=1)
-    g.state.luck = 0
+    suppress_luck(g)
     lydia = registry.by_id["cloister_of_lydia__ix34"]
     closet = registry.by_id["closet"]
     commissary = registry.by_id["commissary"]

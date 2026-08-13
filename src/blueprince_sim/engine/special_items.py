@@ -592,8 +592,11 @@ def roll_special_spawn(state, registry, room, rng) -> str | None:
     if not registry.special.by_id:
         return None
 
-    # Build pool: base entries + high-luck entries when effective luck qualifies
-    effective_luck = state.luck + luck_bonus(state, registry)
+    # Build pool: base entries + high-luck entries when effective luck qualifies.
+    # Same effective-luck formula as engine/items.py::roll_ladder_count, so a
+    # high-luck spawn only becomes eligible exactly when the ladder itself
+    # would treat the draft as high luck.
+    effective_luck = state.luck + luck_bonus(state, registry) - state.luck_penalty
     high_luck_at = registry.special.spawn_rules.get("high_luck_at", 16)
 
     pool = list(registry.special.spawn_pool_by_room.get(room.id, ()))

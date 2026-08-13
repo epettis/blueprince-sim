@@ -92,6 +92,7 @@ class Game:
         st.day = cfg.day
         st.stage = cfg.resolved_stage()
         st.luck = self.registry.item_rules["luck"]["day_start"]
+        st.luck_penalty = 0  # owner-ruled per-day (see GameState.luck_penalty)
         st.decks = build_decks(self.registry, cfg, self.rng)
         st.special.enabled = cfg.special_items
         st.draft_counts = dict(cfg.draft_counts)

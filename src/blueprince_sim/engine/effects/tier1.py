@@ -191,7 +191,7 @@ def anti_luck(game, room, eff, ctx_room) -> None:
     Modelled as -N luck on placement (default N=3). The datamined magnitude is
     -7; correcting it is queued with the luck-model rebuild, because -7 also
     requires removing the clamp below (four Maid's Chambers must reach -18).
-    Clamped at floor (0) so negative luck never misbehaves with luck_probability.
+    Clamped at floor (0) so negative luck never misbehaves with the item_ladder band lookup.
     As a red-room penalty, it is negated by Shelter.
     """
     if _red_negated(game, room):

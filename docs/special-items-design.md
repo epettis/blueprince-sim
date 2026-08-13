@@ -164,7 +164,7 @@ machines_used: list[str] # machine room ids that already took a Broken Lever tod
   free hallway-from-hallway drafts, Stopwatch waiver. Called from
   `Game._effective_cost` (after slot-0/free-category logic).
 - `luck_bonus(state, registry) -> int` — Rabbit's Foot / Lucky Purse +3; added to
-  `state.luck` inside `items.luck_probability` (effective luck, not stored).
+  `state.luck` inside `items.roll_ladder_count` (effective luck, not stored).
 - `on_coins_granted(game, amount) -> int` — Coin Purse (+1 per 3) / Lucky Purse (×2)
   interest; returns bonus coins. Called from `items.grant_item`.
 - `food_steps(game, base) -> int` — Salt Shaker +1 then Silver Spoon ×2; `items.grant_item`

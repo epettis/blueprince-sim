@@ -23,6 +23,7 @@ from blueprince_sim.engine import special_items as si
 from blueprince_sim.engine.game import Game
 from blueprince_sim.engine.shops import carryover
 from blueprince_sim.env.multiday import DayChain
+from luck_utils import suppress_luck
 
 # room id -> its dedicated Allowance Token item id
 ROOM_TOKENS = {
@@ -53,7 +54,7 @@ def test_room_token_pays_once_and_not_on_a_later_day(registry, room_id, token_id
 
     # Day 1: first entry pays out.
     g1 = Game(GameConfig(special_items=True), seed=1, registry=registry)
-    g1.state.luck = 0
+    suppress_luck(g1)
     _place(g1.state, g1.registry, room_id, 10)
     si.on_enter(g1, room, 10)
     assert g1.state.allowance == 2
@@ -68,7 +69,7 @@ def test_room_token_pays_once_and_not_on_a_later_day(registry, room_id, token_id
         collected_allowance_tokens=frozenset(carry["collected_allowance_tokens"]),
     )
     g2 = Game(day2_cfg, seed=2, registry=registry)
-    g2.state.luck = 0
+    suppress_luck(g2)
     assert g2.state.allowance == 2  # carried total, no new gain yet
 
     _place(g2.state, g2.registry, room_id, 10)
@@ -84,7 +85,7 @@ def test_room_token_entering_twice_same_day_pays_once(registry, room_id, token_i
     leaving) grant the room's Mora Jai box exactly once, not twice."""
     room = registry.by_id[room_id]
     g = Game(GameConfig(special_items=True), seed=1, registry=registry)
-    g.state.luck = 0
+    suppress_luck(g)
     _place(g.state, g.registry, room_id, 10)
 
     si.on_enter(g, room, 10)
@@ -104,7 +105,7 @@ def test_tomb_token_does_not_alter_ignition_grants(registry):
     one blocking or double-granting the other."""
     room = registry.by_id["tomb"]
     g = Game(GameConfig(special_items=True), seed=1, registry=registry)
-    g.state.luck = 0
+    suppress_luck(g)
     _place(g.state, g.registry, "tomb", 10)
 
     si.on_enter(g, room, 10)
@@ -133,7 +134,7 @@ def test_underpass_token_arrives_on_area_arrival(registry):
     """Standing at the Underpass area node with no on-grid room entry
     involved still pays the +2 allowance, via Game.travel_to's arrival hook."""
     g = Game(GameConfig(special_items=True), seed=1, registry=registry)
-    g.state.luck = 0
+    suppress_luck(g)
     g.state.steps = 50
     g.state.area = "inner_sanctum"  # unconditional edge to underpass
 
@@ -147,7 +148,7 @@ def test_underpass_token_arriving_twice_same_day_pays_once(registry):
     """Leaving and returning to the Underpass within the same day does not
     re-pay its already-collected Mora Jai box."""
     g = Game(GameConfig(special_items=True), seed=1, registry=registry)
-    g.state.luck = 0
+    suppress_luck(g)
     g.state.steps = 50
     g.state.area = "inner_sanctum"
 
@@ -166,7 +167,7 @@ def test_underpass_token_pays_once_and_not_on_a_later_day(registry):
 
     # Day 1: first arrival pays out.
     g1 = Game(chain.next_config(), seed=1, registry=registry)
-    g1.state.luck = 0
+    suppress_luck(g1)
     g1.state.steps = 50
     g1.state.area = "inner_sanctum"
     g1.travel_to("underpass")
@@ -181,7 +182,7 @@ def test_underpass_token_pays_once_and_not_on_a_later_day(registry):
     day2_cfg = chain.next_config()
     assert day2_cfg.allowance == 2
     g2 = Game(day2_cfg, seed=2, registry=registry)
-    g2.state.luck = 0
+    suppress_luck(g2)
     assert g2.state.coins == 2
     assert g2.state.allowance == 2
 

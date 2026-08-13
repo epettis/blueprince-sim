@@ -16,6 +16,7 @@ from blueprince_sim.config import GameConfig
 from blueprince_sim.engine import special_items as si
 from blueprince_sim.engine.game import Game
 from blueprince_sim.engine.model import Registry
+from luck_utils import suppress_luck
 
 
 def test_root_cellar_lets_watering_can_convert_water_to_a_gem():
@@ -62,7 +63,7 @@ def test_root_cellar_does_not_touch_luck():
     assert not root_cellar.effects
 
     g = Game(GameConfig(west_gate_unlatched=True, special_items=False), seed=1)
-    g.state.luck = 0
+    suppress_luck(g)
     pending = g.open_outer_draft()
     opt = next(o for o in pending.options
               if g.registry.rooms[o.room_idx].id == "root_cellar")

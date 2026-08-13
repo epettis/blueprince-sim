@@ -9,6 +9,7 @@ from __future__ import annotations
 from blueprince_sim.config import GameConfig
 from blueprince_sim.engine.effects import Hook, fire
 from blueprince_sim.engine.game import ANTECHAMBER_CELL, ENTRANCE_CELL, Game
+from luck_utils import suppress_luck
 
 # Plain green rooms with no room_hook of their own, used as filler so the
 # gem-count arithmetic isn't muddied by another room's ON_PLACE side effect.
@@ -21,7 +22,7 @@ def _game(*, registry=None, **extra) -> Game:
     """
     cfg = GameConfig(**extra)
     g = Game(cfg, seed=1, **({"registry": registry} if registry is not None else {}))
-    g.state.luck = 0
+    suppress_luck(g)
     return g
 
 

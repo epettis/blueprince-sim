@@ -18,6 +18,7 @@ from blueprince_sim.engine.game import Game
 from blueprince_sim.engine.model import Registry
 from blueprince_sim.engine.rng import Rng
 from blueprince_sim.engine.state import GameState
+from luck_utils import suppress_luck
 
 
 def _state_with_registry():
@@ -108,7 +109,7 @@ def test_tomb_grants_coins_for_its_own_placement(registry, cfg):
     """The Tomb's own layout is a Dead End, so placing it grants +5 coins
     immediately for itself, not only for Dead Ends drafted afterward."""
     g = Game(cfg, seed=1)
-    g.state.luck = 0
+    suppress_luck(g)
     tomb = registry.by_id["tomb"]
     coins_before = g.state.coins
     g._place_room(tomb, 6, tomb.door_mask)

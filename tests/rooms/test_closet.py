@@ -14,6 +14,7 @@ from __future__ import annotations
 
 from blueprince_sim.config import GameConfig
 from blueprince_sim.engine.game import Game
+from luck_utils import suppress_luck
 
 CLOSET_CELL = 12  # rank 3, center column -- has all four orthogonal neighbors
 NEIGHBOR_CELL = 11  # rank 3, west of CLOSET_CELL
@@ -27,7 +28,7 @@ def _make_game_with_room(room_id: str, cell: int, seed: int = 0) -> Game:
     deterministic."""
     cfg = GameConfig(special_items=True)
     g = Game(cfg, seed=seed)
-    g.state.luck = 0
+    suppress_luck(g)
     room = g.registry.by_id[room_id]
     g.state.grid[cell] = room.idx
     g.state.placed_doors[cell] = room.door_mask
@@ -78,7 +79,7 @@ def test_hallway_closet_bonus_fires_when_adjoined_to_a_hallway_at_placement():
     room is already an orthogonal neighbor at the moment of placement."""
     cfg = GameConfig(special_items=True)
     g = Game(cfg, seed=1)
-    g.state.luck = 0
+    suppress_luck(g)
     _place(g, "hallway", NEIGHBOR_CELL)
     _place(g, "hallway_closet__ix39", CLOSET_CELL)
 
@@ -92,7 +93,7 @@ def test_hallway_closet_bonus_absent_without_a_hallway_neighbor():
     its flat 2 items -- no bonus is paid."""
     cfg = GameConfig(special_items=True)
     g = Game(cfg, seed=1)
-    g.state.luck = 0
+    suppress_luck(g)
     _place(g, "hallway_closet__ix39", CLOSET_CELL)
 
     found0 = len(g.state.items_found_log)
@@ -105,7 +106,7 @@ def test_bedroom_closet_bonus_fires_when_adjoined_to_a_bedroom_at_placement():
     room is already an orthogonal neighbor at the moment of placement."""
     cfg = GameConfig(special_items=True)
     g = Game(cfg, seed=1)
-    g.state.luck = 0
+    suppress_luck(g)
     _place(g, "bedroom", NEIGHBOR_CELL)
     _place(g, "bedroom_closet__ix40", CLOSET_CELL)
 
@@ -119,7 +120,7 @@ def test_hallway_closet_ignores_a_bedroom_neighbor():
     only reacts to its own category, not any neighbor."""
     cfg = GameConfig(special_items=True)
     g = Game(cfg, seed=1)
-    g.state.luck = 0
+    suppress_luck(g)
     _place(g, "bedroom", NEIGHBOR_CELL)
     _place(g, "hallway_closet__ix39", CLOSET_CELL)
 
@@ -133,7 +134,7 @@ def test_bedroom_closet_ignores_a_hallway_neighbor():
     only reacts to its own category, not any neighbor."""
     cfg = GameConfig(special_items=True)
     g = Game(cfg, seed=1)
-    g.state.luck = 0
+    suppress_luck(g)
     _place(g, "hallway", NEIGHBOR_CELL)
     _place(g, "bedroom_closet__ix40", CLOSET_CELL)
 
@@ -148,7 +149,7 @@ def test_empty_closet_bonus_fires_when_adjoined_to_a_red_room_at_placement():
     variant whose flat baseline is 0, so the bonus is its entire yield."""
     cfg = GameConfig(special_items=True)
     g = Game(cfg, seed=1)
-    g.state.luck = 0
+    suppress_luck(g)
     _place(g, "lavatory", NEIGHBOR_CELL)  # category "red"
     _place(g, "empty_closet__ix41", CLOSET_CELL)
 
@@ -162,7 +163,7 @@ def test_empty_closet_bonus_absent_without_a_red_room_neighbor():
     its flat 0 items -- no bonus is paid."""
     cfg = GameConfig(special_items=True)
     g = Game(cfg, seed=1)
-    g.state.luck = 0
+    suppress_luck(g)
     _place(g, "empty_closet__ix41", CLOSET_CELL)
 
     found0 = len(g.state.items_found_log)
@@ -175,7 +176,7 @@ def test_bonus_neighbor_placed_after_the_closet_does_not_retroactively_grant_it(
     -- the condition is fixed at ON_PLACE, not re-checked at entry."""
     cfg = GameConfig(special_items=True)
     g = Game(cfg, seed=1)
-    g.state.luck = 0
+    suppress_luck(g)
     _place(g, "bedroom_closet__ix40", CLOSET_CELL)  # no neighbor yet
     _place(g, "bedroom", NEIGHBOR_CELL)  # qualifying neighbor arrives afterward
 

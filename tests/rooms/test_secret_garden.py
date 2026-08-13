@@ -12,6 +12,7 @@ from blueprince_sim.engine.effects import Hook, fire
 from blueprince_sim.engine.game import ANTECHAMBER_CELL, ENTRANCE_CELL, Game
 from blueprince_sim.engine.grid import E, S, W
 from blueprince_sim.engine.locks import DOOR_OPEN, DOOR_SEALED
+from luck_utils import suppress_luck
 
 APPLE_STEPS = 2
 ORANGE_STEPS = 5
@@ -26,7 +27,7 @@ def _game(*, levers: bool = True, registry=None, **extra) -> Game:
     """
     cfg = GameConfig(antechamber_levers=levers, **extra)
     g = Game(cfg, seed=1, **({"registry": registry} if registry is not None else {}))
-    g.state.luck = 0
+    suppress_luck(g)
     return g
 
 
@@ -216,7 +217,7 @@ def test_only_apples_and_oranges_are_ever_spread(registry):
     for seed in range(20):
         cfg = GameConfig(antechamber_levers=False)
         g = Game(cfg, seed=seed, registry=registry)
-        g.state.luck = 0  # no luck-rolled extra items from filler Corridors muddying step deltas
+        suppress_luck(g)  # no luck-rolled extra items from filler Corridors muddying step deltas
         _fill_cells(g, 30, exclude={ENTRANCE_CELL, ANTECHAMBER_CELL, garden_cell})
         _place_at(g, "secret_garden", garden_cell, 0)
         secret_garden_room = g.registry.by_id["secret_garden"]

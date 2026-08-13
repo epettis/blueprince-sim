@@ -12,6 +12,7 @@ from __future__ import annotations
 from blueprince_sim.config import GameConfig
 from blueprince_sim.engine.game import Game
 from blueprince_sim.engine.grid import S
+from luck_utils import suppress_luck
 
 
 def _make_game_with_room(room_id: str, cell: int, seed: int = 0) -> Game:
@@ -21,7 +22,7 @@ def _make_game_with_room(room_id: str, cell: int, seed: int = 0) -> Game:
     never procs, keeping the guaranteed-key assertions below deterministic."""
     cfg = GameConfig(special_items=True)
     g = Game(cfg, seed=seed)
-    g.state.luck = 0
+    suppress_luck(g)
     room = g.registry.by_id[room_id]
     g.state.grid[cell] = room.idx
     g.state.placed_doors[cell] = room.door_mask

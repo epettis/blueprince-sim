@@ -8,6 +8,7 @@ carry an effect at all.
 from __future__ import annotations
 
 from blueprince_sim.engine.game import Game
+from luck_utils import suppress_luck
 
 TARGET_CELL = 7   # rank 2, col 2
 FILLER_A = 8      # rank 2, col 3
@@ -35,7 +36,7 @@ def test_servants_spare_quarters_grants_a_key_per_bedroom_where_its_parent_grant
     variant = registry.by_id["servants_spare_quarters__ix134"]
 
     g = Game(cfg, seed=0)
-    g.state.luck = 0
+    suppress_luck(g)
     _place_bedroom_fillers(g)
     g.state.grid[TARGET_CELL] = parent.idx
     g.state.placed_doors[TARGET_CELL] = parent.door_mask
@@ -44,7 +45,7 @@ def test_servants_spare_quarters_grants_a_key_per_bedroom_where_its_parent_grant
     assert g.state.keys == keys_before, "spare_bedroom__ix131 grants no keys"
 
     g2 = Game(cfg, seed=0)
-    g2.state.luck = 0
+    suppress_luck(g2)
     _place_bedroom_fillers(g2)
     g2.state.grid[TARGET_CELL] = variant.idx
     g2.state.placed_doors[TARGET_CELL] = variant.door_mask

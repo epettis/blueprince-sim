@@ -2,16 +2,40 @@
  "schema_version": 1,
  "luck": {
   "day_start": 10,
-  "max_effect_at": 29,
-  "floor": 0,
-  "curve": "linear",
-  "penalty_two_plus_items": -1,
   "rabbits_foot_bonus": 3,
   "meta": {
    "confidence": "wiki",
-   "source": "blueprince.wiki.gg/wiki/Luck: start at 10; at 29 every room grants its max additional items; 2+ items found in one room decreases luck",
-   "notes": "Curve shape between floor and 29 is not documented; linear is an inferred placeholder, editable here."
+   "source": "blueprince.wiki.gg/wiki/Luck: start at 10",
+   "notes": "day_start is the only field left here: the old floor/max_effect_at/curve/penalty_two_plus_items keys described the sim's own invented linear Bernoulli ramp and found>=2 penalty, both replaced by item_ladder below (owner ruling, docs/open_tasks.md decisions log 2026-08-13). rabbits_foot_bonus is unused by code -- the live Rabbit's Foot/Lucky Purse amount is special_items.json's own luck_bonus effect param."
   }
+ },
+ "item_ladder": {
+  "meta": {
+   "confidence": "datamined",
+   "source": "https://blueprince.wiki.gg/wiki/Luck",
+   "notes": "The published item-count ladder (\"Luck effects\" DataMinedBox), replacing engine/items.py's old linear ramp. Effective luck = state.luck + per-draft modifiers (special_items.luck_bonus) - state.luck_penalty (owner-ruled per-day accumulator; wiki never states its reset scope). bands[].kind: 'flat' (a flat 1-item chance), 'chain' (5-10 luck: first-match ordered list, order is load-bearing), 'variable_mix' (a variable/1-item/0-item three-way split), 'always_variable' (100% variable), 'fixed' (a deterministic item count + Luck Penalty delta). The 'chain' row with if='day1_veteran_by_fast_early_drafts' can never match in this sim: GameConfig.veteran_mode (config.py) is a plain bool with no notion of Veteran Mode having been enabled MID-RUN by fast early drafts, so that branch always falls through to the next row (see docs/open_tasks.md decisions log 2026-08-13 and the PR-A report)."
+  },
+  "bands": [
+   {"max": 4, "kind": "flat", "p_one_pct": 7},
+   {"min": 5, "max": 10, "kind": "chain", "chain": [
+    {"if": "room46_reached", "p_one_pct": 15},
+    {"if": "day_gte", "day": 6, "p_one_pct": 25},
+    {"if": "day1_veteran_by_fast_early_drafts", "p_one_pct": 23, "representable": false},
+    {"if": "veteran_mode", "p_one_pct": 15},
+    {"if": "day_gte", "day": 3, "p_one_pct": 20},
+    {"if": "otherwise", "p_one_pct": 18}
+   ]},
+   {"min": 11, "max": 15, "kind": "variable_mix", "p_variable_pct": 1.6, "p_one_pct": 38.4},
+   {"min": 16, "max": 18, "kind": "variable_mix", "p_variable_pct": 3.2, "p_one_pct": 76.8},
+   {"min": 19, "max": 22, "kind": "always_variable"},
+   {"min": 23, "max": 28, "kind": "fixed", "items": 3, "penalty": 2},
+   {"min": 29, "kind": "fixed", "items": 4, "penalty": 3}
+  ],
+  "variable": [
+   {"max": 10, "kind": "fixed", "items": 1, "penalty": 0},
+   {"min": 11, "max": 16, "kind": "fixed", "items": 2, "penalty": 1},
+   {"min": 17, "kind": "roll", "p_three_pct": 5, "three_penalty": 3, "two_penalty": 1}
+  ]
  },
  "coins": {
   "pile_min": 1,

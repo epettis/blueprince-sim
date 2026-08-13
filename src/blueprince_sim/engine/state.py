@@ -191,7 +191,13 @@ class GameState:
     # the wiki's "permanently", since it never says "across the save").
     main_course_bonus: int = 0
     dice: int = 0  # redraw dice: spend one to redraw the current draft hand
-    luck: int = 10  # scales bonus-item odds between items.json floor and max_effect_at
+    luck: int = 10  # banded against data/items.json's item_ladder (engine/items.py)
+    # Luck Penalty (wiki: Luck page): subtracted from luck to get a draft's EFFECTIVE
+    # luck (engine/items.py::roll_ladder_count), grown by high-luck item_ladder outcomes.
+    # Owner-ruled PER-DAY (the wiki never states its reset scope): reset alongside luck
+    # at day start (Game.reset), same as luck itself -- not in _CARRYOVER_KEYS, which is
+    # a frozenset of bool fields and cannot carry an int across days anyway.
+    luck_penalty: int = 0
 
     day: int = 20  # in-game day, copied from GameConfig at reset
     stage: str = "late"  # rarity-table stage (week1|week2|late) resolved from day

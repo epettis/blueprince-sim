@@ -19,6 +19,7 @@ from blueprince_sim.engine.game import Game
 from blueprince_sim.env import obs as O
 from blueprince_sim.env.actions import OPEN_SIGIL_DOOR_BASE, action_mask
 from blueprince_sim.env.multiday import DayChain
+from luck_utils import suppress_luck
 
 
 def _game_at_sanctum(cfg: GameConfig | None = None, seed: int = 0, registry=None) -> Game:
@@ -95,7 +96,7 @@ def test_opening_a_door_pays_the_chambers_allowance_once(registry):
     and a second attempt on the same (already open) door pays nothing further."""
     cfg = GameConfig(special_items=True, room46_reached=True)
     g = _game_at_sanctum(cfg, registry=registry)
-    g.state.luck = 0  # floor luck before any exact resource assertion
+    suppress_luck(g)  # floor luck before any exact resource assertion
     assert g.state.allowance == 0
     si.grant(g.state, g.registry, "sanctum_key_vault", source="test")
     g.open_sigil_door("arch_aries")
@@ -110,7 +111,7 @@ def test_two_different_doors_pay_the_allowance_twice(registry):
     """Two DISTINCT realm doors each pay their own +2, so opening both nets +4."""
     cfg = GameConfig(special_items=True, room46_reached=True)
     g = _game_at_sanctum(cfg, registry=registry)
-    g.state.luck = 0
+    suppress_luck(g)
     si.grant(g.state, g.registry, "sanctum_key_vault", source="test")
     g.open_sigil_door("arch_aries")
     si.grant(g.state, g.registry, "sanctum_key_clock_tower", source="test")
