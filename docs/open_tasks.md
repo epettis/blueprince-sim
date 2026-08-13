@@ -817,7 +817,7 @@ it comes first and stands alone.
 | 4 | Item handlers on game events + the engine-owned priority tuples | M | **Med** | **DONE in #205** |
 | 5 | Id-branch items, split on RNG risk: 5a RNG-free, 5b RNG-adjacent | M | Med | **DONE in #207, #208** |
 | 6 | RNG-touching migrations, **last and alone** | M | **High** | **DONE in #209** |
-| 7 | Shrink both allowlists; delete `implemented`/`blocked_on` | S | Low | **split DONE in #206**; the flag deletion is deferred, see below |
+| 7 | Shrink both allowlists; ~~delete `implemented`/`blocked_on`~~ | S | Low | **allowlist split DONE in #206. The flag deletion is CANCELLED -- its premise does not hold; see the 2026-08-12 closing entry.** |
 
 **No phase is a retrain trigger provided the `items` array is never reordered
 and nothing is inserted mid-array.** `env/obs.py` enumerates it positionally
@@ -854,6 +854,49 @@ allowlist entry** -- that rule alone catches `ignition_tool` today.
 around 1,800 LOC.
 
 ## Decisions log
+
+- **2026-08-12, TASK 22 IS COMPLETE -- and its final step is cancelled, on
+  evidence.** Phases 0-6 landed across #200-#209; phase 7's allowlist split
+  landed in #206. The remaining half, **"delete `implemented`/`blocked_on`", is
+  NOT being done, because the premise it rested on turned out to be false.**
+
+  **The premise:** a per-item registry makes implementation status *derivable*,
+  so the asserted fields become redundant. **The measurement, from #217's
+  census and a direct check:**
+
+  - 12 items are `implemented: false`. **Exactly 1 of them is in any registry.**
+  - 46 of 54 items with `effects: []` are not found in any registry, and 60 of
+    123 such rooms -- because **the registries cannot see hand-written branches
+    in `game.py`**. That is why #217's census says "not found in those
+    registries" rather than "genuinely inert".
+  - **`chronograph` is in a registry AND `implemented: false`** -- its
+    Tomorrow-Rooms bias is wired (#201), its redraw rewind is not. So registry
+    membership does not even imply full implementation.
+
+  **And `blocked_on` carries something no registry can derive: WHY.** "The
+  Telescope needs constellation activation", "the Axe needs a permanent
+  gem-cost override layer", "the Trophy of Wealth's purchase path is
+  unverified end to end" -- none of that is a fact about handler presence.
+  Deleting the fields would trade information nobody can reconstruct for a
+  check covering 8 of 54 items.
+
+  **What the registry DID deliver is the part worth keeping**: #217 wired four
+  validators that were previously called only by tests, so a typo'd id now
+  fails the data validator; and the census makes "empty and unregistered"
+  visible for the first time. That is the derivable half. The reason half stays
+  in data, where a human writes it.
+
+  **Final state: item-id debt 58 -> 1** (`microchip` in `shops.py`, which is
+  where all three chip sources legitimately live), 38 pairs reclassified as
+  permanent architecture, tag pairs 36 -> 22, and `game.py` and
+  `special_items.py` carrying no item-id debt at all.
+
+  **The generalisable lesson: a refactor plan written before the measurement
+  should be re-checked against it, not executed on faith.** Three of this
+  plan's steps changed on contact -- phase 3's scope (the shared-tag
+  contradiction), phase 4's shape ("folds" were really first-match-wins chains
+  that mutate state), and now phase 7's deletion. Each was written by a careful
+  pass that simply could not see what the work would reveal.
 
 - **2026-08-12, the Satellite Dish packet gate is open. Experiments phases 5-8
   are complete.** Keyed on `cfg.satellite_dish_unlocked`, the permanent
