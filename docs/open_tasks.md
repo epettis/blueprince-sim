@@ -855,6 +855,149 @@ around 1,800 LOC.
 
 ## Decisions log
 
+- **2026-08-12, OWNER CORRECTION: the Crown of the Blueprints filters a Red Room
+  from ALL draws for the rest of the day. There is no exemption -- and this
+  VOIDS an earlier ruling rather than amending it.**
+
+  Owner play overrides the wiki. The wiki's `Drafting/Advanced` claims a blocked
+  Red Room is still obtainable *"through special drafting like Silver Key and
+  Prism Key"*, and that duct-carrying red rooms still appear. **That is wrong.**
+  It is filtered from every draw path for the rest of the day.
+
+  **Ruling 4 of the 2026-08-12 crown rulings is VOID, not answered.** That
+  ruling ("exempt colour-selective drafting AND rework the Silver Key so its
+  exemption is real") was the answer to a question that only existed because the
+  wiki claimed there were exemptions to scope. **A correction can invalidate the
+  question, not just the answer** -- and this one did.
+
+  **Three consequences, all of them simplifications:**
+  1. **The Crown effect PR no longer collides with `prism_key`.** The collision
+     was created entirely by the Silver Key rework that ruling 4 pulled in. They
+     can run in parallel again.
+  2. **The Silver Key rework is not required by the Crown at all.** It does not
+     disappear -- it belongs to the locked-door subsystem ruling, which is where
+     it now sits.
+  3. **The implementation gets smaller**: the filter still belongs in
+     `draft.py::room_draftable`, the single gate every draw path passes through,
+     but with no `ctx.colour is None` exemption guard. A filter, never a removal
+     -- deck *sizes* feed rarity legality via `rarity_deck_ok`, so removing cards
+     would change which rarities are legal to roll for the rest of the day.
+
+- **2026-08-12, OWNER CORRECTION: the Gear Wrench's rarity adjustment IS
+  permanent, like the Conservatory -- retracting a finding I recorded earlier
+  today.**
+
+  Earlier in this session I recorded that `gear_wrench`'s
+  `blocked_on: rarity_change_not_persisted_across_days` "rests on a misreading",
+  on the strength of the wiki spelling the pickup effect *"that day"*. **Owner
+  play says permanent. The blocker is correct and the item is genuinely blocked
+  on cross-day persistence.**
+
+  **The generalisation I drew from it was therefore also wrong.** I wrote that
+  *three* blockers this session had been found to name a mechanic the game does
+  not have. **It is two** -- `crown_of_the_blueprints` and the digest's "~15
+  lines". The rule itself survives, and `crown_of_the_blueprints` remains a
+  clean instance of it, but the count does not.
+
+  **This is the failure mode this session has been cataloguing, committed by me,
+  from the same cause each time: a claim inherited rather than re-derived.** I
+  took the research agent's wiki reading and generalised from it inside the same
+  hour, without the owner's play to check it against. **A pattern asserted from
+  N instances needs each instance verified, not the pattern.**
+
+  Note the wiki distinction the research turned up is still real and still
+  useful, it just does not license what I claimed: the *pickup* effect is
+  spelled "that day", while a **separate** permanent effect says a room whose
+  rarity has been set by the Conservatory or Gear Wrench has its Dynamic Rarity
+  *permanently ignored*. `battery_pack` stays **day-scoped** on the owner's
+  direct ruling -- that ruling stands on its own authority, but **the analogy to
+  the Gear Wrench that motivated the question is now dead** and must not be
+  reused.
+
+- **2026-08-12, the locked-door subsystem is scoped, and it surfaced a live
+  shipped bug that has nothing to do with the redesign.**
+
+  **THE BUG (fixing first, separately): the action mask makes the Master Key,
+  Silver Key and Lock Pick Kit unusable at zero keys.** `env/actions.py`'s
+  `NAVIGATE` branch gates opening a locked doorway purely on
+  `st.keys < key_cost + lock_open_cost`, and **never consults
+  `can_open_locked_free`** -- unlike `game.py::doorway_passable`, which does.
+  Probed on a locked frontier doorway at `keys=0`: `doorway_passable=True`,
+  `can_open_locked_free=True`, **open action legal = False**, for each of the
+  three items. **The highest-tier item in the game is unusable at 0 keys**, and
+  it contradicts the wiki in as many words (`Keys`: *"This menu can appear even
+  when no basic keys are held."*). Two copies of one rule that drifted.
+
+  **Lock state is ALREADY fully visible to the agent.** `env/obs.py` builds
+  `grid_locked`, `grid_security` and `grid_sealed` as 9x5 direction-mask planes,
+  set on both cells of every segment. So "trying a door reveals whether it is
+  locked" is **an observation *reduction*, not an addition** -- which makes it a
+  much bigger and riskier change than it sounds, and it is separated out below.
+
+  **The wiki confirms the owner's first sentence as datamined fact**, not
+  inference: *"A door being locked or not is determined dynamically the first
+  time the door is clicked."* And clicking then exiting **latches** the roll --
+  you cannot re-roll a door by walking away.
+
+  **The menu is six keys in a published fixed order** -- Basement Key, Secret
+  Garden Key, Silver Key, Key 8, Master Key, Prism Key -- so it is **a published
+  table and belongs in `data/locks.json`, not a Python constant.** Two
+  corrections to the owner's list, which was right but incomplete: it omitted
+  **Basement Key** and **Master Key**. And two of the four named
+  (`secret_garden_key`, `key_8`) are modelled in this repo as
+  `draft_conditions` tags, **not as door keys at all** -- so the mechanic is
+  unimplemented for them in both directions.
+
+  **Two premises of my own brief were wrong.** There is no "fixed precedence
+  among free-opening tools" to model, because the category does not exist:
+  **Master Key is a menu row**, and the **Stopwatch is not in the unlock menu at
+  all** -- it is a passive refund on the *Use key* option that requires >=1 key
+  in hand. Only the Lock Pick Kit is a genuine third prompt, and it is
+  restricted to doors that take a regular key. Separately, I costed the designs
+  against `tests/test_draft_stats.py` as the guard at risk; **it is not at
+  risk**, because `Rng` substreams are independent per label and that suite
+  never opens a door. The exposed statistical guard is `tests/test_locks.py`'s
+  bias tests, and only under the hidden-lock-state design.
+
+  **Design chosen: `Phase.LOCK_PENDING`**, a structural clone of the existing
+  `COLOUR_PENDING` precedent. `open_door` on a locked segment stops unlocking,
+  parks the doorway, and the agent picks one menu row or abandons. **+9 appended
+  action ids** (`use_key`, `lockpick`, the six menu keys in published order,
+  `abandon`), `phase` `Discrete(6)` -> `Discrete(7)`, `_CARRYOVER_KEYS`
+  unchanged at 16. Unimplemented keys get a permanently-False mask slot -- a
+  reserved id costs nothing and never shifts later. **~350 lines, ~14 files,
+  ~20 existing tests changed.**
+
+  **It directly models the play the owner cares about**: `abandon` returns to
+  `NAVIGATE` with the segment still locked, which is the wiki's *"option to
+  exit the menu"*.
+
+  **`grid_search_cost` ships in the same PR, and this is the load-bearing
+  detail.** `door_search_cost` appears **nowhere in `env/`**, so a Great Hall
+  side door costing 3 keys is today indistinguishable from an ordinary 1-key
+  door. Without it, "spend keys versus walk further" is **unlearnable at exactly
+  the doors where it matters most** -- and shipping a choice whose stakes the
+  agent cannot see is worse than leaving the choice automatic.
+
+  **No new ItemHook priority chain.** A menu is a player-ordered choice, the
+  precise opposite of a first-match-wins chain; there is no total order for the
+  engine to own. Per-key *fit* predicates live in each
+  `effects/items/<key>.py`, keeping room and rank knowledge out of the engine.
+
+  **This design also lets `SECRET_PASSAGE_IDS` be paid down** -- once unlocking
+  is a distinct step ahead of dealing, the Secret Passage colour pick and the
+  Prism Key colour pick become the same mechanism, and the room-id branches at
+  `game.py` and `draft.py` can become a room-declared effect. Sequenced as a
+  follow-up, not folded in.
+
+  **Deferred to its own owner ruling: hidden lock state.** Rolling the lock on
+  first click and *deleting* `grid_locked` from the observation is the literal
+  reading of the owner's first sentence, and it is the only design that
+  endangers `tests/test_locks.py`'s bias sequences. It is ~600+ lines and makes
+  the learning problem strictly harder by removing information the agent has
+  today. **Faithfulness bought with sample efficiency** -- escalate separately;
+  do not ride it in on the menu work.
+
 - **2026-08-12, OWNER RULING: opening a locked door becomes an explicit player
   decision. This supersedes `prism_key` as a one-item change and creates a
   subsystem.** In the owner's words:
