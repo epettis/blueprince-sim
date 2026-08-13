@@ -855,6 +855,32 @@ around 1,800 LOC.
 
 ## Decisions log
 
+- **2026-08-12, observation and action width changes are ACCEPTABLE: a retrain
+  is already required.** Owner. This unblocks the whole remaining item backlog,
+  which #227 had just re-sized as M-or-larger precisely because every item costs
+  a width change.
+
+  **What this permits, concretely:**
+  - `gear_wrench` -- a `_CARRYOVER_KEYS` entry (obs width) **and** a
+    room-choice action (action width). Both were the blocker; neither is now.
+  - `chronograph` -- new redraw-history state plus a rewind action.
+  - `prism_key` -- a special-key choice action.
+  - `the_axe` -- a Room Directory action plus a permanent gem-cost override
+    carried across days.
+  - `crown_of_the_blueprints` -- within-day pool removal, the only one of the
+    four that needs no new width at all.
+
+  **What it does NOT license.** The standing rule is *"model correctness
+  outranks observation/action-space stability while no run is live -- but record
+  every width change."* The recording half still applies: every PR that moves
+  `N_ACTIONS` or `len(_CARRYOVER_KEYS)` states the before and after, and
+  confirms **no existing id shifted** (append at the end; a mid-array insert
+  invalidates a policy's learned embedding far more deeply than a bound change).
+
+  **`battery_pack` is still awkward for an unrelated reason** -- its cost is a
+  37-call-site signature change to thread `rng` into `grant()`, not a width
+  change. This ruling does not make it cheaper.
+
 - **2026-08-12, the "cheap wins" in the item backlog are gone, and my sizing was
   wrong.** I repeated the 2026-08-11 audit's XS/S sizing for `battery_pack`,
   `gear_wrench` and `chronograph` without re-checking it against the code. All
