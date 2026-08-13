@@ -855,6 +855,47 @@ around 1,800 LOC.
 
 ## Decisions log
 
+- **2026-08-12, the Satellite Dish packet gate is open. Experiments phases 5-8
+  are complete.** Keyed on `cfg.satellite_dish_unlocked`, the permanent
+  carry-over flag the Apple Orchard sundial sets. Live: **6 of 8 packet triggers
+  and 4 of 8 packet effects**; the six that stay inert each have a permanent
+  reason (no wall clock, no interactive map, no Pantry-stocking mechanic, no
+  reservoir room, the owner-ruled-out Crate Tunnel, no lockpicking stat).
+
+  **The trap this PR existed to avoid, and how it was avoided.**
+  `base_trigger_ids` / `base_effect_ids` are built at load time as
+  `pool == "base"` with **no `implemented` filter** -- always safe, because every
+  base record is implemented, so the distinction never had to exist. The packet
+  breaks that assumption. Appending packet ids to those tuples is the obvious
+  one-line implementation and would have made **six dead records drawable and
+  silently inert** -- an agent could select an experiment that does nothing and
+  never learn otherwise.
+
+  Solved **at load time**, not draw time: `packet_trigger_ids` /
+  `packet_effect_ids` are built as `pool == "packet" and implemented`, so every
+  consumer gets a safe-by-construction id set rather than relying on draw-time
+  diligence. Verified: no inert id appears in either tuple.
+
+  **Verified empirically, not argued.** With the flag **False**, offers are
+  **byte-identical to `HEAD` across 500 seeds** (independently reconfirmed over
+  200). With it **True**, packet records appear. Across 4000 sampled draws in
+  both states, **no inert record was ever offered.** `test_draft_stats.py`
+  unmoved at 22.
+
+  **My brief said "eight of sixteen records are inert". It is six** -- 2
+  triggers + 4 effects. I repeated the wrong figure twice; the agent checked the
+  data rather than taking it.
+
+  **A documented simplification worth knowing:** Packet Management's own
+  >=8-of-20 selection screen is **not** modelled. Every implemented packet
+  record becomes sample-eligible the instant the flag is set.
+
+  **An adjacent pre-existing gap, flagged not touched:** `gain_star`'s
+  `resource_or_gate` availability is **not enforced by `_effect_offerable` at
+  all** -- only `day_or_packet_gate` and `cross_column_exclude` are -- so
+  `gain_star` is always offerable regardless of stars, veteran mode or packet.
+  Unchanged by this PR, but real.
+
 - **2026-08-12, three packet effects implemented; four remain genuinely
   blocked.** Live now: `unseal_antechamber_door`, `random_item_then_zero_keys`,
   `half_steps_for_dice`, joining the already-built `keys_per_30_steps`. Still

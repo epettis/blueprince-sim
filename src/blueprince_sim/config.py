@@ -54,8 +54,10 @@ class GameConfig:
     # The Apple Orchard sundial has been lit (three held microchips + an ignition
     # tool), permanently unlocking the Satellite Dish. Same carry shape as
     # west_gate_unlatched (recorded on GameState, ORed in via shops.carryover(),
-    # never written back here). Not yet consumed anywhere: the data-packet pools
-    # the Satellite Dish grants are a later PR.
+    # never written back here). Consumed by engine/experiments.py::draw_offers /
+    # _effect_offerable to open the packet trigger/effect pools (implemented
+    # records only) alongside base -- from the FOLLOWING day onward, same as
+    # orchard_unlocked's own steps bonus, since this is read from cfg, not state.
     satellite_dish_unlocked: bool = False
     # Sauna entered on the previous day: +20 starting steps today only (Game.reset).
     # A ONE-DAY pulse, not a permanent unlock like orchard_unlocked: DayChain replaces

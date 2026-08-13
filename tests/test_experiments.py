@@ -8,10 +8,14 @@ checks added at open_door/open_container/move/redraw/
 _maybe_finish_experiment_setup. Also covers the six packet triggers with
 firing sites (rank9_first_entry, upgraded_floorplan_draft,
 tomorrow_room_draft, fireplace_draft, antechamber_lever_pull,
-terminal_access) -- all still unreachable in play (or_packet stays False),
-so every test below configures the experiment directly via ``_configure``
-and drives the actual engine event, the same shape the base-trigger tests
-above use.
+terminal_access), reachable in play once ``cfg.satellite_dish_unlocked`` is
+set -- most of the tests below still configure the experiment directly via
+``_configure`` and drive the actual engine event without going through
+draw_offers, the same shape the base-trigger tests above use. The final
+section (``cfg.satellite_dish_unlocked``) covers draw_offers's packet-pool
+gate itself: unreachable with the flag unset, reachable (implemented records
+only) once it is set, and byte-identical to the pre-gate draw on the unset
+path.
 
 Mirrors test_upgrade_env.py's shape (direct Game construction plus the flat
 action space) for the setup flow, and calls engine.experiments functions
@@ -2308,3 +2312,129 @@ def test_terminal_access_does_not_fire_for_a_different_configured_trigger():
     _grant_disk(g, "upgrade_disk_vault_304")
     assert g.insert_disk() is True
     assert g.state.experiment.success_count == 0
+
+
+# ---------------------------------------------------------------------------
+# Packet gate: cfg.satellite_dish_unlocked opens the packet pool in draw_offers.
+# Hardcoded here (not read off the registry under test) so a regression in
+# load_experiments's own implemented filter would fail these too, not just
+# agree with itself.
+# ---------------------------------------------------------------------------
+
+_IMPLEMENTED_PACKET_TRIGGERS = frozenset({
+    "rank9_first_entry", "fireplace_draft", "terminal_access",
+    "upgraded_floorplan_draft", "antechamber_lever_pull", "tomorrow_room_draft",
+})
+_IMPLEMENTED_PACKET_EFFECTS = frozenset({
+    "unseal_antechamber_door", "keys_per_30_steps",
+    "random_item_then_zero_keys", "half_steps_for_dice",
+})
+# The two packet triggers and four packet effects that stay implemented=false
+# and must never be offered, with the flag either way.
+_INERT_PACKET_IDS = frozenset({
+    "speed_40_seconds", "map_view",
+    "pantry_fruit", "reservoir_water_level", "remove_tunnel_crate",
+    "permanent_lockpicking_skill",
+})
+
+
+def test_draw_offers_seed_zero_is_unchanged_by_the_packet_gate():
+    """Pins the exact seed-0 base-pool offer with satellite_dish_unlocked at its
+    default (False) -- a regression guard for the requirement that opening the
+    packet pool must not perturb a draw it does not otherwise touch (verified
+    separately across 500 seeds against the pre-gate code; this pins one of
+    them so a future change that breaks it fails loud)."""
+    g = _game_at_laboratory()
+    g.start_setup()
+    assert g.state.experiment.offered_triggers == (
+        "security_door", "bedrooms_after_second", "red_room_draft")
+    assert g.state.experiment.offered_effects == (
+        "set_steps", "gold_per_red_room", "add_aquariums")
+
+
+def test_packet_pool_never_offered_with_flag_unset():
+    """Across 300 seeds, satellite_dish_unlocked defaulting to False means no
+    offered trigger or effect is ever a packet-pool id -- the packet pool
+    stays completely unreachable until the flag is set."""
+    for seed in range(300):
+        g = _game_at_laboratory(seed=seed, cfg=GameConfig())
+        g.start_setup()
+        ex = g.state.experiment
+        assert not (set(ex.offered_triggers) & _IMPLEMENTED_PACKET_TRIGGERS)
+        assert not (set(ex.offered_effects) & _IMPLEMENTED_PACKET_EFFECTS)
+
+
+def test_packet_pool_is_offered_with_flag_set():
+    """Across 300 seeds, satellite_dish_unlocked=True means at least one setup
+    offers a packet trigger and at least one offers a packet effect -- proves
+    the gate actually opens the pool rather than merely not crashing."""
+    saw_packet_trigger = False
+    saw_packet_effect = False
+    for seed in range(300):
+        g = _game_at_laboratory(seed=seed, cfg=GameConfig(satellite_dish_unlocked=True))
+        g.start_setup()
+        ex = g.state.experiment
+        if set(ex.offered_triggers) & _IMPLEMENTED_PACKET_TRIGGERS:
+            saw_packet_trigger = True
+        if set(ex.offered_effects) & _IMPLEMENTED_PACKET_EFFECTS:
+            saw_packet_effect = True
+    assert saw_packet_trigger
+    assert saw_packet_effect
+
+
+def test_inert_packet_records_are_never_offered_either_way():
+    """Across 300 seeds with the flag both False and True, none of the two
+    inert packet triggers or four inert packet effects is ever offered -- the
+    load-time implemented filter on packet_trigger_ids/packet_effect_ids, not
+    just draw-time luck, is what keeps them out."""
+    for unlocked in (False, True):
+        for seed in range(300):
+            g = _game_at_laboratory(seed=seed, cfg=GameConfig(satellite_dish_unlocked=unlocked))
+            g.start_setup()
+            ex = g.state.experiment
+            assert not (set(ex.offered_triggers) & _INERT_PACKET_IDS)
+            assert not (set(ex.offered_effects) & _INERT_PACKET_IDS)
+
+
+def test_registry_packet_ids_exclude_inert_records():
+    """ExperimentsRegistry.packet_trigger_ids/packet_effect_ids -- the tuples
+    draw_offers appends once the flag is set -- contain exactly the six
+    implemented packet ids and none of the six inert ones, pinning the
+    load-time filter draw_offers relies on directly rather than only through
+    sampling."""
+    reg = Game(GameConfig(), seed=0).registry.experiments
+    assert not (set(reg.packet_trigger_ids) & _INERT_PACKET_IDS)
+    assert not (set(reg.packet_effect_ids) & _INERT_PACKET_IDS)
+    assert set(reg.packet_trigger_ids) == _IMPLEMENTED_PACKET_TRIGGERS
+    assert set(reg.packet_effect_ids) == _IMPLEMENTED_PACKET_EFFECTS
+
+
+def test_packet_trigger_fired_and_packet_effect_chosen_produces_its_outcome():
+    """End to end: configure a packet trigger/effect pair (as if drawn from an
+    opened pool) and drive the real firing path -- entering the Antechamber
+    fires rank9_first_entry, which pays out keys_per_30_steps -- proving the
+    packet subsystem is not just drawable but functionally live once reached."""
+    g = Game(GameConfig(), seed=0)
+    _configure(g, "rank9_first_entry", "keys_per_30_steps")
+    g.state.steps = 65
+    g.state.keys = 0
+    _enter_at(g, ANTECHAMBER_CELL)
+    assert g.state.experiment.success_count == 1
+    assert g.state.keys == 2  # 65 // 30, floored
+
+
+def test_mail_room_letter_offered_before_day_11_with_satellite_dish_unlocked():
+    """mail_room_letter's day_or_packet_gate now honors or_packet: with
+    satellite_dish_unlocked=True, it is offerable even before day 11."""
+    g = Game(GameConfig(veteran_mode=False, day=1, satellite_dish_unlocked=True), seed=0)
+    effect = g.registry.experiments.effect_by_id["mail_room_letter"]
+    assert experiments._effect_offerable(effect, g.cfg, g.state.experiment) is True
+
+
+def test_mail_room_letter_still_gated_before_day_11_without_satellite_dish_unlocked():
+    """Unchanged control: with satellite_dish_unlocked at its default False,
+    mail_room_letter is still excluded before day 11 -- confirms the new
+    or_packet branch does not accidentally always evaluate True."""
+    g = Game(GameConfig(veteran_mode=False, day=1), seed=0)
+    effect = g.registry.experiments.effect_by_id["mail_room_letter"]
+    assert experiments._effect_offerable(effect, g.cfg, g.state.experiment) is False
