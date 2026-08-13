@@ -855,6 +855,146 @@ around 1,800 LOC.
 
 ## Decisions log
 
+- **2026-08-13, THE LUCK MODEL IS BEING REBUILT. Four owner rulings, and the
+  discovery that the sim's luck axis is largely invented.**
+
+  The sim uses a **flat Bernoulli ramp** (`p = luck/29`, rolled
+  `additional_max` times). The game uses a published **item-count ladder**.
+  These are not the same currency and no arithmetic reconciles them.
+
+  **The behavioural delta is not a recalibration -- it inverts the strategic
+  gradient.** E[items] per rolling room, sim vs game:
+
+  | luck | 4 | 10 | 16 | 19 | 23 | 29+ |
+  |---|---|---|---|---|---|---|
+  | sim | .138 | **.345** | .552 | .655 | .793 | 1.000 |
+  | game | .070 | **.250** | .832 | **2.050** | 3.000 | 4.000 |
+
+  At day-start luck 10 the sim is **1.4x too generous** (2.3x once Room 46 is
+  reached). Above luck 19 it is **3-4x too stingy**. **The game's payoff has a
+  cliff at 19; the sim's is a flat line.** A policy stacking luck -- the exact
+  behaviour the Veranda and Rabbit's Foot exist to encourage -- is currently
+  being told the payoff is roughly linear.
+
+  **THE OWNER'S MAID'S CHAMBER RULING IS PROVABLE, NOT A TRUST CALL.** The
+  Dowsing Rod's datamined box says its low-luck branch is reachable *"only ...
+  having 4 Maid's Chambers drafted"*. At **-3**: 4 drafted gives luck -2, +32
+  = 30, never <= 18. At **-7**: -18, +32 = **14** (match), and 3 drafted gives
+  21 (> 18), so four really is the only way. **Only -7 satisfies both halves.**
+  The proof belongs in the test docstring so nobody "simplifies" it back.
+
+  **HIDDEN DEPENDENCY: that ruling also kills the zero-clamp.** -7 x 4 = -28
+  requires `state.luck` to reach **-18**. `effects/tier1.py:198` clamps
+  `anti_luck` at 0 -- while `_grant` 150 lines above it explicitly does not,
+  and its docstring says luck may go negative. **The same file contradicts
+  itself.** Correcting the magnitude without removing the clamp would make the
+  sim wrong in a new way. `env/obs.py`'s `resources` low bound (-1) must widen
+  too -- a **bound change, not a width change**; the vector stays 7 wide.
+  (A latent bug already exists: two `penalty_two_plus_items` procs from 0 reach
+  -2, outside the declared Box.)
+
+  **The rulings:**
+  1. **The Luck Penalty is per-day**, resetting each morning -- a `GameState`
+     field alongside luck. The wiki mentions the Luck Penalty on exactly three
+     pages and **never states its reset scope**; the owner ruled it. This also
+     avoids a real cost: a per-save penalty would have needed a **new carry
+     channel**, because `_CARRYOVER_KEYS` is a frozenset of **bool** fields and
+     cannot hold an int.
+  2. **Delete `penalty_two_plus_items`** -- the sim lowers luck by 1 when a room
+     yields 2+ items. **No such game mechanic exists.** The real mechanic is the
+     Luck Penalty accumulator. Must go in the same PR as the ladder or the two
+     double-count.
+  3. **Rebuild the Veranda and Spare Veranda**, which are wrong in **four ways
+     at once**: +3 (should be +12 first-per-day / +6 later, and +6 for Spare),
+     *stored* (should be per-draft), *unconditional* (should apply only when the
+     drafted room is green), and *on entry* (should be on draft).
+  4. **Staged into three PRs**, not one: PR-A the ladder + penalty + the
+     migration; PR-B the published never-roll list, the
+     `additional_max` -> `item_cap` rename and the per-room transforms; PR-C the
+     Maid's -7 unclamped and the Veranda rebuild. **The reason is review
+     quality**: PR-A's 76 mechanical test edits and PR-C's 10 semantic magnitude
+     changes are different kinds of review, and mixing them is how a wrong
+     magnitude slips through a 27-file diff.
+
+  **THE MIGRATION TAX IS FIXED AND LARGE: 76 occurrences of `state.luck = 0`
+  across 27 test files.** They all break, because **the ladder has no zero
+  point** -- at luck <= 4 it is still 7% for 1 item. The idiom "floor luck to
+  suppress the roll" ceases to exist and needs a replacement helper. That helper
+  needs its own test: if it silently stops suppressing, 27 files go flaky at 7%,
+  which is the vacuous-by-luck failure this repo has recorded four times.
+
+  **`additional_max` is not data -- it is a guess in a Python constant.**
+  `tools/ingest_sheet.py`'s `ADDITIONAL_MAX_DEFAULT` is a per-category default
+  whose own comment reads *"Item Spawns table is Cloudflare-blocked; these are
+  community-informed estimates ... editable in `data/overrides/`"* -- **and
+  `data/overrides/` does not exist.** That reframes the pending
+  `additional_max` task from "fix 12 rooms" to "replace a guessed default table
+  with a published one". Recommended: keep it, renamed **`item_cap`**, as the
+  honest stand-in for the unmodellable spawn-pool cap.
+
+  **A SECOND self-referential test found.** `tests/test_draft_tracking.py:118`
+  recomputes `p_extra` from `registry.item_rules["luck"]` -- the identical dict
+  `items.py` reads. **It passes for any value of `max_effect_at`.** It is the
+  only test of `expected_yields` and it tests nothing. That is the same
+  anti-pattern as `test_draft_stats.py:34`, now found twice.
+
+  **The luck -> item-count axis has NO distributional guard at all.** Not
+  `test_draft_stats.py` (rarity only, zero `luck` references), not
+  `test_draft_items.py` (zero occurrences of "luck" despite the name). **It can
+  be rebuilt with the arithmetic wrong and the suite stays green.** Fourteen
+  named tests are specified; the rule for every one is that **no expectation may
+  be derived by calling the function under test or by reading the same data file
+  the engine reads** -- wiki percentages get hard-coded as literals with the
+  verbatim wiki line as the docstring.
+
+  **Accepted, recorded gap:** the ladder is fully documented but per-room count
+  transforms are documented for **5 rooms out of ~170** (Nook, Study, Guest
+  Bedroom, Den, Lost & Found), while `/Luck` states *"Most rooms don't use the
+  item count given directly"*. **A faithful ladder applied uniformly is still
+  wrong for the other 165 -- just wrong differently than today.** Owner ruled:
+  model the five, record the gap, proceed. Play observation is the only path to
+  the rest.
+
+  **`docs/luck.md` carries eleven false statements**, of which the stale
+  Rabbit's Foot line is the *least* consequential. The load-bearing ones:
+  *"the real curve shape is not documented"* (it is fully documented as a step
+  ladder -- the sim never fetched the box) and *"self-balancing: finding 2+
+  items lowers luck by 1"* (a sim invention). Rewritten in PR-C.
+
+  **`dowsing_rod` lands AFTER the rebuild, as its own PR.** Its table is defined
+  *by reference* to the base ladder ("variable items", "runs the regular
+  non-Dowsing Rod routine", "+2 Luck Penalty") -- building it first means
+  building the ladder twice. Its avoid-list (26 rooms) and the never-roll list
+  (19 rooms) share 15 entries but **neither contains the other**; they are two
+  separately published tables and must stay two data fields.
+
+- **2026-08-13, the Free/Gem Draw step is built -- and five existing tests were
+  passing BECAUSE of the bug it fixed.**
+
+  Slot 1's gem rate (engine indexing) fell **31.79% -> 2.14%** at ranks 1-2,
+  which is what the published table actually specifies there (0% at 0 gems, 2%
+  at rank 1 with 1-3). The old rate was the size-sort artifact. Slot 0 stayed
+  **exactly 0%** across 1776 draws -- the "slot 1 is always free" invariant
+  survived, verified before and after.
+
+  **Three category-bias tests (`schoolhouse`, `scepter green`, `library ->
+  bookshop`) were only ever passing because the bug over-delivered gem rooms at
+  low rank.** Each targets a gem-cost room from a rank/gem setup where the real
+  table gives ~0%. Their *properties* are still true; their *setups* were
+  invalidated. Rebuilt at rank 8-9 / 4+ gems, where the table gives 59.26%.
+  **A test that only passes under a bug is not a test.**
+
+  Two others: an Archives test asserted `steps == steps_before` while coupled to
+  *which* room got dealt (a different room now lands and grants +5 steps) --
+  decoupled rather than reseeded; and a behavioural-cloning fixture used a seed
+  as a scenario *constructor* -- rebuilt to construct the scenario
+  deterministically, because hunting a replacement seed is seed-tuning in
+  disguise and would rot again on the next draft change.
+
+  **A test helper was itself exploiting the bug**: `test_experiments.py`'s
+  `_force_drawing_room_dealable` trimmed the free deck below the gem deck's
+  count so the size-sort would try gem first. It had to be rewritten.
+
 - **2026-08-12, THE FREE/GEM DRAW STEP IS MISSING ENTIRELY. Owner ruled: model
   it fully. This is the largest divergence found this session.**
 
