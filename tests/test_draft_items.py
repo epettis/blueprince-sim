@@ -1,15 +1,19 @@
 """Draft-side special-item behavior: compass unification, paper crown, knight's shield,
-silver key, placement-condition gates from held items, and the Battery Pack's
-deferred Dynamic Rarity flip/toggle.
+silver key, Crown of the Blueprints, placement-condition gates from held
+items, and the Battery Pack's deferred Dynamic Rarity flip/toggle.
 """
 
 from __future__ import annotations
 
 from blueprince_sim.config import GameConfig
 from blueprince_sim.engine import special_items
-from blueprince_sim.engine.game import Game
-from blueprince_sim.engine.grid import N
+from blueprince_sim.engine.draft import COLOUR_CATEGORIES, DraftContext, redeal, room_draftable
+from blueprince_sim.engine.effects.items import crown_of_the_blueprints as cob
+from blueprince_sim.engine.game import Game, Phase, RedrawKind
+from blueprince_sim.engine.grid import N, S
 from blueprince_sim.engine.locks import DOOR_LOCKED, segment_key
+from blueprince_sim.engine.rng import Rng
+from blueprince_sim.engine.state import DraftOption, GameState
 
 
 # ----------------------------------------------------------------------- helpers
@@ -392,3 +396,142 @@ def test_battery_pack_resolution_is_deterministic_for_a_fixed_seed(registry):
         return g.state.special.battery_pack_last_rarity
 
     assert _resolve(7) == _resolve(7)
+# ------------------------------------------------------------- crown of the blueprints
+
+def _force_red_slot0(g: Game, cell: int = 2, direction: int = N):
+    """Open a real doorway (so the pending hand's cell/direction/colour are
+    correctly scoped for a later redeal), then overwrite slot 0 with a known
+    Red Room, deterministically -- no seed-hunting for a hand that happens
+    to contain one. ``pool == "base"`` so the room is an actual deck member
+    (not an upgrade_variant, which only ever gets injected into a deck once
+    its base room is upgraded) -- load-bearing for deck-composition tests."""
+    pending = g.open_door(cell, direction)
+    red = next(r for r in g.registry.rooms
+              if r.is_category("red") and r.rarity is not None and r.pool == "base")
+    pending.options[0] = DraftOption(room_idx=red.idx, orientation=red.door_mask,
+                                     gem_cost=0, slot=0)
+    return pending, red
+
+
+def test_room_draftable_denies_crown_blocked_room_unconditionally(registry, cfg):
+    """A crown-blocked room fails room_draftable even for an ordinary
+    (non-colour-selective) draft -- the base case the colour-exemption test
+    below builds on."""
+    gym = registry.by_id["gymnasium"]  # category=='red' literally, no colour trick needed
+    state = GameState()
+    ctx = DraftContext(state, registry, cfg, Rng(0), set(), None)
+    assert room_draftable(ctx, gym, 12, N, set()), "sanity: unblocked gym must be draftable"
+    state.special.crown_blocked_rooms.append(gym.id)
+    assert not room_draftable(ctx, gym, 12, N, set())
+
+
+def test_room_draftable_denies_crown_blocked_aquarium_under_every_colour(registry, cfg):
+    """Owner ruling 2026-08-12: the Crown's filter has NO colour exemption.
+    The Aquarium normally passes room_draftable's colour gate for all five
+    colours (Room.is_category matches every one); once crown-blocked it must
+    fail for every one of them too -- the wiki's claim that colour-selective
+    drafts (and, by the same mechanism, the Silver Key/Prism Key) stay
+    exempt is what this pins as wrong. This is the assertion the brief flags
+    as most likely to be gotten wrong.
+    """
+    aquarium = registry.by_id["aquarium"]
+    for colour in COLOUR_CATEGORIES:
+        state = GameState()
+        ctx = DraftContext(state, registry, cfg, Rng(0), set(), None, colour=colour)
+        assert room_draftable(ctx, aquarium, 12, N, set()), (
+            f"sanity: unblocked aquarium must be draftable under colour={colour}")
+        state.special.crown_blocked_rooms.append(aquarium.id)
+        assert not room_draftable(ctx, aquarium, 12, N, set()), (
+            f"crown block was not enforced under colour={colour}")
+
+
+def test_crown_blocked_room_never_dealt_across_many_colour_selective_redeals(registry, cfg):
+    """End-to-end version of the ruling-1 guarantee: with the Aquarium
+    crown-blocked, 30 successive colour='red' redeals of the same Secret
+    Passage hand (one fixed seed, not a seed hunt) never include it -- every
+    slot instead falls back to another red-category room or the Closet."""
+    g = Game(cfg, seed=1, registry=registry)
+    secret_passage = registry.by_id["secret_passage"]
+    g._place_room(secret_passage, 7, N | S)
+    g.state.pos = 7
+    g.state.steps = 100
+    g.state.special.crown_blocked_rooms.append("aquarium")
+    g.open_door(7, N)
+    assert g.phase is Phase.COLOUR_PENDING
+    pending = g.choose_colour("red")
+    for _ in range(30):
+        redeal(g.state, g.registry, g.cfg, g.rng, g.placed_ids, pending)
+        dealt_ids = {g.registry.rooms[o.room_idx].id for o in pending.options}
+        assert "aquarium" not in dealt_ids
+
+
+def test_block_offered_gates_on_item_tag_hand_use_and_red_category(registry):
+    """crown_of_the_blueprints.block_offered's four independent gates: the
+    item must be held, its data record must still carry the tag, the
+    filter must not already be spent this hand, and the room must be Red."""
+    state = GameState()
+    gym = registry.by_id["gymnasium"]
+    closet = registry.by_id["closet"]
+    assert not cob.block_offered(state, registry, gym), "no item held"
+    state.inventory[cob.ITEM_ID] = 1
+    assert cob.block_offered(state, registry, gym)
+    assert not cob.block_offered(state, registry, closet), "closet is not a Red Room"
+    state.special.crown_block_used = True
+    assert not cob.block_offered(state, registry, gym), "already spent this hand"
+
+
+def test_crown_block_grants_gem_and_records_the_blocked_room(registry):
+    """Game.crown_block grants exactly 1 gem and appends the drafted room's
+    id to crown_blocked_rooms."""
+    g = _game(registry, items=("crown_of_the_blueprints",), seed=1)
+    g.state.steps = 100
+    pending, red = _force_red_slot0(g)
+    gems_before = g.state.gems
+    assert g.can_crown_block(0)
+    g.crown_block(0)
+    assert g.state.gems == gems_before + 1
+    assert g.state.special.crown_blocked_rooms == [red.id]
+
+
+def test_crown_block_redeals_the_hand_and_never_redeals_the_blocked_room(registry):
+    """crown_block redeals the whole hand (Game.redraw's own path, reused),
+    and -- since the block is recorded before the redeal runs -- the just-
+    blocked room can never reappear in the freshly dealt hand."""
+    g = _game(registry, items=("crown_of_the_blueprints",), seed=2)
+    g.state.steps = 100
+    pending, red = _force_red_slot0(g)
+    g.crown_block(0)
+    assert pending.options, "the redeal must still produce a hand"
+    assert all(g.registry.rooms[o.room_idx].id != red.id for o in pending.options)
+
+
+def test_crown_block_never_removes_a_card_from_any_deck(registry):
+    """Deck sizes (order length, every rarity x free/gem deck) are bit-for-
+    bit identical before and after crown_block -- pinning 'filter, not
+    removal', since a removal would change deck sizes and therefore which
+    rarities rarity_deck_ok allows for the rest of the day."""
+    g = _game(registry, items=("crown_of_the_blueprints",), seed=3)
+    g.state.steps = 100
+    pending, red = _force_red_slot0(g)
+    sizes_before = [d.size() for d in g.state.decks]
+    g.crown_block(0)
+    sizes_after = [d.size() for d in g.state.decks]
+    assert sizes_after == sizes_before, (
+        f"deck sizes changed: {sizes_before} -> {sizes_after}")
+
+
+def test_crown_block_used_blocks_reuse_until_a_new_hand_is_dealt(registry):
+    """The once-per-hand flag, written directly to construct the
+    'already spent this hand' state (the public API always redeals in the
+    same call, so this state is never otherwise externally observable):
+    can_crown_block goes False while set, then True again once a fresh hand
+    is dealt (Game.redraw resets it via the shared _fill_options path)."""
+    g = _game(registry, items=("crown_of_the_blueprints",), seed=4)
+    g.state.steps = 100
+    pending, red = _force_red_slot0(g)
+    assert g.can_crown_block(0)
+    g.state.special.crown_block_used = True
+    assert not g.can_crown_block(0)
+    pending.redraws_left = 1  # a free (Classroom-style) redraw source
+    g.redraw(RedrawKind.FREE)
+    assert not g.state.special.crown_block_used

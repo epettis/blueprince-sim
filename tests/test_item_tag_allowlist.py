@@ -161,13 +161,6 @@ ITEM_TAG_ALLOWLIST: dict[str, set[str]] = {
 #: still listed is *also* a failure, demanding the entry be removed. Every
 #: entry names the item that carries the tag and its meta.blocked_on.
 DEFERRED_UNREAD_TAGS: frozenset[str] = frozenset({
-    # crown_of_the_blueprints item (note: the item id is
-    # "crown_of_the_blueprints", the tag is the shorter "crown_of_blueprints"
-    # -- they are not one of the 13 identical-spelling collisions):
-    # meta.blocked_on=within_day_pool_removal_not_modeled -- effect authored
-    # (removes a room from today's draft pool once seen) but within-day pool
-    # mutation isn't modeled.
-    "crown_of_blueprints",
     # dowsing_rod item: meta.blocked_on=per_slot_luck_boost_not_modeled --
     # effect authored (a per-floorplan-slot luck boost with its own penalty
     # ladder) but per-slot luck isn't modeled; only aggregate luck is.
