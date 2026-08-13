@@ -8,6 +8,7 @@ import pytest
 
 from blueprince_sim.config import GameConfig
 from blueprince_sim.engine import shops, special_items as si
+from blueprince_sim.engine.draft import deal_draft
 from blueprince_sim.engine.game import Game
 from blueprince_sim.engine.grid import N
 from blueprince_sim.env.multiday import DayChain
@@ -151,18 +152,38 @@ DRAFT_FROM = 2   # Entrance Hall (rank 1 center)
 DRAFT_DIR = N
 DRAFT_TARGET = 7  # rank 2 center
 
+# Most green rooms (like most rooms overall) are gem-cost, so the bias needs an
+# ordinary Gem Draw to actually be likely to move the needle -- DRAFT_TARGET
+# above (rank 2, 0 gems by default) is now a datamined ~0% Gem Draw cell (see
+# tests/test_free_gem_draws.py), which is why this collapsed to 0.0000/0.0000
+# once draft.py stopped over-delivering gem rooms at low rank. Dealt instead
+# at the table's high cell (rank 8, 4+ gems -> 59.26%/93.75%) via
+# draft.deal_draft directly, the same way tests/rooms/test_schoolhouse.py's
+# analogous bias test was rebuilt -- do not move this back to DRAFT_TARGET.
+BIAS_FROM_CELL = 32     # rank 7, col 2 (unplaced; from_room resolves to None)
+BIAS_TARGET_CELL = 37   # rank 8, col 2
+BIAS_DIRECTION = N
+BIAS_GEMS = 5            # the "4+ gems" column
+BIAS_DRAFTS_TODAY = 6    # past the first-five-drafts low-gem carve-out
+
 N_SCEPTER_DRAFTS = 200   # 200 seeds * 3 options = 600 samples; 40% bias is detectable
 
 
 def _green_options(game: Game, seed: int, activate_color: str | None) -> tuple[int, int]:
-    """Return (green_count, total_count) across all options dealt in one draft."""
+    """Return (green_count, total_count) across all options dealt in one draft.
+
+    Dealt at BIAS_TARGET_CELL/BIAS_GEMS/BIAS_DRAFTS_TODAY -- see that block's
+    comment for why this is not DRAFT_TARGET."""
     game.reset(seed)
     game.state.steps = 999
+    game.state.gems = BIAS_GEMS
+    game.state.drafts_today = BIAS_DRAFTS_TODAY
     if activate_color is not None:
         # Grant the scepter and activate the color
         si.grant(game.state, game.registry, "royal_scepter", source="test")
         game.state.shops.scepter_color = activate_color
-    pending = game.open_door(DRAFT_FROM, DRAFT_DIR)
+    pending = deal_draft(game.state, game.registry, game.cfg, game.rng, game.placed_ids,
+                         BIAS_FROM_CELL, BIAS_DIRECTION, BIAS_TARGET_CELL)
     green = sum(
         1 for opt in pending.options
         if game.registry.rooms[opt.room_idx].category == "green"
@@ -175,7 +196,12 @@ def test_scepter_green_bias_raises_green_rate():
 
     40% bias chance (inferred from wiki). Over 200 seeds * 3 slots the uplift
     must be visible: require green rate at least 1.5x baseline.
-    """
+
+    Sampled at BIAS_TARGET_CELL (rank 8, 4+ gems): most green rooms are
+    gem-cost, and DRAFT_TARGET's rank-2/0-gems setup is now a datamined ~0%
+    Gem Draw cell, which would starve the bias regardless of whether it still
+    works -- that is correct post-fix behaviour, not something to paper over
+    with a lower threshold."""
     cfg = GameConfig()
     game = Game(cfg, seed=0)
 

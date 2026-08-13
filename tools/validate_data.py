@@ -618,6 +618,36 @@ def main(argv: list[str] | None = None) -> int:
     if any(w < 0 for w in lib_row):
         errors.append(f"library_override has a negative weight: {lib_row}")
 
+    # free_gem_draws (Drafting/Advanced "Free/Gem Draws"): unlike the rarity
+    # tables above, each value here is an independent Gem-vs-Free Bernoulli
+    # chance, not one slice of a 100%-exhaustive row -- so rows are range-
+    # checked (0-100), never sum-checked. slot2_gem_chance is rank x
+    # [0 gems, 1-3 gems, 4+ gems]; slot3_rank_chance is rank -> a single
+    # percentage; slot3_low_gem_chance is one flat percentage (see
+    # draft.py::_resolve_free_gem for how the three combine).
+    fgd = weights["free_gem_draws"]
+    ranks = {str(i) for i in range(1, 10)}
+    slot2 = fgd["slot2_gem_chance"]
+    if set(slot2) != ranks:
+        errors.append("free_gem_draws.slot2_gem_chance: missing ranks")
+    for rank, row in slot2.items():
+        if len(row) != 3:
+            errors.append(f"free_gem_draws.slot2_gem_chance/{rank}: not 3 values")
+        elif any(not 0.0 <= w <= 100.0 for w in row):
+            errors.append(f"free_gem_draws.slot2_gem_chance/{rank}: out of range {row}")
+    low = fgd["slot3_low_gem_chance"]
+    if not 0.0 <= low <= 100.0:
+        errors.append(f"free_gem_draws.slot3_low_gem_chance out of range: {low}")
+    rank3 = fgd["slot3_rank_chance"]
+    if set(rank3) != ranks:
+        errors.append("free_gem_draws.slot3_rank_chance: missing ranks")
+    for rank, p in rank3.items():
+        if not 0.0 <= p <= 100.0:
+            errors.append(f"free_gem_draws.slot3_rank_chance/{rank} out of range: {p}")
+    conf = fgd.get("meta", {}).get("confidence")
+    if conf not in VALID_CONFIDENCE:
+        errors.append(f"free_gem_draws.meta: bad confidence {conf}")
+
     # priority draws reference real rooms; an optional "condition" tag must be
     # one _active_conditions can actually emit -- reuse category_biases' own
     # condition values as that vocabulary, plus KNOWN_PRIORITY_DRAW_ONLY_CONDITIONS

@@ -103,6 +103,30 @@
     "gem_gate_condition": "veteran_or_room46_or_day16",
     "meta": { "confidence": "wiki", "source": "blueprince.wiki.gg/wiki/Drafting/Advanced (TFMurphy prose, not in the sheet)" }
   },
+  "free_gem_draws": {
+    "slot2_gem_chance": {
+      "1": [0.0, 2.0, 3.0],
+      "2": [0.0, 6.9, 3.0],
+      "3": [0.0, 6.9, 22.4],
+      "4": [6.0, 6.9, 22.4],
+      "5": [6.0, 16.21, 41.8],
+      "6": [15.4, 16.21, 41.8],
+      "7": [15.4, 16.21, 59.26],
+      "8": [32.32, 41.347, 59.26],
+      "9": [32.32, 41.347, 59.26]
+    },
+    "slot3_low_gem_chance": 20.0,
+    "slot3_rank_chance": {
+      "1": 75.0, "2": 75.0, "3": 75.0, "4": 75.0,
+      "5": 87.5, "6": 87.5,
+      "7": 93.75, "8": 93.75, "9": 93.75
+    },
+    "meta": {
+      "confidence": "datamined",
+      "source": "blueprince.wiki.gg/wiki/Drafting/Advanced#Free.2FGem_Draws (fetched 2026-08-12)",
+      "notes": "Values are percentages. slot2_gem_chance rows are rank 1-9; each row is [0 gems, 1-3 gems, 4+ gems] -- the chance Slot 2 (this engine's slot index 1) becomes a Gem Draw. If that roll succeeds, Slot 3 (engine slot index 2) is ALSO a Gem Draw (rolled once per round, not once per slot). Otherwise Slot 3 gets its own chance: slot3_low_gem_chance (20%) applies both to the first two drafts of the day with 2+ gems held, and to drafts 3-5 with 0-1 gems held (the wiki states these as two separate 20% cases, not a single reusable rule, but the number is identical so one field covers both); slot3_rank_chance applies to drafts 3-5 with 2+ gems and to every draft after the fifth, keyed by rank (7-9/5-6/1-4 bands, expanded to one entry per rank here to match this file's per-rank table shape). The wiki's day 1-3 early-draft carve-out (Veteran Mode: first 2 drafts always Free; otherwise first (6-Day) drafts) and the 'third round or later this draft' Slot 3 override are formulas/thresholds, not tabulated numbers, so they live in draft.py::_resolve_free_gem rather than here -- consistent with deck_size_gates.gem_gate_condition above being a code-side tag rather than a duplicated formula."
+    }
+  },
   "meta": {
     "source": "TFMurphy decompiled sheet v1.3, docs.google.com/spreadsheets/d/1DGozAX_yHmQqAvrWBegxNg5b92d5zigtPOshj_7FoZ8 (extracted 2026-07-20)",
     "confidence": "datamined",

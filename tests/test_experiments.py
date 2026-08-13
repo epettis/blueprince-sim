@@ -28,15 +28,16 @@ security-door state).
 
 drawing_room_drawn's own tests need a real Drawing Room in a real dealt
 hand -- rewriting a deck's ``order`` alone is not enough, since the "rarity"
-roll that picks which deck a slot draws from runs first and is not itself
-seed-searchable in one step. ``_force_drawing_room_dealable`` instead forces
-that roll to always pick commonplace (the Drawing Room's own rarity) via
-``monkeypatch``, then reorders the two commonplace decks so the deal reaches
-the Drawing Room's own gem-deck card without ever emptying a deck outright
-(an emptied deck triggers draw_slot's attempt-3 full reshuffle, which would
-scramble the surgery). This drives the real open_door/redraw/open_outer_draft
-pipeline end to end rather than constructing a hand by hand, so it also
-exercises the deal-site plumbing the trigger depends on.
+roll and the once-per-round Free/Gem Draw roll that together pick which deck
+a slot draws from both run first and are not themselves seed-searchable in
+one step. ``_force_drawing_room_dealable`` instead forces the "rarity" roll
+to always pick commonplace (the Drawing Room's own rarity) and the
+"free_gem_slot2" roll to always hit (Drawing Room is gem-cost 1, so it only
+ever lives in the gem deck) via ``monkeypatch``, then swaps the Drawing
+Room's card to the gem deck's cursor position. This drives the real
+open_door/redraw/open_outer_draft pipeline end to end rather than
+constructing a hand by hand, so it also exercises the deal-site plumbing the
+trigger depends on.
 """
 
 from __future__ import annotations
@@ -109,27 +110,34 @@ def _force_drawing_room_dealable(monkeypatch, game: Game) -> None:
     """Rig ``game`` so the next 3-slot fill (initial deal or redraw) deals the Drawing Room.
 
     Forces every "rarity" roll to commonplace (the Drawing Room's own
-    rarity), then reorders the commonplace decks so a slot's deal reaches the
-    Drawing Room's own gem-deck card (gem_cost 1, so it lives in the gem
-    deck) ahead of the free deck: trims the free deck's remaining cards below
-    the gem deck's remaining count (never to zero -- an empty deck triggers a
-    full reshuffle that would undo the ordering below) so draw_slot's
-    remaining-count sort tries the gem deck first, then swaps the Drawing
-    Room's card to the gem deck's cursor position. Leaves slot 0 (which only
-    ever draws from the free deck) untouched, so it still deals normally.
+    rarity) and the round's once-per-round "free_gem_slot2" Free/Gem Draw
+    roll (draft.py::_resolve_free_gem) to hit, then swaps the Drawing Room's
+    card to the gem deck's cursor position -- Drawing Room has gem_cost 1, so
+    it only ever lives in the gem deck, and a hit on "free_gem_slot2" makes
+    BOTH engine slot 1 and slot 2 Gem Draws (the wiki's "If this chance
+    succeeds, both Slot 2 and Slot 3 become Gem Draws"). Every other named
+    chance/weighted roll (priority draws, Foundation, category bias, ...)
+    keeps using real RNG, so nothing else about the hand is disturbed. Leaves
+    slot 0 (always free-only, per the wiki, and untouched by this force)
+    dealing normally.
     """
     orig_roll_weighted = Rng.roll_weighted
+    orig_chance = Rng.chance
 
-    def forced(self, label, weights):
+    def forced_weighted(self, label, weights):
         if label == "rarity":
             return 0  # commonplace
         return orig_roll_weighted(self, label, weights)
 
-    monkeypatch.setattr(Rng, "roll_weighted", forced)
+    def forced_chance(self, label, p):
+        if label == "free_gem_slot2":
+            return True
+        return orig_chance(self, label, p)
+
+    monkeypatch.setattr(Rng, "roll_weighted", forced_weighted)
+    monkeypatch.setattr(Rng, "chance", forced_chance)
     dr = game.registry.by_id["drawing_room"]
-    free_deck = game.state.deck(dr.rarity_idx, False)
     gem_deck = game.state.deck(dr.rarity_idx, True)
-    del free_deck.order[free_deck.pos + 5:]
     i, pos = gem_deck.order.index(dr.idx), gem_deck.pos
     gem_deck.order[i], gem_deck.order[pos] = gem_deck.order[pos], gem_deck.order[i]
 

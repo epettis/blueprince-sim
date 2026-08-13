@@ -202,18 +202,40 @@ def _neuter_bookshop_bias(registry: Registry) -> Registry:
     return neutered
 
 
+# Bookshop is gem-cost 1 (rare rarity, deck_copies=1): the bias can only ever
+# surface it through a Gem Draw, so the ordinary Gem Draw chance at the
+# sampled rank/gem combo has to be genuinely high. TARGET_CELL (rank 3, 0
+# gems by default) is now a datamined ~0% Gem Draw cell (see
+# tests/test_free_gem_draws.py's slot2_gem_chance table), which starved this
+# test regardless of whether the bias still works -- that is the CORRECT
+# post-fix behaviour, not a bug to route around with a looser threshold.
+# Sample instead at the table's high cell (rank 8, 4+ gems -> 59.26%/93.75%),
+# with the Library still placed at the FROM cell so drafting_from_library
+# keeps firing. Do not move this back to TARGET_CELL/rank 3.
+BOOKSHOP_FROM_CELL = 32     # rank 7, col 2
+BOOKSHOP_TARGET_CELL = 37   # rank 8, col 2
+BOOKSHOP_DIRECTION = S
+BOOKSHOP_GEMS = 5            # the "4+ gems" column
+BOOKSHOP_DRAFTS_TODAY = 6    # past the first-five-drafts low-gem carve-out
+
+
 def _sample_bookshop_rate(registry: Registry, cfg: GameConfig, n_seeds: int) -> tuple[int, int]:
     """Deal N independent single-hand drafts FROM the Library; return
-    (hands_with_bookshop, total_hands)."""
+    (hands_with_bookshop, total_hands).
+
+    Dealt at BOOKSHOP_TARGET_CELL/BOOKSHOP_GEMS/BOOKSHOP_DRAFTS_TODAY, not
+    TARGET_CELL -- see that block's comment."""
     library = registry.by_id["library"]
     hits = 0
     for seed in range(n_seeds):
         rng = Rng(seed)
         state = GameState()
         state.decks = build_decks(registry, cfg, rng)
-        state.grid[FROM_CELL] = library.idx
+        state.grid[BOOKSHOP_FROM_CELL] = library.idx
+        state.gems = BOOKSHOP_GEMS
+        state.drafts_today = BOOKSHOP_DRAFTS_TODAY
         pending = deal_draft(state, registry, cfg, rng, {"library"},
-                             FROM_CELL, DIRECTION, TARGET_CELL)
+                             BOOKSHOP_FROM_CELL, BOOKSHOP_DIRECTION, BOOKSHOP_TARGET_CELL)
         if any(registry.rooms[opt.room_idx].id == "bookshop" for opt in pending.options):
             hits += 1
     return hits, n_seeds
@@ -223,7 +245,12 @@ def test_drafting_from_library_bookshop_bias_applies(registry):
     """Drafting from the Library raises the rate Bookshop appears in the dealt
     hand versus an identical draft with only the Bookshop-bias entry removed
     (2000 seeds each) -- isolates the live entry's real effect on the draft
-    path, not just its presence in _active_conditions."""
+    path, not just its presence in _active_conditions.
+
+    Sampled at BOOKSHOP_TARGET_CELL (rank 8, 4+ gems): Bookshop is gem-cost,
+    and the module's ordinary TARGET_CELL (rank 3, 0 gems) is now a
+    datamined ~0% Gem Draw cell, which would starve this test regardless of
+    whether the bias still works."""
     cfg = GameConfig()
     neutered = _neuter_bookshop_bias(registry)
 

@@ -140,6 +140,15 @@ class PendingDraft:
     # across redraws of this same hand so a redraw stays locked to the chosen colour;
     # None for an ordinary (non-colour-selective) hand.
     colour: str | None = None
+    # 1-indexed round counter for THIS draft (wiki: "a 'round' is the set of
+    # three draws that get presented at once ... a 'draft' ... [is] made up of
+    # one or more rounds"). The initial deal is round 1; draft.py::redeal bumps
+    # it before re-filling, so a redraw (Study/Classroom/dice/Crown block) is
+    # round 2, a second redraw round 3, etc. Unlike rotations_used above, this
+    # does NOT reset on redraw -- it must keep climbing across the whole draft
+    # for draft.py::_resolve_free_gem's "third round or later this draft"
+    # Slot 3 Gem Draw rule (Drafting/Advanced) to ever fire.
+    round_num: int = 1
 
 
 @dataclass(slots=True)
@@ -186,6 +195,17 @@ class GameState:
 
     day: int = 20  # in-game day, copied from GameConfig at reset
     stage: str = "late"  # rarity-table stage (week1|week2|late) resolved from day
+    # 1-indexed count of doorway drafts DEALT so far today (draft.py::deal_draft
+    # increments this before dealing, so the hand being dealt sees its own
+    # number). Distinct from draft_counts below: that dict is cumulative
+    # per-room PLACEMENT counts across the whole attempt, never resets, and
+    # says nothing about how many drafts have happened today. A redraw
+    # (draft.py::redeal) does NOT bump this -- it is a new round of the SAME
+    # draft, not a new draft (see PendingDraft.round_num). Read by
+    # draft.py::_resolve_free_gem for the wiki's Free/Gem Draws "first N
+    # drafts" rules (Drafting/Advanced). Per-day only: a fresh GameState
+    # resets it to 0 every day like garage_forced_draw_succeeded below.
+    drafts_today: int = 0
 
     # decks: index = rarity_idx * 2 + (0 free | 1 gem)
     decks: list[DeckState] = field(default_factory=list)
