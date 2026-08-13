@@ -37,7 +37,7 @@ from pathlib import Path
 
 import numpy as np
 
-from ..config import GameConfig
+from ..config import GameConfig, config_digest
 from ..engine.game import Phase
 
 
@@ -96,6 +96,26 @@ class UnstampedDemoError(DemoError):
     replayed -- refused loudly, same precedent as :class:`StaleDemoError`
     refusing a record with a mismatched ``n_actions`` rather than replaying
     it as if the ids still meant the same thing.
+    """
+
+
+class ConfigDigestError(DemoError):
+    """A demo record has no ``"config_digest"`` field, or it doesn't match
+    the reconstructed ``GameConfig``.
+
+    ``config_digest`` (:func:`config.config_digest`) is a stable hash of
+    every non-default ``GameConfig`` field, stamped by every producer
+    (``PlaySession._close_day``, ``EpisodeRecorder.on_episode_end``,
+    ``synthetic_demo_records``) at record time. Replaying under the wrong
+    ``unlocks``/``day_config`` usually completes with no illegal action at
+    all -- :class:`ReplayDivergenceError` only fires on the minority of
+    trajectories where the wrong config happens to make some recorded action
+    illegal -- so most wrong reconstructions would otherwise produce a full
+    set of (observation, action) triples that silently carry the wrong
+    observation from step 0 onward. Comparing digests catches that
+    unconditionally, at reconstruction time, instead of hoping the replay
+    goes visibly wrong. A missing digest predates the field and is refused
+    outright, same precedent as :class:`UnstampedDemoError`.
     """
 
 
@@ -232,13 +252,36 @@ def config_for_record(record: dict) -> GameConfig:
     :func:`_record_unlocks`), using its own ``reward`` name (mirrors
     ``web/replay.py``'s per-record reconstruction), then layers ``day_config``
     on top when present.
+
+    This is the single choke point where a record's config is reconstructed,
+    so it is also where the reconstruction is verified: raises
+    :class:`ConfigDigestError` if ``"config_digest"`` is missing, or if it
+    doesn't match ``config_digest`` of the config just built -- see that
+    class's docstring for why this check exists here and nowhere else.
     """
     from .train import all_unlocks_config, fresh_save_config  # local: avoid import cycle noise
 
     reward = record.get("reward", "shaped")
     base_cfg = (fresh_save_config(reward) if _record_unlocks(record) == "fresh"
                 else all_unlocks_config(reward))
-    return _apply_day_config_diff(base_cfg, record.get("day_config"))
+    cfg = _apply_day_config_diff(base_cfg, record.get("day_config"))
+    if "config_digest" not in record:
+        raise ConfigDigestError(
+            f"demo (episode={record.get('episode')}, seed={record.get('seed')}, "
+            f"unlocks={record.get('unlocks')!r}) has no 'config_digest' stamp -- it "
+            "predates the field and cannot be safely verified; guessing the "
+            "reconstructed config is correct is exactly what config_digest exists "
+            "to avoid")
+    actual_digest = config_digest(cfg)
+    recorded_digest = record["config_digest"]
+    if actual_digest != recorded_digest:
+        raise ConfigDigestError(
+            f"demo (episode={record.get('episode')}, seed={record.get('seed')}, "
+            f"unlocks={record.get('unlocks')!r}) reconstructed a GameConfig with "
+            f"digest {actual_digest!r}, but the record was stamped with digest "
+            f"{recorded_digest!r} -- the reconstructed config does not match what "
+            "actually produced this recording")
+    return cfg
 
 
 def replay_demo(record: dict) -> list[tuple[dict, int, np.ndarray]]:
@@ -316,10 +359,10 @@ def synthetic_demo_records(unlocks: str, reward: str, n_days: int, seed: int,
     """Generate ``n_days`` of demo records with a seeded uniform-random masked policy.
 
     Used to build BC fixtures without a human in the loop or checked-in
-    binary data: no real demos.jsonl exists anywhere in the repo yet (the
-    Play tab that records them shipped, but nobody has played and saved a
-    session), so this is what develops and tests against until one does.
-    Written in the exact schema ``PlaySession._close_day`` and
+    binary data: real demo files exist only under the gitignored ``runs/``
+    tree (e.g. ``runs/postfix-v2/demos.jsonl`` from a played session), never
+    in the repo itself, so this is what the test suite develops and tests
+    against. Written in the exact schema ``PlaySession._close_day`` and
     ``EpisodeRecorder.on_episode_end`` produce (``why`` is ``"synthetic"``
     rather than ``"human"``/``"random"``/``"top_window"``, the one
     intentional difference).
@@ -367,6 +410,7 @@ def synthetic_demo_records(unlocks: str, reward: str, n_days: int, seed: int,
                 "n_actions": A.N_ACTIONS,
                 "why": "synthetic",
                 "unlocks": unlocks,
+                "config_digest": info["config_digest"],
             }
             day_config = info.get("day_config")
             if day_config is not None:

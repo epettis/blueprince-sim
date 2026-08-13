@@ -36,6 +36,7 @@ def _play_day_with_chain(chain: DayChain, seed: int) -> tuple[dict, dict]:
     env = BluePrinceEnv(cfg=chain.base_cfg, day_chain=chain)
     _, info = env.reset(seed=seed)
     day_config = info.get("day_config", {})
+    digest = info["config_digest"]
     rng = random.Random(seed ^ 0xABCD)
     actions = []
     done = False
@@ -56,6 +57,7 @@ def _play_day_with_chain(chain: DayChain, seed: int) -> tuple[dict, dict]:
         "rooms_placed": info["rooms_placed"],
         "reason": info["termination_reason"],
         "day_config": day_config,
+        "config_digest": digest,
     }
     live_outcome = dict(info)
     live_outcome["grid"] = list(env.game.state.grid)
