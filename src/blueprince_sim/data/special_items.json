@@ -347,9 +347,9 @@
     "source": "https://blueprince.wiki.gg/wiki/Magnifying_Glass",
     "confidence": "wiki",
     "absent_spawn_areas": [],
-    "blocked_on": "no_effect_in_scope_component_only",
+    "wont_implement": "puzzle-only effect; the sim has no document or lore layer and will not gain one",
     "reachability": "inert",
-    "notes": "Genuinely and permanently out of scope: the sim has no document/lore layer and there should not be one (no code anywhere in engine/ reads 'lore' or 'document' text). Its component role is built: the metal_detector + magnifying_glass -> burning_glass fabrication recipe exists. The slug says 'will never be built', not 'not built yet'."
+    "notes": "DECIDED never to build, not blocked. Its own effect reveals hidden text in documents, and this simulator has no document or lore layer -- nothing in engine/ reads lore or document text, and the assumed-solved doctrine means a puzzle a player enters is already solved. Its COMPONENT role is built and load-bearing: metal_detector + magnifying_glass -> burning_glass is the burning glass's ONLY source, and the burning glass is one of the two ignition tools, so this item keeps spawning in its 16 rooms."
    }
   },
   {
@@ -2189,9 +2189,9 @@
     "absent_spawn_areas": [
      "unknown_underground"
     ],
-    "blocked_on": "treasure_trove_black_box_not_modeled",
+    "wont_implement": "castling-puzzle prize; no RL policy will learn the puzzle, and its payoff is already granted",
     "reachability": "absent",
-    "notes": "The old slug was false and self-inconsistent: 'precipice' IS a node in areas.json, reachable by two routes (grounds->precipice via cliffside_elevator_down, and mine_south->precipice via candlestick_stairway_lit), while this same record's absent_spawn_areas was already corrected to 'unknown_underground' -- yet blocked_on was left saying 'precipice'. Worth ~0 today regardless: config.py:114 sets royal_scepter_found: bool = True by default, so the item's entire payoff is already granted without it. Nothing in engine/ references key_of_aries (grep confirms zero hits outside this record) -- absent from spawn_rooms, guaranteed_in, Lost & Found, fabrication, dig, containers, packages and every shop; the only way to hold it is injecting GameConfig.starting_items, a test backdoor, not play."
+    "notes": "DECIDED never to build, not blocked. It is the prize of the clock/castling puzzle in the Unknown, which no RL policy will learn to solve. Its payoff is already granted anyway: config.py sets royal_scepter_found True by default, deliberately, so the scepter is exercised as a game mechanic without the unlock chain. Genuinely absent -- no spawn room, no guaranteed source, and reachable only by injecting it through GameConfig.starting_items, which is a test backdoor rather than play."
    }
   },
   {
