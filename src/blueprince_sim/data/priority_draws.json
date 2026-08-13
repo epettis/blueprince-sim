@@ -1,6 +1,6 @@
 {
  "schema_version": 1,
- "comment": "Three mechanisms. 'priority_draws': chance to force a specific room (or one of a named set) into slot 3 whenever it is draftable. 'forced_draws': a DIFFERENT mechanic (wiki.gg/Drafting/Advanced) -- once per day, the first time a doorway is opened where a listed room's own draft conditions + a gate are met, roll a very-high chance to push that specific room into slot 3; on success it is unavailable for the rest of the day even if the placement itself then fails (e.g. the room already occupies an earlier slot of the same hand). 'category_biases': conditional biases that force a category re-deal with the given chance while their condition holds (King's Chess Piece variants, constellations, room auras). Chances are fractions.",
+ "comment": "Three mechanisms. 'priority_draws': chance to force a specific room into slot 3 whenever it is draftable, once per slot-3 attempt -- targeted either by an explicit 'rooms' list (a named set) or by a 'category' selector resolved at draw time to every room carrying that category (draft.py::_priority_draw). 'forced_draws': a DIFFERENT mechanic (wiki.gg/Drafting/Advanced) -- once per day, the first time a doorway is opened where a listed room's own draft conditions + a gate are met, roll a very-high chance to push that specific room into slot 3; on success it is unavailable for the rest of the day even if the placement itself then fails (e.g. the room already occupies an earlier slot of the same hand). 'category_biases': conditional biases that force a category re-deal with the given chance while their condition holds, on every slot it is rolled for (King's Chess Piece variants, constellations, room auras). Chances are fractions.",
  "priority_draws": [
   {
    "rooms": [
@@ -65,6 +65,18 @@
    "meta": {
     "confidence": "wiki",
     "source": "blueprince.wiki.gg/wiki/Experiments/Effects DataSpoiler on add_aquariums: same source as add_aquariums_13; this is the independent second (3%) chance, not a combined figure."
+   }
+  },
+  {
+   "rooms": [],
+   "category": "tomorrow",
+   "label": "Tomorrow Rooms (Chronograph)",
+   "chance": 0.4,
+   "condition": "chronograph",
+   "meta": {
+    "confidence": "datamined",
+    "source": "sheet constants: 'Chronograph 40% Tomorrow Rooms'; blueprince.wiki.gg/wiki/Chronograph datamined box: 'This is a Priority Draw (40% for all Tomorrow Rooms)'.",
+    "notes": "Live: condition 'chronograph' is emitted by _active_conditions while a Chronograph is held (special_items.json effect tag 'chronograph', checked via chronograph_active_from_state). 'category' resolves at draw time to every room whose category is 'tomorrow' (draft.py::_priority_draw, matching Room.is_category rather than a hand-typed room list, so a future Tomorrow-room addition is picked up automatically) -- Clock Tower, Coat Check, Freezer, Mail Room plus its three upgrades, Morning Room, Planetarium, Sauna, the Hallway's Tomorrow upgrade, and the Break Room. The item's other effect, rewinding a redraw, is separate and still unmodelled."
    }
   }
  ],
@@ -216,17 +228,6 @@
    "category_extra_rooms": [
     "rotunda"
    ]
-  },
-  {
-   "category": "tomorrow",
-   "chance": 0.4,
-   "condition": "chronograph",
-   "label": "Tomorrow Rooms (Chronograph)",
-   "meta": {
-    "confidence": "datamined",
-    "source": "sheet constants: 'Chronograph 40% Tomorrow Rooms'; wiki.gg/Drafting/Advanced",
-    "notes": "Still inert, but no longer for a category reason: 'tomorrow' now matches the twelve Tomorrow rooms typed via rooms.json extra_categories (Clock Tower, Coat Check, Freezer, Mail Room plus its three upgrades, Morning Room, Planetarium, Sauna, the Hallway's Tomorrow upgrade, and the Break Room). Live: condition 'chronograph' is emitted by _active_conditions while a Chronograph is held (special_items.json effect tag 'chronograph', checked via chronograph_active_from_state). The item's other effect, rewinding a redraw, is separate and still unmodelled."
-   }
   },
   {
    "rooms": [

@@ -14,6 +14,14 @@ condition is emitted while the item is held (inventory-based, like Compass),
 and the category resolves as a union of Room.is_category("mechanical") plus
 the Rotunda by id (see draft.py's _category_matches, which reads the
 bias record's own category_base/category_extra_rooms).
+
+The Chronograph's Tomorrow-Rooms bias is NOT a category_biases entry (that
+mechanism re-deals every slot, which measured ~3x too strong against the
+wiki's datamined box: "This is a Priority Draw (40% for all Tomorrow
+Rooms)"). It lives in priority_draws instead, fires only at slot 3
+(draft.py's slot index 2), and targets its rooms via a "category" selector
+resolved at draw time rather than a hand-typed id list -- see draft.py's
+_priority_draw.
 """
 
 from __future__ import annotations
@@ -27,12 +35,13 @@ from blueprince_sim.engine.draft import (
     DraftContext,
     _active_conditions,
     _category_matches,
+    _priority_draw,
     deal_draft,
 )
 from blueprince_sim.engine.grid import S
 from blueprince_sim.engine.model import Registry
 from blueprince_sim.engine.rng import Rng
-from blueprince_sim.engine.state import GameState
+from blueprince_sim.engine.state import DeckState, GameState
 
 # A lone interior target cell (rank 3, col 2) reached by moving south from
 # rank 2, col 2 -- comfortably away from grid edges so 4-way (cross) rooms are
@@ -315,13 +324,20 @@ def test_chronograph_absent_by_default_present_when_held(registry):
 
 
 def test_chronograph_bias_entry_targets_tomorrow_rooms_at_the_published_rate(registry):
-    """The Chronograph's priority-draw row biases the "tomorrow" category at the
-    datamined 40%. Pinned because the row was authored long before anything
-    emitted its condition, so the rate is the half a reader cannot verify."""
-    entry = next(e for e in registry.priority["category_biases"]
+    """The Chronograph's row lives in priority_draws (a genuine slot-3-only
+    Priority Draw, per the wiki's datamined box: "This is a Priority Draw
+    (40% for all Tomorrow Rooms)"), not category_biases (a per-slot re-deal) --
+    it must NOT reappear under category_biases, which would silently restore
+    the ~3x-too-strong per-slot bias this row replaced. Pinned because the row
+    was authored long before anything emitted its condition, so the rate is
+    the half a reader cannot verify."""
+    entry = next(e for e in registry.priority["priority_draws"]
                  if e.get("condition") == "chronograph")
     assert entry["category"] == "tomorrow"
     assert entry["chance"] == 0.4
+
+    assert not any(e.get("condition") == "chronograph"
+                   for e in registry.priority["category_biases"])
 
     matched = {r.id for r in registry.rooms if r.is_category("tomorrow")}
     assert "clock_tower" in matched and "freezer" in matched
@@ -438,3 +454,126 @@ def test_electromagnet_absent_leaves_ordinary_draft_untouched(registry):
         rooms_a = [opt.room_idx for opt in pending_a.options]
         rooms_b = [opt.room_idx for opt in pending_b.options]
         assert rooms_a == rooms_b, f"seed {seed}: draw diverged with the bias entry removed"
+
+
+# ---------------------------------------------------- Chronograph (priority draw)
+
+CHRONOGRAPH_TRIALS = 20_000
+CHRONOGRAPH_ALPHA = 1e-3
+
+# freezer: pool "base" (so it is always a priority-draw candidate regardless of
+# deck contents -- see draft.py's _priority_draw candidate filter) and has no
+# draft_conditions, so it is unconditionally draftable at TARGET_CELL. Used to
+# guarantee a real Tomorrow-category room is always available, isolating the
+# roll itself from candidate-availability noise (most of the 12 "tomorrow"
+# rooms are studio_addition/upgrade_variant/pool_temp and are NOT normally
+# draftable at all -- sampling a full hand instead would measure a rate
+# suppressed well below 40% by that unrelated availability gate, not the
+# roll chance this guard targets).
+GUARANTEED_TOMORROW_ROOM_ID = "freezer"
+
+
+def _isolated_chronograph_registry(registry: Registry) -> Registry:
+    """A copy of ``registry`` whose priority_draws list holds ONLY the
+    Chronograph's Tomorrow-Rooms row, isolating its roll from the other
+    unconditional priority_draws entries (Patio group, Commissary/Observatory,
+    Classroom) that would otherwise sometimes fire first and return before the
+    Chronograph entry is even reached."""
+    import copy
+
+    isolated = copy.copy(registry)
+    priority = copy.deepcopy(registry.priority)
+    priority["priority_draws"] = [
+        e for e in priority["priority_draws"] if e.get("condition") == "chronograph"
+    ]
+    object.__setattr__(isolated, "priority", priority)
+    return isolated
+
+
+def _chronograph_ctx(registry: Registry, cfg: GameConfig, seed: int,
+                     held: bool) -> DraftContext:
+    """A bare DraftContext with empty decks (freezer's "base" pool makes deck
+    contents irrelevant to its own candidacy -- see GUARANTEED_TOMORROW_ROOM_ID)."""
+    state = GameState()
+    state.decks = [DeckState() for _ in range(8)]
+    if held:
+        state.inventory["chronograph"] = 1
+    return DraftContext(state, registry, cfg, Rng(seed), set(), None)
+
+
+@pytest.fixture(scope="module")
+def chronograph_priority_draw_hits(registry) -> int:
+    """Count of CHRONOGRAPH_TRIALS independent ``_priority_draw`` calls (fresh
+    seed each) that returned the guaranteed Tomorrow room, item held throughout.
+    Computed once and shared by the tests below (module-scoped: expensive
+    sampling)."""
+    cfg = GameConfig()
+    isolated = _isolated_chronograph_registry(registry)
+    hits = 0
+    for seed in range(CHRONOGRAPH_TRIALS):
+        ctx = _chronograph_ctx(isolated, cfg, seed, held=True)
+        room = _priority_draw(ctx, TARGET_CELL, DIRECTION, set())
+        if room is not None:
+            assert room.id == GUARANTEED_TOMORROW_ROOM_ID or room.is_category("tomorrow")
+            hits += 1
+    return hits
+
+
+def test_chronograph_priority_draw_fires_at_the_published_rate(
+    chronograph_priority_draw_hits,
+):
+    """With the Chronograph held, _priority_draw's roll for the Tomorrow Rooms
+    row succeeds at the wiki's datamined 40% ("This is a Priority Draw (40%
+    for all Tomorrow Rooms)") -- checked directly against a literal 0.4, not
+    against entry["chance"] or any other value read from priority_draws.json,
+    so a data-file typo cannot silently validate itself. This is the guard
+    the ~3x-too-strong per-slot category_biases mechanism would have failed
+    (it fired on every slot at 40% each, not once at 40% total)."""
+    result = stats.binomtest(chronograph_priority_draw_hits, CHRONOGRAPH_TRIALS, 0.4)
+    assert result.pvalue > CHRONOGRAPH_ALPHA, (
+        f"observed {chronograph_priority_draw_hits}/{CHRONOGRAPH_TRIALS} "
+        f"({chronograph_priority_draw_hits / CHRONOGRAPH_TRIALS:.4f}) vs published 0.4, "
+        f"p={result.pvalue:.2e}"
+    )
+
+
+def test_chronograph_priority_draw_never_fires_without_the_item(registry):
+    """With the Chronograph NOT held, _priority_draw's condition gate skips the
+    Tomorrow Rooms row before it ever rolls -- across many seeds it must never
+    return the guaranteed Tomorrow room, proving the bias is truly
+    condition-gated and not just weighted low."""
+    cfg = GameConfig()
+    isolated = _isolated_chronograph_registry(registry)
+    for seed in range(500):
+        ctx = _chronograph_ctx(isolated, cfg, seed, held=False)
+        room = _priority_draw(ctx, TARGET_CELL, DIRECTION, set())
+        assert room is None, f"seed {seed}: fired without the Chronograph held"
+
+
+def test_chronograph_does_not_bias_slots_0_and_1(registry):
+    """With the Chronograph held, a full three-slot hand's slot-0 and slot-1
+    options are byte-for-byte identical (room, orientation, gem cost) to the
+    same seed dealt without it -- proving the bias is confined to slot 3
+    (draft.py only calls _priority_draw when slot == 2), unlike the old
+    category_biases mechanism this replaced, which re-rolled every slot."""
+    cfg = GameConfig()
+    for seed in range(300):
+        rng_a = Rng(seed)
+        state_a = GameState()
+        state_a.decks = build_decks(registry, cfg, rng_a)
+        state_a.inventory["chronograph"] = 1
+        pending_a = deal_draft(state_a, registry, cfg, rng_a, set(),
+                               FROM_CELL, DIRECTION, TARGET_CELL)
+
+        rng_b = Rng(seed)
+        state_b = GameState()
+        state_b.decks = build_decks(registry, cfg, rng_b)
+        pending_b = deal_draft(state_b, registry, cfg, rng_b, set(),
+                               FROM_CELL, DIRECTION, TARGET_CELL)
+
+        for slot in (0, 1):
+            opt_a = next((o for o in pending_a.options if o.slot == slot), None)
+            opt_b = next((o for o in pending_b.options if o.slot == slot), None)
+            key_a = None if opt_a is None else (opt_a.room_idx, opt_a.orientation, opt_a.gem_cost)
+            key_b = None if opt_b is None else (opt_b.room_idx, opt_b.orientation, opt_b.gem_cost)
+            assert key_a == key_b, f"seed {seed} slot {slot}: diverged with Chronograph held"
