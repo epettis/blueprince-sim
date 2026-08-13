@@ -56,8 +56,9 @@ KNOWN_CONDITIONS = {"west_wing", "east_wing", "west_or_east_wing", "not_on_wing"
 # emits but that carry no matching category_biases entry to source the
 # vocabulary from below -- add_aquariums gates two priority_draws entries
 # directly, with no category-bias counterpart (it targets a fixed room list,
-# not a category).
-KNOWN_PRIORITY_DRAW_ONLY_CONDITIONS = {"add_aquariums"}
+# not a category); chronograph likewise gates a priority draw selected by
+# category rather than by a room list, so it has no category-bias entry either.
+KNOWN_PRIORITY_DRAW_ONLY_CONDITIONS = {"add_aquariums", "chronograph"}
 # Item kinds engine/items.py::grant_item and roll_room_items actually handle
 # for a room's items.guaranteed list. "coins_exact" grants the literal count
 # as coins with no pile roll; "coins" rolls each of count PILES from
