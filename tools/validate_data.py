@@ -212,6 +212,13 @@ _AUDIT_DEFERRED_EXEMPT_IDS = {
         "Blocked on the security-lock puzzle subsystem. Its own "
         "effect_text already says the lock system is out of scope."
     ),
+    "root_cellar": (
+        "Its effect spreads dig spots to OTHER rooms, which needs a "
+        "house-wide dig-spot model this sim does not have; the room keeps "
+        "only its own dig_spots. Previously masked: the record carried an "
+        "invented +3 luck that satisfied the audit's has-effects test while "
+        "modelling nothing the game does."
+    ),
     "throne_room": (
         "Blocked on cross-day meta-progression (reclaiming the crown, the "
         "Throne of the Blue Prince transformation). Its Antechamber lever "

@@ -36,8 +36,10 @@ drafted.
 
 ## Luck modifiers
 
-- **Root Cellar**: +3 luck on entry.
-- **Maid's Chamber** (`anti_luck`): approximated as −3 luck on placement,
+- **Root Cellar**: no luck effect. Its real effect spreads dig spots to other
+  rooms and is not modelled; the room keeps only its own dig spot. The wiki's
+  datamined luck-modifier list does not include it.
+- **Maid's Chamber** (`anti_luck`): modelled as −3 luck on placement,
   clamped at the floor of 0 so negative luck never misbehaves with the
   probability curve. As a red-room penalty it is negated by Shelter.
 - **Rabbit's Foot**: the +3 bonus is in the data (`rabbits_foot_bonus`) but
