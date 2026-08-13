@@ -855,6 +855,46 @@ around 1,800 LOC.
 
 ## Decisions log
 
+- **2026-08-12, three packet effects implemented; four remain genuinely
+  blocked.** Live now: `unseal_antechamber_door`, `random_item_then_zero_keys`,
+  `half_steps_for_dice`, joining the already-built `keys_per_30_steps`. Still
+  inert with real blockers: `pantry_fruit` (no Pantry-stocking mechanic),
+  `reservoir_water_level` (no reservoir *room* -- it is an area node only),
+  `remove_tunnel_crate` (Crate Tunnel, owner-ruled out of scope),
+  `permanent_lockpicking_skill` (no such stat).
+
+  **The subtle correctness call: the unseal effect deliberately does NOT credit
+  the lever trigger.** It calls `Game._open_segment` directly rather than
+  `_open_north_door`, and never calls `on_lever_pulled`. Both of those exist to
+  attribute a genuine *player* lever pull to the `antechamber_lever_pull`
+  trigger and the env's `north_door_opened` reward flag. Routing an unrelated
+  experiment effect through them would have been misattribution wearing the
+  costume of code reuse -- the effect would have silently advanced a trigger the
+  player never fired.
+
+  **Two-part effects apply in the stated order, and the second half is
+  unconditional.** `half_steps_for_dice` floors (7 -> 3, verified on an odd
+  count), and **grants the dice even when the step loss alone would end the
+  day** -- the alternative silently drops the reward on exactly the days it
+  matters most.
+
+  **A pre-existing gap found and deliberately left:** `Game.insert_disk` (the
+  only `terminal_access` call site) and `Game.choose_upgrade` never call
+  `_check_termination`, so a day ended by a step-draining effect there is caught
+  one action later and reported as `"dead_end"` rather than `"out_of_steps"`.
+  **Already latent for `steps_for_gold` and `set_steps`**, so not introduced
+  here; documented rather than patched, because calling `_check_termination`
+  mid-effect risks terminating inside `Game._place_room` before that same call's
+  later ON_PLACE hooks run -- a worse bug than the mislabel.
+
+  **No invented magnitudes.** The wiki gives no ordering weights for which
+  Antechamber door unseals and no published item pool for the random grant, so
+  `magnitude.weighting` and `magnitude.item_pool` stay `null`; the effect uses
+  the existing `EXTRA_ITEM_TABLE` and its existing `extra_item_kind` substream
+  rather than a new table nobody published.
+
+  **`or_packet` still hardcoded `False`.** The gate is the last step.
+
 - **2026-08-12, six of the eight Satellite Dish packet triggers are wired.**
   Experiments phases 5-8, first slice. `speed_40_seconds` and `map_view` stay
   inert and always will -- no wall clock, no interactive map.
