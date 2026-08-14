@@ -308,8 +308,17 @@ def _apply_count_transform(game, room: Room, raw: int) -> tuple[int, int]:
     ``reduce_by_one_chance`` (Nook), ``zero_becomes_one`` (Study),
     ``zero_becomes_one_or_gem`` (Guest Bedroom) are resolved here.
     ``one_becomes_trunk`` (Den) is resolved by the caller at grant time (it
-    needs the POST-clamp count). ``not_modeled`` (Lost & Found) is a
-    documented no-op.
+    needs the POST-clamp count). ``not_modeled`` is a documented no-op (a
+    generic vocabulary member, not tied to any one room). ``deferred_ladder``
+    (Lost & Found) stashes ``raw`` rather than transforming it -- this room's
+    items are a bespoke pool draw with additional_max == 0, so nothing
+    returned from here can reach the player through the normal per-slot
+    loop; the actual +1/clamp and its guaranteed-item carve-out are applied
+    by special_items.py's ``lost_and_found_on_enter`` (fired later from
+    ``on_enter``, after this room's own guaranteed items have been granted,
+    so it can see whether the carve-out applies) against this SAME roll --
+    see items.json's count_transforms.meta for why a second independent roll
+    there would double-count both the rng draw and ``state.luck_penalty``.
     """
     spec = game.registry.item_rules["count_transforms"]["rooms"].get(room.id)
     if spec is None:
@@ -331,6 +340,9 @@ def _apply_count_transform(game, room: Room, raw: int) -> tuple[int, int]:
             elif rng.chance("count_transform_zero_gem", spec["p_gem_pct"] / 100.0):
                 grant_item(game, "gem", 1)
                 return raw, 1
+        return raw, 0
+    if kind == "deferred_ladder":
+        game.state.special.count_transform_raw[room.id] = raw
         return raw, 0
     # "one_becomes_trunk" and "not_modeled": no raw-count change here.
     return raw, 0

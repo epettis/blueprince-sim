@@ -367,6 +367,15 @@ class SpecialItemsState:
     # on the CURRENT hand. Reset to False every time a hand is dealt or
     # redealt (engine/draft.py::_fill_options) -- unlimited hands per day.
     crown_block_used: bool = False
+    # Raw item_ladder counts stashed by engine/items.py::_apply_count_transform's
+    # "deferred_ladder" kind, room id -> raw count, for rooms whose transform is
+    # applied later by a room-specific item hook instead of inline (currently only
+    # Lost & Found -- lost_and_found_on_enter below). Keyed by room id so the
+    # dispatch in _apply_count_transform stays generic (no room id literal there).
+    # Popped (consumed) by the hook that reads it; reset with GameState like
+    # everything else in this dataclass, so a stale entry can never survive
+    # into a later day.
+    count_transform_raw: dict[str, int] = field(default_factory=dict)
 
 
 # --------------------------------------------------------------- inventory ops
@@ -804,7 +813,8 @@ def on_enter(game, room, cell: int) -> None:
     # Lunch Box: guaranteed in the Dining Room (and upgrade variants) when unlocked
     lunch_box.grant_guaranteed(game, room)
 
-    # Lost & Found: steal one held item and grant two draws from the pool. Fires
+    # Lost & Found: steal one held item and grant draws from the pool (count
+    # per its own ladder-based rule -- see lost_and_found_on_enter). Fires
     # after the guaranteed-items loop above, so this room's own guaranteed
     # Allowance Token is already in inventory and can itself be the steal target.
     if room.id == "lost_and_found":
@@ -902,7 +912,39 @@ def on_place(game, room, cell: int) -> None:
 
 def lost_and_found_on_enter(game) -> None:
     """Steal one uniformly random held special item (nothing if none held),
-    then grant lost_and_found.gives draws from the data pool.
+    then grant items drawn from the data pool per the room's own published
+    count rule (data/items.json count_transforms.rooms.lost_and_found,
+    "deferred_ladder" -- owner ruling: replaces the room's prior fixed
+    gives=2, luck-independent draw).
+
+    Wiki (Lost & Found's own DataMinedBox): "If any Guaranteed Item spawns,
+    one additional item appears, and this room does not check Luck.
+    Otherwise, Luck is used. One item is added to the result, and the item
+    count then clamped to be in 2-4."
+
+    Two branches, evaluated in that order:
+
+    1. Guaranteed-item carve-out: this room's own guaranteed_by_room grant
+       (allowance_token_lost_and_found) already ran earlier in on_enter,
+       before this hook fires -- whether it actually spawned this entry is
+       read from state.special.spawned_today, not re-derived. Pool draws =
+       lf["gives"] + spec["guaranteed_add"], no luck consulted. JUDGMENT
+       CALL: "Guaranteed Item" is mapped onto this sim's existing
+       guaranteed_by_room/guaranteed_in concept (the Mora Jai Box Allowance
+       Token) -- see items.json's count_transforms.meta for the wiki's
+       fuller, unmodeled per-item guaranteed-selection mechanic (Vault Key
+       370 / Key 8 / Upgrade Disk) this does NOT attempt to reproduce.
+
+    2. Otherwise: pool draws = clamp(raw + spec["add"], spec["min"],
+       spec["max"]), where ``raw`` is the SAME item_ladder roll
+       roll_room_items already performed for this room this entry, stashed
+       by engine/items.py's _apply_count_transform (a second independent
+       roll here would double-count both the rng draw and
+       state.luck_penalty). Missing -- e.g. this function called directly,
+       as several tests do, bypassing roll_room_items -- defaults raw to 0.
+
+    The steal fires first either way, unaffected by which branch the grant
+    takes.
     """
     state = game.state
     registry = game.registry
@@ -921,10 +963,20 @@ def lost_and_found_on_enter(game) -> None:
         else:
             remove(state, stolen_id, consumed=True)
 
-    # Grant lost_and_found.gives draws from the pool
+    # Grant draws from the pool: item count per the ladder-based transform above.
     lf = registry.special.lost_and_found
-    gives = lf.get("gives", 2)
+    base_gives = lf.get("gives", 2)
     pool = lf.get("pool", [])
+    spec = registry.item_rules["count_transforms"]["rooms"].get("lost_and_found", {})
+
+    guaranteed_ids = registry.special.guaranteed_by_room.get("lost_and_found", ())
+    guaranteed_spawned = any(gid in state.special.spawned_today for gid in guaranteed_ids)
+
+    if guaranteed_spawned:
+        gives = base_gives + spec.get("guaranteed_add", 1)
+    else:
+        raw = state.special.count_transform_raw.pop("lost_and_found", 0)
+        gives = min(max(raw + spec.get("add", 1), spec.get("min", 2)), spec.get("max", 4))
 
     from . import items as items_mod  # deferred: items.py imports this module
 

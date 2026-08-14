@@ -800,7 +800,8 @@ def main(argv: list[str] | None = None) -> int:
     # transforms (Nook/Study/Guest Bedroom/Den/Lost & Found's published
     # wiki quotes). Same fail-open concern as never_roll_rooms above.
     VALID_TRANSFORM_KINDS = {"reduce_by_one_chance", "zero_becomes_one",
-                             "zero_becomes_one_or_gem", "one_becomes_trunk", "not_modeled"}
+                             "zero_becomes_one_or_gem", "one_becomes_trunk", "not_modeled",
+                             "deferred_ladder"}
     transforms = items_doc.get("count_transforms", {})
     ct_conf = transforms.get("meta", {}).get("confidence")
     if ct_conf not in VALID_CONFIDENCE:
@@ -822,6 +823,18 @@ def main(argv: list[str] | None = None) -> int:
         elif kind == "zero_becomes_one_or_gem":
             _pct(f"count_transforms/{rid}.p_one_pct", spec.get("p_one_pct"))
             _pct(f"count_transforms/{rid}.p_gem_pct", spec.get("p_gem_pct"))
+        elif kind == "deferred_ladder":
+            add, lo, hi = spec.get("add"), spec.get("min"), spec.get("max")
+            guaranteed_add = spec.get("guaranteed_add")
+            if not isinstance(add, int) or add < 0:
+                errors.append(f"count_transforms/{rid}.add: must be a non-negative int, "
+                              f"got {add!r}")
+            if not isinstance(lo, int) or not isinstance(hi, int) or lo > hi or lo < 0:
+                errors.append(f"count_transforms/{rid}.min/max: must be ints with 0 <= min <= max, "
+                              f"got {lo!r}/{hi!r}")
+            if not isinstance(guaranteed_add, int) or guaranteed_add < 0:
+                errors.append(f"count_transforms/{rid}.guaranteed_add: must be a non-negative int, "
+                              f"got {guaranteed_add!r}")
         # "zero_becomes_one", "one_becomes_trunk", "not_modeled" carry no extra fields.
 
     # locks.json: table shape, referential integrity, sane probabilities
