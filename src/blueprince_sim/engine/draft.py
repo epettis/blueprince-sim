@@ -47,6 +47,14 @@ colour exemption -- owner ruling 2026-08-12 voids the wiki's claim that
 colour-selective drafts, the Silver Key, the Prism Key, and ducts can still
 draw a blocked Red Room). Game.can_crown_block/crown_block own the
 player-choice side; this module only enforces the resulting filter.
+
+Day 1 opening draw: the very first round of the very first draft of Day 1
+fixes the whole hand to priority_draws.json's day1_opening_draw triple
+(Bedroom, Closet, Hallway, in that order -- see _day1_active/
+_day1_opening_draw_option), ahead of the Tunnel chain, Reading Nook Library,
+Silver Key bias, Garage Forced Draw, and priority draws -- a wiki "Guaranteed
+Draw", not one of this module's other three JSON-driven mechanisms
+(priority_draws/forced_draws/category_biases).
 """
 
 from __future__ import annotations
@@ -69,6 +77,7 @@ from .state import DraftOption, GameState, PendingDraft, resolve_gem_cost
 from .upgrades import root_base_id
 
 CLOSET_ID = "closet"
+DAY1_OPENING_DRAW_KEY = "day1_opening_draw"  # priority_draws.json top-level key
 TUNNEL_ID = "tunnel"
 READING_NOOK_ID = "reading_nook__ix99"
 LIBRARY_ID = "library"
@@ -814,6 +823,50 @@ def _tunnel_chain_option(ctx: DraftContext, cell: int, entry_dir: int) -> DraftO
                        slot=0, forced=True)
 
 
+def _day1_active(ctx: DraftContext, pending: PendingDraft) -> bool:
+    """True only for the very first round of the very first draft of Day 1.
+
+    "The very first draw on Day 1 is Bedroom, Closet, and Hallway in that
+    order" (blueprince.wiki.gg/wiki/Drafting/Advanced, Special Draws >
+    Guaranteed Draws). ``state.drafts_today`` is already incremented by
+    ``deal_draft`` before ``_fill_options`` runs, so it reads 1 on the day's
+    first draft; ``pending.round_num`` is 1 only for the initial deal, not a
+    redraw -- excluded defensively even though nothing on Day 1's first
+    doorway can trigger a redraw before any room besides the pre-placed
+    Entrance Hall/Antechamber exists. "Ending Day 1 without drafting skips
+    this forced draw" needs no extra code: the guarantee only ever runs from
+    inside an actual draft.
+    """
+    return ctx.state.day == 1 and ctx.state.drafts_today == 1 and pending.round_num == 1
+
+
+def _day1_opening_draw_option(ctx: DraftContext, slot: int, cell: int, entry_dir: int) -> DraftOption:
+    """Force ``slot`` to Day 1's published opening triple (data/priority_draws.json's
+    day1_opening_draw: Bedroom/Closet/Hallway, in that order -- engine slot 0/1/2).
+
+    A Guaranteed Draw, not a Priority/Forced Draw or category bias -- the wiki
+    places it under "Special Draws", which "try to occur" BEFORE "using the
+    normal drafting algorithm", so (like the Tunnel and Reading Nook Library
+    guarantees) this never rolls a rarity or consults the round's Free/Gem
+    Draw decision, and (like Reading Nook Library) never runs the ordinary
+    draftability gate (``room_draftable``) -- the option is built
+    unconditionally through ``_make_option``'s forced-orientation fallback, so
+    the guarantee cannot fail regardless of doorway geometry. The room is
+    still dealt from its own deck (searched free-then-gem, matching
+    ``_reading_nook_library_option``) so it is actually removed from the
+    draft pool -- "the floorplan gets added to the discard filter for future
+    draws" is the same wiki language ``_priority_draw`` cites for its own
+    per-floorplan removal -- keeping later draws today from misreading a
+    card that this hand already spent.
+    """
+    room_id = ctx.registry.priority[DAY1_OPENING_DRAW_KEY]["rooms"][slot]
+    room = ctx.registry.by_id[room_id]
+    for is_gem in (False, True):
+        if ctx.state.deck(room.rarity_idx, is_gem).deal_next(lambda c: c == room.idx) is not None:
+            break
+    return _make_option(ctx, room, slot, cell, entry_dir, forced_draw=True)
+
+
 def _reading_nook_library_option(ctx: DraftContext, cell: int, entry_dir: int) -> DraftOption:
     """Force LIBRARY into slot 2 for a hand dealt from the Reading Nook's own doorway.
 
@@ -988,7 +1041,17 @@ def _fill_options(ctx: DraftContext, pending: PendingDraft, from_room: Room | No
     # outright during a colour-selective draft (see docstring above).
     # Redraws clear the flag before calling _fill_options via redeal (flag already False).
     silver_key_bias = ctx.state.special.silver_key_draft and ctx.colour is None
+    # Day 1 opening draw: the very first round of the very first draft of Day 1
+    # fixes all three slots to the published triple, ahead of every other
+    # guarantee below (none of which can legitimately fire on this same draw
+    # anyway -- see _day1_active's docstring).
+    day1_opening = _day1_active(ctx, pending)
     for slot in range(3):
+        if day1_opening:
+            opt = _day1_opening_draw_option(ctx, slot, pending.target_cell, pending.direction)
+            pending.options.append(opt)
+            exclude.add(opt.room_idx)
+            continue
         if slot == 0 and tunnel_forced_option is not None:
             pending.options.append(tunnel_forced_option)
             continue

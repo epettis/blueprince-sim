@@ -377,5 +377,17 @@
     "cloister_of_draxus__ix36"
    ]
   }
+ },
+ "day1_opening_draw": {
+  "comment": "A Guaranteed Draw (wiki.gg/Drafting/Advanced, 'Special Draws > Guaranteed Draws'), NOT one of this file's priority_draws/forced_draws/category_biases mechanisms above -- a Guaranteed Draw runs ahead of the normal drafting algorithm and fixes all three slots of the hand at once, not one slot within an otherwise-normal draw. Applies only to the very first draw of Day 1 (draft.py: state.day == 1 and state.drafts_today == 1 and the hand's first round); the wiki notes ending Day 1 without drafting simply skips it, which needs no code since the guarantee only ever fires from an actual draft.",
+  "rooms": [
+   "bedroom",
+   "closet",
+   "hallway"
+  ],
+  "meta": {
+   "confidence": "wiki",
+   "source": "blueprince.wiki.gg/wiki/Drafting/Advanced, Special Draws > Guaranteed Draws: 'The very first draw on Day 1 is Bedroom, Closet, and Hallway in that order. Ending Day 1 without drafting skips this forced draw.'"
+  }
  }
 }
