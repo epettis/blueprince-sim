@@ -2,9 +2,10 @@
 key any other live consumer.
 
 Toolshed is an outer room drafted through the fixed 8-room outer shuffle,
-which does not filter by category. Its "blueprint" category (corrected from
-the pool name "outer") has no OTHER live consumer in the engine: unlike
-Trading Post it is not a Shop, and unlike Hovel/Root Cellar no category-gated
+which does not filter by category. Its "blueprint" category is distinct
+from "outer", the pool name for that fixed shuffle, and has no OTHER live
+consumer in the engine: unlike Trading Post it is not a Shop, and unlike
+Hovel/Root Cellar no category-gated
 item effect targets "blueprint" rooms specifically. The dead-branch test
 below pins that -- a future regression that flips it to "shop" (or that adds
 a blueprint-gated outer effect) is caught either way.

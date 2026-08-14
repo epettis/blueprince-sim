@@ -64,8 +64,8 @@ def test_bedroom_closet_grants_two_items():
 
 
 def test_empty_closet_grants_no_items():
-    """empty_closet__ix41 correctly grants 0 items on first entry -- its
-    "0 items" baseline needed no fix; this guards against a future regression."""
+    """empty_closet__ix41 grants 0 items on first entry, guarding against a
+    future regression that would grant items despite its empty effect text."""
     cell = 5
     g = _make_game_with_room("empty_closet__ix41", cell)
     found0 = len(g.state.items_found_log)
