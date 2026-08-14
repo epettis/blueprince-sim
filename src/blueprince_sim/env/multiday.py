@@ -210,6 +210,14 @@ class DayChain:
         # axed_rooms/draft_counts. SAVE-scoped like axed_rooms above:
         # deliberately NOT cleared in the attempt-wrap block below.
         self.permanent_rarity: dict[str, int] = dict(base_cfg.permanent_rarity)
+        # Telescope-in-Planetarium: ordered tuple of unlocked planet ids,
+        # REPLACED (not merged) from each day's own carryover value every
+        # advance() -- state.planetarium_planets already IS the full
+        # accumulated history, the same "state already is the running total"
+        # shape as axed_rooms/permanent_rarity. SAVE-scoped like stars/
+        # main_course_bonus above (the third carve-out, owner ruling):
+        # deliberately NOT cleared in the attempt-wrap block below.
+        self.planetarium_planets: tuple[str, ...] = tuple(base_cfg.planetarium_planets)
 
     def next_config(self) -> GameConfig:
         """Return the ``GameConfig`` for the current day.
@@ -246,6 +254,7 @@ class DayChain:
             sigil_doors_open=self.sigil_doors_open,
             upgrade_disks=self.applied_upgrades,
             draft_counts=dict(self.draft_counts),
+            planetarium_planets=self.planetarium_planets,
             foundation_cell=self.foundation_cell,
             foundation_doors=self.foundation_doors,
             sauna_bonus=self.sauna_bonus,
@@ -345,6 +354,13 @@ class DayChain:
         mcb_val = carryover.get("main_course_bonus")
         if mcb_val is not None:
             self.main_course_bonus = mcb_val
+
+        # --- planetarium_planets (Telescope-in-Planetarium's permanent record;
+        #     replace each advance, the same axed_rooms/permanent_rarity shape --
+        #     state.planetarium_planets already IS the full current tuple) ---
+        pp_val = carryover.get("planetarium_planets")
+        if pp_val is not None:
+            self.planetarium_planets = tuple(pp_val)
 
         # --- mail_cycle (Mail Room order/delivery state; replace each advance) ---
         mc_val = carryover.get("mail_cycle")
@@ -493,9 +509,10 @@ class DayChain:
             self.chapel_tithes = 0            # fresh attempt; tithe bank reset
             self.allowance = self.base_cfg.allowance  # fresh attempt; back to the base preset
             # stars, main_course_bonus, letters_delivered, the five shrine_*
-            # fields, axed_rooms, and permanent_rarity are deliberately
-            # absent here: all are save-scoped and carry through the wrap
-            # into the next attempt, unlike every other value reset above.
+            # fields, axed_rooms, permanent_rarity, and planetarium_planets
+            # are deliberately absent here: all are save-scoped and carry
+            # through the wrap into the next attempt, unlike every other
+            # value reset above.
             self.mail_cycle = self.base_cfg.mail_cycle  # fresh attempt; back to the base preset
             self.mail_transit_days = self.base_cfg.mail_transit_days  # fresh attempt; back to base
             self.hallway_tomorrow_extra = self.base_cfg.hallway_tomorrow_extra  # fresh attempt

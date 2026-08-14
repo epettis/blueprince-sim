@@ -1306,6 +1306,47 @@ def main(argv: list[str] | None = None) -> int:
                     f"package_size-specials_target={base_resource_count}"
                 )
 
+    # planetarium_planets: the Telescope's Planetarium-upgrade table. Exactly
+    # five planets, Mora the sole forced_last entry and pinned last in the
+    # list, every payload id resolvable. An unvalidated section fails open,
+    # so this block is required, not optional.
+    planetarium_planets = si_doc.get("planetarium_planets", {}).get("planets", [])
+    where = "special_items/planetarium_planets"
+    if len(planetarium_planets) != 5:
+        errors.append(f"{where}: expected exactly 5 planets, got {len(planetarium_planets)}")
+    forced_last_ids = [p.get("id") for p in planetarium_planets if p.get("forced_last")]
+    if forced_last_ids != ["mora"]:
+        errors.append(
+            f"{where}: exactly one planet (mora) must carry forced_last: true, "
+            f"got {forced_last_ids!r}"
+        )
+    if planetarium_planets and planetarium_planets[-1].get("id") != "mora":
+        errors.append(f"{where}: mora must be the last entry in the list")
+    containers_kinds_for_planets = containers_doc.get("kinds", {})
+    for p in planetarium_planets:
+        pwhere = f"{where}/{p.get('id')}"
+        payload = p.get("payload", {})
+        pkind = payload.get("kind")
+        if pkind == "item":
+            iid = payload.get("id")
+            if iid not in si_by_id:
+                errors.append(f"{pwhere}: payload item id {iid!r} not in special_items")
+        elif pkind == "food":
+            fid = payload.get("id")
+            if fid not in mail_food_dishes:
+                errors.append(f"{pwhere}: payload food id {fid!r} not in items.json food.dishes")
+        elif pkind == "container":
+            ckind = payload.get("container_kind")
+            if ckind not in containers_kinds_for_planets:
+                errors.append(
+                    f"{pwhere}: payload container_kind {ckind!r} not in "
+                    f"special_items/containers/kinds"
+                )
+        elif pkind in ("dice", "dig_bonus"):
+            pass  # amount only, nothing to resolve
+        else:
+            errors.append(f"{pwhere}: unknown payload kind {pkind!r}")
+
     # ignition section: tools and targets exist. A target is either a rooms.json
     # room id (default) or, when marked "area": true, an areas.json node id
     # (e.g. mine_south, which has no rooms.json record) -- checked against

@@ -604,6 +604,22 @@ class GameState:
     # otherwise land in its un-wrenched natal bucket).
     permanent_rarity: dict[str, int] = field(default_factory=dict)
 
+    # Telescope-in-Planetarium: ordered tuple of unlocked planet ids (the
+    # data/special_items.json planetarium_planets table's own id order --
+    # never re-sorted, since the wiki's reveal order is random except Mora
+    # last, and this tuple records the order they were ACTUALLY revealed
+    # in). Seeded from cfg.planetarium_planets at Game.reset; grown (never
+    # shrunk) by special_items.use_telescope_in_planetarium. SAVE-scoped,
+    # the third carve-out alongside GameState.stars/main_course_bonus (owner
+    # ruling): survives the DayChain attempt wrap, unlike axed_rooms/
+    # permanent_rarity above, which the wrap does NOT clear either -- but
+    # unlike those two this is reported through shops.carryover() rather
+    # than a separate Game._x_carryover() method, the same "replace
+    # wholesale" dict entry shape as stars/main_course_bonus (see
+    # tests/test_carryover.py::test_carryover_shape_is_complete, which pins
+    # that pair together so this third key is a deliberate addition).
+    planetarium_planets: tuple[str, ...] = ()
+
     # --- Shrine blessings/curse (engine/effects/rooms/shrine.py) ---
     # Seeded each day from the matching GameConfig.shrine_* fields (Game.reset);
     # a blessing/curse this GameState grants or clears is reported by

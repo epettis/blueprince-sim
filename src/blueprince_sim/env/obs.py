@@ -61,7 +61,8 @@ def observation_space(n_rooms: int, n_items: int, n_recipes: int,
                       n_carryover: int = len(DayChain._CARRYOVER_KEYS),
                       n_slots: int = 16,
                       n_axe_targets: int = 48,
-                      n_mechanical_rooms: int = 8) -> spaces.Dict:
+                      n_mechanical_rooms: int = 8,
+                      n_planetarium_planets: int = 5) -> spaces.Dict:
     """Dict observation space over the 9x5 (rank-major) grid; see :func:`encode`.
 
     Room ids are shifted by +1 so 0 means "empty cell"; -1 is the sentinel for
@@ -79,6 +80,9 @@ def observation_space(n_rooms: int, n_items: int, n_recipes: int,
     ``n_mechanical_rooms`` is the number of Mechanical Room ids
     (``len(actions._build_mechanical_room_ids(registry))``, 8 today), the
     same convention.
+    ``n_planetarium_planets`` is the number of Telescope-in-Planetarium
+    planets (``len(registry.special.planetarium_planets)``, 5 today,
+    validated exactly 5 by tools/validate_data.py), the same convention.
     """
     return spaces.Dict({
         "grid_room": spaces.Box(0, n_rooms, shape=(9, 5), dtype=np.int16),
@@ -266,6 +270,13 @@ def observation_space(n_rooms: int, n_items: int, n_recipes: int,
         # "options" rows is boosted, or how far up its own penalty ladder
         # today's draws have pushed it, from any existing key.
         "dowsing": spaces.Box(0, 999, shape=(2,), dtype=np.int16),
+        # planetarium_planets: 1 bit per Telescope-in-Planetarium planet, in
+        # data/special_items.json's planetarium_planets table order
+        # (dauja/fennmora/mamora/veia/mora), 1 = permanently unlocked
+        # (state.planetarium_planets). Same additive-key shape as axed_rooms:
+        # a permanent, cross-day investment V(s) needs to see, never a shape
+        # change to an existing key.
+        "planetarium_planets": spaces.Box(0, 1, shape=(n_planetarium_planets,), dtype=np.uint8),
     })
 
 
@@ -710,6 +721,17 @@ def encode(game: Game, day_chain: DayChain | None = None) -> dict:
         _dowsed_slot_col = pending.dowsed_slot + 1
     dowsing_obs = np.array([_dowsed_slot_col, min(st.dowsing_penalty, 999)], dtype=np.int16)
 
+    # planetarium_planets: which planets are permanently unlocked, in the
+    # data table's own order. state.planetarium_planets is already the full
+    # history (seeded from cfg at reset, only ever grown), the same read
+    # shape as axed_rooms/sigil_doors_open above.
+    _unlocked_planets = set(st.planetarium_planets)
+    planetarium_planets_obs = np.array(
+        [1 if p["id"] in _unlocked_planets else 0
+         for p in registry.special.planetarium_planets],
+        dtype=np.uint8,
+    )
+
     return {
         "grid_room": grid_room,
         "grid_doors": grid_doors,
@@ -754,4 +776,5 @@ def encode(game: Game, day_chain: DayChain | None = None) -> dict:
         "axed_rooms": axed_rooms_obs,
         "wrench_rarity": wrench_rarity_obs,
         "dowsing": dowsing_obs,
+        "planetarium_planets": planetarium_planets_obs,
     }

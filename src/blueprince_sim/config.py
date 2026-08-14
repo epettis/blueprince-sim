@@ -279,6 +279,17 @@ class GameConfig:
     # multiday.py::DayChain does NOT clear this at the attempt wrap. A plain
     # dict, not in the frozenset-coercion list, same shape as draft_counts.
     permanent_rarity: dict[str, int] = field(default_factory=dict)
+    # --- Telescope-in-Planetarium (engine/special_items.py; data/special_items.json
+    #     planetarium_planets table) ---
+    # Ordered tuple of unlocked planet ids, in reveal order (random except Mora,
+    # always last). SAVE-scoped like stars/main_course_bonus (survives an
+    # attempt wrap) -- the third such carve-out, reported through
+    # shops.carryover()'s own dict alongside those two rather than through a
+    # separate Game._x_carryover() method the way axed_rooms/permanent_rarity
+    # are. An ORDERED TUPLE, not a frozenset, for the same from_dict-coercion
+    # reason as axed_rooms immediately above (deliberately not annotated
+    # "frozenset" so _SET_VALUED_FIELDS does not try to split it).
+    planetarium_planets: tuple[str, ...] = ()
     # --- reward selection for the env ---
     reward: str = "sparse"              # sparse|shaped|phased
     data_dir: Path | None = None        # alternate data/*.json directory (None = packaged data)

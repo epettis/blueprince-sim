@@ -132,6 +132,10 @@ ALLOWLIST: dict[str, set[str]] = {
         "garage",
         # room.id == "laboratory" special-move gate.
         "laboratory",
+        # room.id == "planetarium" position gate (at_planetarium): the
+        # Telescope-in-Planetarium action, same single-room-id shape as the
+        # Laboratory terminal check immediately above.
+        "planetarium",
         # dest == "room_46" / area_route_cost("room_46") / room46_reached
         # first-arrival bookkeeping.
         "room_46",
@@ -190,6 +194,11 @@ ALLOWLIST: dict[str, set[str]] = {
         # MECHANARIUM_ROOM_ID constant: room.id == comparison +
         # room_cells.get() gating Mechanarium-specific item behaviour.
         "mechanarium",
+        # PLANETARIUM_ROOM_ID constant: room.id == comparison in
+        # _container_kinds_at gating the Telescope-unlocked Dauja Trunk
+        # overlay -- the same "static table has no entry, an overlay
+        # function supplies one" shape as entrance_hall/mechanarium above.
+        "planetarium",
         # KINDS = (..., "showroom", ...): an inventory-item *kind* tag
         # ("showroom exhibit" items), not a room id -- collides with the
         # real Showroom room's id the same way the category names do.

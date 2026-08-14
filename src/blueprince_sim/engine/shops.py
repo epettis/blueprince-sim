@@ -1242,6 +1242,13 @@ def carryover(game) -> dict:
         # today). Replaces cfg.main_course_bonus wholesale next day -- the
         # same shape as allowance/stars, not an OR-merge.
         "main_course_bonus": state.main_course_bonus,
+        # Telescope-in-Planetarium: ordered tuple of unlocked planet ids
+        # (state.planetarium_planets already IS the full accumulated
+        # history, seeded from cfg at reset, only ever grown). Replaces
+        # cfg.planetarium_planets wholesale next day -- the third SAVE-scoped
+        # carve-out alongside allowance/stars/main_course_bonus above (owner
+        # ruling).
+        "planetarium_planets": list(state.planetarium_planets),
         # Experiment letters delivered so far (running permanent total, already
         # seeded from cfg at reset). Replaces cfg.letters_delivered wholesale
         # next day, the same shape as stars/main_course_bonus.

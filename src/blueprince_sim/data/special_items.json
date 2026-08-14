@@ -628,12 +628,14 @@
    "persistence": "day",
    "spawn_rooms": [
     "her_ladyships_chamber",
+    "her_ladyships_spare_room__ix135",
+    "lost_and_found",
+    "planetarium",
+    "trading_post",
     "walk_in_closet"
    ],
    "spawn_rooms_high_luck": [],
-   "guaranteed_in": [
-    "planetarium"
-   ],
+   "guaranteed_in": [],
    "effects": [],
    "implemented": false,
    "meta": {
@@ -642,7 +644,7 @@
     "absent_spawn_areas": [],
     "blocked_on": "constellation_activation_not_modeled",
     "reachability": "inert",
-    "notes": "The current slug named the secondary use only. The primary use per the infobox is the Observatory: a second independent night sky letting constellations activate twice. Constellations exist (state.southern_cross_active / draxus_active, with authored category_biases in priority_draws.json and draft.py::_active_conditions reading them), but effects/rooms/observatory.py:9-10 states no activation source is modelled for either flag -- nothing ever sets them outside tests."
+    "notes": "The Telescope has two independent uses. The Observatory arm (the item's own infobox description: a second independent night sky letting constellations activate twice) remains unbuilt -- constellations exist (state.southern_cross_active / draxus_active, with authored category_biases in priority_draws.json and draft.py::_active_conditions reading them), but effects/rooms/observatory.py:9-10 states no activation source is modelled for either flag, so blocked_on names only that gap. The Planetarium arm IS built: Game.use_telescope_planetarium (engine/game.py) reveals one of the five planetarium_planets table below per day (Mora always last), each granting its payload permanently -- engine/effects/rooms/planetarium.py re-applies every unlocked payload on later days' placement/first entry. Not consumed by use. Gated out of the spawn pool at < 1 start-of-day star (engine/effects/items/telescope.py::gate, wired into special_items.configure()). guaranteed_in dropped: no wiki text supports a guaranteed Telescope on first Planetarium entry, and its former sole location omitted five of the six wiki-listed spawn rooms (Her Ladyship's Spare Room, Lost & Found, Planetarium, Trading Post; the wiki's other two listed locations, Experiment and Spiral, are not rooms -- Experiment redirects to the Laboratory's unrelated Experiments mechanic, and Spiral has no wiki page at all -- so neither is added here)."
    }
   },
   {
@@ -3889,6 +3891,41 @@
    "source": "https://blueprince.wiki.gg",
    "confidence": "wiki",
    "notes": "Greenhouse: antechamber_lever unlocks the south Antechamber door segment (rank-8 center to Antechamber, segment key (37,1)). The Antechamber's south door and cell-37's north door are the same segment: segment_key(42,S)==segment_key(37,N)==(37,1). The north door opens only from the Throne Room and the Sanctum lever (neither modeled). Casino: slot_bonus grants listed loot once; actual casino payout is inferred (wiki says 5 bonus spins vs 3, not specific amounts)."
+  }
+ },
+ "planetarium_planets": {
+  "planets": [
+   {
+    "id": "dauja",
+    "name": "Dauja",
+    "payload": {"kind": "container", "container_kind": "trunk"}
+   },
+   {
+    "id": "fennmora",
+    "name": "Fennmora",
+    "payload": {"kind": "food", "id": "apple", "amount": 1}
+   },
+   {
+    "id": "mamora",
+    "name": "Mamora",
+    "payload": {"kind": "dice", "amount": 1}
+   },
+   {
+    "id": "veia",
+    "name": "Veia",
+    "payload": {"kind": "dig_bonus", "amount": 1}
+   },
+   {
+    "id": "mora",
+    "name": "Mora",
+    "payload": {"kind": "item", "id": "prism_key"},
+    "forced_last": true
+   }
+  ],
+  "meta": {
+   "source": "https://blueprince.wiki.gg/wiki/Planetarium https://blueprince.wiki.gg/wiki/Telescope",
+   "confidence": "wiki",
+   "notes": "Telescope's own SpoilerBox (\"another use\"): \"The Telescope can be used in the Planetarium to permanently upgrade the room, unlocking a planet that confers permanent benefits to the room. Doing this does not consume the Telescope, but only one upgrade can be done per day.\" Both the Telescope and Planetarium pages carry the same five-planet gallery, verbatim: \"The planets seem to appear in a random order, except Mora which is always last... Once all five planets appear, the Telescope can no longer be used in the Planetarium.\" Payload kinds: 'container' (Dauja spawns a Trunk -- containers.rooms has no static Planetarium entry, so engine/special_items.py's _planetarium_container_kinds overlays this generically, the same per-room-overlay shape as the Entrance Hall's trunk count); 'dig_bonus' (Veia -- the wiki's own Dig spots page, \"Creating dirt piles\": \"1 dig spot will permanently appear in the Planetarium when activating one of the planet's effects using the Telescope\", read as this specific planet's payload given the gallery's own Dirt Pile caption; modeled as +1 into state.special.veia_dig_bonus at the Planetarium's cell, the same generic per-cell overlay the Cloister of Veia and spread_dig_spots already share); 'food'/'dice'/'item' (Fennmora/Mamora/Mora -- an Apple, a single Ivory Die [dice resource, not the 4-dice Experiments effect], and a Prism Key, applied through the ordinary grants vocabulary special_items.apply_grant_list already resolves for containers and mail packages). Every unlocked planet's payload re-applies every later day (rooms/planetarium.py's ON_PLACE/ON_ENTER hooks), matching \"permanent benefits to the room\"; the day a planet is FIRST unlocked, engine/special_items.py::use_telescope_in_planetarium applies that one payload immediately since the room's own ON_ENTER already fired earlier that day."
   }
  }
 }
