@@ -1001,6 +1001,45 @@ pending that primitive.
 
 ## Decisions log
 
+- **2026-08-14, OWNER RULINGS x4: the Conservatory is fully specified for
+  reachability. Nothing in that build is now blocked.**
+
+  1. **Fix BOTH `rarity` and `gem_cost` to the wiki: `unusual` and `1`.** The
+     repo's `rarity: null` was a misreading of *"the Conservatory cannot have
+     its rarity changed"* -- which excludes it from its own re-rarity list, not
+     from having a rarity. **This is a fidelity change, not a typo fix:**
+     `gem_cost: 1` moves the room out of the free decks and into the **gem**
+     decks, changing which slot can draw it and whether a gem-poor player can
+     afford it.
+  2. **Finding the floorplan REQUIRES A HELD SHOVEL.** *(Rejects the
+     recommendation, which was unconditional-on-arrival following the Throne
+     Room and Treasure Trove precedent.)* The wiki calls it a **hidden dig
+     spot** at the campsite, and the owner ruled the dig is real. **The sim
+     models no off-grid area digging at all today** -- dig tooling exists only
+     for room dig spots -- so this introduces the first one. Scope it as a
+     shovel-held condition on campsite arrival, not a new digging subsystem.
+  3. **`pool` gets a NEW value, `found_floorplan`** -- not a reuse of
+     `studio_addition`. Seven of the eight Found Floorplans currently sit under
+     `studio_addition` because the repo conflates the two concepts; the new
+     value stops entrenching that, and **re-filing the other seven is a
+     separate later pass**, not part of this build.
+  4. **Available from the NEXT day onward**, not the same day. `build_decks`
+     runs at day start, so the deck is already built when the floorplan is
+     found. Matches the Treasure Trove and Throne Room comments, and needs no
+     `inject_rooms` call.
+
+  **One item was offered and NOT selected, recorded as an interpretation so it
+  is visible if wrong: `counts_as_drafting_room` is NOT added.** The wiki types
+  the Conservatory as a Drafting Room, which would grant a Classroom redraw and
+  a Dormitory step grant. It was offered alongside ruling 3 in a multi-select
+  and left unchosen. **Read as: do not add it** -- it changes Classroom redraw
+  economics on all-unlocks configs. **Reopen if that reading is wrong.**
+
+  **Also still open from the same scoping, not yet ruled:** whether
+  `priority_draws.json`'s decayed Morning Room clause is fixed in this work or
+  left to a notes sweep -- it currently tells the reader that a **built**
+  prerequisite (Bacon & Eggs, live via `effects/rooms/nook.py`) is unbuilt.
+
 - **2026-08-14, OWNER RULINGS x8. The constellation width is now SETTLED at
   `N_ACTIONS` 442 -> 457, and two live defects are cleared to fix.**
 
