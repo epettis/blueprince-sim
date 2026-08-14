@@ -985,6 +985,111 @@ existing prose.
 
 ## Decisions log
 
+- **2026-08-14, SPAWN TABLES measured across all 102 items. 26 of 28 diverge
+  -- but it is DISTRIBUTION, not reachability, and that is measured, not
+  argued.**
+
+  **Denominator first: only 33 of 102 items carry a spawn table**, 28 of them
+  comparable against a wiki `Locations` field. **26 diverge; 2 are clean**
+  (`coupon_book`, `telescope`). The earlier "3 of 5" understated it.
+
+  **All 33 tables were authored in a single commit** (`3250263`, 2026-07-25).
+  One pass, one source -- which is the real evidence for "systemic", stronger
+  than any hit rate.
+
+  **Direction A (wiki lists, sim omits): 145 pairs -- but 121 net.** All 145
+  name rooms that **exist in `rooms.json`**; none are unmodelled rooms. **24
+  are false positives already modelled through another channel** -- 8
+  Commissary entries matching `shops.json` commissary stock exactly, 5
+  Locksmith, 7 Lost & Found, 4 Trading Post. **Do not add those**: they would
+  double-count and dilute pools that are correct today.
+
+  **Direction B (sim has, wiki does not) -- NOBODY HAD CHECKED THIS, and it is
+  where the actual falsehoods are.** 6 pairs. `car_keys`/`garage` is
+  **contradicted outright** (the Garage page: *"does not usually contain
+  special items lying around"*) -- the digest recorded the *use* location as
+  the spawn location. `compass`/`mail_room` and `sleeping_mask`/`mail_room`
+  are **double-counts** of `mail_packages`. `repellent`/`spare_bedroom__ix131`
+  and `lunch_box`/`dining_room` are **misfiled** -- both are *guaranteed*, so
+  they belong in `guaranteed_in`. `keycard`/`billiard_room` is not on the
+  wiki's list and is likely the **Dartboard** conflated with its room.
+
+  **DOES IT MATTER -- measured, not asserted.** `spawn_rooms` inverts into
+  `spawn_pool_by_room`, consumed at exactly one site (`items.py:658` ->
+  `roll_special_spawn`): per extra-item slot, roll a **25%** `special_share`,
+  then pick **uniformly** from the room's pool. So **the table controls WHICH
+  item you get, never HOW MANY.**
+
+  A/B over 3000 seeded days per variant (data copied to scratch, repo
+  untouched): **total special finds per 1000 days 1550 -> 1550, unchanged.**
+  Per-item rates move hard: `car_keys` **6.6x**, `vault_key_149` **0.40x**,
+  `salt_shaker` 0.57x, `running_shoes` 0.67x. Adding a room takes mass *from*
+  the other items in that room -- total flow is conserved.
+
+  **No item is currently unobtainable because its table is short.** Every
+  grant channel was enumerated for all 102; every diverging item has another
+  path.
+
+  **Corrections to the orchestrator, all mine to own:**
+  - **"`magnifying_glass` is the sole input to `burning_glass`" is FALSE.** The
+    recipe is `metal_detector + magnifying_glass`. I paraphrased #286's note
+    ("the recipe is the burning glass's only source") into a different claim.
+    **And the chain is not spawn-gated at all** -- the Commissary sells the
+    glass for 4g. Its table is load-bearing for *rate*, not *access*.
+  - The `_notes[4]` digest admission **is itself stale**: it says the wiki
+    lists 15 rooms for Car Keys; today it lists 21+2.
+  - **The raw datamine has no item-spawn data** (`tfmurphy_room_table.md` is a
+    17-column *room* table), so datamine-outranks-wiki does not bite here and
+    the wiki is the best available authority. Say so rather than implying
+    otherwise.
+
+  **`meta.confidence` INVERTS.** Items labelled `wiki` are 59% complete; the
+  two labelled **`datamined`** -- the highest tier -- are **49%**, the worst
+  band. **The label is not tracking reality**, which softens the provenance
+  ordering the whole repo leans on. Added as an owner question.
+
+  **The one real cluster is bimodal, not graded:** 9 items have
+  `spawn_rooms_high_luck` exactly right; **7 have the entire tier empty**
+  while the wiki gives them `!` entries. That reads as two authoring passes,
+  one of which dropped the `!` prefix -- 30 of the 121.
+
+  **Ruling: sweep in three PRs, reverse direction FIRST**, because that is
+  where the sim asserts things the source denies:
+  (a) the **6 wrong/misfiled** entries -- not gated, doing now;
+  (b) the **30 missing high-luck** entries -- one tier, one clear cause;
+  (c) the **91 remaining** normal-tier entries.
+  **(b) and (c) are GATED** on owner question 1 below, which decides whether
+  the exclusion set is 24 or 0.
+
+  **Regression guard, when (b)/(c) land:** commit
+  `tools/raw/wiki_item_locations.tsv` -- verbatim `|Locations=` per item, with
+  fetch date and URL -- and have `validate_data.py` diff every table against
+  it, honouring `!` as the high-luck tier. **Each exemption must name the file
+  and channel that models it instead, and a test must remove each exemption
+  and assert the checker then flags that pair** -- necessity, not liveness.
+  **Honest limit to record with it:** the snapshot pins the wiki as of the
+  fetch date, so it catches sim drift and never wiki drift. Refreshing it must
+  be a deliberate act with a visible diff.
+
+  **Six new owner questions**, the first of which gates (b) and (c):
+  1. **Does the wiki's `Locations` field mean "spawns on the floor here" or
+     "is obtainable here"?** The 8-for-8 match between Commissary-listed items
+     and Commissary shop stock says the latter. **If owner play says items also
+     lie on the Commissary floor, the sweep is 145, not 121.**
+  2. **Should `_notes[4]`'s digest be cited as a source at all?** It was wrong
+     about the count and its conclusion is contradicted by the Garage page. If
+     the digest is unreliable for locations, other fields sourced from it
+     deserve the same suspicion.
+  3. **The Spiral is unmodelled and appears as a location for 11 items** --
+     including `basement_key`, where it is the **only** wiki location. Bigger
+     than everything measured here. In scope?
+  4. **The Dartboard is unmodelled** and is the likely origin of the invented
+     `keycard/billiard_room` entry. Model it, or defer with a reason?
+  5. **Does `meta.confidence` need a repo-wide audit?** See the inversion above.
+  6. **Is a retrain owed?** `baseline-ep8275991` was trained against today's
+     tables; a 6.6x shift in `car_keys` is a distribution shift for any live
+     checkpoint.
+
 - **2026-08-14, THE "GEMS-IN-HAND RANK AXIS" QUEUE ENTRY WAS WRONG IN EVERY
   PARTICULAR -- and a real engine defect was underneath it.**
 
