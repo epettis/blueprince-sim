@@ -335,7 +335,7 @@ _N_LOCK_SPECIAL_KEYS = 6  # width pinned as a constant, like _N_AREA_NODES/_N_AX
 # id shifts. DRAFTING only; see Game.can_rewind/rewind.
 REWIND_ACTION = LOCK_SPECIAL_KEY_BASE + _N_LOCK_SPECIAL_KEYS  # 436
 
-# 436..439: choose the Gear Wrench's permanent rarity (Phase.WRENCH_PENDING
+# 437..440: choose the Gear Wrench's permanent rarity (Phase.WRENCH_PENDING
 # only), appended at the end so no earlier id shifts. Order matches
 # engine.model.RARITIES. See Game.can_set_wrench_rarity/set_wrench_rarity.
 WRENCH_RARITY_BASE = REWIND_ACTION + 1  # 437

@@ -206,7 +206,7 @@ def roll_rarity(state: GameState, registry: Registry, cfg: GameConfig, rng: Rng,
     return rng.roll_weighted("rarity", tuple(weights))
 
 
-def reroll_random_rarities(state: GameState, rng: Rng, count: int = 3,
+def reroll_random_rarities(state: GameState, registry: Registry, rng: Rng, count: int = 3,
                            label: str = "conservatory_reroll") -> None:
     """Conservatory: one-time re-roll of the rarity of ``count`` undealt cards.
 
@@ -217,6 +217,27 @@ def reroll_random_rarities(state: GameState, rng: Rng, count: int = 3,
     the same free/gem class at a random undealt position. A card whose re-roll
     matches its current rarity stays put. All randomness comes from the
     dedicated ``label`` substream, consumed only when this fires.
+
+    Each move is applied through :func:`set_dynamic_rarity` rather than by
+    hand-moving the card, so ``state.dynamic_rarity`` stays consistent with
+    where the card actually ends up -- required for a later same-day
+    :func:`set_dynamic_rarity` call (e.g. a Gear Wrench pick) on the same room
+    to find its card in the right bucket instead of silently missing it in
+    the room's natal deck. Every room has exactly one deck copy (data-verified:
+    ``deck_copies == 1`` for every room with a rarity), so a card selected out
+    of the undealt pool is the room's ONLY copy and this substitution changes
+    no observable behaviour beyond the bookkeeping fix. Moves are applied in
+    the same ``(r, g, -i)`` order the old hand-rolled removal needed for
+    index safety, one full remove-then-insert per move via ``set_dynamic_
+    rarity`` -- this preserves the exact number of draws on ``label`` (one
+    per changed card, same as before) and therefore the substream's end
+    position, but NOT necessarily each draw's individual value: the old code
+    removed every changed card first and only then inserted all of them,
+    while this reuses the primitive that removes-then-inserts per room, so a
+    move whose destination deck is a later move's source deck can see a
+    different (still in-bounds) insertion range than before. Distinct from
+    the bug this fixes, and immaterial to every existing Conservatory test
+    (none pins an exact card position).
     """
     undealt = [(r, g, i)
                for r in range(4) for g in (False, True)
@@ -231,16 +252,13 @@ def reroll_random_rarities(state: GameState, rng: Rng, count: int = 3,
         r, g, i = undealt[j]
         new_r = rng.randint(label, 0, len(RARITIES) - 1)
         if new_r != r:
-            moves.append((r, g, i, new_r))
+            room_idx = state.deck(r, g).order[i]
+            moves.append((r, g, i, new_r, room_idx))
 
-    # Remove every moved card first (descending index within each deck keeps
-    # the remaining removal indices valid), then insert, so an insertion can
-    # never shift a pending removal.
     moves.sort(key=lambda m: (m[0], m[1], -m[2]))
-    removed = [(state.deck(r, g).order.pop(i), g, new_r) for r, g, i, new_r in moves]
-    for card, g, new_r in removed:
-        dst = state.deck(new_r, g)
-        dst.order.insert(rng.randint(label, dst.pos, dst.size()), card)
+    for r, g, i, new_r, room_idx in moves:
+        room_id = registry.rooms[room_idx].id
+        set_dynamic_rarity(state, registry, room_id, new_r, rng, label=label)
 
 
 RARITY_NAMES = RARITIES
