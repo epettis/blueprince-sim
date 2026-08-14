@@ -203,14 +203,13 @@
      "tag": "gear_wrench"
     }
    ],
-   "implemented": false,
+   "implemented": true,
    "meta": {
     "source": "https://blueprince.wiki.gg/wiki/Gear_Wrench",
     "confidence": "wiki",
     "absent_spawn_areas": [],
-    "blocked_on": "rarity_change_not_persisted_across_days",
-    "reachability": "inert",
-    "notes": "The 8 Mechanical Rooms are typed via Room.extra_categories, and decks.py::set_dynamic_rarity is a fully general card-move primitive already used by experiments.py -- retyping a Mechanical Room's rarity bucket is not the gap. The real gap is that state.dynamic_rarity is a fresh dict on every GameState() (day-scoped, no carry-over), while the wiki says the wrench's rarity change is permanent. A player-choice action (which Mechanical Room to target) is also missing."
+    "blocked_on": null,
+    "notes": "MAIN EFFECT built: the choice is over the FOUR RARITY LEVELS, not which Mechanical Room to target (an earlier note here had this backwards) -- the room is whichever Mechanical Room (Room.is_category('mechanical')) was just drafted while the wrench is held; Game.choose detects the trigger and parks Phase.WRENCH_PENDING (engine/effects/items/gear_wrench.py; Game.can_set_wrench_rarity/set_wrench_rarity). The permanent choice is recorded in GameState.permanent_rarity / GameConfig.permanent_rarity, a SAVE-scoped dict carried by env/multiday.py::DayChain the same way axed_rooms is (survives the attempt wrap; NOT in DayChain._CARRYOVER_KEYS, which is bool-only). decks.py::build_decks consults cfg.permanent_rarity for the day-start bucket; Game.reset seeds state.dynamic_rarity from the same dict right after, so decks.py::set_dynamic_rarity/inject_rooms/inject_rooms_undealt/apply_upgrade agree on a wrenched room's bucket the rest of the day. Two things deliberately NOT built: (1) the wiki's separate pickup side effect (Workshop + Boiler Room -> Standard, that day) needs rng inside special_items._on_pickup, which takes none -- the same constraint battery_pack.py works around via a deferred pending-trigger resolved at the next deal; gear_wrench.py's own module docstring names this as a tracked gap. (2) The wiki also says the Conservatory writes this same permanent rarity slot and can reset a wrench-set rarity; this sim's Conservatory (decks.reroll_random_rarities) is a random DAY-SCOPED reroll of three undealt cards that never touches state.dynamic_rarity's bookkeeping at all, let alone the permanent record -- a known, deliberately-unfixed divergence from the wiki, not remodelled here."
    }
   },
   {

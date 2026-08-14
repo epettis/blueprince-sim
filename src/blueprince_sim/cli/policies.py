@@ -16,6 +16,7 @@ from ..engine import locks
 from ..engine.draft import COLOUR_CATEGORIES
 from ..engine.game import ANTECHAMBER_CELL, Game, Phase, RedrawKind
 from ..engine.grid import N, neighbor, rank_of
+from ..engine.model import RARITIES
 
 
 def _affordable(game: Game):
@@ -150,6 +151,18 @@ def _lock_pending_choices(game: Game) -> list:
     return choices
 
 
+def _wrench_pending(game: Game, rnd: random.Random) -> bool:
+    """WRENCH_PENDING decision (a Mechanical Room was just drafted while
+    holding the Gear Wrench): pick a uniform random rarity level. True if a
+    decision was taken, so callers can return immediately -- shared by every
+    policy below, same shape as _colour_pending, since none of them has an
+    opinion on rarity manipulation."""
+    if game.phase is not Phase.WRENCH_PENDING:
+        return False
+    game.set_wrench_rarity(rnd.randrange(len(RARITIES)))
+    return True
+
+
 def _lock_pending_random(game: Game, rnd: random.Random) -> bool:
     """LOCK_PENDING decision: pick uniformly among every legal row (matching
     _colour_pending's uniform-random spirit for random_policy). True if a
@@ -191,6 +204,8 @@ def random_policy(game: Game, rnd: random.Random) -> None:
     if _colour_pending(game, rnd):
         return
     if _lock_pending_random(game, rnd):
+        return
+    if _wrench_pending(game, rnd):
         return
     if game.phase is Phase.DRAFTING:
         opts = _affordable(game)
@@ -299,6 +314,8 @@ def frontier_greedy(game: Game, rnd: random.Random) -> None:
         return
     if _lock_pending_greedy(game, rnd):
         return
+    if _wrench_pending(game, rnd):
+        return
     if game.phase is Phase.NAVIGATE:
         _navigate_frontier(game)
     else:
@@ -311,6 +328,8 @@ def greedy_rank(game: Game, rnd: random.Random) -> None:
         return
     if _lock_pending_greedy(game, rnd):
         return
+    if _wrench_pending(game, rnd):
+        return
     if game.phase is Phase.NAVIGATE:
         _navigate_north(game)
     else:
@@ -322,6 +341,8 @@ def economy(game: Game, rnd: random.Random) -> None:
     if _colour_pending(game, rnd):
         return
     if _lock_pending_greedy(game, rnd):
+        return
+    if _wrench_pending(game, rnd):
         return
     if game.phase is Phase.NAVIGATE:
         _navigate_north(game)

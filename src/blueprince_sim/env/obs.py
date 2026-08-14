@@ -14,7 +14,7 @@ from ..engine.model import LAYOUTS
 from ..engine.shops import SCEPTER_COLORS, current_shop_id
 from ..engine.special_items import SIGIL_REALMS, _container_kinds_at
 from ..engine.upgrades import all_slot_ids, upgraded_slots
-from .actions import _build_area_node_ids, _build_axe_target_ids
+from .actions import _build_area_node_ids, _build_axe_target_ids, _build_mechanical_room_ids
 from .multiday import DayChain
 
 CATEGORIES = ("blueprint", "bedroom", "hallway", "green", "shop", "red",
@@ -60,7 +60,8 @@ def observation_space(n_rooms: int, n_items: int, n_recipes: int,
                       n_area_nodes: int = 38,
                       n_carryover: int = len(DayChain._CARRYOVER_KEYS),
                       n_slots: int = 16,
-                      n_axe_targets: int = 48) -> spaces.Dict:
+                      n_axe_targets: int = 48,
+                      n_mechanical_rooms: int = 8) -> spaces.Dict:
     """Dict observation space over the 9x5 (rank-major) grid; see :func:`encode`.
 
     Room ids are shifted by +1 so 0 means "empty cell"; -1 is the sentinel for
@@ -75,6 +76,9 @@ def observation_space(n_rooms: int, n_items: int, n_recipes: int,
     ``n_axe_targets`` is the number of Axe-axeable floorplan families
     (``len(actions._build_axe_target_ids(registry))``, 48 today), the same
     registry-derived-but-defaulted convention as ``n_slots``.
+    ``n_mechanical_rooms`` is the number of Mechanical Room ids
+    (``len(actions._build_mechanical_room_ids(registry))``, 8 today), the
+    same convention.
     """
     return spaces.Dict({
         "grid_room": spaces.Box(0, n_rooms, shape=(9, 5), dtype=np.int16),
@@ -249,6 +253,12 @@ def observation_space(n_rooms: int, n_items: int, n_recipes: int,
         # never a shape change to an existing key (options[].gem_cost already
         # reads 0 for an axed room via _effective_cost/resolve_gem_cost).
         "axed_rooms": spaces.Box(0, 1, shape=(n_axe_targets,), dtype=np.uint8),
+        # wrench_rarity: per Mechanical Room (actions._build_mechanical_room_ids
+        # order), the Gear Wrench's permanently-set rarity index+1, or 0 when
+        # untouched (still its own natal rarity). An additive Dict key, never
+        # a shape change to an existing one -- same rationale as axed_rooms:
+        # a permanent, cross-day, per-room investment V(s) needs to see.
+        "wrench_rarity": spaces.Box(0, 4, shape=(n_mechanical_rooms,), dtype=np.uint8),
     })
 
 
@@ -675,6 +685,15 @@ def encode(game: Game, day_chain: DayChain | None = None) -> dict:
         [1 if t in _axed else 0 for t in _axe_target_ids], dtype=np.uint8
     )
 
+    # wrench_rarity: Gear Wrench's permanent per-room override, in
+    # _build_mechanical_room_ids order. state.permanent_rarity is already
+    # the full current record (seeded from cfg at reset, only ever changed
+    # by Game.set_wrench_rarity), the same read shape as axed_rooms above.
+    _mech_room_ids = _build_mechanical_room_ids(registry)
+    wrench_rarity_obs = np.array(
+        [st.permanent_rarity.get(rid, -1) + 1 for rid in _mech_room_ids], dtype=np.uint8
+    )
+
     return {
         "grid_room": grid_room,
         "grid_doors": grid_doors,
@@ -717,4 +736,5 @@ def encode(game: Game, day_chain: DayChain | None = None) -> dict:
         "mail": mail_obs,
         "shrine": shrine_obs,
         "axed_rooms": axed_rooms_obs,
+        "wrench_rarity": wrench_rarity_obs,
     }

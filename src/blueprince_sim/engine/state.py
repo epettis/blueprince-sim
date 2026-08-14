@@ -564,6 +564,20 @@ class GameState:
     # function's own docstring).
     axed_rooms: tuple[str, ...] = ()
 
+    # Gear Wrench: Mechanical Room id -> permanently-set rarity index
+    # (engine/model.py RARITIES). Seeded from cfg.permanent_rarity at
+    # Game.reset; grown/shrunk by Game.set_wrench_rarity (see
+    # GameConfig.permanent_rarity for the SAVE-scoped shape). decks.py::
+    # build_decks consults this at day-start bucket assignment; decks.py::
+    # inject_rooms/inject_rooms_undealt/set_dynamic_rarity consult
+    # dynamic_rarity below for the SAME-day bucket, which Game.reset seeds
+    # from this dict right after build_decks -- so both the initial deck
+    # build and every later mid-day deck mutation agree on where a wrenched
+    # room's cards live, closing the corruption decks.py's own module
+    # docstring warns about (a wrenched Pump Room injected by The Pool would
+    # otherwise land in its un-wrenched natal bucket).
+    permanent_rarity: dict[str, int] = field(default_factory=dict)
+
     # --- Shrine blessings/curse (engine/effects/rooms/shrine.py) ---
     # Seeded each day from the matching GameConfig.shrine_* fields (Game.reset);
     # a blessing/curse this GameState grants or clears is reported by
@@ -583,6 +597,12 @@ class GameState:
     # above: -1 outside LOCK_PENDING; direction is only meaningful while cell >= 0.
     pending_lock_cell: int = -1
     pending_lock_direction: int = 0
+
+    # --- WRENCH_PENDING (engine/game.py's Game.choose / Game.set_wrench_rarity) ---
+    # The Mechanical Room id awaiting a Gear Wrench rarity pick, set by
+    # Game.choose right after placing the room instead of returning to
+    # NAVIGATE. Same shape as pending_upgrade_slot: None outside WRENCH_PENDING.
+    pending_wrench_room_id: str | None = None
 
     def deck(self, rarity_idx: int, is_gem: bool) -> DeckState:
         return self.decks[rarity_idx * 2 + (1 if is_gem else 0)]

@@ -203,6 +203,13 @@ class DayChain:
         # shrine_* fields above: deliberately NOT cleared in the attempt-wrap
         # block below, unlike draft_counts/foundation_cell.
         self.axed_rooms: tuple[str, ...] = tuple(base_cfg.axed_rooms)
+        # Gear Wrench: room id -> permanently-set rarity index. REPLACED (not
+        # merged) from each day's own carryover value every advance() --
+        # state.permanent_rarity already IS the full accumulated dict by day
+        # end, the same "state already is the running total" shape as
+        # axed_rooms/draft_counts. SAVE-scoped like axed_rooms above:
+        # deliberately NOT cleared in the attempt-wrap block below.
+        self.permanent_rarity: dict[str, int] = dict(base_cfg.permanent_rarity)
 
     def next_config(self) -> GameConfig:
         """Return the ``GameConfig`` for the current day.
@@ -253,6 +260,7 @@ class DayChain:
             shrine_offered_coins=self.shrine_offered_coins,
             shrine_monk_room=self.shrine_monk_room,
             axed_rooms=self.axed_rooms,
+            permanent_rarity=dict(self.permanent_rarity),
             **self.carried_flags,          # unpack only the True flags
         )
 
@@ -437,6 +445,13 @@ class DayChain:
         if ar_val is not None:
             self.axed_rooms = tuple(ar_val)
 
+        # --- permanent_rarity (Gear Wrench's permanent record; replace each
+        #     advance, the same axed_rooms/draft_counts shape -- state.
+        #     permanent_rarity already IS the full current dict) ---
+        pr_val = carryover.get("permanent_rarity")
+        if pr_val is not None:
+            self.permanent_rarity = dict(pr_val)
+
         # --- banned_rooms (Repellent bans from this day) ---
         # Decrement PRE-EXISTING bans first (one day has elapsed for them),
         # then merge the NEW bans from this day.  New bans are not decremented
@@ -478,9 +493,9 @@ class DayChain:
             self.chapel_tithes = 0            # fresh attempt; tithe bank reset
             self.allowance = self.base_cfg.allowance  # fresh attempt; back to the base preset
             # stars, main_course_bonus, letters_delivered, the five shrine_*
-            # fields, and axed_rooms are deliberately absent here: all are
-            # save-scoped and carry through the wrap into the next attempt,
-            # unlike every other value reset above.
+            # fields, axed_rooms, and permanent_rarity are deliberately
+            # absent here: all are save-scoped and carry through the wrap
+            # into the next attempt, unlike every other value reset above.
             self.mail_cycle = self.base_cfg.mail_cycle  # fresh attempt; back to the base preset
             self.mail_transit_days = self.base_cfg.mail_transit_days  # fresh attempt; back to base
             self.hallway_tomorrow_extra = self.base_cfg.hallway_tomorrow_extra  # fresh attempt
