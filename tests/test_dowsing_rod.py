@@ -606,9 +606,7 @@ def test_never_roll_room_stays_unaffected_even_when_dowsed(registry):
 
 def test_open_outer_draft_picks_a_dowsed_slot_when_the_rod_is_held(registry):
     """Game.open_outer_draft's hand must come back with a real dowsed_slot
-    pick when the Rod is held -- the wiring gap this PR fixes (previously
-    open_outer_draft's hand never called _pick_dowsing_slot at all, leaving
-    dowsed_slot permanently None for every outer draft).
+    pick when the Rod is held.
     """
     cfg = GameConfig(special_items=True, west_gate_unlatched=True)
     g = Game(cfg, seed=0, registry=registry)

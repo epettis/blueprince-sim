@@ -47,9 +47,9 @@ _STUDIO_ADDITION_EXCLUSIONS: frozenset[str] = frozenset({
     # Closed Exhibit: security puzzle (Paper Crown pickup simplified to guaranteed) — excluded
     # because the intended locked-puzzle behaviour is unmodelled (open task: Closed Exhibit puzzle).
     "closed_exhibit",
-    # NOTE: casino IS included below even though its slot-machine games are unmodelled.
-    # Removing it would change training behaviour beyond this fix's intent; the inconsistency
-    # is acknowledged here.  Promote this note once Casino games are implemented.
+    # NOTE: casino is intentionally NOT excluded here, even though its
+    # slot-machine games are unmodelled -- a standing deliberate inconsistency.
+    # Promote this note once Casino games are implemented.
 })
 
 # Aquarium upgrade-variant room ids excluded from training via banned_rooms

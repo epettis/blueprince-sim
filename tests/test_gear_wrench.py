@@ -1,7 +1,6 @@
 """Gear Wrench: drafting a Mechanical Room while held offers a permanent
-rarity pick over the FOUR RARITY LEVELS (not which room to target -- an
-earlier note on this item had that backwards; the room is always whichever
-Mechanical Room was just drafted).
+rarity pick over the FOUR RARITY LEVELS (not which room to target; the
+room is always whichever Mechanical Room was just drafted).
 
 Grouped in its own file (mirroring tests/test_the_axe.py's shape) since the
 mechanic touches several concerns at once -- a reusable non-consumed item, a

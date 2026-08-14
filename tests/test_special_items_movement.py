@@ -239,11 +239,9 @@ def test_open_action_legal_regardless_of_items_or_keys_for_a_locked_doorway():
     """Trying a locked frontier doorway is legal at 0 keys and with no
     unlock item held at all -- trying costs nothing (Phase.LOCK_PENDING is
     how the player finds out it's locked and chooses how to open it, the
-    owner's ruling). This is the property that replaces the four
-    item-specific "does the OPEN action become legal" tests below: with the
-    OLD auto-resolving open_door, whether an item made the draft legal
-    depended on which item and how many keys were held; now the try itself
-    never depends on either.
+    owner's ruling). Whether an item or key count changes what's legal
+    inside that menu is exercised by the four item-specific tests below;
+    trying itself never depends on either.
     """
     for items in (frozenset(), frozenset({"master_key"}), frozenset({"silver_key"}),
                   frozenset({"lock_pick_kit"}), frozenset({"stopwatch"})):
@@ -259,12 +257,9 @@ def test_open_action_master_key_legal_at_zero_keys():
     Master Key is held, AND the special-keys-menu's master_key row is itself
     legal once there.
 
-    Setup rebuilt, not the property (a held Master Key still makes the door
-    openable at 0 keys) -- but the mechanism moved: it used to be
-    action_mask()'s OPEN branch consulting special_items.can_open_locked_free
-    directly; now trying is unconditional (see the test above) and the
-    Master Key's own legality lives on Game.can_use_special_key_at_lock,
-    reached through Phase.LOCK_PENDING instead of resolved inline.
+    Trying itself is unconditional (see the test above); the Master Key's
+    own legality lives on Game.can_use_special_key_at_lock, reached through
+    Phase.LOCK_PENDING.
     """
     game = _game(frozenset({"master_key"}))
     cell, d = game.open_doorways()[0]
@@ -284,11 +279,8 @@ def test_open_action_stopwatch_does_not_waive_the_key_requirement_at_zero_keys()
     keys: the wiki's "at least one key is still required for the option to
     use a key to appear, even though it isn't spent."
 
-    Setup rebuilt (was: the OPEN action itself must stay illegal at 0 keys).
-    Trying is unconditional now (see the first test above), so the
-    Stopwatch's key-requirement check moved to Game.can_use_key_at_lock,
-    which this exercises directly through Phase.LOCK_PENDING instead of via
-    the old auto-resolving open_door/_unlock_for_passage.
+    The Stopwatch's key-requirement check lives on Game.can_use_key_at_lock,
+    exercised here directly through Phase.LOCK_PENDING.
     """
     game = _game(frozenset({"stopwatch"}))
     cell, d = game.open_doorways()[0]
@@ -308,11 +300,8 @@ def test_open_action_silver_key_legal_at_zero_keys():
     same entry points the trainer uses, complementing
     test_draft_items.py's direct Game-API coverage of the same mechanism.
 
-    Setup rebuilt, not the property: opening a locked doorway no longer
-    resolves the Silver Key automatically (open_door used to pass
-    for_draft=True straight into _unlock_for_passage's silver-key branch);
-    it now only parks Phase.LOCK_PENDING, and the special-keys-menu row must
-    be selected as its own action.
+    open_door only parks Phase.LOCK_PENDING; the special-keys-menu row must
+    be selected as its own action to resolve the Silver Key.
     """
     game = _game(frozenset({"silver_key"}))
     cell, d = game.open_doorways()[0]
@@ -334,13 +323,9 @@ def test_open_action_lockpick_legal_at_zero_keys():
     """A held Lock Pick Kit makes the lockpick menu row legal even at 0
     keys -- the wiki: it unlocks "without using any keys or special keys".
 
-    Setup rebuilt AND the property flips: the OLD open_door resolved a
-    locked door in one call, so a probabilistic pick attempt had to be
-    conservatively excluded from the mask altogether (a failure fell back
-    to _unlock_for_passage spending a real key it might not have, an
-    unsafe "legal but may crash" action). Now a failed lockpick_at_lock
-    attempt spends nothing and leaves Phase.LOCK_PENDING (see
-    Game.lockpick_at_lock), so it is safe to offer regardless of keys held.
+    A failed lockpick_at_lock attempt spends nothing and leaves
+    Phase.LOCK_PENDING (see Game.lockpick_at_lock), so it is safe to offer
+    regardless of keys held.
     """
     game = _game(frozenset({"lock_pick_kit"}))
     cell, d = game.open_doorways()[0]
@@ -354,14 +339,12 @@ def test_open_action_lockpick_legal_at_zero_keys():
 
 def test_lock_pending_mask_agrees_with_engine_predicates(registry):
     """Every LOCK_PENDING mask bit must exactly match its Game can_* predicate,
-    across several items and key counts -- the drift risk the OLD OPEN-action
-    version of this test guarded against (a second, silently-diverging copy
-    of a legality rule) moved here along with the legality logic itself: the
-    OPEN action's own legality is now unconditional for a locked doorway
-    (see test_open_action_legal_regardless_of_items_or_keys_for_a_locked_doorway),
-    so there is nothing left to drift on that side; the menu is the new
-    surface with two independent implementations (env/actions.py's mask and
-    engine/game.py's can_* methods) that could silently disagree.
+    across several items and key counts: the menu is the surface with two
+    independent implementations (env/actions.py's mask and engine/game.py's
+    can_* methods) that could silently disagree. The OPEN action's own
+    legality is unconditional for a locked doorway (see
+    test_open_action_legal_regardless_of_items_or_keys_for_a_locked_doorway),
+    so there is nothing to drift on that side.
     """
     order = list(registry.lock_rules["special_key_menu"]["order"])
     for items in (

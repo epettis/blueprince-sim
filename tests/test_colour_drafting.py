@@ -79,16 +79,13 @@ def test_exhausted_colour_defaults_leave_the_slot_unfilled_not_off_colour(cfg):
     states the colour invariant ("only floorplans of that color can be
     drawn") with no exhaustion exception
     (blueprince.wiki.gg/wiki/Drafting_effects#Color-selective_drafting).
-    This is the exact condition that used to raise
-    ``secret_passage.py``'s ON_DRAFT_FROM assertion with 'dealt closet, not
-    a "red" room'.
 
     An empty hand must also be *escapable*: Game.choose_colour falls back to
     NAVIGATE (see its docstring) rather than parking in DRAFTING with nothing
     to choose, which would leave every action illegal -- unsurvivable for a
-    masked policy. Asserting only emptiness (as an earlier version of this
-    test did) would pass even if the game deadlocked there, since it never
-    checks that any action remains; this checks the escape itself."""
+    masked policy. Asserting only emptiness would pass even if the game
+    deadlocked there, since it never checks that any action remains; this
+    checks the escape itself."""
     g = Game(cfg, seed=9)
     _place_secret_passage(g)
     for deck in g.state.decks:

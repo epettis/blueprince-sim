@@ -204,7 +204,7 @@ def test_buying_an_item_is_roughly_reward_neutral(registry):
         shops.buy(g, idx)
         r = fn(g, prev, terminated=False)
         # Coin spend really happened, but the reward is near the time-pressure
-        # floor, not the old -0.01*price cliff.
+        # floor.
         assert st.coins < g_coins
         assert r > -0.001 - 0.01 * entry["price"] / 2
         st.inventory.clear()  # reset for the second reward fn
@@ -381,12 +381,11 @@ def test_reopening_path_gives_positive_delta(registry):
 def test_time_term_scales_with_steps_not_flat_per_decision(registry):
     """A decision that consumes several game-steps costs strictly more shaped
     reward than a single-step decision, and a zero-step decision still pays
-    the old flat -0.001 floor.
+    the flat -0.001 floor.
 
-    Repricing the time term against game-steps (the resource that actually
-    ends 68% of runs via out_of_steps) rather than decision count is the
-    whole point of this change; a flat charge priced a multi-step travel hop
-    identically to a single-cell move.
+    The time term is priced against game-steps (the resource that actually
+    ends 68% of runs via out_of_steps) rather than decision count, so a
+    multi-step travel hop costs more than a single-cell move.
     """
     g = _sealed_game(registry)
     _place(g, 32, N | E, pos=True)  # two open paths -> phi_paths delta 0.0 throughout

@@ -104,9 +104,8 @@ ITEM_TAG_ALLOWLIST: dict[str, set[str]] = {
         # both name the same underlying resource.
         "allowance",
     },
-    # game.py no longer names any tag/id-collision literal (task 22 phase
-    # 5a): its former "paper_crown" site is now paper_crown.bonus_redraw in
-    # engine/effects/items/paper_crown.py.
+    # game.py names no tag/id-collision literal: its "paper_crown" behaviour
+    # is paper_crown.bonus_redraw in engine/effects/items/paper_crown.py.
     "shops.py": {
         # item.effect("locksmith_rob") gates the Locksmith's rob-on-theft
         # mechanic -- a genuine tag dispatch.
@@ -118,32 +117,29 @@ ITEM_TAG_ALLOWLIST: dict[str, set[str]] = {
         # config export), not a tag read -- collides with the resource name
         # the same way effects/tier1.py's case does.
         "allowance",
-        # stopwatch and repellent moved off this entry (phase 5a): their
-        # former sites are now stopwatch.blocks_as_trade_return and
-        # repellent.held/consume in engine/effects/items/.
+        # stopwatch and repellent behaviour lives in
+        # stopwatch.blocks_as_trade_return and repellent.held/consume in
+        # engine/effects/items/.
     },
     "special_items.py": {
         # The bulk of genuine tag dispatch: every one of these is read via
         # item.effect("<tag>") or _has_item_effect(state, registry, "<tag>")
         # somewhere in this module, gating that item's specific behaviour
-        # (spawn/pickup/step/currency/luck modifiers). This is the module
-        # task 22's per-item registry would eventually split apart. Eight
-        # formerly-listed singleton tags (electromagnet, chronograph,
-        # ornate_compass, master_key, emerald_bracelet, food_multiplier,
-        # free_hallway_moves, coin_multiplier) moved to per-item
-        # ItemCapability registrations in engine/effects/items/ and no
-        # longer appear here or in special_items.json. Phase 4 moved five
-        # more (coin_interest, food_bonus, free_move_interval,
-        # mask_red_room, negate_red_once_per_day) to per-item ItemHook
-        # handlers in engine/effects/items/coin_purse.py, salt_shaker.py,
-        # running_shoes.py, and knights_shield.py. Phase 5a moved four more
-        # (compass -- the tag itself deleted from special_items.json since
-        # ItemCapability.COMPASS_BIAS replaced it -- plus sleeping_mask,
-        # steps_at_rank, and watering_can, whose reads are now
+        # (spawn/pickup/step/currency/luck modifiers). electromagnet,
+        # chronograph, ornate_compass, master_key, emerald_bracelet,
+        # food_multiplier, free_hallway_moves, and coin_multiplier are
+        # per-item ItemCapability registrations in engine/effects/items/ and
+        # do not appear here or in special_items.json. coin_interest,
+        # food_bonus, free_move_interval, mask_red_room, and
+        # negate_red_once_per_day are per-item ItemHook handlers in
+        # engine/effects/items/coin_purse.py, salt_shaker.py,
+        # running_shoes.py, and knights_shield.py. compass (the tag itself
+        # absent from special_items.json; ItemCapability.COMPASS_BIAS covers
+        # it), sleeping_mask, steps_at_rank, and watering_can are read in
         # engine/effects/items/sleeping_mask.py, lunch_box.py, and
-        # watering_can.py respectively). "moon_pendant_carry" moved off this
-        # list (phase 6): its only occurrence was the rng.shuffle substream
-        # label, which is now in engine/effects/items/moon_pendant.py.
+        # watering_can.py respectively. "moon_pendant_carry"'s only
+        # occurrence is the rng.shuffle substream label in
+        # engine/effects/items/moon_pendant.py.
         "allowance", "auto_collect",
         "dig_tool",
         "lockpick", "luck_bonus",

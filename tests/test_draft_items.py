@@ -193,11 +193,10 @@ def test_silver_key_consumed_and_sets_draft_flag_on_locked_door(registry):
     """Selecting the Silver Key from the locked-door menu consumes the key
     (not a regular key) and sets silver_key_draft=True.
 
-    Opening a locked doorway now parks Phase.LOCK_PENDING instead of
-    resolving it automatically (the owner's "player chooses how to open it"
-    ruling) -- this rebuilds the old direct-open setup to go through
-    Game.use_special_key_at_lock, the menu row the Silver Key now is,
-    keeping the same consumed-not-a-regular-key assertion.
+    Opening a locked doorway parks Phase.LOCK_PENDING instead of resolving
+    it automatically (the owner's "player chooses how to open it" ruling);
+    the Silver Key is a menu row reached via Game.use_special_key_at_lock,
+    exercised here directly.
     """
     g = _game(registry, items=("silver_key",), seed=1, door_locks=True)
     g.state.steps = 100
@@ -442,8 +441,7 @@ def test_room_draftable_denies_crown_blocked_aquarium_under_every_colour(registr
     colours (Room.is_category matches every one); once crown-blocked it must
     fail for every one of them too -- the wiki's claim that colour-selective
     drafts (and, by the same mechanism, the Silver Key/Prism Key) stay
-    exempt is what this pins as wrong. This is the assertion the brief flags
-    as most likely to be gotten wrong.
+    exempt is what this pins as wrong.
     """
     aquarium = registry.by_id["aquarium"]
     for colour in COLOUR_CATEGORIES:

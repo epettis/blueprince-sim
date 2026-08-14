@@ -180,16 +180,11 @@ def test_bias_drops_after_locked_and_recovers_after_unlocked(registry):
 
 
 def test_locked_doorway_needs_and_spends_a_key(registry):
-    """Trying a locked frontier doorway is free and always legal (it parks
-    Phase.LOCK_PENDING); spending a key there via use_key_at_lock requires
-    one, spends exactly one, and leaves the door permanently open.
-
-    Setup rebuilt, not the property: opening a locked doorway no longer
-    resolves in one call -- Game.open_door parks Phase.LOCK_PENDING instead
-    of raising when no key is held (the owner's "try the door first, then
-    choose how to open it" ruling) or dealing outright when one is. The
-    "requires a key, spends exactly one" property now lives on
-    use_key_at_lock, exercised below via that menu row.
+    """Trying a locked frontier doorway is free and always legal at any key
+    count, including zero: Game.open_door parks Phase.LOCK_PENDING and
+    spends nothing. Spending a key there is a separate step: use_key_at_lock
+    requires one, spends exactly one, and leaves the door permanently open,
+    exercised below via that menu row.
     """
     g = _game(registry)
     doors = g.open_doorways()
@@ -418,11 +413,8 @@ def test_master_key_opens_for_free_at_zero_keys_never_consumed(registry):
 
 
 def test_silver_key_no_longer_auto_spent_on_open(registry):
-    """Opening a locked doorway no longer auto-spends a held Silver Key --
-    it stays in inventory until the special-keys-menu row is explicitly
-    chosen. This is the bug this feature fixes: previously
-    _unlock_for_passage spent the Silver Key unconditionally on every
-    locked draft-open while held."""
+    """Opening a locked doorway does not spend a held Silver Key -- it stays
+    in inventory until the special-keys-menu row is explicitly chosen."""
     g = _game(registry, starting_items=frozenset({"silver_key"}))
     cell, d = g.open_doorways()[0]
     _force_state(g, cell, d, DOOR_LOCKED)
@@ -437,8 +429,7 @@ def test_reserved_special_keys_always_masked_off(registry):
     """secret_garden_key and key_8 are permanently reserved special-keys-menu
     ids: masked off even when force-held, since their menu behaviour is
     unimplemented -- both are modelled in this sim as draft_conditions tags,
-    not door keys. (prism_key was reserved here too before this row went
-    live; see the prism_key tests below for its real, non-reserved
+    not door keys. (See the prism_key tests below for its real, non-reserved
     behaviour.)"""
     g = _game(registry)
     cell, d = g.open_doorways()[0]
@@ -647,9 +638,8 @@ def _enter_lock_pending(g: Game, cell: int, d: int) -> None:
 def test_master_key_holder_at_zero_keys_keeps_the_day_alive(registry):
     """A Master Key holder with 0 regular keys does not have the day end
     early merely because a locked frontier doorway is the only thing left:
-    _action_in_budget must recognize the Master Key opens it for free (the
-    false negative this fix closes -- the old line only ever looked at
-    ``st.keys``, never at held items)."""
+    _action_in_budget recognizes that the Master Key opens it for free by
+    checking held items, not just ``st.keys``."""
     g = _game(registry, starting_items=frozenset({"master_key"}))
     _place_and_stand(g, "bedroom")
     _force_state(g, PRISM_TEST_CELL, N, DOOR_LOCKED)
@@ -662,10 +652,9 @@ def test_master_key_holder_at_zero_keys_keeps_the_day_alive(registry):
 def test_search_surcharge_door_not_affordable_with_too_few_keys(registry):
     """A locked frontier door carrying a 2-key search surcharge
     (lock_open_cost == 3) is NOT counted as affordable with only 2 regular
-    keys: the old line hardcoded the door's own cost to 1 instead of calling
-    lock_open_cost, so a search-surcharged door read as cheaper than it
-    really is -- the opposite-direction error from the Master Key one
-    above (an over-, not under-, estimate of affordability)."""
+    keys: _action_in_budget calls lock_open_cost rather than assuming a
+    door's base cost of 1, so a search-surcharged door is priced at its
+    true, higher cost."""
     g = _game(registry)
     _place_and_stand(g, "bedroom")
     g.state.keys = 2
@@ -928,12 +917,8 @@ def test_mask_seals_and_reopens_security_doorways(registry):
 def test_mask_locked_doorway_is_legal_to_try_at_zero_keys(registry):
     """Trying a locked doorway is legal in the action mask at any key count,
     including zero -- trying costs nothing (Phase.LOCK_PENDING). Only the
-    use-a-key row inside that menu is gated on holding a key.
-
-    Renamed and rebuilt, not just its setup: the OLD property ("only legal
-    with a key") is the exact "player never chooses" bug this feature
-    fixes -- see Game.can_use_key_at_lock for where the key-count gate
-    actually lives now.
+    use-a-key row inside that menu is gated on holding a key, via
+    Game.can_use_key_at_lock.
     """
     g = _game(registry)
     cell, d = g.open_doorways()[0]
@@ -954,15 +939,9 @@ def test_mask_locked_doorway_is_legal_to_try_at_zero_keys(registry):
 
 def test_mask_accounts_for_the_walks_keys_but_the_door_itself_is_free_to_try(registry):
     """The mask still budgets keys for the WALK (crossing a locked interior
-    door to reach the doorway); trying the frontier doorway itself, once
-    there, is free regardless -- only spending a key on it (use_key_at_lock)
-    needs a key left over after the walk.
-
-    Setup rebuilt, not fully replaced: the OLD property bundled the walk's
-    key cost with the frontier door's own into one mask check ("needs two
-    keys"); the walk's own key gate is real and unchanged (key_cost_map),
-    but the door's own gate now lives on Game.can_use_key_at_lock instead of
-    the mask -- see test_mask_locked_doorway_is_legal_to_try_at_zero_keys.
+    door to reach the doorway) via key_cost_map; trying the frontier
+    doorway itself, once there, is free regardless -- only spending a key on
+    it (use_key_at_lock) needs a key left over after the walk.
     """
     straight = next(r for r in registry.rooms
                     if r.layout == "straight" and r.rarity is not None)

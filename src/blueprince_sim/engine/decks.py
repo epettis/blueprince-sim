@@ -225,18 +225,14 @@ def reroll_random_rarities(state: GameState, registry: Registry, rng: Rng, count
     to find its card in the right bucket instead of silently missing it in
     the room's natal deck. Every room has exactly one deck copy (data-verified:
     ``deck_copies == 1`` for every room with a rarity), so a card selected out
-    of the undealt pool is the room's ONLY copy and this substitution changes
-    no observable behaviour beyond the bookkeeping fix. Moves are applied in
-    the same ``(r, g, -i)`` order the old hand-rolled removal needed for
-    index safety, one full remove-then-insert per move via ``set_dynamic_
-    rarity`` -- this preserves the exact number of draws on ``label`` (one
-    per changed card, same as before) and therefore the substream's end
-    position, but NOT necessarily each draw's individual value: the old code
-    removed every changed card first and only then inserted all of them,
-    while this reuses the primitive that removes-then-inserts per room, so a
-    move whose destination deck is a later move's source deck can see a
-    different (still in-bounds) insertion range than before. Distinct from
-    the bug this fixes, and immaterial to every existing Conservatory test
+    of the undealt pool is the room's ONLY copy. Moves are applied in
+    ``(r, g, -i)`` order for index safety, one remove-then-insert per move
+    via :func:`set_dynamic_rarity`, which consumes exactly one draw on
+    ``label`` per changed card -- this preserves the substream's draw count
+    and therefore its end position, but NOT necessarily each draw's
+    individual value: a move whose destination deck is a later move's
+    source deck can see a different (still in-bounds) insertion range
+    depending on order. Immaterial to every existing Conservatory test
     (none pins an exact card position).
     """
     undealt = [(r, g, i)
