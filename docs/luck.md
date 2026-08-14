@@ -111,7 +111,7 @@ this mechanic.
 
 ## Relative item values
 
-`data/items.json` also carries an `item_values` block (key 3.0, gem 3.0,
+`data/tuning.json` carries an `item_values` block (key 3.0, gem 3.0,
 coin 1.0, die 4.0, step 0.5). These are **not game data** — they are the
 relative resource values used by the shaped reward function and the greedy
 policies (see `docs/rewards.md` and `docs/greedy-strategy.md`).

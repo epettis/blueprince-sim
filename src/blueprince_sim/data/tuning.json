@@ -1,0 +1,29 @@
+{
+ "schema_version": 1,
+ "meta": {
+  "confidence": "n/a",
+  "notes": "Sim tuning, not game data (owner ruling, docs/open_tasks.md decisions log 2026-08-14): reward-shaping and greedy-policy knobs relocated out of items.json, which holds published game tables only. item_values and special_item_values below are the same values, unchanged, that previously lived at items.json's top level."
+ },
+ "item_values": {
+  "comment": "Relative resource values used by shaped rewards and greedy policies; not game data.",
+  "key": 3.0,
+  "gem": 3.0,
+  "coin": 1.0,
+  "die": 4.0,
+  "step": 0.5
+ },
+ "special_item_values": {
+  "by_tier": {
+   "1": 4.0,
+   "2": 6.0,
+   "3": 10.0,
+   "4": 15.0,
+   "5": 40.0
+  },
+  "untradeable": 6.0,
+  "meta": {
+   "confidence": "inferred",
+   "notes": "Reward-shaping worth of a held special item, keyed by its Trading Post tier (untradeable items use the flat value). Calibrated near typical purchase prices so a fair buy is roughly reward-neutral; tunable knobs for retraining experiments, not game data."
+  }
+ }
+}
