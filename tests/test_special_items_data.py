@@ -44,3 +44,25 @@ def test_magnifying_glass_still_spawns_so_the_burning_glass_stays_obtainable():
     recipe = [r for r in data["fabrication"] if r["output"] == "burning_glass"]
     assert recipe and "magnifying_glass" in recipe[0]["inputs"]
     assert "burning_glass" in data["ignition"]["tools"]
+
+
+def test_telescope_spawn_rooms_excludes_lost_and_found_and_trading_post():
+    """telescope.spawn_rooms holds only loose-on-the-floor rooms, not the two
+    obtain-elsewhere channels it is also reachable through.
+
+    Owner ruling: spawn_rooms means floor spawns only; purchasable/obtainable
+    is modeled separately (shops.json trading, lost_and_found.pool) and must
+    never also appear in spawn_rooms, or that channel double-counts and
+    dilutes the floor-spawn room's own pool. telescope is confirmed reachable
+    both other ways: it is tier 4 (Trading Post's tier-4 trade cycle includes
+    every tier-4 item generically) and it is listed in lost_and_found.pool
+    directly -- so dropping it from spawn_rooms does not orphan the item.
+    """
+    data = json.loads(_DATA.read_text(encoding="utf-8"))
+    by_id = {i["id"]: i for i in data["items"]}
+    telescope = by_id["telescope"]
+    assert "lost_and_found" not in telescope["spawn_rooms"]
+    assert "trading_post" not in telescope["spawn_rooms"]
+    # The two channels that make dropping them safe:
+    assert "telescope" in data["lost_and_found"]["pool"]
+    assert telescope["tier"] == 4

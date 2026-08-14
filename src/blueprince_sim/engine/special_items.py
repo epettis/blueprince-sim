@@ -41,6 +41,7 @@ from .effects.items import (
     keycard,
     lunch_box,
     moon_pendant,
+    morning_star,
     royal_scepter,
     secret_garden_key,
     silver_key,
@@ -59,37 +60,11 @@ PERSISTENCE = ("day", "until_used", "permanent")
 # Dig-tool priority: better tables win; shared with shops.py (imported from there).
 DIG_PRIORITY: tuple[str, ...] = ("jack_hammer", "detector_shovel", "shovel")
 
-# ------------------------------------------------ contraption carry-over lockout
-#
-# A contraption held at day start (carried overnight via Coat Check or Moon
-# Pendant, rather than assembled fresh today) blocks a wiki-curated SUBSET of
-# its own fabrication inputs from spawning/purchase/guaranteed-grant for that
-# day (wiki/Coat_Check, "Effect" -> Interactions): "If a contraption is
-# checked at the start of a day, it will remove some of its component items
-# from the item pool to prevent multiple items with similar functionality
-# from being obtained on the same day. The items removed differ from
-# contraption to contraption." Every contraption blocks something -- there is
-# no exemption: "The Dowsing Rod prevents the Compass from being obtained
-# while checked" and "The Pick Sound Amplifier prevents the Lock Pick Kit
-# from being obtained while checked" are both listed like every other entry.
-# Not derivable from the fabrication recipe generically: most recipes block
-# only ONE of their 2-3 inputs (wiki, verbatim): "Components not listed above
-# can still be obtained while their corresponding contraption is checked. For
-# instance, the Broken Lever and Battery Pack can still be found while either
-# the Power Hammer or Jack Hammer is checked" -- Magnifying Glass is likewise
-# never blocked. This table is the wiki's own per-contraption list, checked
-# against data/special_items.json's fabrication recipes (each blocked id is a
-# real recipe input for that contraption; the ones the wiki omits are not).
-CONTRAPTION_LOCKOUT: dict[str, frozenset[str]] = {
-    "burning_glass": frozenset({"metal_detector"}),
-    "detector_shovel": frozenset({"metal_detector", "shovel"}),
-    "dowsing_rod": frozenset({"compass"}),
-    "jack_hammer": frozenset({"shovel"}),
-    "lucky_purse": frozenset({"lucky_rabbits_foot", "coin_purse"}),
-    "pick_sound_amplifier": frozenset({"lock_pick_kit"}),
-    "power_hammer": frozenset({"sledge_hammer"}),
-    "powered_electromagnet": frozenset({"compass"}),
-}
+# Contraption carry-over lockout table (registry.special.contraption_lockout,
+# consumed in configure() below) lives in data/special_items.json's
+# "contraption_lockout" section, not here -- it is a published wiki table, per
+# this repo's own doctrine that published tables belong in data, not Python
+# constants. See that section's "meta"."note" for the wiki sourcing.
 
 # --------------------------------------------------- item priority chains
 #
@@ -229,6 +204,12 @@ class SpecialItemsRegistry:
     mail_packages: dict = field(default_factory=dict)  # "mail_packages" section: slot1/slot2/slot3
     freight_packages: dict = field(default_factory=dict)  # "freight_packages" section (ix91)
     battery_pack: dict = field(default_factory=dict)  # "battery_pack" section: room, rarity options
+    # "contraption_lockout" section's "table": contraption id -> frozenset of its
+    # own fabrication-input ids blocked while it is held at day start (carried
+    # overnight via Coat Check/Moon Pendant). See configure() below for how this
+    # is applied and data/special_items.json's own "meta"."note" for the wiki
+    # sourcing/methodology.
+    contraption_lockout: dict[str, frozenset[str]] = field(default_factory=dict)
     # "planetarium_planets" section's "planets" list: five {id, name, payload}
     # records (Mora's carries forced_last: true), the wiki's own gallery
     # order. See engine.special_items.use_telescope_in_planetarium and
@@ -296,6 +277,10 @@ def load_special_items(data_dir: Path) -> SpecialItemsRegistry:
         mail_packages=raw.get("mail_packages", {}),
         freight_packages=raw.get("freight_packages", {}),
         battery_pack=raw.get("battery_pack", {}),
+        contraption_lockout={
+            k: frozenset(v)
+            for k, v in raw.get("contraption_lockout", {}).get("table", {}).items()
+        },
         planetarium_planets=tuple(raw.get("planetarium_planets", {}).get("planets", [])),
         spawn_pool_by_room={k: tuple(v) for k, v in pool.items()},
         spawn_pool_high_luck={k: tuple(v) for k, v in pool_hl.items()},
@@ -636,11 +621,17 @@ def configure(state, cfg, registry=None) -> None:
     # contraption before it is even held, and never fires for one assembled
     # fresh today (fabricate() never touches cfg.starting_items). Day-scoped
     # like every other entry in ``gated``: a fresh SpecialItemsState next day
-    # drops it unless the contraption carries over again.
-    for contraption_id in cfg.starting_items:
-        for comp_id in CONTRAPTION_LOCKOUT.get(contraption_id, ()):
-            if comp_id not in gated:
-                gated.append(comp_id)
+    # drops it unless the contraption carries over again. Table is
+    # registry.special.contraption_lockout (data/special_items.json), same
+    # ``registry is not None`` guard as the Axe gate above -- both are no-ops
+    # on the four mail_room.py/shops.carryover call sites that omit registry,
+    # which only ever run after Game.reset()'s own registry-bearing call has
+    # already set ``configured`` True (see this function's own docstring).
+    if registry is not None:
+        for contraption_id in cfg.starting_items:
+            for comp_id in registry.special.contraption_lockout.get(contraption_id, ()):
+                if comp_id not in gated:
+                    gated.append(comp_id)
     state.special.gated_out = gated
     # Ignition targets permanently lit across days: pre-populate lit_targets so
     # can_light() blocks them on day N+1 just as it would mid-day.
@@ -1104,6 +1095,11 @@ def end_of_day_carry(state, registry, rng) -> list[str]:
        from the full held inventory (moon_pendant itself is eligible) carry over.
        The selection is deterministic given ``rng`` (substream "moon_pendant_carry").
 
+    Also fires the Morning Star's end-of-day star grant (state.stars, a
+    separate permanent counter, not an item carry channel -- see
+    effects/items/morning_star.py) at this same day-end call site, so an item
+    stolen or traded away earlier in the day is correctly not held here.
+
     Returns a sorted, de-duplicated list of item ids.  Does NOT include items
     that are currently absent from the inventory (the coat_check_item may have
     been stolen by the Lost & Found after storage, for example; we check held
@@ -1130,6 +1126,10 @@ def end_of_day_carry(state, registry, rng) -> list[str]:
 
     # 3. Moon Pendant: 2 random distinct held items (pendant itself eligible)
     moon_pendant.carry_over(state, rng, result)
+
+    # 4. Morning Star: +1 permanent star iff still held right now (not an
+    # item carry channel -- mutates state.stars directly).
+    morning_star.grant_star_if_held(state)
 
     return sorted(result)
 

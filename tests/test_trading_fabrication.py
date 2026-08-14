@@ -1005,6 +1005,46 @@ def test_fabricating_today_does_not_gate_its_own_components_today():
     )
 
 
+#: Ground truth from the wiki's own per-contraption list (wiki/Coat_Check),
+#: hardcoded independently of registry.special.contraption_lockout so this
+#: test cannot pass vacuously if the data table were ever silently emptied or
+#: shrunk -- the expectation must not come from the code path under test.
+_WIKI_CONTRAPTION_LOCKOUT: dict[str, frozenset[str]] = {
+    "burning_glass": frozenset({"metal_detector"}),
+    "detector_shovel": frozenset({"metal_detector", "shovel"}),
+    "dowsing_rod": frozenset({"compass"}),
+    "jack_hammer": frozenset({"shovel"}),
+    "lucky_purse": frozenset({"lucky_rabbits_foot", "coin_purse"}),
+    "pick_sound_amplifier": frozenset({"lock_pick_kit"}),
+    "power_hammer": frozenset({"sledge_hammer"}),
+    "powered_electromagnet": frozenset({"compass"}),
+}
+
+
+def test_contraption_lockout_sweeps_every_data_driven_entry():
+    """Every contraption named on the wiki's Coat Check page gates its own
+    listed components when carried via starting_items -- read from
+    data/special_items.json's "contraption_lockout" section (not a Python
+    constant), and checked against a literal, hardcoded expectation so a
+    data-move regression that silently dropped or emptied a table entry is
+    still caught (comparing against the loaded data itself would not).
+
+    Covers all eight contraptions in one sweep, including the five
+    (burning_glass, detector_shovel, jack_hammer, lucky_purse,
+    powered_electromagnet) the three dedicated tests above do not exercise.
+    """
+    registry = Game(GameConfig(), seed=0).registry
+    assert registry.special.contraption_lockout == _WIKI_CONTRAPTION_LOCKOUT, (
+        "registry.special.contraption_lockout must match the wiki's published table exactly"
+    )
+    for contraption_id, blocked_ids in _WIKI_CONTRAPTION_LOCKOUT.items():
+        g = Game(GameConfig(starting_items=frozenset({contraption_id})), seed=1)
+        for comp_id in blocked_ids:
+            assert comp_id in g.state.special.gated_out, (
+                f"{contraption_id} must gate its wiki-listed component {comp_id}"
+            )
+
+
 def test_traded_upgrade_disk_is_one_and_only_one():
     """The tradeable Upgrade Disk is unique, so a second tier-5 trade can never
     hand over another one.
