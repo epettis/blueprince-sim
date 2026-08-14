@@ -1342,6 +1342,23 @@ def main(argv: list[str] | None = None) -> int:
             errors.append(f"shops trading.{knob} must be 0-100 int, got {val!r}")
 
     shops = shops_doc.get("shops", {})
+
+    # sale block sanity: days must be positive ints, shops must be scoped to
+    # known shop ids. An unvalidated typo here fails open (sale.get("shops", [])
+    # silently means "no sale anywhere"), so this must catch it.
+    sale = shops_doc.get("sale", {})
+    sale_days = sale.get("days", [])
+    if not isinstance(sale_days, list) or not all(
+        isinstance(d, int) and d > 0 for d in sale_days
+    ):
+        errors.append(f"shops sale.days must be a list of positive ints, got {sale_days!r}")
+    sale_shops = sale.get("shops", [])
+    if not isinstance(sale_shops, list):
+        errors.append(f"shops sale.shops must be a list, got {sale_shops!r}")
+    else:
+        for sid in sale_shops:
+            if sid not in shops:
+                errors.append(f"shops sale.shops: {sid!r} is not a known shop id in shops.json")
     for shop_id, shop in shops.items():
         where = f"shops/{shop_id}"
         if shop_id not in by_id:

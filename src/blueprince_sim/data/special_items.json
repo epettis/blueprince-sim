@@ -2587,7 +2587,7 @@
     "confidence": "wiki",
     "absent_spawn_areas": [],
     "blocked_on": null,
-    "notes": "One unique disk per source so each is inherently one-time use. Found in the Archives filing cabinet; real game requires a File Cabinet Key. file_cabinet_key is implemented=false (blocked_on: file_cabinet_not_modeled); disk granted on first entry per the 'player solves every puzzle' doctrine. Draw mechanism implemented; individual upgrade effects deferred (task 9).",
+    "notes": "One unique disk per source so each is inherently one-time use. Found in the Archives filing cabinet; real game requires a File Cabinet Key. file_cabinet_key is implemented=false (blocked_on: file_cabinet_drawers_not_modeled); disk granted on first entry per the 'player solves every puzzle' doctrine. Draw mechanism implemented; individual upgrade effects deferred (task 9).",
     "simplification": "File Cabinet Key gate not modeled - disk granted on first entry instead"
    }
   },

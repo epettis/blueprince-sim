@@ -284,6 +284,29 @@ def test_non_sale_day_prices_not_halved():
         assert shovel_d["price"] == 6
 
 
+def test_sale_day_does_not_affect_other_shops():
+    """The day-20/21 sale is scoped to the Commissary; other shops are unaffected.
+
+    The wiki is explicit: the Commissary sale "is unique to the Commissary,
+    independent of the Sail Sale, and does not apply to other Shops." Showroom
+    prices on day 20 must equal their day-15 (non-sale) prices exactly, not
+    ceil(price/2).
+    """
+    g20 = _game(GameConfig(day=20), seed=42)
+    _enter_shop(g20, "showroom")
+    stock20 = shops.stock_for(g20)
+
+    g15 = _game(GameConfig(day=15), seed=42)
+    _enter_shop(g15, "showroom")
+    stock15 = shops.stock_for(g15)
+
+    for d20, d15 in zip(stock20, stock15, strict=True):
+        assert d20["id"] == d15["id"]
+        assert d20["price"] == d15["price"], (
+            f"{d20['id']}: day20={d20['price']} day15={d15['price']} (should be equal)"
+        )
+
+
 def test_coupon_book_reduces_price_by_1():
     """A held Coupon Book reduces each displayed price by 1 (floor 0).
 
@@ -312,6 +335,30 @@ def test_coupon_book_floors_at_0():
     stock = shops.stock_for(g)
     for d in stock:
         assert d["price"] >= 0, f"{d['id']} price went negative: {d['price']}"
+
+
+def test_coupon_book_composes_with_sale_day_at_commissary():
+    """On a Commissary sale day, sale and coupon apply in order: ceil(price/2), then -1.
+
+    stock_display applies the sale first (ceil(price/2)) and the SHOP_DISCOUNT
+    capability second (max(0, price - discount)); this pins that order against
+    the base (no-modifier) price at the Commissary, the one shop the sale
+    applies to.
+    """
+    g_base = _game(GameConfig(day=15), seed=42)
+    _enter_shop(g_base, "commissary")
+    base_stock = shops.stock_for(g_base)
+
+    g_both = _game(GameConfig(day=20, starting_items=frozenset({"coupon_book"})), seed=42)
+    _enter_shop(g_both, "commissary")
+    both_stock = shops.stock_for(g_both)
+
+    for base, both in zip(base_stock, both_stock, strict=True):
+        assert base["id"] == both["id"]
+        expected = max(0, math.ceil(base["price"] / 2) - 1)
+        assert both["price"] == expected, (
+            f"{base['id']}: base={base['price']} sale+coupon={both['price']} expected={expected}"
+        )
 
 
 # ---------------------------------------------------------- locksmith
@@ -539,11 +586,13 @@ def test_trophy_purchase_lands_in_inventory_and_deducts_coins():
     assert all(d["id"] != "trophy_of_wealth" for d in stock_after)
 
 
-def test_trophy_purchase_price_respects_sale_day():
-    """The trophy's displayed and charged price is ceil(base/2) on a sale day.
+def test_trophy_purchase_price_not_affected_by_commissary_sale_day():
+    """The Showroom trophy price is unaffected by the day-20/21 sale.
 
-    Day 20 is a sale day per shops.json; the halved price must both be shown
-    in the display and be the amount actually deducted on purchase.
+    The wiki is explicit that the Commissary's day 20/21 sale "does not apply
+    to other Shops"; the Showroom has no sale of its own. The trophy's
+    displayed and charged price on day 20 must both stay at the full 100,
+    not ceil(100/2).
     """
     g = _game(GameConfig(day=20), seed=42)
     _enter_shop(g, "showroom")
@@ -557,14 +606,13 @@ def test_trophy_purchase_price_respects_sale_day():
 
     stock = shops.stock_for(g)
     assert stock[-1]["id"] == "trophy_of_wealth"
-    expected = math.ceil(100 / 2)
-    assert stock[-1]["price"] == expected
+    assert stock[-1]["price"] == 100
     coins_before = state.coins
 
     shops.buy(g, len(stock) - 1)
 
     assert si.has(state, "trophy_of_wealth")
-    assert state.coins == coins_before - expected
+    assert state.coins == coins_before - 100
 
 
 def test_trophy_purchase_price_respects_coupon_book():
