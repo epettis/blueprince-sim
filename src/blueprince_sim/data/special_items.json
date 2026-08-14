@@ -1403,14 +1403,13 @@
    "spawn_rooms_high_luck": [],
    "guaranteed_in": [],
    "effects": [],
-   "implemented": false,
+   "implemented": true,
    "meta": {
     "source": "https://blueprince.wiki.gg/wiki/Showroom",
     "confidence": "wiki",
     "absent_spawn_areas": [],
-    "blocked_on": "redraw_history_not_retained",
-    "reachability": "inert",
-    "notes": "Obtainable today: the Showroom sells it for 30 coins (data/shops.json), via shops.py::buy. Its Tomorrow-Rooms bias IS live -- priority_draws.json's priority_draws list carries a Tomorrow Rooms (Chronograph) entry at the datamined 40%, matching the wiki's own framing ('This is a Priority Draw (40% for all Tomorrow Rooms)'): it fires once into slot 3 only, not as a per-slot category re-deal. draft.py::_active_conditions emits condition 'chronograph' while the item is held, checked via chronograph_active_from_state, which reads ItemCapability.CHRONOGRAPH (engine/effects/items/chronograph.py) rather than a data effect tag. What remains unmodelled is the primary rewind-to-a-past-draw effect, which needs redraw history retained and nothing currently stores it -- see blocked_on."
+    "blocked_on": null,
+    "notes": "Obtainable today: the Showroom sells it for 30 coins (data/shops.json), via shops.py::buy. Its Tomorrow-Rooms bias IS live -- priority_draws.json's priority_draws list carries a Tomorrow Rooms (Chronograph) entry at the datamined 40%, matching the wiki's own framing ('This is a Priority Draw (40% for all Tomorrow Rooms)'): it fires once into slot 3 only, not as a per-slot category re-deal. draft.py::_active_conditions emits condition 'chronograph' while the item is held, checked via chronograph_active_from_state, which reads ItemCapability.CHRONOGRAPH (engine/effects/items/chronograph.py) rather than a data effect tag. Its other effect, REWIND, is now also live: after a redraw by any method, PendingDraft.rewind_stack holds every hand a redeal has replaced (Game._redeal_pending pushes there, unconditionally, before clearing); Game.can_rewind/rewind pop it back into the pending options for free and re-fire ON_HAND_DEALT, per the wiki ('activating effects that rely on drawing a floorplan') -- not a state restore, just a redraw whose output is pinned to a remembered hand. Free, unlimited, and one-way (owner ruling): rewind never pushes what it leaves, so it walks strictly backward to the original three floorplans and stops there. env/actions.py REWIND_ACTION (436) drives it; env/obs.py's prev_options key exposes the stack top so a policy can see what it would restore before acting."
    }
   },
   {

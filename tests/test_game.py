@@ -78,6 +78,61 @@ def test_option_obs_exposes_door_directions(registry, cfg):
     assert door_bits() == (0, 1, 0, 1)             # rotating flips the exposed doors
 
 
+def test_prev_options_all_negative_one_when_stack_empty(registry, cfg):
+    """prev_options is all -1 whenever the Chronograph's rewind_stack is
+    empty (including an ordinary DRAFTING hand that has never been
+    redrawn) -- the sentinel that lets a policy tell "nothing to rewind
+    to" apart from "a rewind would restore floorplan X"."""
+    from blueprince_sim.engine.state import PendingDraft
+    from blueprince_sim.env import obs as O
+
+    g = Game(cfg, seed=1)
+    room = next(r for r in registry.rooms if r.rarity)
+    g.state.pos = 2
+    g.phase = Phase.DRAFTING
+    pd = PendingDraft(from_cell=2, direction=N, target_cell=7)
+    pd.options = [DraftOption(room_idx=room.idx, orientation=N | S, gem_cost=0, slot=0)]
+    g.state.pending = pd  # rewind_stack left at its default_factory []
+
+    assert all(v == -1 for row in O.encode(g)["prev_options"] for v in row)
+
+
+def test_prev_options_encodes_the_stack_top_like_options(registry, cfg):
+    """prev_options is populated from rewind_stack[-1] using the same
+    per-slot row encoding "options" uses -- pinned via the same N|S / E|W
+    door-bit literals test_option_obs_exposes_door_directions uses for
+    "options", with the two hands given DIFFERENT orientations so this
+    cannot pass by prev_options accidentally aliasing options."""
+    from blueprince_sim.engine.state import PendingDraft
+    from blueprince_sim.env import obs as O
+
+    g = Game(cfg, seed=1)
+    room = next(r for r in registry.rooms if r.rarity)
+    g.state.pos = 2
+    g.phase = Phase.DRAFTING
+    pd = PendingDraft(from_cell=2, direction=N, target_cell=7)
+    pd.options = [DraftOption(room_idx=room.idx, orientation=E | W, gem_cost=0, slot=0)]
+    pd.rewind_stack = [[DraftOption(room_idx=room.idx, orientation=N | S, gem_cost=0, slot=0)]]
+    g.state.pending = pd
+
+    def door_bits(key):                             # obs features N,E,S,W = idx 6..9
+        return tuple(int(x) for x in O.encode(g)[key][0][6:10])
+
+    assert door_bits("options") == (0, 1, 0, 1)          # live hand: E|W
+    assert door_bits("prev_options") == (1, 0, 1, 0)     # stack top: N|S
+
+
+def test_prev_options_space_shape_matches_options(registry):
+    """prev_options is declared with the identical shape/dtype as options in
+    observation_space -- an ADDITIVE Dict key, never a shape change to
+    options itself (which would silently reinterpret trained weights)."""
+    from blueprince_sim.env import obs as O
+
+    space = O.observation_space(len(registry.rooms), 1, 1)
+    assert space.spaces["prev_options"].shape == space.spaces["options"].shape
+    assert space.spaces["prev_options"].dtype == space.spaces["options"].dtype
+
+
 def test_cli_preview_glyph_tracks_orientation(registry, cfg):
     """The CLI option preview draws the floorplan's current orientation
     (N|S renders as a vertical bar, a 4-way as a cross)."""
