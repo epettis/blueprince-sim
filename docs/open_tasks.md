@@ -855,6 +855,136 @@ around 1,800 LOC.
 
 ## Decisions log
 
+- **2026-08-13, THE CONSERVATORY: researched to datamined ground truth, and it
+  is CORRUPTING `gear_wrench` 14.3% of the time. Four rulings outstanding.**
+
+  Owner set the research priority: *"Go with whatever comes from the data mining
+  followed by the wiki in that order"*, and offered a hypothesis -- *"I suspect
+  it's uniform random irrespective of rarity."*
+
+  **The hypothesis is SUPPORTED.** The Conservatory page's `DataMinedBox` says
+  *"the table presents three random rooms that passed the filters"*, with **no
+  rarity term anywhere** -- unlike the normal draft (*"the game first chooses a
+  rarity and then selects a room of that rarity"*) and matching the Duct Draw
+  shape, which the wiki states outright as *"uniformly at random from the list
+  (ignoring rarity and other modifiers)"*.
+
+  **Two honest qualifications, recorded rather than smoothed over:** the
+  datamine never uses the word "uniform", and it never says whether the three
+  are drawn **with or without replacement**. The bug clause -- *"this list
+  contains bugged entries that, if they appear, appear like one of the other
+  entries already present"* -- implies the **fallback** path is not
+  de-duplicated. Treat "uniform, without replacement" as the reading and
+  "with replacement" as unverified.
+
+  **The datamined filter chain, which belongs in DATA when this is built:** from
+  86 rooms, drop any whose rarity has been changed **by any method** (so a
+  wrenched room disappears from future offers); Studio Additions and Found
+  Floorplans must have been added or found; Gift Shop drops if never drafted;
+  Freezer, Pump Room and Dovecote always drop. **If fewer than 3 survive, it
+  presents three from the full 86 ignoring every filter.**
+
+  **The sim's matching concept lands at 85, not 86** -- `pool in {base,
+  studio_addition}` = 95, minus the 16 named unchangeable rooms = 85. The 8
+  outer rooms are already excluded. **The 1-room gap is unresolved** and was not
+  worth chasing. *"Interior room" is the owner's term, not the game's*: the
+  game-side concept is "rooms whose rarity can be changed", and 16 interior
+  rooms are excluded, so interior alone is not the criterion.
+
+  **The rarity change is ALL three, not any one** -- *"the player may interact
+  with the drawing board to change the rarity of each one"*. **Surfaced as a
+  possible conflict with the owner's "any of the three"**, which may be phrasing.
+
+  **Three further datamined rules, each load-bearing:**
+  - *"Clicking a floorplan, even without actually changing the rarity, counts as
+    changing the rarity."* A no-op click consumes the room permanently.
+  - It writes **the same permanent slot as the Gear Wrench**: *"If a room's
+    rarity is ever set using the Conservatory and/or Gear Wrench (even if the
+    rarity was not changed from the default), that room's Dynamic Rarity is
+    permanently ignored."*
+  - **Reset does not un-consume.** Resetting via the Room Directory *"acts like
+    setting the rarity back to the base rarity, rather than as if the rarity was
+    never set in the first place"* -- the room stays filtered out.
+
+  **Frequency is unsourced.** Neither source says once per day, once per
+  Conservatory, or unlimited. The likely reading is unlimited re-interaction with
+  a shrinking offer list, but that is inference.
+
+  ### The live bug the research found, fixed ahead of any remodel
+
+  **`reroll_random_rarities` moved cards between rarity decks without writing
+  `state.dynamic_rarity`** -- the dict every other deck helper consults. So a
+  later `set_dynamic_rarity` looked in the **wrong bucket, found nothing, and
+  silently dropped the move.** Reproduced at seed 0: `secret_passage` moved 2->0
+  while `dynamic_rarity` stayed `{}`; the follow-up placed **0 copies** in the
+  target while one stayed stuck.
+
+  **It corrupts `gear_wrench`**: over 300 seeds the reroll moved a Mechanical
+  Room in **43 (14.3%)**. A player who drafts the Conservatory then wrenches an
+  affected room records a permanent rarity while the card sits elsewhere.
+
+  **THE CONSERVATORY IS UNDRAFTABLE, and that is what masked it.** Its record has
+  `"rarity": null`, and `eligible_pool` drops rarity-less rooms **before** it
+  checks the pool, so it can never enter `build_decks`; its forced-draw entry is
+  explicitly unbuilt. **The entire effect is dead code** -- and goes live the
+  moment anyone makes the room reachable.
+
+  **All six existing Conservatory tests were self-consistent with the buggy
+  model.** They pin card conservation, deck perturbation, determinism and
+  substream consumption; **none asserted anything about `dynamic_rarity`
+  bookkeeping**, so the bug was invisible to them. Fixed by routing each move
+  through `set_dynamic_rarity`, which already maintains it -- one implementation
+  rather than two, same draw count and label.
+
+  **Generalisable: dead code can still be a hazard, and being unreachable is not
+  the same as being harmless.** This sat behind a `"rarity": null` that nobody had
+  connected to it, and would have gone live silently.
+
+  ### Rulings outstanding before any remodel
+  1. **Is the Conservatory in scope at all, given it is undraftable?** Making it
+     reachable needs its 15% forced draw and the Found Floorplan gate, neither of
+     which exists. The remodel buys nothing until that lands.
+  2. **Does "a click counts even with no change" get modelled?** It is the
+     difference between reusing `permanent_rarity` and adding a second
+     save-scoped set -- because `set_wrench_rarity` **pops** the entry when the
+     pick equals the natal rarity, so `permanent_rarity` alone cannot express
+     "consumed but unchanged".
+  3. **"Any of the three" (owner) vs "all three" (wiki and datamine).**
+  4. **Constellations: auto-activate, or model the per-constellation choice?**
+     Auto halves the `telescope` constellation arm and removes an action-width
+     change; the game explicitly makes activation optional.
+
+- **2026-08-13, the last id-hardcoded fire site in `_terminate` is retired, and
+  it made a false comment true rather than editing it.**
+
+  `game.py` carried `if room.id == "break_room__ix11": st.break_room_keycard =
+  True` **immediately after** `effects.fire(..., Hook.ON_DAY_END)` on the same
+  room -- a hand-rolled day-end handler written before that hook had consumers.
+  The Planetarium became the first (2026-08-13), proving the hook fires only for
+  the room the player stands in at termination.
+
+  **`tests/test_effect_hooks.py` had claimed all along** that these hooks exist
+  *"so ... the Break Room no longer needs id-hardcoded fire sites in game.py"* --
+  **false since it was written**. Making it true beats editing it.
+
+  **A `room_hook`, not a tag, decided by looking**: `mark_visited` is registered
+  at `ON_ENTER` and keys off first entry (wrong trigger); `grant` is a flat
+  numeric delta, not a boolean pulse. Break Room's record has `effects: []` --
+  there was never a tag to reuse.
+
+  **The audit exemption was REMOVABLE, not repointable.**
+  `_AUDIT_PYTHON_EXEMPT_IDS` existed because the audit cannot see hand-written
+  Python -- but `find_divergences` already skips any id in the live `room_hook`
+  registry, so once the handler registered the entry was dead. **A second stale
+  reference** in `tests/test_room_id_allowlist.py` had to go with it. Two
+  allowlist shrinks; `game.py` now contains **zero** occurrences of the id.
+
+  **Ordering was checked, not assumed**: moving the write from after
+  `effects.fire` to inside it only matters if something observes the flag in
+  that window. Every read traced -- one at the start of a later day, one in
+  `carryover()`, which the `DayChain` driver calls strictly **after**
+  `_terminate` returns. Behaviourally invisible.
+
 - **2026-08-13, FOUR MORE OWNER RULINGS: the `telescope` is unblocked, and the
   Patio simplification is confirmed deliberate.**
 
