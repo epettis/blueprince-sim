@@ -985,6 +985,90 @@ existing prose.
 
 ## Decisions log
 
+- **2026-08-14, RETRACTION. THE BASEMENT KEY IS ALREADY BUILT. Three claims in
+  the entry below are FALSE, and one of them originated in this file.**
+
+  A scoping pass verified by **execution**, not reading:
+
+  ```
+  grid[42] = antechamber
+  inventory before: {'royal_scepter': 1}
+  inventory after antechamber entry: {'royal_scepter': 1, 'basement_key': 1}
+  day2 starting_items: ['basement_key']
+  ```
+
+  `special_items.json:803-825` has carried `guaranteed_in: ["antechamber"]`,
+  `persistence: "permanent"`, `implemented: true` since commit `3250263`, the
+  original special-items system. **Cost to build: 0 lines. Nothing to do.**
+
+  **FALSE CLAIM 1 -- "the wiki lists the Spiral as `basement_key`'s only
+  location" (this file, and repeated into the rulings entry below).** The wiki
+  lists **three** sources and puts **the Antechamber FIRST**. **There was never
+  an owner-vs-wiki conflict.** The owner's ground truth and the wiki agree, and
+  have always agreed. The "owner play overrides the wiki" framing was applied
+  to a conflict that did not exist. **This claim originated here and
+  propagated into a brief, a PR body, and a ruling record before anyone
+  checked it against the page.**
+
+  **FALSE CLAIM 2 -- "a 17th `_CARRYOVER_KEYS` member would give save-scoped
+  permanence."** `_CARRYOVER_KEYS` is **ATTEMPT-scoped, not save-scoped** --
+  `multiday.py:503` clears `carried_flags` at the wrap. **There is no
+  save-scoped bool channel in this codebase at all**; creating one would be a
+  new mechanism, not an addition. The permanence is already carried by a
+  **third channel neither option named**: `persistence: "permanent"` ->
+  `end_of_day_carry()` -> `carryover()["starting_items"]` ->
+  `DayChain.carried_items`. **`_CARRYOVER_KEYS` stays 16.**
+
+  **FALSE CLAIM 3 -- "the Spiral" is a place.** It is the **Spiral of Stars**,
+  a **100-star secret constellation**, not a room and not an area node. The
+  "11 items" figure is its stage-43/46 payload list (12 named, 11 modelled --
+  the Wind-up Key is deliberately unmodelled), never a location list. **No item
+  ever had the Spiral as its only route** -- every one of the twelve has a
+  shop, spawn, or `guaranteed_in` source. The conclusion drawn earlier was
+  right; **the stated cause was wrong**, and crediting the owner's ruling with
+  shrinking the question was also wrong.
+
+  **The one genuine residual, honestly stated:** `carried_items` **is** cleared
+  at the 200-day attempt wrap, so the sim is narrower than *"across an entire
+  save"* -- on day 1 of a new attempt the basement doors re-lock until the
+  agent walks back to the Antechamber. Closing it means a **save-scoped set**
+  (`basement_doors_open`, built like `sigil_doors_open`), **not a bool** --
+  the owner said *"open **a** basement door"*, singular, and there are three.
+  **~40-60 lines + an obs key + a retrain. Recommendation: do not build it**;
+  the divergence window is a few days at the start of each attempt.
+
+  **Lesson, and it is the one this repo keeps re-learning:** a false claim in
+  `open_tasks.md` is not inert. This one was written once, then inherited by a
+  research brief, a PR body, and a ruling entry -- each restatement making it
+  look better-established -- and it was only caught because a scoping pass
+  **ran the code instead of reading the file**. **Verify a claim against the
+  source before building a brief on it, especially a claim this file asserts
+  about the outside world.**
+
+  **Revised plan for the three scoped mechanics:**
+  1. **Basement Key -- DO NOT BUILD.** Already correct.
+  2. **Dartboard -- BUILD, but GATED.** ~60-75 lines, no action-space change,
+     a fully-specified day-banded wiki reward table, and it restores real
+     Keycard access that #289 removed through the wrong channel (the *channel*
+     was invented; the *fact* is real -- the Keycard genuinely is obtainable in
+     the Billiard Room, via the Dartboard). **Blocked on: how often can it be
+     solved -- per entry, per day, or unlimited?** Unlimited re-entry makes the
+     Billiard Room a Silver Key farm at 30% a solve, the same farming-incentive
+     class already flagged for the Vestibule.
+  3. **Spiral of Stars -- DEFER with a recorded reason.** It sits on top of the
+     unbuilt constellation subsystem (~1000-1450 lines) and adds ~400-700 more,
+     introducing per-resource lockouts and a forced day-end that have no
+     precedent in the engine. Gated behind **100 stars**, plus 43 further
+     sightings before its first item stage. It grants nothing not already
+     obtainable. **Fold it into the constellation entry as its last stage,
+     not a peer item.**
+
+  **Two more decayed notes found in the same pass:** `special_items.json:9`
+  claims `master_key` is `guaranteed_in: [showroom]` -- it is `[]` today, a
+  Showroom purchase; and the false "Spiral has no wiki page at all" is at
+  `special_items.json:648`, **not :647** as this file said -- the wrong line
+  number propagated too.
+
 - **2026-08-14, OWNER RULINGS x14 -- the queue is now UNBLOCKED. Plus new
   ground truth on the Basement Key that overrides the wiki.**
 
