@@ -57,12 +57,13 @@ or being granted as a guaranteed find for that day —
 `contraption_lockout.table`. Assembling one *today* does not lock anything out;
 the rule is about starting the day already holding it.
 
-**The Keycard is outside the generic pipeline.** It lives on
+**The Keycard is outside the generic SPAWN pipeline.** It lives on
 `GameState.has_keycard`, not in `state.inventory`, and is excluded from
 spawning so `engine/locks.py` remains its single source. `effects/items/
-keycard.py` exposes `held` / `grant` / `steal` as the special-case shape every
-other subsystem must use to touch it. The Lost & Found *can* steal it, and does
-so through that shape.
+keycard.py` exposes `held` / `grant` / `release` as the special-case shape every
+other subsystem must use to touch it. The Lost & Found *can* steal it and the
+Trading Post *can* trade it, both through that shape — `PIPELINE_EXCLUDED`
+gates spawning and nothing else.
 
 ### The Lost & Found
 
@@ -286,33 +287,44 @@ The last sweep took a plausible held inventory from 88.0 to 161.0 — a 1.83×
 increase — and `items.json`'s per-tier values were deliberately **not** adjusted
 to compensate, so the effect stays visible rather than hidden.
 
-#### Two live identity defects
+#### Trade identity is the game item, not the sim id
 
-**The sim's trade identity is the sim id; the wiki's is the game item.** The
-wiki states twice that all Sanctum Keys count as one item and that Upgrade
-Disks do the same, so holding many produces one offer. This sim emits one offer
-per inventory id, so eight held Sanctum Keys emit eight offers and sixteen disk
-ids can emit sixteen. **Ruled to fix**, by applying a trade-offer identity key
-on the game item before the sort. The counter-case that was weighed and
-accepted: the per-source ids exist to gate respawn independently, so this is a
-second identity notion living alongside the first.
+The wiki states twice that all Sanctum Keys count as one item and that Upgrade
+Disks do the same, so holding many produces one offer. `trade_offers` collapses
+on that identity: one offer per distinct held **game item**, so eight held keys
+are one offer and sixteen disk ids are one, not sixteen. **The identity is
+derived from the display name** — a family's records differ only by a trailing
+source qualifier, `Sanctum Key (Clock Tower)` — rather than from a second data
+field that could disagree with the name it duplicates. The counter-case that
+was weighed and accepted: the per-source ids exist to gate respawn
+independently, so this is a second identity notion living alongside the first.
 
-**The same bug runs the other way for Microchips.** The wiki says three
-Microchips give three distinct offers; the sim emits one regardless of count.
-`microchip` is the only item with `unique: false`.
+**The representative is the first held id in sorted order whose own graph edge
+resolves**, the rule `open_sigil_door` already uses to pick which key a Sigil
+door spends, extended past dead edges so a family with any tradeable member
+always offers one. Collapsing is a menu-side rule only: the graph still keys on
+sim ids, and the receive side needs no equivalent, because every member of both
+families is `no_receive` and so is refused as a trade return already.
 
-The consequence of the first defect — silent truncation past the offer row cap,
-and which entries get crowded out — is owned by
-[`rl-environment.md`](rl-environment.md), together with the ruling that fixing
-identity is what makes raising the cap stop being urgent.
+**The Microchip is the mirror case and is NOT fixed by this.** The wiki says
+three Microchips give three distinct offers; the sim emits one regardless of
+count. That is a count *expansion* of a single id, not an identity collapse of
+several — the opposite transform — and since all three copies share one graph
+edge, expanding would spend three of the eight offer rows on three identical
+offers. `microchip` is the only item with `unique: false`.
 
-**The Keycard is excluded from trading in three places** (two graph-build
-filters and one offer guard) because it lives on `state.has_keycard` rather
-than in the inventory. **Ruled to fix**, via the `keycard.held`/`keycard.steal`
-precedent the Lost & Found already uses. **A naive fix — deleting the three
-exclusion checks — would let a player give the Keycard away and keep door
-access**, and would write a phantom inventory entry that no door code reads.
-Use the special-case shape.
+The consequence the collapse removes — silent truncation past the offer row
+cap, and which entries got crowded out — is owned by
+[`rl-environment.md`](rl-environment.md).
+
+**The Keycard is tradeable**, both given and received, through the
+`keycard.held`/`keycard.grant`/`keycard.release` accessors the Lost & Found
+already uses — because it lives on `state.has_keycard`, not in the inventory.
+**The naive fix, deleting the exclusion checks, would let a player give the
+Keycard away and keep door access**, and would write a phantom inventory entry
+that no door code reads; the accessors are what make giving it actually take
+door access with it. `PIPELINE_EXCLUDED` stays what its name says — a *spawn*
+exclusion — and is no longer consulted by `_trade_target_ok`.
 
 ### The Workshop and fabrication
 
