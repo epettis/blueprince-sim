@@ -985,6 +985,73 @@ existing prose.
 
 ## Decisions log
 
+- **2026-08-14, OWNER RULINGS x4. The governing principle, in the owner's
+  words: "multiple sources of truth means we have none."**
+
+  **A. `effects` IS VESTIGIAL -- and the vestigial configuration is to be
+  DELETED.** *"Rely upon the modules/registries and delete the vestigial
+  configuration so we stop having this conversation."* This goes further than
+  the recommendation put to the owner (which was to make `effects` normative):
+  the ruling is not to define the ambiguous field but to **remove it where it
+  is dead**. Behaviour is owned by `engine/effects`' three registries -- tag
+  lookups (`effect()`/`_has_item_effect()`), `item_provides`/`ItemCapability`,
+  and `item_hook`/`ItemHook`.
+  **Scope, to be established by AST across ALL THREE registries, not by grep:**
+  delete only tags with **zero** readers. A tag whose params are still read is
+  live. **7 of 28 tags** were measured inert; re-verify before deleting, since
+  a prior scan got tag liveness wrong **in both directions**.
+  **Note the tension to respect:** an item may be fully implemented with
+  `"effects": []` (Coupon Book, Hall Pass, Silver Spoon), and `lucky_purse` is
+  **half data, half Python** -- its `luck_bonus` tag is live while its
+  coin-doubling lives in `effects/items/lucky_purse.py`. Deleting a live tag
+  would break it.
+
+  **B. A partial gap keeps `implemented: true`, and REQUIRES
+  `meta.simplification`.** The third state, reusing vocabulary 7 records
+  already carry. `implemented` keeps meaning *reachable and functional*; the
+  simplification field names what is missing and makes the gap
+  machine-detectable rather than prose-only. **This defines the item audit's
+  flagging rule, which had none.**
+
+  **C. A disclosure MUST live on the record it concerns.** A pointer elsewhere
+  does not count. Four cases are to be migrated: `power_hammer`'s Freezer gap
+  (on `upgrade_disk_freezer`'s record), `secret_garden_key`'s simplification
+  (in `locks.json`), plus `torch` and `knights_shield`. **A disclosure a
+  reader cannot reach is not a disclosure.**
+
+  **D. SEPARATE "purchasable" FROM "obtainable" -- do not interpret the
+  ambiguity, eliminate it.** The question put to the owner was whether the
+  wiki's `Locations` field means *spawns here* or *is obtainable here*. The
+  answer rejects the frame: **model the two concepts as separate fields so the
+  ambiguity never has to be re-litigated.** `spawn_rooms` means loose-on-the-
+  floor only; purchasability is already modelled in `shops.json`, and the
+  24 Commissary/Locksmith/Lost & Found/Trading Post entries are *obtainable*,
+  not spawns -- so they stay out of `spawn_rooms` regardless. **Sweep (b)+(c)
+  is 121 entries, not 145.**
+
+  **Consequence for `items.json`, raised by the owner as "why do we need it
+  when we have a registry":** the registry answers *which code runs*;
+  `items.json` answers *what numbers the rules use* -- they are different axes,
+  and deleting the tables would move the luck ladder into Python constants,
+  which doctrine forbids. **But the file is doing three jobs and one is the
+  disease being treated:**
+  1. published game tables with no other home (`item_ladder`,
+     `never_roll_rooms`, `count_transforms`, `dowsing_rod`, `coins`, `food`);
+  2. **sim tuning that is not game data at all** -- `item_values` /
+     `special_item_values`, which the file's own comment admits: *"Relative
+     resource values used by shaped rewards and greedy policies; not game
+     data."* A filing error, not a duplication;
+  3. **one genuine second source of truth, and it is dead** --
+     `luck.rabbits_foot_bonus: 3`, unread since #274; the live value is
+     `special_items.json`'s `luck_bonus` param.
+  **Actions: delete `rabbits_foot_bonus`; move `item_values` /
+  `special_item_values` out to a tuning file**, leaving `items.json` holding
+  published game tables only.
+
+  **The test to apply, generalised: "could two places disagree about this
+  fact?"** For `effects` and `rabbits_foot_bonus`, yes -- those are the
+  disease. For the luck ladder, no -- nothing else claims to hold it.
+
 - **2026-08-14, NON-FINDING: the reported `frontier_greedy` crash DOES NOT
   EXIST. Recorded so it does not survive as folklore.**
 
