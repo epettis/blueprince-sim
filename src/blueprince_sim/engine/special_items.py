@@ -1245,14 +1245,14 @@ def stopwatch_waives_gems(game, cost: int) -> bool:
 def inventory_value(state, registry) -> float:
     """Reward-shaping worth of the held special items.
 
-    Each item counts its Trading Post tier's value from items.json
+    Each item counts its Trading Post tier's value from tuning.json
     special_item_values (untradeable items use the flat value). Purely a
     shaping/reporting number — no game rule reads it. Keeping it here (not in
     rewards.py) keeps the tier lookup beside the item registry it indexes.
     """
     if not state.inventory:
         return 0.0
-    values = registry.item_rules.get("special_item_values", {})
+    values = registry.tuning.get("special_item_values", {})
     by_tier = values.get("by_tier", {})
     flat = values.get("untradeable", 0.0)
     total = 0.0

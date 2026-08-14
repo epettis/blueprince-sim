@@ -190,6 +190,7 @@ class Registry:
     priority: dict  # parsed priority_draws.json
     item_rules: dict  # parsed items.json
     lock_rules: dict  # parsed locks.json
+    tuning: dict  # parsed tuning.json (reward-shaping/greedy-policy knobs; not game data)
     special: object = None  # SpecialItemsRegistry (special_items.py; typed loosely to avoid a cycle)
     shop_rules: object = None  # ShopsRegistry (shops.py; typed loosely for the same reason)
     upgrade_tables: object = None  # UpgradeTables (upgrades.py; typed loosely to avoid import cycle)
@@ -220,6 +221,7 @@ class Registry:
             priority=json.loads((d / "priority_draws.json").read_text()),
             item_rules=json.loads((d / "items.json").read_text()),
             lock_rules=json.loads((d / "locks.json").read_text()),
+            tuning=json.loads((d / "tuning.json").read_text()),
             special=load_special_items(d),
             shop_rules=load_shops(d),
             upgrade_tables=load_upgrade_tables(d),

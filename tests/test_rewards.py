@@ -166,7 +166,7 @@ def test_inventory_value_uses_tier_values(registry):
     """
     from blueprince_sim.engine.special_items import inventory_value
     g = _game(registry, royal_scepter_found=False)
-    values = registry.item_rules["special_item_values"]
+    values = registry.tuning["special_item_values"]
     assert inventory_value(g.state, registry) == 0.0
     g.state.inventory["magnifying_glass"] = 1  # tier 1
     g.state.inventory["master_key"] = 1        # tier 5

@@ -42,7 +42,7 @@ def _rank_potential(rank: int) -> float:
 def _phi_keys(game: Game) -> float:
     """Potential of the key stock: base item value scaled by the depth
     multiplier, so keys appreciate as the run pushes into lock territory."""
-    key_value = game.registry.item_rules["item_values"]["key"]
+    key_value = game.registry.tuning["item_values"]["key"]
     return 0.01 * game.state.keys * key_value * _key_multiplier(game.deepest_rank)
 
 
@@ -178,7 +178,7 @@ def shaped(game: Game, prev: dict, terminated: bool) -> float:
     undiluted.  A dead_end termination lands with the sealing -1.0 already
     charged on the prior draft.
     """
-    values = game.registry.item_rules["item_values"]
+    values = game.registry.tuning["item_values"]
     r = 0.1 * (game.deepest_rank - prev["deepest_rank"])
     d_res = (
         (game.state.gems - prev["gems"]) * values["gem"]
@@ -230,7 +230,7 @@ def phased(game: Game, prev: dict, terminated: bool) -> float:
     Gems/coins/dice/held-item deltas, time pressure, and the win bonus match
     `shaped`.
     """
-    values = game.registry.item_rules["item_values"]
+    values = game.registry.tuning["item_values"]
     r = _rank_potential(game.deepest_rank) - _rank_potential(prev["deepest_rank"])
     d_res = (
         (game.state.gems - prev["gems"]) * values["gem"]

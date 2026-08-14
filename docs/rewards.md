@@ -20,7 +20,7 @@ A dense signal that decomposes progress per decision:
   (`deepest_rank` delta). Reaching rank 9 from rank 1 is worth ~0.8 total —
   most of a win — spread over the run.
 - **Resource delta**: `+0.01 ×` the value-weighted change in gems, keys,
-  coins and dice. The weights come from `item_values` in `data/items.json`
+  coins and dice. The weights come from `item_values` in `data/tuning.json`
   (key 3.0, gem 3.0, coin 1.0, die 4.0) — the same relative values the
   greedy policies use; they are hand-tuned, not game data. Spending
   resources (keys on locks, gems on rooms) is a small negative that the
@@ -65,7 +65,7 @@ deltas, the `−0.001` time pressure, and the `+1.0` win bonus are the same.
   are rolled at placement and visible in the observation's lock planes,
   so raw doorway count would credit doors the agent can see are dead.
 
-The base `key` weight in `data/items.json` is deliberately untouched —
+The base `key` weight in `data/tuning.json` is deliberately untouched —
 it is shared with the greedy policies, and raising it would silently
 shift their baselines.
 
