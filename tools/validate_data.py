@@ -151,7 +151,6 @@ _AUDIT_PYTHON_EXEMPT_IDS = {
     # Token, granted earlier in the same on_enter call, so it stays ordered
     # against that grant rather than moving to an earlier-firing room_hook.
     "lost_and_found": "engine/special_items.py",  # steal one item, grant two
-    "mechanarium": "engine/draft.py",            # derived door mask at draft time
     "reading_nook__ix99": "engine/draft.py",     # LIBRARY forced into slot 2
     "the_foundation": "engine/game.py",          # persists across days
     "the_kennel": "engine/effects/rooms/the_kennel.py",  # digging unlocks that room
@@ -253,6 +252,7 @@ def find_divergences(
     registered_room_ids: set[str] | None = None,
     shop_rules: dict | None = None,
     deferred_exempt_ids: dict[str, str] | None = None,
+    python_exempt_ids: dict[str, str] | None = None,
 ) -> tuple[list[str], list[str]]:
     """Return (kind1, kind2) room-fidelity divergence findings (an audit worklist).
 
@@ -283,8 +283,10 @@ def find_divergences(
 
     Both kinds exclude five exemption sets, each covering a channel the audit
     cannot introspect: ``_AUDIT_STRUCTURAL_EXEMPT_IDS`` (implemented in
-    locks.json), ``_AUDIT_PYTHON_EXEMPT_IDS`` (a hand-written branch keyed on
-    the room id, in the module each entry names), ``_AUDIT_DATA_EXEMPT_IDS``
+    locks.json), ``python_exempt_ids`` (a hand-written branch keyed on the
+    room id, in the module each entry names -- defaults to
+    ``_AUDIT_PYTHON_EXEMPT_IDS``; callers may pass ``{}`` to see what the
+    audit would report without that channel), ``_AUDIT_DATA_EXEMPT_IDS``
     (the text merely restates a field the record already carries),
     ``_AUDIT_DOCTRINE_EXEMPT_IDS`` (the effect is a no-op under the
     assumed-solved doctrine), and ``deferred_exempt_ids`` (the effect is
@@ -302,6 +304,8 @@ def find_divergences(
     """
     if deferred_exempt_ids is None:
         deferred_exempt_ids = _AUDIT_DEFERRED_EXEMPT_IDS
+    if python_exempt_ids is None:
+        python_exempt_ids = _AUDIT_PYTHON_EXEMPT_IDS
     locks_backed = frozenset(rid for rid in _AUDIT_STRUCTURAL_EXEMPT_IDS if rid in by_id)
     # Sanity-check the locks-backed list so it can't silently rot: every id in
     # it must actually be exempt from locks.json's own always_unlocked/always_locked tables.
@@ -312,7 +316,7 @@ def find_divergences(
         f"always_unlocked_rooms/always_locked_rooms: {locks_backed - lock_exempt}"
     )
     structural = locks_backed | frozenset(
-        rid for rid in (set(_AUDIT_PYTHON_EXEMPT_IDS) | set(_AUDIT_DATA_EXEMPT_IDS)
+        rid for rid in (set(python_exempt_ids) | set(_AUDIT_DATA_EXEMPT_IDS)
                         | set(_AUDIT_DOCTRINE_EXEMPT_IDS) | set(deferred_exempt_ids))
         if rid in by_id)
     priced_shops = set((shop_rules or {}).get("shops", {}))

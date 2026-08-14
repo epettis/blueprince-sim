@@ -566,8 +566,9 @@ def encode(game: Game, day_chain: DayChain | None = None) -> dict:
     # grid_containers: unopened container count per cell. Routed through
     # _container_kinds_at rather than reading registry.special.containers["rooms"]
     # directly, so per-cell overlays (Mechanarium compartments, Entrance Hall
-    # trunks added by the entrance_hall_trunk experiment effect) are visible
-    # here too, not just the static per-room table.
+    # trunks added by the entrance_hall_trunk experiment effect, the
+    # Planetarium's Telescope-unlocked Dauja's Trunk) are visible here too,
+    # not just the static per-room table.
     grid_containers = np.zeros((9, 5), dtype=np.uint8)
     for cell, room_idx in enumerate(st.grid):
         if room_idx >= 0:
