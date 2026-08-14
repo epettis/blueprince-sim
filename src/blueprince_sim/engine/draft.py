@@ -34,8 +34,8 @@ fallback, standing in for the universal forced-Closet attempt 4, since
 Closet's category is never one of the five selectable colours and the wiki
 states the colour invariant with no exhaustion exception. Reserve copies --
 the wiki's other thin-pool fallback, tried between the pool and the default
-triple -- are deliberately not modelled (see docs/open_tasks.md's
-colour-selective drafting ruling), so a default is still filtered through
+triple -- are deliberately not modelled (see docs/drafting.md's
+colour-selective drafting section), so a default is still filtered through
 room_draftable and can lose to the one-copy-per-grid rule like any other
 candidate; if every default is unavailable too, the slot is left unfilled
 rather than dealing an off-colour Closet. Game.open_door/choose_colour own

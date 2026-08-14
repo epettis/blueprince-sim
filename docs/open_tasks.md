@@ -33,10 +33,15 @@ as who said it.
 Current owners:
 [`scoping-and-carryover.md`](scoping-and-carryover.md) (persistence scope and
 the carry channels), [`doctrine.md`](doctrine.md) (sources of truth,
-assumed-solved, trophies, the acceptance bar), [`luck.md`](luck.md),
-[`locking.md`](locking.md), [`rewards.md`](rewards.md),
+assumed-solved, trophies, the acceptance bar),
+[`architecture.md`](architecture.md) (data-vs-code ownership, the registries,
+the id allowlists), [`rl-environment.md`](rl-environment.md) (observation and
+action spaces, the width register, replay and measurement discipline),
+[`luck.md`](luck.md),
+[`locking.md`](locking.md), [`rewards.md`](rewards.md) (reward shaping),
 [`foundation-design.md`](foundation-design.md), [`areas.md`](areas.md),
-[`drafting.md`](drafting.md), [`special-items-design.md`](special-items-design.md),
+[`drafting.md`](drafting.md) (the whole draft pipeline, concealment, redraws),
+[`special-items-design.md`](special-items-design.md),
 [`experiments-design.md`](experiments-design.md),
 [`upgrade-disks-design.md`](upgrade-disks-design.md),
 [`greedy-strategy.md`](greedy-strategy.md), [`process.md`](process.md).
@@ -645,8 +650,9 @@ process.
 
 ## 17. Room behaviour: registry migration
 
-Opened 2026-08-10 from the architecture memo (see the decisions log entry of the
-same date for the reasoning and the measurements). Runs alongside task 15 rather
+Opened 2026-08-10 from the architecture memo (see
+[`architecture.md`](architecture.md) for the reasoning and the measurements).
+Runs alongside task 15 rather
 than blocking it -- task 15 authors what a room does, task 17 changes where that
 lives.
 
@@ -758,8 +764,10 @@ a static room flag for it.
 
 ## 21. Capability architecture: the engine provides, rooms declare
 
-Opened 2026-08-10 on an owner ruling (see the decisions log entry of the same
-date). **Started; the invariant is now measured rather than estimated.**
+Opened 2026-08-10 on an owner ruling; the doctrine, the three layers and the
+enforcement invariant are stated in [`architecture.md`](architecture.md), and
+this section is the remaining worklist. **Started; the invariant is now
+measured rather than estimated.**
 
 `tests/test_room_id_allowlist.py` (PR #188) AST-scans `engine/*.py` and
 `engine/effects/*.py` for string literals equal to a real room id, against a
@@ -960,7 +968,7 @@ it comes first and stands alone.
 | 4 | Item handlers on game events + the engine-owned priority tuples | M | **Med** | **DONE in #205** |
 | 5 | Id-branch items, split on RNG risk: 5a RNG-free, 5b RNG-adjacent | M | Med | **DONE in #207, #208** |
 | 6 | RNG-touching migrations, **last and alone** | M | **High** | **DONE in #209** |
-| 7 | Shrink both allowlists; ~~delete `implemented`/`blocked_on`~~ | S | Low | **allowlist split DONE in #206. The flag deletion is CANCELLED -- its premise does not hold; see the 2026-08-12 closing entry.** |
+| 7 | Shrink both allowlists; ~~delete `implemented`/`blocked_on`~~ | S | Low | **allowlist split DONE in #206. The flag deletion is CANCELLED -- its premise does not hold; see [`architecture.md`](architecture.md) on what `blocked_on` carries that no registry can derive.** |
 
 **No phase is a retrain trigger provided the `items` array is never reordered
 and nothing is inserted mid-array.** `env/obs.py` enumerates it positionally
@@ -1011,15 +1019,7 @@ code, the data, and the decisions log. Almost all of them were already
 answered -- by shipped code, by an owner ruling recorded in the log, or both --
 and had simply never been removed from this list. **Two remain.**
 
-### A. Florealis: in or out? (constellations)
-
-It is the only base-set constellation with no primitive whatsoever -- **zero
-hits for `flower` in `src/`**. In = a new subsystem; out = 10 of 11 with a
-recorded reason. Not separately ruled when the other constellation questions
-were decided (sum-partition vs. threshold; auto-activate vs. per-constellation
-choice) -- still open if the Telescope/constellation work reaches it.
-
-### B. Does the Greenhouse move Secret Passage from the 5% group to the 3% group?
+### A. Does the Greenhouse move Secret Passage from the 5% group to the 3% group?
 
 The wiki: Secret Passage sits in the Patio priority-draw group (5%, boosted to
 50% while a Greenhouse is placed) only until a Greenhouse is drafted, then
@@ -2328,101 +2328,6 @@ pending that primitive.
   (19 rooms) share 15 entries but **neither contains the other**; they are two
   separately published tables and must stay two data fields.
 
-- **2026-08-13, the Free/Gem Draw step is built -- and five existing tests were
-  passing BECAUSE of the bug it fixed.**
-
-  Slot 1's gem rate (engine indexing) fell **31.79% -> 2.14%** at ranks 1-2,
-  which is what the published table actually specifies there (0% at 0 gems, 2%
-  at rank 1 with 1-3). The old rate was the size-sort artifact. Slot 0 stayed
-  **exactly 0%** across 1776 draws -- the "slot 1 is always free" invariant
-  survived, verified before and after.
-
-  **Three category-bias tests (`schoolhouse`, `scepter green`, `library ->
-  bookshop`) were only ever passing because the bug over-delivered gem rooms at
-  low rank.** Each targets a gem-cost room from a rank/gem setup where the real
-  table gives ~0%. Their *properties* are still true; their *setups* were
-  invalidated. Rebuilt at rank 8-9 / 4+ gems, where the table gives 59.26%.
-  **A test that only passes under a bug is not a test.**
-
-  Two others: an Archives test asserted `steps == steps_before` while coupled to
-  *which* room got dealt (a different room now lands and grants +5 steps) --
-  decoupled rather than reseeded; and a behavioural-cloning fixture used a seed
-  as a scenario *constructor* -- rebuilt to construct the scenario
-  deterministically, because hunting a replacement seed is seed-tuning in
-  disguise and would rot again on the next draft change.
-
-  **A test helper was itself exploiting the bug**: `test_experiments.py`'s
-  `_force_drawing_room_dealable` trimmed the free deck below the gem deck's
-  count so the size-sort would try gem first. It had to be rewritten.
-
-- **2026-08-12, THE FREE/GEM DRAW STEP IS MISSING ENTIRELY. Owner ruled: model
-  it fully. This is the largest divergence found this session.**
-
-  The investigation was commissioned to check one sentence on `The_Axe`
-  (*"spawn at the same rates as gem rooms (more often with more gems in hand,
-  and on higher rank)"*). **The sentence is precise and traceable to a datamined
-  table, and the gap is bigger than the question.** It is not a missing *bias*
-  on an existing roll -- there is **no Free/Gem Draw step in this codebase at
-  all.**
-
-  **What the sim does instead**, `draft.py::_deal_from_rarity`: it takes the free
-  and gem decks for the rolled rarity, sorts them by `remaining()`, and deals
-  from **whichever currently holds more undealt cards**. Deterministic, consumes
-  no RNG. Whether slot 2/3 shows a gem room is an artifact of pool composition.
-  The comment there claims this makes the pair "behave like one combined deck";
-  it does not -- it is "always deal from the larger deck".
-
-  **What the game does**, `Drafting/Advanced` -> "Free/Gem Draws": slot 2's
-  chance to be a Gem Draw is a published rank x gems-in-hand table (buckets
-  **0 / 1-3 / 4+**, ranging 0% at rank 1-3 with no gems to **59.26%** at rank
-  8-9 with 4+), **slot 2 succeeding forces slot 3**, slot 1 is always free, and
-  early drafts are carved out (veteran: first 2 drafts all free; otherwise the
-  first `6-Day`). Slot 3 has its own rank table when slot 2 stayed free
-  (75% / 87.5% / 93.75%). Corroborated on `Gems`: *"When more gems are held, the
-  odds of drawing Special Floorplans is higher than with fewer gems."*
-
-  **`state.gems` reaches the draft pipeline nowhere.** Proved by execution, not
-  grep: every `GameState` slot and `GameConfig` field was wrapped in a
-  read-tracing descriptor over 240 drafts. `gems` was **never read** from
-  `decks.py` or `draft.py`, and dealt hands were **bit-identical** for starting
-  gems in {0, 1, 3, 4, 10, 50} at fixed seed. The gem-rate/gem-count correlation
-  the sim *does* show is confounded -- gems accumulate with time of day, which
-  correlates with deck depletion.
-
-  **Measured divergence**, 250 episodes x 3 days, `greedy_rank`: sim slot 3 runs
-  **~44%** gem where the real game past its carve-outs is **75-93.75%** by rank
-  plus slot-2 spill-over; and day 1 should force **0%** for the first 2 drafts
-  under veteran mode (the repo default) where the sim deals **8.6%**.
-
-  **I was wrong about the consequence, and the correction matters more than the
-  claim.** I recorded that this would mean `tests/test_draft_stats.py` is
-  asserting a wrong distribution. **It is not.** That suite tests the *rarity*
-  axis only, and the rarity tables are correct. **The free/gem axis has never
-  been tested at all.** A missing guard, not a lying one -- and that absence is
-  precisely why a whole decision step could go unmodelled without anything going
-  red. **When a suite is called "the sharpest guard in the repo", ask what axis
-  it guards before trusting it with a different one.** That is now three times
-  this session the same suite has been credited with coverage it does not have.
-
-  **Not previously recorded anywhere.** `docs/drafting.md` says only "Slot 1 is
-  always free; slots 2-3 may deal gem-cost rooms" and never states how slots 2-3
-  choose -- so the deck-size heuristic was undocumented rather than
-  documented-as-simplified. A genuine discovery.
-
-  **Owner ruled Option B, model it fully** (~150-220 lines): the table into
-  `weights.json` as `confidence: datamined`, a `drafts_today` counter (none
-  exists -- `draft_counts` is cumulative per-room), a per-draft round counter,
-  the free/gem decision rolled once per round and threaded through
-  `draw_slot`/`_deal_from_rarity`/`_deal_biased`, replacing the size-sort.
-  **Materially changes the gem economy a policy trades against; a retrain is
-  already owed.** The required new guard is a chi-square on the **free/gem
-  axis**, which has no existing coverage.
-
-  **Note for `the_axe` when it resumes:** `Drafting/Advanced` says deck
-  membership "uses the actual gem cost of the room, **ignoring any modifiers
-  like The Axe**". So an axed room stays in the Gem decks -- zero the *charged*
-  cost, never `Room.is_free`. That is independent of this work.
-
 - **2026-08-12, OWNER RULING: fix the forced-Closet colour crash next, ahead of
   the item queue.** Found incidentally by the free/gem investigation and
   reproducible without instrumentation: `greedy_rank`, day 10, seeds 4 and 97,
@@ -2867,90 +2772,6 @@ pending that primitive.
   building on it, and treat a precise-looking citation inside one as a reason
   for more suspicion rather than less.**
 
-- **2026-08-12, the config digest is ~185 lines, not ~15, and it is a two-part
-  PR -- the first part being a defect nobody had recorded.**
-
-  **The unrecorded defect:** `env/blueprince_env.py::_serialize_config_value`
-  (lines 20-33) returns `None` for any value that is not
-  `frozenset`/`bool`/`int`/`str`, and lines 51-53 then skip it. `draft_counts`
-  is a `dict`, so **it is silently dropped from every `day_config` diff.**
-  Measured over a 5-day chain under `all_unlocks_config`, seed 42: day 1
-  reconstructs exactly; days 2-5 all mismatch, live `draft_counts`
-  `{'gymnasium': 1, ...}` against reconstructed `{}`. So **multi-day replay is
-  already not exact from day 2 onward, on the working trainer path**, entirely
-  independently of the wrong-preset bug the digest exists to catch.
-  `draft_counts` feeds the observation (`env/obs.py:549`) and gates upgrade-disk
-  offers (`engine/upgrades.py:275,310`) and the Treasure Trove pile.
-
-  **This inverts the digest's cost.** Shipped without that fix, the digest
-  fires on **100% of legitimate multi-day day>=2 records** rather than 0% --
-  verified: match was `True, False, False, False` unpatched, `True` for all five
-  days with a two-line dict branch added. The `draft_counts` fix is therefore
-  a behaviour fix in its own right, lands first, and carries its own test.
-
-  **It also falsifies a verified-facts entry.** *"`train.py` filters records by
-  their own `unlocks` stamp and rebuilds the config from that same stamp, so the
-  two cannot disagree"* is true of the **preset** and false of the whole config:
-  nothing checks `day_config`, and `day_config` is precisely where the
-  reconstruction is lossy. Severity stays low-ish -- `draft_counts` gates
-  upgrade-disk offers, not the common draft/travel actions -- but the claim as
-  written is wrong.
-
-  **Design ruling, taken as assume-build:** hash **only non-default fields**,
-  canonicalised (`frozenset` -> sorted list, `dict` -> key-sorted, `Path` ->
-  `str`), `json.dumps(sort_keys=True)` -> `blake2b(digest_size=8)`. Never
-  `hash()`. `GameConfig` is **not frozen and not hashable at all**
-  (`__hash__ is None`) -- 63 fields, 11 frozensets, one dict, one `Path | None`.
-  The non-default filter is what makes the corpus survivable: `config.py` took
-  **47 commits since 2026-06-01**, ~40 of them field additions, and hashing every
-  field would invalidate the whole corpus roughly weekly. **Known hole,
-  accepted: a change to a field's *default* is invisible to the digest** (2 real
-  instances in ~10 weeks, always a deliberate semantics PR). Mitigation is
-  procedural -- pair a default change with deleting the corpus, the convention
-  `n_actions` already carries. Do not close it by hashing defaults; that
-  reintroduces the weekly churn.
-
-  **Missing digest is refused, not defaulted**, in `behavioral_cloning` only,
-  via a new `ConfigDigestError(DemoError)` raised from `config_for_record` --
-  the single choke point, per the precedent at `UnstampedDemoError`.
-  `web/replay.py` keeps its deliberate asymmetry and only **flags** a mismatch
-  in the `divergence` dict; raising there would 500 the replay UI.
-
-  **The corpus is disposable, which is what licenses all of the above.**
-  `runs/postfix-v2/demos.jsonl` is the only demo file on disk -- 2 records,
-  untracked (`.gitignore: runs/`), and **already unloadable**: `n_actions=311`
-  against today's 376, so `StaleDemoError` rejects both. Two comments assert the
-  opposite and are now false (`behavioral_cloning.py:319` and
-  `tests/test_behavioural_cloning.py:4`, both "no real demos.jsonl exists
-  anywhere in the repo yet"); they get swept with this work under the
-  comments-state-current-behaviour rule.
-
-- **2026-08-12, observation and action width changes are ACCEPTABLE: a retrain
-  is already required.** Owner. This unblocks the whole remaining item backlog,
-  which #227 had just re-sized as M-or-larger precisely because every item costs
-  a width change.
-
-  **What this permits, concretely:**
-  - `gear_wrench` -- a `_CARRYOVER_KEYS` entry (obs width) **and** a
-    room-choice action (action width). Both were the blocker; neither is now.
-  - `chronograph` -- new redraw-history state plus a rewind action.
-  - `prism_key` -- a special-key choice action.
-  - `the_axe` -- a Room Directory action plus a permanent gem-cost override
-    carried across days.
-  - `crown_of_the_blueprints` -- within-day pool removal, the only one of the
-    four that needs no new width at all.
-
-  **What it does NOT license.** The standing rule is *"model correctness
-  outranks observation/action-space stability while no run is live -- but record
-  every width change."* The recording half still applies: every PR that moves
-  `N_ACTIONS` or `len(_CARRYOVER_KEYS)` states the before and after, and
-  confirms **no existing id shifted** (append at the end; a mid-array insert
-  invalidates a policy's learned embedding far more deeply than a bound change).
-
-  **`battery_pack` is still awkward for an unrelated reason** -- its cost is a
-  37-call-site signature change to thread `rng` into `grant()`, not a width
-  change. This ruling does not make it cheaper.
-
 - **2026-08-12, three owner rulings, and a new `meta.wont_implement` marker to
   hold them.** "Blocked" and "decided against" were the same field; they are
   not the same thing, and conflating them left permanent exclusions sitting in
@@ -2996,49 +2817,6 @@ pending that primitive.
   the *intended* uncommitted changes in that same file along with the mutation.
   Mutation-test against a copy, or stash first -- never `git checkout` a file
   that is holding work you want.
-
-- **2026-08-12, TASK 22 IS COMPLETE -- and its final step is cancelled, on
-  evidence.** Phases 0-6 landed across #200-#209; phase 7's allowlist split
-  landed in #206. The remaining half, **"delete `implemented`/`blocked_on`", is
-  NOT being done, because the premise it rested on turned out to be false.**
-
-  **The premise:** a per-item registry makes implementation status *derivable*,
-  so the asserted fields become redundant. **The measurement, from #217's
-  census and a direct check:**
-
-  - 12 items are `implemented: false`. **Exactly 1 of them is in any registry.**
-  - 46 of 54 items with `effects: []` are not found in any registry, and 60 of
-    123 such rooms -- because **the registries cannot see hand-written branches
-    in `game.py`**. That is why #217's census says "not found in those
-    registries" rather than "genuinely inert".
-  - **`chronograph` is in a registry AND `implemented: false`** -- its
-    Tomorrow-Rooms bias is wired (#201), its redraw rewind is not. So registry
-    membership does not even imply full implementation.
-
-  **And `blocked_on` carries something no registry can derive: WHY.** "The
-  Telescope needs constellation activation", "the Axe needs a permanent
-  gem-cost override layer", "the Trophy of Wealth's purchase path is
-  unverified end to end" -- none of that is a fact about handler presence.
-  Deleting the fields would trade information nobody can reconstruct for a
-  check covering 8 of 54 items.
-
-  **What the registry DID deliver is the part worth keeping**: #217 wired four
-  validators that were previously called only by tests, so a typo'd id now
-  fails the data validator; and the census makes "empty and unregistered"
-  visible for the first time. That is the derivable half. The reason half stays
-  in data, where a human writes it.
-
-  **Final state: item-id debt 58 -> 1** (`microchip` in `shops.py`, which is
-  where all three chip sources legitimately live), 38 pairs reclassified as
-  permanent architecture, tag pairs 36 -> 22, and `game.py` and
-  `special_items.py` carrying no item-id debt at all.
-
-  **The generalisable lesson: a refactor plan written before the measurement
-  should be re-checked against it, not executed on faith.** Three of this
-  plan's steps changed on contact -- phase 3's scope (the shared-tag
-  contradiction), phase 4's shape ("folds" were really first-match-wins chains
-  that mutate state), and now phase 7's deletion. Each was written by a careful
-  pass that simply could not see what the work would reveal.
 
 - **2026-08-12, the Satellite Dish packet gate is open. Experiments phases 5-8
   are complete.** Keyed on `cfg.satellite_dish_unlocked`, the permanent
@@ -3192,41 +2970,6 @@ pending that primitive.
   The wiki also independently confirms the respawn rule the owner gave: "If this
   microchip is lost without being placed, it reappears on the table right beside
   the broken vase the next day."
-
-- **2026-08-12, demo replay's two silent-failure paths are closed.** Both had
-  the same shape: **the code chose to continue rather than complain**, handing
-  back plausible-looking data instead of raising.
-
-  1. **Silent truncation.** `replay_demo` broke out on a TERMINAL phase and
-     returned normally, discarding the remaining recorded actions -- one record
-     dropped 24 of 33 and raised nothing. Now raises. **Verified no legitimate
-     replay ends early**: both producers (`web/play.py::PlaySession._close_day`,
-     `rl/train.py::EpisodeRecorder.on_episode_end`) append the action *before*
-     checking termination, and `Phase.TERMINAL` is set in exactly one place, so a
-     record's last action is always the one that ends the day. Pinned by a test.
-     The new branch is genuinely reachable, not theoretical: **7 of 659** tampered
-     replays hit it, and seed 24 reproduces it deterministically.
-  2. **A missing `unlocks` stamp defaulted to `"all"`** -- which for a legacy
-     fresh-save record is precisely the tampering the divergence test simulates.
-     Now raises `UnstampedDemoError`, following the module's own precedent
-     (`StaleDemoError` refuses outright rather than guessing) rather than
-     `web/replay.py`'s tolerant default, which exists because that path has a UI
-     to surface the doubt to a human. This one has no such side-channel.
-
-  **The defect was at TWO sites, not the one I cited.** `load_demo_dataset:149`
-  *and* `config_for_record:199` -- and `replay_demo` calls the latter directly,
-  so fixing only the line in my brief would have left the main path still
-  guessing. Both now route through one `_record_unlocks()` helper.
-
-  **No existing test needed changing**, because every one builds records via
-  `synthetic_demo_records`, which always stamps `unlocks`. And the one real demo
-  file on disk (`runs/postfix-v2/demos.jsonl`, 2 human days) already carries
-  `"unlocks": "fresh"`, so nothing real breaks.
-
-  **Still open, and needing a ruling:** the config-digest recommendation. These
-  two fixes close the *silent* paths; they do not make a wrong-preset replay
-  detectable in general, which remains ~17% on the synthetic fixture and ~72%
-  on a human-like action mix.
 
 - **2026-08-12, the sundial takes any ignition tool: trust the wiki.** Owner,
   resolving the conflict #215 recorded rather than decided. The wiki says "an
@@ -3390,8 +3133,8 @@ pending that primitive.
   room's `effects` array is empty because its behaviour lives in the room
   registry and a guaranteed item, and the prose note drifted to match the array
   rather than the code. **Wiring the registry validators into
-  `validate_data.py` is what would have caught it mechanically** -- done since,
-  in the work the task 22 closing entry describes.
+  `validate_data.py` is what would have caught it mechanically** -- done since;
+  see [`architecture.md`](architecture.md) on the registry validators.
 
 - **2026-08-12, the Microchip gate is corrected. Phase 1 of the branch.**
   `Gate.counts_flag` lets an item gate count an in-place copy the player does
@@ -3465,38 +3208,6 @@ pending that primitive.
   remove the only machine-readable statement of what is inert, in exchange for
   nothing.
 
-- **2026-08-12, `effects: []` in `rooms.json` does NOT mean a room is
-  effectless, and I read it that way.** Owner correction, and it overturns the
-  analysis I gave against building the Ruins arm.
-
-  I reported the Throne Room as "a rare, 5-gem, `effects: []` room -- plausibly
-  negative for an agent". The owner: **it has a Mora Jai box (+2 allowance) and
-  a north Antechamber lever.** Both are **already modelled**, just not in the
-  `effects` array:
-
-  - `effects/rooms/throne_room.py` calls
-    `provides_lever("throne_room", pull_north_lever)`.
-  - `allowance_token_throne_room` carries `guaranteed_in: ["throne_room"]` and
-    the `allowance` effect.
-
-  **The lesson is structural and it cuts against task 22.** The registry
-  migration deliberately moves behaviour OUT of the `effects` array and into
-  code, which is the point -- but it means **`effects: []` is now uninformative
-  as a signal of what a room or item does.** I noted earlier that the registry
-  makes `implemented` *derivable*; the flip side is that it makes `effects: []`
-  *misleading*, and I then made exactly that mistake within the day. Anything
-  reading `effects` to judge whether something is inert must also check the room
-  registry, `provides*`, and guaranteed items.
-
-  **`throne_room.meta.effect_text` is also wrong**: it says "entirely out of
-  scope, no effect modeled" while the lever and the token are both modelled.
-  Fix when the Ruins arm lands.
-
-  **Ruling: build the whole Ruins arm.** Owner, on the corrected facts. The
-  Throne Room is worth adding to the pool for the lever and the allowance token
-  even though the Ruins themselves grant nothing further. My deferral
-  recommendation rested on the room being effectless and does not survive.
-
 - **2026-08-12, three owner rulings on the Microchip branch.**
   1. **Experiments phases 5-8 are AUTHORISED**, scoped honestly: the Apple
      Orchard sundial unlocks the Satellite Dish, whose packet is those phases.
@@ -3569,54 +3280,6 @@ pending that primitive.
   someone checked whether it was reachable or whether its payoff already
   existed. **Check the payoff before costing the work.**
 
-- **2026-08-12, the item-id allowlist is split into architecture and debt.**
-  Pulled forward from phase 7 because phase 5's whole job is to drive the debt
-  number down, and a conflated number cannot show that -- a successful
-  migration and a wash looked identical.
-
-  **`ITEM_ARCHITECTURE` = 37, `ITEM_DEBT` = 27** (sum 64, no overlap).
-  `ITEM_DEBT_CAP = 27` enforces the asymmetry that makes the split worth
-  having: **architecture may grow, debt may not.** Phase 5 will legitimately add
-  priority-tuple members as chains extend; that must not be able to hide a
-  failure to migrate anything.
-
-  Architecture is four kinds: engine-owned priority tuples (the six `ItemHook`
-  chains plus `DIG_PRIORITY` and the lockpick preference), id-prefix family
-  constants, named draft conditions, and trade-graph/pipeline carve-outs.
-
-  **The debt half is now a worklist, not a score:**
-
-  - `game.py` (4): `keycard`, `paper_crown`, `power_hammer`, `silver_key`
-  - `shops.py` (7): `car_keys`, `lunch_box`, `microchip`, `repellent`,
-    `royal_scepter`, `silver_key`, `stopwatch`
-  - `special_items.py` (16): `battery_pack`, `broken_lever`, `car_keys`,
-    `compass`, `cursed_effigy`, `key_8`, `keycard`, `lunch_box`, `moon_pendant`,
-    `royal_scepter`, `secret_garden_key`, `silver_key`, `sledge_hammer`,
-    `sleeping_mask`, `treasure_map`, `watering_can`
-
-  `treasure_map` and `moon_pendant` are **phase 6** (RNG-touching, migrate
-  alone). `microchip` overlaps the Microchip branch.
-
-  **Three corrections to my own taxonomy, all from reading the call sites:**
-
-  1. **`sledge_hammer` is debt, not architecture.** Its only occurrence is the
-     Mechanarium compartment fallback, on the same line and construct as
-     `battery_pack` and `broken_lever` -- which I had already classified as
-     debt. The same construct must classify the same way.
-  2. **`compass` is debt.** It never appears in a priority ordering; it is a
-     `_has_item_effect` tag-collision lookup. I had grouped it with the
-     tool-preference question by association rather than by evidence.
-  3. **`shops.py`'s `secret_garden_key` is architecture.** It sits in a
-     `frozenset` beside three strings that are not item ids at all -- the same
-     named-condition class as `placement.py`'s own exemption.
-
-  **And a mislabel in my mutation plan worth remembering:** removing an entry
-  for a still-present literal fires the *outside-the-allowlist* test, not the
-  *stale-entry* test. The genuine stale-entry direction is only exercised by
-  removing the literal from the **source** while keeping the dict entry. Both
-  were verified separately; a plan that conflates them would let the stale-entry
-  guard pass vacuously forever.
-
 - **2026-08-12, phase 4 landed, and it moved the item-id debt UP -- correctly.**
   Numbers: **item tag pairs 27 -> 22**, **room id pairs 79 -> 78**, but
   **item id pairs 56 -> 64**.
@@ -3642,32 +3305,6 @@ pending that primitive.
   `"hallway"` sat in `special_items.py` only for the Hall Pass's
   `is_category("hallway")` test; moving that into `hall_pass.py` (glob-excluded)
   removed a *room*-id literal from a scanned module.
-
-- **2026-08-12, item handlers fire on game events, exactly like room handlers.
-  The claim that "items have no natural event boundary" was wrong.** Owner
-  challenged it directly and the challenge holds: a payment, a move, a coin
-  grant and a red-room effect are game events, and an item handler on one is as
-  legitimate as a room handler on `ON_ENTER`. The claim had been repeated across
-  several PRs and shaped the phase 2 and 3 designs.
-
-  **The real difference is arity and arbitration:**
-
-  | | room handler | item handler |
-  |---|---|---|
-  | fire per event | exactly one | any number of held items |
-  | signature | `(game, room, context_room) -> None` | must return a value |
-  | conflict | impossible | routine, and rule-bearing |
-  | order | irrelevant | decides the outcome |
-
-  `fire(game, room, hook)` is called with *the* room the event is about and
-  dispatches to that one room's handler. Two rooms never answer the same event,
-  so **the room registry never needed arbitration -- the grid supplies
-  exclusivity for free.** Items have no such guarantee: `gem_cost_modifier`
-  must produce one number from N held items, and "only one waiver applies, no
-  double-decrement" is a game rule something has to enforce.
-
-  So the conclusion is not "avoid handlers" but **"use handlers, plus the one
-  thing rooms never needed: explicit arbitration."**
 
 - **2026-08-12, the phase 4 design, three owner rulings.**
 
@@ -3719,46 +3356,6 @@ pending that primitive.
 
   This also matches task 17's precedent exactly: singletons move, shared
   parametric stays. Phase 3's real scope was **8 tags, not ~12**.
-
-- **2026-08-12, task 22 phase 2 landed, and the item registry is a fold, not a
-  hook.** The primitive is `item_provides(item_id, ItemCapability, **params)`:
-  the item declares only the *fact and its parameters*, and the **engine owns
-  the fold** (`item_capability_sum` in `engine/effects/__init__.py`). No item
-  module registers a handler function.
-
-  This is the deliberate divergence from `room_hook`, and the reason it matters
-  is worth keeping: a room has a natural event boundary -- the player standing
-  in it -- so firing a handler there maps onto a real moment. **Items have no
-  such boundary.** Item behaviour is overwhelmingly "the engine is about to
-  charge N; ask every held item whether it changes N". Registering 40 modules
-  against a constantly-firing hook would also make fold *order* implicit in
-  import order, where today it is visible as sequential lines.
-
-  **`SHOP_DISCOUNT` is a sum and therefore commutative, so phase 2 cannot by
-  itself prove the ordering design.** The API is shaped so it does not need
-  redesigning: params are stored per `(item_id, capability)` rather than
-  pre-flattened, so phase 4's ordered folds become a *sibling* function walking
-  the same registry in a caller-supplied order with a combine step. **Phase 4
-  is where that gets tested for real** -- treat its ordered tuple as the
-  load-bearing artefact and pin the current arithmetic before moving anything.
-
-  **The data tag was deleted, not left alongside.** Once `coupon_book`
-  registers the capability in a module, its `shop_discount` effect tag is a
-  second source of truth for the same fact -- the defect deleted twice this
-  week (`ignition_tool` #199, `silver_key_bias` #202). Building a registry
-  while leaving the tag would have recreated the problem the registry exists
-  to solve.
-
-  **The tag allowlist shrank 6 -> 5 for `shops.py`: the first downward movement
-  of the item debt**, and the measure phases 3-7 are judged by.
-
-  **Brief error worth recording: there is no production call site for
-  `validate_capability_registry` or `validate_room_registry`.** Both are
-  exercised only by dedicated tests; nothing in `game.py` or
-  `validate_data.py` invokes them. `validate_item_registry` follows that same
-  pattern. So a typo'd id in any of the three registries is caught by the test
-  suite, never by the data validator -- worth knowing before anyone assumes
-  `tools/validate_data.py` covers it.
 
 - **2026-08-12, delete the `silver_key_bias` effect record rather than wiring a
   reader.** Owner, resolving the binary question phase 0 raised.
@@ -3950,24 +3547,6 @@ pending that primitive.
   callers. Firing it 40+ times a day would re-arm the entire bucket each time.
   The replacement inserts into the **undealt** region only.
 
-- **2026-08-11, the Aquarium gets two separate condition-gated priority-draw
-  rows, not a place in the existing ones.** Owner. The wiki says the effect
-  "adds Aquarium to the 3/13% passive filters", but our `_priority_draw`
-  resolves a row's `rooms` list by **fixed order, first draftable wins**,
-  while the real game treats a priority draw as a *filter* and draws by deck
-  order among the survivors.
-
-  Joining the rows would therefore starve the Aquarium behind the Commissary
-  and Observatory -- materially wrong once the Aquarium has 3, 6 or 9 copies
-  in the deck against the Commissary's single card. Separate rows reproduce
-  the published 15.61% exactly, at the cost of two extra RNG substreams.
-
-  Act on this cold as: this is a **deliberate divergence from the wiki's
-  literal wording, chosen because our priority-draw resolution differs from
-  the game's.** If the resolution is ever fixed to draw by deck order among
-  survivors, revisit -- joining the rows would then be both literal and
-  correct.
-
 - **2026-08-11, the Mail Room's Dynamic Rarity deferral is re-opened.**
   Owner. It was deferred on 2026-08-09 with the stated reason that
   `decks.py` had no rarity-override channel and building one was its own work
@@ -4096,36 +3675,6 @@ pending that primitive.
     four takes the count **11 -> 7**, after which every remaining finding is
     genuinely actionable.
 
-- **2026-08-11, the redraw cap is DROPPED. This reverses the earlier ruling to
-  add a per-hand redraw cap, and the reversal is my fault.** When I asked for
-  that ruling I described `drawing_room_drawn` x `set_dice` as an unbounded
-  zero-step loop.
-  Measured in this engine, it is not: **mean 2.34 redraws, median 2, p90 3,
-  p99 4, max 4 over 53 sampled hands; zero runs exceeded 8.** It is a decaying
-  random walk, not a divergence.
-
-  The closed form agrees. Each redraw spends a die and the Drawing Room
-  reappears with probability p, so `E[length | 2 dice] = (2-p)/(1-p)^2`, which
-  is 2.35 at the measured p = 0.10 and only diverges as p -> 1.
-
-  **Both of the wiki's methods for driving p -> 1 are unavailable here.** The
-  Chronograph is not modelled at all, and the Silver Key draft bias is cleared
-  after the initial deal (`draft.py`, commented "Redraws clear the flag"), so
-  the depleted-pool method cannot persist across redraws. An adversarial probe
-  that reduced the commonplace/gem deck to the Drawing Room alone still
-  produced 0 fires in the available redraws.
-
-  **Owner ruling: drop the cap.** Do not add a per-hand redraw budget. The
-  termination check in `redraw` still goes in -- it is a live bug independent
-  of the cap.
-
-  Act on this cold as: **a cap would have been a permanent, invented deviation
-  from the game justified by a premise that was never true of our engine.**
-  The wiki is explicit that the real game has no such limit: *"There is no
-  limit to how many times floorplans can be redrawn in one draft."* The lesson
-  is that "this looks unbounded" is a hypothesis to measure, not a fact to
-  rule on -- especially when the proposed fix is a deviation.
-
 - **2026-08-11, the Silver Key bias clearing on redraw is an OPEN question,
   held for play.** `draft.py` clears the Silver Key's cross/T draft bias after
   the initial deal, so it does not apply to redrawn hands. The wiki's
@@ -4239,104 +3788,6 @@ pending that primitive.
   offer rate. And `pantry_fruit`'s note about apples being less common is
   **not** in conflict with `items.json`'s fruit weights; they describe two
   different pools, which is worth one clarifying line so nobody re-opens it.
-
-- **2026-08-11, our Archives is scoped wrong: the effect is house-wide for
-  the day, not per-doorway.** Research triggered by the owner's archived/hidden
-  correction. The wiki is unambiguous: *"The Archives ... will 'archive' one of
-  the three floorplans drawn whenever a room is drafted after Archives"* --
-  no from-room qualifier anywhere on the page. Our `draft.py::_hidden_count`
-  keys off the room being drafted **from**, so archiving only happens through
-  an Archives doorway.
-
-  The owner's own sentence is the proof, independent of the wiki: under our
-  model a Darkroom draft sets `from_room = Darkroom`, so no option could ever
-  be archived -- yet the owner observes that one of a Darkroom's concealed
-  options can be. That is only possible if the Archives effect is persistent
-  and house-wide.
-
-  Corroborated a third way: the Shelter interaction is worded *"drafting the
-  Archives under the effect of the Shelter ... Archived floorplans do not
-  appear"*, i.e. the negation is applied once at placement and suppresses
-  archiving for the whole day. That only makes sense for a day-long
-  capability.
-
-  Our stored `meta.effect_text` for the Archives says *"While drafting from
-  this room, one of the 3 floorplans is hidden (modeled: one fewer option)"* --
-  wrong twice: the from-room scoping, and the parenthetical, which is a
-  project annotation that is stale against the wiki **and** against our own
-  code (nothing anywhere drops an option).
-
-- **2026-08-11, neither the Archives nor the Darkroom reduces the option
-  count -- both conceal.** The `reduce_draft_options` tag name asserts a
-  mechanic the game does not have. Our runtime behaviour is right (we mark
-  options hidden and keep them draftable); only the name and the annotation
-  lie. Archived floorplans remain fully selectable, and the game deliberately
-  preserves side channels: gem cost, Coat Check label, power lines, rotation
-  (which leaks shape), the Furnace's red haze, and rarity when drafting
-  through a security door.
-
-  So **archived is a per-option-instance flag produced by a day-long
-  house-wide capability**, while Darkroom concealment is a genuine from-room
-  effect. The two compose independently. Split the tag: `archive_floorplan`
-  for the Archives, `conceal_all_floorplans` for the Darkroom, and retire
-  `reduce_draft_options`.
-
-- **2026-08-11, the archived slot is uniformly random across all three.**
-  Owner. We currently archive **slot 2 deterministically** and always keep
-  slot 0 visible; the wiki only says "one of the three". The owner ruled
-  random across all three, which is strictly harder than what we ship -- there
-  is no longer a guaranteed fully-informed option. This materially changes
-  agent play, so it needs a named RNG substream and a test.
-
-- **2026-08-11, the Shelter's negation of the Archives is spent once, at
-  placement.** Owner, matching the wiki's *"drafting the Archives under the
-  effect of the Shelter"* wording: one charge when the Archives is drafted,
-  and no archiving for the rest of the day. The alternative -- a charge per
-  draft -- would drain all three Shelter charges in three doorways.
-
-  Act on this cold as: `_red_negated` is currently never consulted on the
-  `draft.py` path, so today a Shelter negates neither room. The trap is that
-  every existing caller uses a per-event pattern; this one must latch into a
-  day flag at placement or it silently drains the resource.
-
-- **2026-08-11, the Darkroom light switch and the security-door rarity leak
-  are both in scope.** Owner, on two published gaps found in the same pass.
-
-  The Utility Closet can restore the Darkroom's lights, fully disabling its
-  drafting penalty; we model that switch system but have **no Darkroom
-  switch** anywhere in `src/` or `data/`. Without it the agent has no counter
-  to a Darkroom at all. (The wiki also notes the fuse never blows if the
-  switch is already off when the Darkroom is drafted, but flipping it off and
-  on again beforehand does not prevent it.)
-
-  Separately, the wiki says a concealed floorplan's **rarity is visible** when
-  drafting through a security door. Our `env/obs.py` zeroes rarity for every
-  hidden option unconditionally, so the agent loses information a real player
-  has. Note `forced` is zeroed there too, which discards real information for
-  no stated reason -- worth checking while in that code.
-
-- **2026-08-11, "archived" is independent of "hidden" -- our data conflates
-  two different mechanics.** Owner, correcting a question I asked badly. I
-  offered a choice between counting only Archives-hidden options or any hidden
-  option for the `archived_floorplan` experiment trigger. The owner rejected
-  the framing: *"Archived is independent from hidden. You can't see rooms
-  drafted from the Darkroom, but one of them can still be archived."*
-
-  So `opt.hidden` is **the wrong signal entirely**. Being archived is a
-  property a floorplan has; being hidden is a property of how it was dealt.
-  A Darkroom draft hides its options from the player, and one of those hidden
-  options may independently be archived.
-
-  Our `rooms.json` gives the Archives and the Darkroom the **same effect tag**
-  (`reduce_draft_options`, differing only in `amount`), so the engine cannot
-  currently tell the two apart, and `opt.hidden` conflates them. The trigger
-  needs a distinct archived marker, set by the Archives' mechanic only.
-
-  Act on this cold as: this is a **modelling gap in the drafting system**, not
-  just a blocked trigger. Whether the Darkroom's "you cannot see the options"
-  is even correctly modelled as `reduce_draft_options` is now open --
-  reducing the option count and concealing the options are different things.
-  Worth a research pass before the trigger is built.
 
 - **2026-08-11, experiment trigger and cap semantics.** Owner, on three of the
   twelve ambiguities raised while scoping experiment phases 2-3.
@@ -4571,40 +4022,6 @@ pending that primitive.
   prize contents are published and could be granted as an items roll if the
   room should do something.
 
-- **2026-08-10, colour-selective drafting gets filter + default floorplans, no
-  reserve copies.** Owner, choosing the middle of four options. The Secret
-  Passage lets the player pick one of five colours (Bedroom, Hallway, Green
-  Room, Shop, Red Room) and restricts the whole resulting hand to it.
-
-  **No colour-selective machinery exists anywhere in the codebase** -- a grep
-  for `color_selective|prism|color_filter` across `src/` returns zero hits. The
-  nearest primitive, `draft.py::_apply_category_bias`, is a *bias* (roll a
-  chance, try to swap one card), not a *filter*, and the wiki warns explicitly
-  that the two must not be confused.
-
-  Scope as ruled: restrict the deal to the chosen colour, and fall back to the
-  published per-colour default triples when the pool is thin. Reserve copies
-  are out. The owner rejected filter-only because the wiki says thin pools are
-  *frequent* for Green Rooms and Shops, so filter-only would diverge often; and
-  rejected full fidelity because it requires relaxing the out-drafting
-  invariant in `placement.py`/`rotation.py`, which is load-bearing.
-
-  This clears two findings and one item at once: `secret_passage`,
-  `spare_secret_passage__ix138` (which reuses the same handler, as `foyer.py`
-  already does for its Spare), and `prism_key`, whose `meta.blocked_on` is
-  literally `color_biased_drafting_not_modeled`.
-
-  Separate side finding, since **resolved in PR #190**: both Secret Passage
-  ids now carry `rank_gte_2`/`rank_lte_8`, so the rank half is modelled and
-  the stateful wing rule is recorded on both records as a named gap. What
-  follows describes the state before that:
-  `secret_passage.draft_conditions` was `[]` and nothing in `src/` referenced
-  the room, so **none** of its published placement restrictions were modelled --
-  it cannot be drafted on Rank 1 or 9, and is blocked from wing drafts leading
-  north into Rank 8 or south into Rank 2 until another vertical wing draft
-  occurs. The rank rule is two existing primitives away; the stateful wing rule
-  is not.
-
 - **2026-08-10, the Shrine is built, with five of eight blessings live.**
   Owner. Deposit 1-80 gold, receive one of eight blessings lasting 3-7 days;
   taking the gold back curses you for 2 days instead. The band table, the 8x5
@@ -4670,18 +4087,6 @@ pending that primitive.
   not published text, so this is the owner's call resting on a hint rather than
   a statement. It makes the Mechanarium's door count depend on its neighbours'
   door masks at draft time, which is worth re-testing in play.
-
-- **2026-08-10, the Southern Cross excludes the Mechanarium, the Chamber of
-  Mirrors and every upgrade variant.** Owner, on a divergence found while
-  scoping the Mechanarium. Our `priority_draws.json` keys the 40% draw on
-  `layout: "cross"`, which sweeps in all 19 cross-layout rooms; the wiki's own
-  query excludes the two rooms by name and filters `Type HOLDS "Upgrade"`, and
-  the Mechanarium page repeats it independently ("It is also unaffected by the
-  Southern Cross").
-
-  Currently inert -- nothing sets `state.southern_cross_active` -- so this is
-  wrong data rather than wrong behaviour, which is why it was safe to correct
-  in passing.
 
 - **2026-08-10, "gated mechanical arms" is unsourced and should not be
   repeated.** Both CLAUDE.md and `upgrade_disk_mechanarium.meta.simplification`
@@ -4875,32 +4280,6 @@ pending that primitive.
   **fourth** exemption channel, alongside locks.json, hand-written Python
   branches, and texts that merely restate a field.
 
-- **2026-08-10, the engine provides capabilities and rooms declare effects.**
-  Owner, raised as a concern about "two radically different paths for room
-  definitions" and settled in the same exchange: **tabular data stays tabular;
-  complex functions belong in code.**
-
-  So `rooms.json` is NOT converted to Python. Four reasons, recorded so the
-  question does not reopen: it is **generated** by `tools/ingest_sheet.py` from
-  the datamined dump, and converting it would break the re-ingest path that
-  absorbs a future datamine and carries `meta.source`/`meta.confidence`; the
-  content is densely tabular (169 rooms, with 47 carrying effects tags, 43
-  flags, 37 draft conditions, 32 dig spots, 31 guaranteed items);
-  `validate_data.py`'s cross-record schema and referential checks are natural
-  over one document and awkward over 169 modules; and
-  `test_ingest_overrides.py`'s round-trip guarantee only exists because the
-  data is data.
-
-  What the ruling *does* change is where **behaviour** lives -- see task 21 for
-  the three layers, the measured starting point, the enforcement test and the
-  sequencing.
-
-  Act on this cold as: the inconsistency the owner named is real but sits one
-  layer below where it first appears. It is not JSON versus Python -- it is
-  that Python room behaviour is scattered across 20 modules while only 27 rooms
-  have a discoverable module of their own. The fix is an invariant ("no engine
-  module branches on a room id"), not a file-format migration.
-
 - **2026-07-27, Catacombs unlock**: `catacombs_unlocked` is true only on days the
   Tomb has been **drafted as the outer room AND entered**. It is deliberately NOT a
   permanent carry-over flag, even though the wiki says the angel-statue puzzle opens
@@ -4935,21 +4314,6 @@ pending that primitive.
   **Consequence to print next to any number measured before the mechanism PRs
   land: it is an upper bound.** The `stub: true` flag is what keeps that visible
   rather than mysterious.
-
-- **2026-07-27, Cloister frequency boosts**: model **all three** — the Terrace
-  (makes the Cloister free while on the estate) and the Southern Cross / Greenhouse
-  boosts. These touch Cloister's 5.87% per-day offer rate, which is the actual
-  bottleneck on observing an Orinda decision. This is Phase 3 of
-  [`upgrade-value-measurement.md`](upgrade-value-measurement.md) and is independent
-  of task 4; it does not block the Phase 1 A/B, which needs no offer and no rare draw.
-
-  **Audited 2026-08-05: two of the three were already implemented when this was
-  written.** The Terrace boost works (`free_green_drafts`, `effects/tier1.py`, adds
-  `"green"` to `free_categories`; Cloister is `category: "green"`), and so does the
-  Greenhouse boost (`priority_draws.json` carries `category: green, chance: 0.4,
-  condition: greenhouse_or_king`, and `draft.py::_active_conditions` emits
-  `greenhouse_or_king` from `state.greenhouse_placed`). Only **Southern Cross** is
-  genuinely missing, and it is the one that matters most here — see task 14.
 
 - **2026-07-27, `absent_spawn_rooms` resolved**: the field named off-grid AREAS,
   never rooms, and the check was silent in both directions. Renamed to
@@ -5152,14 +4516,6 @@ pending that primitive.
   differ by 16x. Pinned by `test_drafts_past_the_cap_keep_paying_160` and
   `test_attempt_total_is_not_capped_at_160`.
 
-- **2026-08-06, `king` splits into per-colour tags.** The Banner of the King
-  picks ONE colour per day, identical to the Royal Scepter, so emitting a bare
-  `king` tag would fire all five category biases at once. The five entries
-  become `king_blueprint` / `king_hallway` / `king_bedroom` / `king_shop` /
-  `king_blackprint`, mirroring the `scepter_<colour>` shape. **The Banner item
-  itself is deliberately not wired** — no source for how it is obtained exists
-  in our data, so the tags are correctly shaped and stay inert.
-
 - **2026-08-06, task 6 ruled: `diary_key` is removed, everything else stays.**
   Owner, after the audit. Only `diary_key` goes — the wiki itself says it has
   "no other known use", and the sim double-sources it (a Tomb luck-roll spawn
@@ -5210,77 +4566,6 @@ pending that primitive.
   reachability — it is not a licence to *grant* reachability the real game
   gates.
 
-- **2026-08-07, the Tunnel chain deals THREE options, not one.** Owner, from
-  play: the chain offers three rooms every time and merely *guarantees* a Tunnel
-  is one of them. The sim dealt exactly ONE forced Tunnel and skipped the
-  three-slot deal — its own docstring said so. Measured, 60 seeds: drafting
-  north from a Tunnel dealt 1 option in 60/60; drafting south dealt 3.
-
-  **This explains the apparent "Tunnel spam" completely, and it was never a
-  reward exploit.** Across the 329 recorded episodes of `runs/postfix-v1` there
-  were 210 Tunnel placements in 45 episodes: **exactly 45 genuine choices, one
-  per episode, and 165 forced single-option hands (78.6%)**. No episode ever
-  held two real Tunnel choices. A policy taking the only card it is dealt is not
-  gaming anything, so **no reward change was made on this evidence**.
-
-  The guaranteed Tunnel goes in **slot 0**, which **overrides the owner's own
-  recollection** of a middle slot. The wiki's `Drafting/Advanced` says "a Tunnel
-  is drawn into Slot 1", and that page is 1-indexed — its "Slot 1 always makes a
-  Free Draw" matches this engine's free-only slot 0, and "a Library is drawn
-  into Slot 3" matches the existing priority-draw index 2. The conflict was
-  surfaced rather than silently resolved, and the owner ruled for the wiki.
-
-  **Sourced but deliberately NOT implemented**: the same wiki line ends "This
-  does not repeat on redraws" — redealing a chain hand should not re-guarantee
-  the Tunnel. The code re-triggers on every redeal because it keys only off
-  `from_room`/`direction`; distinguishing the initial deal needs new per-hand
-  state.
-
-- **2026-08-07, the Garage gets its Forced Draw; the other three precedence
-  rooms do not.** Owner, from play: the Garage appears far more often in the
-  real game, typically ranks 4-5 in column 0. Cause: `forced_draw_precedence`
-  has been **dead data since the area work** — nothing in `src/` ever read it.
-
-  Datamined rule, now implemented: forced into **slot 3** at **90%** (**92.5%**
-  with the West Gate), gated on **Veteran Mode or Day 3**, blocked when the
-  first two slots are both Dead Ends, **once per day**, with the roll retrying
-  at each eligible doorway until it succeeds. Measured over 5000 episodes at
-  every doorway where the Garage is legal: `greedy_rank` **17.61% → 53.59%**,
-  `random` **39.06% → 78.31%**.
-
-  The Garage's **placement rule was already correct** (West Wing, ranks 4-8,
-  entered north or west — five legal tiles, wiki-verbatim), so the owner's
-  "ranks 4-5" observation was about frequency, not geometry.
-
-  **Scope is the Garage slice only**, for specific reasons: Conservatory sits
-  behind the unmodelled Found Floorplan mechanic, Morning Room behind a Bacon &
-  Eggs prerequisite of unverified completeness, and Utility Closet's own forced
-  draw is *gated on the Garage having already been drafted*. The precedence list
-  stays data. The Garage's separate **Day-5**-or-Veteran 3% passive priority
-  draw is a **different gate** from the **Day-3** forced-draw gate and is
-  deliberately not implemented — do not conflate the two thresholds.
-
-  Two unsourced readings, recorded rather than buried: "or Slot 2 was not drawn
-  by a normal draw" is read as slot 1's `DraftOption.forced` being False; and
-  the forced draw is checked **before** the existing priority draws, because no
-  source specifies precedence between the two systems. Note also that Forced
-  Draws and Priority Draws are **different mechanics** — the wiki is explicit
-  that one filters the deck for a round and the other pushes a room into slot 3.
-
-- **2026-08-07, per-option orientation choice is NOT a mechanic.** `ALT_BASE`
-  reserved three action ids nothing could ever select: `action_mask` never set
-  them (verified live as all-False at every draft), and `apply_action` routed
-  them through the identical `game.choose(slot)`, which takes no orientation
-  argument. `GameConfig.orientation_choice` was read nowhere. Owner ruling: an
-  option arrives with a rolled orientation, and rotation is a separate effect
-  (Ornate Compass / Rotunda / Dovecote) already modelled by `ROTATE_ACTION`,
-  which advances every option together. Both removed; `N_ACTIONS` 314 → 311.
-
-  Act on this cold as: a dead id in a masked action space misleads every later
-  investigation — this one survived long enough to be mistaken for a missing
-  feature. `test_macro_actions.py::test_every_action_kind_has_a_masking_site`
-  now asserts every declared `*_BASE`/`*_ACTION` has a write in `action_mask`.
-
 - **2026-08-07, the depth-vs-reachability question is DEFERRED, to be measured
   after the Tunnel fix.** A Tunnel corridor proves `deepest_rank` can reach 9
   while the Antechamber stays literally unreachable: a `straight` room drafted
@@ -5299,55 +4584,6 @@ pending that primitive.
   above the ~33% base rate means the reward genuinely overvalues cheap depth and
   can then be tuned against evidence rather than a 50k-episode artifact.
 
-- **2026-08-08, Veteran Mode is the default, including on a fresh save.** Owner:
-  the sim is written for experienced players, who trigger Veteran Mode on day 1
-  by drafting the first three rooms out of the Entrance Hall quickly. **The
-  trigger is not modelled — only its outcome**, the same assumed-solved doctrine
-  applied to room puzzles.
-
-  It gates three systems, and the effect differs sharply by preset because
-  `all_unlocks_config` runs at day=20, where the day counter already satisfied
-  two of them:
-
-  | | all_unlocks (day 20) | fresh_save (day 1) |
-  |---|---|---|
-  | gem deck-size gates | already on via day >= 16 | **now active** |
-  | Garage forced draw | already on via day >= 3 | **now active before day 3** |
-  | Upgrade Disk slots | **veteran tables** | **veteran tables** |
-
-  Non-veteran picks the first upgrade from a weighted table (Storeroom 35%,
-  Courtyard 25%, then a tail); veteran is **uniform over all 16 slots** plus a
-  **day-1 shortcut firing 70%** of the time.
-
-  **Consequence worth acting on: a fresh save is no longer the loosest possible
-  draw environment**, because the gem gates now bind from day 1. The
-  `fresh_save_config` docstring previously claimed `gem_gate_active()` is off
-  until day 16; that is no longer true and was removed. Veteran Mode is also
-  **not a permanent unlock** — it is triggered per save by how the player opens
-  day 1 — so it sits with `royal_scepter_found` under the deliberate exceptions,
-  not with the earned unlocks.
-
-- **2026-08-08, redraws work on the outer-room draft, from every source.**
-  Owner: "Assume that the study works outdoors. I think the reroll works on all
-  drafts" — clarified as the Study's **gem** rerolls specifically. So the
-  `target_cell == -1` early-return in `_redraw_kind` goes away entirely rather
-  than being narrowed to dice: the Classroom's free redraws, an ivory die, and
-  the Study's 1-gem reroll (still capped at 8 per hand) all apply to an outer
-  hand, with the existing cheapest-first precedence unchanged.
-
-  **Recorded as owner-ruled and hedged ("I think"), not as sourced.** If the
-  wiki later contradicts it, this is the entry to revisit.
-
-  Not a one-line unblock, and worth knowing why: `Game.redraw()` also asserts on
-  outer hands, and it calls `redeal()`, which runs the GRID pipeline
-  (`_fill_options`: rarity rolls, decks, priority draws, the Tunnel chain) while
-  outer hands come from a fixed pool of 8 shuffled on the `"outer_draft"` RNG
-  label. Worse, `redeal()` opens with `state.grid[pending.from_cell]` and an
-  outer hand has `from_cell = -1`, which Python does not reject — it silently
-  reads the LAST grid cell. Lifting the assert alone would have dealt grid rooms
-  into an outer hand from a fabricated "from room". The redeal needs its own
-  outer path and its own RNG label, so the initial-deal sequence is untouched.
-
 - **2026-08-08, the Apple Orchard becomes reachable and its +20 steps earnable.**
   Owner. `apple_orchard` and `campsite` flip to `modelled: true` so they are
   offered as travel destinations, and visiting the Orchard grants a permanent
@@ -5359,47 +4595,6 @@ pending that primitive.
   goes `modelled: true` if it "holds something worth walking to". The Orchard
   now does hold something: a permanent step bonus. The step-share measurement
   that rule exists to protect should be re-checked after it lands.
-
-- **2026-08-08, the win rate is probably a CONTENT problem, not a learning
-  problem.** Owner hypothesis, from playing: "the game is struggling to achieve
-  the victory condition because there are exceedingly few implemented paths to
-  victory." Measured, and it holds up.
-
-  Reaching Room 46 needs an Antechamber door opened, which needs a lever room
-  drafted AND entered. Over **400 `greedy_rank` days** on `all_unlocks_config`
-  (mean 8.43 rooms placed):
-
-  | lever room | placed |
-  |---|---|
-  | `weight_room` | 6.8% |
-  | `great_hall` | 3.3% |
-  | `greenhouse` | 1.3% |
-  | `secret_garden` | 0.0% |
-  | `throne_room` | 0.0% |
-  | **any of them** | **11.0%** |
-
-  `P(antechamber reached) = 0.000`, `P(room 46) = 0.000`.
-
-  **So on ~89% of days no lever room is placed at all, and victory is
-  structurally unreachable before the policy makes a single decision.** No
-  amount of reward shaping fixes a day where the win condition cannot be
-  opened. This reframes the standing `p_antechamber = 0.000` question, which
-  three separate investigations have attacked from the reward side.
-
-  Caveat, stated so the number is not over-read: `greedy_rank` pushes north and
-  does not *seek* lever rooms, so 11.0% is "how often one turns up incidentally",
-  not "how often a determined player could get one". `secret_garden` reads 0.0%
-  because its key must first be found in the Attic or Music Room and this policy
-  never pursues items — the key mechanism itself works (verified: holding
-  `secret_garden_key` flips `satisfies_draft_conditions` from False to True).
-
-  Act on this cold as: **before tuning the reward again, check whether the
-  objective was reachable at all that day.** A win-rate denominator that
-  includes structurally-unwinnable days is measuring room availability, not
-  policy skill.
-
-  Owner's plan is to re-measure after the Pump Room lands, since that opens
-  routes the sim currently closes.
 
 - **2026-08-09, training is parked; room fidelity is the only priority.** Owner,
   ruling on PR #84's open question. The Apple Orchard's off-grid step-share jump
@@ -5557,120 +4752,6 @@ pending that primitive.
   removing the now-inert `studio_addition`/`outer` slots would renumber every
   later category for no behavioural gain. `test_draft_stats.py` keys on rarity,
   not category, so it should be unaffected — confirm rather than assume.
-
-- **2026-08-09, model correctness outranks observation- and action-space
-  stability.** Owner: "Do not worry about changing the observation vector or
-  action vector. I need the game to function properly before we train anything
-  meaningful."
-
-  This **suspends** the standing caution that has shaped several earlier
-  decisions -- the 2026-07-27 "an action slot exists for every node regardless,
-  so switching an area on later is mask-only", the PR2/PR3 merge whose split
-  existed to keep the action space frozen, and the standing rule that an
-  observation-space change kills every checkpoint the moment it merges
-  ([`process.md`](process.md)). Those
-  were correct while a run was live or imminent. No run is live, no checkpoint
-  is being preserved, and the 11.0% lever-room measurement says a trained
-  policy would be measuring room availability rather than skill.
-
-  So during the room audit: **if widening the observation vector or adding an
-  action is the natural model for a mechanic, do it.** Do not contort a design
-  to preserve a vector nobody is training against.
-
-  Two things this does NOT license, because neither is about checkpoints:
-
-  - The carry-over vector and `upgrade_slots` must stay **sorted, never
-    set-ordered**. Python randomises string hashing per process, so a
-    set-ordered vector permutes between runs *within* a training session and
-    silently corrupts learned field positions. That hazard is unchanged.
-  - A dead action id is still a defect. `ALT_BASE` reserved three ids nothing
-    could select and survived long enough to be mistaken for a missing feature
-    (2026-08-07). `test_macro_actions.py` asserts every declared `*_BASE` has a
-    masking site; keep it true.
-
-  Act on this cold as: **record the width change even though it no longer
-  blocks anything.** Whenever training resumes it forces a fresh run, and the
-  cheapest time to know that is when it happens, not when a checkpoint fails to
-  load.
-
-- **2026-08-10, room behaviour moves to a room-id-keyed registry in Python; NOT
-  to a class per room.** Owner asked for research on giving every room a class
-  derived from the JSON, with `when_drawn` / `when_drafted` / `when_entered` /
-  `when_room_drafted` hooks over a base class, on the premise that "we have
-  moved past the point where we can represent functionality in data files".
-  Owner explicitly invited a negative answer. The memo accepts the diagnosis and
-  rejects the prescription; owner ruled to execute it.
-
-  **The diagnosis holds, measurably.** 56 distinct room ids are hardcoded across
-  20 Python files; 18 rooms have their behaviour split across data AND Python;
-  16 base-pool rooms have an effect text, no data behaviour, and their whole
-  implementation in Python. And **13 of the 22 effect tags are used by exactly
-  one room**, most named after that room -- `solarium_weights`, `study_redraws`,
-  `coins_per_deadend`, `pay_gems_with_steps`. The codebase had already converged
-  on per-room handlers; it just keyed them by a tag string that is a synonym for
-  the room and routed the call through a JSON file to get there.
-
-  **The inheritance argument -- the part that looks most obviously right -- is
-  refuted by the data.** Of the 56 upgrade variants that have both a parent and
-  an `effect_text`, **zero** share their parent's text. Of the six variants that
-  model nothing while their parent models something, inheritance would be correct
-  for exactly one; `empty_closet__ix41`'s text is literally "0 items" and would
-  have silently inherited the Closet's two. PR #90's bug was **unauthored
-  records**, and inheritance would have hidden it behind plausible numbers
-  instead of exposing it as conspicuous zeros.
-
-  **Three costs the class proposal does not account for.** Six sites read
-  `room.effects` *generically* rather than executing it -- including
-  `items.py::expected_yields`, which feeds both the greedy policy and the Play
-  tab -- so opaque methods would need a duplicate second method surface. `Room`
-  is frozen and the `Registry` is shared across episodes
-  (`blueprince_env.py:132`), so room *instances* with methods invite a
-  per-episode state leak that room-keyed *functions* cannot. And a base class
-  would need ~14 hooks to cover the five distinct query signatures the engine
-  already fires (`_in_classroom_context`, two different rotation predicates,
-  drafting-from-Library, placement legality, action masking), leaving 169
-  subclasses inheriting a dozen no-ops each.
-
-  **Performance is not a factor in either direction**: `effects.fire` measured at
-  **0.2%** of runtime (1,401 calls, 0.003s cumulative of 1.40s). The hot path is
-  `obs.encode` at 31% and `action_mask` at 27%.
-
-  **What ships instead**, in this order, each green at every commit:
-
-  0. A **divergence validator** in `validate_data.py` -- flag any variant that
-     models exactly its parent while its effect text differs, and any record with
-     an effect text that models nothing. Emits ~112 findings today, which is a
-     machine-generated task-15 worklist and strictly better than the current
-     "absence of a test file" progress bar. **Ships first and stands alone**,
-     independent of every other decision here.
-  1. **Widen `Hook`**: `ON_DRAFT_FROM`, `ON_HAND_DEALT`, `ON_ARRIVE`,
-     `ON_DAY_END`. Four members today is why the Classroom and Dovecote branches
-     are hardcoded in `game.py` -- there is no hook for "drafting FROM this room"
-     or "this room is in the current hand".
-  2. A **room-id-keyed handler registry** alongside the existing tag registry,
-     with per-handler opt-in inheritance (`inherit=True`) rather than a blanket
-     loader rule, so the Boudoir's fixture safe inherits and the Closet's items
-     do not.
-  3. Migrate the **13 singleton tags** to room modules under
-     `engine/effects/rooms/`, mirroring `tests/rooms/` one-to-one.
-  4. Relocate the genuine room-behaviour branches out of `game.py`/`draft.py`.
-     Placement conditions, deck membership, shop stock, upgrade slots and action
-     masking deliberately stay put -- those are subsystem concerns keyed by room,
-     not room behaviour.
-  5. Retire the behaviour half of `ingest_sheet.py`'s tables.
-
-  **The mixed-ownership boundary is the shared/singleton split**, and drawing it
-  anywhere else is the failure mode: the 9 shared parametric tags (44 of 57
-  effect instances, and everything `expected_yields` introspects) stay in data. A
-  tag lives in data or in code, **never both** -- leaving `effects` in
-  `rooms.json` while Python handlers also exist creates exactly the second source
-  of truth this is meant to remove.
-
-  Act on this cold as: **the JSON is a cache of a Python source of truth
-  already.** `EFFECT_MAP` and `EFFECT_OVERRIDE` are hand-authored Python dicts,
-  `rooms.json` is their build artifact, and `test_ingest_overrides.py` exists
-  solely to prove the two agree. Moving behaviour into code deletes that whole
-  apparatus -- but only if the field moves out of the JSON entirely.
 
 - **2026-08-09, allowance is a permanent accumulating total, and most of its
   sources are one-time.** Owner, prioritising it as the next lane-B item after
@@ -6088,26 +5169,6 @@ pending that primitive.
   `[1]` absorbed Freight with no further change); reserving against an
   *unanalysed* one does not. Cumulative since the last training run: two width
   changes, `carryover` 13 -> 14 and `mail` 2 -> 3.
-
-- **2026-08-09, lazy `configure()` seeding has now caused three separate bugs.**
-  `special_items.configure()` is what seeds config-carried running values onto
-  `GameState`, and it is guarded to run once per episode. Its call sites have
-  repeatedly been too narrow:
-
-  - PR #122: reachable only from `on_enter`, so a day spent travelling off-grid
-    never seeded the one-time gates and area grants re-paid.
-  - PR #134: not called from `shops.carryover()`, so a day that never entered a
-    drafted room reported an unseeded `mail_cycle` at day end and silently
-    cancelled an outstanding Mail Room order.
-  - PR #136: not called at reset, so a day's **first** observation reported the
-    field default rather than the carried value -- an agent cannot learn from a
-    state vector that lies at the start of every day.
-
-  Fixed at the root in #136: `Game.reset` now calls it directly, alongside every
-  other field it seeds from config. Act on this cold as: **a lazily-seeded
-  value is a bug waiting for a code path that reads it early.** Anything added
-  to `configure()` from now on is seeded at reset and needs no new call site --
-  do not re-introduce a lazy one.
 
 - **2026-08-09, the Mail Room's cycle state is shared across all three variants
   -- a known gap, not fixed.** `GameState.mail_cycle` and `mail_package_cell`
