@@ -3,12 +3,15 @@
 Covers ON_DRAFT_FROM, ON_HAND_DEALT, ON_ARRIVE, and ON_DAY_END -- the four
 hooks added so Classroom/Library/Archives, Dovecote, the open resource-spread
 task, and Tomorrow Rooms/the Break Room no longer need id-hardcoded fire
-sites in game.py. Aside from the Planetarium's "grant" tag on ON_DAY_END
-(engine/effects/tier1.py; a day-end Stars grant, tests/rooms/test_planetarium.py),
-no handler is registered for any of the four anywhere in the shipped code, so
-this file registers its own temporary probes via the importable ``@effect``
-decorator and tears them down after every test (see the ``probe`` fixture) --
-the handler registry in engine/effects/__init__.py is module-global, and a
+sites in game.py. Two handlers are registered for ON_DAY_END in the shipped
+code: the Planetarium's "grant" tag (engine/effects/tier1.py; a day-end Stars
+grant, tests/rooms/test_planetarium.py) and the Break Room's room_hook
+(engine/effects/rooms/break_room.py; a day-end keycard pulse,
+tests/rooms/test_break_room.py). No handler is registered for ON_DRAFT_FROM,
+ON_HAND_DEALT, or ON_ARRIVE anywhere in the shipped code, so this file
+registers its own temporary probes via the importable ``@effect`` decorator
+and tears them down after every test (see the ``probe`` fixture) -- the
+handler registry in engine/effects/__init__.py is module-global, and a
 leaked registration would corrupt unrelated suites.
 
 Room data is mutated too (every room gets a synthetic probe tag appended to

@@ -129,7 +129,6 @@ _AUDIT_PYTHON_EXEMPT_IDS = {
     # Every color of room is `extra_categories`/`Room.is_category()`, not an
     # effects/items.guaranteed/room_hook site the audit can see.
     "aquarium": "engine/model.py",
-    "break_room__ix11": "engine/game.py",        # day-end keycard pulse
     "chamber_of_mirrors": "engine/draft.py",     # duplicate-room drafting
     "clock_tower": "engine/game.py",             # day-end Tomorrow-room key tally
     # Absorbing a spread is implemented by each spreader's own branch rather
