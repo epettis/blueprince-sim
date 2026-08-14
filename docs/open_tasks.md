@@ -855,6 +855,45 @@ around 1,800 LOC.
 
 ## Decisions log
 
+- **2026-08-13, FOUR MORE OWNER RULINGS: the `telescope` is unblocked, and the
+  Patio simplification is confirmed deliberate.**
+
+  1. **The Planetarium moves from `guaranteed_in` to `spawn_rooms`**, and the
+     record gains the four locations it was missing (Her Ladyship's Spare Room,
+     Lost & Found, Trading Post, Spiral). Today `guaranteed_in: ["planetarium"]`
+     **mints a Telescope on every first Planetarium entry** -- verified firing --
+     which no wiki text supports; the wiki gives a flat Locations list with no
+     guarantee language. Harmless only because the item is inert; once it works
+     it would have been a free tier-4 item on every visit.
+  2. **Model the >=1-star pool gate.** The wiki: the Telescope *"is only present
+     in the item pool if the player has at least 1 star at the start of the
+     day."* Absent from both the record and the code. Uses the existing
+     `state.special.gated_out` channel, keyed on **start-of-day** stars.
+  3. **`planetarium_planets` is SAVE-SCOPED -- the third carve-out**, alongside
+     `stars` and `main_course_bonus`. **`tests/test_carryover.py` pins that pair
+     together deliberately so adding a third is an explicit edit**, which is
+     exactly what that test is for. `_CARRYOVER_KEYS` does not move: it is a
+     frozenset of bool fields and a running integer belongs in the separate
+     channel.
+  4. **The `file_cabinet_key` Patio dig was intended -- leave it.** Confirms the
+     divergence is a deliberate owner simplification rather than a slip for the
+     drawer name. **This matters more than it looks:** the wiki puts both real
+     keys inside the drained Aquarium, and the key *names* refer to which
+     Archives drawer each opens, not where each is found. Without this
+     confirmation a future reader would have had to guess whether "Patio" was a
+     considered choice or a mistake. **A confirmed divergence is cheap; an
+     unconfirmed one costs someone a re-derivation.**
+
+  **The `telescope`'s blocker was OVER-SCOPED and must be rewritten, not
+  cleared.** It has two independent uses and
+  `constellation_activation_not_modeled` names only one. The **Planetarium arm**
+  -- a permanent, once-per-day, non-consuming room upgrade unlocking one of five
+  planets (Mora always last), each granting a fixed item -- touches no stars,
+  no night sky and no constellations. **Building it must NOT flip
+  `implemented: true`**: `chronograph` is the standing precedent for exactly that
+  error, a wired half with the flag flipped, and it took a session to notice.
+  **A slow counter is better than a false one.**
+
 - **2026-08-13, FOUR OWNER RULINGS clearing the whole outstanding queue -- and
   the fourth rejected the question rather than answering it.**
 
