@@ -7,6 +7,17 @@ item-count ladder (data/items.json's ``item_ladder``; wiki: Luck page,
 items no longer lowers luck by itself -- high-luck ladder outcomes grow
 ``state.luck_penalty`` instead (see ``roll_ladder_count``). Fixed-content
 rooms (additional_max == 0) are unaffected by luck.
+
+Two more published tables sit in front of that clamp (both data/items.json,
+read generically by ``roll_room_items``/``_apply_count_transform`` below --
+no room id ever appears as a literal in this module):
+
+* ``never_roll_rooms``: rooms that skip the ladder roll entirely -- no call
+  to ``roll_ladder_count``, so ``state.luck_penalty`` is untouched. Distinct
+  from an ``additional_max == 0`` room, which still rolls and discards (and
+  so still bumps the penalty) unless it is also in this table.
+* ``count_transforms``: per-room transforms of the ladder's raw extra-item
+  count (Nook/Study/Guest Bedroom/Den/Lost & Found's own wiki pages).
 """
 
 from __future__ import annotations
@@ -152,23 +163,32 @@ def expected_yields(room: Room, registry: Registry) -> dict[str, float]:
     assumes day 1, Room 46 not yet reached, and Veteran Mode on (matching
     GameConfig.veteran_mode's own default) -- a fixed, documented baseline
     rather than a live read, same spirit as excluding conditional effects.
+    ``never_roll_rooms`` rooms get ``p_extra = 0`` (they never roll at all);
+    the five ``count_transforms`` rooms are NOT modelled here -- their
+    transforms are cheap to apply in a live roll but not in a closed-form
+    mean, so this static estimate stays approximate for those five rooms,
+    same spirit as the already-excluded conditional effects.
     """
     total_w = sum(w for _, w in EXTRA_ITEM_TABLE)
     p_item = {item: w / total_w for item, w in EXTRA_ITEM_TABLE}
-    ladder = registry.item_rules["item_ladder"]
-    day_start_luck = registry.item_rules["luck"]["day_start"]
-    band = _find_band(day_start_luck, ladder["bands"])
-    if band["kind"] == "flat":
-        p_extra = band["p_one_pct"] / 100.0
-    elif band["kind"] == "chain":
-        p_extra = _chain_p_one(room46_reached=False, day=1, veteran_mode=True, chain=band["chain"])
-    elif band["kind"] == "variable_mix":
-        var_mean = _variable_mean(day_start_luck, ladder["variable"])
-        p_extra = band["p_one_pct"] / 100.0 + (band["p_variable_pct"] / 100.0) * var_mean
-    elif band["kind"] == "always_variable":
-        p_extra = _variable_mean(day_start_luck, ladder["variable"])
-    else:  # "fixed"
-        p_extra = float(band["items"])
+    if room.id in registry.item_rules["never_roll_rooms"]["rooms"]:
+        p_extra = 0.0
+    else:
+        ladder = registry.item_rules["item_ladder"]
+        day_start_luck = registry.item_rules["luck"]["day_start"]
+        band = _find_band(day_start_luck, ladder["bands"])
+        if band["kind"] == "flat":
+            p_extra = band["p_one_pct"] / 100.0
+        elif band["kind"] == "chain":
+            p_extra = _chain_p_one(
+                room46_reached=False, day=1, veteran_mode=True, chain=band["chain"])
+        elif band["kind"] == "variable_mix":
+            var_mean = _variable_mean(day_start_luck, ladder["variable"])
+            p_extra = band["p_one_pct"] / 100.0 + (band["p_variable_pct"] / 100.0) * var_mean
+        elif band["kind"] == "always_variable":
+            p_extra = _variable_mean(day_start_luck, ladder["variable"])
+        else:  # "fixed"
+            p_extra = float(band["items"])
     pile = registry.item_rules["coins"]
     pile_avg = (pile["pile_min"] + pile["pile_max"]) / 2
     food_rules = registry.item_rules["food"]
@@ -214,6 +234,71 @@ def expected_yields(room: Room, registry: Registry) -> dict[str, float]:
         elif eff.tag == "anti_luck":
             y["luck"] -= eff.param("amount", 3)
     return y
+
+
+def _apply_count_transform(game, room: Room, raw: int) -> tuple[int, int]:
+    """Apply this room's data/items.json ``count_transforms`` entry (if any)
+    to ``raw`` (the ladder's extra-item count, BEFORE the ``additional_max``
+    clamp). Returns ``(transformed_raw, bonus_found)`` -- ``bonus_found``
+    counts items granted directly here, outside the additional_max-clamped
+    loop (currently only Guest Bedroom's bonus gem); the caller adds it to
+    its own running ``found`` total.
+
+    Kinds (wiki, verbatim; see items.json's count_transforms.meta for the
+    per-kind source quotes and the judgment calls behind each):
+    ``reduce_by_one_chance`` (Nook), ``zero_becomes_one`` (Study),
+    ``zero_becomes_one_or_gem`` (Guest Bedroom) are resolved here.
+    ``one_becomes_trunk`` (Den) is resolved by the caller at grant time (it
+    needs the POST-clamp count). ``not_modeled`` (Lost & Found) is a
+    documented no-op.
+    """
+    spec = game.registry.item_rules["count_transforms"]["rooms"].get(room.id)
+    if spec is None:
+        return raw, 0
+    kind = spec["kind"]
+    rng = game.rng
+    if kind == "reduce_by_one_chance":
+        if rng.chance("count_transform_reduce", spec["p_pct"] / 100.0):
+            raw = max(raw - 1, 0)
+        return raw, 0
+    if kind == "zero_becomes_one":
+        if raw == 0:
+            raw = 1
+        return raw, 0
+    if kind == "zero_becomes_one_or_gem":
+        if raw == 0:
+            if rng.chance("count_transform_zero_one", spec["p_one_pct"] / 100.0):
+                raw = 1
+            elif rng.chance("count_transform_zero_gem", spec["p_gem_pct"] / 100.0):
+                grant_item(game, "gem", 1)
+                return raw, 1
+        return raw, 0
+    # "one_becomes_trunk" and "not_modeled": no raw-count change here.
+    return raw, 0
+
+
+def _grant_trunk_loot(game) -> int:
+    """Instantly resolve one weighted entry of data/special_items.json's
+    ``containers.kinds.trunk.loot`` table and grant it: the Den
+    ``one_becomes_trunk`` count-transform ("If 1 item is selected, the item
+    is always replaced with the trunk.", wiki). Reuses the same loot table
+    the always-present trunks (Attic, Wine Cellar, ...) use, via
+    ``special_items.apply_grant_list``.
+
+    Modeling call (items.json's count_transforms.meta): every other
+    ladder-triggered item proc in this sim is an instant grant
+    (EXTRA_ITEM_TABLE, ``special_items.roll_special_spawn``) rather than a
+    physical, player-opened container object -- this follows that
+    convention instead of building new stateful container-placement
+    machinery for a single, luck-triggered, ephemeral slot. Returns 1 (one
+    item-slot resolved; the loot entry itself may grant more than one
+    resource, same as opening a real trunk).
+    """
+    loot = game.registry.special.containers["kinds"]["trunk"]["loot"]
+    weights = tuple(entry["weight"] for entry in loot)
+    idx = game.rng.roll_weighted("den_trunk_loot", weights)
+    special_items.apply_grant_list(game.state, game.registry, game, loot[idx]["grants"])
+    return 1
 
 
 def grant_item(game, item: str, count: int) -> None:
@@ -287,7 +372,18 @@ def roll_extra_items(game, count: int) -> int:
 
 
 def roll_room_items(game, room: Room) -> int:
-    """Spawn a room's items into the player's resources; returns items found."""
+    """Spawn a room's items into the player's resources; returns items found.
+
+    Guaranteed items always spawn. The additional-item COUNT is then rolled
+    from the published item-count ladder UNLESS ``room.id`` is in
+    items.json's ``never_roll_rooms`` table ("The following rooms never roll
+    for luck", wiki) -- those rooms skip ``roll_ladder_count`` entirely, so
+    ``state.luck_penalty`` is untouched (contrast an ordinary
+    ``additional_max == 0`` room, which still rolls and discards, and so
+    still pays the penalty). The raw count is then passed through this
+    room's ``count_transforms`` entry, if any, before the ``additional_max``
+    clamp (see ``_apply_count_transform``).
+    """
     state = game.state
     registry = game.registry
     rng = game.rng
@@ -299,8 +395,21 @@ def roll_room_items(game, room: Room) -> int:
         else:
             grant_item(game, item, count)
             found += 1
-    extra = min(roll_ladder_count(game), room.items.additional_max)
+
+    if room.id in registry.item_rules["never_roll_rooms"]["rooms"]:
+        return found
+
+    raw = roll_ladder_count(game)
+    raw, bonus_found = _apply_count_transform(game, room, raw)
+    found += bonus_found
+    extra = min(raw, room.items.additional_max)
+    transform = registry.item_rules["count_transforms"]["rooms"].get(room.id)
+    force_trunk = extra == 1 and transform is not None and transform["kind"] == "one_becomes_trunk"
     for _ in range(extra):
+        if force_trunk:
+            # Den: "the item is always replaced with the trunk" (wiki).
+            found += _grant_trunk_loot(game)
+            continue
         # A luck proc may resolve to one of the room's special items
         # (docs/special-items-design.md spawn model) instead of a resource
         # from the table.

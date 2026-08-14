@@ -16,6 +16,8 @@ from blueprince_sim.config import GameConfig
 from blueprince_sim.engine.game import Game
 from blueprince_sim.engine.grid import N, S
 
+from luck_utils import suppress_luck
+
 ROOM_ID = "guess_bedroom__ix70"
 
 NEVER_SELECTED_IDS = (
@@ -145,6 +147,7 @@ def test_mimic_fails_with_no_valid_option_and_no_hovel(registry, cfg):
     }))
     guess = stripped.by_id[ROOM_ID]
     g = Game(banned_cfg, seed=0, registry=stripped)
+    suppress_luck(g)  # isolate the mimic failure path from the room's own item luck roll
     steps0, gems0, keys0 = g.state.steps, g.state.gems, g.state.keys
     g._place_room(guess, 7, guess.door_mask)
     g._enter(7)
@@ -172,6 +175,7 @@ def test_boudoir_mimic_has_no_effect(registry, cfg):
     would otherwise wrongly pay out an unarmed Her Ladyship's bonus."""
     guess = registry.by_id[ROOM_ID]
     g = Game(cfg, seed=0)
+    suppress_luck(g)  # isolate the (no-op) mimic effect from the room's own item luck roll
     g.state.guess_bedroom_mimic_id = "boudoir"
     g.state.her_ladyships_chamber_boudoir_armed = True  # would pay 10 steps if wrongly triggered
     g._place_room(guess, 7, guess.door_mask)
@@ -229,6 +233,7 @@ def test_servants_quarters_mimic_grants_a_key_per_bedroom(registry, cfg):
     guess = registry.by_id[ROOM_ID]
     bedroom = registry.by_id["bedroom"]
     g = Game(cfg, seed=0)
+    suppress_luck(g)  # isolate the mimic's key grant from the room's own item luck roll
     g.state.guess_bedroom_mimic_id = "servants_quarters"
     for cell in (8, 9):
         g.state.grid[cell] = bedroom.idx
@@ -248,6 +253,7 @@ def test_servants_quarters_mimic_caps_at_fifteen(registry, cfg):
     guess = registry.by_id[ROOM_ID]
     bedroom = registry.by_id["bedroom"]
     g = Game(cfg, seed=0)
+    suppress_luck(g)  # isolate the capped mimic payout from the room's own item luck roll
     g.state.guess_bedroom_mimic_id = "servants_quarters"
     filler_cells = range(10, 30)  # 20 filler Bedrooms
     for cell in filler_cells:

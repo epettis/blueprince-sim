@@ -767,6 +767,51 @@ def main(argv: list[str] | None = None) -> int:
     _check_ladder_rows(ladder.get("variable", []), VALID_LADDER_VARIABLE_KINDS,
                        "item_ladder.variable")
 
+    # items.json: never_roll_rooms -- engine/items.py's roll_room_items reads
+    # this BEFORE ever calling roll_ladder_count for a listed room. An
+    # unvalidated data section fails open: a typo'd id here would silently
+    # mean "this room isn't special" and nothing would notice.
+    never_roll = items_doc.get("never_roll_rooms", {})
+    nr_conf = never_roll.get("meta", {}).get("confidence")
+    if nr_conf not in VALID_CONFIDENCE:
+        errors.append(f"never_roll_rooms.meta: bad confidence {nr_conf!r}")
+    nr_rooms = never_roll.get("rooms", [])
+    if not nr_rooms:
+        errors.append("never_roll_rooms.rooms: must be non-empty")
+    if len(nr_rooms) != len(set(nr_rooms)):
+        errors.append("never_roll_rooms.rooms: duplicate room ids")
+    for rid in nr_rooms:
+        if rid not in by_id:
+            errors.append(f"never_roll_rooms references unknown room {rid!r}")
+
+    # items.json: count_transforms -- per-room item_ladder.raw-count
+    # transforms (Nook/Study/Guest Bedroom/Den/Lost & Found's published
+    # wiki quotes). Same fail-open concern as never_roll_rooms above.
+    VALID_TRANSFORM_KINDS = {"reduce_by_one_chance", "zero_becomes_one",
+                             "zero_becomes_one_or_gem", "one_becomes_trunk", "not_modeled"}
+    transforms = items_doc.get("count_transforms", {})
+    ct_conf = transforms.get("meta", {}).get("confidence")
+    if ct_conf not in VALID_CONFIDENCE:
+        errors.append(f"count_transforms.meta: bad confidence {ct_conf!r}")
+    ct_rooms = transforms.get("rooms", {})
+    if not ct_rooms:
+        errors.append("count_transforms.rooms: must be non-empty")
+    for rid, spec in ct_rooms.items():
+        if rid not in by_id:
+            errors.append(f"count_transforms references unknown room {rid!r}")
+        if rid in nr_rooms:
+            errors.append(f"count_transforms/{rid}: also in never_roll_rooms (contradictory)")
+        kind = spec.get("kind")
+        if kind not in VALID_TRANSFORM_KINDS:
+            errors.append(f"count_transforms/{rid}: bad kind {kind!r}")
+            continue
+        if kind == "reduce_by_one_chance":
+            _pct(f"count_transforms/{rid}.p_pct", spec.get("p_pct"))
+        elif kind == "zero_becomes_one_or_gem":
+            _pct(f"count_transforms/{rid}.p_one_pct", spec.get("p_one_pct"))
+            _pct(f"count_transforms/{rid}.p_gem_pct", spec.get("p_gem_pct"))
+        # "zero_becomes_one", "one_becomes_trunk", "not_modeled" carry no extra fields.
+
     # locks.json: table shape, referential integrity, sane probabilities
     ew = lock_rules["lock_chance"]["ew_by_rank"]
     if set(ew) != {str(i) for i in range(1, 10)}:
