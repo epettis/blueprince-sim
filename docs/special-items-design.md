@@ -708,10 +708,12 @@ area (Grounds, Sanctum, Orindian Ruins, lore documents).
 ```python
 ignition: {
   tools: ["torch", "burning_glass"],   # either one lights any target
-  targets: {                            # room id -> what lighting it yields
-    chapel:       {candles: 2, grants: [{kind: "chapel_tithe_payout"}]},
-    tomb:         {candles: 2, grants: [upgrade_disk_tomb, {dice: 4}]},
-    trading_post: {fuse: True,  grants: [upgrade_disk_trading_post, {coins: 40}]},
+  targets: {                       # room OR area id -> what lighting it yields
+    chapel:        {candles: 2, grants: [{kind: "chapel_tithe_payout"}]},
+    tomb:          {candles: 2, grants: [upgrade_disk_tomb, {dice: 4}]},
+    trading_post:  {fuse: True, grants: [upgrade_disk_trading_post, {coins: 40}]},
+    mine_south:    {area: True, candles: 8, grants: []},
+    apple_orchard: {area: True, requires_items: {microchip: 3}, grants: []},
   },
   meta: {source, confidence, absent_targets, notes},
 }
@@ -732,11 +734,20 @@ machines: {
 
 ### Engine surface
 
-- `can_light(game) -> bool` — standing in a target room, holding a tool, target
-  unlit today, and `requires_item` satisfied when the target declares one.
+- `can_light(game) -> bool` — standing in a target room (or, for an `area: true`
+  target, at that area node), holding a tool, target unlit today, and the
+  target's item requirement satisfied. Two requirement forms exist:
+  `requires_item` (a single id, held count >= 1 — supported but used by no
+  target today) and `requires_items` (a dict of item id -> minimum held count,
+  used by `apple_orchard` only). Both are checked in one shared helper, also
+  called by `env/actions._cell_has_ignition_target`, so legality and effect
+  cannot drift apart.
 - `light(game) -> None` — grants the target's rewards and appends the room id to
   `SpecialItemsState.lit_targets`. The tool is **not** consumed (a Torch relights
-  all day); each target lights at most once per day.
+  all day); each target lights at most once per day. The two `area: true`
+  targets carry no grants: each sets a permanent flag directly
+  (`candlestick_stairway_lit`, `satellite_dish_unlocked`), because the reward is
+  a route or a config unlock rather than an item.
 - `can_install_lever(game) -> bool` — standing in a machine room holding a
   `broken_lever`, machine unused today.
 - `install_lever(game) -> None` — consumes the lever via `remove(..., consumed=True)`,
@@ -744,8 +755,8 @@ machines: {
   with `match`/`case`.
 
 Game delegates: `Game.can_light()`, `light()`, `can_install_lever()`,
-`install_lever()`. Env: `LIGHT_ACTION = 273`, `INSTALL_LEVER_ACTION = 274`
-(`N_ACTIONS` 273 → 275); walk-to re-entry extended via
+`install_lever()`. Env: `LIGHT_ACTION = 267`, `INSTALL_LEVER_ACTION = 268`;
+walk-to re-entry extended via
 `_cell_has_ignition_target` and `_cell_has_machine`, so an agent can return to a
 chapel or casino after picking up the enabling item.
 

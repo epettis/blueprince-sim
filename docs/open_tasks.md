@@ -4,6 +4,11 @@ Features the project owner identified while reviewing the special-items PR stack
 (2026-07-26). These are NOT in `docs/plan.md`'s delivered set — each needs its own
 design pass. Ordered roughly by how self-contained they are.
 
+The file reads in three parts: **open tasks** (numbered sections), then the
+**open owner questions** in task 23, then the **decisions log** — the history,
+which is always the last section. Lessons about *how to work* are not here; they
+are in [`process.md`](process.md).
+
 ## 1. Resource spreading through the house
 
 Several rooms scatter resources into OTHER rooms when drafted, rather than granting
@@ -219,13 +224,302 @@ was delivered as two PRs, each independently green:
 Several currently-inert items unblock with this: microchips, Power Hammer wall
 breaks, the Sanctum keys.
 
-## Also outstanding (from `docs/plan.md`)
+## 5. Throttle the training terminal output — DONE
 
-- **Reward calibration** from multi-day training statistics — all shaping constants
-  (`special_item_values`, `PATHS_ONE_PENALTY`/`PATHS_ZERO_PENALTY`, scepter bias)
-  are deliberate knobs awaiting real run data.
-- **Inner Sanctum**: the 8 Sanctum Keys have sources and persist, but the area
-  behind the 8 doors is unmodeled. Overlaps heavily with task 4.
+Delivered as `--dashboard-every FRACTION` on `blueprince-train` (default 0.05 =
+one line in 20; 0 disables the per-episode lines). Only the per-episode chain
+note is throttled -- checkpoint writes, the stop signal, the resume banner and
+the final summary are lifecycle events and stay unthrottled, and
+`dashboard.deactivate()` still renders a true final frame.
+
+**Live remainder:** the throughput win is assumed, not quantified. Worth a
+timed before/after on a real run.
+
+## 6. Remove "puzzle only" items
+
+Some items exist solely to open one specific thing and are consumed doing it. They
+cost an inventory slot, a spawn roll, trade-tier membership and often an action id,
+and return nothing an agent can reason about — the sim already assumes the player
+solves the puzzle of any room they enter, so the *reward* can simply arrive on
+entry. The Wind-up Key was removed on exactly this reasoning (design doc
+simplification #17); apply the same test to the rest of the catalogue.
+
+Candidates to audit: `diary_key` (opens the Sleep Diary only), `key_of_aries`
+(opens the Treasure Trove box only), `file_cabinet_key` (one drawer each),
+`basement_key`, `mora_jai`-adjacent records if any. For each: does holding it ever
+present the agent with a *choice*? If not, delete the item and grant its payoff
+directly.
+
+**Audited and ruled 2026-08-06 — see the decisions log.** Outcome: **`diary_key`
+removed; everything else kept or deferred.** `file_cabinet_key` KEEP,
+`basement_key` KEEP, `sanctum_key` and `key_of_aries` DEFER. Two findings that
+changed the task's premise: the removal candidates were already
+`implemented: false` with zero Python references, so this frees an observation
+dimension and a spawn slot — **not** the action id and inventory slot the task
+assumed; and there is no `mora_jai` record at all, the item standing in for
+"opens a Mora Jai box" is `sanctum_key`. The calibration example for the
+decisive test is `basement_key`: holding it is the literal difference between
+`reservoir_south` and the far side of the Basement being reachable or not.
+
+## 7. Ignition candles in the Abandoned Mine
+
+Blocked on task 4 (outside-area movement graph). Eight candlesticks stand in the
+Abandoned Mine's circular room; lighting them all with an ignition tool (Torch or
+Burning Glass) permanently sinks the floor into a stairway down to **the
+Precipice**. So it is a graph edge, not just a reward — add it when the area graph
+lands, as a permanent `abandoned_mine -> precipice` edge.
+
+The Mine is also what connects the Reservoir's north and south halves, which is
+the likely source of the earlier belief that the candles linked the Reservoir to
+the Precipice. They do not: the Reservoir reaches the Precipice only by walking
+through the Mine.
+
+## 8. Model the Casino games
+
+The Casino is a room of gambling minigames (slot machine, roulette). Two pieces:
+1. **Expected value** for the reward function, so a policy can price entering.
+2. **Outcome simulation** so those rewards actualize — seeded rolls, per-game odds
+   in data.
+
+Ties into the Broken Lever (its golden slot machine gives 5 bonus spins instead of
+3) and the Allowance Token (roulette is a repeatable source).
+
+## 9. The Antechamber needs a lever, not just a door
+
+Landing this is the validation test for the Upgrade Disk work: Cloister of
+Orinda opens a random Antechamber door, which is worthless while the Antechamber
+has no locks, so Orinda's measured value should rise once this lands. How to
+measure that — and why the comparison needs control upgrades and a fixed
+instrument — is in
+[`upgrade-value-measurement.md`](upgrade-value-measurement.md). Take the
+pre-lock baseline **before** starting this task.
+
+**Current model is wrong in an important way**: the run is resolved by walking into
+the Antechamber, but in the real game its doors must first be opened by a lever
+found in the **Secret Garden**, **Great Hall**, **Greenhouse** (with a Broken
+Lever), or **Weight Room** (after breaking the wall with a Power Hammer). The
+Greenhouse case is already modeled (PR #28) as opening the Antechamber's south
+segment; the other three are not, and neither is the requirement itself.
+
+This changes the shape of a winning run and therefore the reward landscape — treat
+it as a design pass, not a patch. The north Antechamber door is a separate matter:
+it opens only from the Throne Room and the Sanctum lever.
+
+## 10. Allowance for assumed-solved puzzles
+
+Because the sim assumes the player solves every puzzle in a room they enter,
+several rooms should carry a standing **+2 allowance**: the **Cloister**, the
+**Trading Post**, and the **Closed Exhibit**. Verify against the wiki whether this
+is allowance (the daily gold packet) or a one-time grant, then encode it the same
+way task 3's safes are.
+
+## 11. Model the Pump Room's water levels
+
+Write-up only (owner decision, 2026-08-04: gate the Basement doors on the
+Basement Key now, take on the Pump Room next) — not built in this pass. Two
+graph edges already carry stub gates waiting on this
+(`pump_water_lte8`, `rowboat_water_6`, both `retire_in: "PR-pump-room"`), and a
+third traversal condition (below) is not modelled at all yet.
+
+**The room.** Six water sources, each with its own independent integer level
+— there is no single estate-wide "water level":
+
+| Source | Initial / max level |
+|---|---|
+| Fountain | 12 / 12 |
+| Reservoir | 14 / 14 |
+| Aquarium | 6 / 6 |
+| Kitchen | 0 / 3 |
+| Greenhouse | 1 / 5 |
+| Pool | 8 / 9 |
+
+Two tanks (capacity 4 each) and four pumps move water between a tank and any
+one of the six sources: *"Switching a pump up causes water to drain from a
+selected water source into a tank. Switching a pump down causes water to fill
+a selected water source from a tank."*
+
+**Persistence rule.** *"Changes to the water levels are permanent, although
+the selected source and position of the pump levers will reset each day."*
+So: the six integer levels need to live in carry-over state (permanent, like
+`collected_disks`), while which source each pump currently targets and each
+lever's position are ordinary per-day `GameState` (reset every `reset()`,
+never carried).
+
+**Gates this retires:**
+- `pump_water_lte8` (`grounds -> well`): Fountain level `<= 8`.
+- `rowboat_water_6` (`reservoir_south <-> safehouse`): Reservoir level
+  `== 6`.
+- `reservoir_water_13` (`reservoir_north <-> reservoir_south`): Reservoir level
+  `== 13` lets the boat cross the Reservoir side-to-side. **The edge and gate now
+  exist** (2026-08-06) — this entry used to say the crossing was "not represented
+  as a graph edge/gate at all". Distinct from the Safehouse rowboat gate.
+
+  **Unlike every other gate in this list it defaults CLOSED**, so retiring it
+  *opens* a route rather than tightening one. That is the reverse of the usual
+  stub-retirement direction and it must be re-measured, not assumed safe: an open
+  crossing puts the `safehouse` (a Sanctum Key source) 6 key-free hops from the
+  house. See `docs/areas.md` for the measurement and the reasoning.
+
+**New traversal condition to add**, not currently modelled even as a stub:
+`well -> reservoir_south` needs Fountain level `== 0`, checked on **every**
+traversal (not just once) — *"this passage is only traversible while the
+fountain water level is 0"* (Well). This is on top of the existing permanent
+Basement Key unlock (`basement_key_well`); the two are independent conditions
+(key unlocks the door permanently, water level gates whether the passage is
+currently passable). See `areas.md` for the full edge-table writeup.
+
+**Action-space consequence.** Setting pump target/direction is a player
+action with no equivalent today — this is not a pure data/gate change like
+the other stub retirements in this file, it adds to the action space and
+therefore **belongs bundled with a retrain**, the same reasoning that governed
+task 4's sequencing.
+
+## 12. The Greenhouse's Power Hammer wall changes its layout
+
+Write-up only — not built in this pass.
+
+**The Greenhouse is the only room whose doors change when a Power Hammer wall
+comes down** (owner, 2026-08-04). Quoting
+`https://blueprince.wiki.gg/wiki/Greenhouse`:
+
+- *"The Greenhouse, while initially a Dead End, has a hidden passage which
+  includes an extra exit door. This hidden section can be permanently opened
+  by using the Power Hammer on the brick wall to the left after entering."*
+- *"After the wall is removed, the floorplan is updated to reveal the new
+  door and the room permanently changes to an L-shape room."*
+- *"if the wall was opened on a previous day, it no longer counts towards the
+  total number of Dead Ends in the house."*
+
+The sim already carries the destination shape: the `greenhouse` record in
+`rooms.json` is `layout: "dead_end"` with `alt_layouts: ["corner"]`. What is
+missing is anything that switches between them.
+
+**The Weight Room is NOT this mechanism, and must not be folded into it.** Its
+Power Hammer wall reveals *"a lever for the south Antechamber door as well as
+two documents"* (`https://blueprince.wiki.gg/wiki/Weight_Room`), and the space
+*"will always be accessible on future days"*. The room's own doors are
+unchanged — it has no `alt_layouts` entry, and the wiki says nothing about its
+shape. `Game._enter_lever_room` already models it correctly, as a permanent
+lever unlock (`weight_room_wall_broken`) that opens the Antechamber's south
+segment. Nothing about the Weight Room needs to change.
+
+**Why the Greenhouse is harder than a doorway flip:**
+
+- **Layout, not just doors.** A room's shape comes from an immutable `Room`
+  record (`model.Registry.load()`) and is consumed by `legal_orientations` at
+  draft/placement time. Nothing lets a room already on the grid swap its shape
+  record mid-run, and nothing carries such a swap across the day boundary the
+  way `foundation_cell` carries a placement.
+- **Two distinct cases.** Breaking the wall today mutates a room already
+  standing on the grid; on every later day the Greenhouse must instead be
+  *drafted and placed* in its `corner` layout from the start. The second case
+  is the easy one — it is a carry-over flag consulted at deck/placement time.
+  The first needs live mutation of a placed room.
+- **Dead End counting.** The Greenhouse starts as a Dead End and stops being
+  one once broken, for the rest of the attempt. That count feeds the Tomb's
+  `coins_per_deadend` effect (`effects/tier1.py`, which reads
+  `ctx_room.layout == "dead_end"` at draft time) and the `dead_end`
+  day-termination path (`game.py`). A layout change that does not also move
+  the Dead End count would leave the Tomb paying out for a room that is no
+  longer a Dead End.
+- **Retroactive across days.** A wall broken on an earlier day stays broken
+  and stays un-counted, so this needs the authoritative-once-set carry-over
+  shape of `foundation_cell`, not a same-day flag like `garage_door_breaker`.
+
+**Suggested shape for a future PR:** a `greenhouse_wall_broken` carry-over
+flag, set when the player breaks the wall with a Power Hammer; consulted at
+placement/legality time to substitute the `corner` layout for `dead_end`; plus
+the matching correction to Dead End counting so the Tomb effect and the
+termination path both stop seeing it as a Dead End.
+
+## 13. Bound the Observatory's in-memory replay index — DONE
+
+`web/server.py`'s `Observatory._records` is a `(offset, length)` index into
+`replays.jsonl` plus the metadata `runs_index()` returns, with `run_frames()`
+seeking and parsing a single line on demand, and an `OrderedDict` capped at
+`--max-runs` (default 20000). It replaced a full-record dict measured at 3,089
+bytes per episode -- 5.24x the on-disk size, ~31 GB at 10M episodes -- which
+was the real blocker on raising `--record-sample-rate`.
+
+**Two live residuals, stated rather than glossed:**
+
+- **The best-of-window dict is NOT capped.** `why: "top_window"` records are
+  held separately and never evicted, growing at one per `--record-top-every`
+  episodes (trainer default 1000), so ~10k entries at 10M episodes.
+  `--record-top-every 1` would defeat the cap entirely.
+- **`/api/runs` has no pagination** and `refreshRuns()` builds the whole list
+  into `innerHTML`. The cap bounds that payload as a side effect; raise
+  `--max-runs` far above the default and the browser becomes the next limit,
+  not the server.
+
+## 14. Category biases that nothing ever activates
+
+Found while auditing the Cloister boosts (2026-08-05). `data/priority_draws.json`
+declares **22 `category_biases` entries; only 8 can ever fire.**
+`draft.py::_active_conditions` emits exactly three condition families —
+`furnace_or_king` (from `state.furnace_placed`), `greenhouse_or_king` (from
+`state.greenhouse_placed`), and `scepter_<color>` (from
+`state.shops.scepter_color`). Verified by grep over all of `src/`: no other code
+path produces any of the remaining tags.
+
+The **14 inert entries**, spanning **9 distinct condition names**:
+
+| Condition | Entries | Biases toward |
+|---|---|---|
+| `king` | 5 | blueprint, hallway, bedroom, shop, blackprint categories |
+| `southern_cross_constellation` | 1 | `layout: cross`, 40% |
+| `draxus_constellation` | 1 | `layout: dead_end`, 30% |
+| `drafting_from_library` | 2 | the Bookshop (50%) and `rarity: rare` (100%) |
+| `schoolhouse` | 1 | the Classroom, 35% |
+| `electromagnet` | 1 | mechanical/rotunda, 40% |
+| `chronograph` | 1 | tomorrow rooms, 40% |
+| `adjacent_duct` | 1 | `flag: powered`, 40% |
+| `adjacent_powered` | 1 | `flag: duct`, 40% |
+
+**Owner decision (interview, 2026-08-05): fold the whole set into the Southern
+Cross work** — build the activation plumbing once and light up every condition
+that has a modelled source, leaving the rest documented as still-unsourced.
+
+**Why Southern Cross is the one that matters for the upgrade study.** The two
+Cloister boosts that already work bias by **category** (`green`); Southern Cross
+biases by **layout** (`cross`). Every Cloister variant is `layout: cross`, but
+`cloister_of_orinda__ix35` is `category: blackprint` and
+`cloister_of_draxus__ix36` is `category: red` — so the two working boosts stop
+applying to exactly the two variants the Orinda measurement cares about.
+Southern Cross is the only one that does not.
+
+**Research needed before any code**: what activates a constellation in the real
+game (Observatory / Telescope?), whether it is per-day or permanent, and whether
+`king` is the Banner of the King (`scepter_*` already cites the Royal Scepter as
+having "the same effect as Banner of the King", which suggests the `king` tag and
+the scepter tags may be the same mechanism entered from two directions). Do not
+infer any of this from the existing table.
+
+### Status after PR #60 and 2026-08-06 — the table above is stale
+
+`_active_conditions` now also emits `schoolhouse`, `southern_cross_constellation`,
+`draxus_constellation` and `drafting_from_library`, so most of the 14 are wired.
+What actually remains:
+
+- **`drafting_from_library` — DONE, and it was the wrong mechanism.** The Library
+  does not bias a re-deal; it **replaces the rarity table outright** (Commonplace
+  0%, Standard 0.01%, Unusual 49.99%, Rare 50%, datamined). Implemented in
+  `decks.py::roll_rarity` with the table in `weights.json`; the inert
+  `category_biases` signpost entry is deleted. The Bookshop 50% entry is separate
+  and still a genuine category bias.
+- **`schoolhouse` — the last small one.** `state.schoolhouse_placed` is read by
+  `_active_conditions` but **nothing ever sets it**. It needs one `Hook.ON_PLACE`
+  effect tag mirroring `greenhouse_bias`/`furnace_bias` in `effects/tier1.py`.
+  The Schoolhouse record already has a working `inject_pool` ON_PLACE effect, so
+  this is a second tag on an existing list. 35% Classroom bias is datamined.
+
+  **Completeness gap worth flagging separately**: the wiki says the Schoolhouse
+  also boosts the Library and Studio Addition: Dormitory, but our data encodes
+  only the Classroom entry. That is a missing-entries problem, not a wrong
+  magnitude — do not invent the other two percentages.
+- **Still genuinely unsourced** (no modelled activation source): the five `king_*`
+  tags, `electromagnet`, `chronograph`, `adjacent_duct`, `adjacent_powered`, and
+  the two constellations' activation chains.
 
 ## 15. Room-behaviour fidelity: audit every room against the wiki
 
@@ -292,86 +586,30 @@ worth starting with the rooms most likely to matter for the win condition, since
 the 2026-08-08 measurement showed victory is unreachable on ~89% of days for
 lack of lever rooms.
 
-**Do not start a training run mid-audit.** Room behaviour changes what the
-policy learns; batch these and restart deliberately, per the two runs already
-discarded for exactly that reason.
+**Do not start a training run mid-audit** — room behaviour changes what the
+policy learns. The rule, and the two runs discarded for breaking it, are in
+[`process.md`](process.md).
 
 ## 16. Sweep comments that re-litigate past behaviour -- DONE (2026-08-14)
 
-**Closed by #273, #274, #275, #276.** 69 candidates found by a read-only
-discovery pass; 67 edited, 2 ruled KEEP with git evidence. Two remainders are
-recorded at the end of this section. See the 2026-08-14 decisions-log entry for
-what the sweep found and what it cost.
+Closed by #273-#276: 69 candidates found by a read-only discovery pass, 67
+edited, 2 ruled KEEP with git evidence. What the sweep found, and the two
+rulings it could not make mechanically, are in the 2026-08-14 decisions-log
+entry. The standing rule -- a comment says what the code does, never what it
+used to do -- and the lessons about rotting counts are in
+[`process.md`](process.md).
 
-Opened 2026-08-09, from the PR #89 review. Runs independently of task 15: the
-collision a comment-only pass creates with in-flight room PRs is a merge cost,
-not a correctness one. See the 2026-08-11 scope ruling in the decisions log for
-the four category calls and the measured sizes.
+**One remainder, reported rather than silently left:** `tests/luck_utils.py`'s
+module docstring still phrases a live constraint historically ("the pre-ladder
+idiom, no longer guarantees..."). Borderline: the constraint is real and
+current, only the framing is historical.
 
-The standing rule is in the decisions log: a comment says what the code does.
-It does not narrate what the code used to do, defend against an alternative
-that was rejected, or cite the bug that prompted the change.
-
-Known instances, all landed in #89 and left in place on purpose:
-
-- `tools/validate_data.py` -- the `KNOWN_GUARANTEED_ITEM_KINDS` comment cites
-  the "2026-08-09 exact-coin-amount ruling" and the inline comment in the
-  guaranteed-items loop explains that a typo "fails exactly the same silent way
-  the exact-coins bug did" and justifies itself against "a low-value
-  round-trip test".
-- `src/blueprince_sim/engine/items.py` -- `grant_item`'s docstring contrasts
-  `coins_exact` against `coins` at length, where it need only state what each
-  one grants.
-- `tests/rooms/test_vault.py` -- the two guard tests' docstrings describe the
-  "obvious but wrong" fix they defend against rather than the property they
-  pin.
-
-Do not treat that list as exhaustive; it is where the rule was first noticed.
-
-**Correction, 2026-08-11 (PR 1 of the sweep).** Two of the three instances
-named above do not exist, and were verified line by line:
-
-- **`KNOWN_GUARANTEED_ITEM_KINDS` carries no dated citation.** That comment is
-  a clean present-tense description of item kinds. The only `2026-08-09`
-  reference in `tools/validate_data.py` is the separate exact-coins paragraph
-  in the guaranteed-items loop -- which *is* a genuine violation, and was
-  fixed. The two were conflated when this task was written.
-- **`items.py::grant_item`'s docstring is entirely present-tense.** Its
-  "instead of" phrasing contrasts two currently-valid options, which the sweep's
-  own carve-out classifies as a keep. It narrates no history, cites no date and
-  no bug. **Left untouched.** If it wants a length trim, that is a different
-  edit than this task authorises.
-
-Only the third (`tests/rooms/test_vault.py`) survived scrutiny; it is PR 2's.
-Recorded rather than silently deleted, because a task statement that names
-non-existent work is the same failure this task exists to fix.
-
-The sweep should cover `src/`, `tools/` and `tests/`, and is a good candidate
-for a mechanical first pass (grep for dated ruling references, "used to",
-"previously", "no longer", "instead of", "would have") followed by judgment.
-
-Two things NOT to strip, so the sweep does not overshoot:
-
-- **`docs/`** is exempt. `open_tasks.md` in particular exists to record
-  history, and its decisions log is explicitly a record of what was ruled and
-  why.
-- **A comment explaining a non-obvious constraint the code must still honour**
-  is describing the present, even when it sounds historical -- e.g. that
-  `rooms.json` round-trips at 1-space indent, or that `_CARRYOVER_KEYS` is
-  sorted because Python randomises string hashing per process. Keep those.
-
-**Remainders (2026-08-14), reported rather than silently left:**
-
-- `tests/test_item_tag_allowlist.py`'s `DEFERRED_UNREAD_TAGS` block (~176-184)
-  uses the same "moved off this list" phrasing as the migration changelog #276
-  rewrote, but sat outside the assigned range and was not edited.
-- `src/blueprince_sim/data/special_items.json`'s `sanctum_key` note still says
-  a widening was "out of this change's scope" -- a self-reference to the PR
-  that wrote it. Noticed during review of #274, left rather than widening that
-  PR's scope mid-review.
-- `tests/luck_utils.py`'s module docstring still phrases a live constraint
-  historically ("the pre-ladder idiom, no longer guarantees..."). Borderline:
-  the constraint is real and current, only the framing is historical.
+**Two exemptions that must survive any future sweep.** `docs/` is exempt --
+this file exists to record history. And a comment explaining a non-obvious
+constraint the code must still honour is describing the present even when it
+sounds historical: that `rooms.json` round-trips at 1-space indent, or that
+`_CARRYOVER_KEYS` is sorted because Python randomises string hashing per
+process.
 
 ## 17. Room behaviour: registry migration
 
@@ -409,152 +647,6 @@ and are everything `items.py::expected_yields` introspects.
 **Done.** CLAUDE.md no longer says "prefer changing behavior by editing data
 over editing code" -- it carries the three-way guidance instead: tabular facts
 in data, shared parametric tags in data, singleton behaviour in a room module.
-
-## 18. Divergence worklist triage (2026-08-10) -- DONE
-
-**The worklist is empty: 80 findings at its peak, 0 as of PR #195.** Every
-one was either built, exempted through a guarded channel, or deferred with a
-stated reason and its own liveness check. The audit is not merely quiet --
-injecting an unmodelled effect into a non-exempt room still flags it.
-
-The five exemption channels each carry a guard now, the data one having been
-the last without: `_assert_data_exemptions_live` fails if a room stops
-carrying the field its entry names, or if that field goes empty, which is
-the likelier way such an entry rots.
-
-All 62 findings were triaged in one pass. Three classes:
-
-- **False positives** -- behaviour modelled in a channel the audit cannot see
-  (`shops.py`, `special_items.py`, `locks.json`, `game.py`, a data flag). PR
-  #138 cleared ten of these (the commerce rooms). Remaining candidates:
-  `dovecote` (whose own effect_text names the engine functions that implement
-  it), `chamber_of_mirrors`, `coat_check`, `utility_closet`, `the_foundation`,
-  `lost_and_found`, `break_room__ix11`, `dining_room`, `lavatory`, plus the two
-  already-known ones (`courtyard__ix49`, `electric_eel_aquarium__ix4`).
-- **Stale annotations** -- see the ruling below.
-- **Real gaps**, roughly 26, most of them cheap.
-
-### Decisions log
-
-- **2026-08-10, expired scope annotations are re-opened as real work.** Nine
-  `meta.effect_text` values are not game text at all -- they are annotations
-  this project wrote, and several have expired:
-
-  | record | claims | why it is false now |
-  |---|---|---|
-  | `clock_tower` | "out of single-day scope" | multi-day has been in scope since `DayChain` |
-  | `shrine` | "out of single-day scope" | same |
-  | `the_kennel` | "lock system out of scope" | `locks.py` models locked doors |
-  | `vestibule` | "on enter, 3 doors unlock and the 4th locks (lock system out of scope)" | same |
-  | `lost_and_found` | "no effect modeled" | the steal/gift behaviour IS modelled (`special_items.py`), per CLAUDE.md |
-
-  Owner decision, on interview: **implement them, and rewrite each annotation to
-  say what is actually true.** This is the "a scope annotation is a claim with
-  an expiry date" lesson firing for the second time -- the first cost seven
-  rooms suppressed long after the sim grew multi-day support.
-
-  Act on this cold as: an annotation asserting something is out of scope must
-  be re-checked whenever that scope changes, because nothing else will
-  invalidate it. Prefer a dated task entry in this file over a scope claim
-  buried in a data record.
-
-- **2026-08-10, `parlor__ix109` stays unmodelled, and the reason is recorded.**
-  Its entire payload is "2 Wind-up Keys", and the Wind-up Key item was
-  deliberately **removed** from the sim (design doc simplification #17:
-  puzzle-only items are deleted and their payoff granted directly). So the
-  variant references a concept that no longer exists.
-
-  Owner decision, on interview: leave it inert rather than re-add the item or
-  invent a substitute payoff. Act on this cold as: this is a **deliberate**
-  permanent finding on the worklist, not an oversight -- do not "fix" it by
-  reintroducing the Wind-up Key.
-
-- **2026-08-10, the Aquarium counts as every colour via a data flag.** All three
-  Aquarium records say "AQUARIUM is every color of room." `Room.category` is a
-  single string, and category drives category biases, `grant_per_category`, the
-  Cloister/Terrace green boosts and scepter colours.
-
-  Owner decision, on interview: add a **`counts_as_all_colors`** flag honoured
-  at each category-comparison site, rather than widening `category` itself or
-  applying the rule only where convenient. One flag, consistent everywhere.
-
-- **2026-08-10, the Cloister of Dauja and Veia need sourced room lists first.**
-  Dauja pays "for each room with an animal", Veia gives dirt piles "in each room
-  with a fireplace". Neither an animal nor a fireplace concept exists in
-  `rooms.json`. Owner decision: research the wiki, then encode the result as
-  data flags -- and **if the wiki does not publish the lists, come back rather
-  than guessing which rooms qualify.**
-
-- **2026-08-10, `guess_bedroom__ix70` gets a research pass, then an owner call
-  if it is unsourced.** Its datamined text is "Hidden effect of a random BEDROOM
-  in your draft pool?" -- with a literal question mark, so the datamine itself
-  is unsure. Owner decision: research it; if the wiki is as vague as the
-  datamine, leave it unmodelled and record the gap rather than invent a
-  mechanic.
-
-- **2026-08-10, the Laboratory is the big subsystem to take on.** Of the four
-  large unmodelled subsystems on the worklist -- Throne Room (the "reclaim the
-  crown" objective), Closed Exhibit (security-lock puzzle), Mechanarium (dynamic
-  door count per Mechanical room) and Laboratory ("Experimental House Features")
-  -- the owner chose the **Laboratory**. It gates several other mechanics
-  already met elsewhere in this file: the Satellite Dish Pantry restock, the
-  experimental dig-spot spread to the Grounds, and the apple-eating trigger.
-
-  The other three stay unstarted; each needs its scope written up before it is
-  picked, not during.
-
-- **2026-08-10, work the cheap findings breadth-first.** Owner decision for an
-  unattended day: clear the many small findings in batched PRs rather than
-  going deep on one subsystem. Maximum findings cleared per unit of risk, and
-  each PR stays reviewable.
-
-## 19. Laboratory / Experiments -- scoping (2026-08-10) -- PHASES 0-4 DONE
-
-**All twelve base triggers and all twelve base effects are live** (PRs
-#162-#178, #182, #184-#187, #193). The Laboratory is playable: a setup
-terminal with its own masking site, exposed in the Play tab.
-
-Phases 5-8 (the Satellite Dish, the packet download flow, Packet Management
-and the eight packet triggers/effects) remain **explicitly unauthorised**.
-The packet pool's data is transcribed; its behaviour is not.
-
-Owner picked the Laboratory as the big subsystem. Full scoping done; the
-headline finding is that **it is not one subsystem.**
-
-An experiment pairs an **experimental trigger** with an **experimental
-effect**, set up at the Laboratory terminal: three of each are drawn uniformly
-and the player picks one from each column. One experiment at a time, lasting
-the day, pausable. Twelve triggers and twelve effects at base; the Satellite
-Dish data packet permanently adds eight more of each.
-
-**Phases 0-4 are the real subsystem** (~4-5 days) and deliver a playable,
-trainable Laboratory: the data file, the core (offer/choose/start/pause/fire),
-the eight pure-resource effects, the draft-site triggers, the interaction
-triggers, and the persistence/availability layer. Phase 3 is what the
-apple-eating trigger elsewhere in this file is waiting on.
-
-**Phases 5-8 are four separate subsystems wearing an experiment costume** --
-"model the Grounds' dig spots", "model Pantry stock", "model Dynamic Rarity",
-"model the Satellite Dish unlock chain". Each is more honest as its own line
-item. **Recommendation, awaiting the owner: commit to 0-4 as the Laboratory
-work and re-scope 5-8 individually.**
-
-Costs: action space **319 -> 327** plus a new `Phase.EXPERIMENT_PENDING`;
-observation gains an `experiment` key, `phase` widens 4 -> 5, and `carryover`
-widens 14 -> 16. That is three further width changes.
-
-**Never model, recorded deliberately**: the 40-second real-time trigger and the
-view-map trigger (meaningless in a simulator), the setup-reroll timing exploit,
-Blessing of the Tinkerer cross-triggers, radiation level, Dare Mode, Research
-Logs. Also **do not implement** the two rules the wiki has *commented out*
-(a 30% crates-removal filter, a set-dice exclusion) -- its own editor note says
-"a lot of the datamined info on experiments has been off or just straight up
-wrong."
-
-**Numbers the wiki does not give** -- flag, never invent: the key/gem/die
-split; the 2/3/4 dig-spot distribution; the Antechamber-door preference
-weights; the Pantry fruit mix (ordinal only); lockpicking skill magnitude; the
-"gain 1 random item" pool (a live Cargo query, not in wikitext).
 
 ## 20. Research outcomes feeding the worklist (2026-08-10)
 
@@ -735,6 +827,7 @@ one shared `Capability.DAY_END` between them.
   one module per room.
 - 24 of the 62 findings triaged on 2026-08-10 were false positives caused
   precisely by this scatter.
+
 ## 22. Item behaviour: registry migration (scoping)
 
 Opened 2026-08-11, owner directive. The question, in their words: should items
@@ -870,6 +963,14 @@ allowlist entry** -- that rule alone catches `ignition_tool` today.
 
 **Cost: ~8 PRs, ~650 LOC moved, ~500 LOC new.** `special_items.py` should land
 around 1,800 LOC.
+
+## Also outstanding (from `docs/plan.md`)
+
+- **Reward calibration** from multi-day training statistics — all shaping constants
+  (`special_item_values`, `PATHS_ONE_PENALTY`/`PATHS_ZERO_PENALTY`, scepter bias)
+  are deliberate knobs awaiting real run data.
+- **Inner Sanctum**: the 8 Sanctum Keys have sources and persist, but the area
+  behind the 8 doors is unmodeled. Overlaps heavily with task 4.
 
 ## 23. OPEN OWNER QUESTIONS -- re-verified and re-consolidated (2026-08-14)
 
@@ -1205,38 +1306,6 @@ pending that primitive.
   fact?"** For `effects` and `rabbits_foot_bonus`, yes -- those are the
   disease. For the luck ladder, no -- nothing else claims to hold it.
 
-- **2026-08-14, NON-FINDING: the reported `frontier_greedy` crash DOES NOT
-  EXIST. Recorded so it does not survive as folklore.**
-
-  A measurement lane reported hitting
-  `AssertionError: cannot afford` in `frontier_greedy`/`Game.choose` at seed
-  2886, and generalised it as *"reproduces under default data too at other
-  seeds"*. It is **not reproducible**:
-
-  - **0 crashes in 600 seeds** under `GameConfig()` defaults;
-  - **0 crashes in ~3020 seeds** under the exact reported config
-    (`upgrade_disks={spare_bedroom__ix131}`, `lunch_box_unlocked=True`),
-    **seed 2886 included**;
-  - all driven through the real entry point, `cli/batch.py::run_episode`.
-
-  **The likely cause is the harness, not the engine.** That lane drove its
-  measurement with a hand-rolled *"`cli/batch.py`-style episode loop"* rather
-  than `run_episode` itself. The orchestrator's own first attempt at the same
-  hand-rolled loop crashed on **every** seed, for a trivial reason
-  (`phase` lives on `Game`, not `GameState`) -- a bug in the driver reads
-  exactly like a bug in the engine.
-
-  **Two lessons, both already on this repo's list and both re-earned:**
-  1. **A defect found through a bespoke harness is a claim about the harness
-     until it reproduces through the real entry point.** Reproduce first,
-     brief second. A lane was nearly commissioned to fix this.
-  2. **"Reproduces at other seeds too" was asserted without a single verified
-     other seed** -- the same generalise-from-unverified-instances pattern
-     recorded earlier this session. **A pattern asserted from N instances
-     needs each instance verified, not the pattern.**
-
-  Nothing to fix. `assert self.affordable(room, opt)` at `game.py:1897` stands.
-
 - **2026-08-14, SPAWN TABLES measured across all 102 items. 26 of 28 diverge
   -- but it is DISTRIBUTION, not reachability, and that is measured, not
   argued.**
@@ -1505,22 +1574,6 @@ pending that primitive.
   still appears in the raw findings. **Cheaper here than for rooms** — the item
   detector is pure data and can run against the real file. Better still, at three
   groups and two flags **the day-one design may need no exemption at all.**
-
-- **2026-08-14, EIGHT ITEMS CLAIMED THEY WERE UNOBTAINABLE. All eight are
-  obtainable (#278).**
-
-  Same note on each: *"obtainable when PR2 adds shop actions"*. All eight are in
-  `shops.json`, `shops.py::buy` is generic, and `BUY_BASE = 235` is wired into
-  the mask and dispatch. Verified independently before the fix; each note now
-  names its shop and price, each price re-checked rather than copied across.
-
-  **Not eight mistakes — one missing process.** A note stating a *future
-  condition* has nothing to trigger a revisit when that condition arrives. Two
-  more of the same shape landed in the same PR: `priority_draws.json` called the
-  Chronograph's rewind unmodelled while `special_items.json` said it was live in
-  the same repo, and `validate_data.py` grouped three live tags as inert.
-  **Sibling of the liveness/necessity lesson from #270: a claim about the future
-  needs an expiry check, or it becomes a false claim about the present.**
 
 - **2026-08-14, TASK 16 COMPLETE (#273-#276). 69 candidates, and the
   composition mattered more than the count.**
@@ -2022,34 +2075,6 @@ pending that primitive.
     probability mass from the Aquarium's real item roll, and its
     `persistence: "until_used"` means it returns every day forever as a dead
     inventory slot. Couples to the reclassification ruling.
-
-- **2026-08-13, four varieties of a test hiding the bug it covers -- all four
-  found today, and each was invisible until something adjacent forced the
-  question.**
-
-  Worth recording as a set, because the shapes are distinct and only the first
-  is the one this repo already knew about:
-
-  1. **Passing BECAUSE of the bug.** Three category-bias tests
-     (`schoolhouse`, `scepter green`, `library->bookshop`) targeted gem-cost
-     rooms from a rank/gem cell where the real table gives ~0%. They passed only
-     because the free/gem size-sort over-delivered gem rooms at low rank.
-  2. **A helper EXPLOITING the bug** to construct its scenario.
-     `test_experiments.py::_force_drawing_room_dealable` trimmed the free deck
-     below the gem deck's count so the size-sort would try gem first.
-  3. **A helper DOCUMENTING the bug** as its reason for a workaround.
-     `tests/test_locks.py::_place_and_stand` set `keys = 5`, and its docstring
-     named the budget-check defect outright. Removing the crutch made **9
-     pre-existing tests** fail without the fix.
-  4. **A test ASSERTING the bug as correct.**
-     `test_trophy_purchase_price_respects_sale_day` pinned the Showroom trophy at
-     50 on a sale day -- the defect, encoded as the expected value.
-
-  **Generalisable: a green suite is evidence about the tests, not only about the
-  code.** When a fix makes tests fail, the first question is which of these four
-  it is -- and only variety 1 is repaired by rebuilding a setup. Variety 4 needs
-  the assertion inverted; varieties 2 and 3 need the crutch removed, which is
-  what proves the bug was real.
 
 - **2026-08-13, the locked-door legality rule was written FOUR times and had
   drifted in three of them.**
@@ -2869,18 +2894,6 @@ pending that primitive.
   anywhere in the repo yet"); they get swept with this work under the
   comments-state-current-behaviour rule.
 
-- **2026-08-12, N implementation agents run in N git worktrees -- the
-  one-agent-per-tree rule bounds agents per tree, not agents total.** Measured,
-  not assumed. A real `git worktree` is fully isolated and the single `.venv` in
-  the main checkout serves every tree, provided **`PYTHONPATH=src` is set so the
-  worktree's own `src` beats the editable install**, which otherwise resolves to
-  the main checkout. Mutation-tested both directions: a marker added in the
-  worktree is visible there and invisible in `main`. All three gates pass inside
-  a worktree (2030 passed, ruff clean, 0 errors / 0 warnings). **Parallelism is
-  now a file-contention question, not a tooling one** -- `actions.py` is the
-  contended file across `prism_key`, `the_axe`, `gear_wrench` and `chronograph`,
-  and ruling 4 above adds the Crown effect to that set.
-
 - **2026-08-12, observation and action width changes are ACCEPTABLE: a retrain
   is already required.** Owner. This unblocks the whole remaining item backlog,
   which #227 had just re-sized as M-or-larger precisely because every item costs
@@ -2906,37 +2919,6 @@ pending that primitive.
   **`battery_pack` is still awkward for an unrelated reason** -- its cost is a
   37-call-site signature change to thread `rng` into `grant()`, not a width
   change. This ruling does not make it cheaper.
-
-- **2026-08-12, the "cheap wins" in the item backlog are gone, and my sizing was
-  wrong.** I repeated the 2026-08-11 audit's XS/S sizing for `battery_pack`,
-  `gear_wrench` and `chronograph` without re-checking it against the code. All
-  three are M, each for a structural reason:
-
-  | item | what it actually needs |
-  |---|---|
-  | `battery_pack` | Its pickup side effect (Workshop rarity 50/50) needs a **draw**, but `_on_pickup` is reached only through `grant()`, which deliberately takes `(state, registry, ...)` with **no `game` and no `rng`** -- and has **37 call sites**. Threading RNG through all of them is the real cost. An optional `rng=None` would be worse: the effect would silently not fire on every path that omitted it. |
-  | `gear_wrench` | `set_dynamic_rarity` is a general primitive and works. The gap is **cross-day persistence** -- a `_CARRYOVER_KEYS` entry (**observation width change**) -- plus a player action to choose which Mechanical Room (**action width change**). Two width changes for one item. |
-  | `chronograph` | Nothing stores redraw history: no `prev_options`, no `last_options`. It needs new state **and** a rewind action (**action width change**). |
-
-  **So all nine remaining items are M or larger.** The four "real but understood"
-  ones (`prism_key`, `crown_of_the_blueprints`, `dowsing_rod`, `the_axe`) were
-  already sized that way; the two subsystem-blocked ones (`telescope`,
-  `file_cabinet_key`) are L.
-
-  **This is the predicted shape, arriving on schedule.** The 2026-08-12 backlog
-  estimate said the remaining work is "systematically harder than what has been
-  done -- 72 PRs consumed the cheap wins", and that the observed throughput came
-  from a mix that no longer exists. It was right, and the sizing table lagged it.
-
-  **Generalisable: a size estimate made before the work is a hypothesis, and it
-  decays as the surrounding code changes.** `battery_pack` was genuinely cheap
-  when the audit ran -- what changed is that intervening PRs did not add an
-  `rng`-carrying pickup path, so the gap that was "one side effect" became "one
-  side effect plus a 37-site signature change". **Re-measure before picking, not
-  after committing.**
-
-  **The only bounded item left is the config digest** (~15 lines, an owner
-  ruling outstanding). Everything else needs a width change or a new subsystem.
 
 - **2026-08-12, three owner rulings, and a new `meta.wont_implement` marker to
   hold them.** "Blocked" and "decided against" were the same field; they are
@@ -2983,39 +2965,6 @@ pending that primitive.
   the *intended* uncommitted changes in that same file along with the mutation.
   Mutation-test against a copy, or stash first -- never `git checkout` a file
   that is holding work you want.
-
-- **2026-08-12, the Trophy of Wealth is verified and implemented. 12 -> 11
-  unimplemented items.** Its blocker was the only one of the twelve that named
-  no missing mechanism -- `purchase_path_unverified_end_to_end`, written that
-  way in #199 rather than flipping the flag on a code read.
-
-  **The code read was right, and the caution was still correct.** The
-  `is_trophy` branch at `shops.py:501-508` had **never been exercised by any
-  test**. It worked: buying all stored Showroom entries appends the trophy,
-  buying it grants the item and deducts the display price. Prices exact in all
-  three cases -- **100 base, 50 on a sale day (ceil 100/2), 99 with a Coupon
-  Book** -- and once owned it never reappears in `stock_for`.
-
-  **The stocking method, recorded because I got it wrong:** the Showroom's stock
-  is populated by `on_enter_shop` -> `_roll_showroom` **when a shop room is
-  entered**, not on a fresh `Game`. My harness inspected
-  `state.shops.stock` on a new game across 60 seeds and found nothing -- I read
-  that as difficulty finding a stocked seed, when in fact the key is never
-  populated until entry. `tests/test_shops.py::_place_shop` already had the
-  answer, writing grid/pos state directly and calling `on_enter_shop`.
-
-  **A brief error of mine, corrected:** I claimed `tools/validate_data.py`
-  reports an unimplemented-item count that would visibly go 12 -> 11. It does
-  not -- #217 added the `effects: []` census, not an unimplemented count. The
-  validator prints only a flat `102 special items`. **Surfacing the
-  unimplemented count there would be a cheap, genuinely useful addition**, since
-  it is the number this backlog is actually measured by, but it was not in
-  scope here.
-
-  **Remaining 11, by kind:** never-buildable (`magnifying_glass`,
-  `key_of_aries`); cheap (`battery_pack`, `chronograph`, `gear_wrench`); real
-  but well-understood (`prism_key`, `crown_of_the_blueprints`, `dowsing_rod`,
-  `the_axe`); blocked on a subsystem (`telescope`, `file_cabinet_key`).
 
 - **2026-08-12, TASK 22 IS COMPLETE -- and its final step is cancelled, on
   evidence.** Phases 0-6 landed across #200-#209; phase 7's allowlist split
@@ -3193,7 +3142,8 @@ pending that primitive.
   the moment #210 merged), and `orindian_ruins_not_reachable` (false the moment
   #214 merged). Each was true when written. **A blocker on a record whose
   feature is actively being built goes stale about as fast as it is written**;
-  the answer is not better prose but the derived check task 23 added.
+  the answer is not better prose but a derived check -- the registry
+  validators now wired into `validate_data.py`.
 
   **2. `docs/special-items-design.md` was false in three places** -- it said the
   microchip "remains inert (`blocked_on: outer_areas_not_modeled`)", that "chip
@@ -3247,78 +3197,6 @@ pending that primitive.
   detectable in general, which remains ~17% on the synthetic fixture and ~72%
   on a human-like action mix.
 
-- **2026-08-12, the item-id debt ratchet steered a design decision, not just
-  measured it.** Building the Grotto pedestal chip's take action beside
-  `smash_vase` in `shops.py`, rather than in `special_items.py` where it was
-  first tried, avoided breaking the item-id allowlist -- and was the correct
-  call path anyway, since `on_day_start`/`on_doorstep`/`smash_vase` already
-  grant this exact item. The debt cap made the wrong home fail loudly.
-
-- **2026-08-12, orchestration error worth recording: two implementation agents
-  were dispatched into one working tree.** Git branches share a tree, so
-  creating the second branch mid-flight silently moved the first agent's
-  uncommitted work onto it. Both edited side by side for ~20 minutes.
-
-  **Recovered with nothing lost** -- the file sets happened to be disjoint, so
-  the work separated cleanly by path into #217 and this PR, each gated in
-  isolation. **That disjointness was luck, not design.**
-
-  The cost was real: the task 23 agent hit two failures from the other agent's
-  half-wired action, spent time proving via `git diff` they were not its own, and
-  fell back to scoped test runs -- so **task 23 never had a clean full-suite gate
-  until it was separated**. The rule: **one implementation agent per working tree
-  at a time.** Read-only research agents are safe to run alongside; implementers
-  are not.
-
-- **2026-08-12, the "~17% divergence" figure I recorded is misleading in BOTH
-  directions. Corrected.** Investigated properly; the 10/60 measurement
-  reproduces exactly, but neither half of what I inferred from it holds.
-
-  **Understated: it is not "17% wrong". 100% of the triples a wrong-preset
-  replay emits carry a wrong observation** (1426/1426 measured), 20.5% of them
-  wrong in a structural key (grid contents, dealt options). Every one of the 50
-  non-diverging replays differs from the correct replay **at step 0** -- the
-  resources and the rarity stage are already different before a single action is
-  taken. Legality catches 17% of *trajectories*; the trajectory is wrong in all
-  of them.
-
-  **Overstated: the 17% is an artifact of the test fixture, not a property of
-  `replay_demo`.** The synthetic fixture's actions are **73.5% travel**, whose
-  legality is nearly config-independent. Real human demos are **27.8% draft /
-  29.1% choose**. All 10 divergences fired on a draft action and none on any
-  other class -- drafting is the only action whose legality tracks grid drift.
-  Re-run with a human-like mix, **divergence fires 43/60 = 71.7%**.
-
-  **Severity: LOW today, MEDIUM latent.** The trainer cannot produce the
-  mismatch -- `train.py` filters records by their own `unlocks` stamp and
-  reconstructs the config from that same stamp, so the two cannot disagree. The
-  one real demo file on disk is already rejected by a *different, working* guard
-  (`StaleDemoError`, `n_actions` 311 vs 375). It needs a corrupt, hand-edited or
-  pre-stamp legacy record.
-
-  **Two unambiguous defects found alongside, neither a design question:**
-  1. **Silent truncation.** `replay_demo` breaks out on a TERMINAL phase and
-     returns **normally**; one seed dropped **24 of 33 recorded actions** and
-     raised nothing. Under the correct config replay length matched the record
-     in all 60 cases, so `len(triples) != len(actions)` is a **free divergence
-     signal currently thrown away**.
-  2. **A missing `unlocks` stamp defaults to `"all"`** -- and for a legacy
-     fresh-save record that default *is* precisely the tampering the test
-     simulates, applied silently.
-
-  **Recommended fix (needs a ruling): stamp a `GameConfig` digest in the record
-  and verify it at load.** ~15 lines, catches 100% of wrong-preset and
-  wrong-`day_config` cases, fires at step 0 before any triple is emitted, and
-  costs nothing at runtime. The rejected alternatives: comparing rewards (lossy
-  scalar, couples demos to the reward function), comparing observations
-  (contradicts the module's stated premise that records carry actions only),
-  per-step state digests (catches engine drift too, but **any intentional
-  `data/*.json` change would invalidate the whole demo corpus**).
-
-  **Also: `test_replay_demo_raises_on_wrong_preset` does not test what its name
-  says.** It asserts the detector is not completely dead. The name should change
-  with the fix.
-
 - **2026-08-12, the sundial takes any ignition tool: trust the wiki.** Owner,
   resolving the conflict #215 recorded rather than decided. The wiki says "an
   ignition tool"; an owner play-report had named the Burning Glass specifically.
@@ -3339,54 +3217,6 @@ pending that primitive.
   than the published text, because a single play-report cannot distinguish "this
   tool is required" from "this tool was in my hand". Surfacing the conflict
   rather than resolving it silently is what let them make that call.
-
-- **2026-08-12, the Apple Orchard sundial is built and CANNOT be lit.** Phase 6a
-  of the Microchip branch: the unlock only. `experiments.py`'s `or_packet` stays
-  hardcoded `False`; the packet's 8 triggers and 8 effects are a later PR.
-
-  **The chip economy does not close, and that is recorded rather than
-  papered over.** The sundial requires **three microchips held**; the engine's
-  ceiling is **two** (Entrance Hall vase, West Path dig -- verified in play). The
-  third chip sits in the Grotto pedestal and only ever contributes to the *area
-  gate* via `counts_flag`; it is never added to inventory. Verified
-  independently: at `apple_orchard` with 2 chips `can_light` is False and
-  `LIGHT_ACTION` is masked off; with 3 both are True.
-
-  **Deliberately built correct-but-unreachable**, mirroring the state #210 left
-  the `three_microchips` gate in. **No chip source was invented** -- doing so
-  would be making up a game rule to make a feature work, and nobody has ruled on
-  one. If the owner wants it lightable, the ruling needed is where a third
-  carried chip comes from.
-
-  **Retrain trigger: `_CARRYOVER_KEYS` 15 -> 16**, `carryover` Box `(15,) ->
-  `(16,)`. **`N_ACTIONS` unchanged at 375** -- `LIGHT_ACTION` already exists and
-  already masks off-grid area targets, so no id was added.
-
-  **`requires_item` was supported-but-unused and count-1 only.** Extended to
-  `requires_items` (item id -> minimum held), and the duplicate eligibility check
-  in `special_items.can_light` and `env/actions._cell_has_ignition_target` --
-  **two independent copies of the same logic** -- collapsed into one shared
-  helper. The old singular form still works; the validator now checks both.
-
-  **Wiki/owner conflict, recorded not resolved.** The wiki says the sundial takes
-  "an ignition tool"; the owner named the Burning Glass. Implemented as any
-  ignition tool, matching `ignition.tools` and the existing `_ignition_tools()`
-  machinery -- building a per-target tool restriction would be new machinery for
-  a fact the owner themselves flagged as "plausibly just what they were
-  carrying". Recorded in `special_items.json`'s ignition meta.
-
-  **Route is real, no stub**: `padlock_code` on `campsite -> apple_orchard` is
-  `kind: "puzzle"`, which passes under the assumed-solved doctrine -- a genuine
-  always-open gate, not a stub standing in for unmodelled work. Unlike the
-  Grotto route, which does ride a stub.
-
-  **Two pre-existing issues surfaced, neither caused here:**
-  `docs/special-items-design.md`'s ignition section is stale (wrong action-id
-  numbers, omits `mine_south`). And **git-bash `grep -c $''` is not
-  trustworthy for CRLF checks on these files** -- it reads them as LF-only. Use a
-  byte-level check: `open(p,'rb').read().replace(b'
-',b'').count(b'
-')`.
 
 - **2026-08-12, the Orindian Ruins are reachable end to end, and widening the
   action space destabilised three tests whose invariants were already
@@ -3512,18 +3342,6 @@ pending that primitive.
   invisible to the policy.** Raising the cap is an observation width change and
   therefore a retrain trigger, so it is recorded rather than done.
 
-- **2026-08-12, I falsified a blocker with my own PR and caught it one step
-  later.** `microchip.meta.blocked_on` said `grotto_pedestal_chip_not_modeled`.
-  #210 modelled the pedestal chip, so the string was true when written and false
-  four hours later. Retagged to **`orindian_ruins_not_reachable`**, which is what
-  actually stops it: both nodes are `modelled: false` so `env/actions.py` offers
-  no travel, and `travel_to` has no `orindian_ruins` arrival handler.
-
-  Worth recording plainly because this is the twelfth instance of the session's
-  central failure and the first one I committed myself, with the warning fresh.
-  **The rule "when you fix a blocker, grep for everything that cited it" applies
-  to the PR you just merged, not only to old work.**
-
 - **2026-08-12, `throne_room.meta.effect_text` corrected in BOTH sources.** It
   claimed "entirely out of scope, no effect modeled" while two of its effects
   are modelled: the north Antechamber lever
@@ -3540,8 +3358,9 @@ pending that primitive.
   This is the concrete cost of the `effects: []` ambiguity recorded earlier: the
   room's `effects` array is empty because its behaviour lives in the room
   registry and a guaranteed item, and the prose note drifted to match the array
-  rather than the code. **Task 23 -- wiring the registry validators into
-  `validate_data.py` -- is what would have caught it mechanically.**
+  rather than the code. **Wiring the registry validators into
+  `validate_data.py` is what would have caught it mechanically** -- done since,
+  in the work the task 22 closing entry describes.
 
 - **2026-08-12, the Microchip gate is corrected. Phase 1 of the branch.**
   `Gate.counts_flag` lets an item gate count an in-place copy the player does
@@ -3718,27 +3537,6 @@ pending that primitive.
   This is the third time this session that a feature looked worth building until
   someone checked whether it was reachable or whether its payoff already
   existed. **Check the payoff before costing the work.**
-
-- **2026-08-12, the gate design, for when phase 1 is built.** `Gate` gains
-  `counts_flag: str | None`; `gate_open`'s item arm adds 1 to the held total
-  when that flag is in `ctx.flags`; `GameState.grotto_chip_taken` is
-  **day-scoped with NO carry-over key**.
-
-  That last point is the subtle one and it inverts the obvious reading of the
-  owner's "match `entrance_vase_broken` / `outer_chip_dug`". Those two are
-  `_CARRYOVER_KEYS` fields because they record a permanent **discovery** (the
-  vase is smashed forever), with the day-start re-grant layering respawn on top.
-  The Grotto chip has no discovery to record -- it is in the pedestal from day 1
-  with no prerequisite -- so respawn is just the field defaulting `False` at
-  every `reset()`. **Matching their semantics means NOT copying their plumbing.**
-  Consequence: `_CARRYOVER_KEYS` stays at 14, so the `carryover` observation Box
-  does not widen and this is not a retrain trigger.
-
-  Two alternatives rejected, recorded so they are not re-proposed: `count: 2`
-  plus a flag gate on the edge's `requires` list fails, because `requires` is
-  AND and "took the chip, still holding three" would be shut; and injecting a
-  synthetic microchip into `held_items` makes `held_items` lie to every other
-  item gate.
 
 - **2026-08-12, the item-id allowlist is split into architecture and debt.**
   Pulled forward from phase 7 because phase 5's whole job is to drive the debt
@@ -4210,9 +4008,9 @@ pending that primitive.
 - **2026-08-11, Blessing of the Tinkerer IS built -- reversing its
   never-model entry.** Owner, resolving a conflict between two of their own
   rulings. The Shrine ruling stubbed Tinkerer on "needs the experiments
-  subsystem"; task 19 listed "Blessing of the Tinkerer cross-triggers" under
-  *Deliberately never modelled* because it is a global modifier on the whole
-  subsystem rather than a per-record rule.
+  subsystem"; [`experiments-design.md`](experiments-design.md) lists "Blessing
+  of the Tinkerer cross-triggers" under *Deliberately never modelled* because it
+  is a global modifier on the whole subsystem rather than a per-record rule.
 
   The blocker named in the Shrine ruling is gone, so that ruling now governs:
   any active experiment also triggers whenever a Mechanical Room is drafted,
@@ -4575,6 +4373,78 @@ pending that primitive.
   gives no frequency. And Scraps of Paper, which Patch 1.6 added to the trash
   table, do not exist in `special_items.json`.
 
+- **2026-08-10, expired scope annotations are re-opened as real work.** Nine
+  `meta.effect_text` values are not game text at all -- they are annotations
+  this project wrote, and several have expired:
+
+  | record | claims | why it is false now |
+  |---|---|---|
+  | `clock_tower` | "out of single-day scope" | multi-day has been in scope since `DayChain` |
+  | `shrine` | "out of single-day scope" | same |
+  | `the_kennel` | "lock system out of scope" | `locks.py` models locked doors |
+  | `vestibule` | "on enter, 3 doors unlock and the 4th locks (lock system out of scope)" | same |
+  | `lost_and_found` | "no effect modeled" | the steal/gift behaviour IS modelled (`special_items.py`), per CLAUDE.md |
+
+  Owner decision, on interview: **implement them, and rewrite each annotation to
+  say what is actually true.** This is the "a scope annotation is a claim with
+  an expiry date" lesson firing for the second time -- the first cost seven
+  rooms suppressed long after the sim grew multi-day support.
+
+  Act on this cold as: an annotation asserting something is out of scope must
+  be re-checked whenever that scope changes, because nothing else will
+  invalidate it. Prefer a dated task entry in this file over a scope claim
+  buried in a data record.
+
+- **2026-08-10, `parlor__ix109` stays unmodelled, and the reason is recorded.**
+  Its entire payload is "2 Wind-up Keys", and the Wind-up Key item was
+  deliberately **removed** from the sim (design doc simplification #17:
+  puzzle-only items are deleted and their payoff granted directly). So the
+  variant references a concept that no longer exists.
+
+  Owner decision, on interview: leave it inert rather than re-add the item or
+  invent a substitute payoff. Act on this cold as: this is a **deliberate**
+  permanent finding on the worklist, not an oversight -- do not "fix" it by
+  reintroducing the Wind-up Key.
+
+- **2026-08-10, the Aquarium counts as every colour via a data flag.** All three
+  Aquarium records say "AQUARIUM is every color of room." `Room.category` is a
+  single string, and category drives category biases, `grant_per_category`, the
+  Cloister/Terrace green boosts and scepter colours.
+
+  Owner decision, on interview: add a **`counts_as_all_colors`** flag honoured
+  at each category-comparison site, rather than widening `category` itself or
+  applying the rule only where convenient. One flag, consistent everywhere.
+
+- **2026-08-10, the Cloister of Dauja and Veia need sourced room lists first.**
+  Dauja pays "for each room with an animal", Veia gives dirt piles "in each room
+  with a fireplace". Neither an animal nor a fireplace concept exists in
+  `rooms.json`. Owner decision: research the wiki, then encode the result as
+  data flags -- and **if the wiki does not publish the lists, come back rather
+  than guessing which rooms qualify.**
+
+- **2026-08-10, `guess_bedroom__ix70` gets a research pass, then an owner call
+  if it is unsourced.** Its datamined text is "Hidden effect of a random BEDROOM
+  in your draft pool?" -- with a literal question mark, so the datamine itself
+  is unsure. Owner decision: research it; if the wiki is as vague as the
+  datamine, leave it unmodelled and record the gap rather than invent a
+  mechanic.
+
+- **2026-08-10, the Laboratory is the big subsystem to take on.** Of the four
+  large unmodelled subsystems on the worklist -- Throne Room (the "reclaim the
+  crown" objective), Closed Exhibit (security-lock puzzle), Mechanarium (dynamic
+  door count per Mechanical room) and Laboratory ("Experimental House Features")
+  -- the owner chose the **Laboratory**. It gates several other mechanics
+  already met elsewhere in this file: the Satellite Dish Pantry restock, the
+  experimental dig-spot spread to the Grounds, and the apple-eating trigger.
+
+  The other three stay unstarted; each needs its scope written up before it is
+  picked, not during.
+
+- **2026-08-10, work the cheap findings breadth-first.** Owner decision for an
+  unattended day: clear the many small findings in batched PRs rather than
+  going deep on one subsystem. Maximum findings cleared per unit of risk, and
+  each PR stays reviewable.
+
 - **2026-08-10, the Guess Bedroom excludes the Aquarium family and treats a
   mimicked Bunk Room as a flat 2 Bedrooms.** Owner, on two ambiguities raised
   by the research pass. The Guess Bedroom loses its own +10 steps and instead
@@ -4807,7 +4677,9 @@ pending that primitive.
 
   Budgeted costs, all recorded in advance: action space **319 -> 327**, a new
   `Phase.EXPERIMENT_PENDING`, and three observation width changes (a new
-  `experiment` key, `phase` 4 -> 5, `carryover` 14 -> 16). See task 19.
+  `experiment` key, `phase` 4 -> 5, `carryover` 14 -> 16). The subsystem's
+  scope, phase plan and current status are in
+  [`experiments-design.md`](experiments-design.md).
 
 - **2026-08-10, the Clock Tower counts Tomorrow rooms PRESENT in the house.**
   Owner, resolving a page that contradicts itself: the infobox says "for each
@@ -5445,26 +5317,6 @@ pending that primitive.
   disagreement is recorded in the affected entries' `meta.notes` to be
   re-tested rather than silently resolved.
 
-- **2026-08-06, task 6 is audit-only, and its premise partly does not hold.**
-  The audit's two removal candidates, `diary_key` and `file_cabinet_key`, are
-  **both already `implemented: false` with zero Python references** — so
-  removing them is pure decluttering (one id each in the 76-slot item
-  observation vector), not the action-id-and-inventory-slot saving the task
-  assumes. `file_cabinet_key` is additionally stranded: its one real payoff, the
-  Archives Upgrade Disk, is already granted directly on entry
-  (`upgrade_disk_archives`, `guaranteed_in: ["archives"]`) under this same
-  doctrine.
-
-  **`basement_key` is the verified counterexample and a KEEP**: it gates
-  `basement_key_well` on `well -> reservoir_south` and `basement_key_foundation`
-  on BOTH directions of `the_foundation <-> basement`, so holding it is the
-  literal difference between those areas being reachable or not.
-  `key_of_aries` and `sanctum_key` are **deferred** — the first because the
-  Treasure Trove mechanic above is about to make its target real, the second
-  because its destination (`sigil_chambers`) is `modelled: false` with no
-  further edges, which is an unbuilt-destination problem rather than a
-  puzzle-only-item one.
-
 - **2026-08-06, task 6 ruled: `diary_key` is removed, everything else stays.**
   Owner, after the audit. Only `diary_key` goes — the wiki itself says it has
   "no other known use", and the sim double-sources it (a Tomb luck-roll spawn
@@ -5474,7 +5326,9 @@ pending that primitive.
   grant id against the special-items table.
 
   **`file_cabinet_key` is now an explicit KEEP**, reversing the audit's
-  recommendation. `basement_key` remains a KEEP for the reasons above.
+  recommendation. `basement_key` remains a KEEP because it gates traversal --
+  the argument, and the two gates it holds, are in
+  [`areas.md`](areas.md#items-this-unblocks).
   `sanctum_key` stays **deferred**: unlike `diary_key` it is genuinely consumed
   and genuinely gates traversal, and it fails the removal test only because
   Inner Sanctum is unbuilt — not because the item is inherently choice-free.
@@ -5512,35 +5366,6 @@ pending that primitive.
   this cold as: the stubs-default-open rule is about not deleting existing
   reachability — it is not a licence to *grant* reachability the real game
   gates.
-
-- **2026-08-07, the reward function was NOT the problem.** The re-measurement
-  ordered to re-score the reward terms before buying a retrain came back and
-  reversed its own premise. Measured policy-free on current
-  main, across **6,153 real grid crossings**, exactly **zero** produced a nonzero
-  path-term delta: PR #63's fix is validated at population scale. Under that
-  corrected accounting `greedy_rank` nets **+0.435/episode** and **+0.041 per
-  room placement**, reaching mean deepest rank **5.39** without dead-ending once
-  in 500 episodes. **Expansion is not structurally punished, so the 2026-08-05
-  recommendation to rebalance `PATHS_ONE_PENALTY`/`PATHS_ZERO_PENALTY` was
-  retired unimplemented** — it rested on a trained-policy measurement that is no
-  longer reproducible and predates the fix.
-
-  Act on this cold as: the instrument matters more than the suspicion. A
-  scripted, policy-free probe answered in minutes what a checkpoint could not
-  answer at all, and it overturned a recommendation that would have cost a
-  tuning cycle.
-
-- **2026-08-07, `runs/foundation-v2` is permanently unusable.** The checkpoint
-  deserializes but SB3 refuses to run it: `carryover` grew from 10 to 12 keys
-  when PRs #61/#63 landed *after* training stopped. A fresh run
-  (`runs/postfix-v1`, `--unlocks all --multi-day 200`) was started and then
-  **deliberately killed at 50,000 episodes / 2.21M timesteps** once the bugs
-  below surfaced — owner decision, on the reasoning that a run 3.5% in is nearly
-  free to discard and expensive to discard later.
-
-  Act on this cold as: an observation-space change kills every checkpoint
-  trained before it, the moment it merges. Batch space-affecting changes and
-  restart deliberately rather than merging them mid-run.
 
 - **2026-08-07, the Tunnel chain deals THREE options, not one.** Owner, from
   play: the chain offers three rooms every time and merely *guarantees* a Tunnel
@@ -5646,27 +5471,6 @@ pending that primitive.
   above the ~33% base rate means the reward genuinely overvalues cheap depth and
   can then be tuned against evidence rather than a 50k-episode artifact.
 
-- **2026-08-07, `replays.jsonl` is severely selection-biased — never use it to
-  establish prevalence.** Best-of-window records are selected by
-  `(win, deepest_rank, rooms_placed)`, so a depth-maximising pattern is exactly
-  what they over-represent. Measured on `runs/postfix-v1`, 329 records:
-
-  | population | n | mean deepest rank | mean rooms | rank-9 |
-  |---|---|---|---|---|
-  | `top_window` | 54 | **7.94** | 14.11 | 18 |
-  | `random` | 275 | **2.84** | 6.70 | 1 |
-
-  The buggy Tunnel chain fired in **74% of `top_window`** records but **0.7% of
-  `random`** ones. Both owner observations that started these investigations
-  came from browsing the Observatory's Runs list, which the starred records
-  dominate — the observations were right about what the *curator* surfaces, not
-  about what the policy typically does.
-
-  Act on this cold as: split `random` from `top_window` before quoting any rate,
-  and use `random` alone as the behavioural baseline. `EpisodeRecorder` does not
-  feed back into PPO's buffer, so this is a **reporting** artifact, not a
-  training feedback loop.
-
 - **2026-08-08, Veteran Mode is the default, including on a fresh save.** Owner:
   the sim is written for experienced players, who trigger Veteran Mode on day 1
   by drafting the first three rooms out of the Entrance Hall quickly. **The
@@ -5694,52 +5498,6 @@ pending that primitive.
   **not a permanent unlock** — it is triggered per save by how the player opens
   day 1 — so it sits with `royal_scepter_found` under the deliberate exceptions,
   not with the earned unlocks.
-
-- **2026-08-08, write rulings into this log immediately, not at session end.**
-  Owner instruction, after a session accumulated six unrecorded rulings before
-  writing any down. Decisions that live only in the conversation are lost to
-  compaction, and the cost of losing one is re-litigating something already
-  settled — the entire reason this log exists. Record the reasoning and any
-  measurement that justified it, not just the outcome, and say explicitly when a
-  ruling overrides the wiki or reverses an earlier assumption.
-
-- **2026-08-08, three outer-area bugs found by PLAYING the Play tab, and the
-  second run was discarded for them.** The owner played a day through the web
-  interface and recorded it to `runs/postfix-v2/demos.jsonl` (seed 964156478,
-  103 actions, `unlocks: fresh`). It replays with `divergence=None`, so all
-  three reproduce exactly — the demo pipeline paid for itself here.
-
-  **The outer draft was refused while standing on its own doorstep.**
-  `outer_draft_available()` carried `if self.off_grid: return False`, but
-  `west_path` IS the doorstep — `open_outer_draft()` opens with
-  `travel_to("west_path")`. The session shows the cost: travel to West Path (3
-  steps), forced back to House (2 steps), then "outer draft" auto-walks back to
-  West Path. **Two steps burned to stand where the player already was.**
-
-  **Dice could not reroll the outer-room hand**, which the owner reports is a
-  common strategy for forcing the Tomb. Reproduced holding 5 dice:
-  `_redraw_kind()` returned None before ever looking at them.
-
-  **The Apple Orchard was unreachable and its +20 steps unearnable** — two
-  problems stacked, which is why nothing the owner tried worked. `apple_orchard`
-  AND `campsite` (its only approach) are both `modelled: false`, so neither is
-  ever offered as a destination even though the graph path is fine and the
-  `padlock_code` gate passes under the assumed-solved doctrine. Separately,
-  `GameConfig.orchard_unlocked` is set only in the two `train.py` presets, so
-  even arriving could not grant the bonus. Advertising the nodes alone would
-  have left the player walking there for nothing.
-
-  **`runs/postfix-v2` was killed at 122,500 episodes / 5.55M timesteps (39
-  min)** — owner decision, the same reasoning as the first discard: bugs 1 and 2
-  change which actions are legal during outer-room drafting, a once-per-day
-  decision every single day, so a policy trained through them learns a game we
-  know is wrong. The action-space SIZE was unchanged, so this was a correctness
-  call rather than a forced one.
-
-  Act on this cold as: **play the game through the Play tab before committing
-  compute.** Three real modelling bugs surfaced in a single recorded day, none
-  of which any amount of measurement against the sim would have found — every
-  probe agrees with the engine, because the engine is what it measures.
 
 - **2026-08-08, redraws work on the outer-room draft, from every source.**
   Owner: "Assume that the study works outdoors. I think the reroll works on all
@@ -5986,32 +5744,6 @@ pending that primitive.
   a lever room at 3.3% placement, so the temptation to inflate it is real and
   is being declined on purpose.
 
-- **2026-08-09, comments state what the code does, not what it used to do.**
-  Owner, on PR #89. Code comments, docstrings and test docstrings must describe
-  **current behaviour**. They must not narrate the previous behaviour, argue
-  against a rejected alternative, or cite the bug that motivated the change.
-  When behaviour changes, **delete the old description rather than contrasting
-  with it**.
-
-  The rationale, the rejected alternatives and the measurement belong in the
-  **PR body and the commit message** -- those are the record of *why*. The
-  source comment answers *what*. Test docstrings still state the property under
-  test, which is a hard CLAUDE.md rule, but they state it directly: "a Coin
-  Purse held on entry earns interest on the grant", not "this guards against
-  the wrong fix that would have bypassed the purse hook".
-
-  **#89 was merged carrying the violation**, deliberately: the owner's reason
-  was that the habit is widespread rather than specific to that PR, so fixing
-  one instance while the rest of the tree does it would be noise. The sweep is
-  task 16, scheduled **after** the room-behaviour audit rather than interleaved
-  with it -- a comment-only pass touching many files would collide with every
-  in-flight room PR, which is the same disjointness argument that put the test
-  split first.
-
-  Act on this cold as: **put this constraint in every subagent implementation
-  brief.** Agents narrate their reasoning into the code they write by default,
-  so this recurs unless it is stated up front.
-
 - **2026-08-09, model correctness outranks observation- and action-space
   stability.** Owner: "Do not worry about changing the observation vector or
   action vector. I need the game to function properly before we train anything
@@ -6020,8 +5752,9 @@ pending that primitive.
   This **suspends** the standing caution that has shaped several earlier
   decisions -- the 2026-07-27 "an action slot exists for every node regardless,
   so switching an area on later is mask-only", the PR2/PR3 merge whose split
-  existed to keep the action space frozen, and the 2026-08-07 note that an
-  observation-space change kills every checkpoint the moment it merges. Those
+  existed to keep the action space frozen, and the standing rule that an
+  observation-space change kills every checkpoint the moment it merges
+  ([`process.md`](process.md)). Those
   were correct while a run was live or imminent. No run is live, no checkpoint
   is being preserved, and the 11.0% lever-room measurement says a trained
   policy would be measuring room availability rather than skill.
@@ -6170,47 +5903,6 @@ pending that primitive.
   `rooms.json` is their build artifact, and `test_ingest_overrides.py` exists
   solely to prove the two agree. Moving behaviour into code deletes that whole
   apparatus -- but only if the field moves out of the JSON entirely.
-
-- **2026-08-09, the audit worklist is worked lane by lane, not to a number.**
-  Owner, after being shown that the "drop the divergence audit below 70
-  findings" target could not be reached from cheap work alone. Of the 34 kind-1
-  findings, roughly 21 are blocked on new engine capability rather than on
-  authoring: 8 need "which rooms were drafted through THIS placed Cloister", 3
-  need cross-day package delivery, 2 need the spread pipeline, 2 need items that
-  do not exist, and 4 need genuinely new mechanics. Only about 10 were reachable
-  by data plus a room module.
-
-  So the goal is restated as **clear everything lane A can reach**, which lands
-  near 85-90 findings rather than 70. The remaining gap is lane B and is worked
-  on its own merits, not to hit a number. Act on this cold as: a metric target
-  set before triage will usually price in work that does not exist at that
-  price.
-
-  **Lane A** is a room whose behaviour fits existing parametric tags or a
-  `room_hook` module: disjoint files, so several agents run at once.
-  **Lane B** is anything needing a new shared primitive, a new action, a new
-  item, or cross-day machinery: it touches shared files and runs serially.
-  **Lane C** is anything needing an owner ruling: parked and batched.
-
-- **2026-08-09, lane B work is queued without waiting for per-PR approval.**
-  Owner: "You can queue up all the changes on Lane B assuming I approve the
-  merges because I generally make very few changes to your PRs."
-
-  So a lane-B PR is built, reviewed by the orchestrator, and merged once all
-  three gates are green, rather than blocking on an LGTM. Dependent work stacks
-  on the branch immediately rather than waiting.
-
-  **Three things this does NOT relax**, because none of them is about approval
-  speed:
-
-  - Anything needing a **ruling** is still parked and batched, never guessed.
-    The owner's involvement is being spent on decisions, not on merges.
-  - Every diff is still **reviewed by the orchestrator before merge**. That
-    review has caught something in most rounds -- a test that pinned a bug as
-    correct, a glyph read off the mojibake, a private-global import across a
-    module boundary.
-  - The **gates still bind**: tests, ruff, and validate_data at 0 errors and 0
-    warnings, on every commit.
 
 - **2026-08-09, allowance is a permanent accumulating total, and most of its
   sources are one-time.** Owner, prioritising it as the next lane-B item after
@@ -6717,328 +6409,3 @@ pending that primitive.
   the cycle by variant id, which is only worth doing if upgrade-swapping turns
   out to be common in real play.
 
-## 5. Throttle the training terminal output — DONE
-
-The trainer currently refreshes the dashboard after every completed seed, which
-costs real throughput on long runs (terminal writes are synchronous and the render
-rebuilds the whole frame).
-
-Requirements:
-- Emit updates roughly **5% of the time** rather than every episode.
-- Expose the cadence as a **command-line flag** on `blueprince-train` (e.g.
-  `--dashboard-every 0.05` as a fraction, or `--dashboard-every 20` as "every Nth
-  episode" — pick one and document it; a fraction reads better against "5% of the
-  time").
-- The rate should apply to the per-episode refresh path only. Keep terminal events
-  that matter regardless of cadence (checkpoint writes, the chain's day rollover
-  note, warnings) unthrottled, and make sure the final frame after a run ends is
-  always rendered so the last numbers on screen are true.
-- Relevant code: `src/blueprince_sim/rl/train.py` (the callback that calls
-  `Dashboard.update` / `emit`) and `src/blueprince_sim/rl/dashboard.py`.
-
-Implemented as `--dashboard-every FRACTION` (default 0.05 = one line in 20; 0
-disables the per-episode lines entirely). The per-episode chain note was the only
-high-frequency terminal output — every other emit is lifecycle (checkpoint, stop
-signal, resume banner, final summary) and stays unthrottled, and
-`dashboard.deactivate()` still renders a true final frame.
-
-Not yet measured: the throughput win is assumed, not quantified. Worth a timed
-before/after on a real run.
-
-## 6. Remove "puzzle only" items
-
-Some items exist solely to open one specific thing and are consumed doing it. They
-cost an inventory slot, a spawn roll, trade-tier membership and often an action id,
-and return nothing an agent can reason about — the sim already assumes the player
-solves the puzzle of any room they enter, so the *reward* can simply arrive on
-entry. The Wind-up Key was removed on exactly this reasoning (design doc
-simplification #17); apply the same test to the rest of the catalogue.
-
-Candidates to audit: `diary_key` (opens the Sleep Diary only), `key_of_aries`
-(opens the Treasure Trove box only), `file_cabinet_key` (one drawer each),
-`basement_key`, `mora_jai`-adjacent records if any. For each: does holding it ever
-present the agent with a *choice*? If not, delete the item and grant its payoff
-directly.
-
-**Audited and ruled 2026-08-06 — see the decisions log.** Outcome: **`diary_key`
-removed; everything else kept or deferred.** `file_cabinet_key` KEEP,
-`basement_key` KEEP, `sanctum_key` and `key_of_aries` DEFER. Two findings that
-changed the task's premise: the removal candidates were already
-`implemented: false` with zero Python references, so this frees an observation
-dimension and a spawn slot — **not** the action id and inventory slot the task
-assumed; and there is no `mora_jai` record at all, the item standing in for
-"opens a Mora Jai box" is `sanctum_key`. The calibration example for the
-decisive test is `basement_key`: holding it is the literal difference between
-`reservoir_south` and the far side of the Basement being reachable or not.
-
-## 7. Ignition candles in the Abandoned Mine
-
-Blocked on task 4 (outside-area movement graph). Eight candlesticks stand in the
-Abandoned Mine's circular room; lighting them all with an ignition tool (Torch or
-Burning Glass) permanently sinks the floor into a stairway down to **the
-Precipice**. So it is a graph edge, not just a reward — add it when the area graph
-lands, as a permanent `abandoned_mine -> precipice` edge.
-
-The Mine is also what connects the Reservoir's north and south halves, which is
-the likely source of the earlier belief that the candles linked the Reservoir to
-the Precipice. They do not: the Reservoir reaches the Precipice only by walking
-through the Mine.
-
-## 8. Model the Casino games
-
-The Casino is a room of gambling minigames (slot machine, roulette). Two pieces:
-1. **Expected value** for the reward function, so a policy can price entering.
-2. **Outcome simulation** so those rewards actualize — seeded rolls, per-game odds
-   in data.
-
-Ties into the Broken Lever (its golden slot machine gives 5 bonus spins instead of
-3) and the Allowance Token (roulette is a repeatable source).
-
-## 9. The Antechamber needs a lever, not just a door
-
-Landing this is the validation test for the Upgrade Disk work: Cloister of
-Orinda opens a random Antechamber door, which is worthless while the Antechamber
-has no locks, so Orinda's measured value should rise once this lands. How to
-measure that — and why the comparison needs control upgrades and a fixed
-instrument — is in
-[`upgrade-value-measurement.md`](upgrade-value-measurement.md). Take the
-pre-lock baseline **before** starting this task.
-
-**Current model is wrong in an important way**: the run is resolved by walking into
-the Antechamber, but in the real game its doors must first be opened by a lever
-found in the **Secret Garden**, **Great Hall**, **Greenhouse** (with a Broken
-Lever), or **Weight Room** (after breaking the wall with a Power Hammer). The
-Greenhouse case is already modeled (PR #28) as opening the Antechamber's south
-segment; the other three are not, and neither is the requirement itself.
-
-This changes the shape of a winning run and therefore the reward landscape — treat
-it as a design pass, not a patch. The north Antechamber door is a separate matter:
-it opens only from the Throne Room and the Sanctum lever.
-
-## 10. Allowance for assumed-solved puzzles
-
-Because the sim assumes the player solves every puzzle in a room they enter,
-several rooms should carry a standing **+2 allowance**: the **Cloister**, the
-**Trading Post**, and the **Closed Exhibit**. Verify against the wiki whether this
-is allowance (the daily gold packet) or a one-time grant, then encode it the same
-way task 3's safes are.
-
-## 11. Model the Pump Room's water levels
-
-Write-up only (owner decision, 2026-08-04: gate the Basement doors on the
-Basement Key now, take on the Pump Room next) — not built in this pass. Two
-graph edges already carry stub gates waiting on this
-(`pump_water_lte8`, `rowboat_water_6`, both `retire_in: "PR-pump-room"`), and a
-third traversal condition (below) is not modelled at all yet.
-
-**The room.** Six water sources, each with its own independent integer level
-— there is no single estate-wide "water level":
-
-| Source | Initial / max level |
-|---|---|
-| Fountain | 12 / 12 |
-| Reservoir | 14 / 14 |
-| Aquarium | 6 / 6 |
-| Kitchen | 0 / 3 |
-| Greenhouse | 1 / 5 |
-| Pool | 8 / 9 |
-
-Two tanks (capacity 4 each) and four pumps move water between a tank and any
-one of the six sources: *"Switching a pump up causes water to drain from a
-selected water source into a tank. Switching a pump down causes water to fill
-a selected water source from a tank."*
-
-**Persistence rule.** *"Changes to the water levels are permanent, although
-the selected source and position of the pump levers will reset each day."*
-So: the six integer levels need to live in carry-over state (permanent, like
-`collected_disks`), while which source each pump currently targets and each
-lever's position are ordinary per-day `GameState` (reset every `reset()`,
-never carried).
-
-**Gates this retires:**
-- `pump_water_lte8` (`grounds -> well`): Fountain level `<= 8`.
-- `rowboat_water_6` (`reservoir_south <-> safehouse`): Reservoir level
-  `== 6`.
-- `reservoir_water_13` (`reservoir_north <-> reservoir_south`): Reservoir level
-  `== 13` lets the boat cross the Reservoir side-to-side. **The edge and gate now
-  exist** (2026-08-06) — this entry used to say the crossing was "not represented
-  as a graph edge/gate at all". Distinct from the Safehouse rowboat gate.
-
-  **Unlike every other gate in this list it defaults CLOSED**, so retiring it
-  *opens* a route rather than tightening one. That is the reverse of the usual
-  stub-retirement direction and it must be re-measured, not assumed safe: an open
-  crossing puts the `safehouse` (a Sanctum Key source) 6 key-free hops from the
-  house. See `docs/areas.md` for the measurement and the reasoning.
-
-**New traversal condition to add**, not currently modelled even as a stub:
-`well -> reservoir_south` needs Fountain level `== 0`, checked on **every**
-traversal (not just once) — *"this passage is only traversible while the
-fountain water level is 0"* (Well). This is on top of the existing permanent
-Basement Key unlock (`basement_key_well`); the two are independent conditions
-(key unlocks the door permanently, water level gates whether the passage is
-currently passable). See `areas.md` for the full edge-table writeup.
-
-**Action-space consequence.** Setting pump target/direction is a player
-action with no equivalent today — this is not a pure data/gate change like
-the other stub retirements in this file, it adds to the action space and
-therefore **belongs bundled with a retrain**, the same reasoning that governed
-task 4's sequencing.
-
-## 12. The Greenhouse's Power Hammer wall changes its layout
-
-Write-up only — not built in this pass.
-
-**The Greenhouse is the only room whose doors change when a Power Hammer wall
-comes down** (owner, 2026-08-04). Quoting
-`https://blueprince.wiki.gg/wiki/Greenhouse`:
-
-- *"The Greenhouse, while initially a Dead End, has a hidden passage which
-  includes an extra exit door. This hidden section can be permanently opened
-  by using the Power Hammer on the brick wall to the left after entering."*
-- *"After the wall is removed, the floorplan is updated to reveal the new
-  door and the room permanently changes to an L-shape room."*
-- *"if the wall was opened on a previous day, it no longer counts towards the
-  total number of Dead Ends in the house."*
-
-The sim already carries the destination shape: the `greenhouse` record in
-`rooms.json` is `layout: "dead_end"` with `alt_layouts: ["corner"]`. What is
-missing is anything that switches between them.
-
-**The Weight Room is NOT this mechanism, and must not be folded into it.** Its
-Power Hammer wall reveals *"a lever for the south Antechamber door as well as
-two documents"* (`https://blueprince.wiki.gg/wiki/Weight_Room`), and the space
-*"will always be accessible on future days"*. The room's own doors are
-unchanged — it has no `alt_layouts` entry, and the wiki says nothing about its
-shape. `Game._enter_lever_room` already models it correctly, as a permanent
-lever unlock (`weight_room_wall_broken`) that opens the Antechamber's south
-segment. Nothing about the Weight Room needs to change.
-
-**Why the Greenhouse is harder than a doorway flip:**
-
-- **Layout, not just doors.** A room's shape comes from an immutable `Room`
-  record (`model.Registry.load()`) and is consumed by `legal_orientations` at
-  draft/placement time. Nothing lets a room already on the grid swap its shape
-  record mid-run, and nothing carries such a swap across the day boundary the
-  way `foundation_cell` carries a placement.
-- **Two distinct cases.** Breaking the wall today mutates a room already
-  standing on the grid; on every later day the Greenhouse must instead be
-  *drafted and placed* in its `corner` layout from the start. The second case
-  is the easy one — it is a carry-over flag consulted at deck/placement time.
-  The first needs live mutation of a placed room.
-- **Dead End counting.** The Greenhouse starts as a Dead End and stops being
-  one once broken, for the rest of the attempt. That count feeds the Tomb's
-  `coins_per_deadend` effect (`effects/tier1.py`, which reads
-  `ctx_room.layout == "dead_end"` at draft time) and the `dead_end`
-  day-termination path (`game.py`). A layout change that does not also move
-  the Dead End count would leave the Tomb paying out for a room that is no
-  longer a Dead End.
-- **Retroactive across days.** A wall broken on an earlier day stays broken
-  and stays un-counted, so this needs the authoritative-once-set carry-over
-  shape of `foundation_cell`, not a same-day flag like `garage_door_breaker`.
-
-**Suggested shape for a future PR:** a `greenhouse_wall_broken` carry-over
-flag, set when the player breaks the wall with a Power Hammer; consulted at
-placement/legality time to substitute the `corner` layout for `dead_end`; plus
-the matching correction to Dead End counting so the Tomb effect and the
-termination path both stop seeing it as a Dead End.
-
-## 13. Bound the Observatory's in-memory replay index — DONE
-
-`web/server.py`'s `Observatory._records` was a `dict[episode -> full replay
-record]`, ingested from `replays.jsonl` and never bounded. Measured against a
-real run (`runs/foundation-v2/replays.jsonl`, 7,940 episodes, 4.68 MB on disk):
-**3,089 bytes per episode — 5.24x the on-disk size**, i.e. ~31 GB at 10M
-episodes. RAM, not disk, was the blocker on raising `--record-sample-rate`
-toward 1.0.
-
-Replaced with a two-part index, per owner decision (interview, 2026-08-05):
-
-- **Offset index.** A `_RunMeta` NamedTuple holds the record's `(offset,
-  length)` in `replays.jsonl` plus only the metadata `runs_index()` returns;
-  `run_frames()` seeks and parses the single line on demand. The bulk — the
-  `actions` list and `modes` string — is no longer resident. `reason` and
-  `saved_at` are `sys.intern`ed, which is a large part of the win because
-  timestamps and reasons repeat heavily across episodes.
-- **Hard cap.** Ordinary records live in an `OrderedDict` capped at
-  `--max-runs` (default 20000), evicted oldest-ingested-first; best-of-window
-  (`why: "top_window"`) records are held in a separate dict and never evicted.
-
-**Residual, stated rather than glossed:** the top-record dict is NOT capped. It
-grows at one record per `--record-top-every` episodes (trainer default 1000),
-so ~10k entries / a few MB at 10M episodes. `--record-top-every 1` would defeat
-the cap.
-
-**Known and deliberately not fixed here:** `/api/runs` returns one row per
-retained episode with no pagination, and `refreshRuns()` in `app.js` builds the
-whole list into `innerHTML`. The cap bounds that payload as a side effect, but
-if `--max-runs` is raised far above the default the browser becomes the next
-limit, not the server.
-
-## 14. Category biases that nothing ever activates
-
-Found while auditing the Cloister boosts (2026-08-05). `data/priority_draws.json`
-declares **22 `category_biases` entries; only 8 can ever fire.**
-`draft.py::_active_conditions` emits exactly three condition families —
-`furnace_or_king` (from `state.furnace_placed`), `greenhouse_or_king` (from
-`state.greenhouse_placed`), and `scepter_<color>` (from
-`state.shops.scepter_color`). Verified by grep over all of `src/`: no other code
-path produces any of the remaining tags.
-
-The **14 inert entries**, spanning **9 distinct condition names**:
-
-| Condition | Entries | Biases toward |
-|---|---|---|
-| `king` | 5 | blueprint, hallway, bedroom, shop, blackprint categories |
-| `southern_cross_constellation` | 1 | `layout: cross`, 40% |
-| `draxus_constellation` | 1 | `layout: dead_end`, 30% |
-| `drafting_from_library` | 2 | the Bookshop (50%) and `rarity: rare` (100%) |
-| `schoolhouse` | 1 | the Classroom, 35% |
-| `electromagnet` | 1 | mechanical/rotunda, 40% |
-| `chronograph` | 1 | tomorrow rooms, 40% |
-| `adjacent_duct` | 1 | `flag: powered`, 40% |
-| `adjacent_powered` | 1 | `flag: duct`, 40% |
-
-**Owner decision (interview, 2026-08-05): fold the whole set into the Southern
-Cross work** — build the activation plumbing once and light up every condition
-that has a modelled source, leaving the rest documented as still-unsourced.
-
-**Why Southern Cross is the one that matters for the upgrade study.** The two
-Cloister boosts that already work bias by **category** (`green`); Southern Cross
-biases by **layout** (`cross`). Every Cloister variant is `layout: cross`, but
-`cloister_of_orinda__ix35` is `category: blackprint` and
-`cloister_of_draxus__ix36` is `category: red` — so the two working boosts stop
-applying to exactly the two variants the Orinda measurement cares about.
-Southern Cross is the only one that does not.
-
-**Research needed before any code**: what activates a constellation in the real
-game (Observatory / Telescope?), whether it is per-day or permanent, and whether
-`king` is the Banner of the King (`scepter_*` already cites the Royal Scepter as
-having "the same effect as Banner of the King", which suggests the `king` tag and
-the scepter tags may be the same mechanism entered from two directions). Do not
-infer any of this from the existing table.
-
-### Status after PR #60 and 2026-08-06 — the table above is stale
-
-`_active_conditions` now also emits `schoolhouse`, `southern_cross_constellation`,
-`draxus_constellation` and `drafting_from_library`, so most of the 14 are wired.
-What actually remains:
-
-- **`drafting_from_library` — DONE, and it was the wrong mechanism.** The Library
-  does not bias a re-deal; it **replaces the rarity table outright** (Commonplace
-  0%, Standard 0.01%, Unusual 49.99%, Rare 50%, datamined). Implemented in
-  `decks.py::roll_rarity` with the table in `weights.json`; the inert
-  `category_biases` signpost entry is deleted. The Bookshop 50% entry is separate
-  and still a genuine category bias.
-- **`schoolhouse` — the last small one.** `state.schoolhouse_placed` is read by
-  `_active_conditions` but **nothing ever sets it**. It needs one `Hook.ON_PLACE`
-  effect tag mirroring `greenhouse_bias`/`furnace_bias` in `effects/tier1.py`.
-  The Schoolhouse record already has a working `inject_pool` ON_PLACE effect, so
-  this is a second tag on an existing list. 35% Classroom bias is datamined.
-
-  **Completeness gap worth flagging separately**: the wiki says the Schoolhouse
-  also boosts the Library and Studio Addition: Dormitory, but our data encodes
-  only the Classroom entry. That is a missing-entries problem, not a wrong
-  magnitude — do not invent the other two percentages.
-- **Still genuinely unsourced** (no modelled activation source): the five `king_*`
-  tags, `electromagnet`, `chronograph`, `adjacent_duct`, `adjacent_powered`, and
-  the two constellations' activation chains.

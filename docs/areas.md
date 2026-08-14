@@ -367,13 +367,52 @@ Surfaced by building this graph:
 
 ## Items this unblocks
 
-All currently inert with `meta.blocked_on` set:
+The items whose whole point is an area gate. All but the last are implemented
+now; the list stays because it records what each one is *for*.
 
 - `microchip` — 3 exist; all three gate the Orindian Ruins door, the Apple
-  Orchard sundial, and one Crate Tunnel door.
-- `sanctum_key` — one per sigil chamber, consumed.
-- `key_of_aries` — from the Unknown (Underground) clock.
+  Orchard sundial, and one Crate Tunnel door. See the gate design below.
+- `sanctum_key` — one per sigil chamber, consumed. Modelled as eight
+  per-source ids, so each respawns independently.
+- `basement_key` — a deliberate **KEEP** under the puzzle-only-item test
+  (`open_tasks.md` task 6), and the calibration example for it: holding it is
+  the literal difference between `reservoir_south` and the far side of the
+  Basement being reachable or not, via `basement_key_well` and
+  `basement_key_foundation` (both directions of `the_foundation <-> basement`).
+  An item that gates traversal is never puzzle-only.
+- `key_of_aries` — from the Unknown (Underground) clock. The one **decided
+  against** rather than pending: `meta.wont_implement`, because its payoff is
+  already granted.
 - `file_cabinet_key` — Crate Tunnel. Note the Archives disk sits behind it.
+
+### The three-microchip gate, and two designs rejected for it
+
+`blackbridge_grotto -> orindian_ruins` needs three microchips, but the third
+never enters the inventory: it sits in the Grotto pedestal. `Gate.counts_flag`
+resolves this — `three_microchips` keeps `count: 3` and gains
+`counts_flag: "grotto_chip_in_place"`, emitted by `_gate_ctx` while
+`GameState.grotto_chip_taken` is false, so the gate counts an in-place copy the
+player does not carry.
+
+`grotto_chip_taken` is **day-scoped with no `_CARRYOVER_KEYS` entry**, which
+inverts the obvious reading of "match `entrance_vase_broken` / `outer_chip_dug`".
+Those two are carry-over keys because they record a permanent *discovery*, with
+the day-start re-grant layering respawn on top. The Grotto chip has no
+discovery — it is in the pedestal from day 1 with no prerequisite — so respawn
+falls out of the field defaulting `False` at every `reset()`. Matching their
+semantics meant **not** copying their plumbing.
+
+Two alternatives were rejected, recorded so they are not re-proposed:
+
+- **`count: 2` plus a flag gate on the edge's `requires` list.** `requires` is
+  AND, so "took the chip, still holding three" would be shut.
+- **Injecting a synthetic microchip into `held_items`.** That makes
+  `held_items` lie to every other item gate.
+
+Note the chip economy does not close: the sundial at `apple_orchard` needs
+three *held* microchips and the engine's ceiling is two (Entrance Hall vase,
+West Path dig). It is built correct-and-unreachable deliberately — inventing a
+third source would be making up a game rule, and no ruling exists for one.
 
 ## How it works in code
 
