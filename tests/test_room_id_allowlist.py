@@ -175,6 +175,10 @@ ALLOWLIST: dict[str, set[str]] = {
         # ones docs/open_tasks.md #21 names as the pattern-setter to fix.
         "commissary", "gift_shop", "kitchen", "locksmith", "showroom",
         "trading_post", "workshop",
+        # _DISCOUNT_EXEMPT_SHOPS frozenset: the two shops where the Coupon
+        # Book (SHOP_DISCOUNT) has no effect (wiki-confirmed for both), a
+        # genuine per-shop-id behaviour branch in stock_display's pricing.
+        "casino", "laundry_room",
     },
     "special_items.py": {
         # room.id == "dining_room" / variant_of == "dining_room": the Dining

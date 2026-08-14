@@ -59,6 +59,38 @@ PERSISTENCE = ("day", "until_used", "permanent")
 # Dig-tool priority: better tables win; shared with shops.py (imported from there).
 DIG_PRIORITY: tuple[str, ...] = ("jack_hammer", "detector_shovel", "shovel")
 
+# ------------------------------------------------ contraption carry-over lockout
+#
+# A contraption held at day start (carried overnight via Coat Check or Moon
+# Pendant, rather than assembled fresh today) blocks a wiki-curated SUBSET of
+# its own fabrication inputs from spawning/purchase/guaranteed-grant for that
+# day (wiki/Coat_Check, "Effect" -> Interactions): "If a contraption is
+# checked at the start of a day, it will remove some of its component items
+# from the item pool to prevent multiple items with similar functionality
+# from being obtained on the same day. The items removed differ from
+# contraption to contraption." Every contraption blocks something -- there is
+# no exemption: "The Dowsing Rod prevents the Compass from being obtained
+# while checked" and "The Pick Sound Amplifier prevents the Lock Pick Kit
+# from being obtained while checked" are both listed like every other entry.
+# Not derivable from the fabrication recipe generically: most recipes block
+# only ONE of their 2-3 inputs (wiki, verbatim): "Components not listed above
+# can still be obtained while their corresponding contraption is checked. For
+# instance, the Broken Lever and Battery Pack can still be found while either
+# the Power Hammer or Jack Hammer is checked" -- Magnifying Glass is likewise
+# never blocked. This table is the wiki's own per-contraption list, checked
+# against data/special_items.json's fabrication recipes (each blocked id is a
+# real recipe input for that contraption; the ones the wiki omits are not).
+CONTRAPTION_LOCKOUT: dict[str, frozenset[str]] = {
+    "burning_glass": frozenset({"metal_detector"}),
+    "detector_shovel": frozenset({"metal_detector", "shovel"}),
+    "dowsing_rod": frozenset({"compass"}),
+    "jack_hammer": frozenset({"shovel"}),
+    "lucky_purse": frozenset({"lucky_rabbits_foot", "coin_purse"}),
+    "pick_sound_amplifier": frozenset({"lock_pick_kit"}),
+    "power_hammer": frozenset({"sledge_hammer"}),
+    "powered_electromagnet": frozenset({"compass"}),
+}
+
 # --------------------------------------------------- item priority chains
 #
 # One named, ordered, engine-owned tuple per ItemHook this module fires --
@@ -596,6 +628,18 @@ def configure(state, cfg, registry=None) -> None:
     # Telescope: gated out below 1 start-of-day star (cfg.stars, not the
     # live-growing state.stars -- see effects/items/telescope.py::gate).
     telescope.gate(cfg, gated)
+    # Contraption carry-over lockout: cfg.starting_items is what a contraption
+    # carried overnight (Coat Check / Moon Pendant) arrives through -- it is
+    # granted into inventory AFTER this function runs (see Game.reset), so
+    # checking it here rather than state.inventory catches a carried
+    # contraption before it is even held, and never fires for one assembled
+    # fresh today (fabricate() never touches cfg.starting_items). Day-scoped
+    # like every other entry in ``gated``: a fresh SpecialItemsState next day
+    # drops it unless the contraption carries over again.
+    for contraption_id in cfg.starting_items:
+        for comp_id in CONTRAPTION_LOCKOUT.get(contraption_id, ()):
+            if comp_id not in gated:
+                gated.append(comp_id)
     state.special.gated_out = gated
     # Ignition targets permanently lit across days: pre-populate lit_targets so
     # can_light() blocks them on day N+1 just as it would mid-day.

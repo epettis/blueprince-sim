@@ -7,6 +7,7 @@ from blueprince_sim.engine import shops, special_items as si
 from blueprince_sim.engine.game import Game
 from blueprince_sim.engine.grid import N
 from blueprince_sim.engine.locks import DOOR_LOCKED, segment_key
+from blueprince_sim.env.multiday import DayChain
 
 
 # ------------------------------------------------------------------ helpers
@@ -299,6 +300,22 @@ def test_trade_dice_sentinel_in_graph_yields_die():
     assert any(kind == "die" for kind, _ in new_entries), (
         "expected a die when the trade graph maps shovel to 'dice'"
     )
+
+
+def test_t5_special_chance_missing_key_raises():
+    """trading['t5_special_chance'] has no fallback default: a data source
+    that omits the key must raise KeyError rather than silently rolling at
+    some made-up rate.
+
+    load_shops() is the ONLY ShopsRegistry constructor in the codebase
+    (verified by AST: a single Call node named ShopsRegistry, in
+    engine/shops.py itself) and data/shops.json always supplies the key, so
+    this can only be reached by a future data bug -- which must fail loudly.
+    """
+    game = _game(seed=0)
+    game.registry.shop_rules.trading.pop("t5_special_chance")
+    with pytest.raises(KeyError):
+        shops._roll_trade_graph(game)
 
 
 def test_trade_graph_rolled_lazily_on_first_offer():
@@ -878,6 +895,113 @@ def test_fabricated_pick_sound_amplifier_opens_locked_door():
 
     assert successes >= 5, (
         "expected pick_sound_amplifier to open at least 5 locked doors across 50 seeds"
+    )
+
+
+# ------------------------------------------ contraption carry-over lockout
+#
+# wiki/Coat_Check, Effect -> Interactions: "If a contraption is checked at
+# the start of a day, it will remove some of its component items from the
+# item pool ... The items removed differ from contraption to contraption,"
+# followed by a per-contraption list that includes BOTH the Dowsing Rod
+# ("prevents the Compass from being obtained") and the Pick Sound Amplifier
+# ("prevents the Lock Pick Kit from being obtained") -- there is no
+# per-contraption exemption, and the block set is a curated SUBSET of each
+# recipe's inputs, not the whole recipe ("Components not listed above can
+# still be obtained ... the Broken Lever and Battery Pack can still be found
+# while either the Power Hammer or Jack Hammer is checked").
+
+def test_contraption_carried_via_coat_check_gates_its_listed_component_only():
+    """A Power Hammer carried into day 2 via Coat Check gates the Sledge
+    Hammer (its wiki-listed component) but leaves the Battery Pack and
+    Broken Lever -- its other two recipe inputs -- obtainable.
+
+    Exercises the full observable path: fabricate -> coat_check_on_enter ->
+    carryover() -> DayChain.advance() -> next day's Game.reset() ->
+    gated_out. Nothing here derives its expectation by calling the function
+    under test (special_items.configure); the blocked/unblocked ids are
+    asserted as literal wiki facts.
+    """
+    chain = DayChain(GameConfig(royal_scepter_found=False), n_days=5)
+
+    cfg1 = chain.next_config()
+    g1 = Game(cfg1, seed=3)
+    g1.state.inventory["sledge_hammer"] = 1
+    g1.state.inventory["battery_pack"] = 1
+    g1.state.inventory["broken_lever"] = 1
+    _place_workshop(g1)
+    shops.fabricate(g1, "power_hammer")
+    assert si.has(g1.state, "power_hammer"), "setup: fabrication must succeed"
+
+    si.coat_check_on_enter(g1)
+    assert g1.state.special.coat_check_item == "power_hammer", "setup: must be checked"
+
+    co = g1.carryover()
+    assert "power_hammer" in co["starting_items"], "setup: must carry to tomorrow"
+    chain.advance(co)
+
+    cfg2 = chain.next_config()
+    assert "power_hammer" in cfg2.starting_items, "setup: day 2 must start with it"
+    g2 = Game(cfg2, seed=4)
+
+    assert "sledge_hammer" in g2.state.special.gated_out, (
+        "carried power_hammer must gate its wiki-listed component sledge_hammer"
+    )
+    assert "battery_pack" not in g2.state.special.gated_out, (
+        "battery_pack is not in power_hammer's wiki-listed block set"
+    )
+    assert "broken_lever" not in g2.state.special.gated_out, (
+        "broken_lever is not in power_hammer's wiki-listed block set"
+    )
+
+
+def test_dowsing_rod_carry_over_gates_compass_not_shovel():
+    """A carried Dowsing Rod gates Compass -- same as every other contraption,
+    with NO exemption (wiki: "The Dowsing Rod prevents the Compass from
+    being obtained while checked"). Shovel, its other recipe input, is not
+    in the wiki's list for this contraption and stays obtainable.
+    """
+    g = Game(GameConfig(starting_items=frozenset({"dowsing_rod"})), seed=1)
+    assert "compass" in g.state.special.gated_out, (
+        "carried dowsing_rod must gate compass (wiki-listed component)"
+    )
+    assert "shovel" not in g.state.special.gated_out, (
+        "shovel is not in dowsing_rod's wiki-listed block set"
+    )
+
+
+def test_pick_sound_amplifier_carry_over_gates_lock_pick_kit_not_metal_detector():
+    """A carried Pick Sound Amplifier gates Lock Pick Kit -- again with no
+    exemption (wiki: "The Pick Sound Amplifier prevents the Lock Pick Kit
+    from being obtained while checked"). Metal Detector, its other recipe
+    input, stays obtainable.
+    """
+    g = Game(GameConfig(starting_items=frozenset({"pick_sound_amplifier"})), seed=1)
+    assert "lock_pick_kit" in g.state.special.gated_out, (
+        "carried pick_sound_amplifier must gate lock_pick_kit (wiki-listed component)"
+    )
+    assert "metal_detector" not in g.state.special.gated_out, (
+        "metal_detector is not in pick_sound_amplifier's wiki-listed block set"
+    )
+
+
+def test_fabricating_today_does_not_gate_its_own_components_today():
+    """Assembling a contraption THIS day (fresh, not carried from a previous
+    day) must not lock out its own components today: the lockout is a
+    start-of-day effect keyed off cfg.starting_items, computed once before
+    the day's first fabrication is even possible, and fabricate() never
+    touches gated_out.
+    """
+    game = _game(seed=0)
+    _place_workshop(game)
+    game.state.inventory["metal_detector"] = 1
+    game.state.inventory["shovel"] = 1
+    shops.fabricate(game, "detector_shovel")
+    assert "metal_detector" not in game.state.special.gated_out, (
+        "fabricating detector_shovel today must not gate metal_detector today"
+    )
+    assert "shovel" not in game.state.special.gated_out, (
+        "fabricating detector_shovel today must not gate shovel today"
     )
 
 
