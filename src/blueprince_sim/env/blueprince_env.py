@@ -92,6 +92,7 @@ class BluePrinceEnv(gymnasium.Env):
             n_carryover=len(DayChain._CARRYOVER_KEYS),
             n_slots=len(all_slot_ids(self.game.registry)),
             n_axe_targets=len(A._build_axe_target_ids(self.game.registry)),
+            n_mechanical_rooms=len(A._build_mechanical_room_ids(self.game.registry)),
         )
         self._env_steps = 0
         self.max_env_steps = 1000

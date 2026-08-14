@@ -9,11 +9,12 @@ from heapq import heappop, heappush
 from ..config import GameConfig
 from . import effects, experiments, shops, special_items
 from .areas import GateContext, reachable
-from .decks import apply_upgrade, build_decks, inject_rooms
+from .decks import apply_upgrade, build_decks, inject_rooms, set_dynamic_rarity
 from .draft import COLOUR_CATEGORIES, SECRET_PASSAGE_IDS, deal_draft, redeal
 from .effects import Capability, Hook
-from .effects.items import (basement_key, crown_of_the_blueprints, keycard, master_key,
-                            paper_crown, power_hammer, prism_key, silver_key, the_axe)
+from .effects.items import (basement_key, crown_of_the_blueprints, gear_wrench, keycard,
+                            master_key, paper_crown, power_hammer, prism_key, silver_key,
+                            the_axe)
 from .effects.rooms import dovecote, foyer, mail_room, shrine
 from .grid import (ADJACENT, DIRS, E, ENTRANCE_CELL, N, N_CELLS, OPPOSITE, W,
                    neighbor, rank_of, rotate_mask)
@@ -21,7 +22,7 @@ from .items import EXTRA_ITEM_TABLE, grant_item, roll_room_items
 from .locks import (DOOR_LOCKED, DOOR_OPEN, DOOR_SEALED, DOOR_SECURITY, SECURITY_LEVELS,
                     roll_segment, segment_key)
 from .locks import security_openable as _security_openable
-from .model import Registry, Room
+from .model import RARITIES, Registry, Room
 from .placement import legal_orientations
 from .rng import Rng
 from .upgrades import (SelectionContext, offer_variants, root_base_id,
@@ -39,6 +40,8 @@ class Phase(Enum):
     EXPERIMENT_PENDING = 4
     COLOUR_PENDING = 5  # Secret Passage: awaiting a colour pick before the hand is dealt
     LOCK_PENDING = 6  # locked doorway: awaiting use_key/lockpick/a special key/abandon
+    WRENCH_PENDING = 7  # Gear Wrench: awaiting a permanent rarity pick for the Mechanical
+                        # Room just placed (Game.choose/Game.set_wrench_rarity)
 
 
 class RedrawKind(Enum):
@@ -99,6 +102,18 @@ class Game:
         st.draft_counts = dict(cfg.draft_counts)
         st.applied_upgrades = set(cfg.upgrade_disks)
         st.axed_rooms = tuple(cfg.axed_rooms)
+        st.permanent_rarity = dict(cfg.permanent_rarity)
+        # Seeds today's dynamic_rarity bucket bookkeeping with every
+        # Gear-Wrench-set override, right after build_decks (which already
+        # placed each wrenched room's cards in the matching bucket via this
+        # same cfg dict) -- so decks.set_dynamic_rarity/inject_rooms/
+        # inject_rooms_undealt's own dynamic_rarity fallback agrees with
+        # build_decks from the first deal onward, and a same-day battery_pack/
+        # Conservatory override on the SAME room is a transient overlay on
+        # top of this permanent baseline (the wiki-documented, deliberately
+        # unfixed Conservatory conflict -- see data/special_items.json's
+        # gear_wrench meta.notes), not a corruption of it.
+        st.dynamic_rarity = dict(cfg.permanent_rarity)
         st.pending_upgrade_slot = None
         st.pending_upgrade_options = ()
         st.shrine_blessing_id = cfg.shrine_blessing_id
@@ -872,7 +887,21 @@ class Game:
         result.update(self._sigil_carryover())
         result.update(self._shrine_carryover())
         result.update(self._axe_carryover())
+        result.update(self._wrench_carryover())
         return result
+
+    def _wrench_carryover(self) -> dict:
+        """Cross-day carry for the Gear Wrench's permanent rarity record.
+
+        Reports the FULL current dict every day (state.permanent_rarity is
+        seeded from cfg at reset() and only ever changed by
+        set_wrench_rarity), so DayChain.advance() can replace its own
+        running value from this the same "state already IS the accumulated
+        total" shape as axed_rooms/draft_counts/foundation_cell -- except,
+        per the owner's SAVE-scoped ruling (matching axed_rooms), DayChain
+        must NOT clear this at the attempt wrap.
+        """
+        return {"permanent_rarity": dict(self.state.permanent_rarity)}
 
     def _shrine_carryover(self) -> dict:
         """Cross-day carry for the active Shrine blessing/curse.
@@ -1768,13 +1797,17 @@ class Game:
     def choose(self, slot: int) -> None:
         """Take the pending hand's option in ``slot``, pay its cost, place the room.
 
-        DRAFTING-phase action; returns the game to NAVIGATE. Placing does not
-        enter the room - no step is spent and none of its resources are gained
-        until the player :meth:`move`s in. Outer-room drafts (target_cell -1)
-        route to their off-grid placement instead. This is also the site that
-        detects the archived_floorplan experiment trigger -- it fires on
-        *choosing* an archived option, not on its earlier deal, so ``opt``'s
-        own ``archived`` flag is threaded into :meth:`_place_room`.
+        DRAFTING-phase action; returns the game to NAVIGATE, UNLESS the
+        placed room is a Mechanical Room (Room.is_category("mechanical"))
+        and a Gear Wrench is held -- then it parks Phase.WRENCH_PENDING
+        instead (wiki: "before the drafting menu closes"), awaiting
+        :meth:`set_wrench_rarity`. Placing does not enter the room - no
+        step is spent and none of its resources are gained until the player
+        :meth:`move`s in. Outer-room drafts (target_cell -1) route to their
+        off-grid placement instead. This is also the site that detects the
+        archived_floorplan experiment trigger -- it fires on *choosing* an
+        archived option, not on its earlier deal, so ``opt``'s own
+        ``archived`` flag is threaded into :meth:`_place_room`.
         """
         assert self.phase is Phase.DRAFTING and self.state.pending is not None
         st = self.state
@@ -1798,7 +1831,12 @@ class Game:
                          gem_cost=0 if waived else cost, archived=opt.archived)
         del self.doorway_drafts[(pending.from_cell, pending.direction)]
         st.pending = None
-        self.phase = Phase.NAVIGATE
+        if (self.cfg.special_items and room.is_category("mechanical")
+                and gear_wrench.held(st)):
+            st.pending_wrench_room_id = room.id
+            self.phase = Phase.WRENCH_PENDING
+        else:
+            self.phase = Phase.NAVIGATE
         self._check_termination()
 
     def _effective_cost(self, room: Room, opt) -> int:
@@ -1846,6 +1884,50 @@ class Game:
         else:
             self.state.gems -= cost
         return False
+
+    # ------------------------------------------------------------ WRENCH_PENDING
+
+    def can_set_wrench_rarity(self, rarity_idx: int) -> bool:
+        """Is picking ``rarity_idx`` (0..3, engine.model.RARITIES order) legal
+        right now?
+
+        Only ``phase is WRENCH_PENDING`` gates this -- all four levels are
+        always offered (wiki: "moved freely to any of the four rarity
+        levels"), including the room's own current one (that IS how a
+        player declines to change anything, since :func:`decks.
+        set_dynamic_rarity` is a no-op when the target already matches), so
+        this phase can never dead-end.
+        """
+        return self.phase is Phase.WRENCH_PENDING and 0 <= rarity_idx < len(RARITIES)
+
+    def set_wrench_rarity(self, rarity_idx: int) -> None:
+        """Resolve the Gear Wrench's rarity pick for the room parked in
+        ``state.pending_wrench_room_id``, then return to NAVIGATE.
+
+        Moves the room's live-deck cards via :func:`decks.set_dynamic_rarity`
+        (the current bucket it reads is ``state.dynamic_rarity``'s own
+        fallback to ``room.rarity_idx``, so this is correct whether the room
+        starts the day in its natal bucket, a previously-wrenched one, or one
+        a same-day battery_pack/Conservatory override already moved it to).
+        Records the permanent choice in ``state.permanent_rarity``, popping
+        the entry when ``rarity_idx`` matches the room's own natal rarity --
+        the same idempotent-pop convention ``set_dynamic_rarity`` itself uses
+        -- so the persisted dict only ever holds genuine overrides.
+        """
+        assert self.can_set_wrench_rarity(rarity_idx), f"cannot set rarity {rarity_idx} here"
+        st = self.state
+        room_id = st.pending_wrench_room_id
+        assert room_id is not None, "not awaiting a wrench choice"
+        room = self.registry.by_id[room_id]
+        set_dynamic_rarity(st, self.registry, room_id, rarity_idx, self.rng,
+                           label="gear_wrench_set_rarity")
+        if rarity_idx == room.rarity_idx:
+            st.permanent_rarity.pop(room_id, None)
+        else:
+            st.permanent_rarity[room_id] = rarity_idx
+        st.pending_wrench_room_id = None
+        self.phase = Phase.NAVIGATE
+        self._check_termination()
 
     # There is no decline: opening a door commits you to drafting one of the
     # dealt rooms. Slot 1 is always the free forced-Closet fallback, so an

@@ -3,7 +3,8 @@
 from scipy import stats
 
 from blueprince_sim.config import GameConfig
-from blueprince_sim.engine.decks import build_decks, eligible_pool, inject_rooms_undealt
+from blueprince_sim.engine.decks import (build_decks, eligible_pool, inject_rooms,
+                                         inject_rooms_undealt)
 from blueprince_sim.engine.draft import DraftContext, _priority_draw
 from blueprince_sim.engine.game import Game
 from blueprince_sim.engine.grid import N
@@ -264,3 +265,89 @@ def test_axing_a_room_never_moves_its_cards_between_decks(registry):
     assert game.state.decks[free_idx].order.count(room.idx) == 0, (
         "the axed room's cards were moved into the free deck"
     )
+
+
+# --------------------------------------------------------- Gear Wrench guard
+
+
+def test_gear_wrench_pump_room_injection_lands_in_wrenched_bucket_not_natal(registry):
+    """The reachable corruption decks.py::inject_rooms's own docstring warns
+    about: Pump Room is BOTH Mechanical (wrenchable) and pool_temp (never in
+    build_decks's eligible pool -- it only ever reaches a live deck through
+    The Pool's decks.inject_rooms call). A permanently-wrenched Pump Room's
+    injected cards must land in the wrenched bucket, not the room's own
+    natal one -- landing in both would be a reachable split-bucket
+    corruption (two decks both claiming to hold the same physical card),
+    landing only in the natal bucket would silently discard the wrench.
+
+    Mutation-tested: reverting inject_rooms to index by ``room.rarity_idx``
+    directly (its shape before this change) makes this fail -- the injected
+    copy then lands in the natal (standard) bucket instead of the wrenched
+    (rare) one, and the natal-bucket assertion below flips true.
+    """
+    pump_room = registry.by_id["pump_room"]
+    assert pump_room.pool == "pool_temp", "must be pool_temp for this guard to mean anything"
+    natal_idx = pump_room.rarity_idx
+    target_idx = 3  # rare; natal is standard (1), so this is a genuine move
+    assert target_idx != natal_idx
+
+    cfg = GameConfig(permanent_rarity={pump_room.id: target_idx})
+    rng = Rng(0)
+    state = GameState(decks=build_decks(registry, cfg, rng))
+    # Game.reset's own seeding step, right after build_decks (see its own comment).
+    state.dynamic_rarity = dict(cfg.permanent_rarity)
+
+    inject_rooms(state, registry, [pump_room.id], rng)
+
+    natal_deck = state.deck(natal_idx, not pump_room.is_free)
+    wrenched_deck = state.deck(target_idx, not pump_room.is_free)
+    assert pump_room.idx not in natal_deck.order, (
+        "a wrenched Pump Room's injected cards leaked into its natal bucket"
+    )
+    assert wrenched_deck.order.count(pump_room.idx) == pump_room.deck_copies, (
+        "the injected copies did not land in the wrenched bucket"
+    )
+    # Conservation: exactly one bucket holds the injected copies, total
+    # matches deck_copies -- never split across two buckets.
+    total = sum(d.order.count(pump_room.idx) for d in state.decks)
+    assert total == pump_room.deck_copies
+
+
+def test_gear_wrench_build_decks_seeds_wrenched_room_in_target_bucket(registry):
+    """cfg.permanent_rarity relocates a deck-resident room's cards to the
+    wrenched bucket at day-start build time (no same-day set_dynamic_rarity
+    sweep needed): zero cards in the natal bucket, the full count in the
+    target bucket, and the total card count conserved against an
+    unwrenched build of the same config."""
+    room = registry.by_id["boiler_room"]  # unusual (gem deck), deck-resident (pool == "base")
+    assert room.pool == "base"
+    natal_idx = room.rarity_idx
+    target_idx = 0  # commonplace
+    assert target_idx != natal_idx
+
+    plain = build_decks(registry, GameConfig(), Rng(0))
+    wrenched = build_decks(registry, GameConfig(permanent_rarity={room.id: target_idx}), Rng(0))
+
+    natal_deck = wrenched[natal_idx * 2 + (0 if room.is_free else 1)]
+    target_deck = wrenched[target_idx * 2 + (0 if room.is_free else 1)]
+    assert room.idx not in natal_deck.order
+    assert target_deck.order.count(room.idx) == room.deck_copies
+
+    assert sum(d.size() for d in wrenched) == sum(d.size() for d in plain)
+
+
+def test_no_upgrade_variant_chains_off_a_mechanical_room_or_its_variant(registry):
+    """apply_upgrade's own docstring claims its dynamic_rarity fallback is
+    unreachable with today's data: no room is ``variant_of`` a Mechanical
+    Room, and no room is ``variant_of`` a Mechanical Room's OWN upgrade
+    variant. Pins the empirical fact so a future rooms.json change that
+    makes it reachable is caught here rather than leaving a silently-stale
+    docstring claim."""
+    mechanical_ids = {r.id for r in registry.rooms if r.is_category("mechanical")}
+    for room in registry.rooms:
+        if room.variant_of is None:
+            continue
+        assert room.variant_of not in mechanical_ids, (
+            f"{room.id} is a variant of Mechanical Room {room.variant_of!r}: "
+            "apply_upgrade's dynamic_rarity fallback is no longer unreachable"
+        )

@@ -270,6 +270,15 @@ class GameConfig:
     # turn a real override into something else, the exact failure mode
     # from_dict's own docstring warns about for string inputs generally.
     axed_rooms: tuple[str, ...] = ()
+    # --- Gear Wrench (engine/effects/items/gear_wrench.py; data/special_items.json) ---
+    # Mechanical Room id -> permanently-set rarity index (engine/model.py RARITIES),
+    # set by Game.set_wrench_rarity whenever the chosen level differs from the
+    # room's own natal rarity_idx (a choice matching the natal rarity is popped
+    # back out, mirroring decks.set_dynamic_rarity's own idempotent-pop
+    # convention). SAVE-scoped like axed_rooms immediately above -- env/
+    # multiday.py::DayChain does NOT clear this at the attempt wrap. A plain
+    # dict, not in the frozenset-coercion list, same shape as draft_counts.
+    permanent_rarity: dict[str, int] = field(default_factory=dict)
     # --- reward selection for the env ---
     reward: str = "sparse"              # sparse|shaped|phased
     data_dir: Path | None = None        # alternate data/*.json directory (None = packaged data)

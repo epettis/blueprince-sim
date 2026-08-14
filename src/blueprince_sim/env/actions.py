@@ -159,6 +159,14 @@ Layout (Discrete(427)):
            replaced back into the pending options for free, unlimited times,
            strictly backward through the stack to the original deal (never
            forward -- rewinding never pushes) -- see Game.can_rewind/rewind.
+  437..440 choose the Gear Wrench's permanent rarity 0..3 (WRENCH_PENDING
+           only), appended at the end so no earlier id shifts. Order matches
+           engine.model.RARITIES (commonplace, standard, unusual, rare); all
+           four are always offered, including the room's own current rarity
+           (that IS how a player declines to change anything -- see
+           Game.can_set_wrench_rarity). Entered from :meth:`Game.choose`
+           when the just-placed room is a Mechanical Room
+           (Room.is_category("mechanical")) and a Gear Wrench is held.
 """
 
 from __future__ import annotations
@@ -171,7 +179,7 @@ from ..engine import shops as _shops
 from ..engine import special_items as _si
 from ..engine.effects import Capability, provides_capability
 from ..engine.effects.rooms import shrine as _shrine
-from ..engine.model import Registry
+from ..engine.model import RARITIES, Registry
 from ..engine.upgrades import root_base_id
 
 # ---------------------------------------------------------------------------
@@ -207,6 +215,20 @@ def _build_axe_target_ids(registry: Registry) -> tuple[str, ...]:
         if r.rarity is not None and r.gem_cost > 0
     }
     return tuple(sorted(roots))
+
+
+def _build_mechanical_room_ids(registry: Registry) -> tuple[str, ...]:
+    """Sorted tuple of every Mechanical Room id (Room.is_category("mechanical")).
+
+    Obs-only (no action id is indexed by this -- WRENCH_RARITY_BASE offers a
+    fixed 4-rarity menu, never a per-room choice): env/obs.py's own
+    "wrench_rarity" key uses this order so it cannot drift from rooms.json.
+    Kept alongside _build_axe_target_ids/_build_area_node_ids for the same
+    reason those are: a single, sorted-for-determinism, registry-derived
+    source shared by every caller (obs.py and blueprince_env.py's
+    observation_space() width).
+    """
+    return tuple(sorted(r.id for r in registry.rooms if r.is_category("mechanical")))
 
 
 # ---------------------------------------------------------------------------
@@ -305,8 +327,17 @@ _N_LOCK_SPECIAL_KEYS = 6  # width pinned as a constant, like _N_AREA_NODES/_N_AX
 # id shifts. DRAFTING only; see Game.can_rewind/rewind.
 REWIND_ACTION = LOCK_SPECIAL_KEY_BASE + _N_LOCK_SPECIAL_KEYS  # 436
 
-# N_ACTIONS = first slot after REWIND_ACTION.
-N_ACTIONS = REWIND_ACTION + 1  # 437
+# 436..439: choose the Gear Wrench's permanent rarity (Phase.WRENCH_PENDING
+# only), appended at the end so no earlier id shifts. Order matches
+# engine.model.RARITIES. See Game.can_set_wrench_rarity/set_wrench_rarity.
+WRENCH_RARITY_BASE = REWIND_ACTION + 1  # 437
+_N_WRENCH_RARITIES = len(RARITIES)  # 4; RARITIES is a fixed model constant,
+                                     # not registry-derived, so no width-pin
+                                     # comment is needed the way _N_AXE_TARGETS
+                                     # etc. carry one
+
+# N_ACTIONS = first slot after the Gear Wrench rarity range.
+N_ACTIONS = WRENCH_RARITY_BASE + _N_WRENCH_RARITIES  # 441
 
 DIR_INDEX = {d: i for i, d in enumerate(DIRS)}
 
@@ -745,6 +776,14 @@ def action_mask(game: Game, prev_action: int | None = None) -> list[bool]:
             if game.can_use_special_key_at_lock(key_id):
                 mask[LOCK_SPECIAL_KEY_BASE + i] = True
         mask[LOCK_ABANDON_ACTION] = True
+    elif game.phase is Phase.WRENCH_PENDING:
+        # All four rarity levels are always offered (Game.can_set_wrench_rarity);
+        # no other action is legal here -- the player must choose, and picking
+        # the room's own current rarity is how they decline. This phase can
+        # never dead-end.
+        for i in range(_N_WRENCH_RARITIES):
+            if game.can_set_wrench_rarity(i):
+                mask[WRENCH_RARITY_BASE + i] = True
     # Security-setpoint repeat guard: if the last applied action was a
     # set-level id, mask all three off so the agent must do something else
     # before touching the setpoint again.
@@ -875,6 +914,8 @@ def apply_action(game: Game, action: int) -> None:
         game.use_special_key_at_lock(key_id)
     elif action == REWIND_ACTION:
         game.rewind()
+    elif WRENCH_RARITY_BASE <= action < N_ACTIONS:
+        game.set_wrench_rarity(action - WRENCH_RARITY_BASE)
     else:
         raise ValueError(f"unimplemented action {action}")
 
@@ -1045,4 +1086,7 @@ def describe_action(game: Game, action: int) -> str:
         return f"use special key: {name}"
     if action == REWIND_ACTION:
         return "rewind last draft (Chronograph)"
+    if WRENCH_RARITY_BASE <= action < N_ACTIONS:
+        rarity = RARITIES[action - WRENCH_RARITY_BASE]
+        return f"set Gear Wrench rarity: {rarity}"
     return f"action {action}"

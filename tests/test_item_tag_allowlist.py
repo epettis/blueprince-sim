@@ -165,10 +165,9 @@ DEFERRED_UNREAD_TAGS: frozenset[str] = frozenset({
     # effect authored (a per-floorplan-slot luck boost with its own penalty
     # ladder) but per-slot luck isn't modeled; only aggregate luck is.
     "dowsing_rod",
-    # gear_wrench item: meta.blocked_on=rarity_change_not_persisted_across_days
-    # -- effect authored (a persisted Workshop rarity change) but rarity
-    # state doesn't carry across days in the current model.
-    "gear_wrench",
+    # gear_wrench moved off this list: it now has a real reader
+    # (engine/effects/items/gear_wrench.py::ITEM_ID, read by Game.choose/
+    # set_wrench_rarity) -- see tests/test_gear_wrench.py.
 })
 
 

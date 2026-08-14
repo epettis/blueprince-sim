@@ -121,6 +121,8 @@ def action_group(action_id: int) -> str:
         return "use"
     if A.LOCK_MENU_BASE <= action_id < A.REWIND_ACTION:
         return "choose"
+    if A.WRENCH_RARITY_BASE <= action_id < A.N_ACTIONS:
+        return "choose"
     if action_id == A.REWIND_ACTION:
         return "control"
     return "other"

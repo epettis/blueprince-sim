@@ -81,10 +81,19 @@ def build_decks(registry: Registry, cfg: GameConfig, rng: Rng) -> list[DeckState
 
     Each eligible room contributes ``deck_copies`` cards to the deck matching
     its rarity and free/gem class; each deck shuffles on its own rng substream.
+
+    ``cfg.permanent_rarity`` (Gear Wrench) overrides ``room.rarity_idx`` for
+    the initial bucket assignment when a room id has an entry -- a pure
+    build-time lookup that consumes no RNG, so a permanently-wrenched room's
+    cards start the day in the wrenched bucket rather than needing a same-day
+    :func:`set_dynamic_rarity` sweep. ``Game.reset`` seeds ``state.
+    dynamic_rarity`` from this same dict right after calling this function,
+    so both agree on the room's bucket from the first deal onward.
     """
     decks = [DeckState() for _ in range(8)]
     for room in eligible_pool(registry, cfg):
-        d = decks[room.rarity_idx * 2 + (0 if room.is_free else 1)]
+        rarity_idx = cfg.permanent_rarity.get(room.id, room.rarity_idx)
+        d = decks[rarity_idx * 2 + (0 if room.is_free else 1)]
         d.order.extend([room.idx] * room.deck_copies)
     for i, d in enumerate(decks):
         rng.shuffle(f"deck_shuffle_{i}", d.order)
@@ -99,14 +108,27 @@ def inject_rooms(state: GameState, registry: Registry, room_ids: list[str], rng:
     function's once-per-day callers. :func:`inject_rooms_undealt` is the
     sibling for an effect that fires many times a day: it inserts into the
     undealt region only, leaving already-dealt cards dealt.
+
+    Copies land in whichever bucket the room's cards currently occupy --
+    ``state.dynamic_rarity`` when :func:`set_dynamic_rarity` has moved them
+    (including a Gear Wrench's permanent choice, seeded into that dict at
+    ``Game.reset``), otherwise the room's own static rarity -- the same
+    fallback :func:`inject_rooms_undealt` already uses. Without this, a
+    Mechanical Room whose ``pool`` is ``"pool_temp"`` (never in
+    :func:`build_decks`'s eligible pool, only ever reaching a live deck
+    through this function -- The Pool's Pump Room is the one shipped
+    example) would always land in its un-wrenched natal bucket even after
+    being permanently wrenched, splitting its cards across two buckets on a
+    later injection.
     """
     for rid in room_ids:
         room = registry.by_id.get(rid)
         if room is None or room.rarity is None:
             continue
-        deck = state.deck(room.rarity_idx, not room.is_free)
+        rarity_idx = state.dynamic_rarity.get(room.id, room.rarity_idx)
+        deck = state.deck(rarity_idx, not room.is_free)
         deck.add_copies(room.idx, room.deck_copies,
-                        lambda lst, i=room.rarity_idx: rng.shuffle(f"deck_inject_{i}", lst))
+                        lambda lst, i=rarity_idx: rng.shuffle(f"deck_inject_{i}", lst))
 
 
 def inject_rooms_undealt(state: GameState, registry: Registry, room_ids: list[str], rng: Rng,
@@ -240,12 +262,24 @@ def apply_upgrade(state: GameState, registry: Registry, variant_id: str, rng: Rn
     hand already dealt — but the deck itself retires the base floorplan
     completely, including cards dealt earlier this cycle, because draft.py's
     attempt-3 reshuffle would otherwise make the un-upgraded room dealable again.
+
+    Both buckets are looked up through ``state.dynamic_rarity`` (falling back
+    to each room's own static rarity), the same fallback :func:`inject_rooms`/
+    :func:`inject_rooms_undealt` use, so a base or variant room already moved
+    by a Gear Wrench/battery_pack/experiment override is upgraded from and
+    into its ACTUAL current bucket rather than its natal one. Unreachable
+    with today's data (no room is ever ``variant_of`` a Mechanical Room, and
+    no room is ``variant_of`` a Mechanical upgrade variant -- see
+    tests/test_decks.py), kept for the same reason :func:`inject_rooms` now
+    consults it: the alternative is a silent split-bucket corruption the day
+    data changes to make it reachable.
     """
     variant = registry.by_id[variant_id]
     base = registry.by_id[variant.variant_of]
 
-    src_deck = state.deck(base.rarity_idx, not base.is_free)
-    dst_deck = state.deck(variant.rarity_idx, not variant.is_free)
+    src_deck = state.deck(state.dynamic_rarity.get(base.id, base.rarity_idx), not base.is_free)
+    dst_deck = state.deck(state.dynamic_rarity.get(variant.id, variant.rarity_idx),
+                          not variant.is_free)
 
     if src_deck is dst_deck:
         # Same bucket: in-place substitution, no RNG consumed
