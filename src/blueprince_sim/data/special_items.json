@@ -906,7 +906,7 @@
     "confidence": "wiki",
     "absent_spawn_areas": [],
     "blocked_on": null,
-    "notes": "Purchase-only (Showroom/Armory); obtainable when PR2 adds shop actions."
+    "notes": "Obtainable today: the Showroom sells it for 80 coins (data/shops.json), via shops.py::buy."
    }
   },
   {
@@ -1387,7 +1387,7 @@
     "source": "https://blueprince.wiki.gg/wiki/Showroom",
     "confidence": "wiki",
     "absent_spawn_areas": [],
-    "notes": "Purchase-only (Showroom/Armory); obtainable when PR2 adds shop actions.",
+    "notes": "Obtainable today: the Showroom sells it for 20 coins (data/shops.json), via shops.py::buy.",
     "blocked_on": null
    }
   },
@@ -1430,7 +1430,7 @@
     "confidence": "wiki",
     "absent_spawn_areas": [],
     "blocked_on": null,
-    "notes": "Purchase-only (Showroom/Armory); obtainable when PR2 adds shop actions."
+    "notes": "Obtainable today: the Showroom sells it for 30 coins (data/shops.json), via shops.py::buy."
    }
   },
   {
@@ -1451,7 +1451,7 @@
     "confidence": "wiki",
     "absent_spawn_areas": [],
     "blocked_on": null,
-    "notes": "Purchase-only (Showroom/Armory); obtainable when PR2 adds shop actions."
+    "notes": "Obtainable today: the Showroom sells it for 50 coins (data/shops.json), via shops.py::buy."
    }
   },
   {
@@ -1472,7 +1472,7 @@
     "confidence": "wiki",
     "absent_spawn_areas": [],
     "blocked_on": null,
-    "notes": "Purchase-only (Showroom/Armory); obtainable when PR2 adds shop actions."
+    "notes": "Obtainable today: the Showroom sells it for 60 coins (data/shops.json), via shops.py::buy."
    }
   },
   {
@@ -1520,7 +1520,7 @@
     "confidence": "wiki",
     "absent_spawn_areas": [],
     "blocked_on": null,
-    "notes": "Purchase-only (Showroom/Armory); obtainable when PR2 adds shop actions."
+    "notes": "Obtainable today: the Armory sells it for 8 coins (data/shops.json), via shops.py::buy."
    }
   },
   {
@@ -1545,7 +1545,7 @@
     "confidence": "wiki",
     "absent_spawn_areas": [],
     "blocked_on": null,
-    "notes": "Purchase-only (Showroom/Armory); obtainable when PR2 adds shop actions."
+    "notes": "Obtainable today: the Armory sells it for 8 coins (data/shops.json), via shops.py::buy."
    }
   },
   {
@@ -1592,7 +1592,7 @@
     "confidence": "wiki",
     "absent_spawn_areas": [],
     "blocked_on": null,
-    "notes": "Purchase-only (Showroom/Armory); obtainable when PR2 adds shop actions."
+    "notes": "Obtainable today: the Armory sells it for 8 coins (data/shops.json), via shops.py::buy."
    }
   },
   {

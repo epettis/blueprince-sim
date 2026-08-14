@@ -76,7 +76,7 @@
    "meta": {
     "confidence": "datamined",
     "source": "sheet constants: 'Chronograph 40% Tomorrow Rooms'; blueprince.wiki.gg/wiki/Chronograph datamined box: 'This is a Priority Draw (40% for all Tomorrow Rooms)'.",
-    "notes": "Live: condition 'chronograph' is emitted by _active_conditions while a Chronograph is held (special_items.json effect tag 'chronograph', checked via chronograph_active_from_state). 'category' resolves at draw time to every room whose category is 'tomorrow' (draft.py::_priority_draw, matching Room.is_category rather than a hand-typed room list, so a future Tomorrow-room addition is picked up automatically) -- Clock Tower, Coat Check, Freezer, Mail Room plus its three upgrades, Morning Room, Planetarium, Sauna, the Hallway's Tomorrow upgrade, and the Break Room. The item's other effect, rewinding a redraw, is separate and still unmodelled."
+    "notes": "Live: condition 'chronograph' is emitted by _active_conditions while a Chronograph is held (special_items.json effect tag 'chronograph', checked via chronograph_active_from_state). 'category' resolves at draw time to every room whose category is 'tomorrow' (draft.py::_priority_draw, matching Room.is_category rather than a hand-typed room list, so a future Tomorrow-room addition is picked up automatically) -- Clock Tower, Coat Check, Freezer, Mail Room plus its three upgrades, Morning Room, Planetarium, Sauna, the Hallway's Tomorrow upgrade, and the Break Room. The item's other effect, rewinding a redraw, is also live: Game.can_rewind/rewind pop PendingDraft.rewind_stack, driven by env/actions.py's REWIND_ACTION."
    }
   }
  ],
