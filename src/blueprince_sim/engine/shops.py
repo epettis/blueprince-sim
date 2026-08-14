@@ -610,7 +610,8 @@ def _next_receivable(ids: list[str], receivable: list[bool], start: int) -> str:
     A receivable id may resolve back to itself if it is the tier's only
     receivable item (self-edge, untradeable — same rule as a 1-item tier).
     If no id in the tier is receivable, ``start`` itself is returned as a
-    self-edge fallback (does not occur for any tier in the current data).
+    self-edge fallback: tier 5 takes this path on every roll, since all
+    twelve of its items are give-only.
     Pure lookup over the already-shuffled ``ids``; consumes no rng draws.
     """
     n = len(ids)
