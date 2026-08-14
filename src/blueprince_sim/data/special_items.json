@@ -4,9 +4,9 @@
   "Detector shovel: vault key total = 100 - 93.8 = 6.2%; distributed in shovel's 8:8:3:1 ratio \u2192 VK304=2.48, VK149=2.48, VK233=0.93, VK370=0.31.",
   "Jack hammer: partial wiki data; table is confidence=inferred. No junk entries. Gems (2) = 39/176 = 22.159%; Wind-up Key = 3/176 = 1.705%; remaining coins fill to 100%.",
   "Treasure map cells: A5\u219220, B6\u219226, B8\u219236, C8\u219237, D6\u219228, D9\u219243, E5\u219224, E8\u219239 (flat = (rank-1)*5 + col, letter A-E = col 0-4).",
-  "Car keys spawn rooms: digest only names Garage (wiki lists 15 rooms; full list absent from digest).",
+  "Car keys spawn rooms are taken from the wiki Locations line captured in tools/raw/wiki_item_locations.tsv, not from the digest, which named only the Garage.",
   "Sanctum key: Reservoir (north) and Safehouse are areas, not rooms \u2192 in absent_spawn_areas.",
-  "master_key: classified kind=special_key; also guaranteed_in=[showroom].",
+  "master_key: classified kind=special_key; guaranteed_in is empty -- the Showroom sells it (shops.json tier_b, 80 coins), it is not placed in the room.",
   "lock_pick_kit: darkroom/furnace/closed_exhibit/toolshed all exist in rooms.json \u2192 in spawn_rooms."
  ],
  "items": [
@@ -308,7 +308,7 @@
     "confidence": "datamined",
     "absent_spawn_areas": [],
     "blocked_on": null,
-    "notes": "Rates, denominator, pity and pity_fail live on this record's lockpick effect and are read by special_items.py::_attempt_lockpick, which prefers the Pick Sound Amplifier when both tools are held; the door kinds match too (locks.py's DOOR_SECURITY is a separate segment kind no lockpick path touches). The rate ladder is indexed by state.special.lockpick_successes (successful picks today), matching \"the chance goes down after a successful lockpick\" / \"after the first three successful lockpicks, remaining lockpicks have a 19/101 chance\". state.special.lockpick_fails is the two-sided pity counter (+1/fail, -1/success): at >= pity it auto-succeeds and resets to -1; at <= pity_fail it auto-fails and resets to 1. The wiki gates the auto-fail case on lockpicking skill <= 20 -- lockpicking skill itself has no stat here (docs/experiments-design.md, permanent_lockpicking_skill), so this sim applies it unconditionally. NOT modelled: the per-door clause resetting the counter to 0 on a door already attempted (this sim tracks global per-day counters, not per-doorway, per _attempt_lockpick's docstring); the numerator bonus from lockpicking skill and its 98/101 cap; the wiki's !Garage high-luck spawn entry, which spawn_rooms_high_luck leaves empty; and its statement that building the Pick Sound Amplifier keeps this Kit out of the item pool on SUBSEQUENT days -- shops.py::fabricate marks recipe inputs consumed for the current day only."
+    "notes": "Rates, denominator, pity and pity_fail live on this record's lockpick effect and are read by special_items.py::_attempt_lockpick, which prefers the Pick Sound Amplifier when both tools are held; the door kinds match too (locks.py's DOOR_SECURITY is a separate segment kind no lockpick path touches). The rate ladder is indexed by state.special.lockpick_successes (successful picks today), matching \"the chance goes down after a successful lockpick\" / \"after the first three successful lockpicks, remaining lockpicks have a 19/101 chance\". state.special.lockpick_fails is the two-sided pity counter (+1/fail, -1/success): at >= pity it auto-succeeds and resets to -1; at <= pity_fail it auto-fails and resets to 1. The wiki gates the auto-fail case on lockpicking skill <= 20 -- lockpicking skill itself has no stat here (docs/experiments-design.md, permanent_lockpicking_skill), so this sim applies it unconditionally. NOT modelled: the per-door clause resetting the counter to 0 on a door already attempted (this sim tracks global per-day counters, not per-doorway, per _attempt_lockpick's docstring); the numerator bonus from lockpicking skill and its 98/101 cap; and its statement that building the Pick Sound Amplifier keeps this Kit out of the item pool on SUBSEQUENT days -- shops.py::fabricate marks recipe inputs consumed for the current day only."
    }
   },
   {
@@ -397,7 +397,7 @@
     "absent_spawn_areas": [],
     "wont_implement": "puzzle-only effect; the sim has no document or lore layer and will not gain one",
     "reachability": "inert",
-    "notes": "DECIDED never to build, not blocked. Its own effect reveals hidden text in documents, and this simulator has no document or lore layer -- nothing in engine/ reads lore or document text, and the assumed-solved doctrine means a puzzle a player enters is already solved. Its COMPONENT role is built and load-bearing: metal_detector + magnifying_glass -> burning_glass is the burning glass's ONLY source, and the burning glass is one of the two ignition tools, so this item keeps spawning in its 16 rooms. The wiki's Locations line also names Classroom, Commissary, Conservatory and Toolshed, all of which exist in rooms.json, plus the high-luck-only Den and Drawing Room; spawn_rooms omits the four and spawn_rooms_high_luck is empty, so the burning glass's only component spawns in fewer places than published."
+    "notes": "DECIDED never to build, not blocked. Its own effect reveals hidden text in documents, and this simulator has no document or lore layer -- nothing in engine/ reads lore or document text, and the assumed-solved doctrine means a puzzle a player enters is already solved. Its COMPONENT role is built and load-bearing: metal_detector + magnifying_glass -> burning_glass is the burning glass's ONLY source, and the burning glass is one of the two ignition tools, so this item keeps spawning in its 16 rooms. The wiki's Locations line also names Classroom, Commissary, Conservatory and Toolshed, all of which exist in rooms.json, plus the high-luck-only Den and Drawing Room; both tiers now carry the wiki's full list."
    }
   },
   {
