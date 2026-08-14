@@ -66,10 +66,12 @@ are excluded. Only dropping Ranks 1 and 9 as well gives exactly 17:
     cols 1-3  x  ranks 3-8  =  18,  minus cell 37  =  17
 
 The wiki never mentions Rank 1 or Rank 9 for this room, so **ranks 3-8 is an
-inference from the count, not a sourced rule** (owner decision, 2026-08-04: match
-the 17). It is encoded as one named `the_foundation` draft condition rather than
-as a stack of primitives, following the `garage` / `boiler_room` idiom for
-coupled column+rank rules.
+inference from the count, not a sourced rule** — the ruling is to match the 17.
+It is encoded as one named `the_foundation` draft condition (`placement.py`)
+rather than as a stack of primitives, following the `garage` / `boiler_room`
+idiom for coupled column+rank rules. If a future wiki edit clarifies Rank 1 or
+Rank 9 explicitly, revisit the count derivation before trusting the rule
+further.
 
 ### The Rank-3 removal
 
@@ -81,7 +83,9 @@ streams as small as possible.
 
 **Rank 4 is an open question.** The wiki also says the Foundation's rarity
 "adjusts dynamically after reaching Rank 4" without saying how. Nothing is
-implemented for it; inventing a curve would be worse than a documented gap.
+implemented for it; inventing a curve would be worse than a documented gap. If
+it becomes load-bearing it needs its own wiki research pass — **do not infer a
+curve from the Rank-3 number**, they are different mechanics.
 
 ### Persistence
 
@@ -90,11 +94,14 @@ on the day it is drafted and re-placed by `reset()` on every later day. Being in
 `placed_ids` from the start of the day is what keeps it out of the deck — the
 existing one-copy-on-the-grid rule does the work, with no second mechanism.
 
-Like every other carry-over it **resets on chain wrap**, consistent with
+`foundation_cell` / `foundation_doors` are non-bool, so they ride the explicit
+channel rather than `DayChain._CARRYOVER_KEYS` (see
+[`scoping-and-carryover.md`](scoping-and-carryover.md)). Like every other
+carry-over the placement **resets on chain wrap**, consistent with
 `used_vault_keys`, `lit_targets` and `collected_disks`. The wiki says nothing
 about attempt boundaries; this follows repo convention rather than a source.
 
-## Deliberate simplifications
+## Deliberate divergences
 
 - **The elevator crank is not modelled.** The wiki requires a room drafted so
   that a door faces the Foundation's back wall to reveal the FOUNDATION crank,
@@ -150,9 +157,17 @@ Owner decisions, 2026-08-04, after measuring the blockers above:
 
 1. **Three nodes become `modelled: true`**: `basement`, `mine_south`,
    `inner_sanctum` — plus the `the_foundation` anchor itself. Everything else in
-   the underground stays routed-through-but-unadvertised, so the step tax that
-   drove the original `modelled` flag stays contained. `mine_south` earns its
-   place by holding an Upgrade Disk rather than being a pure step sink.
+   the underground (`well`, `reservoir_south`, `reservoir_north`, `mine_north`,
+   `rotating_gear`, `upper_rotating_gear`, `underpass`, `sigil_chambers`,
+   `safehouse`, `catacombs`, `precipice`, `unknown_underground`) stays
+   routed-through-but-unadvertised, so the step tax that drove the original
+   `modelled` flag stays contained. `mine_south` earns its place by holding an
+   Upgrade Disk rather than being a pure step sink.
+
+   **The bar for flipping another node**: it must hold something worth walking
+   to, and the change needs a fresh off-grid step-share measurement. The Sanctum
+   route alone moved the off-grid step share from **29.93% to 41.88%** under
+   uniform-random play (see [`areas.md`](areas.md)).
 2. **`mine_south_visited` becomes real**: set on arrival at `mine_south`, and
    carried across days, because `areas.md` marks the mine-cart move permanent.
 3. **`basement_key` is marked implemented**, which it already was in behaviour —
@@ -189,46 +204,16 @@ about whether the detail exists; the disk is modelled on the strength of the
 
 ## Opening the north door scores +0.5
 
-Owner decision, 2026-08-04. The objective becomes three-tier:
-
-| Milestone | Reward | Why |
-|---|---|---|
-| Antechamber, first arrival of the day | +0.25 | prerequisite; where the day has to end up anyway |
-| Antechamber north door opened | **+0.5** | the thing standing between the estate and Room 46 |
-| Room 46, first arrival of the day | +1.0 | the win |
-
-**The reward is for the door opening, not for standing in the Sanctum.** Both
-levers pay it: the Inner Sanctum's main lever and the Throne Room's backup. They
-accomplish the same thing, so they score the same, and the reward stays neutral
-about which route a policy learns.
+The objective is three-tier — `+0.25` for the Antechamber, `+0.5` for the north
+door opening, `+1.0` for Room 46 — and both levers pay the north-door tier. See
+[`rewards.md`](rewards.md), "The three milestones", for the full statement, the
+implementation and its consequences.
 
 The ordering tracks a real dependency chain rather than being merely numeric.
 Visiting `mine_south` is what opens `rotating_gear -> underpass`, and the
 Underpass is the only way into the Sanctum; the Antechamber is where the day has
 to end up anyway. So the Sanctum route runs **Antechamber -> Sanctum -> back to
 the Antechamber -> Room 46**, and 0.25 < 0.5 < 1.0 pays each step of it in order.
-
-It fires once per day, on the first opening, and is recorded as a per-day event
-flag set at the two lever sites — *not* derived from the north segment's door
-state. Those are different facts: with `antechamber_levers=False` (the config
-that reproduces the pre-lever baseline) the segment is never sealed to begin
-with, so a state-derived reward would pay +0.5 for free on every such day.
-
-Two consequences worth stating rather than discovering later:
-
-- **The per-day ceiling rises from 1.25 to 1.75.** The B2 note argued for 1.25
-  on the grounds that it "stays close to today's scale so the existing shaping
-  constants remain roughly calibrated". A 40% rise puts that back in play; the
-  shaping constants are not rescaled here, and if the retrain shows the dense
-  terms drowned out, this is the first place to look.
-- **The Throne Room is now worth more than the Antechamber.** Drafting and
-  entering one grid room pays +0.5, while the whole rank-9 grind pays +0.25.
-  That is the honest consequence of pricing the door rather than the walk — the
-  Throne Room genuinely does the necessary thing cheaply — but it is an
-  incentive inversion, and a policy could settle into farming it daily without
-  ever winning. It cannot repeat *within* a day; nothing stops it repeating
-  across the days of an attempt. Watch `P(north door opened)` against
-  `P(reach Room 46)` in the first retrain; a wide gap is the signature.
 
 ## What this does not fix
 

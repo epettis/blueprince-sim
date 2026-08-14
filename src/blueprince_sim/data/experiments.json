@@ -617,7 +617,7 @@
     "blocked_on": null,
     "notes": [
      "16 letters total, delivered in a fixed predetermined order regardless of whether the Mail Room is on the estate; never offered again once all 16 are delivered (the wiki-stated cap).",
-     "Owner ruling: the 16 letters are pure flavour (safe codes, a network password, a puzzle solution, which rooms carry steam ducts) -- none grants a resource, item, or unlock, and the assumed-solved doctrine already grants everything they convey (same reasoning as the Speakeasy: docs/open_tasks.md's 2026-08-10 entry, 'speakeasy is a no-op because we assume they can solve puzzles'). Letter contents are deliberately unmodelled; the effect is a plain delivered-count bump.",
+     "Owner ruling: the 16 letters are pure flavour (safe codes, a network password, a puzzle solution, which rooms carry steam ducts) -- none grants a resource, item, or unlock, and the assumed-solved doctrine already grants everything they convey (same reasoning as the Speakeasy: docs/doctrine.md, 'Puzzles are assumed solved'). Letter contents are deliberately unmodelled; the effect is a plain delivered-count bump.",
      "KNOWN GAP: the 'never offered again' cap needs a delivered count that survives across days (16 letters total across an attempt, not per day), the same shape as GameConfig.chapel_tithes (a running total seeded into per-day state and reported by carryover()/DayChain). This pass only wires a per-day counter (ExperimentState.letters_delivered) -- correct within a single day, but since draw_offers only ever runs once per day on fresh state, it cannot yet make a day's offer disappear from a prior day's deliveries. Cross-day persistence is a follow-up."
     ]
    }

@@ -246,7 +246,8 @@ second-level one is.
 
 Carryover follows `used_vault_keys` verbatim: a `DayChain` field, union-merged
 in `advance()`, passed to `dataclasses.replace` in `next_config()`, reset on
-wrap. This is exactly what decision 3 in `open_tasks.md` already specified.
+wrap. This is the union-merge channel described in
+[`scoping-and-carryover.md`](scoping-and-carryover.md).
 
 ### Catacombs
 

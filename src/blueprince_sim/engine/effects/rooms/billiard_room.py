@@ -4,7 +4,7 @@ day-banded prize.
 Data: data/billiard_room.json (day bands, per-outcome weights, fallback
 notes). The Dartboard is a puzzle object inside the Billiard Room, never a
 room of its own -- it has no rooms.json record. Solving it is a player-skill
-act and this sim assumes puzzles are solved (docs/open_tasks.md), so there is
+act and this sim assumes puzzles are solved (docs/doctrine.md), so there is
 no action id for it: entering a freshly-drafted Billiard Room auto-solves the
 Dartboard and grants its prize, at most once per day across every Billiard
 Room cell (GameState.dartboard_solved_today) -- not per cell via

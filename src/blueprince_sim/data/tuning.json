@@ -2,7 +2,7 @@
  "schema_version": 1,
  "meta": {
   "confidence": "n/a",
-  "notes": "Sim tuning, not game data (owner ruling, docs/open_tasks.md decisions log 2026-08-14): reward-shaping and greedy-policy knobs relocated out of items.json, which holds published game tables only. item_values and special_item_values below are the same values, unchanged, that previously lived at items.json's top level."
+  "notes": "Sim tuning, not game data (docs/luck.md, 'Relative item values'): reward-shaping and greedy-policy knobs relocated out of items.json, which holds published game tables only. item_values and special_item_values below are the same values, unchanged, that previously lived at items.json's top level."
  },
  "item_values": {
   "comment": "Relative resource values used by shaped rewards and greedy policies; not game data.",
