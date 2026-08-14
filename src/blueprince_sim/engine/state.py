@@ -153,9 +153,13 @@ class PendingDraft:
     # / the hand ended up with no dealt options (draft.py::_pick_dowsing_slot,
     # called from _fill_options -- so this is recomputed on every fresh deal
     # AND every redraw, matching the wiki's "the Dowsing Rod will reselect
-    # one of the new floorplans" after a redraw). Read once, at Game.choose,
-    # to decide whether the drafted room's cell gets marked in
-    # GameState.dowsing_marked_cells for its later item roll.
+    # one of the new floorplans" after a redraw, and set for outer-room hands
+    # by Game._deal_outer_options through the same helper). Read when the
+    # option is taken -- Game.choose for a grid draft, Game._choose_outer for
+    # an outer one -- to decide whether the drafted room's cell gets marked in
+    # GameState.dowsing_marked_cells for its later item roll. An outer draft
+    # marks the -1 sentinel, which is the cell roll_room_items is already
+    # called with on outer-room entry.
     dowsed_slot: int | None = None
     # Chronograph REWIND stack: each entry is the hand a redeal (Game.
     # _redeal_pending -- Study/Classroom/dice redraw, or Crown of the
