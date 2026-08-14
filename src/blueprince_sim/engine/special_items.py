@@ -1428,6 +1428,15 @@ def compass_active_from_state(state, registry, cfg) -> bool:
     return cfg.compass or item_capability_any(state, registry, ItemCapability.COMPASS_BIAS)
 
 
+def dowsing_rod_active_from_state(state, registry) -> bool:
+    """True while holding a Dowsing Rod: its per-draft slot-pointing effect
+    persists while held (same 'held' semantics as compass_active_from_state).
+
+    Used by draft.py where game is not available.
+    """
+    return item_capability_any(state, registry, ItemCapability.DOWSING_ROD)
+
+
 def electromagnet_active_from_state(state, registry) -> bool:
     """Powered Electromagnet drafting-bias check from state/registry (no game object).
 

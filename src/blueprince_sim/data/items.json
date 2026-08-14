@@ -69,6 +69,44 @@
    "lost_and_found": {"kind": "deferred_ladder", "add": 1, "min": 2, "max": 4, "guaranteed_add": 1}
   }
  },
+ "dowsing_rod": {
+  "meta": {
+   "confidence": "wiki",
+   "source": "https://blueprince.wiki.gg/wiki/Dowsing_Rod",
+   "notes": "\"Exact impacts on luck\" DataMinedBox. \"When the Dowsing Rod is used on a room, a +32 Luck bonus is applied and the standard Luck Penalty does not apply\" -- read (engine/items.py's roll_dowsed_count) as: effective luck = state.luck + per-draft bonuses + rod_luck_bonus, WITHOUT subtracting state.luck_penalty (unlike roll_ladder_count's own formula); the outcome tables below still WRITE their own deltas into state.luck_penalty exactly like the ordinary ladder does, matching the wiki's closing note that repeated Dowsing use pushes ordinary future drafts toward acting 'as though a Maid's Chamber has been drafted'. regular_routine_luck_max (18) is the '18- Luck: Runs the regular non-Dowsing Rod routine' cutoff -- 'The only way to trigger this is having 4 Maid's Chambers drafted' (each is -7 directly to state.luck, engine/effects/tier1.py's anti_luck; 10 - 7*4 + 32 = 14 <= 18); engine/items.py reuses roll_ladder_count's own band logic (extracted as _roll_ladder_at) at this precomputed effective luck rather than duplicating it, then floors a 0-item result to 1 ('If it rolls 0 items, it gets increased to 1 item'). avoid_rooms (26, draft.py's slot-pick preference only) and variable_items_rooms (17, this table's own unconditional 0-2-band override) are DELIBERATELY SEPARATE published lists from each other and from never_roll_rooms above -- neither contains the other; unifying any two would silently change which rooms roll. penalty_bands key on the Dowsing Rod's OWN per-day Dowsing Penalty counter (state.dowsing_penalty, distinct from state.luck_penalty, 'does not impact anything outside this effect'), each band's outcomes weighted-percentage: 'one' = 1 item; 'variable' = defer to item_ladder.variable at this SAME effective luck ('In almost all cases (without 4 Maid's Chambers), \"variable items\" means 5% for 3 items ... 95% for 2 items' -- item_ladder.variable's own 17+ row already collapses to exactly that at the luck levels Dowsing produces, and the general Luck page table it inherits from correctly covers the rare low-luck 4-Maid's-Chambers case too); 'fixed' = the 0-2 band's explicit 3-/4-item rows, each writing BOTH state.luck_penalty (the 'standard' one, per the wiki's own '+2 Luck Penalty'/'+3 Luck Penalty' phrasing) and state.dowsing_penalty; 'recurse_0_2' (3-5 band only, its own 20% row) re-runs the FULL 0-2 band procedure -- the variable_items_rooms check AND the regular_routine_luck_max check AND its weighted table, not just the last of the three -- 'run as though it was 0-2 Dowsing Penalty' is read as the whole section, not one row of it. Row-kind vocabulary: {one, variable, fixed, recurse_0_2}; tools/validate_data.py checks each band's p_pct sums to exactly 100. Owner ruling (docs/open_tasks.md decisions log 2026-08-13): Dowsing BYPASSES the additional_max clamp entirely (engine/items.py's roll_room_items) -- without this the whole ladder collapses to ~1 item and the item is pointless. NOT modelled (named gaps, out of scope): the Shelter interaction (a dowsed Lavatory/Furnace should count as sheltered; this sim's Shelter is a global day counter, not a per-room mark), the Coat Check/Compass quirk, real-time 'premature drafting' animation artifacts, and outer-room (West Path Shop) drafts, which use their own separate deal pipeline (game.py's _deal_outer_options) that this feature does not hook."
+  },
+  "rod_luck_bonus": 32,
+  "regular_routine_luck_max": 18,
+  "avoid_rooms": [
+   "the_foundation", "rotunda", "room_8", "closet", "walk_in_closet", "attic",
+   "pantry", "chamber_of_mirrors", "coat_check", "freezer", "passageway", "locksmith",
+   "showroom", "bookshop", "the_armory", "gift_shop", "maids_chamber", "darkroom",
+   "vestibule", "casino", "mechanarium", "treasure_trove", "lost_and_found", "toolshed",
+   "shelter", "shrine"
+  ],
+  "variable_items_rooms": [
+   "spare_room", "gallery", "garage", "music_room", "trophy_room", "ballroom",
+   "utility_closet", "boiler_room", "workshop", "hallway", "west_wing_hall",
+   "east_wing_hall", "corridor", "secret_passage", "great_hall", "cloister", "commissary"
+  ],
+  "penalty_bands": [
+   {"max": 2, "outcomes": [
+    {"result": "one", "p_pct": 81.6},
+    {"result": "variable", "p_pct": 3.4},
+    {"result": "fixed", "p_pct": 10, "items": 3, "penalty": 2, "dowsing_penalty": 1},
+    {"result": "fixed", "p_pct": 5, "items": 4, "penalty": 3, "dowsing_penalty": 2}
+   ]},
+   {"min": 3, "max": 5, "outcomes": [
+    {"result": "one", "p_pct": 48},
+    {"result": "variable", "p_pct": 32},
+    {"result": "recurse_0_2", "p_pct": 20}
+   ]},
+   {"min": 6, "outcomes": [
+    {"result": "one", "p_pct": 48},
+    {"result": "variable", "p_pct": 52}
+   ]}
+  ]
+ },
  "coins": {
   "pile_min": 1,
   "pile_max": 5
