@@ -219,6 +219,13 @@ def test_every_action_kind_has_a_masking_site():
         "OPEN_VAULT_BOX_ACTION", "LIGHT_ACTION", "INSTALL_LEVER_ACTION",
         "INSERT_DISK_ACTION", "CHOOSE_UPGRADE_BASE", "TRAVEL_BASE",
         "OPEN_SIGIL_DOOR_BASE",
+        # The reserved constellation block. Its site writes False rather than
+        # True, the one licensed exception (docs/rl-environment.md): what the
+        # check is worth for these ids is that the site EXISTS and is
+        # findable, so the day a night sky is generated the write is one edit
+        # away rather than a search.
+        "ACTIVATE_CONSTELLATION_BASE", "VIEW_NIGHT_SKY_ACTION",
+        "REDRAW_WITH_STAR_ACTION",
     ]
     for name in action_kind_names:
         assert re.search(rf"mask\[{name}\b", src), (
