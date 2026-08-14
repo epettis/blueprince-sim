@@ -2676,6 +2676,66 @@ class Game:
                 return True
         return False
 
+    def _frontier_lock_affordable(self, cell: int, direction: int,
+                                  path_key_cost: int) -> bool:
+        """Can the DOOR_LOCKED frontier segment at ``cell``->``direction``
+        actually be opened, given ``path_key_cost`` regular keys already
+        earmarked by :meth:`key_cost_map` to walk there?
+
+        True when enough regular keys remain for this door's own
+        :meth:`lock_open_cost` (the Great Hall side-door search surcharge
+        included) -- or just 1 key when an active Stopwatch would refund the
+        rest, the same rule :meth:`can_use_key_at_lock` applies at the
+        pending lock itself (wiki: "At least one key is still required for
+        the option to use a key to appear, even though it isn't spent").
+        The Stopwatch refund is NOT applied to ``path_key_cost``: that value
+        comes from :meth:`key_cost_map`, which earmarks keys for OTHER
+        locked doors already crossed to reach ``cell`` -- a path-wide
+        refund would mean simulating the Stopwatch's single global charge
+        (``state.special.stopwatch_left``) draining in walk order across
+        however many locked doors the path crosses, which is a separate,
+        pre-existing gap in ``key_cost_map`` itself (it only ever discounts
+        the Master Key there, see ``_nav_bfs``), not something this one
+        doorway's own affordability check can or should correct. Here the
+        refund is a single, one-time application to this one pending lock,
+        exactly matching what ``can_use_key_at_lock`` does when the player
+        actually reaches it.
+
+        Also True when the door opens without spending a regular key: a
+        held Master Key (:func:`special_items.can_open_locked_free`, the
+        same deterministic predicate ``key_cost_map``'s own BFS already
+        uses for path costs) or a fitting Silver Key / Prism Key (the
+        LOCK_PENDING special-keys-menu's own held+fits rule --
+        :meth:`_special_key_held`/:meth:`_special_key_fits`; the Basement
+        Key's ``fits()`` is always False for an on-grid segment and the
+        reserved secret_garden_key/key_8 rows are permanently masked, so
+        only these two are worth asking here).
+
+        Must stay pure (no RNG, no state mutation): :meth:`_action_in_budget`
+        runs on every state-changing action via :meth:`_check_termination`.
+        A held Lock Pick Kit / Pick Sound Amplifier is deliberately NOT
+        counted: :func:`special_items.open_locked_free` rolls the RNG and
+        mutates per-day attempt counters to resolve it, and it is
+        probabilistic besides -- a failed pick still falls through to
+        spending a real key, so a lockpick-only door is conservatively
+        treated the same as an unopenable one here. Being permissive
+        instead would risk the open/abandon-forever loop this check exists
+        to prevent (trying a locked frontier door is always free, see
+        :meth:`frontier_doorway_triable`).
+        """
+        st = self.state
+        refund = (self.cfg.special_items and st.special.stopwatch_left > 0)
+        needed = 1 if refund else self.lock_open_cost(cell, direction)
+        if st.keys >= path_key_cost + needed:
+            return True
+        if special_items.can_open_locked_free(self):
+            return True
+        if not self.cfg.special_items:
+            return False
+        return any(self._special_key_held(key_id)
+                   and self._special_key_fits(key_id, cell, direction)
+                   for key_id in ("silver_key", "prism_key"))
+
     def _action_in_budget(self) -> bool:
         """True if any purposeful action still fits in the step budget.
 
@@ -2697,7 +2757,7 @@ class Game:
             seg = self.door_state_of(cell, d)
             if seg == DOOR_SEALED:
                 continue  # sealed: no key can open it; not a valid action
-            if seg == DOOR_LOCKED and st.keys < key_cost[cell] + 1:
+            if seg == DOOR_LOCKED and not self._frontier_lock_affordable(cell, d, key_cost[cell]):
                 continue
             if seg == DOOR_SECURITY and not self.security_openable():
                 if not toggle_ok:
