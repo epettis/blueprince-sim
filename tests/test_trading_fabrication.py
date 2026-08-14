@@ -253,32 +253,29 @@ def test_trade_t5_sometimes_yields_allowance_or_the_traded_disk():
     received from a tier-5 trade -- confirmed by the raw wiki page's Trading
     Post spoiler box: none of the tier-5 entries are bolded, and the
     datamined section states the Upgrade Disk trade list "contains no other
-    items"). So master_key's own tier-5 cycle has no receivable successor,
-    and a given day's roll can leave it a self-edge (untradeable that day,
-    same as any 1-receivable-item tier) whenever neither the t5-special nor
-    the dice override fires. Seeds where master_key has no active offer are
-    skipped rather than asserted on; with t5_special_chance=50%, across many
-    seeds we should still see at least one allowance_token among the offered
-    trades.
+    items"). shops.json ships t5_special_chance=100, so every tier-5 trade
+    graph roll replaces the would-be self-edge with allowance_token or
+    upgrade_disk_trade before it can surface: master_key always has an
+    active offer, never a self-edge. Across many seeds we should still see
+    at least one allowance_token among the offered trades.
     """
     specials_seen = set()
-    saw_any_offer = False
     for seed in range(200):
         game = _game(seed=seed)
         state = game.state
         state.inventory["master_key"] = 1  # tier 5
         _set_trading_post_inner(game)
         offers = shops.trade_offers(game)
-        if not any(o["give"] == "master_key" for o in offers):
-            continue  # self-edge this day: master_key untradeable, skip
-        saw_any_offer = True
+        assert any(o["give"] == "master_key" for o in offers), (
+            "master_key should always have an active offer: t5_special_chance=100 "
+            "overrides the self-edge on every roll"
+        )
         log_before = len(state.items_found_log)
         shops.trade(game, "master_key")
         new_entries = state.items_found_log[log_before:]
         for kind, _ in new_entries:
             if kind == "allowance_token":
                 specials_seen.add(kind)
-    assert saw_any_offer, "expected at least one seed where master_key had an active offer"
     assert specials_seen, (
         f"expected some t5 trades to yield allowance_token; got {specials_seen}"
     )
