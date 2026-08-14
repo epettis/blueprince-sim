@@ -580,3 +580,174 @@ def test_never_roll_room_stays_unaffected_even_when_dowsed(registry):
     assert g.state.luck_penalty == 0
     assert g.state.dowsing_penalty == 0
     assert 7 not in g.state.dowsing_marked_cells, "the mark is still consumed, even though inert"
+
+
+# --------------------------------------------------------- 8. outer-room drafts
+#
+# game.py's _deal_outer_options (the fixed 8-room outer pool dealt off the
+# West Path, see engine/game.py's own docstring) calls the SAME
+# draft._pick_dowsing_slot the grid pipeline's _fill_options calls -- no
+# second copy of the selection logic -- and Game._choose_outer marks the -1
+# sentinel game.py already uses as an outer room's "cell" (roll_room_items is
+# already called with cell=-1 for every outer-room entry) in
+# state.dowsing_marked_cells, read back by the exact same check
+# roll_room_items uses for a real grid cell. Wiki support for applying the
+# Rod here at all: West_Path page, "Outer Room cave" section -- the door "may
+# be drafted from like the doors in the house", and "[d]rafting effects not
+# related to the draft pool ... still usually work when drafting on the
+# grounds" (the Rod's slot-pointing never touches which rooms are dealt, only
+# which of the three dealt options benefits).
+#
+# Three of the outer pool's eight rooms -- Toolshed, Shelter, Shrine -- are
+# ALSO on the Rod's 26-room avoid list (data/items.json's
+# dowsing_rod.avoid_rooms), so the all-avoided fallback is exercised by a
+# real, reachable outer hand (1 outcome in C(8,3)=56), not merely a
+# hypothetical.
+
+def test_open_outer_draft_picks_a_dowsed_slot_when_the_rod_is_held(registry):
+    """Game.open_outer_draft's hand must come back with a real dowsed_slot
+    pick when the Rod is held -- the wiring gap this PR fixes (previously
+    open_outer_draft's hand never called _pick_dowsing_slot at all, leaving
+    dowsed_slot permanently None for every outer draft).
+    """
+    cfg = GameConfig(special_items=True, west_gate_unlatched=True)
+    g = Game(cfg, seed=0, registry=registry)
+    g.state.inventory["dowsing_rod"] = 1
+    pending = g.open_outer_draft()
+    assert pending.dowsed_slot in (0, 1, 2), (
+        "an outer hand with the Rod held must get a real slot pick, not None")
+
+
+def test_open_outer_draft_dowsed_slot_is_none_without_the_rod(registry):
+    """Negative control: an outer draft with no Dowsing Rod held must leave
+    dowsed_slot at None, exactly like an ordinary grid draft -- the outer
+    wiring must not mark a slot unconditionally.
+    """
+    cfg = GameConfig(special_items=True, west_gate_unlatched=True)
+    g = Game(cfg, seed=0, registry=registry)
+    pending = g.open_outer_draft()
+    assert pending.dowsed_slot is None
+
+
+def test_pick_dowsing_slot_prefers_non_avoid_room_among_outer_rooms(registry):
+    """The grid pool's avoid-list preference
+    (test_pick_dowsing_slot_prefers_non_avoid_room), reproduced with a real
+    outer-shaped hand (target_cell=-1): Toolshed and Shelter are both on the
+    26-room avoid list, Tomb is not -- the pick must always land on Tomb.
+    """
+    pending = PendingDraft(from_cell=-1, direction=0, target_cell=-1)
+    for slot, rid in enumerate(["toolshed", "tomb", "shelter"]):
+        room = registry.by_id[rid]
+        pending.options.append(DraftOption(room_idx=room.idx, orientation=room.door_mask,
+                                           gem_cost=0, slot=slot))
+    for seed in range(200):
+        ctx = _ctx(registry, seed)
+        draft._pick_dowsing_slot(ctx, pending)
+        assert pending.dowsed_slot == 1, f"seed {seed}: must prefer the only non-avoid outer room"
+
+
+def test_pick_dowsing_slot_falls_back_uniformly_for_an_all_avoided_outer_hand(registry):
+    """Toolshed, Shelter, and Shrine are the three outer rooms that are ALSO
+    on the Rod's 26-room avoid list -- a hand offering exactly these three is
+    a real, reachable outer draft (1 outcome in C(8,3)=56), not a
+    hypothetical. The wiki's "the Dowsing Rod will still pick one of them"
+    fallback must hold here exactly as test_pick_dowsing_slot_falls_back_
+    uniformly_when_all_avoid_listed proves for the grid pool.
+    """
+    pending = PendingDraft(from_cell=-1, direction=0, target_cell=-1)
+    for slot, rid in enumerate(["toolshed", "shelter", "shrine"]):
+        room = registry.by_id[rid]
+        pending.options.append(DraftOption(room_idx=room.idx, orientation=room.door_mask,
+                                           gem_cost=0, slot=slot))
+    counts = [0, 0, 0]
+    trials = 6000
+    for seed in range(trials):
+        ctx = _ctx(registry, seed)
+        draft._pick_dowsing_slot(ctx, pending)
+        assert pending.dowsed_slot in (0, 1, 2), "must still pick SOME slot, never skip"
+        counts[pending.dowsed_slot] += 1
+    for slot, c in enumerate(counts):
+        where = f"all-avoid-listed outer fallback, slot {slot}"
+        _assert_within_binomial_ci(c, trials, 1 / 3, where)
+
+
+def test_choose_outer_marks_the_sentinel_cell_only_for_the_dowsed_slot(registry):
+    """Game._choose_outer (routed from the public Game.choose when
+    pending.target_cell == -1) must mark the -1 sentinel in
+    state.dowsing_marked_cells ONLY when the drafted slot is the one the Rod
+    pointed at -- the same "tracks the SLOT, not merely a held Rod" proof
+    test_choose_marks_only_the_dowsed_slot gives for the grid pipeline's
+    real cell, reused here for the outer pipeline's -1 sentinel.
+    """
+    cfg = GameConfig(special_items=True)
+    room = registry.by_id["tomb"]
+
+    g_hit = Game(cfg, seed=1, registry=registry)
+    g_hit.state.inventory["dowsing_rod"] = 1
+    pending_hit = PendingDraft(from_cell=-1, direction=0, target_cell=-1)
+    pending_hit.options = [DraftOption(room_idx=room.idx, orientation=room.door_mask,
+                                       gem_cost=0, slot=0)]
+    pending_hit.dowsed_slot = 0
+    g_hit.state.pending = pending_hit
+    g_hit.phase = Phase.DRAFTING
+    g_hit.doorway_drafts[(-1, 0)] = pending_hit
+    g_hit.choose(0)
+    assert -1 in g_hit.state.dowsing_marked_cells, "chosen slot matches dowsed_slot: must mark"
+
+    g_miss = Game(cfg, seed=1, registry=registry)
+    g_miss.state.inventory["dowsing_rod"] = 1
+    pending_miss = PendingDraft(from_cell=-1, direction=0, target_cell=-1)
+    pending_miss.options = [DraftOption(room_idx=room.idx, orientation=room.door_mask,
+                                        gem_cost=0, slot=0)]
+    pending_miss.dowsed_slot = 1  # points at a DIFFERENT slot than the one chosen below
+    g_miss.state.pending = pending_miss
+    g_miss.phase = Phase.DRAFTING
+    g_miss.doorway_drafts[(-1, 0)] = pending_miss
+    g_miss.choose(0)
+    assert -1 not in g_miss.state.dowsing_marked_cells, "chosen slot != dowsed_slot: must not mark"
+
+
+def test_outer_draft_dowsed_room_boosts_item_roll_past_its_zero_cap(registry):
+    """End-to-end wiring proof: every one of the 8 outer rooms has
+    additional_max=0 (data/rooms.json), so an UNDOWSED roll can never yield
+    an extra item there no matter what the ladder rolls -- any nonzero extra
+    item found from an outer room is only possible via the Dowsing Rod's own
+    additional_max bypass (owner ruling, engine/items.py::roll_room_items).
+    Root Cellar (guaranteed=(), so every found item comes from this one
+    roll) is neither on the 26-room avoid list nor never_roll_rooms, so its
+    dowsed roll runs the ordinary weighted table. Forcing
+    "dowsing_penalty_outcome" to index 3 (the 0-2 band's own fixed-4-items
+    row, same index test_fixed_4_item_row_bumps_dowsing_penalty_by_2 forces)
+    pins the count to exactly 4.
+
+    Seed 0 (with west_gate_unlatched so the West Path route is immediately
+    affordable) deals [Shelter, Root Cellar, Hovel] and the Rod -- preferring
+    the two non-avoid slots, Root Cellar/Hovel -- happens to land on Root
+    Cellar; established empirically and asserted below as setup, the same
+    seed-probed-hand convention tests/rooms/test_tomb.py already uses.
+    """
+    room = registry.by_id["root_cellar"]
+    assert room.items.additional_max == 0, "fixture must actually have a zero cap to bypass"
+    assert room.items.guaranteed == (), "fixture must have no items outside the clamped roll"
+
+    cfg = GameConfig(special_items=True, west_gate_unlatched=True)
+    g = Game(cfg, seed=0, registry=registry)
+    g.state.inventory["dowsing_rod"] = 1
+    g.rng = _ForcedIndexRng(0, "dowsing_penalty_outcome", [3])
+
+    pending = g.open_outer_draft()
+    dowsed_opt = next(o for o in pending.options if o.slot == pending.dowsed_slot)
+    assert registry.rooms[dowsed_opt.room_idx].id == "root_cellar", (
+        "setup: seed 0 must dowse Root Cellar")
+
+    g.choose(pending.dowsed_slot)
+    assert -1 in g.state.dowsing_marked_cells, "choosing the dowsed slot must mark the sentinel"
+
+    found_before = len(g.state.items_found_log)
+    g.travel_to("root_cellar")
+    assert g.state.outer_room_entered, "setup: must actually reach and enter the outer room"
+    assert -1 not in g.state.dowsing_marked_cells, "the mark must be consumed by the item roll"
+    found_after = len(g.state.items_found_log)
+    assert found_after - found_before == 4, (
+        "additional_max=0 must not clamp a dowsed outer room's forced 4-item roll")
+    assert g.state.dowsing_penalty == 2, "wiki fixed-4 row: '+2 Dowsing Penalty'"
