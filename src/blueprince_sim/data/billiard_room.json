@@ -1,0 +1,42 @@
+{
+ "schema_version": 1,
+ "meta": {
+  "source": "https://blueprince.wiki.gg/wiki/Billiard_Room (Dartboard Puzzle, Rewards section)",
+  "confidence": "datamined",
+  "notes": [
+   "The Dartboard is a puzzle object inside the Billiard Room, not a room in its own right -- it has no rooms.json record. Solving it is a player-skill act; this sim assumes puzzles are solved (docs/open_tasks.md), so there is no action id for it -- engine/effects/rooms/billiard_room.py auto-resolves it on entry to a freshly-drafted Billiard Room, once per day (owner ruling).",
+   "The wiki's own DataMinedBox: 'The odds of receiving each item are given according to the following table (first row's condition applies).' Rows are checked top-to-bottom: Veteran Mode / Room 46 reached before / Day 22+ first, then Day 13-21, Day 8-12, Day 1-7. The bands array below preserves that order; billiard_room.py checks the open-ended (max_day null) band's own trigger before falling through to the finite day ranges, so the day cutoff for that band lives here in data, not as a Python constant.",
+   "Day 13-21's weights are published in nineteenths (2/19, 6/19, 4/19, 7/19), not percent -- verified against the live wiki page, not a transcription artefact. Stored here as the raw integer numerators; Rng.roll_weighted divides by the weights' own sum, so they need no rescaling to 100.",
+   "Also published: 'If an item is not in the item pool when the items spawn (when the dartboard puzzle is solved), the fallback priority is Keycard -> 2 keys.' billiard_room.py generalises this to every rolled outcome (not just Secret Garden Key/Silver Key): a rolled Keycard that is already held falls back to 2 keys the same way.",
+   "The wiki's 2-key reward is a plain 'basic keys' pair, i.e. state.keys += 2, not a special/door-specific key -- see the possible-items line 'A pile of 2 keys - most commonly' is the modal outcome in the two earliest bands.",
+   "Not modelled here: the Bullseye Trophy (the 40th lifetime dartboard solve) -- a save-scoped counter, unruled; see docs/open_tasks.md's scoping pass."
+  ]
+ },
+ "once_per_day": true,
+ "bands": [
+  {
+   "id": "day_1_7",
+   "min_day": 1,
+   "max_day": 7,
+   "weights": {"secret_garden_key": 1, "silver_key": 30, "keycard": 20, "two_keys": 49}
+  },
+  {
+   "id": "day_8_12",
+   "min_day": 8,
+   "max_day": 12,
+   "weights": {"secret_garden_key": 5, "silver_key": 30, "keycard": 20, "two_keys": 45}
+  },
+  {
+   "id": "day_13_21",
+   "min_day": 13,
+   "max_day": 21,
+   "weights": {"secret_garden_key": 2, "silver_key": 6, "keycard": 4, "two_keys": 7}
+  },
+  {
+   "id": "veteran_room46_day22plus",
+   "min_day": 22,
+   "max_day": null,
+   "weights": {"secret_garden_key": 20, "silver_key": 25, "keycard": 20, "two_keys": 35}
+  }
+ ]
+}

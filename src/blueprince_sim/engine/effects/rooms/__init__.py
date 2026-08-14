@@ -16,6 +16,7 @@ from __future__ import annotations
 
 from . import aquarium  # noqa: F401
 from . import archives  # noqa: F401
+from . import billiard_room  # noqa: F401  (registers room_hook handler on import)
 from . import boiler_room  # noqa: F401  (registers room_hook handlers on import)
 from . import break_room  # noqa: F401
 from . import bunk_room  # noqa: F401
