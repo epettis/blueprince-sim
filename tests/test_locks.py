@@ -492,19 +492,18 @@ def _place_and_stand(g: Game, room_id: str, cell: int = PRISM_TEST_CELL,
     there, bypassing normal drafting/movement -- the same shape
     test_colour_drafting.py's own ``_place_secret_passage`` helper uses.
 
-    Also tops up ``state.keys`` to 5: this teleports the player onto an
-    island disconnected from the day-start Entrance Hall, so it is the ONLY
-    frontier doorway Game._action_in_budget can see; without spare regular
-    keys that budget check reads the still-unresolved locked doorway as
-    unaffordable and ends the day (_terminate("out_of_steps")) before the
-    special-keys-menu row is ever reached, since that check only knows about
-    regular keys, not special ones. Unrelated to the mechanism under test --
-    every prism_key test here resolves the lock via the special-keys-menu
-    row, never a regular key."""
+    Leaves ``state.keys`` at 0: this teleports the player onto an island
+    disconnected from the day-start Entrance Hall, so it is the ONLY
+    frontier doorway Game._action_in_budget can see. Game._frontier_lock_affordable
+    recognizes a fitting held special key (Prism Key here) as its own route
+    past a locked doorway, independent of regular keys, so the still-locked
+    doorway does not end the day (_terminate("out_of_steps")) before the
+    special-keys-menu row is ever reached -- every prism_key test here
+    resolves the lock via that menu row, never a regular key."""
     room = g.registry.by_id[room_id]
     g._place_room(room, cell, orientation)
     g.state.pos = cell
-    g.state.keys = 5
+    g.state.keys = 0
 
 
 class _FixedChoiceRng:
@@ -622,6 +621,162 @@ def test_prism_key_multi_colour_room_draws_via_its_own_rng_label(registry, index
     for opt in pending.options:
         assert g.registry.rooms[opt.room_idx].is_category(expected), (
             f"index={index}: expected the {expected!r}-restricted draw")
+
+
+# --------------------------------------- day-end affordability (_action_in_budget)
+#
+# Game._action_in_budget's locked-door line decides whether an openable
+# locked doorway keeps the day alive. It must count everything the
+# LOCK_PENDING menu itself would accept (regular keys via lock_open_cost,
+# Master Key, a fitting Silver/Prism Key) -- not just raw keys against a
+# hardcoded cost of 1 -- while still correctly ending the day when nothing
+# can open the door at all (no open/abandon infinite loop; trying a locked
+# frontier doorway is always free, see frontier_doorway_triable).
+
+
+def _enter_lock_pending(g: Game, cell: int, d: int) -> None:
+    """Test-only: park Phase.LOCK_PENDING on cell->d directly, bypassing
+    open_door's own _check_termination call -- so a doorway's own
+    openability can be probed via the LOCK_PENDING menu (can_use_key_at_lock
+    etc.) independent of whether the day as a whole would end first."""
+    g.state.pending_lock_cell = cell
+    g.state.pending_lock_direction = d
+    g.phase = Phase.LOCK_PENDING
+
+
+def test_master_key_holder_at_zero_keys_keeps_the_day_alive(registry):
+    """A Master Key holder with 0 regular keys does not have the day end
+    early merely because a locked frontier doorway is the only thing left:
+    _action_in_budget must recognize the Master Key opens it for free (the
+    false negative this fix closes -- the old line only ever looked at
+    ``st.keys``, never at held items)."""
+    g = _game(registry, starting_items=frozenset({"master_key"}))
+    _place_and_stand(g, "bedroom")
+    _force_state(g, PRISM_TEST_CELL, N, DOOR_LOCKED)
+    assert g.state.keys == 0
+    assert g._action_in_budget(), "a Master Key holder can always open a locked door"
+    g.open_door(PRISM_TEST_CELL, N)
+    assert g.phase is Phase.LOCK_PENDING, "the day must not have terminated early"
+
+
+def test_search_surcharge_door_not_affordable_with_too_few_keys(registry):
+    """A locked frontier door carrying a 2-key search surcharge
+    (lock_open_cost == 3) is NOT counted as affordable with only 2 regular
+    keys: the old line hardcoded the door's own cost to 1 instead of calling
+    lock_open_cost, so a search-surcharged door read as cheaper than it
+    really is -- the opposite-direction error from the Master Key one
+    above (an over-, not under-, estimate of affordability)."""
+    g = _game(registry)
+    _place_and_stand(g, "bedroom")
+    g.state.keys = 2
+    seg = segment_key(PRISM_TEST_CELL, N)
+    _force_state(g, PRISM_TEST_CELL, N, DOOR_LOCKED)
+    g.door_search_cost[seg] = 2  # lock_open_cost == 1 (base) + 2 == 3
+    assert g.lock_open_cost(PRISM_TEST_CELL, N) == 3
+    assert not g._action_in_budget(), "2 keys must not be counted as enough for a 3-key door"
+    g.open_door(PRISM_TEST_CELL, N)
+    assert g.phase is Phase.TERMINAL, "no other purposeful action exists: the day must end"
+    assert g.termination_reason == "out_of_steps"
+
+
+def test_stopwatch_refund_keeps_the_day_alive_with_one_key_at_a_surcharged_door(registry):
+    """An active Stopwatch refunds a locked frontier door's spend down to a
+    single key, even under a search surcharge that would otherwise need
+    more (can_use_key_at_lock's own refund rule, mirrored here): 1 key plus
+    an active Stopwatch is enough for a 3-key door, so the day does not end
+    early."""
+    g = _game(registry)
+    _place_and_stand(g, "bedroom")
+    g.state.keys = 1
+    g.state.special.stopwatch_left = 1
+    seg = segment_key(PRISM_TEST_CELL, N)
+    _force_state(g, PRISM_TEST_CELL, N, DOOR_LOCKED)
+    g.door_search_cost[seg] = 2  # lock_open_cost == 3 without the refund
+    assert g.lock_open_cost(PRISM_TEST_CELL, N) == 3
+    assert g._action_in_budget(), "1 key + an active Stopwatch must be enough"
+    g.open_door(PRISM_TEST_CELL, N)
+    assert g.phase is Phase.LOCK_PENDING, "the day must not have terminated early"
+
+
+def test_stopwatch_refund_still_needs_at_least_one_key(registry):
+    """The Stopwatch refunds the SPEND, not the requirement to hold a key at
+    all: 0 keys still ends the day even with an active Stopwatch (wiki:
+    "At least one key is still required for the option to use a key to
+    appear, even though it isn't spent")."""
+    g = _game(registry)
+    _place_and_stand(g, "bedroom")
+    g.state.keys = 0
+    g.state.special.stopwatch_left = 1
+    seg = segment_key(PRISM_TEST_CELL, N)
+    _force_state(g, PRISM_TEST_CELL, N, DOOR_LOCKED)
+    g.door_search_cost[seg] = 2
+    assert not g._action_in_budget(), "0 keys must not be affordable even with a Stopwatch"
+    g.open_door(PRISM_TEST_CELL, N)
+    assert g.phase is Phase.TERMINAL, "0 keys, no other action: the day must end"
+    assert g.termination_reason == "out_of_steps"
+
+
+def test_unopenable_locked_door_still_ends_the_day(registry):
+    """A locked frontier door that genuinely cannot be opened -- no keys, no
+    items -- still ends the day. This is the guard that matters: if
+    _frontier_lock_affordable became unconditionally True, the day would
+    never end (open the door -> abandon -> it's still the only option ->
+    open again, forever), since trying a locked frontier doorway costs
+    nothing and abandon_lock always returns to NAVIGATE."""
+    g = _game(registry)
+    _place_and_stand(g, "bedroom")
+    _force_state(g, PRISM_TEST_CELL, N, DOOR_LOCKED)
+    assert g.state.keys == 0
+    assert not g._action_in_budget()
+    g.open_door(PRISM_TEST_CELL, N)
+    assert g.phase is Phase.TERMINAL, "nothing can open this door: the day must end"
+    assert g.termination_reason == "out_of_steps"
+    assert not g.can_abandon_lock(), "the day is over: no menu to loop through"
+
+
+@pytest.mark.parametrize("items,keys,search_extra,stopwatch", [
+    (frozenset(), 1, 0, 0),                     # exactly enough: base cost 1
+    (frozenset(), 0, 0, 0),                     # not enough: 0 keys, cost 1
+    (frozenset(), 3, 2, 0),                     # exactly enough: cost 1+2 surcharge
+    (frozenset(), 2, 2, 0),                     # not enough: 2 keys, cost 3
+    (frozenset({"master_key"}), 0, 0, 0),       # free regardless of keys
+    (frozenset({"silver_key"}), 0, 0, 0),       # fits any standard locked door
+    (frozenset({"prism_key"}), 0, 0, 0),        # fits: bedroom is a colour room
+    (frozenset({"basement_key"}), 0, 0, 0),     # never fits an on-grid door
+    (frozenset(), 1, 2, 1),                     # Stopwatch refund: 1 key enough for a 3-key door
+    (frozenset(), 0, 2, 1),                     # Stopwatch refund still needs >=1 key
+])
+def test_frontier_lock_affordability_agrees_with_the_lock_pending_menu(
+        registry, items, keys, search_extra, stopwatch):
+    """Regression guard: Game._frontier_lock_affordable must agree with what
+    the LOCK_PENDING menu itself would actually accept (can_use_key_at_lock
+    -- including its Stopwatch refund -- can_open_locked_free,
+    can_use_special_key_at_lock for master/silver/prism), across
+    regular-key, surcharge, Stopwatch, and special-item scenarios -- so a
+    fourth copy of this door-legality rule drifting from the other three
+    (the action mask, draft_from, and this one) is caught by a test instead
+    of discovered later, per #246's own unification of the first two. The
+    Lock Pick Kit is deliberately excluded from both sides: it is a
+    probabilistic menu row (can_lockpick_at_lock), not a deterministic
+    affordability guarantee, and _frontier_lock_affordable is conservative
+    about it on purpose (see its own docstring)."""
+    g = _game(registry, starting_items=items)
+    _place_and_stand(g, "bedroom")
+    g.state.keys = keys
+    g.state.special.stopwatch_left = stopwatch
+    seg = segment_key(PRISM_TEST_CELL, N)
+    _force_state(g, PRISM_TEST_CELL, N, DOOR_LOCKED)
+    if search_extra:
+        g.door_search_cost[seg] = search_extra
+    path_key_cost = g.key_cost_map()[PRISM_TEST_CELL]
+    predicted = g._frontier_lock_affordable(PRISM_TEST_CELL, N, path_key_cost)
+
+    _enter_lock_pending(g, PRISM_TEST_CELL, N)
+    actual = (g.can_use_key_at_lock()
+              or special_items.can_open_locked_free(g)
+              or any(g.can_use_special_key_at_lock(k)
+                     for k in ("master_key", "silver_key", "prism_key")))
+    assert predicted == actual, (items, keys, search_extra, stopwatch)
 
 
 # ------------------------------------------------------- keycard system
