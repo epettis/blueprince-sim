@@ -17,9 +17,10 @@ import pytest
 from scipy import stats
 
 from blueprince_sim.config import GameConfig
+from blueprince_sim.engine import draft as draft_mod
 from blueprince_sim.engine.draft import DraftContext, _resolve_free_gem
 from blueprince_sim.engine.game import Game
-from blueprince_sim.engine.grid import N
+from blueprince_sim.engine.grid import N, S
 from blueprince_sim.engine.rng import Rng
 from blueprince_sim.engine.state import GameState
 
@@ -214,3 +215,77 @@ def test_slot0_is_never_a_gem_room():
                 gem_slot0_count += 1
     assert total_slot0 > 150, "setup: most seeds should deal a slot-0 option"
     assert gem_slot0_count == 0, f"slot 0 held a gem room {gem_slot0_count}/{total_slot0} times"
+
+
+# ------------------------------------------------ Slot 2 (wiki Slot 3) invariant
+
+def test_slot2_never_gem_during_a_free_draw_unless_forced(registry, monkeypatch):
+    """No option dealt into slot 2 ("Slot 3" on the wiki) during a Free Draw
+    round may be a gem room, unless it is the Garage's own Forced Draw
+    (draft.py's ``_forced_draw_garage``). A Priority Draw is "an additional
+    filter on the floorplans" applied "within the (free/gem) group being
+    worked in" (blueprince.wiki.gg/wiki/Drafting/Advanced), so ``_priority_draw``
+    must never surface a gem-cost room (commissary, secret_passage, patio, ...)
+    on a Free Draw round -- an exact per-hand rule, not a rate, so a single
+    violation across many seeds is a real leak.
+
+    Sampled at two doorways: a plain cell (2, heading N) where the Garage's own
+    placement conditions (West Wing, ranks 4-8) can never be met, so the
+    Forced Draw exemption is never legitimately available there, isolating the
+    leak with no legal escape hatch; and the Garage's own legal doorway (rank
+    4->5 of the West Wing, heading N, mirroring tests/rooms/test_garage.py's
+    SRC_A/TARGET_A) to prove the fix does not also silently zero out the
+    Garage's real Forced Draw -- the exemption must still fire at least once.
+    """
+    orig_resolve = draft_mod._resolve_free_gem
+    captured: dict = {}
+
+    def _patched(ctx, rank, round_num):
+        result = orig_resolve(ctx, rank, round_num)
+        captured["slot2_is_gem"] = result[1]
+        return result
+
+    monkeypatch.setattr(draft_mod, "_resolve_free_gem", _patched)
+
+    cfg = GameConfig(door_locks=False, starting_steps=50, day=5)
+    corridor = registry.by_id["corridor"]
+    garage_id = registry.by_id["garage"].id
+
+    violations: list[tuple[int, int, str]] = []
+    free_rounds_checked = 0
+    garage_forced_seen = False
+
+    # (source cell, direction, whether the source needs a hand-placed corridor
+    # so it has a door to draft through -- mirrors _place_corridor in
+    # tests/rooms/test_garage.py)
+    doorways = [(2, N, False), (15, N, True)]
+
+    for src, direction, needs_corridor in doorways:
+        for seed in range(2000):
+            game = Game(cfg, seed=seed, registry=registry)
+            if needs_corridor:
+                game._place_room(corridor, src, N | S)
+            game.state.pos = src
+            captured.clear()
+            pending = game.open_door(src, direction)
+            if pending is None or "slot2_is_gem" not in captured:
+                continue
+            if captured["slot2_is_gem"]:
+                continue  # this round was a Gem Draw, not a Free Draw -- skip
+            free_rounds_checked += 1
+            slot2 = next((o for o in pending.options if o.slot == 2), None)
+            if slot2 is None:
+                continue
+            room = registry.rooms[slot2.room_idx]
+            if not room.is_free:
+                if room.id == garage_id and slot2.forced:
+                    garage_forced_seen = True
+                else:
+                    violations.append((src, seed, room.id))
+
+    assert free_rounds_checked > 1000, "setup: too few Free-Draw rounds sampled"
+    assert garage_forced_seen, (
+        "setup: the Garage's own Forced Draw exemption never fired -- the doorway "
+        "or gate setup no longer exercises it"
+    )
+    assert not violations, f"gem room(s) leaked into a Free Draw's slot 2: {violations[:10]}"

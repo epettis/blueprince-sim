@@ -182,12 +182,12 @@ def test_priority_draw_skips_entry_with_inactive_condition(registry, cfg):
             registry.priority["priority_draws"] = original
             rng_base = Rng(seed)
             ctx_base = DraftContext(GameState(), registry, cfg, rng_base, set(), None)
-            base_pick = _priority_draw(ctx_base, 7, N, set())
+            base_pick = _priority_draw(ctx_base, 7, N, set(), is_gem=True)
 
             registry.priority["priority_draws"] = [gated_entry, *original]
             rng_gated = Rng(seed)
             ctx_gated = DraftContext(GameState(), registry, cfg, rng_gated, set(), None)
-            gated_pick = _priority_draw(ctx_gated, 7, N, set())
+            gated_pick = _priority_draw(ctx_gated, 7, N, set(), is_gem=True)
 
             assert (gated_pick.id if gated_pick else None) == \
                    (base_pick.id if base_pick else None), \

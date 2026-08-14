@@ -193,9 +193,16 @@ def _deal_from_rarity(ctx: DraftContext, rarity_idx: int, slot: int, cell: int,
 
 
 def _priority_draw(ctx: DraftContext, cell: int, entry_dir: int,
-                   exclude: set[int]) -> Room | None:
+                   exclude: set[int], is_gem: bool) -> Room | None:
     """Roll the slot-3 priority draws (Patio group, Commissary/Observatory, Classroom,
     Tomorrow Rooms).
+
+    ``is_gem`` is this round's Free/Gem Draw decision for slot 2 (see
+    :func:`_resolve_free_gem`): the priority filter is an additional filter
+    applied within whichever Free/Gem group the round is already working in
+    (blueprince.wiki.gg/wiki/Drafting/Advanced), so a candidate is only
+    eligible when its own class (``not room.is_free``) matches ``is_gem`` --
+    the same convention ``_deal_from_rarity`` uses via ``ctx.state.deck``.
 
     An entry may carry an optional ``condition`` tag (the same vocabulary
     ``_active_conditions`` feeds to ``_apply_category_bias``'s ``category_biases``
@@ -235,6 +242,7 @@ def _priority_draw(ctx: DraftContext, cell: int, entry_dir: int,
         for rid in candidates:
             room = ctx.registry.by_id.get(rid)
             if room is not None and room.rarity is not None and \
+                    room.is_free != is_gem and \
                     room_draftable(ctx, room, cell, entry_dir, exclude):
                 return room
     return None
@@ -602,7 +610,7 @@ def draw_slot(ctx: DraftContext, slot: int, cell: int, entry_dir: int,
 
     # Priority draws force specific rooms into slot 3 (attempt-1 rules only).
     if slot == 2:
-        forced = _priority_draw(ctx, cell, entry_dir, exclude)
+        forced = _priority_draw(ctx, cell, entry_dir, exclude, is_gem)
         if forced is not None:
             return _make_option(ctx, forced, slot, cell, entry_dir, forced_draw=True)
 
