@@ -195,15 +195,6 @@ ITEM_ARCHITECTURE: dict[str, set[str]] = {
         # treasure_map directly above -- the item-id behaviour branch itself
         # (grant/pickup) lives in effects/items/battery_pack.py, not here.
         "battery_pack",
-        # CONTRAPTION_LOCKOUT: the wiki's own per-contraption component
-        # block-list (a contraption carried overnight blocks a curated
-        # SUBSET of its own fabrication inputs, not the whole recipe) --
-        # an engine-owned table carve-out naming both its contraption keys
-        # and blocked-component values, the same shape as SANCTUM_KEY_IDS/
-        # the vault-key family above.
-        "burning_glass", "compass", "dowsing_rod", "lucky_rabbits_foot",
-        "metal_detector", "power_hammer", "powered_electromagnet",
-        "sledge_hammer",
     },
     "items.py": {
         # roll_dowsed_count/_dowsing_effective_luck/_roll_dowsing_band_0_2

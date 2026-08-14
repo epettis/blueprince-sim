@@ -1125,9 +1125,20 @@ existing prose.
   **ITEMS**
   12. **BUILD `morning_star`'s star grant on wiki confidence.** Wiki-only and
       unconfirmable by datamine, and the owner accepted that basis.
-  13. **BUILD the contraption carry-over lockout** (6 items). The shape exists
+  13. **BUILD the contraption carry-over lockout.** The shape exists
       -- `collected_disks`/`collected_allowance_tokens`/`collected_sanctum_keys`
-      all feed `gated_out`. Dowsing Rod and Pick Sound Amplifier are exempt.
+      all feed `gated_out`.
+      **CORRECTION (this entry was wrong as first written).** It said "6 items"
+      with "Dowsing Rod and Pick Sound Amplifier exempt". The wiki says the
+      opposite: **every contraption blocks something**, those two included --
+      the Dowsing Rod blocks the Compass, the Pick Sound Amplifier blocks the
+      Lock Pick Kit. The shipped table (#297) has **8 entries**, and it blocks a
+      **curated subset** of each recipe, not the whole recipe. The orchestrator
+      briefed the exemptions inverted, the implementing agent checked the source
+      and shipped the correct rule, and the correction was recorded in that PR
+      body **but not here** -- so this record stated the wrong rule until a later
+      agent noticed the doc and the code disagreed. **A correction recorded only
+      in a PR body does not reach the file people read.**
   14. **REBUILD `running_shoes` to the real rule.** The `n=3` cadence is
       **invented**, not simplified, and the shoes are **inert off-grid** where
       the wiki gives them their highest rates.

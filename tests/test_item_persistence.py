@@ -445,3 +445,64 @@ def test_key_8_is_a_daily_gallery_find_not_a_carried_item():
     g = _game_with("key_8")
     carried = si.end_of_day_carry(g.state, g.registry, g.rng)
     assert "key_8" not in carried
+
+
+# ============================================================= Morning Star
+
+def test_morning_star_star_not_granted_before_day_end():
+    """Holding the Morning Star does not add a star until end_of_day_carry runs.
+
+    Wiki: "if in your inventory at the end of the day, you gain 1 star" — an
+    end-of-day check, not a pickup-time grant, so state.stars must still read
+    0 right after the item enters the inventory.
+    """
+    g = _game_with("morning_star")
+    assert g.state.stars == 0
+
+
+def test_morning_star_grants_star_at_day_end():
+    """A held Morning Star grants exactly 1 star when end_of_day_carry runs.
+
+    This is the deferred half of the wiki's grant firing at all — the guard
+    that the star-granting code path is actually reached.
+    """
+    g = _game_with("morning_star")
+    si.end_of_day_carry(g.state, g.registry, g.rng)
+    assert g.state.stars == 1
+
+
+def test_morning_star_no_star_without_the_item():
+    """No Morning Star held means no star at end of day.
+
+    Rules out a bug that grants the star unconditionally regardless of
+    whether the item is actually held.
+    """
+    g = _game()
+    si.end_of_day_carry(g.state, g.registry, g.rng)
+    assert g.state.stars == 0
+
+
+def test_morning_star_lost_before_day_end_grants_nothing():
+    """A Morning Star stolen or traded away earlier in the day does not grant
+    the star, even though it was held at pickup time.
+
+    The wiki's condition is "in your inventory AT THE END OF THE DAY" — a
+    snapshot at the end_of_day_carry call site, not a one-time pickup flag.
+    """
+    g = _game_with("morning_star")
+    si.remove(g.state, "morning_star", consumed=True)
+    si.end_of_day_carry(g.state, g.registry, g.rng)
+    assert g.state.stars == 0
+
+
+def test_morning_star_grants_again_on_a_later_day_still_held():
+    """Held again at a later day's end, the Morning Star grants another star.
+
+    The wiki phrases the condition per-day ("if... at the end of the day"),
+    not as a one-shot first-pickup bonus, so a second end-of-day check while
+    still held must grant a second star.
+    """
+    g = _game_with("morning_star")
+    si.end_of_day_carry(g.state, g.registry, g.rng)
+    si.end_of_day_carry(g.state, g.registry, g.rng)
+    assert g.state.stars == 2
