@@ -57,12 +57,18 @@ def _red_negated(game, room) -> bool:
     return False
 
 
-# --- plain grants (fire when the player first enters the room) ---
+# --- plain grants (fire when the player first enters the room, or on the
+# room's own "when" override -- e.g. Planetarium's day-end star grant) ---
 
+@effect("grant", Hook.ON_DAY_END)
 @effect("grant", Hook.ON_ENTER)
 def grant(game, room, eff, ctx_room) -> None:
-    """Flat resource grant on first entry; negative amounts are red-room
-    penalties, which Shelter's negation can cancel.
+    """Flat resource grant; fires on first entry by default, or at whatever
+    hook the effect's own "when" param names (Planetarium: "on_day_end",
+    since its 2 Stars are gated on ending the day there, not walking in).
+
+    Negative amounts are red-room penalties, which Shelter's negation can
+    cancel.
 
     Chapel -1 coin: the Keeper of Tithes secretly banks each coin actually
     taken (player had >=1 coin).  Tracked in special.chapel_tithes and paid
