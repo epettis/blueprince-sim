@@ -370,6 +370,15 @@ class GameState:
     # again. Per-day only -- deliberately NOT carried over, same shape as
     # quest_bedroom_entered_today above.
     quest_bedroom_allowance_paid_today: bool = False
+    # True once the Billiard Room's Dartboard puzzle has paid out today (owner
+    # ruling: solvable once per day). Day-scoped only: NO GameConfig field, NO
+    # _CARRYOVER_KEYS entry -- same shape as grotto_chip_taken, since the
+    # Dartboard offers no discovery to carry forward and simply resets False
+    # at every reset(). Keyed to the day, not to a single cell, because
+    # st.entered is per-cell and a second billiard_room id on the grid (see
+    # game.py's "duplicates are only possible via the Chamber of Mirrors")
+    # would otherwise pay out again.
+    dartboard_solved_today: bool = False
     # Set on arrival at Upper Rotating Gear: the Treasure Trove blackprint has
     # been picked up. Same shape as west_gate_unlatched: recorded on STATE, never
     # written back to GameConfig. carryover() ORs this with
