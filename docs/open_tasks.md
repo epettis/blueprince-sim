@@ -855,6 +855,70 @@ around 1,800 LOC.
 
 ## Decisions log
 
+- **2026-08-13, FOUR OWNER RULINGS clearing the whole outstanding queue -- and
+  the fourth rejected the question rather than answering it.**
+
+  **1. `file_cabinet_key`: model exactly ONE key, buried in the Patio.** Owner,
+  verbatim:
+
+  > "The Archives upgrade disk is locked by the file cabinet key buried in the
+  > Patio. The player receives it if they can dig in the Patio. Model exactly one
+  > file cabinet key in the Patio."
+
+  **This reframes the item from never-buildable to buildable now.** The options
+  offered were reclassify-as-`wont_implement`, keep-blocked, or build the full
+  gate behind the Pump Room. The owner took none: they **specified the model**,
+  and it drops every expensive part.
+  - **One key, not three.** The wiki's Laundry Room and Tunnel keys -- newspaper
+    clippings and a letter, both lore, one of them in the out-of-scope Crate
+    Tunnel -- are not modelled.
+  - **No Aquarium drain, no water levels, no Pump Room.** The acquisition path
+    is a **Patio dig**, and digging is already fully modelled. `patio` already
+    carries `dig_spots: 1`.
+  - **`upgrade_disk_archives` stops being free.** It is `guaranteed_in:
+    ["archives"]` and `implemented: true` today, granted on first entry under the
+    assumed-solved doctrine. It now gates on holding the key.
+
+  **This is the one place the assumed-solved doctrine is deliberately reversed,
+  and the reason is that the gate became cheap.** The doctrine exists to avoid
+  modelling puzzles; a dig is not a puzzle, it is a mechanic that already works.
+  **When the cost of a gate collapses, re-ask whether the simplification is still
+  earning its place.**
+
+  **2. `chronograph`'s rewind is FREE, UNLIMITED, and ONE-WAY down the stack.**
+  Rewind as many times as there are prior hands, back to the original three.
+  **The hand you leave is NOT pushed**, so it walks strictly backwards and cannot
+  oscillate. Spends no redraw, no die, no gem. The wiki never states a cost, and
+  "acts as a normal redraw" refers to draw effects firing, not to cost.
+  Confirmed as a **forward-pinned re-deal, not a state restore** -- no RNG
+  snapshot, no deck rewind.
+
+  **3. `gear_wrench` is SAVE-SCOPED; the Conservatory conflict is filed
+  separately.** Axed rarities survive the `DayChain` attempt wrap, joining
+  `stars` / `main_course_bonus` / shrine -- matching the ruling already made for
+  `the_axe`'s permanent gem-cost override. **Recorded as its own backlog item:**
+  the wiki says the Conservatory writes the *same* permanent rarity slot and can
+  reset a wrench-set rarity, but this sim models the Conservatory as a random
+  day-scoped reroll of three undealt cards. **Two incompatible models of one game
+  mechanic will coexist until the Conservatory is revisited.** That is a
+  deliberate, recorded divergence, not an oversight.
+
+  **4. Lost & Found: REPLACE the existing path with the published transform.**
+  The sim spawns its items through `lost_and_found_on_enter`, a fixed
+  luck-independent 2-item draw that bypasses the ladder entirely; the wiki gives
+  it *"One item is added to the result, and the item count then clamped to be in
+  2-4."* PR-B recorded the transform but deliberately did **not** wire it,
+  because layering it on top would **double-grant** -- correctly stopping rather
+  than building. Owner ruled: the published rule wins, the fixed draw goes.
+  **Care needed:** the room's steal/gift behaviour also lives on that path, so
+  removing the draw must not remove the steal.
+
+  **Generalisable, and the second instance today: a prose answer to a
+  multiple-choice question is a rejection of the frame.** The locked-door ruling
+  did the same thing -- both times the options were reasonable and the frame was
+  what was wrong. **When the owner writes prose instead of picking, the prose is
+  the ruling, and the first thing to check is which presupposition it discards.**
+
 - **2026-08-13, BOTH remaining "subsystem-blocked" blockers re-derived, and both
   are wrong -- in opposite directions.**
 
