@@ -1,7 +1,7 @@
 """Inner Sanctum: the eight Sigil Chamber doors, gated on Room 46 and opened
 with a Sanctum Key.
 
-Verbatim mechanics (see docs/open_tasks.md): a Sanctum Key
+Verbatim mechanics (see docs/rooms.md): a Sanctum Key
 permanently unlocks one of the eight realm doors and is then consumed; none
 of the eight keys spawn anywhere until Room 46 has been reached at least
 once (owner ruling, overriding the wiki's narrower "only one key" claim);
