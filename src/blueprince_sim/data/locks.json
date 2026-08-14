@@ -86,11 +86,11 @@
   }
  },
  "keycard": {
-  "comment": "Chance (percent) of finding the Keycard on first entry to a source room; the card is permanent for the day and never consumed. Source list from the wiki's spawn locations restricted to rooms modeled in the sim; the per-room chance is not datamined (confidence: inferred).",
+  "comment": "Chance (percent) of finding the Keycard on first entry to a source room; the card is permanent for the day and never consumed. Source list is a subset of the wiki's spawn locations -- not restricted to rooms modeled in the sim, since all of the wiki's listed rooms have rooms.json records; the per-room chance is not datamined (confidence: inferred). billiard_room is not one of the wiki's listed rooms: the wiki lists Dartboard, an object inside the Billiard Room that is not itself modeled as a room, and this list does not use billiard_room to stand in for it.",
   "chance": 25,
   "source_rooms": [
    "archives", "office", "laboratory", "vault", "security",
-   "darkroom", "dormitory", "billiard_room"
+   "darkroom", "dormitory"
   ]
  },
  "special_key_menu": {

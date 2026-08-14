@@ -137,8 +137,7 @@
     "observatory",
     "terrace",
     "walk_in_closet",
-    "workshop",
-    "mail_room"
+    "workshop"
    ],
    "spawn_rooms_high_luck": [],
    "guaranteed_in": [],
@@ -148,7 +147,8 @@
     "source": "https://blueprince.wiki.gg/wiki/Compass",
     "confidence": "wiki",
     "absent_spawn_areas": [],
-    "blocked_on": null
+    "blocked_on": null,
+    "notes": "mail_room is not a spawn_rooms entry: the wiki lists \"Package\" (a Mail Room delivery), not the Mail Room floor, and this sim already models that delivery via special_items.json's mail_packages (slot1 chains include compass)."
    }
   },
   {
@@ -403,11 +403,11 @@
    "no_receive": true,
    "unique": false,
    "persistence": "until_used",
-   "spawn_rooms": [
+   "spawn_rooms": [],
+   "spawn_rooms_high_luck": [],
+   "guaranteed_in": [
     "spare_bedroom__ix131"
    ],
-   "spawn_rooms_high_luck": [],
-   "guaranteed_in": [],
    "effects": [
     {
      "tag": "repellent"
@@ -419,7 +419,7 @@
     "confidence": "wiki",
     "absent_spawn_areas": [],
     "blocked_on": null,
-    "notes": "shops.py::use_repellent consumes one can and bans the room the player stands in for shops.py::_REPELLENT_BAN_DAYS days; env/multiday.py::DayChain.advance decrements the counters and evicts the oldest ban once more than shops.py::REPELLENT_MAX_BANS are active, and decks.py::eligible_pool drops a banned floorplan plus its upgrade variants from the day's decks (outer-room drafting bypasses the decks, matching the wiki). NOT modelled: the wiki bars Repellent on most permanent and objective rooms, while shops.py::_REPELLENT_ILLEGAL_TARGETS names only entrance_hall, antechamber and room_46; the Foundation interaction (repelling The Foundation resets it out of the house and lets it be redrafted a week later, the wiki's only known way to move it); and the wiki's guaranteed spawns -- a Bedroom drafted from the Cloister of Mila, and the Spare Bedroom upgrades past spare_bedroom__ix131 -- where this record carries spare_bedroom__ix131 as an ordinary spawn_rooms pool entry rather than a guaranteed_in one."
+    "notes": "shops.py::use_repellent consumes one can and bans the room the player stands in for shops.py::_REPELLENT_BAN_DAYS days; env/multiday.py::DayChain.advance decrements the counters and evicts the oldest ban once more than shops.py::REPELLENT_MAX_BANS are active, and decks.py::eligible_pool drops a banned floorplan plus its upgrade variants from the day's decks (outer-room drafting bypasses the decks, matching the wiki). NOT modelled: the wiki bars Repellent on most permanent and objective rooms, while shops.py::_REPELLENT_ILLEGAL_TARGETS names only entrance_hall, antechamber and room_46; the Foundation interaction (repelling The Foundation resets it out of the house and lets it be redrafted a week later, the wiki's only known way to move it); and the wiki's other guaranteed spawn, a Bedroom drafted from the Cloister of Mila -- only the Spare Bedroom (spare_bedroom__ix131) carries a guaranteed_in entry here, not its later upgrades or the Cloister-drafted Bedroom."
    }
   },
   {
@@ -574,8 +574,7 @@
     "closet",
     "master_bedroom",
     "sauna",
-    "walk_in_closet",
-    "mail_room"
+    "walk_in_closet"
    ],
    "spawn_rooms_high_luck": [
     "foyer"
@@ -592,7 +591,8 @@
     "source": "https://blueprince.wiki.gg/wiki/Sleeping_Mask",
     "confidence": "wiki",
     "absent_spawn_areas": [],
-    "blocked_on": null
+    "blocked_on": null,
+    "notes": "mail_room is not a spawn_rooms entry: the wiki lists \"Package\" (a Mail Room delivery), not the Mail Room floor, and this sim already models that delivery via special_items.json's mail_packages (slot1 chains include sleeping_mask)."
    }
   },
   {
@@ -834,9 +834,7 @@
    "tier": 2,
    "unique": true,
    "persistence": "day",
-   "spawn_rooms": [
-    "garage"
-   ],
+   "spawn_rooms": [],
    "spawn_rooms_high_luck": [],
    "guaranteed_in": [],
    "effects": [],
@@ -845,7 +843,8 @@
     "source": "https://blueprince.wiki.gg/wiki/Car_Keys",
     "confidence": "wiki",
     "absent_spawn_areas": [],
-    "blocked_on": null
+    "blocked_on": null,
+    "notes": "spawn_rooms is empty here, not garage: the Garage page says the Garage \"does not usually contain special items lying around\" -- the car (Car Keys' use site, /Usage) is not its spawn site. The wiki's Car Keys page lists 25 other rooms as spawn locations, none modelled in this sim's spawn pools yet."
    }
   },
   {
@@ -2207,9 +2206,7 @@
    "no_receive": true,
    "unique": true,
    "persistence": "day",
-   "spawn_rooms": [
-    "dining_room"
-   ],
+   "spawn_rooms": [],
    "spawn_rooms_high_luck": [],
    "guaranteed_in": [],
    "effects": [
@@ -2224,7 +2221,8 @@
     "source": "https://blueprince.wiki.gg/wiki/Lunch_Box",
     "confidence": "wiki",
     "absent_spawn_areas": [],
-    "blocked_on": null
+    "blocked_on": null,
+    "notes": "dining_room is not a spawn_rooms/guaranteed_in entry: neither field can express its condition (guaranteed only after the Gift Shop unlock). effects/items/lunch_box.py::grant_guaranteed already grants it unconditionally on Dining Room entry once cfg.lunch_box_unlocked is set, called from special_items.on_enter independently of these two fields, and gate() removes it from the pool entirely while locked. A dining_room spawn_rooms entry would be redundant once unlocked (the bespoke grant already fires every time) and would dilute the room's other pool items' odds for no gain, so it is left empty."
    }
   },
   {
