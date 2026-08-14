@@ -127,6 +127,16 @@ def observation_space(n_rooms: int, n_items: int, n_recipes: int,
         # internal-API state this array does not otherwise guard against.
         "resources": spaces.Box(-99, 999, shape=(7,), dtype=np.int16),
         "options": spaces.Box(-1, max(n_rooms, 999), shape=(3, OPTION_FEATURES), dtype=np.int16),
+        # prev_options: the top of the Chronograph's REWIND stack (the hand
+        # the current one's most recent redraw replaced), encoded identically
+        # to "options" (same _encode_option_rows helper, same row layout) so
+        # the agent can evaluate the REWIND action -- the Chronograph is
+        # blind, and undraftable, without seeing what it would restore.
+        # Additive: never a shape change to "options" (widening that would
+        # silently reinterpret trained weights). All -1 outside DRAFTING and
+        # whenever the current hand has not yet been redrawn (stack empty).
+        "prev_options": spaces.Box(-1, max(n_rooms, 999), shape=(3, OPTION_FEATURES),
+                                   dtype=np.int16),
         # upgrade_options: Room.idx+1 for each of the three offered upgrade variants
         # while in UPGRADE_PENDING, or -1 in every slot otherwise.
         "upgrade_options": spaces.Box(-1, max(n_rooms, 999), shape=(3,), dtype=np.int16),
@@ -250,6 +260,61 @@ def _cost_split(game: Game, room, opt) -> tuple[int, int]:
     if game.hovel_placed:
         return 0, 3 * cost
     return cost, 0
+
+
+def _encode_option_rows(game: Game, pending, opts) -> np.ndarray:
+    """Encode ``opts`` (a list of DraftOption, indexed by their own ``.slot``)
+    into a (3, OPTION_FEATURES) int16 array; a slot absent from ``opts``
+    stays -1. ``pending`` supplies the doorway (``from_cell``/``direction``)
+    the security-door rarity leak checks against -- it is the live
+    ``PendingDraft`` in every caller, even when ``opts`` is a past hand
+    pulled off its ``rewind_stack``, since the doorway a hand was dealt at
+    never changes across a redraw/rewind of the same draft.
+
+    Shared by the "options" (live pending hand) and "prev_options" (top of
+    the Chronograph's REWIND stack) observation keys so the two encode
+    identically by construction rather than by two hand-kept-in-sync copies.
+    """
+    rows = np.full((3, OPTION_FEATURES), -1, dtype=np.int16)
+    for opt in opts:
+        room = game.registry.rooms[opt.room_idx]
+        gem_cost, step_cost = _cost_split(game, room, opt)
+        doors = tuple(int(bool(opt.orientation & d)) for d in DIRS)  # N,E,S,W
+        if opt.hidden:
+            # Identity and orientation concealed (room_idx 0 = unknown,
+            # door bits 0), but the cost and affordability stay visible
+            # and it is still selectable. Rarity leaks through a security
+            # door (wiki: "If the door being drafted from is a security
+            # door, the rarity of the floorplan is shown"), otherwise -1.
+            # forced is also zeroed: forced options are drawn from a small
+            # named-room pool (Garage, Tunnel chain, Reading Nook Library,
+            # priority draws), so exposing it on an otherwise-concealed
+            # card would narrow its identity far more than any in-game
+            # tell does -- same suppress-unless-canon-leak treatment as
+            # rarity above.
+            # from_cell == -1 (outer-room draft) has no doorway segment to
+            # check; never hidden today anyway, but guarded explicitly.
+            security = (
+                pending is not None and pending.from_cell != -1
+                and game.door_state_of(pending.from_cell, pending.direction) == DOOR_SECURITY
+            )
+            rarity = room.rarity_idx + 1 if security else -1
+            rows[opt.slot] = (0, rarity, gem_cost, step_cost, -1, -1, 0, 0, 0, 0,
+                              int(game.affordable(room, opt)), 0, int(opt.archived))
+            continue
+        rows[opt.slot] = (
+            room.idx + 1,
+            room.rarity_idx + 1,
+            gem_cost,
+            step_cost,
+            LAYOUTS.index(room.layout),
+            CAT_INDEX.get(room.category, 0),
+            *doors,
+            int(game.affordable(room, opt)),
+            int(opt.forced),
+            int(opt.archived),
+        )
+    return rows
 
 
 def _encode_shop_stock(game: Game) -> np.ndarray:
@@ -378,45 +443,18 @@ def encode(game: Game, day_chain: DayChain | None = None) -> dict:
         secret_passage_colour = COLOUR_CATEGORIES.index(pending.colour) + 1
 
     options = np.full((3, OPTION_FEATURES), -1, dtype=np.int16)
+    # prev_options: the top of the Chronograph's REWIND stack (the hand the
+    # most recent redraw replaced), encoded with the same _encode_option_rows
+    # helper as "options" -- an ADDITIVE key, never a shape change to
+    # "options" itself. All -1 whenever the stack is empty (including outside
+    # DRAFTING, or DRAFTING with no prior redraw this hand): without this key
+    # a rewind is a menu item the agent cannot evaluate, since it can never
+    # see what hand it would restore.
+    prev_options = np.full((3, OPTION_FEATURES), -1, dtype=np.int16)
     if game.phase is Phase.DRAFTING and pending is not None:
-        for opt in pending.options:
-            room = game.registry.rooms[opt.room_idx]
-            gem_cost, step_cost = _cost_split(game, room, opt)
-            doors = tuple(int(bool(opt.orientation & d)) for d in DIRS)  # N,E,S,W
-            if opt.hidden:
-                # Identity and orientation concealed (room_idx 0 = unknown,
-                # door bits 0), but the cost and affordability stay visible
-                # and it is still selectable. Rarity leaks through a security
-                # door (wiki: "If the door being drafted from is a security
-                # door, the rarity of the floorplan is shown"), otherwise -1.
-                # forced is also zeroed: forced options are drawn from a small
-                # named-room pool (Garage, Tunnel chain, Reading Nook Library,
-                # priority draws), so exposing it on an otherwise-concealed
-                # card would narrow its identity far more than any in-game
-                # tell does -- same suppress-unless-canon-leak treatment as
-                # rarity above.
-                # from_cell == -1 (outer-room draft) has no doorway segment to
-                # check; never hidden today anyway, but guarded explicitly.
-                security = (
-                    pending.from_cell != -1
-                    and game.door_state_of(pending.from_cell, pending.direction) == DOOR_SECURITY
-                )
-                rarity = room.rarity_idx + 1 if security else -1
-                options[opt.slot] = (0, rarity, gem_cost, step_cost, -1, -1, 0, 0, 0, 0,
-                                     int(game.affordable(room, opt)), 0, int(opt.archived))
-                continue
-            options[opt.slot] = (
-                room.idx + 1,
-                room.rarity_idx + 1,
-                gem_cost,
-                step_cost,
-                LAYOUTS.index(room.layout),
-                CAT_INDEX.get(room.category, 0),
-                *doors,
-                int(game.affordable(room, opt)),
-                int(opt.forced),
-                int(opt.archived),
-            )
+        options = _encode_option_rows(game, pending, pending.options)
+        if pending.rewind_stack:
+            prev_options = _encode_option_rows(game, pending, pending.rewind_stack[-1])
 
     house_flags = np.array([
         int(st.solarium_placed),
@@ -651,6 +689,7 @@ def encode(game: Game, day_chain: DayChain | None = None) -> dict:
         "player_pos": st.pos,
         "resources": resources,
         "options": options,
+        "prev_options": prev_options,
         "upgrade_options": upgrade_options,
         "experiment": experiment_arr,
         "phase": game.phase.value,

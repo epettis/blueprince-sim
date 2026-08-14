@@ -149,6 +149,23 @@ class PendingDraft:
     # for draft.py::_resolve_free_gem's "third round or later this draft"
     # Slot 3 Gem Draw rule (Drafting/Advanced) to ever fire.
     round_num: int = 1
+    # Chronograph REWIND stack: each entry is the hand a redeal (Game.
+    # _redeal_pending -- Study/Classroom/dice redraw, or Crown of the
+    # Blueprints' free redeal) just replaced, pushed there before the hand is
+    # cleared and refilled. Free/unlimited/one-way (owner ruling): Game.rewind
+    # pops the top entry back into ``options`` and re-fires ON_HAND_DEALT for
+    # it (the wiki: rewinding "activat[es] effects that rely on drawing a
+    # floorplan"), but never pushes what it leaves -- so repeated rewinds walk
+    # strictly back through every prior hand to the original deal and then
+    # stop, and can never oscillate. A shallow copy of ``options`` is pushed
+    # (never a deepcopy): DraftOption is a slots dataclass whose fields are
+    # only ever mutated in place by Game.rotate_options on the CURRENTLY LIVE
+    # hand, and each redeal builds an entirely new set of DraftOption objects
+    # (draft.py::_fill_options/_make_option), so a stacked hand's objects are
+    # never touched again once superseded. Lives here, not on GameState or in
+    # DayChain._CARRYOVER_KEYS: the Chronograph is persistence="day" and this
+    # history is meaningless past the hand (and the day) it belongs to.
+    rewind_stack: list[list[DraftOption]] = field(default_factory=list)
 
 
 @dataclass(slots=True)

@@ -1903,7 +1903,14 @@ class Game:
         :meth:`redraw` always has. Does not check termination itself --
         callers do that after, since a caller-specific action (spending a
         die, granting a gem) may itself need to run first.
+
+        Pushes the hand about to be discarded onto ``pending.rewind_stack``
+        first (a shallow copy -- see the field's docstring), unconditionally:
+        the history costs nothing to keep and the Chronograph's REWIND is
+        gated on holding the item at :meth:`can_rewind` time, not on whether
+        it was held when the redraw happened.
         """
+        pending.rewind_stack.append(list(pending.options))
         pending.options.clear()
         pending.rotations_used = 0  # fresh hand, fresh rotation budget
         if pending.target_cell == -1:  # outer-room draft: fixed pool, not the grid pipeline
@@ -1955,6 +1962,53 @@ class Game:
         st.special.crown_block_used = True
         st.gems += 1
         self._redeal_pending(pending)
+        self._check_termination()
+
+    def can_rewind(self) -> bool:
+        """True when the Chronograph's REWIND option is available: DRAFTING,
+        special items enabled, a Chronograph held, and at least one prior
+        hand still on ``pending.rewind_stack``.
+
+        Wiki (blueprince.wiki.gg/wiki/Chronograph): "after a redraw by any
+        method, a new option appears to REWIND last draft" -- so the option
+        is absent on the very first (un-redrawn) hand, when the stack is
+        still empty.
+        """
+        if self.phase is not Phase.DRAFTING or self.state.pending is None:
+            return False
+        if not self.cfg.special_items:
+            return False
+        if not special_items.chronograph_active_from_state(self.state, self.registry):
+            return False
+        return bool(self.state.pending.rewind_stack)
+
+    def rewind(self) -> None:
+        """Pop the last hand off ``pending.rewind_stack`` and restore it as
+        the pending options, re-firing ON_HAND_DEALT for each -- the wiki:
+        rewinding "acts as a normal redraw but with the three rooms drawn
+        being fixed, activating effects that rely on drawing a floorplan".
+
+        NOT a state restore: no RNG is re-rolled, no resource is spent, and
+        no deck/pool state is touched -- ``pending.options`` is simply
+        overwritten from the remembered list (owner ruling: FREE, UNLIMITED,
+        one-way). The hand being left is deliberately NOT pushed back onto
+        the stack (unlike :meth:`_redeal_pending`'s own push), so repeated
+        rewinds walk strictly backward through every prior hand to the
+        original deal and then stop -- the stack can never oscillate.
+
+        Resets ``rotations_used`` to 0, same as an ordinary redeal
+        (:meth:`_redeal_pending`): the restored hand is once again the
+        CURRENT hand, so it gets a fresh rotation budget on the same terms
+        any other current hand would. ``round_num`` is left untouched -- it
+        exists solely to gate draft.py::_resolve_free_gem's RNG-driven
+        Free/Gem Draw roll, which a rewind never performs.
+        """
+        assert self.can_rewind(), "REWIND not available"
+        pending = self.state.pending
+        pending.options = pending.rewind_stack.pop()
+        pending.rotations_used = 0  # fresh hand, fresh rotation budget
+        for opt in pending.options:
+            effects.fire(self, self.registry.rooms[opt.room_idx], Hook.ON_HAND_DEALT)
         self._check_termination()
 
     def _free_rotation_source(self) -> bool:

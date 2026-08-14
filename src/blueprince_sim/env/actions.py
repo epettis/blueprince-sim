@@ -152,6 +152,13 @@ Layout (Discrete(427)):
                      the resulting draft (effects/items/prism_key.py) --
                      Silver Key, Master Key, and Prism Key are the rows ever
                      actually selectable today.
+  436      REWIND last draft (the Chronograph), appended at the end so no
+           earlier id shifts: DRAFTING only, legal while a Chronograph is
+           held and ``pending.rewind_stack`` is non-empty (i.e. after at
+           least one redraw this hand). Pops the hand a redraw most recently
+           replaced back into the pending options for free, unlimited times,
+           strictly backward through the stack to the original deal (never
+           forward -- rewinding never pushes) -- see Game.can_rewind/rewind.
 """
 
 from __future__ import annotations
@@ -294,8 +301,12 @@ LOCK_SPECIAL_KEY_BASE = LOCK_MENU_BASE + 3    # 430..435: a special key, data/lo
                                                # Game.can_use_special_key_at_lock.
 _N_LOCK_SPECIAL_KEYS = 6  # width pinned as a constant, like _N_AREA_NODES/_N_AXE_TARGETS
 
-# N_ACTIONS = first slot after the lock-menu special-key range.
-N_ACTIONS = LOCK_SPECIAL_KEY_BASE + _N_LOCK_SPECIAL_KEYS  # 436
+# 436: REWIND last draft (the Chronograph), appended at the end so no earlier
+# id shifts. DRAFTING only; see Game.can_rewind/rewind.
+REWIND_ACTION = LOCK_SPECIAL_KEY_BASE + _N_LOCK_SPECIAL_KEYS  # 436
+
+# N_ACTIONS = first slot after REWIND_ACTION.
+N_ACTIONS = REWIND_ACTION + 1  # 437
 
 DIR_INDEX = {d: i for i, d in enumerate(DIRS)}
 
@@ -698,6 +709,8 @@ def action_mask(game: Game, prev_action: int | None = None) -> list[bool]:
         for i in range(3):
             if game.can_crown_block(i):
                 mask[CROWN_BLOCK_BASE + i] = True
+        if game.can_rewind():
+            mask[REWIND_ACTION] = True
     elif game.phase is Phase.UPGRADE_PENDING:
         # Exactly three upgrade variants are always offered; enable all three.
         # No other actions are legal in this phase — the player must choose.
@@ -857,9 +870,11 @@ def apply_action(game: Game, action: int) -> None:
         game.lockpick_at_lock()
     elif action == LOCK_ABANDON_ACTION:
         game.abandon_lock()
-    elif LOCK_SPECIAL_KEY_BASE <= action < N_ACTIONS:
+    elif LOCK_SPECIAL_KEY_BASE <= action < REWIND_ACTION:
         key_id = _build_lock_special_key_order(game.registry)[action - LOCK_SPECIAL_KEY_BASE]
         game.use_special_key_at_lock(key_id)
+    elif action == REWIND_ACTION:
+        game.rewind()
     else:
         raise ValueError(f"unimplemented action {action}")
 
@@ -1023,9 +1038,11 @@ def describe_action(game: Game, action: int) -> str:
         return "pick the lock"
     if action == LOCK_ABANDON_ACTION:
         return "abandon (leave the door locked)"
-    if LOCK_SPECIAL_KEY_BASE <= action < N_ACTIONS:
+    if LOCK_SPECIAL_KEY_BASE <= action < REWIND_ACTION:
         key_id = _build_lock_special_key_order(game.registry)[action - LOCK_SPECIAL_KEY_BASE]
         item = game.registry.special.by_id.get(key_id)
         name = item.name if item is not None else key_id
         return f"use special key: {name}"
+    if action == REWIND_ACTION:
+        return "rewind last draft (Chronograph)"
     return f"action {action}"

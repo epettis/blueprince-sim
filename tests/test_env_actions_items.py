@@ -5,8 +5,10 @@ from __future__ import annotations
 import pytest
 
 from blueprince_sim import GameConfig, make_env
+from blueprince_sim.engine import game as game_mod
 from blueprince_sim.engine import shops, special_items as si
-from blueprince_sim.engine.game import Game
+from blueprince_sim.engine.effects import Hook
+from blueprince_sim.engine.game import Game, Phase, RedrawKind
 from blueprince_sim.engine.grid import N, rank_of
 from blueprince_sim.engine.state import DraftOption
 from blueprince_sim.env import actions as A
@@ -817,3 +819,193 @@ def test_describe_action_crown_block_mentions_room_name():
     game, pending, red = _drafting_with_forced_red_slot0(seed=2)
     desc = A.describe_action(game, A.CROWN_BLOCK_BASE + 0)
     assert red.name in desc
+
+
+# ============================================================ REWIND (436, the Chronograph)
+
+def _drafting_with_chronograph(item_held: bool = True, seed: int = 0):
+    """Build a Game in DRAFTING at a real doorway (cell 2, north -- the
+    Entrance Hall's own door, already proven open at day 1 by the silver-key
+    tests in test_draft_items.py), then overwrite all three slots with THREE
+    KNOWN, distinct base-pool rooms -- never a dealt-by-RNG hand -- so a
+    later REWIND's restored hand is known ahead of time rather than read back
+    from the engine. Returns (game, pending, [the three known Room objects]).
+    """
+    items = frozenset(("chronograph",)) if item_held else frozenset()
+    game = _game(GameConfig(starting_items=items), seed=seed)
+    game.state.steps = 100
+    pending = game.open_door(2, N)
+    chosen = [r for r in game.registry.rooms if r.rarity is not None and r.pool == "base"][:3]
+    pending.options[:] = [
+        DraftOption(room_idx=r.idx, orientation=r.door_mask, gem_cost=0, slot=i)
+        for i, r in enumerate(chosen)
+    ]
+    return game, pending, chosen
+
+
+def _snapshot(options) -> list[tuple]:
+    """Full-fidelity, slot-ordered snapshot of a DraftOption list, for an
+    exact before/after identity check that a room-id comparison alone would
+    miss (e.g. a rewind that restored the right rooms in the wrong
+    orientation)."""
+    return [(o.room_idx, o.orientation, o.slot, o.gem_cost, o.forced, o.hidden, o.archived)
+            for o in sorted(options, key=lambda o: o.slot)]
+
+
+def test_rewind_mask_requires_chronograph_and_nonempty_stack():
+    """REWIND_ACTION stays masked off with a redraw-populated stack but no
+    Chronograph, AND with a Chronograph but an empty (never-redrawn) stack --
+    only holding the item WHILE the stack is non-empty unmasks it."""
+    game_no_item, pending_no_item, _ = _drafting_with_chronograph(item_held=False, seed=0)
+    pending_no_item.redraws_left = 1
+    game_no_item.redraw(RedrawKind.FREE)
+    assert not A.action_mask(game_no_item)[A.REWIND_ACTION], (
+        "a stack exists but no Chronograph is held: must stay masked")
+
+    game_empty_stack, _pending, _ = _drafting_with_chronograph(item_held=True, seed=1)
+    assert not A.action_mask(game_empty_stack)[A.REWIND_ACTION], (
+        "Chronograph held but the hand has never been redrawn: must stay masked")
+
+    game_both, pending_both, _ = _drafting_with_chronograph(item_held=True, seed=2)
+    pending_both.redraws_left = 1
+    game_both.redraw(RedrawKind.FREE)
+    assert A.action_mask(game_both)[A.REWIND_ACTION], (
+        "Chronograph held AND a redraw has happened: must unmask")
+
+
+def test_apply_action_rewind_restores_the_previous_hand_exactly():
+    """Dispatching REWIND_ACTION through apply_action restores pending.options
+    to exactly the three known rooms/orientations/slots that were in play
+    right before the redraw replaced them -- not whatever the redraw's own
+    (real, random) redeal happened to produce."""
+    game, pending, rooms = _drafting_with_chronograph(seed=3)
+    before_redraw = _snapshot(pending.options)
+    pending.redraws_left = 1
+    game.redraw(RedrawKind.FREE)
+    A.apply_action(game, A.REWIND_ACTION)
+    assert _snapshot(game.state.pending.options) == before_redraw
+
+
+def test_multistep_rewind_reaches_the_original_hand_then_stops():
+    """Redrawing twice, then rewinding twice, lands on the ORIGINAL
+    (open_door) hand -- not the intermediate one -- and the mask goes dark
+    afterward: rewinding through the whole stack reaches the original three
+    floorplans (wiki) and then stops, since the stack is now empty."""
+    game, pending, rooms = _drafting_with_chronograph(seed=5)
+    original = _snapshot(pending.options)
+
+    pending.redraws_left = 2
+    game.redraw(RedrawKind.FREE)  # hand 1; stack: [hand0]
+    game.redraw(RedrawKind.FREE)  # hand 2; stack: [hand0, hand1]
+
+    A.apply_action(game, A.REWIND_ACTION)  # -> hand1; stack: [hand0]
+    assert A.action_mask(game)[A.REWIND_ACTION], "hand0 still remains on the stack"
+
+    A.apply_action(game, A.REWIND_ACTION)  # -> hand0 (the original); stack: []
+    assert _snapshot(game.state.pending.options) == original
+    assert not A.action_mask(game)[A.REWIND_ACTION], "stack is empty: no further rewind"
+
+
+def test_rewind_does_not_push_the_hand_it_leaves():
+    """rewind_stack shrinks by exactly one per REWIND and never grows -- the
+    mechanism (never pushing what a rewind leaves) that makes the walk
+    strictly one-way and rules out oscillating between two hands."""
+    game, pending, rooms = _drafting_with_chronograph(seed=7)
+    pending.redraws_left = 2
+    game.redraw(RedrawKind.FREE)
+    game.redraw(RedrawKind.FREE)
+    assert len(game.state.pending.rewind_stack) == 2
+
+    A.apply_action(game, A.REWIND_ACTION)
+    assert len(game.state.pending.rewind_stack) == 1
+
+    A.apply_action(game, A.REWIND_ACTION)
+    assert len(game.state.pending.rewind_stack) == 0
+
+
+def test_rewind_spends_no_resource():
+    """REWIND is FREE (owner ruling): gems, keys, dice, and steps are all
+    bit-for-bit identical before and after -- the assertion that fails if a
+    rewind is ever accidentally modeled as (or piggybacked on) a paid
+    redraw source."""
+    game, pending, rooms = _drafting_with_chronograph(seed=9)
+    pending.redraws_left = 1
+    game.redraw(RedrawKind.FREE)
+    st = game.state
+    before = (st.gems, st.keys, st.dice, st.steps)
+    A.apply_action(game, A.REWIND_ACTION)
+    after = (game.state.gems, game.state.keys, game.state.dice, game.state.steps)
+    assert after == before
+
+
+def test_rewind_refires_on_hand_dealt_for_the_restored_hand(monkeypatch):
+    """ON_HAND_DEALT fires again for every room in the restored hand -- the
+    wiki: REWIND "acts as a normal redraw ... activating effects that rely
+    on drawing a floorplan". Captured via a stub on effects.fire so the
+    expected room ids come from the fixture (set before any redraw/rewind
+    ever runs), never from calling Game.rewind and reading its own result.
+    """
+    game, pending, rooms = _drafting_with_chronograph(seed=11)
+    expected_ids = [r.id for r in rooms]  # slot order 0, 1, 2
+    pending.redraws_left = 1
+    game.redraw(RedrawKind.FREE)  # pushes the known hand; deals an unrelated new one
+
+    fired = []
+
+    def fake_fire(g, room, hook):
+        if hook is Hook.ON_HAND_DEALT:
+            fired.append(room.id)
+
+    monkeypatch.setattr(game_mod.effects, "fire", fake_fire)
+    A.apply_action(game, A.REWIND_ACTION)
+    assert fired == expected_ids
+
+
+def test_reopening_the_same_doorway_keeps_the_rewind_stack():
+    """doorway_drafts caches one PendingDraft per doorway (Game._deal_and_cache),
+    so simulating a re-open before a choose() commits it -- the same
+    technique test_experiments.py's security-door idempotency test uses --
+    returns the SAME object with rewind_stack intact: the Chronograph's
+    history is just another PendingDraft field, so it persists across a
+    re-open exactly like study_redraws_used/redraws_left/rotations_used
+    already do (owner-legible design choice, not a special case)."""
+    game, pending, rooms = _drafting_with_chronograph(seed=13)
+    pending.redraws_left = 1
+    game.redraw(RedrawKind.FREE)
+    assert len(pending.rewind_stack) == 1
+
+    game.phase = Phase.NAVIGATE  # simulate re-opening before a choose() commits it
+    reopened = game.open_door(2, N)
+    assert reopened is pending, "doorway_drafts cache hit must return the SAME PendingDraft"
+    assert len(reopened.rewind_stack) == 1
+
+
+def test_describe_action_rewind_mentions_chronograph():
+    """describe_action for REWIND_ACTION names the Chronograph, matching this
+    file's other describe_* conventions (e.g. crown_block naming the room)."""
+    game, pending, rooms = _drafting_with_chronograph(seed=15)
+    pending.redraws_left = 1
+    game.redraw(RedrawKind.FREE)
+    desc = A.describe_action(game, A.REWIND_ACTION)
+    assert "chronograph" in desc.lower()
+
+
+def test_ordinary_redraw_after_full_rewind_repushes_the_original_hand():
+    """A rewind all the way back to the original hand empties the stack; an
+    ordinary redraw from there is not a special case -- it behaves like any
+    other redraw (Game._redeal_pending's own push), re-populating the stack
+    with that same original hand rather than refusing to push it again."""
+    game, pending, rooms = _drafting_with_chronograph(seed=17)
+    original = _snapshot(pending.options)
+
+    pending.redraws_left = 2
+    game.redraw(RedrawKind.FREE)  # stack: [hand0]
+    A.apply_action(game, A.REWIND_ACTION)  # -> hand0; stack: []
+    assert len(game.state.pending.rewind_stack) == 0
+
+    game.redraw(RedrawKind.FREE)  # ordinary redraw of the (rewound) hand0
+    assert len(game.state.pending.rewind_stack) == 1
+    assert A.action_mask(game)[A.REWIND_ACTION]
+
+    A.apply_action(game, A.REWIND_ACTION)
+    assert _snapshot(game.state.pending.options) == original
