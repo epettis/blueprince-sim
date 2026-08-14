@@ -103,6 +103,64 @@ def lever_key_cost(room_id: str, game, cell: int) -> int:
     return fn(game, cell) if fn is not None else 0
 
 
+ContainerKindsFn = Callable  # (state, registry, cell) -> dict[str, kind_count]
+_CONTAINER_REGISTRY: dict[str, ContainerKindsFn] = {}
+
+
+def provides_containers(room_id: str):
+    """Decorator registering ``room_id``'s own container-kinds overlay.
+
+    Some rooms' openable containers are not a fixed per-room count in
+    registry.special.containers["rooms"] -- the count instead depends on
+    per-placement or save-scoped state that only the room's own module can
+    compute. Call at import time from the room's module, the same way
+    ``room_hook`` registers a per-room event handler -- except this
+    registers a query function (called on demand, with no event boundary of
+    its own) rather than something ``fire`` calls at a hook.
+    """
+    def deco(fn: ContainerKindsFn) -> ContainerKindsFn:
+        _CONTAINER_REGISTRY[room_id] = fn
+        return fn
+    return deco
+
+
+def container_kinds_for(state, registry, room_id: str, cell: int) -> dict[str, int] | None:
+    """``room_id``'s registered container-kinds overlay evaluated at ``cell``.
+
+    Returns ``None`` (not ``{}``) when no overlay is registered for
+    ``room_id`` -- that is what tells a caller to fall back to the static
+    containers.rooms table, as distinct from an overlay that legitimately
+    computed zero containers right now (e.g. a Planetarium whose Dauja
+    planet is not yet unlocked).
+    """
+    fn = _CONTAINER_REGISTRY.get(room_id)
+    if fn is None:
+        return None
+    return fn(state, registry, cell)
+
+
+def registered_container_rooms() -> frozenset[str]:
+    """Room ids with a container-kinds overlay registered via ``provides_containers``.
+
+    Mirrors ``registered_rooms()`` for the container registry. Callers
+    outside this module use this rather than reading ``_CONTAINER_REGISTRY``
+    directly.
+    """
+    return frozenset(_CONTAINER_REGISTRY)
+
+
+def validate_container_registry(registry) -> list[str]:
+    """Return every room id registered via ``provides_containers`` that ``registry`` lacks.
+
+    Mirrors ``validate_room_registry``: ``provides_containers`` runs at
+    import time, before any ``Registry`` is loaded, so a typo'd room id
+    cannot be checked at registration -- it would otherwise just never match
+    a real room, silently.
+    """
+    return sorted(
+        {room_id for room_id in _CONTAINER_REGISTRY if room_id not in registry.by_id})
+
+
 class Hook(Enum):
     ON_PLACE = "on_place"          # room placed on the grid (drafted)
     ON_ENTER = "on_enter"          # player enters the room (first time)

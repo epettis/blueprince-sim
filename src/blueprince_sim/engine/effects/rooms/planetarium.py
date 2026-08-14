@@ -13,20 +13,26 @@ LATER day's placement/first entry, reading data/special_items.json's
 planetarium_planets table generically -- neither hook here hardcodes which
 planet is which, only the payload "kind" vocabulary (also shared with
 special_items.py's container/mail-package grant resolution).
+
+The Dauja planet's "container" payload has no repeat-grant hook of its own:
+its Trunk is a live read, answered by this module's own ``provides_containers``
+overlay below -- registry.special.containers["rooms"] carries no static
+Planetarium entry, since the Trunk only exists once Dauja is unlocked, a
+save-scoped condition.
 """
 
 from __future__ import annotations
 
-from .. import Hook, room_hook
+from .. import Hook, provides_containers, room_hook
 from ... import special_items
 
 
-def _unlocked_payloads(game) -> list[dict]:
+def _unlocked_payloads(state, registry) -> list[dict]:
     """Payload dicts for every planet this save has already unlocked."""
-    unlocked = set(game.state.planetarium_planets)
+    unlocked = set(state.planetarium_planets)
     return [
         planet["payload"]
-        for planet in game.registry.special.planetarium_planets
+        for planet in registry.special.planetarium_planets
         if planet["id"] in unlocked
     ]
 
@@ -43,7 +49,7 @@ def seed_dig_bonus(game, room, ctx_room) -> None:
     cell = game.room_cells.get(room.id)
     if cell is None:
         return
-    for payload in _unlocked_payloads(game):
+    for payload in _unlocked_payloads(game.state, game.registry):
         if payload.get("kind") == "dig_bonus":
             bonus = game.state.special.veia_dig_bonus
             bonus[cell] = bonus.get(cell, 0) + payload.get("amount", 1)
@@ -55,11 +61,33 @@ def grant_unlocked_payloads(game, room, ctx_room) -> None:
     on every day's first entry, once their planet is unlocked.
 
     "container" (Dauja) and "dig_bonus" (Veia) payloads are excluded here:
-    the Trunk is a live read (special_items._planetarium_container_kinds),
+    the Trunk is a live read (this module's ``container_kinds`` overlay),
     and the dig spot is seeded once per placement by seed_dig_bonus above --
     neither is a repeat-grant.
     """
     state, registry = game.state, game.registry
-    grants = [p for p in _unlocked_payloads(game) if p.get("kind") in ("food", "dice", "item")]
+    grants = [p for p in _unlocked_payloads(state, registry)
+              if p.get("kind") in ("food", "dice", "item")]
     if grants:
         special_items.apply_grant_list(state, registry, game, grants)
+
+
+@provides_containers("planetarium")
+def container_kinds(state, registry, cell: int) -> dict[str, int]:
+    """The Planetarium's container kinds: its static table plus Dauja's Trunk.
+
+    The static ``containers.rooms`` table carries no Planetarium entry --
+    the Trunk only exists once the Dauja planet has been unlocked via the
+    Telescope (``state.planetarium_planets``, SAVE-scoped). Reads the
+    ``planetarium_planets`` table generically for whichever planet's payload
+    is kind "container" (only Dauja today), rather than hardcoding "dauja",
+    so a future data-only addition of a second container payload needs no
+    engine change here.
+    """
+    kinds = special_items.containers_in(registry, "planetarium")
+    for payload in _unlocked_payloads(state, registry):
+        if payload.get("kind") == "container":
+            kinds = dict(kinds)
+            ckind = payload["container_kind"]
+            kinds[ckind] = kinds.get(ckind, 0) + payload.get("amount", 1)
+    return kinds

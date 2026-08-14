@@ -24,10 +24,12 @@ from pathlib import Path
 # other tools/ script that imports it (e.g. benchmark_env.py).
 from blueprince_sim.engine.effects import (
     registered_capability_rooms,
+    registered_container_rooms,
     registered_item_capability_ids,
     registered_item_hook_ids,
     registered_rooms,
     validate_capability_registry,
+    validate_container_registry,
     validate_item_hook_registry,
     validate_item_registry,
     validate_room_registry,
@@ -2177,6 +2179,23 @@ def main(argv: list[str] | None = None) -> int:
         errors.append(f"engine/effects: item_provides registered for unknown item id {iid!r}")
     for iid in validate_item_hook_registry(effects_registry):
         errors.append(f"engine/effects: item_hook registered for unknown item id {iid!r}")
+    for rid in validate_container_registry(effects_registry):
+        errors.append(
+            f"engine/effects: provides_containers registered for unknown room id {rid!r}")
+
+    # Necessity check, not just liveness: a room registered via
+    # provides_containers should never ALSO carry a static containers.rooms
+    # entry -- _container_kinds_at prefers the overlay unconditionally, so a
+    # static entry alongside a registered overlay is dead data no code path
+    # can ever reach, and its presence would silently mask the overlay if the
+    # registration were ever removed.
+    container_overlap = sorted(registered_container_rooms() & set(containers_rooms))
+    for rid in container_overlap:
+        errors.append(
+            f"special_items/containers/rooms/{rid}: has a static entry AND a "
+            f"provides_containers overlay -- the static entry is unreachable "
+            f"dead data (engine/effects prefers the overlay unconditionally)"
+        )
 
     # ── effects=[] census (derived, not a data marker) ────────────────────────
     # See find_empty_effects_findings' docstring for what this measures and

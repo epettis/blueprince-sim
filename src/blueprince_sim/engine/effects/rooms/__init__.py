@@ -28,6 +28,7 @@ from . import conservatory  # noqa: F401
 from . import darkroom  # noqa: F401
 from . import dovecote  # noqa: F401  (no handler; imported for the predicate helper)
 from . import drawing_room  # noqa: F401
+from . import entrance_hall  # noqa: F401  (registers container-kinds overlay on import)
 from . import foyer  # noqa: F401
 from . import furnace  # noqa: F401
 from . import great_hall  # noqa: F401  (registers lever capability on import)

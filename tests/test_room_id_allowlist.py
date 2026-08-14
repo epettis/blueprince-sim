@@ -181,22 +181,11 @@ ALLOWLIST: dict[str, set[str]] = {
         # Room main course check (the same comparison for the Lunch Box's
         # guaranteed grant moved to engine/effects/items/lunch_box.py).
         "dining_room",
-        # ENTRANCE_HALL_ROOM_ID constant: containers_in() + room.id ==
-        # comparison gating Entrance Hall container spawns.
-        "entrance_hall",
         # room.id != "garage" / membership in the Garage upgrade-id family.
         "garage",
         # room.id == "lost_and_found" steal trigger, plus the same string
         # reused as an RNG substream name and a grant() source label.
         "lost_and_found",
-        # MECHANARIUM_ROOM_ID constant: room.id == comparison gating
-        # Mechanarium-specific item behaviour.
-        "mechanarium",
-        # PLANETARIUM_ROOM_ID constant: room.id == comparison in
-        # _container_kinds_at gating the Telescope-unlocked Dauja Trunk
-        # overlay -- the same "static table has no entry, an overlay
-        # function supplies one" shape as entrance_hall/mechanarium above.
-        "planetarium",
         # KINDS = (..., "showroom", ...): an inventory-item *kind* tag
         # ("showroom exhibit" items), not a room id -- collides with the
         # real Showroom room's id the same way the category names do.
