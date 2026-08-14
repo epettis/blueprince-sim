@@ -61,9 +61,10 @@ noise. Policy is not the lever.
 
 **This is not a modelling bug.** The wiki confirms Unusual rarity, 3 gems, and
 placement restricted to the centre 21 tiles; `deck_copies=1` and the cross layout
-match. Two frequency boosts are *not* modelled and are the only levers that touch
-the real bottleneck: the **Terrace** making Cloister free while on the estate, and
-the **Southern Cross / Greenhouse** boosts.
+match. The frequency boosts are the only levers that touch the real bottleneck,
+and of the three only the **Southern Cross** is unmodelled — the **Terrace**
+(making the Cloister free while on the estate) and the **Greenhouse** boost both
+work today. See [`drafting.md`](drafting.md) for all three.
 
 One structural detail: a failed bracket abandons the **entire** chain line, so
 when Cloister's `min_drafts` fails on line 7, the parlor / aquarium / mail_room
