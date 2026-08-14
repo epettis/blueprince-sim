@@ -1,11 +1,14 @@
 """Special items: core behavior (spawn, pickup effects, food pipeline, coins)."""
 
 from blueprince_sim.config import GameConfig
+from blueprince_sim.engine import items
 from blueprince_sim.engine import special_items as si
 from blueprince_sim.engine.game import Game
 from blueprince_sim.engine.model import Registry
 from blueprince_sim.engine.rng import Rng
 from blueprince_sim.engine.state import GameState
+
+from luck_utils import suppress_luck
 
 
 # ---------------------------------------------------------- helpers / fixtures
@@ -278,19 +281,122 @@ def test_lost_and_found_steals_one_item():
     assert len(stolen) == 1
 
 
-def test_lost_and_found_grants_two_gifts():
-    """Lost & Found grants exactly two draws from its pool (may include dice).
+def _gift_count(g) -> int:
+    """Number of items_found_log entries lost_and_found_on_enter appends this call."""
+    log_before = len(g.state.items_found_log)
+    si.lost_and_found_on_enter(g)
+    return len(g.state.items_found_log) - log_before
 
-    The give-two-takes-one trade is the room's positive side.
+
+def test_lost_and_found_ladder_transform_floors_at_two():
+    """Wiki (Lost & Found DataMinedBox): "One item is added to the result,
+    and the item count then clamped to be in 2-4." At a raw ladder count of
+    0, 0+1=1 clamps up to the floor: 2 items.
+
+    Owner ruling: this published transform replaces the room's prior fixed
+    gives=2, luck-independent draw -- the count now comes from the SAME
+    single item_ladder roll roll_room_items already performed for this
+    room, stashed on state.special.count_transform_raw by
+    engine/items.py's _apply_count_transform ("deferred_ladder" kind).
     """
     cfg = GameConfig(studio_additions=frozenset({"lost_and_found"}))
     g = Game(cfg, seed=7)
-    # Empty inventory so steal does nothing; gifts still fire
-    log_before = len(g.state.items_found_log)
-    si.lost_and_found_on_enter(g)
-    # 2 gift draws should have been logged
-    log_after = len(g.state.items_found_log)
-    assert log_after - log_before == 2
+    g.state.special.count_transform_raw["lost_and_found"] = 0
+    assert _gift_count(g) == 2
+
+
+def test_lost_and_found_ladder_transform_at_raw_one():
+    """Wiki: "One item is added to the result, and the item count then
+    clamped to be in 2-4." Raw 1 -> 1+1=2, already inside [2, 4]: 2 items.
+    """
+    cfg = GameConfig(studio_additions=frozenset({"lost_and_found"}))
+    g = Game(cfg, seed=8)
+    g.state.special.count_transform_raw["lost_and_found"] = 1
+    assert _gift_count(g) == 2
+
+
+def test_lost_and_found_ladder_transform_at_raw_three():
+    """Wiki: "One item is added to the result, and the item count then
+    clamped to be in 2-4." Raw 3 -> 3+1=4, at the ceiling: 4 items.
+    """
+    cfg = GameConfig(studio_additions=frozenset({"lost_and_found"}))
+    g = Game(cfg, seed=9)
+    g.state.special.count_transform_raw["lost_and_found"] = 3
+    assert _gift_count(g) == 4
+
+
+def test_lost_and_found_ladder_transform_ceilings_at_four():
+    """Wiki: "One item is added to the result, and the item count then
+    clamped to be in 2-4." Raw 5 -> 5+1=6, clamped down to the ceiling: 4
+    items (the ladder's high-luck fixed bands can roll a raw count above 3,
+    e.g. 29+ luck's deterministic 4-item band).
+    """
+    cfg = GameConfig(studio_additions=frozenset({"lost_and_found"}))
+    g = Game(cfg, seed=10)
+    g.state.special.count_transform_raw["lost_and_found"] = 5
+    assert _gift_count(g) == 4
+
+
+def test_lost_and_found_missing_stash_defaults_to_raw_zero():
+    """Calling lost_and_found_on_enter directly (bypassing roll_room_items,
+    as this file's steal tests already do) leaves count_transform_raw empty
+    -- the hook must default to raw=0 rather than crash or misbehave, still
+    landing on the wiki's floor of 2 items (0+1=1, clamped up to 2).
+    """
+    cfg = GameConfig(studio_additions=frozenset({"lost_and_found"}))
+    g = Game(cfg, seed=11)
+    assert "lost_and_found" not in g.state.special.count_transform_raw
+    assert _gift_count(g) == 2
+
+
+def test_lost_and_found_guaranteed_item_carve_out_ignores_the_ladder():
+    """Wiki: "If any Guaranteed Item spawns, one additional item appears,
+    and this room does not check Luck." JUDGMENT CALL: mapped onto this
+    sim's existing guaranteed_by_room concept (the Mora Jai Box's Allowance
+    Token, allowance_token_lost_and_found) -- see items.json's
+    count_transforms.meta for the wiki's fuller, unmodeled per-item
+    guaranteed-selection mechanic this does not attempt to reproduce.
+
+    Base gives (2) + guaranteed_add (1) = 3, regardless of what the ladder
+    rolled -- a poisoned/absurd stashed raw (99) must be ignored entirely.
+    """
+    reg = _registry()
+    cfg = GameConfig(studio_additions=frozenset({"lost_and_found"}))
+    g = Game(cfg, seed=12)
+    si.grant(g.state, reg, "allowance_token_lost_and_found", source="test")
+    assert "allowance_token_lost_and_found" in g.state.special.spawned_today
+    g.state.special.count_transform_raw["lost_and_found"] = 99  # must be ignored
+    assert _gift_count(g) == 3
+
+
+def test_lost_and_found_no_guaranteed_item_uses_the_ladder_branch():
+    """Without the guaranteed-item carve-out (spawned_today has nothing from
+    this room's guaranteed_by_room list), the ladder branch applies: a
+    stashed raw of 99 clamps to the wiki's ceiling of 4, not 3.
+    """
+    cfg = GameConfig(studio_additions=frozenset({"lost_and_found"}))
+    g = Game(cfg, seed=13)
+    g.state.special.count_transform_raw["lost_and_found"] = 99
+    assert _gift_count(g) == 4
+
+
+def test_lost_and_found_suppress_luck_floors_at_two_not_zero():
+    """suppress_luck normally forces a room's luck-rolled additional items to
+    genuinely never fire (0 items) -- see tests/luck_utils.py. Lost & Found
+    is now an EXCEPTION: the wiki's item_ladder floor for this room is 2
+    (0+1=1, clamped up), not 0, per "the item count then clamped to be in
+    2-4." This exercises the real wiring end-to-end (roll_room_items's
+    _apply_count_transform stash, consumed by lost_and_found_on_enter), not
+    a hand-set stash, to prove the floor is genuinely reachable through the
+    live pipeline.
+    """
+    cfg = GameConfig(studio_additions=frozenset({"lost_and_found"}))
+    g = Game(cfg, seed=14)
+    suppress_luck(g)
+    room = g.registry.by_id["lost_and_found"]
+    items.roll_room_items(g, room)
+    assert g.state.special.count_transform_raw.get("lost_and_found") == 0
+    assert _gift_count(g) == 2
 
 
 def test_lost_and_found_steals_keycard():

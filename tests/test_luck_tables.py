@@ -3,7 +3,9 @@ data/items.json's item_ladder (engine/items.py's ``roll_room_items``):
 ``never_roll_rooms`` (rooms that skip the ladder roll entirely, including
 the Luck Penalty increase) and ``count_transforms`` (Nook/Study/Guest
 Bedroom/Den's per-room transforms of the ladder's raw extra-item count, plus
-Lost & Found's deliberately-unwired entry).
+Lost & Found's "deferred_ladder" entry, whose transform is applied later by
+special_items.py's lost_and_found_on_enter -- see tests/test_special_items.py
+for that room's own ladder-count/guaranteed-carve-out coverage).
 
 Hard rule, followed throughout (same as test_luck_ladder.py): no expected
 value here is derived by calling the function under test on ITSELF for its
@@ -243,23 +245,22 @@ def test_den_one_becomes_trunk(registry):
         "the one_becomes_trunk transform does not appear to be live")
 
 
-def test_lost_and_found_not_modeled_is_a_documented_no_op(registry):
+def test_lost_and_found_deferred_ladder_stashes_raw_and_still_discards_here(registry):
     """Lost & Found wiki (DataMinedBox): "One item is added to the result,
-    and the item count then clamped to be in 2-4." -- NOT wired live.
-    items.json's count_transforms.meta records the judgment call: this sim
-    already models Lost & Found's items through a separate, pre-existing
-    mechanism (special_items.lost_and_found_on_enter, a fixed luck-
-    independent pool draw) that bypasses additional_max/item_ladder
-    entirely (additional_max=0 in rooms.json). Wiring the wiki's ladder
-    clamp on top of that would double-grant items, so count_transforms
-    records the room as "not_modeled" -- a deliberate no-op.
+    and the item count then clamped to be in 2-4." Owner ruling: this
+    transform IS live, but resolved in two stages because Lost & Found's
+    items are a bespoke pool draw (special_items.lost_and_found_on_enter),
+    not the additional_max-clamped EXTRA_ITEM_TABLE loop every other
+    count_transforms kind feeds -- additional_max is 0 for this room
+    (rooms.json), so nothing returned from _apply_count_transform can reach
+    the player through roll_room_items's own per-slot loop.
 
-    This test pins that the ladder path still behaves exactly like an
-    ordinary additional_max=0 room (0 extra items via this path, but the
-    Luck Penalty still accrues per the general "rolls and discard" rule),
-    NOT like the wiki's 2-4 item range -- i.e. the gap is real and this
-    room's live item count still comes entirely from the separate
-    lost_and_found_on_enter mechanism, untouched by this PR.
+    This test pins stage one, the part that runs through THIS path: the raw
+    ladder count is stashed on state.special.count_transform_raw (for stage
+    two -- lost_and_found_on_enter, covered separately in
+    tests/test_special_items.py -- to consume) and the generic path still
+    yields 0 extra items here, with the Luck Penalty still accruing per the
+    general "rolls and discard" rule, exactly as it did before this PR.
     """
     room = registry.by_id["lost_and_found"]
     assert room.items.additional_max == 0
@@ -267,5 +268,8 @@ def test_lost_and_found_not_modeled_is_a_documented_no_op(registry):
         g = Game(GameConfig(), seed=seed, registry=registry)
         g.state.luck = 30  # 29+ fixed band: deterministic raw=4, +3 penalty
         found = items.roll_room_items(g, room)
-        assert found == 0, "not_modeled must not grant the wiki's 2-4 items via this path"
+        assert found == 0, "deferred_ladder must not grant items via this generic path"
         assert g.state.luck_penalty == 3, "still an ordinary roll-and-discard room, not never-roll"
+        assert g.state.special.count_transform_raw.get("lost_and_found") == 4, (
+            "the raw ladder count (29+ band: deterministic 4) must be stashed for "
+            "lost_and_found_on_enter to consume")
