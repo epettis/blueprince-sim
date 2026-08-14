@@ -10,7 +10,8 @@ from ..config import GameConfig
 from . import effects, experiments, shops, special_items
 from .areas import GateContext, reachable
 from .decks import apply_upgrade, build_decks, inject_rooms, set_dynamic_rarity
-from .draft import COLOUR_CATEGORIES, SECRET_PASSAGE_IDS, deal_draft, redeal
+from .draft import (COLOUR_CATEGORIES, SECRET_PASSAGE_IDS, DraftContext, deal_draft,
+                    redeal, _pick_dowsing_slot)
 from .effects import Capability, Hook
 from .effects.items import (basement_key, crown_of_the_blueprints, gear_wrench, keycard,
                             master_key, paper_crown, power_hammer, prism_key, silver_key,
@@ -1775,25 +1776,40 @@ class Game:
             return False
         return self._outer_route_cost() is not None
 
-    def _deal_outer_options(self, label: str) -> list[DraftOption]:
-        """Shuffle the fixed 8-room outer pool via RNG stream ``label`` and offer 3.
+    def _deal_outer_options(self, pending: PendingDraft, label: str) -> None:
+        """Shuffle the fixed 8-room outer pool via RNG stream ``label``, deal 3
+        into ``pending.options``, then point a held Dowsing Rod at one of them.
 
         No rarity roll: outer rooms are a fixed pool, shuffled and truncated
         to the first 3 (wiki-documented mechanic). Shared by the initial deal
         (:meth:`open_outer_draft`, label ``"outer_draft"``) and by redraws
-        (:meth:`redraw`, a distinct label) so redrawing an outer hand can
-        never perturb the initial deal's RNG sequence -- ``rng.py::Rng.stream``
-        seeds a fresh, independent generator per label.
+        (:meth:`_redeal_pending`, a distinct label) so redrawing an outer hand
+        can never perturb the initial deal's RNG sequence -- ``rng.py::
+        Rng.stream`` seeds a fresh, independent generator per label.
+
+        The Dowsing Rod pick reuses draft.py's ``_pick_dowsing_slot`` --
+        the same helper the grid pipeline's ``_fill_options`` calls on every
+        deal and redraw -- rather than a second copy of the selection logic.
+        Its docstring's "drafting" framing is not grid-specific, and the wiki
+        (West_Path page, Outer Room cave section) confirms the outer door
+        "may be drafted from like the doors in the house" and that
+        "[d]rafting effects not related to the draft pool ... still usually
+        work when drafting on the grounds" -- the Dowsing Rod's slot-pointing
+        is exactly such an effect (it never touches which rooms are dealt).
+        A throwaway ``DraftContext`` supplies the fields ``_pick_dowsing_slot``
+        actually reads (state/registry/cfg/rng); ``placed_ids``/``from_room``
+        are irrelevant to it, so ``from_room=None`` (an outer draft has no
+        from-room, same as the ON_HAND_DEALT firing below) is fine.
         """
         outer = self.outer_rooms
         order = list(range(len(outer)))
         self.rng.shuffle(label, order)
-        options = []
         for slot, i in enumerate(order[:3]):
             room = outer[i]
-            options.append(DraftOption(
+            pending.options.append(DraftOption(
                 room_idx=room.idx, orientation=room.door_mask, gem_cost=0, slot=slot))
-        return options
+        ctx = DraftContext(self.state, self.registry, self.cfg, self.rng, self.placed_ids, None)
+        _pick_dowsing_slot(ctx, pending)
 
     def open_outer_draft(self) -> PendingDraft | None:
         """Walk to the outer-area doorstep and open the once-per-day outer-room draft.
@@ -1815,7 +1831,7 @@ class Game:
         pending = self.doorway_drafts.get(key)
         if pending is None:
             pending = PendingDraft(from_cell=-1, direction=0, target_cell=-1)
-            pending.options = self._deal_outer_options("outer_draft")
+            self._deal_outer_options(pending, "outer_draft")
             # No ON_DRAFT_FROM: outer drafts have no from-room (from_cell=-1).
             for opt in pending.options:
                 effects.fire(self, self.registry.rooms[opt.room_idx], Hook.ON_HAND_DEALT)
@@ -1829,12 +1845,23 @@ class Game:
 
         The player stays at the doorstep; the room's ON_ENTER effects and item
         rolls wait for :meth:`enter_outer_room`.
+
+        Mirrors :meth:`choose`'s Dowsing Rod mark for the grid pipeline, using
+        the ``-1`` sentinel in place of a real cell: an outer draft's
+        ``pending.target_cell`` is already ``-1`` (no grid cell), and
+        ``roll_room_items`` is already called with ``cell=-1`` for an outer
+        room's item roll (see the ON_ENTER branch above this method). So
+        marking ``-1`` in ``state.dowsing_marked_cells`` here is read back by
+        that exact existing check -- no new plumbing, and no width change.
         """
         st = self.state
+        pending = st.pending
         room = self.registry.rooms[opt.room_idx]
         st.outer_room_drafted = True
         self.placed_ids.add(room.id)
         self.drafted_rooms.append(room.name)
+        if pending is not None and pending.dowsed_slot == opt.slot:
+            st.dowsing_marked_cells.add(-1)
         del self.doorway_drafts[(-1, 0)]
         st.pending = None
         self.phase = Phase.NAVIGATE
@@ -2051,7 +2078,7 @@ class Game:
         pending.options.clear()
         pending.rotations_used = 0  # fresh hand, fresh rotation budget
         if pending.target_cell == -1:  # outer-room draft: fixed pool, not the grid pipeline
-            pending.options.extend(self._deal_outer_options("outer_redraw"))
+            self._deal_outer_options(pending, "outer_redraw")
         else:
             redeal(self.state, self.registry, self.cfg, self.rng, self.placed_ids, pending)
         # ON_HAND_DEALT fires again for the freshly redealt options -- unlike

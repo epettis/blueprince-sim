@@ -812,7 +812,15 @@ def _pick_dowsing_slot(ctx: DraftContext, pending: PendingDraft) -> None:
     floorplans." Called from ``_fill_options``, shared by ``deal_draft`` (the
     initial deal) and ``redeal`` (every redraw), so a fresh pick happens
     every single time this function runs -- satisfying "reselect" for free,
-    with no separate redraw-specific code path.
+    with no separate redraw-specific code path. Also called directly by
+    ``game.py``'s ``_deal_outer_options`` (both the initial outer-room deal
+    and every outer redraw), since the outer draft is drafting "like the
+    doors in the house" (wiki, West_Path page) and this pick is a drafting
+    effect unrelated to the draft pool's composition -- the same reasoning
+    that lets Study/die redraws apply there too. Sharing this one function
+    keeps the reselect-on-redraw guarantee and the avoid-list preference
+    identical between the grid and outer pipelines rather than risking a
+    second, divergent copy.
 
     Its own 26-room avoid-list DataMinedBox: "In the case that all three
     offered rooms are one of the rooms on this list, the Dowsing Rod will

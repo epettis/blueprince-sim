@@ -22,8 +22,11 @@ no room id ever appears as a literal in this module):
 A THIRD, entirely separate system sits alongside the ladder: the Dowsing Rod
 (data/items.json's ``dowsing_rod`` table; wiki: Dowsing_Rod page). While the
 item is held, ``draft.py``'s ``_pick_dowsing_slot`` marks one dealt slot per
-hand; drafting it marks that cell in ``state.dowsing_marked_cells``
-(``game.py``'s ``choose``). When that cell's items are rolled here,
+hand -- for a grid draft AND an outer-room draft alike, since ``game.py``'s
+``_deal_outer_options`` calls the same helper; drafting it marks that cell in
+``state.dowsing_marked_cells`` (``game.py``'s ``choose`` for a grid cell,
+``_choose_outer`` using the ``-1`` sentinel for an outer room). When that
+cell's items are rolled here,
 ``roll_dowsed_count`` -- the Rod's own +32-luck, own Dowsing Penalty,
 own item-count table -- replaces ``roll_ladder_count`` for that one room, and
 its result BYPASSES the ``additional_max`` clamp entirely (owner ruling: a
@@ -597,9 +600,11 @@ def roll_room_items(game, room: Room, cell: int) -> int:
     before the ``additional_max`` clamp (see ``_apply_count_transform``).
 
     ``cell`` is the grid cell ``room`` is entered at (-1 for an outer-room
-    draft, which never carries a Dowsing mark -- see draft.py's module
-    docstring): checked against ``state.dowsing_marked_cells``
-    (game.py::choose) to decide whether this roll uses ``roll_dowsed_count``
+    draft, the same sentinel used as a "cell" in
+    ``state.dowsing_marked_cells`` when the Dowsing Rod pointed at the
+    drafted outer option -- game.py::_choose_outer): checked against
+    ``state.dowsing_marked_cells`` (game.py::choose/_choose_outer) to decide
+    whether this roll uses ``roll_dowsed_count``
     instead of ``roll_ladder_count``, and its result BYPASSES the
     ``additional_max`` clamp (owner ruling) -- EXCEPT for a
     ``deferred_ladder`` room (Lost & Found): its real item resolution is a
