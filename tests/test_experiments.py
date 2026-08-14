@@ -54,7 +54,7 @@ from blueprince_sim.engine.locks import (DOOR_LOCKED, DOOR_OPEN, DOOR_SEALED, DO
                                          segment_key)
 from blueprince_sim.engine.model import RARITY_INDEX
 from blueprince_sim.engine.rng import Rng
-from blueprince_sim.engine.state import DraftOption, GameState, PendingDraft
+from blueprince_sim.engine.state import DeckState, DraftOption, GameState, PendingDraft
 from blueprince_sim.env import actions as A
 from blueprince_sim.env.multiday import DayChain
 from blueprince_sim.env import obs as obs_mod
@@ -1782,8 +1782,12 @@ def test_add_aquariums_priority_draws_inactive_before_active_after_firing(monkey
     """The two add_aquariums priority_draws entries (13%/3%) are skipped --
     consuming no RNG -- while the condition is inactive, and become live once
     the effect has fired. Isolated via a temporary priority_draws swap so the
-    three unconditional entries (Patio/Commissary/Classroom) can never
-    contaminate the pick once every chance roll is forced to hit."""
+    three unconditional entries (Patio/Commissary/Garage+Classroom) can never
+    contaminate the pick once every chance roll is forced to hit. Either
+    aquarium or aquarium__experiment is an acceptable hit once active: each
+    gets its own independent acceptance roll (both forced to hit here), and
+    the actual deck-order selection between the two accepted candidates is
+    not the property under test -- see draft.py's _priority_draw."""
     g = _game_at_laboratory()
     monkeypatch.setattr(Rng, "chance", lambda self, label, p: True)  # force every roll to hit
     registry = g.registry
@@ -1804,7 +1808,7 @@ def test_add_aquariums_priority_draws_inactive_before_active_after_firing(monkey
         ctx_active = DraftContext(g.state, registry, g.cfg, g.rng, set(), None)
         picked = _priority_draw(ctx_active, _AQUARIUM_TARGET_CELL, _AQUARIUM_DIRECTION,
                                 set(), is_gem=True)
-        assert picked is not None and picked.id == "aquarium"
+        assert picked is not None and picked.id in ("aquarium", "aquarium__experiment")
     finally:
         registry.priority["priority_draws"] = original
 
@@ -1823,13 +1827,15 @@ def test_add_aquariums_priority_draws_do_not_affect_the_three_existing_entries(m
     for seed in range(10):
         registry.priority["priority_draws"] = trimmed
         rng_trimmed = Rng(seed)
-        ctx_trimmed = DraftContext(GameState(), registry, g.cfg, rng_trimmed, set(), None)
+        state_trimmed = GameState(decks=[DeckState() for _ in range(8)])
+        ctx_trimmed = DraftContext(state_trimmed, registry, g.cfg, rng_trimmed, set(), None)
         pick_trimmed = _priority_draw(ctx_trimmed, _AQUARIUM_TARGET_CELL, _AQUARIUM_DIRECTION,
                                       set(), is_gem=True)
 
         registry.priority["priority_draws"] = original
         rng_full = Rng(seed)
-        ctx_full = DraftContext(GameState(), registry, g.cfg, rng_full, set(), None)
+        state_full = GameState(decks=[DeckState() for _ in range(8)])
+        ctx_full = DraftContext(state_full, registry, g.cfg, rng_full, set(), None)
         pick_full = _priority_draw(ctx_full, _AQUARIUM_TARGET_CELL, _AQUARIUM_DIRECTION,
                                    set(), is_gem=True)
 

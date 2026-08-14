@@ -18,10 +18,11 @@ bias record's own category_base/category_extra_rooms).
 The Chronograph's Tomorrow-Rooms bias is NOT a category_biases entry (that
 mechanism re-deals every slot, which measured ~3x too strong against the
 wiki's datamined box: "This is a Priority Draw (40% for all Tomorrow
-Rooms)"). It lives in priority_draws instead, fires only at slot 3
-(draft.py's slot index 2), and targets its rooms via a "category" selector
-resolved at draw time rather than a hand-typed id list -- see draft.py's
-_priority_draw.
+Rooms)"). It lives in priority_draws instead -- an attempt-1-only filter that
+now applies to every slot, not just slot 3 (draft.py's _priority_draw is no
+longer gated to slot == 2; only the separate, Slot-3-only Forced Draw
+mechanism is) -- and targets its rooms via a "category" selector resolved at
+draw time rather than a hand-typed id list.
 """
 
 from __future__ import annotations
@@ -461,11 +462,12 @@ def test_electromagnet_absent_leaves_ordinary_draft_untouched(registry):
 CHRONOGRAPH_TRIALS = 20_000
 CHRONOGRAPH_ALPHA = 1e-3
 
-# freezer: pool "base" (so it is always a priority-draw candidate regardless of
-# deck contents -- see draft.py's _priority_draw candidate filter) and has no
-# draft_conditions, so it is unconditionally draftable at TARGET_CELL. Used to
-# guarantee a real Tomorrow-category room is always available, isolating the
-# roll itself from candidate-availability noise (most of the 12 "tomorrow"
+# freezer: pool "base" and has no draft_conditions, so it is unconditionally
+# draftable at TARGET_CELL once its own card is seeded into ``_chronograph_ctx``'s
+# deck (draft.py's _priority_draw deals the accepted card via the real deck
+# machinery, so the card must actually be present, not merely pool=="base").
+# Used to guarantee a real Tomorrow-category room is always available, isolating
+# the roll itself from candidate-availability noise (most of the 12 "tomorrow"
 # rooms are studio_addition/upgrade_variant/pool_temp and are NOT normally
 # draftable at all -- sampling a full hand instead would measure a rate
 # suppressed well below 40% by that unrelated availability gate, not the
@@ -492,10 +494,15 @@ def _isolated_chronograph_registry(registry: Registry) -> Registry:
 
 def _chronograph_ctx(registry: Registry, cfg: GameConfig, seed: int,
                      held: bool) -> DraftContext:
-    """A bare DraftContext with empty decks (freezer's "base" pool makes deck
-    contents irrelevant to its own candidacy -- see GUARANTEED_TOMORROW_ROOM_ID)."""
+    """A bare DraftContext with empty decks except for freezer's own card,
+    seeded into its real rarity/free-gem deck so the accepted-candidate deal
+    (draft.py's _priority_draw, via deck.deal_next) can actually find it --
+    see GUARANTEED_TOMORROW_ROOM_ID."""
     state = GameState()
     state.decks = [DeckState() for _ in range(8)]
+    freezer = registry.by_id[GUARANTEED_TOMORROW_ROOM_ID]
+    state.decks[freezer.rarity_idx * 2 + (0 if freezer.is_free else 1)] = \
+        DeckState(order=[freezer.idx])
     if held:
         state.inventory["chronograph"] = 1
     return DraftContext(state, registry, cfg, Rng(seed), set(), None)
@@ -553,30 +560,39 @@ def test_chronograph_priority_draw_never_fires_without_the_item(registry):
         assert room is None, f"seed {seed}: fired without the Chronograph held"
 
 
-def test_chronograph_does_not_bias_slots_0_and_1(registry):
-    """With the Chronograph held, a full three-slot hand's slot-0 and slot-1
-    options are byte-for-byte identical (room, orientation, gem cost) to the
-    same seed dealt without it -- proving the bias is confined to slot 3
-    (draft.py only calls _priority_draw when slot == 2), unlike the old
-    category_biases mechanism this replaced, which re-rolled every slot."""
+def test_chronograph_biases_slots_0_and_1_too(registry):
+    """Priority Draws are an attempt-1-only filter applied to EVERY slot, not
+    a Slot-3-only mechanism (blueprince.wiki.gg/wiki/Drafting/Advanced, Filters
+    > Priority Draws) -- distinct from the Garage's own Forced Draw, which IS
+    Slot-3-only (draft.py's _forced_draw_garage). With the Chronograph held,
+    the guaranteed Tomorrow room (GUARANTEED_TOMORROW_ROOM_ID) must land as a
+    forced pick in slot 0 at least once and in slot 1 at least once across
+    many seeds -- the previous ``slot == 2`` gate on ``_priority_draw`` in
+    ``draw_slot`` would make both counts zero forever, which is the defect
+    this guards against (the old version of this test asserted exactly that
+    zero, having conflated Priority Draws with the Slot-3-only Forced Draw)."""
     cfg = GameConfig()
-    for seed in range(300):
-        rng_a = Rng(seed)
-        state_a = GameState()
-        state_a.decks = build_decks(registry, cfg, rng_a)
-        state_a.inventory["chronograph"] = 1
-        pending_a = deal_draft(state_a, registry, cfg, rng_a, set(),
-                               FROM_CELL, DIRECTION, TARGET_CELL)
+    isolated = _isolated_chronograph_registry(registry)
+    hits_by_slot = {0: 0, 1: 0, 2: 0}
+    trials = 3000
+    for seed in range(trials):
+        rng = Rng(seed)
+        state = GameState()
+        state.decks = build_decks(isolated, cfg, rng)
+        state.inventory["chronograph"] = 1
+        pending = deal_draft(state, isolated, cfg, rng, set(),
+                             FROM_CELL, DIRECTION, TARGET_CELL)
+        for opt in pending.options:
+            room = isolated.rooms[opt.room_idx]
+            if opt.forced and room.id == GUARANTEED_TOMORROW_ROOM_ID:
+                hits_by_slot[opt.slot] += 1
 
-        rng_b = Rng(seed)
-        state_b = GameState()
-        state_b.decks = build_decks(registry, cfg, rng_b)
-        pending_b = deal_draft(state_b, registry, cfg, rng_b, set(),
-                               FROM_CELL, DIRECTION, TARGET_CELL)
-
-        for slot in (0, 1):
-            opt_a = next((o for o in pending_a.options if o.slot == slot), None)
-            opt_b = next((o for o in pending_b.options if o.slot == slot), None)
-            key_a = None if opt_a is None else (opt_a.room_idx, opt_a.orientation, opt_a.gem_cost)
-            key_b = None if opt_b is None else (opt_b.room_idx, opt_b.orientation, opt_b.gem_cost)
-            assert key_a == key_b, f"seed {seed} slot {slot}: diverged with Chronograph held"
+    assert hits_by_slot[0] > 0, (
+        f"slot 0 never got the Tomorrow Rooms priority draw across {trials} seeds"
+    )
+    assert hits_by_slot[1] > 0, (
+        f"slot 1 never got the Tomorrow Rooms priority draw across {trials} seeds"
+    )
+    assert hits_by_slot[2] > 0, (
+        f"slot 2 never got the Tomorrow Rooms priority draw across {trials} seeds"
+    )

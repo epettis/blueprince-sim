@@ -45,13 +45,18 @@ Each of the three option slots is dealt independently:
 cards; gem decks need 5/5/4/4 (by rarity) once veteran mode, day ≥ 16, or
 Room 46 has been reached (`GameConfig.gem_gate_active`).
 
-**Priority draws** (`data/priority_draws.json`) can override slot 3 before
-the normal roll: the Patio group at 5% (raised to 50% while a Greenhouse is
-placed), Commissary/Observatory at 13%, Classroom at 3%. An entry may also
-carry an optional `condition` tag (the same vocabulary `category_biases`
-entries use, e.g. `greenhouse_or_king`); such an entry is skipped, rolling
-no chance at all, while that condition isn't active. No entry currently
-carries one.
+**Priority draws** (`data/priority_draws.json`) are an additional filter that
+runs ahead of the normal roll, on EVERY slot (not just slot 3): the Patio
+group at 5% (raised to 50% while a Greenhouse is placed), Commissary/
+Observatory at 13%, Garage/Classroom at 3%. Each named floorplan gets its
+own independent acceptance roll, then the accepted ones are dealt through
+the same per-rarity deck machinery the normal roll uses, so a hit actually
+consumes the card. An entry may also carry an optional `condition` tag (the
+same vocabulary `category_biases` entries use, e.g. `greenhouse_or_king`);
+such an entry is skipped, rolling no chance at all, while that condition
+isn't active — the Chronograph's Tomorrow Rooms row and the two
+add_aquariums rows use one. This is distinct from the Garage's own *Forced
+Draw* (`forced_draws`), a different, once-per-day mechanic that is Slot-3-only.
 
 ## Placement filters
 
