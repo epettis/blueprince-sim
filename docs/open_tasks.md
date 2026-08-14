@@ -873,6 +873,100 @@ around 1,800 LOC.
 
 ## Decisions log
 
+- **2026-08-14, ITEM FIDELITY AUDIT scoped. THE OBVIOUS DESIGN DOES NOT WORK,
+  and `effects` cannot be trusted as its basis. Two rulings needed before
+  building; two real gaps filed now so they are not lost.**
+
+  **Correction to the orchestrator first:** this finding was **already written
+  up** at `open_tasks.md:995-1023` and again at `:858-868`. It was scoped as if
+  new. Read the log before commissioning research against it.
+
+  **The decisive finding: a direct port of the room audit's KIND 2 would NOT
+  catch `morning_star`** — the very item that motivated the work. Kind 2 fires
+  only when text exists and there is *zero* modelling; `morning_star` carries
+  `effects: [{"tag": "smash"}]`, so it passes. So do both other real gaps found.
+  Kind 2's yield on items is near zero anyway: only 8 items have no route under
+  an id-literal scan and **all 8 are false positives**, because the
+  `upgrade_disk_*` family is modelled generically by id prefix
+  (`Game.held_disk_ids`) — a route no literal scan can see.
+
+  **Recommended instead: port KIND 1** (*identical modelling to a sibling but
+  differing text ⇒ the differentiating step was never authored*). Across all 102
+  items there are exactly three identical-`effects` groups; the rule flags
+  **exactly two on day one** — `morning_star` (real) and `lucky_rabbits_foot`
+  (false positive, whose text is the *poorer* one). **Two is small enough to act
+  on with no triage phase.**
+
+  **WHY `effects` CANNOT BE THE BASIS — the structural finding.** An AST scan
+  (resolving module-level `NAME = "literal"` bindings, over the only functions
+  that look a tag up on a `SpecialItem`) shows **7 of 28 item tags are never
+  read as tags at all.** For six, the tag string merely coincides with the
+  item's own id while the behaviour lives in a per-item module keyed on
+  `ITEM_ID`; `effects/items/sledge_hammer.py:3-6` documents this outright.
+  **So an item can be fully modelled with an inert tag, or partly modelled with
+  a live one, and the `effects` array states neither.** The scoping agent's own
+  first-pass string scan got this wrong **in both directions** before its AST
+  scan corrected it — `smash` called dead (it is live), `treasure_map` called
+  live (it is inert). **This kills the tags-vs-registries design outright**: it
+  would flag six fully-modelled items and clear `morning_star`.
+
+  **Sample and rate, measured.** 20 of 102 chosen by `sha256(id)` order — a rule
+  fixed before looking, so it cannot be cherry-picked; `morning_star` was
+  excluded and checked separately so it could not inflate the rate. **2/20
+  hidden gaps, 6/20 counting disclosed ones.** Wilson 95% CI puts hidden gaps at
+  **3-31 of 102**. The agent argued *against its own headline*: the draw
+  included 8 items from the trivially-modelled `allowance_token_*` and
+  `upgrade_disk_*` families, so among behaviourally complex items the rate is
+  more like 20-30%, and the true figure is likely mid-range (~10-15).
+
+  **TWO REAL HIDDEN GAPS, FILED NOW because no proposed detector catches them:**
+  - **`power_hammer`** models **2 of ~7** breakable-wall sites (Weight Room
+    lever; grounds/sealed_entrance/basement gate). Greenhouse, Secret Garden's
+    third valve, Precipice and Crate Tunnel are unmodelled — zero hits for
+    `valve`/`weathervane` in `src/`. `implemented: true`, `notes: null`.
+  - **`ornate_compass`** applies no redraw gate (`Game._free_rotation_source`),
+    while the wiki restricts it to the **first draw only**. `implemented: true`,
+    undisclosed.
+  Both need per-item review — the ~15-PR job, not the first PR.
+
+  **Disclosure has a location problem.** `secret_garden_key`'s simplification is
+  disclosed **in `locks.json`**, and `power_hammer`'s Freezer gap is disclosed on
+  **`upgrade_disk_freezer`'s** record. Neither is reachable from the flagged
+  item's own record, so a per-item audit cannot follow either.
+
+  **NOT BUILT YET — deliberately.** The detector's flagging rule is undefined
+  until two questions are ruled on (both added to the owner queue):
+  1. **Does a partial gap invalidate `implemented: true`?** `morning_star`
+     smashes correctly and misses a star. 7 items already use
+     `meta.simplification`, so the vocabulary half-exists.
+  2. **Is `effects` normative or vestigial?** Right now it is neither,
+     consistently — **and that ambiguity is exactly what let `morning_star` look
+     modelled.** Ruling it normative (every behaviour gets a tag; a tag with no
+     reader is a hard failure) makes an item audit far cheaper forever. **Highest
+     leverage available, and it costs nothing today.**
+
+  **Exemptions get a necessity guard from day one** if this is built: re-run the
+  detector with the exemption dict passed as `{}` and assert every exempted id
+  still appears in the raw findings. **Cheaper here than for rooms** — the item
+  detector is pure data and can run against the real file. Better still, at three
+  groups and two flags **the day-one design may need no exemption at all.**
+
+- **2026-08-14, EIGHT ITEMS CLAIMED THEY WERE UNOBTAINABLE. All eight are
+  obtainable (#278).**
+
+  Same note on each: *"obtainable when PR2 adds shop actions"*. All eight are in
+  `shops.json`, `shops.py::buy` is generic, and `BUY_BASE = 235` is wired into
+  the mask and dispatch. Verified independently before the fix; each note now
+  names its shop and price, each price re-checked rather than copied across.
+
+  **Not eight mistakes — one missing process.** A note stating a *future
+  condition* has nothing to trigger a revisit when that condition arrives. Two
+  more of the same shape landed in the same PR: `priority_draws.json` called the
+  Chronograph's rewind unmodelled while `special_items.json` said it was live in
+  the same repo, and `validate_data.py` grouped three live tags as inert.
+  **Sibling of the liveness/necessity lesson from #270: a claim about the future
+  needs an expiry check, or it becomes a false claim about the present.**
+
 - **2026-08-14, TASK 16 COMPLETE (#273-#276). 69 candidates, and the
   composition mattered more than the count.**
 
