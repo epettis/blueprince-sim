@@ -45,7 +45,7 @@
     "confidence": "wiki",
     "absent_spawn_areas": [],
     "blocked_on": null,
-    "notes": "All three fabrication recipes are built and match the wiki (shovel+battery_pack+broken_lever->jack_hammer, sledge_hammer+battery_pack+broken_lever->power_hammer, compass+battery_pack->powered_electromagnet). On pickup, the Workshop's Dynamic Rarity is set to Standard or Unusual at 50/50 (room/options in the top-level battery_pack data section); the roll is deferred to the next hand dealt, where RNG is in scope. The second and later triggers in the same day do not re-roll -- they deterministically toggle to the other option (wiki: 'Triggering this effect multiple times in a day will always switch to the other one')."
+    "notes": "All three fabrication recipes are built and match the wiki (shovel+battery_pack+broken_lever->jack_hammer, sledge_hammer+battery_pack+broken_lever->power_hammer, compass+battery_pack->powered_electromagnet). On pickup, the Workshop's Dynamic Rarity is set to Standard or Unusual at 50/50 (room/options in the top-level battery_pack data section); the roll is deferred to the next hand dealt, where RNG is in scope. The second and later triggers in the same day do not re-roll -- they deterministically toggle to the other option (wiki: 'Triggering this effect multiple times in a day will always switch to the other one'). The wiki's Locations line also names Darkroom, Hovel, Mechanarium, Toolshed, Trading Post and Clock Tower, every one of which exists in rooms.json; spawn_rooms omits them, so the pack is rarer here than published."
    }
   },
   {
@@ -275,7 +275,8 @@
     "source": "https://blueprince.wiki.gg/wiki/Lock_Pick_Kit",
     "confidence": "datamined",
     "absent_spawn_areas": [],
-    "blocked_on": null
+    "blocked_on": null,
+    "notes": "Rates, denominator and pity live on this record's lockpick effect and are read by special_items.py::_attempt_lockpick, which prefers the Pick Sound Amplifier when both tools are held; the door kinds match too (locks.py's DOOR_SECURITY is a separate segment kind no lockpick path touches). Two rungs of the wiki's published table are NOT modelled. The rate ladder is indexed by state.special.lockpick_attempts, which counts every attempt, while the wiki steps it on successful picks only (\"the chance goes down after a successful lockpick\"; \"after the first three successful lockpicks, remaining lockpicks have a 19/101 chance\"), so three failures already drop this sim to the 19/101 rung. And state.special.lockpick_fails counts consecutive failures and clears on any success, while the wiki's counter also decrements on success, is set to -1 after a pity auto-success, and auto-FAILS at -2 while lockpicking skill is 20 or less -- lockpicking skill itself has no stat here (docs/experiments-design.md, permanent_lockpicking_skill). Also NOT modelled: the wiki's !Garage high-luck spawn entry, which spawn_rooms_high_luck leaves empty, and its statement that building the Pick Sound Amplifier keeps this Kit out of the item pool on SUBSEQUENT days -- shops.py::fabricate marks recipe inputs consumed for the current day only."
    }
   },
   {
@@ -351,7 +352,7 @@
     "absent_spawn_areas": [],
     "wont_implement": "puzzle-only effect; the sim has no document or lore layer and will not gain one",
     "reachability": "inert",
-    "notes": "DECIDED never to build, not blocked. Its own effect reveals hidden text in documents, and this simulator has no document or lore layer -- nothing in engine/ reads lore or document text, and the assumed-solved doctrine means a puzzle a player enters is already solved. Its COMPONENT role is built and load-bearing: metal_detector + magnifying_glass -> burning_glass is the burning glass's ONLY source, and the burning glass is one of the two ignition tools, so this item keeps spawning in its 16 rooms."
+    "notes": "DECIDED never to build, not blocked. Its own effect reveals hidden text in documents, and this simulator has no document or lore layer -- nothing in engine/ reads lore or document text, and the assumed-solved doctrine means a puzzle a player enters is already solved. Its COMPONENT role is built and load-bearing: metal_detector + magnifying_glass -> burning_glass is the burning glass's ONLY source, and the burning glass is one of the two ignition tools, so this item keeps spawning in its 16 rooms. The wiki's Locations line also names Classroom, Commissary, Conservatory and Toolshed, all of which exist in rooms.json, plus the high-luck-only Den and Drawing Room; spawn_rooms omits the four and spawn_rooms_high_luck is empty, so the burning glass's only component spawns in fewer places than published."
    }
   },
   {
@@ -416,7 +417,8 @@
     "source": "https://blueprince.wiki.gg/wiki/Repellent",
     "confidence": "wiki",
     "absent_spawn_areas": [],
-    "blocked_on": null
+    "blocked_on": null,
+    "notes": "shops.py::use_repellent consumes one can and bans the room the player stands in for shops.py::_REPELLENT_BAN_DAYS days; env/multiday.py::DayChain.advance decrements the counters and evicts the oldest ban once more than shops.py::REPELLENT_MAX_BANS are active, and decks.py::eligible_pool drops a banned floorplan plus its upgrade variants from the day's decks (outer-room drafting bypasses the decks, matching the wiki). NOT modelled: the wiki bars Repellent on most permanent and objective rooms, while shops.py::_REPELLENT_ILLEGAL_TARGETS names only entrance_hall, antechamber and room_46; the Foundation interaction (repelling The Foundation resets it out of the house and lets it be redrafted a week later, the wiki's only known way to move it); and the wiki's guaranteed spawns -- a Bedroom drafted from the Cloister of Mila, and the Spare Bedroom upgrades past spare_bedroom__ix131 -- where this record carries spare_bedroom__ix131 as an ordinary spawn_rooms pool entry rather than a guaranteed_in one."
    }
   },
   {
@@ -1364,7 +1366,7 @@
     "confidence": "wiki",
     "absent_spawn_areas": [],
     "blocked_on": null,
-    "notes": "Robs the Locksmith on approach: auto-collects the 24 basic wall keys (four racks of 6; occasionally fewer) and disables both key purchase options for the rest of the day. The special key is NOT collected (special keys are never auto-collected). PR2 shop behavior. The drafting bias toward Mechanical Rooms plus the Rotunda (data/priority_draws.json category_biases 'electromagnet' entry) is driven by ItemCapability.ELECTROMAGNET in engine/effects/items/powered_electromagnet.py, not a data effect tag on this record."
+    "notes": "Robs the Locksmith on approach: auto-collects the 24 basic wall keys (four racks of 6; occasionally fewer) and disables both key purchase options for the rest of the day. The special key is NOT collected (special keys are never auto-collected). Built in shops.py: item.effect('locksmith_rob') sets state.shops.locksmith_robbed, which disables the key purchase rows. The drafting bias toward Mechanical Rooms plus the Rotunda (data/priority_draws.json category_biases 'electromagnet' entry) is driven by ItemCapability.ELECTROMAGNET in engine/effects/items/powered_electromagnet.py, not a data effect tag on this record. The room effect is modelled as an extra SPAWN, not a collection: special_items.py::on_place rolls one bonus coin and one bonus key for any held item carrying auto_collect, at the same 60/25 chances the Metal Detector's own metal_detector_spawns effect declares. The wiki gives the Electromagnet no extra resources at all -- it collects coins and keys already lying in a room, which items.py::grant_item hands over on entry here regardless of what is held -- so this record grants a Metal-Detector-sized bonus the source does not describe. Also NOT modelled: the wiki's rule that assembling this contraption leaves the Compass effect active for the rest of the day even if the Electromagnet is lost or never picked up, where ItemCapability.COMPASS_BIAS is read only while it is held; and its suppression of the Metal Detector's own detection while the two are held together."
    }
   },
   {
