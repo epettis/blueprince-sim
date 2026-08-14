@@ -217,7 +217,105 @@ def test_lockpick_pity_auto_succeeds_after_3_fails():
 
     result = si.open_locked_free(_FakeGame())
     assert result is True, "pity should auto-succeed after 3 consecutive fails"
-    assert st.special.lockpick_fails == 0, "pity success must reset fail counter"
+    assert st.special.lockpick_fails == -1, "pity auto-success resets the counter to -1"
+
+
+class _ScriptedChance:
+    """Deterministic engine.rng.Rng stand-in: pops a scripted outcome per
+    call (never a seed hunt) and records the (label, probability) pairs it
+    was asked to resolve, so the rate rung a roll used can be inspected
+    without depending on RNG internals."""
+
+    def __init__(self, outcomes: list[bool]) -> None:
+        self._outcomes = list(outcomes)
+        self.calls: list[tuple[str, float]] = []
+
+    def chance(self, label: str, p: float) -> bool:
+        self.calls.append((label, p))
+        return self._outcomes.pop(0)
+
+
+def _fake_game(state, registry, rng):
+    """A duck-typed game object exposing just what special_items.py's
+    lockpick path reads (state/registry/rng), for driving it without a
+    full Game."""
+    class _FakeGame:
+        pass
+    g = _FakeGame()
+    g.state = state
+    g.registry = registry
+    g.rng = rng
+    return g
+
+
+def test_lockpick_ladder_indexes_by_successes_not_attempts():
+    """The rate ladder steps down only after a SUCCESSFUL pick, per the wiki
+    ("the chance goes down after a successful lockpick") -- three
+    consecutive failures must leave it on the first rung, and a single
+    success must advance it to the second. Uses the Pick Sound Amplifier
+    (pity=0) so the two-sided pity system cannot intervene and change which
+    rolls get made."""
+    st, reg = _state_with_registry()
+    si.grant(st, reg, "pick_sound_amplifier", source="test")
+    rng = _ScriptedChance([False, False, False, True, False])
+    game = _fake_game(st, reg, rng)
+
+    for _ in range(3):
+        assert si.open_locked_free(game) is False
+    # three fails, zero successes so far: every roll used rung 0 (90/101)
+    assert [p for _, p in rng.calls] == [90 / 101, 90 / 101, 90 / 101]
+
+    assert si.open_locked_free(game) is True  # 4th roll succeeds -> 1 success now
+    assert si.open_locked_free(game) is False  # 5th roll must use rung 1 (85/101)
+    assert rng.calls[-1] == ("lockpick", 85 / 101)
+
+
+def test_lockpick_pity_counter_is_two_sided():
+    """The pity counter adds 1 on a fail and subtracts 1 on a success --
+    it does not just clear to 0 on either outcome, per the wiki's "failing
+    ... adds 1, succeeding subtracts 1"."""
+    st, reg = _state_with_registry()
+    si.grant(st, reg, "lock_pick_kit", source="test")
+    rng = _ScriptedChance([False, False, True, False])
+    game = _fake_game(st, reg, rng)
+
+    si.open_locked_free(game)  # fail: 0 -> 1
+    assert st.special.lockpick_fails == 1
+    si.open_locked_free(game)  # fail: 1 -> 2
+    assert st.special.lockpick_fails == 2
+    si.open_locked_free(game)  # success: 2 -> 1
+    assert st.special.lockpick_fails == 1
+    si.open_locked_free(game)  # fail: 1 -> 2
+    assert st.special.lockpick_fails == 2
+
+
+def test_lockpick_pity_auto_succeeds_at_3_and_resets_to_negative_one():
+    """Once the counter reaches the pity threshold (3), the NEXT attempt
+    auto-succeeds without consulting the RNG at all, and resets to -1 (not
+    0) per the wiki's "the counter is set to -1"."""
+    st, reg = _state_with_registry()
+    si.grant(st, reg, "lock_pick_kit", source="test")
+    st.special.lockpick_fails = 3
+    rng = _ScriptedChance([])  # must not be consulted: this is a bypass, not a roll
+
+    assert si.open_locked_free(_fake_game(st, reg, rng)) is True
+    assert st.special.lockpick_fails == -1
+    assert rng.calls == [], "pity auto-success must bypass the RNG entirely"
+
+
+def test_lockpick_pity_auto_fails_at_negative_2_and_resets_to_1():
+    """Two consecutive successes drive the counter to -2; the wiki says
+    that (while lockpicking skill is <= 20, which this sim always is since
+    no skill stat exists -- see special_items.json's lock_pick_kit
+    meta.notes) the NEXT attempt auto-fails and the counter resets to 1."""
+    st, reg = _state_with_registry()
+    si.grant(st, reg, "lock_pick_kit", source="test")
+    st.special.lockpick_fails = -2
+    rng = _ScriptedChance([])  # must not be consulted: this is a bypass, not a roll
+
+    assert si.open_locked_free(_fake_game(st, reg, rng)) is False
+    assert st.special.lockpick_fails == 1
+    assert rng.calls == [], "pity auto-fail must bypass the RNG entirely"
 
 
 # ------------------------------------------------ OPEN action mask: locked doorways

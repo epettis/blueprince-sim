@@ -343,6 +343,7 @@ def test_lockpick_row_success_opens_for_free_and_continues_the_draft(registry):
     assert g.state.keys == 0, "lockpicking never spends a key"
     assert g.door_state_of(cell, d) == DOOR_OPEN
     assert special_items.has(g.state, "lock_pick_kit"), "the kit is reusable, not consumed"
+    assert g.state.special.lockpick_fails == -1, "pity auto-success resets the counter to -1"
 
 
 def test_lockpick_row_failure_stays_parked_and_spends_nothing(registry):

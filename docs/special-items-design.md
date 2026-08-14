@@ -49,7 +49,7 @@ what is missing and a `meta.reachability` of `inert` or `absent`.
       "spawn_rooms": ["archives", ...], // sim room ids where it can spawn on first entry
       "spawn_rooms_high_luck": [...],   // additional pool entries at luck >= spawn.high_luck_at
       "guaranteed_in": [...],           // room ids that ALWAYS contain it on first entry
-      "effects": [{"tag": "lockpick", "rates": [54, 35, 30, 19], "denominator": 101, "pity": 3}],
+      "effects": [{"tag": "lockpick", "rates": [54, 35, 30, 19], "denominator": 101, "pity": 3, "pity_fail": -2}],
       "implemented": true,
       "meta": {
         "source": "https://blueprince.wiki.gg/wiki/Lock_Pick_Kit",
@@ -112,8 +112,9 @@ valid sets; every `spawn_rooms`/`guaranteed_in`/`lost_and_found.pool` (bar `die`
 
 ```python
 enabled: bool            # GameConfig.special_items, copied at reset (gates spawning)
-lockpick_attempts: int   # picks tried today (indexes the per-day rate table)
-lockpick_fails: int      # consecutive fails, for the Lock Pick Kit pity rule
+lockpick_attempts: int   # picks tried today (Lock Pick Kit / Amplifier)
+lockpick_successes: int  # successful picks today, indexes the per-day rate table
+lockpick_fails: int      # pity counter: +1/fail, -1/success (Lock Pick Kit's pity > 0)
 coin_interest: int       # coins collected since the last Coin Purse interest payout
 water: int               # Watering Can charges left (set to capacity on pickup)
 stopwatch_left: int      # free cost events remaining (0 = stopwatch inactive)
@@ -185,7 +186,7 @@ machines_used: list[str] # machine room ids that already took a Broken Lever tod
 
 ### Item effect tags (PR1 functional set)
 
-`lockpick` (rates/denominator/pity), `luck_bonus` (amount), `coin_interest`
+`lockpick` (rates/denominator/pity/pity_fail), `luck_bonus` (amount), `coin_interest`
 (per/bonus), `food_bonus` (amount),
 `free_move_interval` (Running Shoes, n=3, inferred),
 `stopwatch` (free_costs: 10, inferred — turn-based stand-in for 60 real-time seconds),
