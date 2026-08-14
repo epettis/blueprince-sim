@@ -106,8 +106,8 @@ def test_north_door_reseals_on_next_day():
 def test_antechamber_arrival_does_not_terminate():
     """Moving onto cell 42 does not end the day; the day continues.
 
-    The old termination_reason=='antechamber' path is removed; the day ends
-    only on out_of_steps or dead_end.  Walking into the Antechamber must
+    The day ends only on out_of_steps or dead_end; there is no termination
+    reason for reaching the Antechamber. Walking into the Antechamber must
     leave the game running.
     """
     g = _game()

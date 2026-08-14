@@ -176,12 +176,11 @@ def test_lock_pending_never_lets_the_lever_key_pay_for_the_door_too(registry):
     free), but the use-a-key row inside the menu must not let the lever's
     own spend double as the door's key too.
 
-    Setup was invalid, not the property: the OLD mask pre-charged the
-    door's own key cost on top of the walk's before the try was even legal
-    -- see test_unaffordable_search_cost_blocks_use_key_not_the_try for the
-    matching rebuild. Two separate games (rather than one game re-used
-    across both key counts) because, unlike the old purely-static mask
-    check, this rebuild actually walks and spends the lever key.
+    Two separate games (rather than one game re-used across both key counts)
+    because the walk must actually happen and spend the lever key before the
+    use-a-key row is checked -- see
+    test_unaffordable_search_cost_blocks_use_key_not_the_try for the matching
+    setup on the side-doorway case.
     """
     action = A.OPEN_BASE + 7 * 4 + A.DIR_INDEX[E]
 
@@ -288,10 +287,9 @@ def test_unaffordable_search_cost_blocks_use_key_not_the_try(registry):
     use-a-key menu row: it must not let a player short of the rolled cost
     spend keys they don't have.
 
-    Setup was invalid, not the property: the OLD mask pre-charged the
-    doorway's own key cost before the try was even legal, which is exactly
-    the "the player never chooses" bug this feature fixes -- see
-    Game.can_use_key_at_lock.
+    Trying the door is always free and is checked before the use-a-key row,
+    which isolates the acceptance bar tested here to the rolled cost itself
+    -- see Game.can_use_key_at_lock.
     """
     seed, cost = _seed_with_side_cost_at_least(2, registry=registry)
     g = _placed_hall(seed=seed, registry=registry)

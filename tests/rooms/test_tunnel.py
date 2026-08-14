@@ -63,8 +63,8 @@ def _place_tunnel_at(g: Game, registry: Registry, cell: int, orientation: int) -
 
 def test_tunnel_north_draft_deals_three_options_with_guaranteed_tunnel(registry, cfg):
     """Drafting north from a Tunnel deals a normal 3-option hand, not a single
-    forced card -- this is the regression test for the reported bug, where the
-    sim dealt exactly one option and removed all player choice."""
+    forced card: a Tunnel chain-draft must never collapse to one forced card
+    that removes player choice."""
     g = _make_game(registry, cfg)
     # Place a Tunnel at rank 2 center (cell 7), north door connects to cell 12.
     _place_tunnel_at(g, registry, 7, N | S)

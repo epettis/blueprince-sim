@@ -214,9 +214,7 @@ _AUDIT_DEFERRED_EXEMPT_IDS = {
     "root_cellar": (
         "Its effect spreads dig spots to OTHER rooms, which needs a "
         "house-wide dig-spot model this sim does not have; the room keeps "
-        "only its own dig_spots. Previously masked: the record carried an "
-        "invented +3 luck that satisfied the audit's has-effects test while "
-        "modelling nothing the game does."
+        "only its own dig_spots."
     ),
     "throne_room": (
         "Blocked on cross-day meta-progression (reclaiming the crown, the "
@@ -388,18 +386,16 @@ def find_empty_effects_findings(
     respectively, so this function itself never imports ``engine.effects``
     and stays testable against constructed sets.
 
-    Being empty-but-registered is not itself a finding -- it is exactly what
-    task 22 intended, and a record can also be modelled by a hand-written
+    Being empty-but-registered is not itself a finding -- that is the
+    intended shape, and a record can also be modelled by a hand-written
     branch these two registries can't see (engine/game.py,
     engine/special_items.py; see ``_AUDIT_PYTHON_EXEMPT_IDS`` and --audit
     above), so "not found here" does not mean "genuinely does nothing", only
     "not found in these registries". A warning fires in exactly one case:
     the record IS registered, but its own prose (``meta.effect_text`` for
-    rooms, ``meta.notes`` for items) claims no effect is modelled anyway.
-    That is the throne_room incident this task exists to catch -- its
-    effect_text once said "no effect modeled" while its Antechamber lever
-    was already registered via ``provides_lever``; the prose had drifted to
-    match the empty array rather than the code that actually runs.
+    rooms, ``meta.notes`` for items) claims no effect is modelled anyway --
+    prose that has drifted out of sync with a room or item that is actually
+    wired up and running.
 
     Returns ``(warnings, n_empty_rooms, n_room_registered, n_empty_items,
     n_item_registered)``.
@@ -706,9 +702,9 @@ def main(argv: list[str] | None = None) -> int:
             errors.append(f"food.fruit_weights: {fruit_id!r} has non-positive weight {weight!r}")
 
     # items.json: item_ladder -- the published item-count ladder engine/items.py's
-    # roll_ladder_count reads. Previously unvalidated entirely (an unvalidated data
-    # section fails open); checks band coverage/contiguity, per-kind row shape, and
-    # percentage ranges. See items.json's item_ladder.meta for the wiki source.
+    # roll_ladder_count reads (an unvalidated data section fails open); checks band
+    # coverage/contiguity, per-kind row shape, and percentage ranges. See
+    # items.json's item_ladder.meta for the wiki source.
     VALID_LADDER_BAND_KINDS = {"flat", "chain", "variable_mix", "always_variable", "fixed"}
     VALID_LADDER_VARIABLE_KINDS = {"fixed", "roll"}
     VALID_CHAIN_CONDITIONS = {"room46_reached", "day_gte",
@@ -844,8 +840,8 @@ def main(argv: list[str] | None = None) -> int:
     # Penalty item-count table (engine/items.py's roll_dowsed_count) plus its
     # two room lists (draft.py's slot-pick avoid_rooms; this table's own
     # variable_items_rooms). Same fail-open concern as never_roll_rooms/
-    # count_transforms above -- previously unvalidated entirely. Deliberately
-    # NOT cross-checked against never_roll_rooms/count_transforms/each other:
+    # count_transforms above. Deliberately NOT cross-checked against
+    # never_roll_rooms/count_transforms/each other:
     # the wiki publishes these as separate, independently-curated lists (a
     # room may legitimately sit on more than one, or on none).
     VALID_DOWSING_RESULTS = {"one", "variable", "fixed", "recurse_0_2"}
@@ -2162,12 +2158,10 @@ def main(argv: list[str] | None = None) -> int:
     # at IMPORT TIME, before any Registry exists -- so a typo'd id (a mistyped
     # room_hook("dovecot", ...) or item_provides("emerlad_bracelet", ...))
     # cannot be checked at the call site; it would otherwise just never match
-    # anything real and silently never fire. Previously the four validate_*
-    # functions below existed only in engine/effects/__init__.py and were
-    # exercised solely by tests/test_room_registry.py, test_item_registry.py
-    # and test_item_hook_registry.py -- a typo was caught only if someone ran
-    # pytest. Wiring them in here means a bare `validate_data.py` run catches
-    # it too.
+    # anything real and silently never fire. Wiring these four validate_*
+    # functions in here (they also back tests/test_room_registry.py,
+    # test_item_registry.py and test_item_hook_registry.py) means a bare
+    # `validate_data.py` run catches a typo too, not only pytest.
     effects_registry = Registry.load()
     for rid in validate_room_registry(effects_registry):
         errors.append(f"engine/effects: room_hook registered for unknown room id {rid!r}")

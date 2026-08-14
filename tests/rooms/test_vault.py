@@ -321,12 +321,11 @@ def test_vault_entry_grants_exactly_40_coins_every_seed():
 def test_vault_exact_grant_still_pays_coin_purse_interest():
     """A Coin Purse held while entering the Vault still earns interest on the exact grant.
 
-    This is the regression guard for the "obvious but wrong" fix described in
-    the task: routing the exact amount through a bare `_grant` effect (bypassing
-    grant_item's "coins" dispatch) would silently stop paying Coin Purse
-    interest. grant_item's "coins_exact" case must still call
-    special_items.on_coins_granted, so 40 coins at 1 bonus per 3 collected pays
-    floor(40/3)=13 bonus coins, landing on 53 total.
+    grant_item's "coins_exact" case must route through the same "coins"
+    dispatch as any other coin grant, calling special_items.on_coins_granted
+    rather than a bare `_grant` effect that would bypass it -- so 40 coins at
+    1 bonus per 3 collected pays floor(40/3)=13 bonus coins, landing on 53
+    total.
     """
     cell = 5
     g = _game_with_room("vault", cell)
@@ -345,16 +344,11 @@ def test_vault_single_exact_entry_leaves_luck_penalty_at_zero():
     """A single coins_exact guaranteed entry logs as ONE item, not per pile,
     and leaves state.luck_penalty untouched.
 
-    The sim previously invented a "found >= 2 items -> luck -= 1" rule and
-    this test pinned that a single coins_exact entry did not trip it. No such
-    game mechanic exists and it has been deleted (owner ruling,
-    docs/open_tasks.md decisions log 2026-08-13) -- the real mechanic is the
-    Luck Penalty accumulator, which only grows from high-luck item_ladder
-    outcomes (bands 23-28/29+ and the variable sub-table), never from a
-    guaranteed grant. This checks the real invariant instead: with the
-    luck-rolled additional item suppressed, the exact 40-coin grant logs as
-    exactly one items_found_log entry (not per pile) and never touches
-    luck_penalty.
+    state.luck_penalty only grows from high-luck item_ladder outcomes (bands
+    23-28/29+ and the variable sub-table), never from a guaranteed grant.
+    With the luck-rolled additional item suppressed, the exact 40-coin grant
+    must log as exactly one items_found_log entry (not per pile) and must
+    never touch luck_penalty.
     """
     cell = 5
     g = _game_with_room("vault", cell)

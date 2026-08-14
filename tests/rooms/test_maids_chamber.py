@@ -29,9 +29,9 @@ def test_maids_chamber_luck_goes_negative_unclamped(registry, cfg):
     Maid's Chambers drafted." At -7 per chamber: 4 x -7 = -28, so
     10 - 28 = -18 stored luck; +32 (the Dowsing Rod's own bonus) = 14, which
     IS <=18. Three chambers give 10 - 21 = -11, +32 = 21, which is NOT
-    <=18 -- so four really is the only way, confirming -7 (not the old -3,
-    which never reaches the branch even at four: 10 - 12 = -2, +32 = 30).
-    A floor clamp at 0 would make -18 unreachable, contradicting that fact.
+    <=18 -- so four really is the only way, confirming -7 is the per-chamber
+    penalty. A floor clamp at 0 would make -18 unreachable, contradicting
+    that fact.
     """
     g = Game(cfg, seed=1)
     g.state.luck = 10  # wiki: "Luck starts each day at 10" -- pinned here, not
@@ -43,8 +43,8 @@ def test_maids_chamber_luck_goes_negative_unclamped(registry, cfg):
 
 def test_maids_chamber_negative_luck_stays_inside_declared_obs_box(registry, cfg):
     """-18 luck (four Maid's Chambers, unclamped) must still encode inside
-    the declared "resources" observation Box -- the bound this PR widened
-    specifically to accommodate this floor (env/obs.py).
+    the declared "resources" observation Box, whose lower bound is set wide
+    enough to hold this floor (env/obs.py).
     """
     g = Game(cfg, seed=1)
     g.state.luck = 10

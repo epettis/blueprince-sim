@@ -36,9 +36,10 @@ SCHOOLHOUSE_CELL = 3
 # bug, but it means test_schoolhouse_raises_classroom_rate needs its own
 # rank/gem setup, deliberately at the table's high cell (rank 8/9, 4+ gems ->
 # 59.26% Slot-2 / 93.75% Slot-3) rather than DRAFT_TARGET. Do not "simplify"
-# this back to DRAFT_TARGET/rank 2 -- that silently re-vacuums this test the
-# same way the pre-fix sim's size-sort bug used to paper over it. Dealt
-# directly via draft.deal_draft (not Game.open_door) since no real doorway
+# this back to DRAFT_TARGET/rank 2 -- at that near-0% cell, the observed rate
+# cannot distinguish a working category bias from a broken one, so the test
+# would pass whether or not the bias actually fires. Dealt directly via
+# draft.deal_draft (not Game.open_door) since no real doorway
 # chain connects the Entrance Hall to rank 8 in this synthetic setup, and
 # deal_draft (like Game._place_room) does not require one -- only rank_of()
 # and each room's own draft conditions/orientation legality.
