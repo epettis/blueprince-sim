@@ -855,6 +855,92 @@ around 1,800 LOC.
 
 ## Decisions log
 
+- **2026-08-14, CONSTELLATIONS researched. Four corrections to the
+  orchestrator, and ITEMS HAVE NO FIDELITY AUDIT AT ALL.**
+
+  Research was read-only and is **wiki-sourced throughout**: the repo's only
+  raw datamine (`tools/raw/tfmurphy_room_table.md`) is the v1.3 **room** table
+  and contains **zero** constellation data. So the owner's stated priority
+  (datamine, then wiki) **could not be exercised here** -- there is no
+  datamine to prefer and **no disagreement to report**. Say so when relaying;
+  do not let "researched" imply "datamined".
+
+  **Corrections to the orchestrator's brief, all verified:**
+  1. **There are 13 constellations, not 11.** The 11 are the 0-49 base set;
+     **The Ink Well (50)** and **Spiral of Stars (100)** are the other two.
+     `open_tasks.md:1157-1161`'s "all eleven" silently drops them.
+  2. **The two wired constellations ARE sourced -- thoroughly.**
+     `priority_draws.json:180-207` carries `confidence: datamined`, a sheet
+     constant, a wiki URL, the wiki's own selection query transcribed into
+     `exclude_rooms`, and a note stating plainly that nothing sets the flag.
+     The orchestrator's "wired but never sourced" premise was **wrong**. This
+     is the repo's dominant failure mode **not** occurring; record it as such.
+     Both magnitudes re-derived and **both are correct**.
+  3. **The Telescope's planet arm is PR #264, not #260.** #260 is the
+     Planetarium's `on_day_end` star change.
+  4. **Unlock is a SUM-PARTITION, not a threshold.** The night sky shows a set
+     of constellations whose star values sum **exactly** to the current star
+     count. At 6 stars: Twins(2)+Diamondus Minor(4) -- **not** North Star, not
+     Slice. Verified by checking the partition invariant across 0-49: **49 of
+     50 sum exactly**, the sole exception n=0, which the wiki documents.
+
+  **Why (4) matters more than the auto-vs-choice question it sits under:** a
+  naive `stars >= N` gate grants all seven constellations at or below 25 stars;
+  the true rule grants five and is strictly weaker. **Collapsing it to a
+  threshold over-rewards stars**, and the Observatory/Aquarium/Planetarium star
+  engine is exactly what an RL agent will find and exploit. This question is
+  **upstream** of the owner's open constellation question and reframes it.
+
+  **Scope, measured:** nothing is permanent except Spiral of Stars' word count.
+  Everything else is immediate or day-scoped. **`_CARRYOVER_KEYS` does not
+  move** (it is bool-only, 16, and never has). Four of the eleven base
+  constellations are **non-stacking**, so the Telescope's second sky is a
+  **no-op for four of them** -- any cost case assuming it doubles everything is
+  wrong.
+
+  **Costs, for the ruling:** auto-activate ~650-950 lines / 8-10 files, and
+  **`N_ACTIONS` stays 442** -- because `env/actions.py:840 _redraw_kind`
+  already auto-selects the cheapest redraw source behind the single
+  `REDRAW_ACTION`, so The Ink Well is a **zero-action-width** change (verified).
+  Per-constellation choice: ~1000-1450 lines / 13-16 files, **12 appended
+  ids, 442 -> 454**, plus one **new** obs key. No existing key resizes either
+  way; day-scoped draft-bias flags are already invisible to the agent
+  (`southern_cross_active`, `draxus_active`, `schoolhouse_placed`,
+  `add_aquariums_active` appear nowhere in `env/obs.py`).
+
+  **THE STRUCTURAL FINDING, and it is the important part of this entry.**
+  Chasing a suspected `morning_star` gap turned up something larger:
+  **`find_divergences` is entirely room-scoped.** Item records carry **no
+  `meta.effect_text` field at all** -- verified across all **102** of them --
+  so there is **no item text-vs-model fidelity audit in existence**. The item
+  side has only a registry-consistency check, an empty-effects census, and a
+  **hand-maintained `implemented` flag**.
+
+  Therefore **"102 special items (1 unimplemented)" counts items whose FLAG
+  says unimplemented -- not items verified complete.** Nothing would notice a
+  half-implemented item. `morning_star` is the candidate instance:
+  `implemented: true`, `effects: [{"tag": "smash"}]`, `blocked_on: null`, and
+  per the wiki its text is *"Can knock the locks off chests and trunks.
+  **Tomorrow morning, gain 1 Star**"* -- the star half absent and unflagged.
+  **Wiki-sourced and UNCONFIRMED by datamine or owner play; treat as a
+  candidate, not an established bug.**
+
+  **This is the same shape as #270 one level up.** Rooms got a fidelity audit;
+  items got a registry check that answers "is this id known?" and never asks
+  "does the model match the published text?". A hand-maintained completeness
+  flag with no detector behind it is a liveness check wearing a different hat.
+
+  **Other findings:** the reconstructed 0-49 partition table was **never
+  persisted** -- only `southern_cross` and `draxus` appear anywhere in the
+  repo, so the table exists solely as a prose assertion at
+  `open_tasks.md:1157-1161` and must be re-derived from scratch. And
+  `special_items.json:647` claims *"Spiral has no wiki page at all"*; it has
+  one. The conclusion it supports (keep Spiral out of `spawn_rooms`) is still
+  right, but the stated reason is false and would mislead a re-deriver.
+
+  **Florealis is unbuildable today**: zero hits for `flower` anywhere in
+  `src/`. In = a new subsystem; out = 10 of 11 with a recorded reason.
+
 - **2026-08-14, CONTAINER DEBT: took the free win, DEFERRED the
   `provides_containers` refactor. And found the shape of a whole bug class.**
 
