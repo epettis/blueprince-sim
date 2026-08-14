@@ -434,21 +434,22 @@ def test_silver_key_no_longer_auto_spent_on_open(registry):
 
 
 def test_reserved_special_keys_always_masked_off(registry):
-    """secret_garden_key, key_8, and prism_key are permanently reserved
-    special-keys-menu ids: masked off even when force-held, since their
-    menu behaviour is unimplemented (secret_garden_key/key_8 are modelled
-    in this sim as draft_conditions tags, not door keys; prism_key stays
-    implemented:false in special_items.json)."""
+    """secret_garden_key and key_8 are permanently reserved special-keys-menu
+    ids: masked off even when force-held, since their menu behaviour is
+    unimplemented -- both are modelled in this sim as draft_conditions tags,
+    not door keys. (prism_key was reserved here too before this row went
+    live; see the prism_key tests below for its real, non-reserved
+    behaviour.)"""
     g = _game(registry)
     cell, d = g.open_doorways()[0]
     _force_state(g, cell, d, DOOR_LOCKED)
-    for key_id in ("secret_garden_key", "key_8", "prism_key"):
+    for key_id in ("secret_garden_key", "key_8"):
         g.state.inventory[key_id] = 1  # force-held, bypassing normal spawn gating
     g.open_door(cell, d)
     assert g.phase is Phase.LOCK_PENDING
     order = list(g.registry.lock_rules["special_key_menu"]["order"])
     mask = A.action_mask(g)
-    for key_id in ("secret_garden_key", "key_8", "prism_key"):
+    for key_id in ("secret_garden_key", "key_8"):
         idx = A.LOCK_SPECIAL_KEY_BASE + order.index(key_id)
         assert not mask[idx], f"{key_id} must stay masked off even when held"
         assert not g.can_use_special_key_at_lock(key_id)
@@ -469,6 +470,158 @@ def test_basement_key_never_fits_an_on_grid_door(registry):
     order = list(g.registry.lock_rules["special_key_menu"]["order"])
     idx = A.LOCK_SPECIAL_KEY_BASE + order.index("basement_key")
     assert not A.action_mask(g)[idx]
+
+
+# ------------------------------------------------------------- Prism Key
+#
+# Wiki (blueprince.wiki.gg/wiki/Prism_Key): "the Prism Key can only be used
+# to unlock a door in Bedrooms, Hallways, Green Rooms, Shops and Red Rooms,
+# and will not fit locks in rooms that are purely blue or black"; using it
+# colour-restricts the resulting draft; "the color is chosen at random from
+# all valid choices" in a multi-colour room; "consumes it and readds it to
+# the item pool, allowing it to be obtained again in the same day."
+
+PRISM_TEST_CELL = 7  # rank 2, col 2: interior, doorway north targets cell 12
+                      # (empty) -- the same safe placement geometry
+                      # test_colour_drafting.py uses for the Secret Passage.
+
+
+def _place_and_stand(g: Game, room_id: str, cell: int = PRISM_TEST_CELL,
+                     orientation: int = N) -> None:
+    """Place ``room_id`` at ``cell`` with a door in ``orientation`` and stand
+    there, bypassing normal drafting/movement -- the same shape
+    test_colour_drafting.py's own ``_place_secret_passage`` helper uses.
+
+    Also tops up ``state.keys`` to 5: this teleports the player onto an
+    island disconnected from the day-start Entrance Hall, so it is the ONLY
+    frontier doorway Game._action_in_budget can see; without spare regular
+    keys that budget check reads the still-unresolved locked doorway as
+    unaffordable and ends the day (_terminate("out_of_steps")) before the
+    special-keys-menu row is ever reached, since that check only knows about
+    regular keys, not special ones. Unrelated to the mechanism under test --
+    every prism_key test here resolves the lock via the special-keys-menu
+    row, never a regular key."""
+    room = g.registry.by_id[room_id]
+    g._place_room(room, cell, orientation)
+    g.state.pos = cell
+    g.state.keys = 5
+
+
+class _FixedChoiceRng:
+    """Wraps a real engine.rng.Rng, overriding ``.choice`` for exactly one
+    label to a fixed index -- every other draw (rarity rolls, mechanarium
+    orientation, etc.) still comes from the real substream underneath, so
+    the deal itself stays realistic. Used to force the Prism Key's
+    multi-colour draw deterministically instead of hunting for a seed."""
+
+    def __init__(self, real: Rng, label: str, index: int) -> None:
+        self._real = real
+        self._label = label
+        self._index = index
+
+    def __getattr__(self, name):
+        return getattr(self._real, name)
+
+    def choice(self, label, items):
+        if label == self._label:
+            return items[self._index]
+        return self._real.choice(label, items)
+
+
+def test_prism_key_masked_off_in_a_purely_blue_room(registry):
+    """The Prism Key does not fit the Entrance Hall: category "blueprint"
+    (this sim's blue category) with no extra colour categories -- wiki:
+    "will not fit locks in rooms that are purely blue or black"."""
+    entrance = registry.by_id["entrance_hall"]
+    assert entrance.category == "blueprint" and not entrance.extra_categories, (
+        "setup check: the Entrance Hall must be purely blue for this test to mean anything")
+    g = _game(registry, starting_items=frozenset({"prism_key"}))
+    cell, d = g.open_doorways()[0]  # day-start position is the Entrance Hall
+    _force_state(g, cell, d, DOOR_LOCKED)
+    g.open_door(cell, d)
+    assert g.phase is Phase.LOCK_PENDING
+    assert special_items.has(g.state, "prism_key")
+    assert not g.can_use_special_key_at_lock("prism_key")
+    order = list(g.registry.lock_rules["special_key_menu"]["order"])
+    idx = A.LOCK_SPECIAL_KEY_BASE + order.index("prism_key")
+    assert not A.action_mask(g)[idx]
+
+
+@pytest.mark.parametrize("room_id,colour", [
+    ("bedroom", "bedroom"),
+    ("corridor", "hallway"),
+    ("cloister", "green"),
+    ("kitchen", "shop"),
+    ("lavatory", "red"),
+])
+def test_prism_key_fits_and_deals_that_single_colour(registry, room_id, colour):
+    """Prism Key is offered (fits) in a room of each of the five colours,
+    and using it deals a hand restricted entirely to that colour -- checked
+    against the room's own registry category (rooms.json data), independent
+    of prism_key.fitting_colours/fits, the functions under test."""
+    room = registry.by_id[room_id]
+    assert room.category == colour and not room.extra_categories, (
+        f"setup check: {room_id!r} must be a single-colour {colour!r} room")
+    g = _game(registry, starting_items=frozenset({"prism_key"}))
+    _place_and_stand(g, room_id)
+    _force_state(g, PRISM_TEST_CELL, N, DOOR_LOCKED)
+    g.open_door(PRISM_TEST_CELL, N)
+    assert g.phase is Phase.LOCK_PENDING
+    assert g.can_use_special_key_at_lock("prism_key")
+    order = list(g.registry.lock_rules["special_key_menu"]["order"])
+    idx = A.LOCK_SPECIAL_KEY_BASE + order.index("prism_key")
+    assert A.action_mask(g)[idx]
+    pending = g.use_special_key_at_lock("prism_key")
+    assert g.phase is Phase.DRAFTING
+    assert pending is not None and pending.options, (
+        "a colour-restricted hand must still deal something")
+    for opt in pending.options:
+        dealt = g.registry.rooms[opt.room_idx]
+        assert dealt.is_category(colour), f"{dealt.id!r} is not a {colour!r} room"
+
+
+def test_prism_key_consumed_and_readded_to_the_pool(registry):
+    """Using the Prism Key spends the held one but does NOT gate it from
+    spawning again today -- remove(..., consumed=False) never appends to
+    state.special.removed, the only list _is_available consults (wiki:
+    "consumes it and readds it to the item pool, allowing it to be obtained
+    again in the same day")."""
+    g = _game(registry, starting_items=frozenset({"prism_key"}))
+    _place_and_stand(g, "cloister")  # green, single colour
+    _force_state(g, PRISM_TEST_CELL, N, DOOR_LOCKED)
+    g.open_door(PRISM_TEST_CELL, N)
+    assert special_items.has(g.state, "prism_key")
+    g.use_special_key_at_lock("prism_key")
+    assert not special_items.has(g.state, "prism_key"), "the held key is spent"
+    assert "prism_key" not in g.state.special.removed, "must not be gone for the day"
+    assert special_items._is_available(g.state, "prism_key", g.registry), (
+        "must be spawn-eligible again the same day")
+
+
+@pytest.mark.parametrize("index", [0, 2, 4])
+def test_prism_key_multi_colour_room_draws_via_its_own_rng_label(registry, index):
+    """The Aquarium carries all five colours (rooms.json's extra_categories),
+    so using the Prism Key there draws one via a single rng.choice on the
+    "prism_key_colour" label -- forcing three different indices and checking
+    the resulting hand matches each proves the draw is actually consumed
+    (not hardcoded to one entry)."""
+    from blueprince_sim.engine.draft import COLOUR_CATEGORIES
+
+    aquarium = registry.by_id["aquarium"]
+    assert set(COLOUR_CATEGORIES) <= aquarium.categories, (
+        "setup check: the Aquarium must carry every colour category")
+    g = _game(registry, starting_items=frozenset({"prism_key"}))
+    _place_and_stand(g, "aquarium")
+    _force_state(g, PRISM_TEST_CELL, N, DOOR_LOCKED)
+    g.open_door(PRISM_TEST_CELL, N)
+    g.rng = _FixedChoiceRng(g.rng, "prism_key_colour", index)
+    expected = COLOUR_CATEGORIES[index]
+    pending = g.use_special_key_at_lock("prism_key")
+    assert g.phase is Phase.DRAFTING
+    assert pending is not None and pending.options
+    for opt in pending.options:
+        assert g.registry.rooms[opt.room_idx].is_category(expected), (
+            f"index={index}: expected the {expected!r}-restricted draw")
 
 
 # ------------------------------------------------------- keycard system

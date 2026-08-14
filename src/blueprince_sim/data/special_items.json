@@ -921,14 +921,13 @@
    "spawn_rooms_high_luck": [],
    "guaranteed_in": [],
    "effects": [],
-   "implemented": false,
+   "implemented": true,
    "meta": {
     "source": "https://blueprince.wiki.gg/wiki/Prism_Key",
     "confidence": "wiki",
     "absent_spawn_areas": [],
-    "blocked_on": "special_key_menu_choice_not_modeled",
-    "reachability": "inert",
-    "notes": "The colour-selective drafting mechanism this needed (engine/draft.py's DraftContext.colour, same filter the Secret Passage uses -- 'The Prism Key's effect seems to be identical to that of the Secret Passage') now exists. The colour-restricted deal is already built (Phase.COLOUR_PENDING, Game.choose_colour). Consume-and-readd is also already modelled: game.py:516-523 does exactly that for the Silver Key (remove(..., consumed=False) -- consumed today, pool-eligible tomorrow), a previous version of this note claimed this was modelled nowhere, which was false. The genuine remainder is player *choice* between held special keys at a locked door: no per-door special-key menu, glow/fit preview, or the Great Hall-style warp-to-next-draft quirk is modelled anywhere in locks.py/shops.py."
+    "blocked_on": null,
+    "notes": "A special-keys-menu row (Game.can_use_special_key_at_lock/use_special_key_at_lock), legal only while held and only at a locked door in a room carrying at least one of the five colours (Bedroom/Hallway/Green Room/Shop/Red Room -- effects/items/prism_key.py::fits; never a purely blue/black room). Using it colour-restricts the resulting draft to that room's colour (Game._deal_and_cache(colour=...), draft.py's colour gate), resolved without the Secret Passage's five-way COLOUR_PENDING player pick since the colour is never a player choice here. In the six rooms carrying more than one colour (the five Aquarium variants and the Maid's Chamber), the colour is one uniform rng draw (owner ruling: the wiki's 'chosen at random from all valid choices' taken literally over its reroll clause). Consumed on use and re-added to today's spawn pool the same day (remove(..., consumed=False)). NOT modelled: special key warping (a key used on a door with no following draft carrying its restriction to a later, unrelated draft elsewhere in the house -- this sim's LOCK_PENDING resolution always deals immediately) and the Silver Key's cross/t-layout bias combining with a Prism-Key-opened door (only one special-keys-menu row can be chosen per lock in this sim)."
    }
   },
   {

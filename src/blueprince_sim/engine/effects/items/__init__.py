@@ -43,6 +43,7 @@ from . import ornate_compass  # noqa: F401  (registers ornate_compass capability
 from . import paper_crown  # noqa: F401  (exposes its own bonus-redraw predicate)
 from . import powered_electromagnet  # noqa: F401  (registers electromagnet + compass_bias)
 from . import power_hammer  # noqa: F401  (exposes its own held-fact predicate)
+from . import prism_key  # noqa: F401  (exposes its own held/fits/consume lock-menu funcs)
 from . import repellent  # noqa: F401  (exposes its own held/consume functions)
 from . import royal_scepter  # noqa: F401  (exposes its own gate/carry-over/held functions)
 from . import running_shoes  # noqa: F401  (registers move_step_cost handler on import)
