@@ -383,7 +383,7 @@
     "confidence": "wiki",
     "blocked_on": null,
     "notes": [
-     "'Tomorrow Rooms' are the 12 records carrying extra_categories: [\"tomorrow\"] in rooms.json (break_room__ix11, sauna, coat_check, mail_room, mail_room__ix89/90/91, freezer, hallway__ix76, morning_room, clock_tower, planetarium) -- the same category Game.end_day already reads for the Clock Tower's own next-day key pulse. This record's own note previously claimed no such flag existed; that was stale."
+     "'Tomorrow Rooms' are the 12 records carrying extra_categories: [\"tomorrow\"] in rooms.json (break_room__ix11, sauna, coat_check, mail_room, mail_room__ix89/90/91, freezer, hallway__ix76, morning_room, clock_tower, planetarium) -- the same category Game.end_day already reads for the Clock Tower's own next-day key pulse."
     ]
    }
   }

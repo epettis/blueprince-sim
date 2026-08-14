@@ -6,14 +6,14 @@
   "meta": {
    "confidence": "wiki",
    "source": "blueprince.wiki.gg/wiki/Luck: start at 10",
-   "notes": "day_start is the only field left here: the old floor/max_effect_at/curve/penalty_two_plus_items keys described the sim's own invented linear Bernoulli ramp and found>=2 penalty, both replaced by item_ladder below (owner ruling, docs/open_tasks.md decisions log 2026-08-13). rabbits_foot_bonus is unused by code -- the live Rabbit's Foot/Lucky Purse amount is special_items.json's own luck_bonus effect param."
+   "notes": "day_start sets state.luck at the start of each day (Game.reset) and is the base luck value item_ladder bands below key off of (owner ruling, docs/open_tasks.md decisions log 2026-08-13). rabbits_foot_bonus is unused by code -- the live Rabbit's Foot/Lucky Purse amount is special_items.json's own luck_bonus effect param. Per-draft luck banding lives in item_ladder below."
   }
  },
  "item_ladder": {
   "meta": {
    "confidence": "datamined",
    "source": "https://blueprince.wiki.gg/wiki/Luck",
-   "notes": "The published item-count ladder (\"Luck effects\" DataMinedBox), replacing engine/items.py's old linear ramp. Effective luck = state.luck + per-draft modifiers (special_items.luck_bonus) - state.luck_penalty (owner-ruled per-day accumulator; wiki never states its reset scope). bands[].kind: 'flat' (a flat 1-item chance), 'chain' (5-10 luck: first-match ordered list, order is load-bearing), 'variable_mix' (a variable/1-item/0-item three-way split), 'always_variable' (100% variable), 'fixed' (a deterministic item count + Luck Penalty delta). The 'chain' row with if='day1_veteran_by_fast_early_drafts' can never match in this sim: GameConfig.veteran_mode (config.py) is a plain bool with no notion of Veteran Mode having been enabled MID-RUN by fast early drafts, so that branch always falls through to the next row (see docs/open_tasks.md decisions log 2026-08-13 and the PR-A report)."
+   "notes": "The published item-count ladder (\"Luck effects\" DataMinedBox). Effective luck = state.luck + per-draft modifiers (special_items.luck_bonus) - state.luck_penalty (owner-ruled per-day accumulator; wiki never states its reset scope). bands[].kind: 'flat' (a flat 1-item chance), 'chain' (5-10 luck: first-match ordered list, order is load-bearing), 'variable_mix' (a variable/1-item/0-item three-way split), 'always_variable' (100% variable), 'fixed' (a deterministic item count + Luck Penalty delta). The 'chain' row with if='day1_veteran_by_fast_early_drafts' can never match in this sim: GameConfig.veteran_mode (config.py) is a plain bool with no notion of Veteran Mode having been enabled MID-RUN by fast early drafts, so that branch always falls through to the next row (see docs/open_tasks.md decisions log 2026-08-13 and the PR-A report)."
   },
   "bands": [
    {"max": 4, "kind": "flat", "p_one_pct": 7},

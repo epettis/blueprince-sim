@@ -127,7 +127,7 @@
    "meta": {
     "confidence": "datamined",
     "source": "sheet constants: King's Chess Piece / Banner of the King Blueprint bias",
-    "notes": "Shaped but inert: no Banner subsystem is modeled, so never emitted. Renamed from shared 'king' to king_<color> (mirrors scepter_<color>) because the Banner picks ONE color per day -- a bare tag would fire all five at once. Wiki says 40%; our datamined 50% kept (owner, 2026-08-06)."
+    "notes": "Shaped but inert: no Banner subsystem is modeled, so never emitted. king_<color> mirrors scepter_<color>: the Banner picks ONE color per day, so a shared tag would fire all five at once. Wiki says 40%; our datamined 50% kept (owner, 2026-08-06)."
    }
   },
   {
@@ -138,7 +138,7 @@
    "meta": {
     "confidence": "datamined",
     "source": "sheet constants: King's Chess Piece / Banner of the King Hallway bias",
-    "notes": "Shaped but inert: no Banner subsystem modeled. Renamed from 'king' to king_hallway; see king_blueprint's note. Matches wiki's 30% for Hallways -- no magnitude disagreement."
+    "notes": "Shaped but inert: no Banner subsystem modeled. king_hallway is a per-category condition tag; see king_blueprint's note for why. Matches wiki's 30% for Hallways -- no magnitude disagreement."
    }
   },
   {
@@ -149,7 +149,7 @@
    "meta": {
     "confidence": "datamined",
     "source": "sheet constants: King's Chess Piece / Banner of the King Bedroom bias",
-    "notes": "Shaped but inert: no Banner subsystem modeled. Renamed from 'king' to king_bedroom; see king_blueprint's note. Matches wiki's 28% for Bedrooms -- no magnitude disagreement."
+    "notes": "Shaped but inert: no Banner subsystem modeled. king_bedroom is a per-category condition tag; see king_blueprint's note for why. Matches wiki's 28% for Bedrooms -- no magnitude disagreement."
    }
   },
   {
@@ -160,7 +160,7 @@
    "meta": {
     "confidence": "datamined",
     "source": "sheet constants: King's Chess Piece / Banner of the King Shop bias",
-    "notes": "Shaped but inert: no Banner subsystem modeled. Renamed from 'king' to king_shop; see king_blueprint's note. Wiki gives 30% for Shops; our sheet says 25% -- kept sheet value, flagged for re-test."
+    "notes": "Shaped but inert: no Banner subsystem modeled. king_shop is a per-category condition tag; see king_blueprint's note for why. Wiki gives 30% for Shops; our sheet says 25% -- kept sheet value, flagged for re-test."
    }
   },
   {
@@ -171,7 +171,7 @@
    "meta": {
     "confidence": "datamined",
     "source": "sheet constants: King's Chess Piece / Banner of the King Blackprint bias",
-    "notes": "Shaped but inert: no Banner subsystem modeled. Renamed from 'king' to king_blackprint; see king_blueprint's note. Matches wiki's 40% for Blackprints -- no magnitude disagreement."
+    "notes": "Shaped but inert: no Banner subsystem modeled. king_blackprint is a per-category condition tag; see king_blueprint's note for why. Matches wiki's 40% for Blackprints -- no magnitude disagreement."
    }
   },
   {
