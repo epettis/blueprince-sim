@@ -1662,14 +1662,16 @@ def dig_all(game, cell: int) -> None:
 MECHANARIUM_ROOM_ID = "mechanarium"
 
 # Room id for the Entrance Hall's per-day trunk overlay (entrance_hall_trunk
-# experiment effect). A literal for the same reason as MECHANARIUM_ROOM_ID.
+# experiment effect). draft.py carries no Entrance Hall constant to import,
+# so this is simply a named literal for readability within this module.
 ENTRANCE_HALL_ROOM_ID = "entrance_hall"
 
 # Room id for the Planetarium's Telescope-unlocked container overlay (Dauja's
-# Trunk). A literal for the same reason as MECHANARIUM_ROOM_ID/
-# ENTRANCE_HALL_ROOM_ID -- containers.rooms carries no static Planetarium
-# entry, since whether the Trunk exists depends on save-scoped state
-# (GameState.planetarium_planets), not a fixed per-room count.
+# Trunk). draft.py carries no Planetarium constant to import either, so this
+# is a named literal for readability, same as ENTRANCE_HALL_ROOM_ID --
+# containers.rooms carries no static Planetarium entry, since whether the
+# Trunk exists depends on save-scoped state (GameState.planetarium_planets),
+# not a fixed per-room count.
 PLANETARIUM_ROOM_ID = "planetarium"
 
 # The Mechanarium's diagonal-compartment kinds, in the wiki's fixed open
@@ -1688,6 +1690,9 @@ def containers_in(registry, room_id: str) -> dict[str, int]:
     per-placement, not per-room (see ``_mechanarium_compartment_kinds``). The
     Entrance Hall has no static entry either -- every trunk there is added
     per-day by an experiment effect (see ``_entrance_hall_container_kinds``).
+    The Planetarium has no static entry either -- its Trunk exists only once
+    the Dauja planet is unlocked, a save-scoped condition (see
+    ``_planetarium_container_kinds``).
     """
     return dict(registry.special.containers.get("rooms", {}).get(room_id, {}))
 
@@ -1793,7 +1798,9 @@ def _container_kinds_at(state, registry, cell: int) -> list[tuple[str, int]]:
 def _next_container_kind(state, registry, cell: int) -> str | None:
     """The kind of the NEXT container to open at ``cell``, or None if exhausted.
 
-    Opens in a deterministic order: trunk first, then chest, then locker.
+    Opens in a deterministic order: trunk, chest, locker_open, locker_locked,
+    then any other kinds in stable insertion order (see ``_PRIORITY`` in
+    ``_container_kinds_at``).
     """
     pairs = _container_kinds_at(state, registry, cell)
     return pairs[0][0] if pairs else None
@@ -2173,11 +2180,12 @@ def _mechanarium_west_lever(game) -> str:
     segment Secret Garden's own on-entry lever opens (effects/rooms/
     secret_garden.py; game.py's _enter_lever_room dispatches to it there) --
     rather than a second, independent lever mechanism. No extra cost beyond
-    opening the compartment itself.
+    opening the compartment itself. ``pull_west_lever`` ignores its ``cell``
+    argument (kept only to match the shared ``LeverPullFn`` signature every
+    lever provider registers under), so there is no cell to look up here.
     """
     from .effects.rooms import secret_garden
-    cell = game.room_cells.get(MECHANARIUM_ROOM_ID, -1)
-    secret_garden.pull_west_lever(game, cell)
+    secret_garden.pull_west_lever(game, -1)
     return "lever:west_antechamber"
 
 

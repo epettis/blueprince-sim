@@ -189,8 +189,8 @@ ALLOWLIST: dict[str, set[str]] = {
         # room.id == "lost_and_found" steal trigger, plus the same string
         # reused as an RNG substream name and a grant() source label.
         "lost_and_found",
-        # MECHANARIUM_ROOM_ID constant: room.id == comparison +
-        # room_cells.get() gating Mechanarium-specific item behaviour.
+        # MECHANARIUM_ROOM_ID constant: room.id == comparison gating
+        # Mechanarium-specific item behaviour.
         "mechanarium",
         # PLANETARIUM_ROOM_ID constant: room.id == comparison in
         # _container_kinds_at gating the Telescope-unlocked Dauja Trunk

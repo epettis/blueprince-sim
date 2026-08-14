@@ -342,6 +342,25 @@ def test_deferred_exempt_ids_are_flagged_when_the_channel_is_disabled():
         assert any(f.startswith(f"{rid}:") for f in kind1 + kind2), rid
 
 
+def test_python_exempt_ids_are_flagged_when_the_channel_is_disabled():
+    """Passing python_exempt_ids={} reproduces the un-exempted worklist for
+    every Python-exempt id -- confirms each one is only absent from the audit
+    because of this channel, not because it is independently covered (e.g. by
+    a real room_hook registration under ``registered_room_ids``). Mirrors
+    ``test_deferred_exempt_ids_are_flagged_when_the_channel_is_disabled``;
+    this is the necessity check the Python channel lacked, which is exactly
+    how a dead entry (a room already covered by its own room_hook, exempted
+    for no reason) could sit unnoticed."""
+    rooms = [_room(rid, text="Something this room does.")
+             for rid in _AUDIT_PYTHON_EXEMPT_IDS]
+    by_id = {r["id"]: r for r in rooms}
+
+    kind1, kind2 = find_divergences(rooms, by_id, EMPTY_LOCKS, python_exempt_ids={})
+
+    for rid in _AUDIT_PYTHON_EXEMPT_IDS:
+        assert any(f.startswith(f"{rid}:") for f in kind1 + kind2), rid
+
+
 def test_python_exemption_liveness_check_fires_when_the_id_is_gone(tmp_path):
     """The liveness check must fail when an exempt room's id no longer appears
     in the module it names.
