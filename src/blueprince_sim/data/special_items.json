@@ -497,7 +497,13 @@
    "effects": [
     {
      "tag": "free_move_interval",
-     "n": 3
+     "distance_threshold": 2.2,
+     "area_chance_default": 0.6,
+     "area_chance_overrides": {
+      "gemstone_cavern": 0.7,
+      "orindian_ruins": 0.9,
+      "inner_sanctum": 0.99
+     }
     }
    ],
    "implemented": true,
