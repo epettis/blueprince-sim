@@ -871,6 +871,118 @@ allowlist entry** -- that rule alone catches `ignition_tool` today.
 **Cost: ~8 PRs, ~650 LOC moved, ~500 LOC new.** `special_items.py` should land
 around 1,800 LOC.
 
+## 23. OPEN OWNER QUESTIONS -- consolidated (2026-08-14)
+
+**Every remaining substantive item is gated on something here.** Twelve
+questions accumulated across six research reports; grouped below by what they
+unblock, with dependencies made explicit, because several are cheap to answer
+together and two are *upstream* of questions that look independent.
+
+**Answer order matters.** A, then B, are the two highest-leverage: each decides
+the *shape* of work rather than a detail inside it, and each costs nothing to
+rule on today.
+
+### A. Is `effects` normative or vestigial? (unblocks the item audit)
+
+Today it is **neither, consistently**. An AST scan shows **7 of 28 item tags
+are never read as tags** -- for six, the tag string merely coincides with the
+item's own id while behaviour lives in a per-item module keyed on `ITEM_ID`.
+**So an item can be fully modelled with an inert tag, or partly modelled with a
+live one, and the array states neither.**
+
+**That ambiguity is exactly what let `morning_star` look modelled.**
+
+- **Normative** (every behaviour gets a tag; a tag with no reader is a hard
+  failure) makes an item audit far cheaper forever, and `tools/validate_data.py`
+  already has the scan to enforce it.
+- **Vestigial** (a data payload for generic readers only) means the audit must
+  ignore `effects` entirely and key on modules/registries.
+
+**Recommendation: normative.** It costs nothing today and it is the only answer
+that makes the array mean something. *(Scoping report, 2026-08-14.)*
+
+### B. Does a partial gap invalidate `implemented: true`? (unblocks the audit's
+flagging rule)
+
+`morning_star` smashes correctly and misses its star grant. Is that
+`implemented: true` with a disclosed caveat, or `implemented: false`?
+
+**The audit has no defined behaviour until this is answered** -- it decides what
+the detector flags. **7 items already carry `meta.simplification`**, so the
+vocabulary half-exists; a third state is available without new machinery.
+
+**Related, same ruling:** **where must a disclosure live?** `secret_garden_key`'s
+simplification is disclosed in `locks.json`; `power_hammer`'s Freezer gap is
+disclosed on **`upgrade_disk_freezer`'s** record. **Neither is reachable from
+the record a reader would open.** Must an exemption be stated *on* the flagged
+record, or may it point elsewhere? On-record is cleaner but means migrating
+existing prose.
+
+### C. Constellations (unblocks the `telescope`'s last arm)
+
+**C1 is upstream of C2 and changes its answer.**
+
+1. **Is the sum-partition mechanic modelled, or collapsed to a threshold?** The
+   night sky shows a set of constellations whose star values sum **exactly** to
+   the current star count -- verified across 0-49 (49 of 50 sum exactly; n=0
+   documented). A naive `stars >= N` gate grants seven constellations at 25
+   stars where the real rule grants five. **Collapsing it over-rewards stars,
+   and the Observatory/Aquarium/Planetarium star engine is precisely what an RL
+   agent will find and exploit.**
+2. **Auto-activate, or model the per-constellation choice?** Costs are measured:
+   auto ~650-950 lines with **`N_ACTIONS` staying 442**; per-constellation
+   choice ~1000-1450 lines, **12 appended ids (442 -> 454)** plus one new obs
+   key. Note **four of the eleven base constellations are non-stacking**, so the
+   Telescope's second sky is a no-op for them.
+3. **Is Florealis in or out?** It is the only base-set constellation with no
+   primitive whatsoever -- **zero hits for `flower` in `src/`**. In = a new
+   subsystem; out = 10 of 11 with a recorded reason.
+
+### D. Conservatory (unblocks the remodel)
+
+1. **Is it in scope at all**, given it is undraftable (`"rarity": null`)?
+   Reaching it needs its 15% forced draw and the Found Floorplan gate, neither
+   of which exists.
+2. **Does "a click counts even without changing" get modelled?** Decides whether
+   `permanent_rarity` can be reused -- `set_wrench_rarity` *pops* the entry when
+   the pick equals the natal rarity.
+3. **"Any of the three" (owner) vs "all three" (wiki and datamine).**
+
+### E. Drafting fidelity (from the #284 investigation)
+
+1. **Are Priority Draws really Slot-3-only?** The sim gates `_priority_draw` on
+   `slot == 2` and `docs/drafting.md:48` states it as fact, but **the wiki puts
+   Priority Draws under Filters with no slot restriction** -- only *Forced*
+   Draws are Slot-3-only. Deliberate simplification, or were the two mechanisms
+   conflated?
+2. **Build the Day 1 opening draw?** The wiki says it is deterministically
+   **Bedroom, Closet, Hallway**. The sim produced **292 distinct opening hands
+   over 300 seeds** and no code or data for it exists.
+3. **Commissary beats Observatory 46:1** because `_priority_draw` returns the
+   first draftable candidate in **list order** and both have empty
+   `draft_conditions`. The wiki gives each floorplan an independent acceptance
+   roll. Acceptable, or a second defect?
+4. **Two data gaps**: the wiki's 3% group is **{Garage, Classroom}** where the
+   repo has `{classroom}` alone; and the wiki says the Greenhouse effect
+   **moves Secret Passage from the 5% group to the 3%**, where the repo keeps
+   it at 5% unconditionally.
+5. **`_priority_draw` never consumes its card** -- no `deal_next`, so the room
+   stays in its deck, while the wiki says a drawn floorplan *"gets added to the
+   discard filter for future draws"*.
+
+### F. Minor
+
+- **`morning_star`'s star grant is wiki-only**, unconfirmed by datamine or owner
+  play, and the repo's only datamine is a room table that will never confirm it.
+  Confirm in play first, or accept wiki confidence for a one-line effect?
+- **`experiments.json:417`** cites real Patch 1.04.5 *game* history but
+  self-labels "(provenance only, not current behavior)" -- the shape of a
+  comment violation wrapped around legitimate content. Left unruled so a sweep
+  agent would not set the precedent.
+- **The engine's `t5_special_chance` fallback of 50 has no live reader** (every
+  shipped path supplies 100). Delete it, or keep it as a deliberate defensive
+  default?
+
 ## Decisions log
 
 - **2026-08-14, THE "GEMS-IN-HAND RANK AXIS" QUEUE ENTRY WAS WRONG IN EVERY
