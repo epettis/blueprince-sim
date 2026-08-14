@@ -985,6 +985,87 @@ existing prose.
 
 ## Decisions log
 
+- **2026-08-14, OWNER RULINGS x14 -- the queue is now UNBLOCKED. Plus new
+  ground truth on the Basement Key that overrides the wiki.**
+
+  **NEW GROUND TRUTH (owner play, supersedes the wiki):** *"Add the Basement
+  Key to the Antechamber. It appears on a pedestal in the Antechamber when you
+  enter the room, allowing you to take it and go through The Foundation or the
+  fountain door to open a basement door permanently across an entire save,
+  granting permanent access without needing to return to the Antechamber."*
+  The wiki lists the **Spiral** as `basement_key`'s only location; **owner play
+  outranks it.** Two consequences: (1) the Spiral is no longer any item's sole
+  route, which may shrink that scoping question; (2) *"permanently across an
+  entire save"* is a **save-scoped BOOLEAN** -- so this may be the first
+  legitimate reason to grow `DayChain._CARRYOVER_KEYS` past **16**, where it
+  has sat unchanged all session with every set-valued thing pushed to the
+  separate channel. **That is a design question, not an implementation detail;
+  it is being answered by a scoping pass, not decided in passing.**
+
+  **CONSTELLATIONS**
+  1. **Model the TRUE SUM-PARTITION**, not a `stars >= N` threshold. A
+     threshold over-rewards stars and the star engine is what an RL agent will
+     exploit.
+  2. **Model the PER-CONSTELLATION CHOICE**, not auto-activate. *(Rejects the
+     recommendation put to the owner.)* **~1000-1450 lines, 12 appended action
+     ids: `N_ACTIONS` 442 -> 454, plus one NEW obs key.** Appended only; no
+     existing id shifts. **A retrain is owed** -- see below.
+  3. Florealis: not separately ruled; still open if the arm reaches it.
+
+  **CONSERVATORY**
+  4. **Build REACHABILITY FIRST** -- the 15% forced draw and the Found
+     Floorplan gate -- *then* remodel. The room is undraftable today
+     (`"rarity": null`), so remodelling first ships more dead code.
+  5. **The wiki wins on "all three"**, not the owner's earlier "any of the
+     three" -- explicitly reversing that reading.
+  6. **A no-op click COUNTS as a use.** `permanent_rarity` cannot represent it
+     (`set_wrench_rarity` *pops* the entry when the pick equals the natal
+     rarity), so this needs a **second save-scoped set, ~40 lines + an obs
+     key.**
+
+  **DRAFTING FIDELITY**
+  7. **Priority Draws are NOT Slot-3-only -- the two mechanisms were
+     CONFLATED.** Remove the `slot == 2` gate; Forced Draws stay Slot-3-only.
+  8. **BUILD the Day 1 opening draw** -- deterministically Bedroom, Closet,
+     Hallway. The sim produced **292 distinct opening hands over 300 seeds**
+     and no code for it exists, which already invalidated one queue entry's
+     evidence.
+  9. **The Commissary/Observatory 46:1 skew is a SECOND DEFECT** -- fix it.
+     `_priority_draw` returns the first candidate in list order, so Observatory
+     is unreachable by that route: a content gap, not a skew.
+  10. **Fix both `priority_draws.json` data gaps** -- the 3% group is
+      {Garage, Classroom}, and the Greenhouse moves Secret Passage 5% -> 3%.
+  11. **Fix the card consumption WITH the slot-gate work** -- `_priority_draw`
+      never calls `deal_next`, so a drawn floorplan stays in its deck.
+
+  **ITEMS**
+  12. **BUILD `morning_star`'s star grant on wiki confidence.** Wiki-only and
+      unconfirmable by datamine, and the owner accepted that basis.
+  13. **BUILD the contraption carry-over lockout** (6 items). The shape exists
+      -- `collected_disks`/`collected_allowance_tokens`/`collected_sanctum_keys`
+      all feed `gated_out`. Dowsing Rod and Pick Sound Amplifier are exempt.
+  14. **REBUILD `running_shoes` to the real rule.** The `n=3` cadence is
+      **invented**, not simplified, and the shoes are **inert off-grid** where
+      the wiki gives them their highest rates.
+  15. **SCOPE the Spiral and the Dartboard** (both, alongside the Basement Key).
+
+  **SMALL**
+  16. **Delete the dead `t5_special_chance` fallback of 50** -- no live reader.
+  17. **Real-game patch history IS allowed in data notes**, even when it reads
+      like code history. Settles the `experiments.json:417` precedent a sweep
+      agent deliberately declined to set.
+  18. **Fix the `laundry_room` coupon discount now** -- latent, symptomless
+      only because laundry stock is empty.
+  19. **`meta.confidence` stays as-is -- labels are ADVISORY.** The owner's
+      reasoning: there may simply be more in the wiki than the datamine, and
+      wiki interpretation is more reliable here. **Consequence: stop citing
+      `confidence` as authority.** The measured inversion (items labelled
+      `datamined` are the *least* complete) is therefore not a defect to chase.
+  20. **RETRAIN ONCE, after the batch lands** -- not per change.
+      `baseline-ep8275991` was trained against rules the sim no longer
+      implements: the width change from ruling 2, the lockpick ladder fix, the
+      priority-draw free/gem fix, and spawn rates moving up to 6.6x.
+
 - **2026-08-14, OWNER RULINGS x4. The governing principle, in the owner's
   words: "multiple sources of truth means we have none."**
 
