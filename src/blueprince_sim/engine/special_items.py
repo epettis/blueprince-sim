@@ -7,7 +7,9 @@ game.py/items.py call at fixed integration points. Items whose target system is
 not modeled yet carry ``implemented: false`` records — they exist, spawn, and
 can be stolen by the Lost & Found, but their use is inert.
 
-Design doc: docs/special-items-design.md. Data provenance:
+Design docs: docs/special-items-schema.md (the data contract) and
+docs/special-items-behaviour.md (what each item and subsystem does).
+Data provenance:
 docs/research/special-items-wiki.md.
 
 Like the effects/ handlers, hook functions take the ``game`` orchestrator
@@ -1059,7 +1061,8 @@ def coat_check_on_enter(game) -> None:
 
     Simplification: the real game lets the player choose which item to store
     and retrieve it on any later day.  We auto-store the best item and
-    auto-return it exactly the next day.  (Documented in docs/special-items-design.md.)
+    auto-return it exactly the next day.  (Documented in
+    docs/special-items-behaviour.md.)
     """
     state = game.state
     registry = game.registry
@@ -1570,7 +1573,7 @@ def shield_negates(game) -> bool:
     """Knight's Shield: negate the first red-room negative effect today.
 
     Priority: RED_ROOM_NEGATE_PRIORITY. Auto-applies to the first negative
-    red-room effect (simplification #6 in docs/special-items-design.md).
+    red-room effect, with no player choice (docs/special-items-behaviour.md).
     """
     state = game.state
     registry = game.registry

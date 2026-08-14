@@ -1,5 +1,6 @@
 """Knight's Shield: negates the first negative red-room effect each day,
-once per day (simplification #6 in docs/special-items-design.md).
+once per day. Auto-applied with no player choice — a documented
+divergence, see docs/special-items-behaviour.md.
 """
 
 from __future__ import annotations

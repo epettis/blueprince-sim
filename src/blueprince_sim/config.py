@@ -114,7 +114,7 @@ class GameConfig:
     # draft (choose any legal orientation), the way the Dovecote is only while
     # it is one of the drawn options.
     ornate_compass: bool = False
-    # --- special items (engine/special_items.py; docs/special-items-design.md) ---
+    # --- special items (engine/special_items.py; docs/special-items-behaviour.md) ---
     special_items: bool = True          # master toggle for special-item spawning/behavior
     # Special items held at day start. RL curricula, tests, and the (future)
     # multi-day carry-over wrapper all inject items through this.
