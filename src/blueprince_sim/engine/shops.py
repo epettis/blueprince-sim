@@ -30,6 +30,16 @@ from .effects.items import car_keys, lunch_box, repellent, royal_scepter, silver
 # priority_draws.json are keyed "scepter_<color>".
 SCEPTER_COLORS = ("blueprint", "green", "red", "bedroom", "hallway", "shop")
 
+# Shops where the Coupon Book (SHOP_DISCOUNT) has no effect (wiki/Coupon_Book,
+# Interactions): "The Coupon Book does not appear to work at all in the
+# Laundry Room, even when purchasing laundry services which do not exchange
+# coins" and "The Coupon Book also has no effect when gambling in the Casino,
+# including at the roulette table." The Chapel needs no entry here: its tithe
+# penalty (effects/tier1.py) never registers Capability.COMMERCE, so
+# current_shop_id() can never resolve to "chapel" and stock_display() never
+# runs for it at all.
+_DISCOUNT_EXEMPT_SHOPS = frozenset({"laundry_room", "casino"})
+
 
 @dataclass(frozen=True)
 class ShopsRegistry:
@@ -385,7 +395,10 @@ def stock_display(game, shop_id: str) -> list:
 
     sale = game.registry.shop_rules.sale
     is_sale = state.day in sale.get("days", []) and shop_id in sale.get("shops", [])
-    discount = item_capability_sum(state, game.registry, ItemCapability.SHOP_DISCOUNT, "amount")
+    discount = (
+        0 if shop_id in _DISCOUNT_EXEMPT_SHOPS
+        else item_capability_sum(state, game.registry, ItemCapability.SHOP_DISCOUNT, "amount")
+    )
 
     stored = state.shops.stock[shop_id]
     display = []
@@ -647,7 +660,11 @@ def _roll_trade_graph(game) -> None:
     registry = game.registry
     trading = registry.shop_rules.trading
     dice_chance = trading.get("dice_chance", 10) / 100.0
-    t5_special_chance = trading.get("t5_special_chance", 50) / 100.0
+    # No fallback: load_shops() is the only ShopsRegistry constructor (verified by
+    # AST -- one call site, engine/model.py via load_shops), always from shops.json,
+    # which ships this key; a missing key is a data bug that should raise, not
+    # silently fall back to a wrong rate.
+    t5_special_chance = trading["t5_special_chance"] / 100.0
 
     graph: dict[str, str] = {}
 

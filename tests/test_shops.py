@@ -361,6 +361,50 @@ def test_coupon_book_composes_with_sale_day_at_commissary():
         )
 
 
+def test_coupon_book_has_no_effect_in_laundry_room():
+    """Held Coupon Book does not discount Laundry Room prices (wiki/Coupon_Book,
+    Interactions: "The Coupon Book does not appear to work at all in the
+    Laundry Room, even when purchasing laundry services which do not exchange
+    coins").
+
+    data/shops.json ships no real Laundry Room stock table yet (the room's
+    swaps are unmodelled), so this test injects a synthetic entry directly
+    into state.shops.stock -- bypassing on_enter_shop -- to exercise the
+    price path before real laundry-swap data exists.
+    """
+    g = _game(GameConfig(day=15, starting_items=frozenset({"coupon_book"})), seed=42)
+    entry = {"id": "wash", "kind": "resource", "price": 5, "sold": 0}
+    g.state.shops.stock["laundry_room"] = [entry]
+    display = shops.stock_display(g, "laundry_room")
+    assert display[0]["price"] == 5, "Coupon Book must not discount Laundry Room prices"
+
+
+def test_coupon_book_has_no_effect_in_casino():
+    """Same wiki-confirmed exemption for the Casino (wiki/Coupon_Book,
+    Interactions: "The Coupon Book also has no effect when gambling in the
+    Casino, including at the roulette table").
+
+    The Casino's stock table is likewise empty today (its minigames are
+    unmodelled), so this test injects a synthetic entry the same way as the
+    Laundry Room test above.
+    """
+    g = _game(GameConfig(starting_items=frozenset({"coupon_book"})), seed=42)
+    g.state.shops.stock["casino"] = [{"id": "chip", "kind": "resource", "price": 5, "sold": 0}]
+    display = shops.stock_display(g, "casino")
+    assert display[0]["price"] == 5, "Coupon Book must not discount Casino prices"
+
+
+def test_coupon_book_does_not_apply_to_chapel_by_construction():
+    """The Chapel is not a registered commerce room, so current_shop_id()
+    can never resolve to it and stock_display() never runs for it -- proof
+    the Chapel needs no explicit exemption entry, unlike Laundry Room/Casino.
+    """
+    from blueprince_sim.engine.effects import Capability, provides_capability
+    assert not provides_capability("chapel", Capability.COMMERCE), (
+        "chapel must not be a commerce room (its tithe penalty bypasses shop pricing)"
+    )
+
+
 # ---------------------------------------------------------- locksmith
 
 def test_locksmith_special_key_is_one_of_four_valid_ids():
