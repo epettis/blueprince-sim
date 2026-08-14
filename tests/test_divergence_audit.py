@@ -476,30 +476,41 @@ def test_deferred_exemption_liveness_check_passes_on_the_real_tree():
     _assert_deferred_exemptions_live(rooms, by_id, lock_rules, shops_doc)
 
 
+# The notes-decay and spawn-table checkers (special_items.json's meta.notes/
+# _notes corpus against tools/raw/wiki_item_locations.tsv; see
+# tests/test_validate_data_notes_and_spawn_checkers.py for each finding on its
+# own) currently pin 5 real errors against live data -- unrelated to the
+# divergence audit this file exercises, but part of the same main() run.
+_KNOWN_REAL_ERROR_COUNT = 5
+
+
 def test_default_validate_data_run_reports_zero_warnings():
-    """python tools/validate_data.py with no flags must still report 0 errors
-    and 0 warnings and exit 0 -- the divergence audit's ~100+ findings must
-    never leak into the errors/warnings counts that gate every commit."""
+    """python tools/validate_data.py with no flags must still report 0
+    warnings and exactly the currently-known real error count -- the
+    divergence audit's ~100+ findings must never leak into either count."""
     rc = main([])
-    assert rc == 0
+    assert rc == 1
 
 
 def test_default_run_prints_zero_errors_and_warnings_in_summary(capsys):
-    """The printed summary line reports 0 errors, 0 warnings by default, and
-    no 'warning:'/'ERROR:' detail lines are emitted -- confirming the audit
-    findings are not merely uncounted but genuinely not printed either."""
+    """The printed summary line reports 0 warnings and exactly the
+    currently-known error count by default, and no 'warning:' detail lines
+    are emitted -- confirming the audit findings are not merely uncounted
+    but genuinely not printed either."""
     rc = main([])
     out = capsys.readouterr().out
-    assert rc == 0
-    assert "0 errors, 0 warnings" in out
+    assert rc == 1
+    assert f"{_KNOWN_REAL_ERROR_COUNT} errors, 0 warnings" in out
     assert "warning:" not in out
-    assert "ERROR:" not in out
+    assert out.count("ERROR:") == _KNOWN_REAL_ERROR_COUNT
 
 
-def test_audit_flag_prints_findings_and_still_exits_zero(capsys, monkeypatch):
+def test_audit_flag_prints_findings_without_adding_to_the_error_count(capsys, monkeypatch):
     """--audit prints the divergence worklist under its own labelled section
-    and still exits 0, since a worklist of unfinished audit items is not a
-    validation failure.
+    without adding to the error count, since a worklist of unfinished audit
+    items is not itself a validation failure -- the exit code stays exactly
+    the currently-known real error count (_KNOWN_REAL_ERROR_COUNT, unrelated
+    to the audit), not inflated by however many audit findings exist.
 
     Uses a monkeypatched find_divergences rather than relying on the live
     data actually carrying a finding right now: the live worklist is
@@ -521,6 +532,7 @@ def test_audit_flag_prints_findings_and_still_exits_zero(capsys, monkeypatch):
     monkeypatch.setattr(vd, "find_divergences", _fake_when_empty)
     rc = main(["--audit"])
     out = capsys.readouterr().out
-    assert rc == 0
+    assert rc == 1
+    assert out.count("ERROR:") == _KNOWN_REAL_ERROR_COUNT
     assert "divergence audit" in out
     assert "audit[kind1]:" in out and "audit[kind2]:" in out

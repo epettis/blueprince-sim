@@ -37,6 +37,10 @@ from blueprince_sim.engine.effects import (
 from blueprince_sim.engine.model import Registry
 
 DATA = Path(__file__).resolve().parent.parent / "src" / "blueprince_sim" / "data"
+# Offline snapshot of each item's wiki.gg |Locations= field (see that file's
+# own header for fetch method/scope/honest-limit) -- the notes-decay checker's
+# only source for the "wiki lists N rooms" shape below.
+WIKI_LOCATIONS_TSV = Path(__file__).resolve().parent / "raw" / "wiki_item_locations.tsv"
 
 VALID_RARITIES = {"commonplace", "standard", "unusual", "rare", None}
 VALID_LAYOUTS = {"dead_end", "straight", "corner", "t", "cross"}
@@ -433,6 +437,328 @@ def find_empty_effects_findings(
             )
 
     return findings, len(empty_rooms), n_room_registered, len(empty_items), n_item_registered
+
+
+# The mechanically decidable subset of special_items.json's prose notes: a
+# note that names a field together with an explicit value, in one of the four
+# shapes _NOTES_*_RE below match. Everything else in the corpus is narrative
+# (what a wiki page says in prose, why an id was split, what is out of
+# scope...) and is not attempted -- a false positive here is worse than no
+# checker at all.
+_NOTES_FIELD_EMPTY_RE = re.compile(
+    r"\b(spawn_rooms_high_luck|spawn_rooms|guaranteed_in|effects)\s+is\s+empty\b")
+_NOTES_AREA_MODELLED_RE = re.compile(
+    r"\b([a-z][a-z0-9_]*) is areas\.json modelled=(true|false)\b")
+_NOTES_FIELD_VALUE_RE = re.compile(
+    r"\b(guaranteed_in|spawn_rooms_high_luck|spawn_rooms|tier|kind)\s*=\s*"
+    r"(?:\[(?P<list>[^\]]*)\]|(?P<val>[a-z0-9_]+))")
+_NOTES_WIKI_COUNT_RE = re.compile(r"\bwiki lists (\d+) rooms\b")
+
+
+def _load_wiki_locations(path: Path) -> dict[str, str]:
+    """Load tools/raw/wiki_item_locations.tsv into ``{item_id: locations_raw}``.
+
+    Skips the file's leading ``#`` comment block and the column-header row.
+    Returns ``{}`` if the file is missing, so a caller with no snapshot to
+    check against just finds nothing rather than erroring.
+    """
+    if not path.exists():
+        return {}
+    rows: dict[str, str] = {}
+    lines = [ln for ln in path.read_text(encoding="utf-8").splitlines()
+             if ln and not ln.startswith("#")]
+    for ln in lines[1:]:  # lines[0] is the item_id/locations_raw/... header
+        parts = ln.split("\t")
+        if len(parts) >= 2:
+            rows[parts[0]] = parts[1]
+    return rows
+
+
+def _resolve_notes_owner(note: str, si_items: list[dict]) -> dict | None:
+    """Find the single special_items.json record a file-level ``_notes``
+    entry is about, by the entry's own leading text.
+
+    The corpus uses two conventions: the item's ``id`` followed by ``:``
+    (e.g. ``"master_key: ..."``), or the item's ``name`` case-insensitively
+    (e.g. ``"Car keys spawn rooms: ..."`` for ``car_keys``/"Car Keys"). An
+    entry matching neither returns ``None`` rather than a guess -- a
+    file-level aside can legitimately be about more than one item (e.g. the
+    pre-split shared "sanctum_key" id), and this resolver only feeds checks
+    that require one unambiguous owner.
+    """
+    for item in si_items:
+        if note.startswith(item["id"] + ":") or note.lower().startswith(item["name"].lower()):
+            return item
+    return None
+
+
+def _parse_notes_value(match: re.Match) -> object:
+    """Turn a ``_NOTES_FIELD_VALUE_RE`` match into the Python value it names,
+    so it can be compared against the record's own field with ``==``."""
+    if match.group("list") is not None:
+        return [v.strip() for v in match.group("list").split(",") if v.strip()]
+    val = match.group("val")
+    if val.isdigit():
+        return int(val)
+    return {"true": True, "false": False, "null": None}.get(val, val)
+
+
+def find_notes_decay_findings(
+    si_items: list[dict],
+    si_notes: list[str],
+    area_by_id: dict[str, dict],
+    wiki_locations: dict[str, str],
+) -> list[str]:
+    """Check special_items.json's prose notes against the data they describe.
+
+    Two channels: each item's own ``meta.notes`` (about that one item) and
+    the file-level ``_notes`` array (asides not tied to a record by the JSON
+    structure itself). Four shapes are checked, each an ERROR on mismatch --
+    see the module comment above the ``_NOTES_*_RE`` patterns for why the
+    rest of the corpus is left alone:
+
+    1. ``meta.notes`` claiming one of the item's own list fields
+       (spawn_rooms/spawn_rooms_high_luck/guaranteed_in/effects) "is empty".
+    2. ``meta.notes`` claiming an areas.json node's ``modelled`` flag
+       ("<id> is areas.json modelled=true/false"), checked against
+       ``area_by_id``.
+    3. A ``_notes`` entry naming a field=value or field=[a, b] assignment,
+       resolved to its owning item via ``_resolve_notes_owner`` and checked
+       against that item's own field.
+    4. A ``_notes`` entry naming a "wiki lists N rooms" count, resolved the
+       same way and checked against ``wiki_locations``'s raw comma-token
+       count for that item (when the item has a snapshot row at all).
+
+    ``wiki_locations`` is a pinned snapshot (see WIKI_LOCATIONS_TSV / that
+    file's own header) -- this catches a note drifting from the snapshot, not
+    the snapshot drifting from the live wiki.
+    """
+    findings: list[str] = []
+
+    for item in si_items:
+        note = item.get("meta", {}).get("notes")
+        if not isinstance(note, str):
+            continue
+        for m in _NOTES_FIELD_EMPTY_RE.finditer(note):
+            field = m.group(1)
+            actual = item.get(field, [])
+            if actual:
+                findings.append(
+                    f"special_items/{item['id']} meta.notes claims {field!r} is empty, "
+                    f"but it is {actual!r}"
+                )
+        for m in _NOTES_AREA_MODELLED_RE.finditer(note):
+            aid, claimed = m.group(1), m.group(2) == "true"
+            area = area_by_id.get(aid)
+            if area is None:
+                continue
+            actual = area.get("modelled")
+            if actual != claimed:
+                findings.append(
+                    f"special_items/{item['id']} meta.notes claims areas.json "
+                    f"{aid!r} modelled={claimed}, but it is modelled={actual!r}"
+                )
+
+    for note in si_notes:
+        owner = _resolve_notes_owner(note, si_items)
+        if owner is None:
+            continue
+        for m in _NOTES_FIELD_VALUE_RE.finditer(note):
+            field = m.group(1)
+            claimed = _parse_notes_value(m)
+            actual = owner.get(field)
+            if actual != claimed:
+                findings.append(
+                    f"special_items/_notes claims {owner['id']}.{field}={claimed!r}, "
+                    f"but it is {actual!r}"
+                )
+        for m in _NOTES_WIKI_COUNT_RE.finditer(note):
+            claimed_n = int(m.group(1))
+            raw = wiki_locations.get(owner["id"])
+            if raw is None:
+                continue
+            actual_n = len([t for t in raw.split(",") if t.strip()])
+            if actual_n != claimed_n:
+                findings.append(
+                    f"special_items/_notes claims the wiki lists {claimed_n} rooms for "
+                    f"{owner['id']!r}, but tools/raw/wiki_item_locations.tsv's snapshot "
+                    f"has {actual_n}"
+                )
+
+    return findings
+
+
+# ── spawn-table checker (tools/raw/wiki_item_locations.tsv) ─────────────────
+# Diffs special_items.json's spawn_rooms/spawn_rooms_high_luck against the
+# pinned wiki snapshot -- see that file's own header for the fetch method and
+# the honest limit (it catches sim drift from the snapshot, never the wiki
+# drifting after the snapshot's fetch_date).
+
+# Non-room mechanic tokens the wiki's Locations= field carries alongside real
+# rooms (a Dig Spot, the Trunk/Car Trunk, a delivered Package, the
+# Experimental Setup, the Spiral staircase, a Locker, a Crate, the Billiard
+# Room's Dartboard) -- matched case-insensitively, since the snapshot itself
+# is not consistently cased ("Dig spot" vs "Dig Spot").
+_WIKI_MECHANIC_TOKENS = frozenset({
+    "experiment", "spiral", "dartboard", "package", "trunk", "car trunk",
+    "dig spot", "locker", "crate",
+})
+# Shop rooms already modelled through their own stock/trade channel
+# (shops.py), not the generic spawn pool -- matched case-sensitively, same as
+# every other room name.
+_WIKI_SHOP_EXCLUDED_NAMES = frozenset({"Commissary", "Locksmith", "Lost & Found",
+                                       "Trading Post"})
+# Items whose wiki Locations= names a single fixed spot that this sim models
+# as a guaranteed find or a shop purchase, never a spawn_rooms roll -- see
+# each item's own meta.notes for which. Excluded from the diff entirely
+# rather than compared against guaranteed_in, so a real gap in THEIR
+# guaranteed_in/shop wiring surfaces only through special_items.json's own
+# field checks (or the notes-decay checker above), not a duplicate finding
+# here.
+_WIKI_FIXED_LOCATION_EXEMPT_IDS = frozenset({"key_8", "basement_key", "master_key"})
+
+
+def _room_name_to_id_map(rooms: list[dict]) -> dict[str, str]:
+    """Build a {wiki room name: rooms.json id} map, one id per display name.
+
+    Several rooms.json records share a display name -- a base room and its
+    upgrade variants all keep the room's real-world name (e.g. all four
+    "Mail Room" records: mail_room, mail_room__ix89/90/91). The wiki's spawn
+    listing names the room family once; this sim's own convention is to
+    record that family's spawn entry against the BASE id (no "__" in it),
+    never an individual variant's id -- confirmed against every current
+    special_items.json spawn_rooms list, none of which names a variant id.
+    When a name has only one record this is moot.
+    """
+    by_name: dict[str, list[str]] = {}
+    for r in rooms:
+        by_name.setdefault(r["name"], []).append(r["id"])
+    name_to_id: dict[str, str] = {}
+    for name, ids in by_name.items():
+        canon = [i for i in ids if "__" not in i]
+        name_to_id[name] = canon[0] if canon else min(ids, key=len)
+    # "Spare Servant's Quarters" (wiki word order) vs this sim's
+    # "Servant's Spare Quarters" (rooms.json's actual name field).
+    name_to_id["Spare Servant's Quarters"] = "servants_spare_quarters__ix134"
+    return name_to_id
+
+
+def _parse_wiki_locations_row(
+    raw: str,
+    name_to_id: dict[str, str],
+    mechanic_tokens: frozenset[str],
+    shop_names: frozenset[str],
+) -> tuple[set[str], set[str], list[str]]:
+    """Split one locations_raw string into (normal, high_luck, unresolved).
+
+    A "!" prefix marks the high-luck tier. mechanic_tokens and shop_names are
+    dropped before resolution and never reach ``unresolved`` -- they are
+    deliberately excluded, not unrecognised. A token that is neither of
+    those AND resolves to no rooms.json room name goes into ``unresolved``
+    instead of being silently dropped: without this, lifting a mechanic
+    token from ``mechanic_tokens`` (e.g. testing that "Spiral" is excluded
+    because it is genuinely not a room, not because the checker forgot to
+    look) would fall through to the same silent drop and change nothing,
+    making the exclusion category untestable for necessity.
+    """
+    normal: set[str] = set()
+    high: set[str] = set()
+    unresolved: list[str] = []
+    for tok in raw.split(","):
+        tok = tok.strip()
+        if not tok:
+            continue
+        is_high = tok.startswith("!")
+        name = tok[1:].strip() if is_high else tok
+        if name.lower() in mechanic_tokens or name in shop_names:
+            continue
+        rid = name_to_id.get(name)
+        if rid is None:
+            unresolved.append(name)
+            continue
+        (high if is_high else normal).add(rid)
+    return normal, high, unresolved
+
+
+def find_spawn_table_findings(
+    si_items: list[dict],
+    rooms: list[dict],
+    wiki_locations: dict[str, str],
+    mechanic_tokens: frozenset[str] = _WIKI_MECHANIC_TOKENS,
+    shop_names: frozenset[str] = _WIKI_SHOP_EXCLUDED_NAMES,
+    fixed_location_exempt_ids: frozenset[str] = _WIKI_FIXED_LOCATION_EXEMPT_IDS,
+) -> list[str]:
+    """Diff each item's spawn_rooms/spawn_rooms_high_luck against
+    ``wiki_locations`` (tools/raw/wiki_item_locations.tsv's
+    {item_id: locations_raw}), after dropping mechanic tokens, the 4-shop
+    exclusion set and the 3 fixed-location items.
+
+    Five kinds of mismatch, all ERRORs:
+
+    - unresolved: a snapshot token is neither a mechanic token, a shop
+      exclusion, nor a known rooms.json room name -- surfaced instead of
+      silently dropped, so lifting a mechanic token out of
+      ``mechanic_tokens`` (proving it is excluded because it does not
+      resolve, not because the checker forgot to look) has something to
+      flag; see ``_parse_wiki_locations_row``.
+    - missing (normal): the snapshot names a room neither spawn_rooms NOR
+      guaranteed_in covers -- guaranteed_in counts here because a room the
+      sim models as a guaranteed find (rather than a probabilistic roll) is
+      still modelled, just via a stronger channel than spawn_rooms.
+    - extra (normal): spawn_rooms has a room the snapshot's normal tier does
+      not. guaranteed_in is NOT consulted for this direction -- it names a
+      separate mechanic (e.g. a Cloister-of-Mila bedroom bonus, a puzzle
+      reward) that generally is not part of the wiki's Locations= listing at
+      all, so comparing it against that listing would be a category error,
+      not a real extra.
+    - missing/extra (high-luck): spawn_rooms_high_luck vs. the snapshot's "!"
+      tier, symmetric, no guaranteed_in involved (nothing in this sim's
+      guaranteed_in is high-luck-gated).
+
+    Every parameter has a default so a bare call checks the real data;
+    callers/tests can pass ``frozenset()`` for any exclusion channel to see
+    what the checker would flag without it (the necessity guard).
+    """
+    findings: list[str] = []
+    name_to_id = _room_name_to_id_map(rooms)
+    si_by_id = {i["id"]: i for i in si_items}
+    for item_id, raw in sorted(wiki_locations.items()):
+        if item_id in fixed_location_exempt_ids:
+            continue
+        item = si_by_id.get(item_id)
+        if item is None:
+            continue
+        wiki_normal, wiki_high, unresolved = _parse_wiki_locations_row(
+            raw, name_to_id, mechanic_tokens, shop_names)
+        for name in unresolved:
+            findings.append(
+                f"special_items/{item_id}: wiki snapshot token {name!r} is not a "
+                f"known mechanic token, shop exclusion, or rooms.json room name"
+            )
+        sim_normal = set(item.get("spawn_rooms", []))
+        sim_high = set(item.get("spawn_rooms_high_luck", []))
+        sim_guaranteed = set(item.get("guaranteed_in", []))
+        for rid in sorted(wiki_normal - sim_normal - sim_guaranteed):
+            findings.append(
+                f"special_items/{item_id}: wiki snapshot lists {rid!r} but it is in "
+                f"neither spawn_rooms nor guaranteed_in"
+            )
+        for rid in sorted(sim_normal - wiki_normal):
+            findings.append(
+                f"special_items/{item_id}: spawn_rooms has {rid!r}, not in the wiki "
+                f"snapshot's normal-tier locations"
+            )
+        for rid in sorted(wiki_high - sim_high):
+            findings.append(
+                f"special_items/{item_id}: wiki snapshot lists {rid!r} as high-luck "
+                f"but spawn_rooms_high_luck does not"
+            )
+        for rid in sorted(sim_high - wiki_high):
+            findings.append(
+                f"special_items/{item_id}: spawn_rooms_high_luck has {rid!r}, not in "
+                f"the wiki snapshot's high-luck locations"
+            )
+    return findings
 
 
 def _assert_data_exemptions_live(by_id: dict[str, dict]) -> None:
@@ -2151,6 +2477,19 @@ def main(argv: list[str] | None = None) -> int:
             f"areas: edge count is {actual_edge_count}, spec says {SPEC_EDGE_COUNT}; "
             f"update docs/areas.md if the graph has changed"
         )
+
+    # ── special_items.json notes-decay check ──────────────────────────────────
+    # Needs area_by_id (areas.json, just loaded above) and the wiki locations
+    # snapshot, so it runs here rather than inside the special_items loop.
+    area_by_id = {n["id"]: n for n in a_nodes}
+    wiki_locations = _load_wiki_locations(WIKI_LOCATIONS_TSV)
+    for finding in find_notes_decay_findings(
+            si_items, si_doc.get("_notes", []), area_by_id, wiki_locations):
+        errors.append(finding)
+
+    # ── special_items.json spawn-table check ──────────────────────────────────
+    for finding in find_spawn_table_findings(si_items, rooms, wiki_locations):
+        errors.append(finding)
 
     # ── engine/effects registries ─────────────────────────────────────────────
     # Four registries (room_hook, Capability via provides/provides_lever,
