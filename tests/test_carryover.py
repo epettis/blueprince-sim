@@ -481,6 +481,12 @@ def test_carryover_shape_is_complete():
     (upstairs) PR, orchard_unlocked in the Apple Orchard PR,
     throne_room_blueprint in the Orindian Ruins PR, satellite_dish_unlocked in
     the sundial-unlock PR); the non-bool keys are also always included.
+
+    planetarium_planets (Telescope-in-Planetarium) joins allowance/stars/
+    main_course_bonus as the third SAVE-scoped "replace wholesale" key
+    reported directly by shops.carryover() -- a deliberate addition to that
+    trio, not an accident: this test previously pinned allowance/stars/
+    main_course_bonus as a fixed set, so growing it required this explicit edit.
     """
     bool_keys = {
         "lunch_box_unlocked",
@@ -505,7 +511,8 @@ def test_carryover_shape_is_complete():
         "lit_targets", "collected_disks", "chapel_tithes",
         "upgrade_disks", "draft_counts",
         "foundation_cell", "foundation_doors",
-        "allowance", "stars", "main_course_bonus", "letters_delivered",
+        "allowance", "stars", "main_course_bonus", "planetarium_planets",
+        "letters_delivered",
         "collected_allowance_tokens", "mail_cycle", "mail_transit_days",
         "hallway_tomorrow_extra",
     }

@@ -42,8 +42,6 @@ from .dashboard import emit
 # Promote a room from this set once its behaviour is implemented.
 # Each entry carries the open-task reference that blocked it.
 _STUDIO_ADDITION_EXCLUSIONS: frozenset[str] = frozenset({
-    # Planetarium: Telescope planet mechanic unmodelled (open task: Planetarium planets).
-    "planetarium",
     # Treasure Trove: black-box reward mechanic unmodelled (open task: Treasure Trove black box).
     "treasure_trove",
     # Closed Exhibit: security puzzle (Paper Crown pickup simplified to guaranteed) — excluded

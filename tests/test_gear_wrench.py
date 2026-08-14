@@ -241,13 +241,21 @@ def test_dynamic_rarity_is_seeded_from_permanent_rarity_at_reset():
 
 def test_wrench_pending_action_mask_offers_all_four_and_nothing_else():
     """Every WRENCH_RARITY id is legal in WRENCH_PENDING and nothing outside
-    that range is -- the phase can never dead-end."""
+    that range is -- the phase can never dead-end.
+
+    ``not mask[i:]`` on the tail slice is a truthiness check on the LIST
+    object, not its contents -- always False for a non-empty slice
+    regardless of what it holds. It happened to work only while WRENCH_RARITY
+    was the last action range (an empty tail slice IS falsy); appending
+    USE_TELESCOPE_PLANETARIUM_ACTION after it made the tail non-empty and
+    exposed the bug. ``not any(...)`` actually checks every element.
+    """
     g = _game()
     _draft_room(g, "utility_closet")
     mask = action_mask(g)
     assert mask[WRENCH_RARITY_BASE:WRENCH_RARITY_BASE + len(RARITIES)] == [True] * len(RARITIES)
     assert any(mask), "WRENCH_PENDING must never be a dead end"
-    assert not mask[WRENCH_RARITY_BASE + len(RARITIES):]
+    assert not any(mask[WRENCH_RARITY_BASE + len(RARITIES):])
 
 
 def test_wrench_rarity_action_masked_off_outside_wrench_pending():

@@ -167,6 +167,14 @@ Layout (Discrete(427)):
            Game.can_set_wrench_rarity). Entered from :meth:`Game.choose`
            when the just-placed room is a Mechanical Room
            (Room.is_category("mechanical")) and a Gear Wrench is held.
+  441      use the Telescope in the Planetarium, appended at the end so no
+           earlier id shifts: NAVIGATE only, legal standing in the
+           Planetarium with a Telescope held, today's one-upgrade-per-day
+           cap not yet spent, and at least one of the five planets still
+           locked (see Game.can_use_telescope_planetarium/
+           use_telescope_planetarium). Reveals one planet (random order,
+           Mora always last) and grants its permanent payload; does not
+           consume the Telescope.
 """
 
 from __future__ import annotations
@@ -336,8 +344,13 @@ _N_WRENCH_RARITIES = len(RARITIES)  # 4; RARITIES is a fixed model constant,
                                      # comment is needed the way _N_AXE_TARGETS
                                      # etc. carry one
 
-# N_ACTIONS = first slot after the Gear Wrench rarity range.
-N_ACTIONS = WRENCH_RARITY_BASE + _N_WRENCH_RARITIES  # 441
+# 441: use the Telescope in the Planetarium, appended at the end so no
+# earlier id shifts. See Game.can_use_telescope_planetarium/
+# use_telescope_planetarium.
+USE_TELESCOPE_PLANETARIUM_ACTION = WRENCH_RARITY_BASE + _N_WRENCH_RARITIES  # 441
+
+# N_ACTIONS = first slot after the Telescope-in-Planetarium action.
+N_ACTIONS = USE_TELESCOPE_PLANETARIUM_ACTION + 1  # 442
 
 DIR_INDEX = {d: i for i, d in enumerate(DIRS)}
 
@@ -480,6 +493,34 @@ def _cell_has_machine(game: Game, cell: int) -> bool:
     return _si.has(st, "broken_lever")
 
 
+def _cell_has_telescope_planetarium_use(game: Game, cell: int) -> bool:
+    """True when ``cell`` is the Planetarium and using the Telescope there is legal.
+
+    Position-independent (checks ``cell`` directly, not ``game.state.pos``,
+    the same shape as ``_cell_has_ignition_target``/``_cell_has_machine``
+    above -- ``Game.can_use_telescope_planetarium`` cannot be reused here
+    since it reads the player's CURRENT position via ``at_planetarium()``).
+    Enables walk-to re-entry so the agent can return to the Planetarium
+    after picking up a Telescope elsewhere, or after the day boundary resets
+    today's one-upgrade-per-day cap. The Dauja Trunk re-entry case is
+    already covered by ``_cell_has_openable_container`` above
+    (``_planetarium_container_kinds`` folds it into the ordinary container
+    read), so this predicate only needs to cover the telescope-use action.
+    """
+    st = game.state
+    if st.grid[cell] < 0:
+        return False
+    if game.registry.rooms[st.grid[cell]].id != "planetarium":
+        return False
+    if not game.cfg.special_items:
+        return False
+    if not _si.has(st, "telescope"):
+        return False
+    if st.special.planetarium_telescope_used:
+        return False
+    return len(st.planetarium_planets) < len(game.registry.special.planetarium_planets)
+
+
 def _cell_worth_entering(game: Game, cell: int) -> bool:
     """True when walking into ``cell`` accomplishes something (purposefulness gate).
 
@@ -489,8 +530,8 @@ def _cell_worth_entering(game: Game, cell: int) -> bool:
     their switches only matter with door locking enabled) or one of the
     re-entry extensions: a buyable shop/Workshop, a Dining Room with a
     pending main course, an openable container, an openable vault deposit
-    box, an unlit ignition target with a tool in hand, or a machine room
-    with a broken_lever in hand.
+    box, an unlit ignition target with a tool in hand, a machine room with a
+    broken_lever in hand, or the Planetarium with a usable Telescope.
 
     Self-contained: computes the control-room cells itself so callers (the
     MOVE_TO loop and the travel-to-grid-anchor filter) need not thread any
@@ -511,7 +552,8 @@ def _cell_worth_entering(game: Game, cell: int) -> bool:
             or _cell_has_openable_container(game, cell)
             or _cell_has_vault_box(game, cell)
             or _cell_has_ignition_target(game, cell)
-            or _cell_has_machine(game, cell))
+            or _cell_has_machine(game, cell)
+            or _cell_has_telescope_planetarium_use(game, cell))
 
 
 def action_mask(game: Game, prev_action: int | None = None) -> list[bool]:
@@ -709,6 +751,8 @@ def action_mask(game: Game, prev_action: int | None = None) -> list[bool]:
                 mask[SMASH_VASE_ACTION] = True
             if game.can_open_container():
                 mask[OPEN_CONTAINER_ACTION] = True
+            if game.can_use_telescope_planetarium():
+                mask[USE_TELESCOPE_PLANETARIUM_ACTION] = True
             if game.can_open_car_trunk():
                 mask[OPEN_CAR_TRUNK_ACTION] = True
             if game.can_open_vault_box():
@@ -914,8 +958,10 @@ def apply_action(game: Game, action: int) -> None:
         game.use_special_key_at_lock(key_id)
     elif action == REWIND_ACTION:
         game.rewind()
-    elif WRENCH_RARITY_BASE <= action < N_ACTIONS:
+    elif WRENCH_RARITY_BASE <= action < USE_TELESCOPE_PLANETARIUM_ACTION:
         game.set_wrench_rarity(action - WRENCH_RARITY_BASE)
+    elif action == USE_TELESCOPE_PLANETARIUM_ACTION:
+        game.use_telescope_planetarium()
     else:
         raise ValueError(f"unimplemented action {action}")
 
@@ -1086,7 +1132,9 @@ def describe_action(game: Game, action: int) -> str:
         return f"use special key: {name}"
     if action == REWIND_ACTION:
         return "rewind last draft (Chronograph)"
-    if WRENCH_RARITY_BASE <= action < N_ACTIONS:
+    if WRENCH_RARITY_BASE <= action < USE_TELESCOPE_PLANETARIUM_ACTION:
         rarity = RARITIES[action - WRENCH_RARITY_BASE]
         return f"set Gear Wrench rarity: {rarity}"
+    if action == USE_TELESCOPE_PLANETARIUM_ACTION:
+        return "use Telescope in Planetarium"
     return f"action {action}"

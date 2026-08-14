@@ -14,7 +14,7 @@ from .draft import COLOUR_CATEGORIES, SECRET_PASSAGE_IDS, deal_draft, redeal
 from .effects import Capability, Hook
 from .effects.items import (basement_key, crown_of_the_blueprints, gear_wrench, keycard,
                             master_key, paper_crown, power_hammer, prism_key, silver_key,
-                            the_axe)
+                            telescope, the_axe)
 from .effects.rooms import dovecote, foyer, mail_room, shrine
 from .grid import (ADJACENT, DIRS, E, ENTRANCE_CELL, N, N_CELLS, OPPOSITE, W,
                    neighbor, rank_of, rotate_mask)
@@ -103,6 +103,7 @@ class Game:
         st.applied_upgrades = set(cfg.upgrade_disks)
         st.axed_rooms = tuple(cfg.axed_rooms)
         st.permanent_rarity = dict(cfg.permanent_rarity)
+        st.planetarium_planets = tuple(cfg.planetarium_planets)
         # Seeds today's dynamic_rarity bucket bookkeeping with every
         # Gear-Wrench-set override, right after build_decks (which already
         # placed each wrenched room's cards in the matching bucket via this
@@ -755,6 +756,53 @@ class Game:
         result = special_items.open_container(self, self.state.pos)
         self._check_termination()
         return result
+
+    def at_planetarium(self) -> bool:
+        """True when the player is standing in the Planetarium.
+
+        Same exact-id-match shape as :meth:`at_laboratory_terminal` -- the
+        Telescope's Planetarium upgrade is specific to this one room, not a
+        shared capability flag. The Planetarium has no upgrade variants and
+        no outer-room presence.
+        """
+        if self.inside_outer_room or self.off_grid:
+            return False
+        st = self.state
+        if not (0 <= st.pos < len(st.grid)) or st.grid[st.pos] < 0:
+            return False
+        return self.registry.rooms[st.grid[st.pos]].id == "planetarium"
+
+    def can_use_telescope_planetarium(self) -> bool:
+        """True when using the Telescope in the Planetarium is legal right now.
+
+        NAVIGATE, special items enabled, standing in the Planetarium, a
+        Telescope held, today's one-upgrade-per-day cap not yet spent (wiki:
+        "only one upgrade can be done per day"), and at least one planet
+        still locked (wiki: "Once all five planets appear, the Telescope can
+        no longer be used in the Planetarium").
+        """
+        if self.phase is not Phase.NAVIGATE:
+            return False
+        if not self.cfg.special_items:
+            return False
+        if not self.at_planetarium():
+            return False
+        if not telescope.held(self.state):
+            return False
+        if self.state.special.planetarium_telescope_used:
+            return False
+        return len(self.state.planetarium_planets) < len(self.registry.special.planetarium_planets)
+
+    def use_telescope_planetarium(self) -> str:
+        """Reveal one Planetarium planet and apply its permanent payload.
+
+        Does not consume the Telescope (wiki). See
+        special_items.use_telescope_in_planetarium for the reveal/payload
+        logic; effects/rooms/planetarium.py re-applies every unlocked
+        payload on later days.
+        """
+        assert self.can_use_telescope_planetarium(), "Telescope-in-Planetarium not available"
+        return special_items.use_telescope_in_planetarium(self, self.state.pos)
 
     def can_open_car_trunk(self) -> bool:
         """Car Keys held, standing in the Garage, trunk not yet opened today."""

@@ -45,6 +45,7 @@ from .effects.items import (
     silver_key,
     sledge_hammer,
     sleeping_mask,
+    telescope,
     the_axe,
     treasure_map,
     watering_can,
@@ -195,6 +196,11 @@ class SpecialItemsRegistry:
     mail_packages: dict = field(default_factory=dict)  # "mail_packages" section: slot1/slot2/slot3
     freight_packages: dict = field(default_factory=dict)  # "freight_packages" section (ix91)
     battery_pack: dict = field(default_factory=dict)  # "battery_pack" section: room, rarity options
+    # "planetarium_planets" section's "planets" list: five {id, name, payload}
+    # records (Mora's carries forced_last: true), the wiki's own gallery
+    # order. See engine.special_items.use_telescope_in_planetarium and
+    # effects/rooms/planetarium.py for how this table is read generically.
+    planetarium_planets: tuple[dict, ...] = ()
     # room id -> item ids that can spawn there (derived; excludes guaranteed_in)
     spawn_pool_by_room: dict[str, tuple[str, ...]] = field(default_factory=dict)
     spawn_pool_high_luck: dict[str, tuple[str, ...]] = field(default_factory=dict)
@@ -257,6 +263,7 @@ def load_special_items(data_dir: Path) -> SpecialItemsRegistry:
         mail_packages=raw.get("mail_packages", {}),
         freight_packages=raw.get("freight_packages", {}),
         battery_pack=raw.get("battery_pack", {}),
+        planetarium_planets=tuple(raw.get("planetarium_planets", {}).get("planets", [])),
         spawn_pool_by_room={k: tuple(v) for k, v in pool.items()},
         spawn_pool_high_luck={k: tuple(v) for k, v in pool_hl.items()},
         guaranteed_by_room={k: tuple(v) for k, v in guaranteed.items()},
@@ -376,6 +383,12 @@ class SpecialItemsState:
     # everything else in this dataclass, so a stale entry can never survive
     # into a later day.
     count_transform_raw: dict[str, int] = field(default_factory=dict)
+    # Telescope-in-Planetarium: whether today's one-upgrade-per-day cap has
+    # already been spent (wiki: "only one upgrade can be done per day").
+    # Day-scoped only, same reset shape as garage_car_opened -- the PERMANENT
+    # record of which planets are unlocked lives on GameState.planetarium_planets
+    # (SAVE-scoped, carried by DayChain), not here.
+    planetarium_telescope_used: bool = False
 
 
 # --------------------------------------------------------------- inventory ops
@@ -577,6 +590,9 @@ def configure(state, cfg, registry=None) -> None:
         axed = getattr(cfg, "axed_rooms", ())
         if len(axed) >= the_axe.max_active(registry) and the_axe.ITEM_ID not in gated:
             gated.append(the_axe.ITEM_ID)
+    # Telescope: gated out below 1 start-of-day star (cfg.stars, not the
+    # live-growing state.stars -- see effects/items/telescope.py::gate).
+    telescope.gate(cfg, gated)
     state.special.gated_out = gated
     # Ignition targets permanently lit across days: pre-populate lit_targets so
     # can_light() blocks them on day N+1 just as it would mid-day.
@@ -1649,6 +1665,13 @@ MECHANARIUM_ROOM_ID = "mechanarium"
 # experiment effect). A literal for the same reason as MECHANARIUM_ROOM_ID.
 ENTRANCE_HALL_ROOM_ID = "entrance_hall"
 
+# Room id for the Planetarium's Telescope-unlocked container overlay (Dauja's
+# Trunk). A literal for the same reason as MECHANARIUM_ROOM_ID/
+# ENTRANCE_HALL_ROOM_ID -- containers.rooms carries no static Planetarium
+# entry, since whether the Trunk exists depends on save-scoped state
+# (GameState.planetarium_planets), not a fixed per-room count.
+PLANETARIUM_ROOM_ID = "planetarium"
+
 # The Mechanarium's diagonal-compartment kinds, in the wiki's fixed open
 # order (1st/2nd/3rd/4th corner). Each is a containers.kinds entry in
 # data/special_items.json with its own deterministic, priority-chain loot.
@@ -1697,6 +1720,30 @@ def _entrance_hall_container_kinds(state, registry) -> dict[str, int]:
     return kinds
 
 
+def _planetarium_container_kinds(state, registry) -> dict[str, int]:
+    """The Planetarium's container kinds: its static table plus Dauja's Trunk.
+
+    The static ``containers.rooms`` table carries no Planetarium entry --
+    the Trunk only exists once the Dauja planet has been unlocked via the
+    Telescope (``state.planetarium_planets``, SAVE-scoped). Reads the
+    ``planetarium_planets`` table generically for whichever planet's payload
+    is kind "container" (only Dauja today), rather than hardcoding "dauja",
+    so a future data-only addition of a second container payload needs no
+    engine change here.
+    """
+    kinds = containers_in(registry, PLANETARIUM_ROOM_ID)
+    unlocked = set(state.planetarium_planets)
+    for planet in registry.special.planetarium_planets:
+        if planet["id"] not in unlocked:
+            continue
+        payload = planet.get("payload", {})
+        if payload.get("kind") == "container":
+            kinds = dict(kinds)
+            ckind = payload["container_kind"]
+            kinds[ckind] = kinds.get(ckind, 0) + payload.get("amount", 1)
+    return kinds
+
+
 def _container_kinds_at(state, registry, cell: int) -> list[tuple[str, int]]:
     """Remaining openable (kind, remaining_count) pairs at ``cell``.
 
@@ -1710,6 +1757,8 @@ def _container_kinds_at(state, registry, cell: int) -> list[tuple[str, int]]:
         all_kinds = _mechanarium_compartment_kinds(state, cell)
     elif room.id == ENTRANCE_HALL_ROOM_ID:
         all_kinds = _entrance_hall_container_kinds(state, registry)
+    elif room.id == PLANETARIUM_ROOM_ID:
+        all_kinds = _planetarium_container_kinds(state, registry)
     else:
         all_kinds = containers_in(registry, room.id)
     if not all_kinds:
@@ -2041,6 +2090,52 @@ def open_container(game, cell: int) -> str | None:
 
     # Legacy single-grant entries (backward compat)
     return _apply_grant(state, registry, game, entry)
+
+
+# ------------------------------------------------------------ Planetarium planets
+
+def use_telescope_in_planetarium(game, cell: int) -> str:
+    """Reveal one not-yet-unlocked Planetarium planet and apply its payload.
+
+    Wiki (Telescope, "another use"): "The Telescope can be used in the
+    Planetarium to permanently upgrade the room, unlocking a planet that
+    confers permanent benefits to the room. Doing this does not consume the
+    Telescope, but only one upgrade can be done per day." Planets appear in
+    random order except Mora, always last (the ``forced_last`` planet record,
+    data/special_items.json's ``planetarium_planets`` table).
+
+    Applies TODAY's immediate effect: a "food"/"dice"/"item" payload is
+    granted right now via ``apply_grant_list`` (the room's own ON_ENTER
+    already fired earlier today, before this unlock, so it will not re-grant
+    it); a "dig_bonus" payload (Veia) is added directly to
+    ``state.special.veia_dig_bonus`` at ``cell`` (the same per-cell overlay
+    the Cloister of Veia and spread_dig_spots already share), since that dict
+    is only read once at ON_PLACE time and this room was already placed
+    today. A "container" payload (Dauja) needs no immediate action:
+    ``_planetarium_container_kinds`` reads ``state.planetarium_planets``
+    live, so the Trunk is openable the moment this returns.
+
+    Returns the revealed planet's id. Caller (Game.use_telescope_planetarium)
+    is responsible for the can_use_telescope_planetarium() legality check.
+    """
+    state, registry, rng = game.state, game.registry, game.rng
+    unlocked = set(state.planetarium_planets)
+    remaining = [p for p in registry.special.planetarium_planets if p["id"] not in unlocked]
+    non_forced = [p for p in remaining if not p.get("forced_last")]
+    chosen = rng.choice("planetarium_planet", non_forced) if non_forced else remaining[0]
+
+    state.planetarium_planets = (*state.planetarium_planets, chosen["id"])
+    state.special.planetarium_telescope_used = True
+
+    payload = chosen.get("payload", {})
+    pkind = payload.get("kind")
+    if pkind == "dig_bonus":
+        bonus = state.special.veia_dig_bonus
+        bonus[cell] = bonus.get(cell, 0) + payload.get("amount", 1)
+    elif pkind in ("food", "dice", "item"):
+        apply_grant_list(state, registry, game, [payload])
+    # "container": no immediate action -- see docstring above.
+    return chosen["id"]
 
 
 # ------------------------------------------------- Mechanarium diagonal compartments
