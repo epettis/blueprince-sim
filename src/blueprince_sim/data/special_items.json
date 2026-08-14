@@ -2156,24 +2156,21 @@
    "name": "File Cabinet Key",
    "kind": "unique",
    "tier": null,
-   "unique": false,
+   "unique": true,
    "persistence": "until_used",
-   "spawn_rooms": [
-    "aquarium"
-   ],
+   "spawn_rooms": [],
    "spawn_rooms_high_luck": [],
    "guaranteed_in": [],
    "effects": [],
-   "implemented": false,
+   "implemented": true,
    "meta": {
     "source": "https://blueprince.wiki.gg/wiki/File_Cabinet_Key",
-    "confidence": "wiki",
+    "confidence": "inferred",
     "absent_spawn_areas": [
      "crate_tunnel"
     ],
-    "blocked_on": "file_cabinet_drawers_not_modeled",
-    "reachability": "inert",
-    "notes": "True, but the record's acquisition model is heavily simplified: the wiki puts these behind draining the Aquarium via the Pump Room to water level <=1 to reveal hidden dig spots, and no water-level or hidden-dig-spot modelling exists anywhere in the sim. This one record also collapses three mechanically distinct keys (Patio, Laundry Room, Tunnel) into a single non-unique record."
+    "blocked_on": null,
+    "notes": "The wiki describes three mechanically distinct File Cabinet Keys (Patio, Laundry Room, Tunnel), each opening its own drawer; only the Patio one is modeled, and it is the sole gate on upgrade_disk_archives (requires_item). Owner ruling: exactly one file_cabinet_key, obtained by digging the Patio's single dig spot (rooms.json patio.items.dig_guaranteed) -- a modeled stand-in for the wiki's actual, unmodeled mechanism (a hidden dig spot inside the Aquarium, reachable only after draining it via the Pump Room to water level <=1). The Laundry Room key (same unmodeled Aquarium-drain mechanism) and the Tunnel key (Crate Tunnel, out of scope by standing ruling) are not modeled."
    }
   },
   {
@@ -2580,6 +2577,7 @@
    "guaranteed_in": [
     "archives"
    ],
+   "requires_item": "file_cabinet_key",
    "effects": [],
    "implemented": true,
    "meta": {
@@ -2587,8 +2585,7 @@
     "confidence": "wiki",
     "absent_spawn_areas": [],
     "blocked_on": null,
-    "notes": "One unique disk per source so each is inherently one-time use. Found in the Archives filing cabinet; real game requires a File Cabinet Key. file_cabinet_key is implemented=false (blocked_on: file_cabinet_drawers_not_modeled); disk granted on first entry per the 'player solves every puzzle' doctrine. Draw mechanism implemented; individual upgrade effects deferred (task 9).",
-    "simplification": "File Cabinet Key gate not modeled - disk granted on first entry instead"
+    "notes": "One unique disk per source so each is inherently one-time use. Found in the Archives filing cabinet; gated on holding file_cabinet_key (requires_item), the one owner-ruled key the sim models. Granted on first entry once the key is held, same as every other in-grid guaranteed_in disk. Draw mechanism implemented; individual upgrade effects deferred (task 9)."
    }
   },
   {

@@ -164,6 +164,12 @@ class SpecialItem:
     effects: tuple[Effect, ...]  # behavior tags dispatched by the functions below
     implemented: bool  # False = inert record (meta.blocked_on says what's missing)
     confidence: str = "wiki"  # data provenance: datamined > wiki > inferred > placeholder
+    # Item id that must already be held (count > 0) for THIS item to be
+    # grantable by any path (_is_available) -- same naming/shape as the
+    # ignition targets' requires_item (ignition_requires_met), applied here to
+    # a special item's own record instead of an ignition target. None = no
+    # gate. Data-driven: nothing that reads this checks a room id.
+    requires_item: str | None = None
 
     def effect(self, tag: str) -> Effect | None:
         """The item's effect record for ``tag``, or None if it doesn't carry it."""
@@ -222,6 +228,7 @@ def load_special_items(data_dir: Path) -> SpecialItemsRegistry:
             effects=effects,
             implemented=bool(r.get("implemented", False)),
             confidence=r.get("meta", {}).get("confidence", "wiki"),
+            requires_item=r.get("requires_item"),
         ))
     pool: dict[str, list[str]] = {}
     pool_hl: dict[str, list[str]] = {}
@@ -390,6 +397,11 @@ def _is_available(state, item_id: str, registry) -> bool:
             and state.special.stopwatch_used):
         return False
     if item_id in state.special.gated_out:
+        return False
+    # Data-driven item-holds-item gate (e.g. upgrade_disk_archives requires
+    # file_cabinet_key): blocks every grant path uniformly (guaranteed_in,
+    # dig, spawn, lost_and_found), never just the room it happens to sit in.
+    if item is not None and item.requires_item is not None and not has(state, item.requires_item):
         return False
     return True
 
@@ -1436,6 +1448,11 @@ def dig_all(game, cell: int) -> None:
     Detector shovel table entries carry explicit coin amounts; other tables
     sub-roll coin_pile_split for the 1-4 coin spread.
 
+    A room whose ``items.dig_guaranteed`` names an item (data-driven; only the
+    Patio today, for file_cabinet_key) yields that item deterministically from
+    its first-ever dig spot at a cell instead of a table roll, still gated on
+    a tool being held like every other spot.
+
     Digs every remaining spot in one loop, so trash_while_digging can fire
     once per junk spot in a single call -- a burst, not a single event per
     player action, on rooms/bonuses that stack many spots at one cell.
@@ -1481,7 +1498,29 @@ def dig_all(game, cell: int) -> None:
             coin_split = registry.special.dig_rules["coin_pile_split"]
             turnip_steps_val = registry.special.dig_rules["turnip_steps"]
 
-            for _ in range(remaining):
+            # room.items.dig_guaranteed (data-driven, e.g. the Patio's single
+            # dig spot -> file_cabinet_key): the room's very first dig spot
+            # ever dug at this cell (already_dug == 0, so this only fires once
+            # per cell -- re-arriving at an already-fully-dug cell never
+            # re-enters this block at all) yields that item deterministically
+            # instead of a table roll, if it is still available; otherwise it
+            # falls back to the same "unavailable" substitute the ordinary
+            # "item" table outcome below uses (1 coin), rather than consuming
+            # a table roll for a guarantee that can no longer pay out. Every
+            # spot after the first (and every spot at every other room) still
+            # rolls the table normally.
+            guaranteed_item = room.items.dig_guaranteed if already_dug == 0 else None
+
+            for spot_i in range(remaining):
+                if spot_i == 0 and guaranteed_item is not None:
+                    if _is_available(state, guaranteed_item, registry):
+                        grant(state, registry, guaranteed_item, source="dig_guaranteed")
+                    else:
+                        bonus = on_coins_granted(state, registry, 1)
+                        state.coins += 1 + bonus
+                        state.items_found_log.append(("coins", 1))
+                    continue
+
                 idx = game.rng.roll_weighted("dig", weights)
                 entry = table[idx]
                 kind = entry["kind"]

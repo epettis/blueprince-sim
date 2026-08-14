@@ -1,8 +1,13 @@
 """Tests for the entry-granted in-grid Upgrade Disks and the disks_held observation.
 
-Six disks (office, morning_room, her_ladyships_chamber, great_hall, freezer,
-archives) are granted on first room entry, with none of their real-game gates
-modelled, so there is no "gate unsatisfied" case to test for them.
+Five disks (office, morning_room, her_ladyships_chamber, great_hall, freezer)
+are granted on first room entry unconditionally, with none of their real-game
+gates modelled, so there is no "gate unsatisfied" case to test for them.
+
+The sixth, archives, is the one exception (owner ruling): its real-game gate
+IS modelled, via requires_item="file_cabinet_key" on upgrade_disk_archives.
+Entry alone does not grant it -- see the file_cabinet_key-gated tests below,
+and tests/test_digging.py for the key's own dig-guarantee mechanism.
 
 The Mechanarium's disk is deliberately absent: it sits in that room's third
 diagonal compartment, which only spawns with three more Mechanical rooms than
@@ -31,7 +36,6 @@ _IN_GRID_DISK_ROOMS = [
     ("her_ladyships_chamber", "upgrade_disk_her_ladyships_chamber"),
     ("great_hall", "upgrade_disk_great_hall"),
     ("freezer", "upgrade_disk_freezer"),
-    ("archives", "upgrade_disk_archives"),
 ]
 
 
@@ -70,6 +74,41 @@ def test_entering_grants_one_disk_and_reentry_grants_none():
         )
 
 
+def test_archives_disk_not_granted_without_file_cabinet_key():
+    """Owner ruling: entering Archives without file_cabinet_key does not grant its disk.
+
+    Unlike the other five in-grid disks, upgrade_disk_archives carries
+    requires_item="file_cabinet_key" -- its real-game gate IS modelled, so
+    entry alone is not enough.
+    """
+    g = _game()
+    assert not si.has(g.state, "file_cabinet_key")
+    assert g.state.inventory.get("upgrade_disk_archives", 0) == 0
+
+    _enter(g, "archives")
+
+    assert g.state.inventory.get("upgrade_disk_archives", 0) == 0, (
+        "entering Archives without file_cabinet_key must not grant the disk"
+    )
+
+
+def test_archives_disk_granted_once_key_is_held():
+    """Holding file_cabinet_key on first entry grants upgrade_disk_archives exactly once.
+
+    Same uniqueness-capped supply as the other five in-grid disks, once the
+    data-driven requires_item gate is satisfied.
+    """
+    g = _game()
+    si.grant(g.state, g.registry, "file_cabinet_key", source="test")
+    assert g.state.inventory.get("upgrade_disk_archives", 0) == 0
+
+    _enter(g, "archives")
+
+    assert g.state.inventory.get("upgrade_disk_archives", 0) == 1, (
+        "entering Archives while holding file_cabinet_key must grant exactly one disk"
+    )
+
+
 def test_disks_held_encodes_counts_above_the_old_cap():
     """Holding more disks than the old cap of 7 encodes the true count, in-range for the space.
 
@@ -81,9 +120,12 @@ def test_disks_held_encodes_counts_above_the_old_cap():
     for _, disk_id in _IN_GRID_DISK_ROOMS:
         si.grant(g.state, g.registry, disk_id, source="test")
     # Granted directly rather than by entering: the Mechanarium's disk is
-    # compartment-gated, and the point here is the held count, not its source.
+    # compartment-gated, archives now requires file_cabinet_key (si.grant
+    # bypasses that requires_item gate same as it bypasses the compartment
+    # one), and the point here is the held count, not any disk's own source.
     si.grant(g.state, g.registry, "upgrade_disk_mechanarium", source="test")
     si.grant(g.state, g.registry, "upgrade_disk_vault_304", source="test")
+    si.grant(g.state, g.registry, "upgrade_disk_archives", source="test")
     held = len(g.held_disk_ids())
     assert held == 8, f"fixture should hold 8 disks, holds {held}"
 

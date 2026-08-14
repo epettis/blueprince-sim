@@ -4457,7 +4457,8 @@
    "items": {
     "guaranteed": [],
     "additional_max": 1,
-    "dig_spots": 1
+    "dig_spots": 1,
+    "dig_guaranteed": "file_cabinet_key"
    },
    "pool": "base",
    "meta": {
