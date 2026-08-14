@@ -21,6 +21,7 @@ logger = logging.getLogger("blueprince_sim.effects")
 class Capability(Enum):
     COMMERCE = "commerce"  # room can be bought from, traded with, or fabricated at
     LEVER = "lever"  # room pulls an Antechamber lever on first entry
+    NIGHT_SKY = "night_sky"  # room's telescope can view a night sky (Game.can_view_night_sky)
 
 
 _CAPABILITY_REGISTRY: set[tuple[str, Capability]] = set()

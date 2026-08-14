@@ -7,7 +7,7 @@ from enum import Enum
 from heapq import heappop, heappush
 
 from ..config import GameConfig
-from . import effects, experiments, shops, special_items
+from . import constellations, effects, experiments, shops, special_items
 from .areas import GateContext, path, reachable
 from .decks import apply_upgrade, build_decks, inject_rooms, set_dynamic_rarity
 from .draft import (COLOUR_CATEGORIES, SECRET_PASSAGE_IDS, DraftContext, deal_draft,
@@ -17,6 +17,7 @@ from .effects.items import (basement_key, crown_of_the_blueprints, gear_wrench, 
                             master_key, paper_crown, power_hammer, prism_key, running_shoes,
                             silver_key, telescope, the_axe)
 from .effects.rooms import dovecote, foyer, mail_room, shrine
+from .effects.tier1 import _grant
 from .grid import (ADJACENT, DIRS, E, ENTRANCE_CELL, N, N_CELLS, OPPOSITE, W,
                    neighbor, rank_of, rotate_mask)
 from .items import EXTRA_ITEM_TABLE, grant_item, roll_room_items
@@ -804,6 +805,109 @@ class Game:
         """
         assert self.can_use_telescope_planetarium(), "Telescope-in-Planetarium not available"
         return special_items.use_telescope_in_planetarium(self, self.state.pos)
+
+    def _night_sky_cell(self) -> int:
+        """The cell whose night sky the player can act on right now, or -1.
+
+        A cell, not a room id: ``room_cells`` keeps only the lowest cell per
+        id, so it cannot tell two Observatories apart (see
+        GameState.night_skies).
+        """
+        st = self.state
+        if self.inside_outer_room or self.off_grid:
+            return -1
+        if not (0 <= st.pos < len(st.grid)) or st.grid[st.pos] < 0:
+            return -1
+        room = self.registry.rooms[st.grid[st.pos]]
+        if not effects.provides_capability(room.id, Capability.NIGHT_SKY):
+            return -1
+        return st.pos
+
+    def can_view_night_sky(self) -> bool:
+        """True when looking at a night sky is legal right now.
+
+        NAVIGATE, standing in a room providing ``Capability.NIGHT_SKY``, an
+        unspent viewing source at THIS cell (the room's own telescope, then a
+        held Telescope), and today's ``max_skies_per_day`` not yet reached.
+
+        Deliberately still legal once ``max_constellation_skies_per_day`` is
+        spent: the wiki has the eighth sky VIEWED and coming back empty, not
+        refused, so the empty sky is generated rather than the action masked.
+        """
+        if self.phase is not Phase.NAVIGATE:
+            return False
+        cell = self._night_sky_cell()
+        if cell < 0:
+            return False
+        con = self.registry.constellations
+        if constellations.skies_generated(self.state) >= con.max_skies_per_day:
+            return False
+        held = self.cfg.special_items and telescope.held(self.state)
+        return constellations.unused_source(self.state, cell, held) is not None
+
+    def view_night_sky(self) -> tuple[str, ...]:
+        """Generate today's next night sky at this cell; return what it shows.
+
+        The sky locks here, to the LIVE ``state.stars`` at this moment -- not
+        ``cfg.stars``. Every Observatory drafted before this call has already
+        added its star, which is exactly the timing decision the explicit view
+        action exists to give the agent.
+        """
+        assert self.can_view_night_sky(), "night sky not available"
+        cell = self._night_sky_cell()
+        held = self.cfg.special_items and telescope.held(self.state)
+        source = constellations.unused_source(self.state, cell, held)
+        sky = constellations.generate_sky(self.registry.constellations, self.state, cell, source)
+        return sky.constellation_ids
+
+    def _activatable_sky(self, index: int):
+        """The sky at this cell holding record ``index`` un-activated, or None.
+
+        Scans this cell's skies in generation order, so a second sky only
+        answers once the first one's copy is spent -- that is how the held
+        Telescope's extra sky lets one constellation fire twice.
+        """
+        con = self.registry.constellations
+        if not (0 <= index < len(con.records)):
+            return None
+        record = con.records[index]
+        if not record.implemented:
+            return None
+        cell = self._night_sky_cell()
+        if cell < 0:
+            return None
+        for sky in self.state.night_skies.get(cell, ()):
+            if record.id in sky.constellation_ids and record.id not in sky.activated:
+                return sky
+        return None
+
+    def can_activate_constellation(self, index: int) -> bool:
+        """True when constellation ``index`` can be activated right now.
+
+        ``index`` is a position in data/constellations.json record order, the
+        same order ACTIVATE_CONSTELLATION_BASE indexes by. Needs NAVIGATE, a
+        sky at the player's cell showing that constellation un-activated, and
+        an ``implemented`` record -- the eight unimplemented ones can appear
+        in a sky (they are part of the partition) but never activate.
+        """
+        if self.phase is not Phase.NAVIGATE:
+            return False
+        return self._activatable_sky(index) is not None
+
+    def activate_constellation(self, index: int) -> str:
+        """Activate constellation ``index`` from the sky at this cell.
+
+        Applies the record's own ``grant`` through the shared
+        effects/tier1.py::_grant path, so constellations spend the same
+        resource vocabulary (and the same clamping) as every room effect. The
+        amount comes from the data, never from a constant here.
+        """
+        sky = self._activatable_sky(index)
+        assert sky is not None and self.phase is Phase.NAVIGATE, "constellation not activatable"
+        record = self.registry.constellations.records[index]
+        sky.activated.add(record.id)
+        _grant(self, record.grant_resource, record.grant_amount)
+        return record.id
 
     def can_open_car_trunk(self) -> bool:
         """Car Keys held, standing in the Garage, trunk not yet opened today."""

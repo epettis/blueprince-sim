@@ -196,6 +196,7 @@ class Registry:
     upgrade_tables: object = None  # UpgradeTables (upgrades.py; typed loosely to avoid import cycle)
     area_graph: object = None  # AreaGraph (areas.py; typed loosely to avoid import cycle)
     experiments: object = None  # ExperimentsRegistry (experiments.py; typed loosely, same reason)
+    constellations: object = None  # ConstellationsRegistry (constellations.py; typed loosely, same reason)
     data_dir: Path = field(default=DEFAULT_DATA_DIR)  # directory the JSON files were loaded from
 
     @classmethod
@@ -206,6 +207,7 @@ class Registry:
         plumbs through here). Room.idx is the position in rooms.json order.
         """
         from .areas import load_areas  # deferred: avoids any future circular imports
+        from .constellations import load_constellations  # deferred, matching special_items below
         from .experiments import load_experiments  # deferred, matching special_items below
         from .shops import load_shops  # deferred, matching special_items below
         from .special_items import load_special_items  # deferred: special_items imports Effect
@@ -227,6 +229,7 @@ class Registry:
             upgrade_tables=load_upgrade_tables(d),
             area_graph=load_areas(json.loads((d / "areas.json").read_text())),
             experiments=load_experiments(d),
+            constellations=load_constellations(d),
             data_dir=d,
         )
 

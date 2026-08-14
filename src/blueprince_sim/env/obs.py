@@ -5,6 +5,7 @@ from __future__ import annotations
 import numpy as np
 from gymnasium import spaces
 
+from ..engine import constellations as _constellations
 from ..engine.draft import COLOUR_CATEGORIES
 from ..engine.effects.rooms import shrine
 from ..engine.game import ANTECHAMBER_CELL, Game, Phase
@@ -770,12 +771,21 @@ def encode(game: Game, day_chain: DayChain | None = None) -> dict:
         dtype=np.uint8,
     )
 
-    # constellations: all zeros. No night sky is generated anywhere in the
-    # engine, so there is nothing to count -- no constellation has been
-    # activated, no sky exists today, and no cell holds one. The array is
-    # built here rather than omitted so the encoder and the Dict space stay
-    # in step and the key is present from the first observation onward.
+    # constellations: [0:13] activations today per record, [13] skies generated
+    # today, [14] un-activated constellations in the sky at the player's cell.
+    # Every figure is derived from state.night_skies rather than counted into
+    # its own field, so the observation can never disagree with the skies that
+    # actually exist. [14] is per-cell because each Observatory holds its own
+    # locked sky: what walking into THIS one is worth is not derivable from
+    # [0:13]. Clipped to the space's bound, which no reachable value approaches.
     constellations_obs = np.zeros(CONSTELLATION_OBS_LEN, dtype=np.int16)
+    con_registry = game.registry.constellations
+    for i, record in enumerate(con_registry.records):
+        constellations_obs[i] = _constellations.activation_count(st, record.id)
+    constellations_obs[len(con_registry.records)] = _constellations.skies_generated(st)
+    constellations_obs[len(con_registry.records) + 1] = sum(
+        len(sky.unactivated()) for sky in st.night_skies.get(st.pos, ()))
+    np.clip(constellations_obs, 0, 99, out=constellations_obs)
 
     return {
         "grid_room": grid_room,

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+from .constellations import NightSky
 from .experiments import ExperimentState
 from .model import Room
 from .shops import ShopsState
@@ -206,9 +207,27 @@ class GameState:
     # the Observatory and Starfish Aquarium (both +1 per draft, effects/rooms/
     # observatory.py and aquarium.py). Reported by carryover() and replaced
     # wholesale into cfg.stars by DayChain each advance() -- the same shape as
-    # allowance. Never itself spent; stars are a pure permanent counter (the
-    # telescope/constellation system that would consume them is out of scope).
+    # allowance. Never itself spent by any live mechanic; the one published
+    # sink, the Ink Well's star-redraw, is not modelled yet. What stars DO buy
+    # is the night sky: night_skies below resolves against this live value,
+    # so a star earned mid-day enriches every sky viewed after it.
     stars: int = 0
+    # Night skies generated today, keyed by GRID CELL -- never by room id.
+    # game.room_cells keeps only the LOWEST cell per room id (game.py's
+    # _place_room: "if prev is None or cell < prev"), so with more than one
+    # Observatory on the estate it cannot say which one a sky belongs to, and
+    # up to four are reachable in a day via the Chamber of Mirrors.
+    #
+    # Each cell holds a list because one Observatory can be looked through
+    # twice: its own telescope, plus a held Telescope, which "generates an
+    # additional night sky for each Observatory it is used in". Activation is
+    # tracked per sky (NightSky.activated), which is what lets the same
+    # constellation fire once in each of them.
+    #
+    # Per-day only: a fresh GameState clears it every night, like
+    # spread_pending. Nothing here is carried over -- env/multiday.py's
+    # _CARRYOVER_KEYS is untouched, and only the star count itself persists.
+    night_skies: dict[int, list[NightSky]] = field(default_factory=dict)
     # Cloister of Joya's permanent Main Course bonus: +5 (from its own
     # effect_text) for each Kitchen/Pantry/Furnace drafted from its own
     # doorway (effects/rooms/cloister.py), added to every one of the five
