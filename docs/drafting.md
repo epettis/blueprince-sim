@@ -195,7 +195,7 @@ is computed lazily so the unconditional path never pays for it.
 
 The condition vocabulary gates a **whole entry** on or off. It has no negation
 and no per-room membership primitive, which is exactly what the Secret
-Passage's Greenhouse migration would need — see `open_tasks.md` §23 B.
+Passage's Greenhouse migration would need — see `open_tasks.md` §23 A.
 
 ### Forced draws
 

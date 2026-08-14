@@ -293,7 +293,7 @@
    "meta": {
     "source": "https://blueprince.wiki.gg/wiki/Spoilers:Experiments/Triggers",
     "confidence": "wiki",
-    "blocked_on": "phase 0: no experiments engine exists yet (data/validation only); the packet subsystem itself is phases 5-8, not yet authorised",
+    "blocked_on": "permanent: this simulator has no wall clock, so a real-time trigger has no meaning here",
     "notes": [
      "Real-time based (~7 triggers achievable at high speed); deliberately never modelled -- this simulator has no wall-clock concept, so the trigger is meaningless here regardless of implementation phase."
     ]
@@ -365,7 +365,7 @@
    "meta": {
     "source": "https://blueprince.wiki.gg/wiki/Spoilers:Experiments/Triggers",
     "confidence": "wiki",
-    "blocked_on": "phase 0: no experiments engine exists yet (data/validation only); the packet subsystem itself is phases 5-8, not yet authorised",
+    "blocked_on": "permanent: this simulator has no interactive map-viewing action to trigger on",
     "notes": [
      "Deliberately never modelled -- there is no interactive map-viewing action in this simulator, so the trigger is meaningless here regardless of implementation phase."
     ]
@@ -618,7 +618,7 @@
     "notes": [
      "16 letters total, delivered in a fixed predetermined order regardless of whether the Mail Room is on the estate; never offered again once all 16 are delivered (the wiki-stated cap).",
      "Owner ruling: the 16 letters are pure flavour (safe codes, a network password, a puzzle solution, which rooms carry steam ducts) -- none grants a resource, item, or unlock, and the assumed-solved doctrine already grants everything they convey (same reasoning as the Speakeasy: docs/doctrine.md, 'Puzzles are assumed solved'). Letter contents are deliberately unmodelled; the effect is a plain delivered-count bump.",
-     "KNOWN GAP: the 'never offered again' cap needs a delivered count that survives across days (16 letters total across an attempt, not per day), the same shape as GameConfig.chapel_tithes (a running total seeded into per-day state and reported by carryover()/DayChain). This pass only wires a per-day counter (ExperimentState.letters_delivered) -- correct within a single day, but since draw_offers only ever runs once per day on fresh state, it cannot yet make a day's offer disappear from a prior day's deliveries. Cross-day persistence is a follow-up."
+     "The 'never offered again' cap counts deliveries across the whole save: ExperimentState.letters_delivered is seeded from GameConfig.letters_delivered at reset, reported by carryover(), carried by DayChain, and deliberately absent from the attempt wrap -- the same shape as GameConfig.chapel_tithes. The 16 letters' own contents are deliberately unmodelled (owner ruling: they are flavour, and the assumed-solved doctrine already grants what they convey)."
     ]
    }
   },
@@ -679,7 +679,7 @@
    "meta": {
     "source": "https://blueprince.wiki.gg/wiki/Spoilers:Experiments/Effects",
     "confidence": "wiki",
-    "blocked_on": "phase 0: no experiments engine exists yet (data/validation only); the packet subsystem itself is phases 5-8, not yet authorised",
+    "blocked_on": "permanent for now: no Pantry-stocking mechanic exists to add fruit to",
     "notes": [
      "The exact fruit mix (apple vs banana vs orange weights) is not published, only their relative ordering (apples less common than bananas and oranges); magnitude.mix_weights left null (gap -- do not invent).",
      "This ordering is specific to the experiment-spawned Pantry fruit pool, not the general fruit pool: items.json's fruit_weights has apples MORE common than bananas/oranges (50/30/20) for ordinary spawns. The two are different pools describing different situations, not a contradiction -- do not 'reconcile' them."
@@ -704,7 +704,7 @@
    "meta": {
     "source": "https://blueprince.wiki.gg/wiki/Spoilers:Experiments/Effects",
     "confidence": "wiki",
-    "blocked_on": "phase 0: no experiments engine exists yet (data/validation only); the packet subsystem itself is phases 5-8, not yet authorised"
+    "blocked_on": "no reservoir ROOM exists -- the Reservoir is an areas.json node only, so there is nothing on the grid whose water level an effect could raise or lower"
    }
   },
   {
@@ -723,7 +723,7 @@
    "meta": {
     "source": "https://blueprince.wiki.gg/wiki/Spoilers:Experiments/Effects",
     "confidence": "wiki",
-    "blocked_on": "phase 0: no experiments engine exists yet (data/validation only); the packet subsystem itself is phases 5-8, not yet authorised",
+    "blocked_on": "the Crate Tunnel is owner-ruled out of scope, so there are no crates to remove",
     "notes": [
      "UNPUBLISHED, DO NOT IMPLEMENT: the wiki source carries this rule commented out (not live text): 'If fewer than 36 crates... have been removed, this effect has a 30% chance to be removed from today's effect pool,' with the editor's own note that they tested it and found no meaningful frequency change, and a general caution that a lot of the datamined experiments info 'has been off or just straight up wrong.' Recorded here for provenance only.",
      "Actual crate removal is gated on the tunnel's left torch being lit (engine/special_items.py ignition targets do not currently include the tunnel); the trigger message still displays and the count still advances even when unlit, with removal applied retroactively once lit."
@@ -785,7 +785,7 @@
    "meta": {
     "source": "https://blueprince.wiki.gg/wiki/Spoilers:Experiments/Effects",
     "confidence": "wiki",
-    "blocked_on": "phase 0: no experiments engine exists yet (data/validation only); the packet subsystem itself is phases 5-8, not yet authorised",
+    "blocked_on": "no lockpicking-skill stat exists to raise, and the wiki does not publish its magnitude either (magnitude.amount stays null)",
     "notes": [
      "The magnitude of the skill increase is not published anywhere -- the wiki notes there is no in-game way to check lockpicking skill at all short of tallying Research Log activation counts; magnitude.amount left null (gap -- do not invent).",
      "The Pick Sound Amplifier also benefits from this skill (wiki-confirmed)."

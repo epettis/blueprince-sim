@@ -1,23 +1,22 @@
-# Laboratory / Experiments — design
+# Laboratory / Experiments
 
-Status: **phases 0-8 landed** (see "Phase plan" / "Status" below for the
-detailed history). `src/blueprince_sim/data/experiments.json` transcribes
-every trigger and effect the wiki publishes; `tools/validate_data.py` checks
-it for referential integrity and shape; `engine/experiments.py` holds the
-registry, setup draw, trigger detection, and effect application for both the
-base pool (always available) and the packet pool (sample-eligible once
-`cfg.satellite_dish_unlocked` is set). Mirrors the shape of
-`docs/special-items-design.md`; read that doc for the idiom this one follows.
+The Experiments mechanic: its triggers and effects, the draw that sets one up,
+the data shape that transcribes it, the availability layer that gates
+individual records, and the table of every number the wiki does not publish.
 
-Scope of this document: the Experiments mechanic itself (triggers, effects, the
-draw/setup procedure), the data shape that transcribes it, the availability
-layer that gates individual triggers/effects, the phase plan, and a table of
-every number the wiki does not publish.
+Code: `engine/experiments.py` (registry, setup draw, trigger detection, effect
+application), `data/experiments.json` (the transcription),
+`tools/validate_data.py` (referential integrity and shape).
 
-Source data: fetched directly from `blueprince.wiki.gg` (see each record's
-`meta.source`); no separate `docs/research/` digest exists for this subsystem
-the way `docs/research/special-items-wiki.md` does for items — the wiki pages
-are short enough that `experiments.json` cites them directly.
+Source: fetched directly from `blueprince.wiki.gg`; each record cites its own
+`meta.source`. There is no separate `docs/research/` digest for this subsystem
+the way there is for items — the wiki pages are short enough that the data file
+cites them directly.
+
+This document follows the idiom of
+[`special-items-schema.md`](special-items-schema.md) and
+[`special-items-behaviour.md`](special-items-behaviour.md): a data contract
+plus the rules the engine enforces over it.
 
 ## The mechanic
 
@@ -77,11 +76,11 @@ see "Deliberately never modelled" below).
       "cap": null,                      // hard trigger-count limit, or null
       "rooms": [...],                   // only on records that name specific rooms (fireplace trigger)
       "magnitude": {...},               // structured numbers the wiki gives; absent if none
-      "implemented": false,             // every record, phase 0
+      "implemented": true,
       "meta": {
         "source": "https://blueprince.wiki.gg/wiki/Experiments/Triggers",
         "confidence": "wiki",
-        "blocked_on": "phase 0: no experiments engine exists yet (data/validation only)",
+        "blocked_on": "...",            // required while implemented is false
         "notes": [...]                  // gaps, editorial cautions, provenance
       }
     }
@@ -96,15 +95,12 @@ there in practice, since no base/packet effect names specific rooms).
 ### `pool`
 
 `"base"` (12 triggers, 12 effects, always available) or `"packet"` (the 8+8
-the Satellite Dish data packet adds, sample-eligible once `cfg.
-satellite_dish_unlocked` is set -- see "Phase plan" below). A `packet`-pool
-record's own `implemented` flag governs whether it has a trigger/effect
-detection or apply site at all; `pool` and `implemented` are independent
-fields, so a packet record can be (and six currently are) `implemented:
-false` regardless of whether the packet pool itself is open. Packet
-Management (the wiki's own `>=8`-of-20 selection screen, letting the player
-choose which packet records may actually appear) is not modelled -- every
-`implemented` packet record is sample-eligible the instant the flag is set.
+the Satellite Dish data packet adds, sample-eligible once
+`cfg.satellite_dish_unlocked` is set). A `packet`-pool record's own
+`implemented` flag governs whether it has a trigger/effect detection or apply
+site at all; `pool` and `implemented` are independent fields, so a packet
+record can be — and six currently are — `implemented: false` regardless of
+whether the packet pool itself is open.
 
 ### `availability`
 
@@ -113,75 +109,88 @@ A tagged object describing when a trigger/effect may be drawn at all, or
 verbatim in a `text` field, so the structured fields are a parse of that text,
 not a paraphrase:
 
-| `kind` | fields | records |
-|---|---|---|
-| `day_gate` | `day`, `veteran_bypass` | `security_door`, `drawing_room_drawn` |
-| `room_drafted_gate` | `room_id`, `veteran_bypass` | `archived_floorplan` |
-| `item_obtained_gate` | `item_id`, `veteran_bypass` | `trash_while_digging` |
-| `resource_or_gate` | `resource`, `amount`, `or_veteran`, `or_packet` | `gain_star` |
-| `day_or_packet_gate` | `day`, `or_packet` | `mail_room_letter` |
-| `room_present_gate` | `room_id`, `checked_at` | `pantry_fruit` |
-| `cross_column_exclude` | `excludes_trigger_id` | `spread_dig_spots` |
-| `cross_column_probability` | `removes_effect_id`, `chance_pct` | `map_view` |
-| `value_variant` | `condition`, `swap_text` | `reservoir_water_level` |
+| `kind` | fields | records | enforced |
+|---|---|---|---|
+| `day_gate` | `day`, `veteran_bypass` | `security_door`, `drawing_room_drawn` | yes |
+| `day_or_packet_gate` | `day`, `or_packet` | `mail_room_letter` | yes |
+| `cross_column_exclude` | `excludes_trigger_id` | `spread_dig_spots` | yes |
+| `room_drafted_gate` | `room_id`, `veteran_bypass` | `archived_floorplan` | no |
+| `item_obtained_gate` | `item_id`, `veteran_bypass` | `trash_while_digging` | no |
+| `resource_or_gate` | `resource`, `amount`, `or_veteran`, `or_packet` | `gain_star` | no |
+| `room_present_gate` | `room_id`, `checked_at` | `pantry_fruit` | no |
+| `cross_column_probability` | `removes_effect_id`, `chance_pct` | `map_view` | no |
+| `value_variant` | `condition`, `swap_text` | `reservoir_water_level` | no |
+
+The unenforced kinds divide into two groups, and the distinction matters
+because only one of them is a gap:
+
+- `room_present_gate`, `cross_column_probability` and `value_variant` sit on
+  records that are permanently `implemented: false` and therefore can never be
+  offered. Enforcing them would gate something unreachable.
+- `room_drafted_gate`, `item_obtained_gate` and `resource_or_gate` sit on
+  **live** records. Each needs persistent state the sim does not track yet (an
+  Archives-drafted-ever flag, a Shovel-obtained-ever flag, a star threshold
+  read at draw time), so `archived_floorplan` and `trash_while_digging` are
+  offerable before their prerequisite, and `gain_star` is offerable regardless
+  of stars, veteran mode or packet. **These are real, and the default config
+  hides them**: `veteran_mode` defaults to true, and the first two carry a
+  veteran bypass, so under shipped defaults they would be no-ops even if built.
 
 The two `cross_column_*` kinds are the pairs that reach across the
-trigger/effect split: offering the `trash_while_digging` trigger excludes the
-`spread_dig_spots` effect from the pool entirely, and offering the `map_view`
-trigger gives a 95% chance of removing the `set_steps` effect from the pool.
-`tools/validate_data.py` resolves both id references against the file's own
-trigger/effect id sets, so a rename on one side that forgets the other side is
-a validation **error**, not a silent drift.
+trigger/effect split. `tools/validate_data.py` resolves both id references
+against the file's own trigger/effect id sets, so a rename on one side that
+forgets the other side is a validation **error**, not a silent drift.
 
-`cross_column_exclude` is enforced in `engine/experiments.py::_effect_offerable`,
-which is why `draw_offers` samples the 3 triggers before filtering the effect
-pool: the exclusion reads which triggers were actually *offered* that setup
-(the sampled 3), not the whole eligible trigger pool, so the trigger draw must
-finish first. `cross_column_probability` (`map_view`) stays unenforced --
-`map_view` is a packet-pool trigger that stays `implemented: false` (no wall
-clock in this simulator), so `load_experiments` excludes it from
-`ExperimentsRegistry.packet_trigger_ids` and it can never be offered,
-regardless of whether the packet pool itself is open, so the rule it would
-gate can never fire anyway.
+`cross_column_exclude` is enforced in `_effect_offerable`, and its enforcement
+**forces an ordering** in `draw_offers`: the 3 triggers must be sampled before
+the effect pool is filtered, because the exclusion reads which triggers were
+actually *offered*, not which were eligible. That ordering costs nothing — the
+triggers were already sampled first — it only moves the moment the effect pool
+is filtered.
+
+**No availability filter may ever shrink a pool below 3.** `draw_offers`
+asserts it on both sides. The day gate can drop at most 2 triggers, and the
+effect-side filters at most 2 effects (`mail_room_letter` plus at most one
+cross-column exclusion), so the bound holds with or without the packet pool
+appended.
 
 ### `cap`
 
-A hard, wiki-*stated* limit on how many times the record's own effect
-actually applies — `3` (chests), `10` (map views), `16` (letters), `17`
-(Entrance Hall trunks), `40` (tunnel crates) — or `null`. `cap` lives on both
-triggers and effects, and the two mean different things once past the limit,
-enforced at two different sites in `engine/experiments.py`:
+A hard, wiki-*stated* limit on how many times the record's own effect actually
+applies — `3` (chests), `10` (map views), `16` (letters), `17` (Entrance Hall
+trunks), `40` (tunnel crates) — or `null`. `cap` lives on both triggers and
+effects, and the two mean different things once past the limit, enforced at two
+different sites:
 
-- A **trigger's** `cap` (`trunks_opened`, `map_view`) is checked in
-  `trigger_success` and suppresses the *whole fire*: the trigger no longer
-  succeeds at all, `success_count` stops advancing, and the trigger's own
-  `steps_lost` (if any) is not charged either.
-- An **effect's** `cap` (`entrance_hall_trunk`, `mail_room_letter`) is
-  checked in `apply_effect`, never in `trigger_success`: the trigger it is
-  paired with keeps succeeding (`success_count` still advances, `steps_lost`
-  is still charged) and only the effect itself goes silent. This matches each
-  id's own wiki wording ("will no longer have any effect" / "never offered
-  again" — neither says the *trigger* stops firing) — a capped-out letter
-  still displays its delivery message, a capped-out trunk effect just no-ops.
+- A **trigger's** `cap` is checked in `trigger_success` and suppresses the
+  *whole fire*: the trigger no longer succeeds at all, the success count stops
+  advancing, and the trigger's own step loss is not charged either.
+- An **effect's** `cap` is checked in `apply_effect`, never in
+  `trigger_success`: the trigger it is paired with keeps succeeding and only
+  the effect goes silent. This matches each id's own wiki wording ("will no
+  longer have any effect" / "never offered again" — neither says the *trigger*
+  stops firing).
 
-Approximate figures the wiki hedges with "around" or "approximately" (the dig
-spots effect's "~100 spots after ~34 triggers" on the Grounds) are **not**
+**A capped trigger counts fires, not qualifying events**, so pausing the
+experiment preserves charges. The success count only ever increments inside
+`trigger_success`, so a qualifying event that arrives while paused is
+suppressed without spending a charge.
+
+Approximate figures the wiki hedges with "around" or "approximately" are **not**
 encoded as `cap`; they live in `meta.notes` instead, because a `cap` field
-implies an exact enforceable number and these explicitly aren't that. The
-same record's Conference Room branch (the only branch this sim builds -- see
-"Phase plan" / Status) *does* carry a wiki-exact limit ("up to 50 dig spots...
-after 17 triggers"), but it is still not the top-level `cap`: `cap` counts
-successful *applications*, while this branch's limit is a spot *total* (17
-applications of 3 spots each would be 51, one over the stated 50), so it lives
-in `magnitude.conference_room_spot_cap` instead and is enforced directly
-against the running spot count, clamping the final batch rather than
-overshooting by one spot.
+implies an exact enforceable number and these explicitly are not that. The dig
+spots effect's Conference Room branch *does* carry a wiki-exact limit ("up to
+50 dig spots... after 17 triggers"), but it is still not the top-level `cap`:
+`cap` counts successful *applications*, while this branch's limit is a spot
+*total* (17 applications of 3 spots each would be 51, one over the stated 50),
+so it lives in `magnitude.conference_room_spot_cap` and is enforced against the
+running spot count, clamping the final batch rather than overshooting.
 
 ### `magnitude`
 
 Structured numbers the wiki gives directly (amounts, percentages, room/step
-counts) — omitted entirely from a record when the wiki gives no numbers at
-all. Six specific concepts the wiki mentions but never quantifies get their
+counts) — omitted entirely from a record when the wiki gives no numbers at all.
+Six specific concepts the wiki mentions but never quantifies get their
 `magnitude` sub-field set to `null` rather than omitted, so the gap is visible
 in the schema rather than silently absent — see "Unpublished numbers" below.
 
@@ -197,11 +206,9 @@ in the schema rather than silently absent — see "Unpublished numbers" below.
   set up.
 - **Letters effect**: gated to Day 11+ unless a packet exists; separately
   capped at 16 total and never offered again once all are delivered.
-- **Dig-spots effect**: never offered when the trash trigger is offered (a
-  cross-column exclusion — see above).
+- **Dig-spots effect**: never offered when the trash trigger is offered.
 - **Map trigger** offered ⇒ the "set steps to 40" effect has a 95% chance of
-  being removed from the effect pool that same setup (cross-column
-  probability).
+  being removed from the effect pool that same setup.
 - **Pantry effect**: requires a Pantry already on the estate the first time
   experiment options are viewed.
 - **Reservoir effect**: its displayed text swaps to "Raise the Reservoir by 1"
@@ -224,6 +231,10 @@ out in that record's `meta.notes`:
 | Lockpicking-skill magnitude per trigger | `permanent_lockpicking_skill` (packet effect) | `magnitude.amount` |
 | "Gain 1 random item" pool — a live wiki Cargo query, not present in static wikitext | `random_item_then_zero_keys` (packet effect) | `magnitude.item_pool` |
 
+The security door trigger's own hedge — that it *"occasionally triggers an
+additional time, possibly due to a bug"* — is recorded the same way, as a
+`null` magnitude with the gap in `meta.notes`. The wiki gives no rate.
+
 ## Not transcribed as real — commented-out wiki rules
 
 The wiki source contains two rules wrapped in HTML comments (`<!-- ... -->`),
@@ -245,13 +256,13 @@ confirmation.
 
 ## Deliberately never modelled
 
-These stay out of scope at **every** future phase, not just phase 0, because
-the concept they describe doesn't exist in this simulator or targets a system
-that is out of scope on its own terms:
+These stay out of scope permanently, because the concept they describe doesn't
+exist in this simulator or targets a system that is out of scope on its own
+terms:
 
 - **The 40-second real-time trigger** and **the map-view trigger** — this
   simulator has no wall-clock and no interactive map-viewing action; both are
-  meaningless here regardless of implementation phase.
+  meaningless here.
 - **The setup-menu reroll timing exploit** — revisiting the Experimental Setup
   menu before committing lets a player reroll the three-of-each draw; this is
   a UI-timing quirk, not a data rule, and has no analogue in a turn-based sim.
@@ -261,391 +272,317 @@ that is out of scope on its own terms:
   subpage.
 - **Research Logs** — an in-fiction log of experiment activation history; not
   a mechanical system.
+- **Packet Management** — the wiki's own ≥8-of-20 selection screen. Every
+  `implemented` packet record becomes sample-eligible the instant the packet
+  flag is set. This is a deliberate simplification, equivalent to assuming the
+  player always enables the maximal legal set, and not a partial implementation
+  of the selection screen.
+- **The 16 letters' contents.** `mail_room_letter` is a pure delivered-count
+  bump. The letters are flavour — safe codes, a network password, a puzzle
+  solution — and the assumed-solved doctrine already grants what they convey.
+  See [`doctrine.md`](doctrine.md); this is the same reasoning as the
+  Speakeasy.
 
-## Phase plan
+**Blessing of the Tinkerer is *not* on this list.** It was once, on the ground
+that it is a global modifier on the subsystem rather than a per-record rule.
+That reading was reversed: the blocker the deferral rested on ("needs the
+experiments subsystem") no longer exists, and the cross-trigger is built. If
+you find a source still calling it never-modelled, that source is stale.
 
-Phases 0–8 are all now authorised and landed, in the sense described below —
-"phase" here tracks the order this subsystem's authorization actually
-happened in, not a strict prerequisite chain (phases 5–7 landed the Satellite
-Dish prerequisite and packet triggers/effects piecemeal before phase 8 opened
-the pool they draw from).
+## What is built
 
-0. **This document and this data file.** Transcription and validation only.
-   No engine code, no `GameState`, no hooks, no actions. Makes the research
-   reviewable before anything depends on it.
-1. **Engine module + `GameState`.** A `special.py`-shaped
-   `engine/experiments.py`: frozen `ExperimentsRegistry` parsed from
-   `experiments.json`, a mutable `ExperimentsState` (active trigger/effect ids,
-   per-day trigger count, pause flag, cross-column pool adjustments applied at
-   setup time).
-2. **Setup + the twelve base triggers/effects.** `Game.setup_experiment`,
-   `pause_experiment`/`resume_experiment`; wire the base-pool availability
-   rules (`day_gate`, `room_drafted_gate`, `item_obtained_gate`).
-3. **Trigger detection hooks.** Wire each base trigger's condition into the
-   relevant call sites (draft, move, dig, lock-open, apple-eat) the way
-   `special_items.py`'s hooks are wired into `game.py` today.
-4. **Effect application + env/obs wiring.** Apply each base effect on trigger
-   success; expose active-experiment state (trigger id, effect id, today's
-   trigger count) to the observation space; add setup/pause/resume actions.
-5. **The Satellite Dish prerequisite.** Lighting the Apple Orchard sundial
-   (three held microchips + an ignition tool) permanently sets
-   `GameConfig.satellite_dish_unlocked` (`special_items.py::light()`).
-6. **Packet trigger detection hooks.** Six of the eight packet triggers
-   (`rank9_first_entry`, `upgraded_floorplan_draft`, `tomorrow_room_draft`,
-   `antechamber_lever_pull`, `fireplace_draft`, `terminal_access`) got firing
-   sites, the same shape as phase 3's base triggers. `speed_40_seconds` and
-   `map_view` stay permanently unimplemented (no wall clock, no interactive
-   map in this simulator).
-7. **Packet effect application.** Four of the eight packet effects
-   (`unseal_antechamber_door`, `keys_per_30_steps`, `random_item_then_zero_keys`,
-   `half_steps_for_dice`) apply their effect, the same shape as phase 4's base
-   effects. `pantry_fruit`, `reservoir_water_level`, `remove_tunnel_crate`, and
-   `permanent_lockpicking_skill` stay `implemented: false` (see "Status"
-   below for why each is blocked).
-8. **Opening the packet pool.** `draw_offers` samples `ExperimentsRegistry.
-   packet_trigger_ids`/`packet_effect_ids` alongside the base pool once
-   `cfg.satellite_dish_unlocked` is set, and `_effect_offerable`'s `or_packet`
-   reads the same flag instead of a hardcoded `False`. Both packet id tuples
-   are filtered to `implemented` records at load time (`load_experiments`),
-   so the six inert packet records from phases 6–7 can never be offered —
-   unlike `base_trigger_ids`/`base_effect_ids`, which carry no such filter
-   because every base record happens to be implemented already, and must not
-   start filtering on `implemented` as a side effect of this change (nothing
-   about the base pool's own sampling changed). With the flag unset, the
-   sampling pools -- and therefore every RNG draw `draw_offers` makes -- are
-   exactly the pre-phase-8 base-only tuples, unchanged.
+**All 12 base triggers and all 12 base effects are live.** Of the 8+8 packet
+records, **6 triggers and 4 effects** are live; the six inert ones are
+permanently so, each for its own verified reason:
 
-   **Not built:** Packet Management, the wiki's own screen for choosing which
-   ≥8 of the 20 triggers/effects may actually appear once packets are
-   unlocked. This phase does not model that selection: every `implemented`
-   packet record becomes sample-eligible the instant the flag is set, which
-   is a deliberate simplification (equivalent to assuming the player always
-   enables the maximal legal set) rather than a partial implementation of the
-   selection screen.
+| record | why it stays inert |
+|---|---|
+| `speed_40_seconds` | no wall clock in this simulator |
+| `map_view` | no interactive map-viewing action |
+| `pantry_fruit` | no Pantry-stocking mechanic |
+| `reservoir_water_level` | no `reservoir` **room** — it is an area node only |
+| `remove_tunnel_crate` | the Crate Tunnel is owner-ruled out of scope |
+| `permanent_lockpicking_skill` | no lockpicking-skill stat exists |
 
-### Status
+The Laboratory terminal is a player-operable action set — start setup, choose a
+trigger, choose an effect, toggle pause — gated on standing in the Laboratory,
+with its own pending phase. [`rl-environment.md`](rl-environment.md) owns the
+action-space register.
 
-Phases 0 and 1 landed the engine core: `engine/experiments.py` holds the
-registry, the per-day `ExperimentState`, the uniform 3-of-12 setup draw, and
-effect application; `Game` exposes the terminal (`start_setup`,
-`choose_experiment_trigger`, `choose_experiment_effect`, `toggle_experiment`)
-gated on standing in the Laboratory, with `Phase.EXPERIMENT_PENDING` and
-actions 319–326. A later pass wired the five draft-site triggers (`shops`,
-`gems_spent`, `bedrooms_after_second`, `hallway_from_hallway`,
-`red_room_draft`) through `on_room_drafted`, called from `Game._place_room`.
-A further pass added the generic `cap` field (enforced in `trigger_success`, which
-also gates the trigger's own `steps_lost` on a capped-out fire — pausing
-suppresses a qualifying event without spending one of the cap's charges,
-since `success_count` only ever increments inside that same call); the
-`trunks_opened` trigger (`special_items.py::open_container`, gated on
-`kind in ("trunk", "chest")`, firing only after the opened-count bump so a
-failed open never counts, and covering smash-opens the same way key-opens
-are covered); the `security_door` trigger, fired from two sites in
-`game.py` — `_unlock_for_passage`, gated on `for_draft=True` (drafting
-*through* a security doorway, not merely walking through it) and
-`_roll_new_segments` (drafting *into* a room whose own door converts an
-already-rolled `DOOR_SECURITY` segment to open); and the `day_gate`
-availability filter in `draw_offers`, excluding `security_door` and
-`drawing_room_drawn` from the sampling pool before day 8 unless
-`cfg.veteran_mode` is set (the default — the filter is a no-op unless a
-caller explicitly turns veteran mode off). Most recently, the
-`trash_while_digging` trigger, fired from `special_items.dig_all`'s per-spot
-loop on a `junk` table outcome (`nothing` never counts, per the wiki). Both
-dig tables already fold Scraps of Paper into a second `junk` row rather than
-a distinct kind, so the Patch 1.6 addition needed no separate handling.
-`dig_all` digs every remaining spot at a cell in one call, so this trigger
-fires in bursts, not once per player action. Courtyard carries the highest
-plain `dig_spots` in `rooms.json` (5), but it is not one of the six
-fireplace rooms, so it cannot also collect Cloister of Veia's +8-per-fireplace-
-room bonus (`veia_dig_bonus`); of the fireplace rooms, only Furnace carries a
-nonzero baseline (1), so the highest single-cell total reachable through
-normal play is 1 + 8 = 9 spots, not the two maxima naively summed. Most
-recently, the `apples` trigger, fired from `special_items.eat_food`'s
-per-item loop on `food_id == "apple"` — the one dish id covering all three
-visual varieties (green, red, with leaves; purely visual per the wiki) — once
-per apple, after that apple's own steps have already been granted. The
-ordering matters: a same-day `set_steps` effect must land last, not be
-overwritten by the apple's own steps, per the wiki's stated interaction. A
-single `eat_food` call with `count` > 1 (the Secret Garden's Conference Room
-spread, which pays out 4 apples in one call) fires the trigger once per apple
-inside the loop, matching apples being eaten one at a time in the real game.
-That refactor also threaded the `game` orchestrator through `items.py`'s
-`grant_item`/`roll_room_items`/`roll_extra_items` and this module's
-`eat_food`/`_maybe_serve_main_course`, replacing their loose
-`(state, registry, rng)` parameter triples — the same idiom `dig_all` and the
-rest of this module already followed — with no behavior change.
+### The packet pool opens at load time, not draw time
 
-Most recently, the last two base triggers landed, plus a termination gap
-fix. `Game.redraw` now calls `_check_termination()` at the end, after the
-redealt hand's `ON_HAND_DEALT` loop, the same convention `open_door` already
-follows — previously an experiment could drain steps to 0 inside a redraw
-(e.g. `drawing_room_drawn` + `steps_for_gold`) and the day would not end
-until some later NAVIGATE-phase action noticed. `drawing_room_drawn` fires
-from a new `on_drawing_room_dealt`, called by a one-line `room_hook` on
-`Hook.ON_HAND_DEALT` in `engine/effects/rooms/drawing_room.py` — kept out of
-`experiments.py`'s own dispatch so a Drawing-Room-id literal lives in a room
-module, not an engine one (the standing rule that no engine module may
-branch on a room id). `fire()` already ran that hook at all three
-`ON_HAND_DEALT` sites (the initial grid deal, the initial outer deal, and
-every redraw), so no new call site was needed; the outer deal is a permanent
-no-op since the fixed outer pool can never contain the Drawing Room. A
-hidden or archived Drawing Room still counts (the hook receives no
-concealment info at all, matching the wiki's plain "drawn" wording).
-`archived_floorplan` became a sixth branch of `on_room_drafted`, gated on the
-chosen `DraftOption.archived` flag now threaded through `Game.choose` ->
-`Game._place_room` (mirroring how `gem_cost` already reaches that function) —
-it fires on *choosing* an archived option, not its earlier deal, and fires
-twice for a Bunk Room by reading the same `counts_as_bedrooms`/`amount` tag
-`bedrooms_after_second` already reads, rather than hard-coding a room id.
-`archived_floorplan`'s own `room_drafted_gate` availability (Archives
-drafted, veteran-bypassable) stays unbuilt, same as before — only `day_gate`
-is enforced, and it never applied to this trigger.
+`ExperimentsRegistry` builds `packet_trigger_ids` / `packet_effect_ids` as
+`pool == "packet" and implemented`, and `draw_offers` appends them to the base
+tuples only while `cfg.satellite_dish_unlocked` is set. The base tuples carry
+**no** `implemented` filter, and must not start carrying one: every base record
+happens to be implemented, so the distinction never had to exist there, and
+adding it would change base sampling as a side effect of a packet change.
 
-**All twelve base triggers are now live; eleven of the twelve base effects
-are.** The one unimplemented base effect is `spread_dig_spots` — a live
-trigger can still be paired with it, a no-op the draw does not filter out.
-(`spread_dig_spots` itself landed in a later pass, described further down.)
+**The filter belongs at load time, and that is the point.** Appending packet
+ids to the base tuples is the obvious one-line implementation and would have
+made six dead records drawable and silently inert — an agent could select an
+experiment that does nothing and never learn otherwise. Filtering at load gives
+every consumer a safe-by-construction id set instead of relying on draw-time
+diligence.
 
-Most recently, the effect-side `cap` field landed (`ExperimentEffect.cap`,
-loaded but previously dropped on the floor — `tools/validate_data.py`
-validated its shape without ever wiring it into the engine, so the gap
-passed clean), enforced in `apply_effect` rather than `trigger_success` (see
-the `### cap` section above for why the two differ), plus the two effects it
-unblocks:
+**Ordering: contents before the gate.** The packet triggers and effects got
+their firing sites *before* the flag was wired. Flipping the gate first would
+have made sixteen records drawable while fifteen did nothing — reachable
+content that silently does nothing, the inverse of the unreachable-feature
+failure and just as invisible.
 
-- `entrance_hall_trunk` adds a `trunk` container to the Entrance Hall,
-  capped at 17 per day. The counter lives on `SpecialItemsState`
-  (`entrance_hall_trunks`), not `ExperimentState`, named for the room rather
-  than this experiment record because the wiki treats The Twins constellation
-  as sharing the same 17-trunk limit ("identical to triggering this effect
-  twice") — a future Twins hook can bump the same field.
-  `special_items.py::_container_kinds_at` gained an Entrance Hall branch
-  (`_entrance_hall_container_kinds`) alongside its existing Mechanarium
-  per-cell branch, so `_next_container_kind`/`can_open_container`/
-  `open_container` all pick the added trunks up automatically, including
-  the re-entrant case where opening one (with `trunks_opened` also
-  configured) adds another to the same room mid-call — safe, because the
-  container `kind` and its loot config are captured before the trigger
-  fires. `env/obs.py`'s `grid_containers` was also fixed to route through
-  `_container_kinds_at` instead of reading the static per-room table
-  directly, which had made the Mechanarium's own per-cell compartments (and
-  now these trunks) invisible to the observation space. Per the owner's
-  ruling from play, the 17 is a **daily** maximum: no `GameConfig` field, no
-  `carryover()` entry, no `DayChain` merge — `SpecialItemsState` being
-  rebuilt fresh with `GameState` every day already gives the right reset for
-  free.
-- `mail_room_letter` becomes a pure delivered-count bump
-  (`ExperimentState.letters_delivered`); the 16 letters' actual contents stay
-  deliberately unmodelled (owner ruling: they are flavour — safe codes, a
-  network password, a puzzle solution — and the assumed-solved doctrine
-  already grants what they convey, the same reasoning as the Speakeasy). Its
-  `day_or_packet_gate` availability is now enforced by a new
-  `_effect_offerable` (mirroring `_trigger_offerable`): excluded before day
-  11 (`or_packet` is permanently False, since the packet subsystem is
-  unauthorised) and excluded once `letters_delivered` reaches the cap.
-  **Known gap:** `letters_delivered` is day-scoped, like the rest of
-  `ExperimentState`, but `draw_offers` only ever runs once per day on fresh
-  state — so the "already delivered 16, never offered again" half of the
-  check cannot yet observe a *prior* day's deliveries. Making that true
-  needs a persistent cross-day total, the same shape as
-  `GameConfig.chapel_tithes` (seeded into per-day state, reported by
-  `carryover()`, merged by `DayChain`); that wiring is a follow-up.
-
-`draw_offers` samples the base pool uniformly (modulo the trigger-side
-`day_gate` filter and the effect-side `day_or_packet_gate`/`cross_column_exclude`/cap
-filters above) and still does not filter on `implemented`, so a setup can
-configure an experiment pairing a live trigger with a silent effect, or vice
-versa, or both silent — narrower now that every trigger and every base effect
-has a firing site (`spread_dig_spots`'s own is partial — see below), but still
-possible. Filtering the draw to fully-implemented records remains future
-work, not something addressed so far.
-
-Most recently, `add_aquariums` landed — the last base effect, and the risky
-one: it deliberately breaks `room_draftable`'s one-copy-per-room invariant.
-`apply_effect` injects `magnitude.aquariums_added` (3) copies of the
-`aquarium__experiment` floorplan via `decks.inject_rooms_undealt`, then moves
-both the base Aquarium and that experiment copy to the Commonplace bucket via
-`decks.set_dynamic_rarity` (idempotent past the first firing — the injection
-must run first, since `inject_rooms_undealt` always inserts into a room's own
-static rarity bucket, ignoring any dynamic override), then sets
-`state.add_aquariums_active`. That flag does two things outside
-`experiments.py`: it activates two new `condition`-gated `priority_draws.json`
-entries (`add_aquariums_13`/`add_aquariums_3`, 13% and 3%, applying
-independently per `_priority_draw`'s existing per-entry roll — 15.61%
-combined, appended after the three existing entries so their own substream
-labels and order are untouched), and it waives `room_draftable`'s one-copy
-rule for `aquarium__experiment` specifically — never the base Aquarium —
-following the shape of the existing Tunnel-chain exception rather than a
-second global waiver like the Chamber of Mirrors'. Without the waiver all
-three injected copies (and every later one) share the single
-`aquarium__experiment` id, so the grid caps at 2 Aquariums total; with it, the
-grid is the only remaining bound.
-
-That bound was the actual risk: an Aquarium is a Shop, Red, Hallway and
-Bedroom room at once (`extra_categories`), so drafting one while any of those
-four triggers is configured re-fires `add_aquariums`, the wiki's own designed
-loop. `Game._place_room` carried a comment flagging this as the case its
-non-recursion argument had not yet been checked against. Re-verified: the
-loop cannot recurse *within* one `_place_room` call, because
-`_apply_add_aquariums` only mutates deck/rarity state and never calls
-`_place_room`, `open_door`, or `choose`; *across* separate placements it is
-bounded by the finite grid, since each fire only makes more Aquariums
-draftable, it does not place one itself. `tests/test_experiments.py` drives
-this to exhaustion — placing `aquarium__experiment` at all 43
-non-Entrance-Hall, non-Antechamber cells with `shops` configured — and pins
-that it terminates normally. `Game._place_room`'s comment now states this
-argument instead of asking for it to be re-verified.
-
-Most recently, `spread_dig_spots` landed — the Conference Room branch only.
-The wiki's Grounds branch (dig spots placed outside the house, starting just
-outside the Entrance Hall) needs an off-grid dig-spot concept this simulator
-does not have (`special_items.dig_all` reads `state.grid[cell]` only;
-`engine/areas.py` has no dig-spot representation) and stays unbuilt; the
-record's `implemented` flipped to `true` anyway since the Conference Room
-branch is a complete, self-contained behavior, and its `meta.blocked_on` was
-rewritten to name the Grounds gap specifically rather than the stale "no
-experiments engine exists yet." With a Conference Room on the estate,
-`_apply_spread_dig_spots` adds `CONFERENCE_ROOM_DIG_SPOT_BATCH` (3, the
-wiki's stated usual batch — the 2/3/4 distribution stays unpublished and
-`magnitude.distribution` stays `null`, per the existing gap) dig spots to its
-cell on top of `SpecialItemsState.veia_dig_bonus` — the same per-cell overlay
-Cloister of Veia writes and `dig_all` already reads — each firing, up to
-`CONFERENCE_ROOM_DIG_SPOT_CAP` (50, clamping the final batch); without a
-Conference Room the call is a no-op. The 50-spot figure is wiki-exact for
-this branch (unlike the Grounds branch's hedged totals) but is *not* the
-generic `ExperimentEffect.cap` field, which counts applications rather than
-spots — 17 applications of 3 would overshoot 50 by one — so it lives in
-`magnitude.conference_room_spot_cap` and is enforced against a dedicated
-running total (`SpecialItemsState.conference_room_dig_spots`) instead.
-
-This pass also built the prerequisite the effect could not safely ship
-without: `cross_column_exclude` enforcement. The wiki states
-`spread_dig_spots` "will never be offered if the 'find trash while digging'
-experiment trigger is offered," and `experiments.json` had carried that as a
-`cross_column_exclude` availability record since phase 0, but nothing read
-it — `draw_offers` could offer both in the same setup. `_effect_offerable`
-now takes the setup's already-sampled `offered_triggers` and excludes any
-effect whose `cross_column_exclude.excludes_trigger_id` is among them, which
-forces an ordering change in `draw_offers`: triggers must be sampled (and
-their RNG substream consumed) *before* the effect pool is filtered, since the
-exclusion depends on which 3 triggers were actually offered, not the whole
-eligible trigger pool. This does not reorder any RNG substream draw relative
-to before (triggers were already sampled first); it only moves the moment
-the effect pool is filtered to after that draw completes. The exclusion can
-drop at most 1 of the 12 base effects, so — like the existing day-gate and
-day-or-packet-gate filters — it can never shrink the effect pool below the 3
-`draw_offers` needs; `draw_offers` asserts this the same way it already
-asserted for the trigger-side filter.
-
-Two more wiki-described pieces of this effect are recorded but not built, in
-`meta.notes`: the **Dovecote birdbath sub-effect** (with a Dovecote on the
-estate, this effect *also* fills 6 off-grid birdbaths with dirt in a fixed
-3-trigger pattern, independent of the main effect — blocked on the same
-missing off-grid concept as the Grounds branch) and the **Blessing of the
-Chef's "Mudslide Icecream"** dish (a unique Dining Room dish this effect can
-add while that Blessing is active — blocked on the Blessing system itself
-being unimplemented). Also not modelled, at this engine's per-cell
-granularity: the wiki's "first five [dig spots] appear on the conference
-table, the remainder on the surrounding floor" placement detail, which has no
-mechanical consequence here.
-
-`special_items.py::dig_all`'s per-spot loop carries a safety comment arguing
-that `remaining` (the spot count fixed before the loop starts) can never grow
-mid-loop. That argument used to lean on `spread_dig_spots` being
-unimplemented; it still holds now that the effect is live, for a narrower
-reason: the loop's only within-loop mutation site is the `trash_while_digging`
-branch (which calls `apply_effect` for *today's* configured effect), and
-`spread_dig_spots` can never be that day's configured effect while
-`trash_while_digging` is that day's configured trigger, because the two can
-never even be *offered* together — the `cross_column_exclude` enforcement
-above. The comment now states this argument directly instead of pointing at
-an unimplemented effect.
-
-Three of the eight packet effects landed next:
-`unseal_antechamber_door`, `random_item_then_zero_keys`, and
-`half_steps_for_dice` (`_apply_unseal_antechamber_door`,
-`_apply_random_item_then_zero_keys`, `_apply_half_steps_for_dice` in
-`engine/experiments.py`) — the same shape `keys_per_30_steps` already
-established. At the time these landed, all four stayed undrawable
-(`draw_offers` sampled the base pool only); they became drawable once the
-packet pool itself opened (see below). `unseal_antechamber_door` reuses
-`Game._open_segment`, the same
-low-level call every Antechamber lever room already makes to unseal a
-segment, rather than `Game._open_north_door`'s wrapper (which also
-attributes the open to the `antechamber_lever_pull` trigger and the env
-reward's `north_door_opened` flag — neither applies to a door unsealed by an
-experiment effect rather than a genuine lever pull). It picks the first
-still-sealed segment in west/south/east/north order, copied verbatim from
-`Game.__init__`'s own sealing loop: the wiki states west/east/south "appear
-to be preferred" over north with no numbers (`magnitude.weighting` stays
-null), and the order among west/south/east is unstated either way, so this
-resolves that half of the ambiguity by reusing the one ordering already in
-the codebase instead of inventing a second one. `random_item_then_zero_keys`
-grants its item from the shared `items.EXTRA_ITEM_TABLE` (coins/key/gem/die)
-via the existing `"extra_item_kind"` RNG label — reused, not invented — since
-the wiki's true item pool (a live Cargo query) is unpublished and
-`magnitude.item_pool` stays null; the item is granted before keys are
-zeroed, pinned by a test that exploits the seed-0 draw landing on "key" (a
-reversed order would leave the final count at 1, not 0). `half_steps_for_dice`
-floors the halved step count (`math.floor`, so 7 steps becomes 3, not 4) and
-loses it before granting the 4 Ivory Die, matching the wiki's stated order;
-the dice are granted unconditionally even when the step loss alone ends the
-day, matching every other step-draining effect/trigger in this module
-(`steps_for_gold`, `set_steps`, a triggering `red_room_draft`'s own
-`steps_lost`) — none of them call `Game._check_termination` themselves,
-relying instead on whichever action method is already about to check
-termination as its own last statement. That reliance has one identified gap,
-specific to this effect since it (unlike the draft-site-only precedents) can
-be paired with any trigger: `Game.insert_disk` (the sole `terminal_access`
-call site) and `Game.choose_upgrade` afterward never call
-`_check_termination` at all, so a day ended by this effect while configured
-with `terminal_access` is caught one action late, by the env layer's
-post-step "no legal action" fallback or a CLI policy's own explicit check,
-under the `"dead_end"` reason instead of `"out_of_steps"`. This is pre-existing
-(already latent for `steps_for_gold`/`set_steps`, which could already be
-paired with `terminal_access`) and deliberately not patched here — adding a
-`_check_termination` call inside the effect itself would diverge from every
-other step-draining effect above and risks firing mid-`Game._place_room`
-when reached via a draft-site trigger instead, ahead of ON_PLACE/
-ON_DRAFT_ROOM hooks that still run afterward. The four remaining packet
-effects (`pantry_fruit`, `reservoir_water_level`, `remove_tunnel_crate`,
-`permanent_lockpicking_skill`) stay `implemented: false`, each for a
-distinct, verified reason: no Pantry-stocking mechanic, no `reservoir` room
-record (it is an area node only), the Crate Tunnel is owner-ruled out of
-scope, and no lockpicking-skill stat exists (its magnitude is unpublished
-besides).
-
-Most recently, the packet pool itself opened (phase 8), keyed on
-`cfg.satellite_dish_unlocked` -- the permanent carry-over flag lit by the
-Apple Orchard sundial. `ExperimentsRegistry` gained `packet_trigger_ids`/
-`packet_effect_ids`, built at load time (`load_experiments`) the same way as
-`base_trigger_ids`/`base_effect_ids` except *with* an `implemented` filter:
-the packet pool has six genuinely inert records (`speed_40_seconds`,
-`map_view`, `pantry_fruit`, `reservoir_water_level`, `remove_tunnel_crate`,
-`permanent_lockpicking_skill`) that must never reach `draw_offers`'s
-sampling, unlike the base pool, where every record happens to be
-implemented so the same filter was never needed. `draw_offers` appends
-`packet_trigger_ids`/`packet_effect_ids` to the base tuples only when the
-flag is set, and `_effect_offerable`'s `or_packet` (previously hardcoded
-`False`) now reads the same flag -- which also opens `mail_room_letter`'s
-existing `day_or_packet_gate` early, exactly as that record's own
-`availability.text` already said it should, with no further change needed.
 With the flag unset, both sampling pools are the unmodified base tuples, so
-every RNG draw `draw_offers` makes is unchanged from before phase 8 --
-verified across 500 seeds against the pre-phase-8 code, byte-identical
-trigger/effect offers throughout, and pinned by a seed-0 regression test.
-This does not build Packet Management (the wiki's own `>=8`-of-20 selection
-screen) -- see the phase 8 entry above for why that is a deliberate
-simplification, not a partial implementation.
+every RNG draw is unchanged from before the gate existed — verified
+byte-identical across 500 seeds and pinned by a seed-0 regression test.
+
+### The draw does not filter on `implemented`
+
+A setup can still pair a live trigger with a silent effect. Every base record
+now has a firing site, so this is narrow, but it is not closed. Filtering the
+draw to fully-implemented records remains future work.
+
+The owner ruled **against** the cheaper alternative of filtering the four
+then-unimplemented base effects out of the draw, and the reason generalises: a
+player who can be offered — and pick — an experiment that does nothing is the
+clearest failure of the "features are built to be PLAYED" bar in the subsystem
+(see [`doctrine.md`](doctrine.md)), and a day replay containing a chosen no-op
+experiment does not read clean.
+
+### Where triggers fire
+
+Trigger detection is wired at the site the condition actually occurs, the same
+shape the item hooks use. Three rules govern those sites:
+
+- **Draft triggers fire between draft counting and the placement hooks.** Both
+  bounds are wiki-stated: after the grid write, so the triggering room counts
+  itself; before the placement hooks, so the Weight Room halves the
+  experiment's steps rather than the reverse.
+- **Outer-room drafts do not fire draft triggers.** Outer rooms are never on
+  the grid, so the counting effects already exclude them. The wiki says outer
+  rooms count only under a Blessing, and Blessings of that kind are out of
+  scope.
+- **A room-id literal belongs in a room module, never in this engine module.**
+  The Drawing Room trigger binds through `effects/rooms/drawing_room.py` as a
+  one-line hook on the hand-dealt event, delegating here. The hand-dealt hook
+  already ran at all three deal sites, so no new call site was needed. See
+  [`architecture.md`](architecture.md) for the standing invariant.
+
+Individual scoping calls worth keeping because each looked obviously the other
+way first:
+
+- **The Hovel kills the `gems_spent` trigger** (wiki: *"this trigger becomes
+  useless with it on the estate"*). This engine models the Hovel by paying gem
+  costs in steps while the effective cost still returns the gem number, so a
+  naive cost check would fire on **every** expensive draft — the exact opposite
+  of the published behaviour.
+- **The Stopwatch's gem waiver does not count as spending.** Unpublished, and
+  consistent with the Emerald Bracelet rule the wiki does state.
+- **The "next 3 times you unlock and open a chest" trigger counts trunks
+  only** — not locked lockers, not free lockers, not the Garage car trunk, not
+  Mechanarium compartments, and not Vault deposit boxes. The wiki uses "chest"
+  to mean trunk. Including locked lockers would let a single Locker Room visit
+  burn the whole 3-fire cap deterministically, since that room holds 17 in one
+  cell. The gate reads `kind in ("trunk", "chest")` so it stays correct if a
+  room ever gets a real chest, and it fires only after the opened-count bump,
+  so a failed open never counts.
+- **The "for each Bedroom after your second" trigger counts all of today's
+  Bedrooms**, not only those drafted after the experiment started. The wiki's
+  live text says the opposite, but that sentence has never been grammatically
+  clean — created as "before or starting", repaired to "before or after" by a
+  later grammar edit that left "does matter" untouched — so a dropped "not" is
+  at least as plausible as a deliberate "does". This is the harsher reading: a
+  bedroom-heavy morning can burn the grace before the player reaches the
+  Laboratory. It reads the same bedroom-equivalents tag the Bunk Room uses, so
+  no room id is hard-coded.
+- **The `security_door` trigger fires from two sites**: drafting *through* a
+  security doorway, and drafting *into* a room whose own door converts an
+  already-rolled security segment to open. Merely walking through does not
+  count.
+- **A hidden Drawing Room counts as drawn.** The trigger fires on the floorplan
+  being dealt into the hand, concealed or not — concealment is about display,
+  not the deal. **Known consequence, accepted: this leaks the concealed
+  option's identity** through the success counter the observation exposes.
+  Under the Archives the leak is *total*: the Archives conceals exactly one
+  slot, a hand holds at most one Drawing Room, and no other trigger fires at
+  deal time, so a counter tick plus two visible non-Drawing-Rooms identifies
+  the hidden card with certainty. Suppressing the counter would not close it,
+  since the effect's own result is observable too.
+- **Two independent code paths open the same Antechamber lever.** The Weight
+  Room's south lever and the Greenhouse's Broken Lever target the same segment
+  through wholly separate guards, so a Weight-Room-then-Greenhouse day would
+  double-count a "different lever" trigger. Tracked with a per-day distinct
+  **set**, not a counter. **A counter would have looked correct and been wrong
+  only on the one day ordering that matters.**
+- **The Upgrade Disk reader is this codebase's "terminal"**, deliberately
+  renamed to dodge a name collision (see
+  [`upgrade-disks-design.md`](upgrade-disks-design.md)). The
+  `terminal_access` trigger is scoped to a successful disk insert, and tracks
+  which terminals were used as a per-day distinct set, since several disks can
+  be inserted at one terminal.
+- **The `apples` trigger fires once per apple**, after that apple's own steps
+  have been granted. The ordering matters: a same-day `set_steps` effect must
+  land last rather than be overwritten by the apple's own steps, per the wiki's
+  stated interaction. One call granting several apples fires once per apple,
+  matching apples being eaten one at a time.
+- **The trash trigger fires on a `junk` dig outcome only** — `nothing` never
+  counts, per the wiki. Both dig tables fold Scraps of Paper into a second junk
+  row rather than a distinct kind, so a later patch's addition needed no
+  separate handling. Because digging drains a whole cell in one call, this
+  trigger fires in bursts.
+
+### Termination is checked by the action, never by the effect
+
+No step-draining effect or trigger calls the termination check itself. Each
+relies on whichever action method is already about to check termination as its
+own last statement. **Putting the check inside `trigger_success` would fire
+mid-placement, against a half-constructed grid, before the placement hooks that
+still have to run** — a worse bug than the one it fixes.
+
+The check was therefore added at four specific action sites rather than
+blanket-applied, each justified by a new fire site. The redraw one closed a
+real gap: an experiment could drain steps to zero inside a redraw and the day
+would not end until some later navigation action noticed.
+
+**One identified gap remains, and it is pre-existing.** Disk insertion and
+upgrade selection never check termination at all, so a day ended by a
+step-draining effect while the `terminal_access` trigger is configured is
+caught one action late — by the environment's no-legal-action fallback — and
+reported under the wrong reason. Deliberately not patched, for the reason
+above.
+
+### The effects that were subsystems in costume
+
+Four base effects were the last to land and each needed real machinery:
+
+**`entrance_hall_trunk`** adds a trunk to the Entrance Hall, capped at 17 per
+day. **The 17 is a DAILY maximum and nothing carries over** — owner ruling from
+play, correcting the natural reading of the wiki's "maximum of 17" alongside a
+predetermined spawn order across four walls, which reads like a lifetime cap on
+numbered physical objects. It is not. So there is no config field, no
+carry-over entry and no chain merge: the per-day item state is rebuilt with the
+game state every day and already gives the right reset for free.
+
+The counter is named for the **room**, not for this experiment record, because
+the wiki treats The Twins constellation as sharing the same 17-trunk limit
+("identical to triggering this effect twice"), so a future Twins hook reuses
+the same field.
+
+Adding a container to a room that has no static container entry is what forced
+container counts to resolve **per cell** rather than per room — including the
+re-entrant case where opening one trunk adds another to the same room mid-call,
+which is safe because the container kind and its loot config are captured
+before the trigger fires. It also fixed the observation's container plane,
+which had been reading the static table directly and could not see the
+Mechanarium's own compartments either.
+
+**Still open:** whether trunks appear in the Outer Entrance Hall too (the wiki
+says they do under the Shrine's Monk blessing). Outer rooms have no grid cell,
+so a cell-keyed overlay cannot reach them.
+
+**`add_aquariums`** injects copies of a **second, distinct** Aquarium floorplan
+— the experiment-added copy, which the wiki gives its own placement
+restriction — then moves both it and the base Aquarium to the Commonplace
+bucket. The injection must run before the rarity move, because injection always
+inserts into a room's *static* bucket and ignores a dynamic override.
+
+Three premises behind the original scoping were wrong, and all three are worth
+keeping because each looked obviously true:
+
+- **The priority-draw resolver is not a first-match loop.** It rolls every
+  entry independently, so the compounding this effect needs already works. What
+  was missing was only day-scoping of an entry, and the condition idiom for
+  that already existed. See [`drafting.md`](drafting.md).
+- **There is no deal-time rarity read**, so a "rarity override channel" is the
+  wrong shape. A card's effective rarity **is** the deck it sits in, so setting
+  a Dynamic Rarity is a *card move* between buckets, which the repo already
+  does elsewhere. **A mid-day deck rebuild would be actively unsafe** — it
+  resets all eight cursors and silently discards the day's upgrades,
+  injections and Conservatory re-rolls.
+- **A new room record is the retrain trigger, not the effect.** The observation
+  uses the room count as a bound and a room's index is its position in file
+  order, so a record inserted mid-file shifts every later room's index and
+  invalidates the learned room embedding far more deeply than a bound change.
+  It must be appended at the end, through `tools/supplemental_rooms.json` —
+  see [`doctrine.md`](doctrine.md) on why editing `rooms.json` alone for a
+  supplemental-sourced room is silently reverted.
+
+This effect **deliberately breaks the one-copy-per-room invariant** for the
+experiment copy specifically, never the base Aquarium, following the existing
+Tunnel-chain exception rather than a second global waiver. Without the waiver
+every injected copy shares one id and the grid caps at two Aquariums; with it,
+the grid is the only remaining bound — and that bound was the real risk, since
+an Aquarium is a Shop, Red, Hallway and Bedroom room at once, so drafting one
+while any of those four triggers is configured re-fires the effect. That is the
+wiki's own designed loop. **It cannot recurse within one placement**, because
+the effect only mutates deck and rarity state and never places a room; **across
+placements it is bounded by the finite grid**, since each fire only makes more
+Aquariums draftable. A test drives it to exhaustion across every legal cell.
+
+**`spread_dig_spots`** builds the Conference Room branch only. With a
+Conference Room on the estate it adds the wiki's stated usual batch of 3 dig
+spots to that cell each firing, on the same per-cell overlay the Cloister of
+Veia writes, up to the wiki-exact 50-spot total; without one the call is a
+no-op. The wiki's **Grounds branch** (dig spots outside the house) needs an
+off-grid dig-spot concept this simulator does not have and stays unbuilt — the
+record is `implemented: true` anyway, because the Conference Room branch is a
+complete self-contained behaviour, and its `blocked_on` names the Grounds gap
+specifically.
+
+This effect could not ship before `cross_column_exclude` was enforced. It also
+narrowed a safety argument elsewhere: the per-spot dig loop's fixed spot count
+can never grow mid-loop, and the reason is no longer "this effect is
+unimplemented" but that the two records **can never even be offered together**.
+
+Two further wiki-described pieces are recorded and not built: the **Dovecote
+birdbath sub-effect** (blocked on the same missing off-grid concept) and the
+**Blessing of the Chef's "Mudslide Icecream"** dish (blocked on the Blessing
+system). Also not modelled, at this engine's per-cell granularity: the wiki's
+"first five appear on the conference table, the remainder on the surrounding
+floor" placement detail, which has no mechanical consequence here.
+
+**`mail_room_letter`** is a pure delivered-count bump; see "Deliberately never
+modelled" for the letters themselves. Its delivered count is **cross-day and
+save-scoped** — seeded from config at reset, reported by the carry-over dict,
+carried by the day chain, and deliberately absent from the attempt wrap. That
+is what makes the wiki's "16 ever, never offered again" rule genuinely
+enforceable rather than per-day.
+
+### The packet effects
+
+Four are live. Three notes are worth keeping:
+
+- **The unseal effect deliberately does NOT credit the lever trigger.** It
+  opens the segment directly rather than going through the north-door wrapper,
+  and never calls the lever hook. Both of those exist to attribute a genuine
+  *player* lever pull to the `antechamber_lever_pull` trigger and to the
+  environment's own reward flag. **Routing an unrelated experiment effect
+  through them would be misattribution wearing the costume of code reuse** —
+  the effect would silently advance a trigger the player never fired.
+- **It picks the first still-sealed segment in west/south/east/north order,
+  copied verbatim from the sealing loop that already exists.** The wiki says
+  west/east/south "appear to be preferred" over north with no numbers, and the
+  order among the first three is unstated either way, so this resolves the
+  unstated half by reusing the one ordering already in the codebase rather than
+  inventing a second one.
+- **Two-part effects apply in the stated order and the second half is
+  unconditional.** The halve-steps effect floors the halved count (7 becomes 3,
+  not 4) and **grants its dice even when the step loss alone ends the day** —
+  the alternative silently drops the reward on exactly the days it matters
+  most. The random-item effect grants the item *before* zeroing keys, pinned by
+  a test that exploits a seed whose draw lands on "key", so a reversed order
+  would leave the final count at 1 rather than 0.
+
+**No invented magnitudes.** The random-item effect grants from the shared
+extra-item table on its existing RNG label — reused, not invented — because the
+wiki's true pool is a live Cargo query and `magnitude.item_pool` stays null.
 
 ## Validation (`tools/validate_data.py`)
 
-- Every trigger/effect `id` is unique (checked across triggers and effects
-  together, not just within each list).
+- Every trigger/effect `id` is unique, checked across triggers and effects
+  together, not just within each list.
 - `pool` ∈ `{base, packet}`.
 - Exactly 12 base triggers, 12 base effects, 8 packet triggers, 8 packet
-  effects — a count drift is an **error**, not a warning, the same way the
-  areas-graph node/edge counts are pinned elsewhere in this file.
+  effects — a count drift is an **error**, not a warning.
 - Every `availability.room_id` / `rooms[]` entry resolves against
   `rooms.json`; every `availability.item_id` resolves against
   `special_items.json`.
@@ -654,17 +591,32 @@ simplification, not a partial implementation.
 - `cap`, when present, is a positive int.
 - `availability.chance_pct` and `magnitude.priority_draw_chance_pct` entries
   fall in `[0, 100]`.
-- `implemented: false` requires `meta.blocked_on` (same rule
-  `special_items.json` enforces); `implemented` was `false` for every record
-  at phase 0 (data/validation only, no engine yet) and now varies per record
-  as each trigger/effect's detection/apply site lands.
+- `implemented: false` requires `meta.blocked_on` — the same rule
+  `special_items.json` enforces.
 - `meta.confidence` is one of the standard four values.
 
-These are **errors**, not warnings, per this task's own instruction: a
-referenced id that fails to resolve is exactly the silent failure this tool
-exists to catch.
+These are **errors**, not warnings: a referenced id that fails to resolve is
+exactly the silent failure this tool exists to catch.
 
-The Laboratory room's `effect_text` ("Experimental House Features") is
-unaffected by this phase — it carries no `effects` tag in `rooms.json`, so it
-remains on the room-fidelity divergence audit's kind-2 worklist (`effect_text`
-present, no modelling) until an engine phase lands.
+## Deliberate divergences
+
+- **Packet Management is not modelled**, so the packet pool is wider than a
+  real player's would be. See "Deliberately never modelled".
+- **The draw does not filter on `implemented`.** A live trigger can still be
+  paired with a silent effect. Known, narrow, and not yet closed.
+- **Three availability kinds sit unenforced on live records**
+  (`room_drafted_gate`, `item_obtained_gate`, `resource_or_gate`), each needing
+  persistent state that does not exist. Under shipped defaults `veteran_mode`
+  is true, which bypasses two of the three anyway — so the gap is real but
+  currently invisible. Do not read the default's silence as enforcement.
+- **The Laboratory room's own effect text carries no effects tag in
+  `rooms.json`**, so it still reads as an unmodelled room to the room-fidelity
+  audit even though the whole subsystem behind it is built. The audit's
+  worklist entry is about the room record, not the mechanic.
+- **`spread_dig_spots` is `implemented: true` with half its wiki behaviour
+  unbuilt.** That is the correct flag, not a lie: `implemented` means
+  *reachable and functional*, and the Grounds gap is disclosed on the record.
+  See [`doctrine.md`](doctrine.md).
+- **The Conference Room spot cap is enforced against a spot total, not against
+  the generic `cap` field.** The two count different things and conflating them
+  overshoots by one spot.

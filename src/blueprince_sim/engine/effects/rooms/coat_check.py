@@ -13,7 +13,7 @@ Not modelled:
   - Player choice of which item to store and when to retrieve it: the sim
     auto-stores the highest-tier held item and auto-returns it the next day
     (special_items.py's own simplification, documented in
-    docs/special-items-design.md).
+    docs/special-items-behaviour.md).
 """
 
 from __future__ import annotations

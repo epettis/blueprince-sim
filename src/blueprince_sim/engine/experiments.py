@@ -313,9 +313,11 @@ class ExperimentState:
     bedroom_draft_count: int = 0
     # mail_room_letter deliveries actually applied today (not counted past its
     # cap): distinct from success_count, which also counts a trigger fire whose
-    # effect no-opped past its own cap. Day-scoped only -- see
-    # _effect_offerable's docstring for why this can't yet enforce the wiki's
-    # cross-day "16 ever, never offered again" rule.
+    # effect no-opped past its own cap. Unlike everything else on this
+    # dataclass this one is a RUNNING TOTAL, not day-scoped: Game.reset seeds
+    # it from GameConfig.letters_delivered and shops.carryover() reports it
+    # back, which is what makes the wiki's cross-day "16 ever, never offered
+    # again" rule enforceable in _effect_offerable.
     letters_delivered: int = 0
     # Antechamber lever segments (cell, direction) already counted toward
     # antechamber_lever_pull today -- a per-day distinct set, the same shape
@@ -385,13 +387,10 @@ def _effect_offerable(effect: ExperimentEffect, cfg, ex: ExperimentState,
     wiki's "will never be offered if [trigger] is offered" means offered to
     the player at setup, not merely eligible to be offered.
 
-    mail_room_letter is also excluded once its cap has already been reached
-    -- but see ExperimentState.letters_delivered's own comment: that counter
-    is day-scoped, and draw_offers only ever runs once per day on fresh
-    state, so this half of the check cannot yet observe a PRIOR day's
-    deliveries. It is still applied (rather than left out entirely) so the
-    mechanism is correct and testable in isolation, ready for the day it is
-    seeded from a persistent cross-day total.
+    mail_room_letter is also excluded once its cap has already been reached.
+    That check spans days: ExperimentState.letters_delivered is a running
+    save-scoped total seeded from GameConfig at reset (see its own comment),
+    so a prior day's deliveries do remove the effect from today's pool.
     """
     gate = effect.availability
     if gate is not None and gate.get("kind") == "day_or_packet_gate":

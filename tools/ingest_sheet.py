@@ -234,7 +234,7 @@ EFFECT_MAP: dict[str, dict] = {
     "patio": {"items": {"dig_spots": 1, "dig_guaranteed": "file_cabinet_key"}},
     "cloister": {"items": {"dig_spots": 1}},
     # Parlor: box always contains 2 gems on first entry; Wind-up Key is deliberately
-    # not modeled (action-space simplification — see docs/special-items-design.md).
+    # not modeled (action-space simplification — see docs/special-items-behaviour.md).
     "parlor": {"items": {"guaranteed": [{"item": "gem", "count": 2}]}},
     # The Foundation: two guaranteed dig spots near the wooden walkways (wiki);
     # the "up to two additional" spots by the elevator are not modeled (no roll

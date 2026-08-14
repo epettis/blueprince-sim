@@ -12,7 +12,8 @@ Merged, in order:
 
 - **PR #17** — special items: all ~64 wiki items as data (`data/special_items.json`),
   `engine/special_items.py` (inventory, spawn model, digging, Lost & Found,
-  per-item effects). Design + every judgment call: `docs/special-items-design.md`;
+  per-item effects). Design + every judgment call: `docs/special-items-schema.md` and
+  `docs/special-items-behaviour.md`;
   wiki facts: `docs/research/special-items-wiki.md`.
 - **PR #18** — commerce: `engine/shops.py` + `data/shops.json` (all 8 shops, the
   Locksmith special-key roll, Electromagnet robbery), Trading Post TRADE GRAPH

@@ -45,7 +45,7 @@ def _red_negated(game, room) -> bool:
     """Shelter or Knight's Shield: negate negative effects of a red room.
 
     Shelter decrements its counter on each negate. Knight's Shield fires once
-    per day (simplification #6: auto-applied, no player choice).
+    per day (auto-applied, no player choice -- docs/special-items-behaviour.md).
     """
     if not room.is_category("red"):
         return False

@@ -1,7 +1,7 @@
 """Shops, trades, fabrication, and cross-day discovery actions.
 
-Commerce layer over the special-item system (docs/special-items-design.md,
-"PR2"): per-shop stock rolled from data/shops.json on first entry, purchases
+Commerce layer over the special-item system
+(docs/special-items-behaviour.md): per-shop stock rolled from data/shops.json on first entry, purchases
 paid in coins, Trading Post tier trades, Workshop fabrication, plus the
 discovery actions that feed the cross-day carry-over report (Royal Scepter
 activation, vase smash, West Path chip).

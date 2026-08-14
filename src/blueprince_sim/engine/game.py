@@ -645,7 +645,7 @@ class Game:
         self.state.security_level = level
 
     # ------------------------------------------------------------- commerce
-    # Thin delegates into engine/shops.py (docs/special-items-design.md, PR2).
+    # Thin delegates into engine/shops.py (docs/special-items-behaviour.md).
     # All shopping happens from menus in the real game: no step cost.
 
     def shop_stock(self) -> list | None:

@@ -653,7 +653,7 @@ def roll_room_items(game, room: Room, cell: int) -> int:
             found += _grant_trunk_loot(game)
             continue
         # A luck proc may resolve to one of the room's special items
-        # (docs/special-items-design.md spawn model) instead of a resource
+        # (docs/special-items-behaviour.md spawn model) instead of a resource
         # from the table.
         if special_items.roll_special_spawn(state, registry, room, rng, draft_bonus) is not None:
             found += 1
