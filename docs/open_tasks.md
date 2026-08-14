@@ -985,6 +985,38 @@ existing prose.
 
 ## Decisions log
 
+- **2026-08-14, NON-FINDING: the reported `frontier_greedy` crash DOES NOT
+  EXIST. Recorded so it does not survive as folklore.**
+
+  A measurement lane reported hitting
+  `AssertionError: cannot afford` in `frontier_greedy`/`Game.choose` at seed
+  2886, and generalised it as *"reproduces under default data too at other
+  seeds"*. It is **not reproducible**:
+
+  - **0 crashes in 600 seeds** under `GameConfig()` defaults;
+  - **0 crashes in ~3020 seeds** under the exact reported config
+    (`upgrade_disks={spare_bedroom__ix131}`, `lunch_box_unlocked=True`),
+    **seed 2886 included**;
+  - all driven through the real entry point, `cli/batch.py::run_episode`.
+
+  **The likely cause is the harness, not the engine.** That lane drove its
+  measurement with a hand-rolled *"`cli/batch.py`-style episode loop"* rather
+  than `run_episode` itself. The orchestrator's own first attempt at the same
+  hand-rolled loop crashed on **every** seed, for a trivial reason
+  (`phase` lives on `Game`, not `GameState`) -- a bug in the driver reads
+  exactly like a bug in the engine.
+
+  **Two lessons, both already on this repo's list and both re-earned:**
+  1. **A defect found through a bespoke harness is a claim about the harness
+     until it reproduces through the real entry point.** Reproduce first,
+     brief second. A lane was nearly commissioned to fix this.
+  2. **"Reproduces at other seeds too" was asserted without a single verified
+     other seed** -- the same generalise-from-unverified-instances pattern
+     recorded earlier this session. **A pattern asserted from N instances
+     needs each instance verified, not the pattern.**
+
+  Nothing to fix. `assert self.affordable(room, opt)` at `game.py:1897` stands.
+
 - **2026-08-14, SPAWN TABLES measured across all 102 items. 26 of 28 diverge
   -- but it is DISTRIBUTION, not reachability, and that is measured, not
   argued.**
