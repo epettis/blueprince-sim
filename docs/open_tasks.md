@@ -873,6 +873,92 @@ around 1,800 LOC.
 
 ## Decisions log
 
+- **2026-08-14, THE "GEMS-IN-HAND RANK AXIS" QUEUE ENTRY WAS WRONG IN EVERY
+  PARTICULAR -- and a real engine defect was underneath it.**
+
+  The entry read: *"Free/Gem landed; day-1 still shows ~5% from `forced=True`
+  priority draws, an orthogonal mechanism."* **All three claims are false:**
+  - **The rate is ~17.7%, not ~5%** -- wiki Slot 3, on rounds the Free/Gem step
+    ruled a **Free Draw**, day 1, 2000 episodes / 8542 options,
+    episode-clustered bootstrap 95% CI **16.88-18.44%**.
+  - **It is not a day-1 phenomenon.** Day 20 measures **17.57%**. The mechanism
+    fires identically every day.
+  - **"Orthogonal" was the substantive error.** Priority draws are **not**
+    independent of the Free/Gem axis. The published procedure makes a priority
+    draw *"an additional filter on the floorplans"* applied within *"the
+    (free/gem) group being worked in"* -- so during a Free Draw its pool is
+    empty and attempt 1 must fall through. A gem room **cannot** appear.
+
+  **THE DEFECT** (`engine/draft.py:604`): `_priority_draw(ctx, cell, entry_dir,
+  exclude)` is called **without `is_gem`**, while the sibling calls on the next
+  two lines -- `_deal_from_rarity` (:613) and `_apply_category_bias` (:614) --
+  both thread it. `_priority_draw`'s candidate loop (:228-239) applies **no
+  free/gem class filter** and force-inserts regardless of class. **It is the
+  only draw path that ignores the class**; the calls bracketing it establish
+  the convention it breaks. Verified directly, not relayed.
+
+  **Every room in the priority groups is gem-cost** -- `commissary`,
+  `observatory`, `patio`, `veranda`, `greenhouse`, `secret_passage`,
+  `classroom` -- which is why the leak is near-total. The only free room in an
+  always-active group is `morning_room`, gated behind draft conditions.
+
+  **~1.1pp of the 17.7% is CORRECT and must survive the fix.** That is the
+  **Garage**, arriving via `_forced_draw_garage`. Forced Draws precede the
+  Free/Gem decision per the wiki's Special Draws section, so a Garage in a Free
+  Draw is legitimate. **A fix that drives the rate to 0.00% is wrong.**
+
+  **Why this matters at this size:** it is a direct leak in the gem economy a
+  trained policy trades against -- the same class of error, and roughly the
+  same magnitude, as the missing Free/Gem step #244 built from nothing.
+
+  **Two measurement traps recorded so the next person does not repeat them:**
+  **`GameConfig()` defaults to `day = 20`** (`config.py:16`), so any "day 1"
+  measurement must pass `GameConfig(day=1)` explicitly; and **`state.pending`
+  is `None` after `reset()`** -- the hand is dealt by `Game.open_door`, not by
+  reset. The orchestrator's own attempt to measure this failed on both.
+
+  **A LARGER FINDING, unrelated to the fix:** the wiki states the **Day 1
+  opening draw is deterministically Bedroom, Closet, Hallway in that order**.
+  The sim produced **292 distinct opening hands across 300 seeds, none of them
+  that triple**, and no code or data for it exists anywhere. **Unimplemented.**
+  It also means every "first hand of day 1" measurement -- including the one
+  this queue entry rested on -- was measuring a hand that should not exist.
+
+  **Provenance caution, re-derived:** `priority_draws.json`'s 5%/13%/3%
+  constants cite a "TFMurphy decompiled sheet v1.3 constants block" that **is
+  not in this repo**. `tools/raw/tfmurphy_room_table.md` is a 147-line **room**
+  table with nothing on draw procedure. **Do not describe those chances as
+  repo-datamined** -- they are not independently checkable here.
+
+  **Ruling: close the queue entry as written** (its number, its day-1 scoping,
+  and its "orthogonal, therefore not our problem" conclusion are all wrong) and
+  replace it with the defect as measured. **Fix the minimal version only** --
+  pass `is_gem` and filter the candidate loop. **Do NOT** rebuild
+  `_priority_draw` into the wiki's per-floorplan acceptance-filter model or
+  remove its `slot == 2` gate in the same PR; those are larger and carry their
+  own owner questions, below.
+
+  **Five new questions for the owner** (this pushes the open count to twelve;
+  they need consolidating before the next batch):
+  1. **Slot-3-only priority draws.** The sim gates `_priority_draw` on
+     `slot == 2` and `docs/drafting.md:48` states it as fact, but **the wiki
+     puts Priority Draws under Filters with no slot restriction** -- only
+     *Forced* Draws are Slot-3-only. Deliberate simplification, or were the two
+     mechanisms conflated?
+  2. **Commissary beats Observatory 46:1.** `_priority_draw` returns the first
+     draftable candidate in **list order**, so Commissary always wins its 13%
+     group (2436 vs 0 over 20,000 first hands). Both have empty
+     `draft_conditions`; the skew is pure list precedence. The wiki gives each
+     floorplan an independent acceptance roll. Acceptable, or a second defect?
+  3. **Build the Day 1 opening draw?** See above.
+  4. **Two data gaps**: the wiki's 3% group is **{Garage, Classroom}** where
+     the repo has `{classroom}` alone; and the wiki says the Greenhouse effect
+     **moves Secret Passage from the 5% group to the 3%**, where the repo keeps
+     it at 5% unconditionally.
+  5. **`_priority_draw` never consumes its card** -- it returns a room without
+     calling `deal_next`, so the room stays in its deck, while the wiki says a
+     drawn floorplan *"gets added to the discard filter for future draws"*.
+
 - **2026-08-14, ITEM FIDELITY AUDIT scoped. THE OBVIOUS DESIGN DOES NOT WORK,
   and `effects` cannot be trusted as its basis. Two rulings needed before
   building; two real gaps filed now so they are not lost.**
