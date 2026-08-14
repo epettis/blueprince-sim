@@ -6232,7 +6232,8 @@
     {
      "tag": "grant",
      "resource": "stars",
-     "amount": 2
+     "amount": 2,
+     "when": "on_day_end"
     }
    ],
    "items": {
@@ -6244,7 +6245,7 @@
    "meta": {
     "source": "wiki",
     "confidence": "wiki",
-    "effect_text": "Ending the day in the Planetarium grants 2 Stars (Tomorrow-room cross-day currency). Stars are tracked nowhere in the current sim; the grant fires but no-ops, matching other out-of-scope currencies. Telescope and cross-day interactions are out of scope.",
+    "effect_text": "Ending the day in the Planetarium grants 2 Stars, tracked in state.stars and carried forward day to day. Telescope and cross-day constellation interactions are out of scope.",
     "rarity_confidence": "wiki"
    }
   },
