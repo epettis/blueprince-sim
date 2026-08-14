@@ -83,19 +83,6 @@ EFFECTS_ITEMS_DIR = ENGINE_DIR / "effects" / "items"
 #: module's scan (test_allowlist_has_no_stale_entries), and no other tag
 #: literal may appear anywhere unlisted (test_no_tag_literals_outside_the_allowlist).
 ITEM_TAG_ALLOWLIST: dict[str, set[str]] = {
-    "draft.py": {
-        # _pick_dowsing_slot reads data/items.json's "dowsing_rod" table
-        # (avoid_rooms) -- a data table name, coincidentally spelled the
-        # same as the item's own effect tag; not a tag dispatch (the item
-        # never carries any OTHER effect this module reads).
-        "dowsing_rod",
-    },
-    "items.py": {
-        # roll_dowsed_count/_dowsing_effective_luck/_roll_dowsing_band_0_2
-        # read data/items.json's "dowsing_rod" table -- same data-section-name
-        # collision as draft.py's entry above, not a tag dispatch.
-        "dowsing_rod",
-    },
     "effects/tier1.py": {
         # _grant()'s resource-kind dispatch: case "allowance": applies the
         # delta to state.allowance. This is a room-effect currency-kind
@@ -104,8 +91,6 @@ ITEM_TAG_ALLOWLIST: dict[str, set[str]] = {
         # both name the same underlying resource.
         "allowance",
     },
-    # game.py names no tag/id-collision literal: its "paper_crown" behaviour
-    # is paper_crown.bonus_redraw in engine/effects/items/paper_crown.py.
     "shops.py": {
         # item.effect("locksmith_rob") gates the Locksmith's rob-on-theft
         # mechanic -- a genuine tag dispatch.
@@ -117,8 +102,7 @@ ITEM_TAG_ALLOWLIST: dict[str, set[str]] = {
         # config export), not a tag read -- collides with the resource name
         # the same way effects/tier1.py's case does.
         "allowance",
-        # stopwatch and repellent behaviour lives in
-        # stopwatch.blocks_as_trade_return and repellent.held/consume in
+        # stopwatch behaviour lives in stopwatch.blocks_as_trade_return in
         # engine/effects/items/.
     },
     "special_items.py": {
@@ -137,27 +121,18 @@ ITEM_TAG_ALLOWLIST: dict[str, set[str]] = {
         # absent from special_items.json; ItemCapability.COMPASS_BIAS covers
         # it), sleeping_mask, steps_at_rank, and watering_can are read in
         # engine/effects/items/sleeping_mask.py, lunch_box.py, and
-        # watering_can.py respectively. "moon_pendant_carry"'s only
-        # occurrence is the rng.shuffle substream label in
-        # engine/effects/items/moon_pendant.py.
+        # watering_can.py respectively.
         "allowance", "auto_collect",
         "dig_tool",
         "lockpick", "luck_bonus",
         "metal_detector_spawns",
         "set_steps_on_pickup",
         "smash", "stopwatch",
-        # "treasure_map" section dict key (raw["treasure_map"]: cells,
-        # rewards) -- coincides with the tag string spelling, not read via
-        # .effect(). The item-id behaviour (has(state, "treasure_map") and
-        # both rng.choice draws) moved to
-        # engine/effects/items/treasure_map.py (phase 6); this data-section
-        # load is the only reason the tag literal still appears here.
-        "treasure_map",
         # "battery_pack" section dict key (raw.get("battery_pack", {}): room,
-        # options) -- same shape as "treasure_map" directly above. The
-        # item-id behaviour (on_pickup/resolve_pending) lives in
-        # engine/effects/items/battery_pack.py; this data-section load is the
-        # only reason the tag literal still appears here.
+        # options) -- coincides with the tag string spelling, not read via
+        # .effect(). The item-id behaviour (on_pickup/resolve_pending) lives
+        # in engine/effects/items/battery_pack.py; this data-section load is
+        # the only reason the tag literal still appears here.
         "battery_pack",
     },
 }
@@ -169,15 +144,7 @@ ITEM_TAG_ALLOWLIST: dict[str, set[str]] = {
 #: hard failure (the ignition_tool catch); a tag gaining a reader while
 #: still listed is *also* a failure, demanding the entry be removed. Every
 #: entry names the item that carries the tag and its meta.blocked_on.
-DEFERRED_UNREAD_TAGS: frozenset[str] = frozenset({
-    # dowsing_rod moved off this list: it now has real readers
-    # (engine/effects/items/dowsing_rod.py's item_provides registration,
-    # draft.py's _pick_dowsing_slot, items.py's roll_dowsed_count) -- see
-    # tests/test_luck_tables.py and tests/test_luck_ladder.py.
-    # gear_wrench moved off this list: it now has a real reader
-    # (engine/effects/items/gear_wrench.py::ITEM_ID, read by Game.choose/
-    # set_wrench_rarity) -- see tests/test_gear_wrench.py.
-})
+DEFERRED_UNREAD_TAGS: frozenset[str] = frozenset()
 
 
 def _docstring_node_ids(tree: ast.AST) -> set[int]:

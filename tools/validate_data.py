@@ -74,21 +74,14 @@ KNOWN_ITEM_EFFECT_TAGS = {
     "lockpick", "luck_bonus", "coin_interest",
     "food_bonus", "free_move_interval",
     "stopwatch", "sleeping_mask", "watering_can",
-    "compass", "dig_tool", "treasure_map",
-    "metal_detector_spawns", "auto_collect", "mask_red_room", "paper_crown",
+    "dig_tool",
+    "metal_detector_spawns", "auto_collect", "mask_red_room",
     "set_steps_on_pickup", "steps_at_rank", "negate_red_once_per_day",
     "allowance", "battery_pack",
-    # "smash", "crown_of_blueprints", and "locksmith_rob" ARE read as tags
-    # (item.effect()/_has_item_effect() in shops.py and special_items.py, and
-    # crown_of_the_blueprints.py's own item.effect(TAG) check). The rest of
-    # this group are inert as *tags*: their items work through other paths
-    # (inventory held()-checks, ItemCapability registration, or an
-    # item_rules data table) rather than through a SpecialItem.effect() read.
-    "smash", "repellent", "scepter",
-    "crown_of_blueprints", "gear_wrench", "dowsing_rod", "locksmith_rob",
-    # Multi-day carry-over (PR2 item persistence)
-    "moon_pendant_carry",
-    "ignition_tool",
+    # Read via item.effect()/_has_item_effect() in shops.py and
+    # special_items.py, and crown_of_the_blueprints.py's own
+    # item.effect(TAG) check.
+    "smash", "crown_of_blueprints", "locksmith_rob",
     # The Axe: permanent gem-cost override, capped at max_active
     # (effects/items/the_axe.py). Read directly via item.effect(TAG); not an
     # engine/effects hook registration (the discount outlives the item).
@@ -2182,6 +2175,19 @@ def main(argv: list[str] | None = None) -> int:
     for rid in validate_container_registry(effects_registry):
         errors.append(
             f"engine/effects: provides_containers registered for unknown room id {rid!r}")
+
+    # Necessity check for the effect-tag vocabulary. The per-record loop above
+    # only asks whether a tag a record carries is known; nothing asked whether
+    # a known tag is still carried by anything, so an entry could outlive the
+    # last record using it and sit here as dead vocabulary.
+    carried_tags = {eff.get("tag") for item in si_doc.get("items", [])
+                    for eff in item.get("effects", [])}
+    for tag in sorted(KNOWN_ITEM_EFFECT_TAGS - carried_tags):
+        errors.append(
+            f"KNOWN_ITEM_EFFECT_TAGS: {tag!r} is carried by no item record -- "
+            f"behaviour lives in engine/effects, so an unused tag is dead "
+            f"vocabulary rather than a source of truth"
+        )
 
     # Necessity check, not just liveness: a room registered via
     # provides_containers should never ALSO carry a static containers.rooms
