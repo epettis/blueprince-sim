@@ -14,7 +14,12 @@ from ..engine.model import LAYOUTS
 from ..engine.shops import SCEPTER_COLORS, current_shop_id
 from ..engine.special_items import SIGIL_REALMS, _container_kinds_at
 from ..engine.upgrades import all_slot_ids, upgraded_slots
-from .actions import _build_area_node_ids, _build_axe_target_ids, _build_mechanical_room_ids
+from .actions import (
+    _build_area_node_ids,
+    _build_axe_target_ids,
+    _build_mechanical_room_ids,
+    _N_CONSTELLATIONS,
+)
 from .multiday import DayChain
 
 CATEGORIES = ("blueprint", "bedroom", "hallway", "green", "shop", "red",
@@ -52,6 +57,16 @@ TRADE_OFFER_ROWS = 8   # generous; 24 tradeables, real sessions hold far fewer
 # the encode clamp, so the space bound and the clamp cannot drift apart.
 # tests/test_in_grid_disks.py pins this against the registry's actual disk count.
 MAX_DISKS_HELD = 16
+
+# Length of the "constellations" observation vector: one activation count per
+# data/constellations.json record (13, in that file's ascending-star order,
+# the same order ACTIVATE_CONSTELLATION_BASE indexes by), plus [13] night skies
+# generated today and [14] un-activated constellations in the sky at the
+# player's cell. Pinned as a constant rather than derived from the registry so
+# a fourteenth record could never move the observation width; the record count
+# is held at 13 by tools/validate_data.py and cross-checked against
+# actions._N_CONSTELLATIONS in tests.
+CONSTELLATION_OBS_LEN = _N_CONSTELLATIONS + 2
 
 SCEPTER_COLOR_INDEX = {c: i for i, c in enumerate(SCEPTER_COLORS)}
 
@@ -279,6 +294,26 @@ def observation_space(n_rooms: int, n_items: int, n_recipes: int,
         # a permanent, cross-day investment V(s) needs to see, never a shape
         # change to an existing key.
         "planetarium_planets": spaces.Box(0, 1, shape=(n_planetarium_planets,), dtype=np.uint8),
+        # constellations: [0:13] how many times each constellation has been
+        # activated today, in data/constellations.json's ascending-star record
+        # order (the order ACTIVATE_CONSTELLATION_BASE indexes by); [13] how
+        # many night skies have been generated today; [14] how many
+        # constellations in the sky at the player's cell are still
+        # un-activated. Additive, never a shape change to an existing key.
+        #
+        # A count rather than a bit, because activation is repeatable and the
+        # repeat is worth real value: Farmer's Apple stacks +3 steps per
+        # apple per activation, and The Twins keeps spawning trunks -- a bit
+        # would make the seventh activation look identical to the first.
+        # [13] is separate from the per-constellation counts because a sky is
+        # locked to the star count it was first viewed at, so "how many skies
+        # exist today" is what prices viewing another one; and [14] is
+        # per-cell because each Observatory holds its own locked sky, so the
+        # value of walking into THIS one is not derivable from [0:13].
+        # The "stars" key already carries the permanent bank and is untouched.
+        # Bound 99 is far above every reachable value (7 is the largest sky,
+        # at 40 and 49 stars).
+        "constellations": spaces.Box(0, 99, shape=(CONSTELLATION_OBS_LEN,), dtype=np.int16),
     })
 
 
@@ -735,6 +770,13 @@ def encode(game: Game, day_chain: DayChain | None = None) -> dict:
         dtype=np.uint8,
     )
 
+    # constellations: all zeros. No night sky is generated anywhere in the
+    # engine, so there is nothing to count -- no constellation has been
+    # activated, no sky exists today, and no cell holds one. The array is
+    # built here rather than omitted so the encoder and the Dict space stay
+    # in step and the key is present from the first observation onward.
+    constellations_obs = np.zeros(CONSTELLATION_OBS_LEN, dtype=np.int16)
+
     return {
         "grid_room": grid_room,
         "grid_doors": grid_doors,
@@ -780,4 +822,5 @@ def encode(game: Game, day_chain: DayChain | None = None) -> dict:
         "wrench_rarity": wrench_rarity_obs,
         "dowsing": dowsing_obs,
         "planetarium_planets": planetarium_planets_obs,
+        "constellations": constellations_obs,
     }

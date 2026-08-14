@@ -2032,6 +2032,109 @@ def main(argv: list[str] | None = None) -> int:
         if cat not in VALID_CATEGORIES:
             errors.append(f"shrine/curse: resource_loss_per_category has unknown category {cat!r}")
 
+    # ── constellations.json (night-sky partition; see docs/rl-environment.md) ─
+    # A night sky is the unique SET of constellations whose star values sum to
+    # the viewing star count, not everything at or below a threshold, so the
+    # 0-49 table is a partition table and the sum is the property worth
+    # checking. Star count 0 is the one count that does not sum (the North
+    # Star is 1 star), and it is asserted positively below so the exception
+    # cannot silently widen to a second count.
+    con_doc = json.loads((DATA / "constellations.json").read_text(encoding="utf-8"))
+    con_recs = con_doc.get("constellations", [])
+    con_table = con_doc.get("appearances", {})
+    if len(con_recs) != 13:
+        errors.append(f"constellations: must be exactly 13 records, got {len(con_recs)}")
+
+    con_ids = [c.get("id") for c in con_recs]
+    if len(con_ids) != len(set(con_ids)):
+        dupes = sorted({i for i in con_ids if con_ids.count(i) > 1})
+        errors.append(f"constellations: duplicate ids: {dupes}")
+
+    # Record order is the action-block and obs-vector order (env/actions.py's
+    # ACTIVATE_CONSTELLATION_BASE), so a reorder would silently repoint every
+    # id -- strictly ascending stars pins it to one arrangement.
+    con_stars = {}
+    prev_stars = 0
+    for c in con_recs:
+        where = f"constellations/{c.get('id')}"
+        stars = c.get("stars")
+        if not isinstance(stars, int) or stars <= 0:
+            errors.append(f"{where}: stars must be a positive int, got {stars!r}")
+            continue
+        if stars <= prev_stars:
+            errors.append(
+                f"{where}: stars must be strictly ascending in record order, "
+                f"got {stars} after {prev_stars}"
+            )
+        prev_stars = stars
+        con_stars[c.get("id")] = stars
+        if not c.get("name"):
+            errors.append(f"{where}: missing name")
+        if not c.get("effect_text"):
+            errors.append(f"{where}: missing effect_text")
+        if not isinstance(c.get("stacks"), bool):
+            errors.append(f"{where}: stacks must be a bool, got {c.get('stacks')!r}")
+        if not c.get("implemented", False) and not c.get("meta", {}).get("blocked_on"):
+            errors.append(f"{where}: implemented=false requires meta.blocked_on")
+
+    # The two constellations outside the 0-49 table. Both are inert: the Ink
+    # Well spends stars to redraw and the Spiral grows a word per generated
+    # sky, and neither mechanic exists in the engine.
+    for special_id in ("ink_well", "spiral_of_stars"):
+        rec = next((c for c in con_recs if c.get("id") == special_id), None)
+        if rec is None:
+            errors.append(f"constellations: missing the {special_id!r} record")
+        elif rec.get("implemented", False):
+            errors.append(f"constellations/{special_id}: must carry implemented=false")
+
+    expected_counts = {str(n) for n in range(50)}
+    if set(con_table) != expected_counts:
+        missing = sorted(expected_counts - set(con_table), key=int)
+        extra = sorted(set(con_table) - expected_counts)
+        errors.append(
+            f"constellations/appearances: keys must be exactly '0'..'49'; "
+            f"missing {missing}, unexpected {extra}"
+        )
+
+    for key in sorted(set(con_table) & expected_counts, key=int):
+        count = int(key)
+        sky = con_table[key]
+        where = f"constellations/appearances/{count}"
+        unknown = [i for i in sky if i not in con_stars]
+        if unknown:
+            errors.append(f"{where}: unknown constellation ids {unknown}")
+            continue
+        if len(sky) != len(set(sky)):
+            repeated = sorted({i for i in sky if sky.count(i) > 1})
+            errors.append(f"{where}: constellation repeated within one sky: {repeated}")
+            continue
+        if count == 0:
+            if sky != ["north_star"]:
+                errors.append(
+                    f"{where}: the 0-star sky is the sole non-summing count and must be "
+                    f"exactly ['north_star'], got {sky}"
+                )
+            continue
+        total = sum(con_stars[i] for i in sky)
+        if total != count:
+            errors.append(
+                f"{where}: star values must sum to {count}, got {total} from "
+                f"{[(i, con_stars[i]) for i in sky]}"
+            )
+
+    # Every constellation inside the table's range appears alone at its own
+    # star count -- the wiki's "each constellation always appears by itself
+    # once", and the base case the whole partition is built out of.
+    for cid, stars in con_stars.items():
+        if stars > 49:
+            continue
+        sky = con_table.get(str(stars))
+        if sky is not None and sky != [cid]:
+            errors.append(
+                f"constellations/appearances/{stars}: {cid} has {stars} stars so this "
+                f"count must be exactly [{cid!r}], got {sky}"
+            )
+
     # ── Upgrade Disk terminals ────────────────────────────────────────────────
     # The rooms whose terminal accepts an Upgrade Disk (docs/upgrade-disks-design.md).
     # Blackbridge Grotto is a fifth in the real game but has no record yet.

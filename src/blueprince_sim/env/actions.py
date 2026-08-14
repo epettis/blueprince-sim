@@ -5,7 +5,7 @@ to draft, or a room to enter) and the engine walks the shortest connected
 path, paying the normal one-step-per-room cost. Re-entering rooms grants
 nothing, so free-form single-tile moves were retired.
 
-Layout (Discrete(427)):
+Layout (Discrete(457)):
   0..179   draft at doorway: cell (45) x direction (4: N,E,S,W) ->
            cell*4 + dir_index. Walks to the room first if needed. Legal for
            every frontier doorway reachable with at least one step to spare
@@ -175,6 +175,29 @@ Layout (Discrete(427)):
            use_telescope_planetarium). Reveals one planet (random order,
            Mora always last) and grants its permanent payload; does not
            consume the Telescope.
+  442..456 the constellation block, appended at the end so no earlier id
+           shifts. RESERVED IN FULL: no night sky is generated anywhere in
+           the engine, so every id here is masked False unconditionally
+           (docs/rl-environment.md licenses a reserved id only as a recorded
+           owner ruling, which this is):
+             442..454 activate one constellation, one id per
+                     data/constellations.json record in file order (ascending
+                     star value: north_star, the_twins, the_slice,
+                     diamondus_minor, southern_cross, farmers_apple, clavis,
+                     diamondus_major, draxus, the_sail, florealis, ink_well,
+                     spiral_of_stars). A night sky is the unique set of
+                     constellations whose star values SUM to the star count
+                     it was first viewed at, so activation is per
+                     constellation, never one "activate the sky" id.
+             455     view the night sky: generate today's sky at this cell
+                     (locked to the star count at that moment) or re-open the
+                     one already generated there. An explicit action rather
+                     than an on-entry auto-generation, because higher star
+                     counts partition into strictly more value and the timing
+                     of the look is the decision.
+             456     redraw the dealt hand for 1 star (The Ink Well). Its own
+                     id, never a source folded into REDRAW_ACTION -- see the
+                     constant's comment.
 """
 
 from __future__ import annotations
@@ -349,8 +372,31 @@ _N_WRENCH_RARITIES = len(RARITIES)  # 4; RARITIES is a fixed model constant,
 # use_telescope_planetarium.
 USE_TELESCOPE_PLANETARIUM_ACTION = WRENCH_RARITY_BASE + _N_WRENCH_RARITIES  # 441
 
-# N_ACTIONS = first slot after the Telescope-in-Planetarium action.
-N_ACTIONS = USE_TELESCOPE_PLANETARIUM_ACTION + 1  # 442
+# 442..454: activate one constellation in the night sky, one id per
+# data/constellations.json record in file order (ascending star value:
+# north_star, the_twins, the_slice, diamondus_minor, southern_cross,
+# farmers_apple, clavis, diamondus_major, draxus, the_sail, florealis,
+# ink_well, spiral_of_stars), appended at the end so no earlier id shifts.
+# That file's record order is the single source for this block and for
+# env/obs.py's "constellations" key, the way data/locks.json's
+# special_key_menu.order is for LOCK_SPECIAL_KEY_BASE.
+ACTIVATE_CONSTELLATION_BASE = USE_TELESCOPE_PLANETARIUM_ACTION + 1  # 442
+_N_CONSTELLATIONS = 13  # width pinned as a constant (like _N_AXE_TARGETS) so
+                        # N_ACTIONS stays importable with no Registry loaded;
+                        # tools/validate_data.py holds the record count at 13
+
+# 455: view the night sky (generate or re-open today's sky at this cell).
+VIEW_NIGHT_SKY_ACTION = ACTIVATE_CONSTELLATION_BASE + _N_CONSTELLATIONS  # 455
+
+# 456: redraw the dealt hand by spending 1 star (The Ink Well). A dedicated
+# id, never a source inside REDRAW_ACTION: every other redraw source spends a
+# hand- or day-scoped resource with a natural bound, while a star is permanent
+# and save-scoped with no cap, so folding it in would put an uncapped drain on
+# an id the agent already presses reflexively.
+REDRAW_WITH_STAR_ACTION = VIEW_NIGHT_SKY_ACTION + 1  # 456
+
+# N_ACTIONS = first slot after the Ink Well's star-redraw action.
+N_ACTIONS = REDRAW_WITH_STAR_ACTION + 1  # 457
 
 DIR_INDEX = {d: i for i, d in enumerate(DIRS)}
 
@@ -835,6 +881,16 @@ def action_mask(game: Game, prev_action: int | None = None) -> list[bool]:
     if prev_action is not None and SET_LEVEL_BASE <= prev_action < SET_LEVEL_BASE + 3:
         for i in range(3):
             mask[SET_LEVEL_BASE + i] = False
+    # The constellation block is reserved: no night sky is generated anywhere
+    # in the engine, so none of these ids can ever be pressed. They are written
+    # here rather than left to the `[False] * N_ACTIONS` initialiser so every
+    # declared id has a masking site to point at (docs/rl-environment.md's
+    # rule on reserved versus dead ids) -- this is the site, and it always
+    # writes False.
+    for i in range(_N_CONSTELLATIONS):
+        mask[ACTIVATE_CONSTELLATION_BASE + i] = False
+    mask[VIEW_NIGHT_SKY_ACTION] = False
+    mask[REDRAW_WITH_STAR_ACTION] = False
     return mask
 
 

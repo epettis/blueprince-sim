@@ -39,17 +39,23 @@ never wrong.
 
 | width | value | where |
 |---|---|---|
-| `N_ACTIONS` | **442** | `env/actions.py` |
+| `N_ACTIONS` | **457** | `env/actions.py` |
 | `len(DayChain._CARRYOVER_KEYS)` | **16** | `env/multiday.py`, drives the `carryover` obs Box |
 
-**Standing ruling: `N_ACTIONS` becomes 457.** The constellation build appends
-15 ids — 14 for the constellations themselves, including a **permanently
-masked slot reserved for the Spiral of Stars** so that build later lands at
-zero width and zero extra retrain, plus **one dedicated id for the Ink Well**.
-The width is committed by the first PR of that build and cannot move
-afterward.
+**Last change: 442 → 457, the constellation build's committed width.** The
+whole block landed at once, inert: **13 activation ids**, one per
+`data/constellations.json` record in that file's ascending-star order — which
+includes a **permanently masked slot for the Spiral of Stars**, so that build
+later lands at zero width and zero extra retrain — plus **one id to view the
+night sky** and **one dedicated id for the Ink Well's star-redraw**. Every one
+of the 15 is masked `False` unconditionally today, and the matching
+`constellations` observation key is always zeros.
 
-The Ink Well's separate id is the load-bearing part of that ruling, and the
+**The ruling is now satisfied and the width is closed.** No later PR in that
+build may move `N_ACTIONS` or an observation shape; activating a constellation
+is a masking-site and encoder change only.
+
+The Ink Well's separate id is the load-bearing part of that change, and the
 reason generalises: every other redraw source spends a hand- or day-scoped
 resource with a natural bound, while the Ink Well spends a **permanent,
 save-scoped** one with no cap. Folding it into the existing redraw action would

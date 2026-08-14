@@ -127,6 +127,12 @@ def action_group(action_id: int) -> str:
         return "control"
     if action_id == A.USE_TELESCOPE_PLANETARIUM_ACTION:
         return "use"
+    if A.ACTIVATE_CONSTELLATION_BASE <= action_id < A.VIEW_NIGHT_SKY_ACTION:
+        return "choose"
+    if action_id == A.VIEW_NIGHT_SKY_ACTION:
+        return "use"
+    if action_id == A.REDRAW_WITH_STAR_ACTION:
+        return "control"
     return "other"
 
 
