@@ -1016,7 +1016,7 @@ def lost_and_found_on_enter(game) -> None:
     if held:
         stolen_id = rng.choice("lost_and_found", held)
         if stolen_id == keycard.ITEM_ID:
-            keycard.steal(state)
+            keycard.release(state)
         else:
             remove(state, stolen_id, consumed=True)
 

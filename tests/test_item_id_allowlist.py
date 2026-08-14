@@ -133,11 +133,10 @@ ITEM_ARCHITECTURE: dict[str, set[str]] = {
     },
     "shops.py": {
         # _roll_trade_graph's tier-5 special outcome (50/50 with
-        # allowance_token) and its item.tier == 5 exclusion of "keycard"
-        # from the shuffled cycle (spawned outside the generic pipeline via
-        # special_items.PIPELINE_EXCLUDED) -- table/graph data, not a
-        # per-item behaviour branch.
-        "upgrade_disk_trade", "allowance_token", "keycard",
+        # allowance_token) -- table/graph data, not a per-item behaviour
+        # branch. The Keycard's own trade special-casing names no literal: it
+        # goes through effects/items/keycard.py's ITEM_ID and accessors.
+        "upgrade_disk_trade", "allowance_token",
         # Bacon & Eggs inject_rooms gate-condition frozenset: the same
         # draft-condition tag vocabulary as placement.py's own condition
         # dispatch above (the set also holds non-item tags "breakfast",

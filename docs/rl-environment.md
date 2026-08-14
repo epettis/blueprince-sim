@@ -193,12 +193,12 @@ rendered house can be told instead.
 and `env/actions.py` reserves a matching block of ids. **Beyond the cap an
 entry is never encoded and never masked legal — no assertion, no log.**
 
-The live example: `TRADE_OFFER_ROWS = 8` and `TRADE_BASE..+8` against
-`shops.py::trade_offers`, which emits **one offer per distinct held inventory
-id**. Holding all 12 tier-5 items yields 12 offers and leaves four
+The example that made the rule: `TRADE_OFFER_ROWS = 8` and `TRADE_BASE..+8`
+against `shops.py::trade_offers`, which emitted **one offer per distinct held
+inventory id**. Holding all 12 tier-5 items yielded 12 offers and left four
 **unreachable**. Because offers sort alphabetically for a stable action index,
-the truncated ones are not random: a wall of Sanctum Keys crowds an ordinary
-tier-2 item off the menu, and one of the crowded-out entries is a Sanctum Key
+the truncated ones were not random: a wall of Sanctum Keys crowded an ordinary
+tier-2 item off the menu, and one of the crowded-out entries was a Sanctum Key
 itself.
 
 Two rules follow, and the first is the general one:
@@ -214,11 +214,15 @@ Two rules follow, and the first is the general one:
   [`process.md`](process.md) on telling a decayed note apart from a guard
   removed without reading it.
 
-The ruled fix collapses same-item offers before the sort (a trade-offer
-identity key on the *game* item rather than the sim id), which takes tier 5's
-worst case from 12 to 5 with **no observation-width change and therefore no
-retrain trigger** — and makes raising the cap stop being urgent. Raising the
-cap instead is a width change on the terms above.
+`trade_offers` now collapses same-item offers (a trade-offer identity key on
+the *game* item rather than the sim id, see
+[`special-items-behaviour.md`](special-items-behaviour.md)), which takes tier
+5's worst case from 12 to 5 and the sixteen Upgrade Disks from 16 to 1, with
+**no observation-width change and therefore no retrain trigger**. That is what
+makes raising the cap not urgent rather than what makes it unnecessary: the
+cap is still 8, still silent, and raising it is a width change on the terms
+above. `test_full_tier5_inventory_fits_the_offer_row_cap` is the guard that
+the worst held inventory stays under it.
 
 ## `replays.jsonl` is not a sample
 

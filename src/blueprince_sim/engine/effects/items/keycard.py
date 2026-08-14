@@ -1,11 +1,12 @@
 """Keycard: rolls a per-entry grant chance on arriving at one of locks.json's
 source rooms, opens security doors while held (locks.py's own wiring reads
-``state.has_keycard`` directly), can be stolen by the Lost & Found, and is a
-late-game Garage car trunk pick once the Upgrade Disk has been spent.
+``state.has_keycard`` directly), can be stolen by the Lost & Found or traded
+away at the Trading Post, and is a late-game Garage car trunk pick once the
+Upgrade Disk has been spent.
 
 Lives on ``state.has_keycard`` rather than the inventory dict -- kept there so
 the security-door system stays self-contained -- so every site that grants,
-steals, or queries it goes through this module instead of touching the flag
+releases, or queries it goes through this module instead of touching the flag
 directly.
 """
 
@@ -27,9 +28,15 @@ def grant(state) -> str:
     return ITEM_ID
 
 
-def steal(state) -> None:
-    """Lost & Found steal: clears ``has_keycard`` so the Keycard becomes
-    re-findable via its own source-room rolls again."""
+def release(state) -> None:
+    """Clears ``has_keycard`` so the Keycard becomes re-findable via its own
+    source-room rolls again.
+
+    The counterpart of :func:`grant` for every way the card leaves the
+    player's hands: the Lost & Found steal and the Trading Post give. Neither
+    consumes it -- there is no ``consumed=True`` equivalent, because the card
+    is never spent, only carried.
+    """
     state.has_keycard = False
 
 

@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import json
 import math
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -23,7 +24,8 @@ from pathlib import Path
 # would cycle at module load); special_items imports only model, so it's safe.
 from . import special_items as si
 from .effects import Capability, ItemCapability, item_capability_sum, provides_capability
-from .effects.items import car_keys, lunch_box, repellent, royal_scepter, silver_key, stopwatch
+from .effects.items import (car_keys, keycard, lunch_box, repellent, royal_scepter,
+                            silver_key, stopwatch)
 
 
 # Scepter colors are floorplan categories; the bias entries in
@@ -603,6 +605,81 @@ def _inside_trading_post(game) -> bool:
     return outer_room is not None and outer_room.id == "trading_post"
 
 
+# Trailing "(source)" qualifier on a display name. The sim splits the Sanctum
+# Keys and the Upgrade Disks into one id per source so each source's respawn
+# gates independently; the wiki treats each family as ONE game item for trading,
+# so holding several yields one offer. The name already carries both halves
+# ("Sanctum Key (Clock Tower)"), so stripping the qualifier recovers the game
+# item without a second field that could disagree with it.
+_SOURCE_QUALIFIER = re.compile(r"\s*\([^()]*\)$")
+
+
+def _trade_identity(item) -> str:
+    """The game item ``item`` represents, as the Trading Post counts identity.
+
+    Two sim ids sharing an identity produce ONE offer. Only the Sanctum Keys
+    and the Upgrade Disks share one today; every other item's name has no
+    source qualifier and is therefore its own identity.
+    """
+    return _SOURCE_QUALIFIER.sub("", item.name).strip()
+
+
+def _held_count(state, item_id: str) -> int:
+    """Copies of ``item_id`` in the player's hands, across both storage shapes.
+
+    The Keycard lives on ``state.has_keycard`` (effects/items/keycard.py), not
+    in ``state.inventory``, so every trade-side hold test goes through here
+    rather than reading the inventory dict directly.
+    """
+    if item_id == keycard.ITEM_ID:
+        return int(keycard.held(state))
+    return state.inventory.get(item_id, 0)
+
+
+def _held_tradeable_ids(game) -> list[str]:
+    """Held item ids carrying a Trading Post tier, sorted for a stable order.
+
+    Includes the Keycard when held: it is tier 3 and receivable, and only its
+    storage (``state.has_keycard``) sets it apart from the inventory items.
+    """
+    state = game.state
+    by_id = game.registry.special.by_id
+    ids = [
+        item_id for item_id, cnt in state.inventory.items()
+        if cnt > 0
+        and (item := by_id.get(item_id)) is not None
+        and item.tier is not None
+    ]
+    if keycard.held(state):
+        ids.append(keycard.ITEM_ID)
+    return sorted(ids)
+
+
+def _give_traded_item(state, item_id: str) -> None:
+    """Hand ``item_id`` over: it returns to the spawn pool, not to ``removed``.
+
+    The Keycard leaves through ``keycard.release`` so ``has_keycard`` actually
+    clears and door access goes with it; everything else through
+    ``si.remove(consumed=False)``.
+    """
+    if item_id == keycard.ITEM_ID:
+        keycard.release(state)
+    else:
+        si.remove(state, item_id, consumed=False)
+
+
+def _take_trade_return(state, registry, item_id: str) -> None:
+    """Receive ``item_id`` from a trade.
+
+    The Keycard arrives through ``keycard.grant`` so the flag every door reads
+    is the one that gets set, and no phantom inventory entry is written.
+    """
+    if item_id == keycard.ITEM_ID:
+        keycard.grant(state)
+    else:
+        si.grant(state, registry, item_id, source="trade")
+
+
 def _next_receivable(ids: list[str], receivable: list[bool], start: int) -> str:
     """The next id after ``start`` (cyclically through ``ids``) whose item is
     receivable — a give-only item is never returned.
@@ -626,8 +703,8 @@ def _roll_trade_graph(game) -> None:
     """Build the day's fixed trade mapping and store it on state.shops.trade_graph.
 
     Called lazily on first use inside the Trading Post (substream "trade_graph").
-    For each tier 1–5 the tradeable items (SpecialItem.tier == tier, id != "keycard")
-    are shuffled once into a single order.  The RECEIVABLE ids in that order
+    For each tier 1–5 the tradeable items (SpecialItem.tier == tier) are
+    shuffled once into a single order.  The RECEIVABLE ids in that order
     (SpecialItem.no_receive is False) form a cycle: each points to the next
     receivable id, cyclically, skipping over any give-only ids in between.  A
     give-only id is attached as an extra source pointing at that same next
@@ -670,10 +747,7 @@ def _roll_trade_graph(game) -> None:
     graph: dict[str, str] = {}
 
     for tier in range(1, 6):
-        ids = sorted(
-            it.id for it in registry.special.items
-            if it.tier == tier and it.id != "keycard"
-        )
+        ids = sorted(it.id for it in registry.special.items if it.tier == tier)
         if not ids:
             continue
         game.rng.shuffle("trade_graph", ids)
@@ -719,17 +793,22 @@ def _trade_target_ok(state, registry, item_id: str) -> bool:
     already spawned today (``spawned_today``) is still a valid trade return,
     so an A→B→A cycle really can hand A back — the real-game milking loop —
     bounded only by trades_per_day. Blocked: held uniques, consumed-for-good
-    ids, the keycard, a give-only (no_receive) item, and a second Stopwatch
-    after one already ran today.
+    ids, a give-only (no_receive) item, and a second Stopwatch after one
+    already ran today.
+
+    ``si.PIPELINE_EXCLUDED`` is deliberately NOT consulted: it names what the
+    SPAWN pipeline must not touch, and the Keycard's only obstacle to being
+    traded was where it is stored, which ``_held_count`` and
+    ``_take_trade_return`` now answer.
     """
-    if item_id in si.PIPELINE_EXCLUDED or item_id in state.special.removed:
+    if item_id in state.special.removed:
         return False
     item = registry.special.by_id.get(item_id)
     if item is None:
         return False
     if item.no_receive:
         return False
-    if item.unique and state.inventory.get(item_id, 0) > 0:
+    if item.unique and _held_count(state, item_id) > 0:
         return False
     if stopwatch.blocks_as_trade_return(item, state):
         return False
@@ -765,7 +844,7 @@ def _resolve_trade(state, registry, give_id: str) -> str | None:
             return None
         visited.add(current)
         # Skip if held (player already has it) or not a valid trade return
-        if (state.inventory.get(current, 0) > 0
+        if (_held_count(state, current) > 0
                 or not _trade_target_ok(state, registry, current)):
             # Follow to next in chain
             nxt = graph.get(current)
@@ -780,10 +859,19 @@ def trade_offers(game) -> list:
     """Currently offered trades at the Trading Post (inside it, trades left).
 
     Returns [] when not inside the Trading Post or the daily trade limit is reached.
-    One offer per distinct held tradeable item (SpecialItem.tier not None,
-    id not "keycard") whose trade graph resolves to a grantable terminal.
+    One offer per distinct held GAME ITEM (:func:`_trade_identity`) whose trade
+    graph resolves to a grantable terminal — so eight held Sanctum Keys are one
+    offer, not eight, and sixteen Upgrade Disks are one, not sixteen.
     The ``receive`` field is exposed — the player can see what they will get
     before committing (matching real-game UI).
+
+    ``_held_tradeable_ids`` is walked in sorted order, which fixes both the
+    output order and, within a family, which sim id represents it: the first
+    held id, in id order, whose own graph edge resolves. That is the same
+    "first held id in sorted order" rule ``special_items.open_sigil_door``
+    already uses to pick which Sanctum Key a Sigil door spends, extended past
+    ids whose edge resolves to nothing so a family with any tradeable member
+    always offers one.
 
     The trade graph is rolled lazily on first call inside the post and is FIXED
     for the day.  trades_per_day bounds milking loops (e.g. an A→B→A 2-cycle can
@@ -803,22 +891,18 @@ def trade_offers(game) -> list:
         _roll_trade_graph(game)
 
     offers = []
-    for item_id, cnt in state.inventory.items():
-        if cnt <= 0:
-            continue
-        if item_id == "keycard":
-            continue
-        item = game.registry.special.by_id.get(item_id)
-        if item is None:
-            continue
-        if item.tier is None:
+    offered: set[str] = set()
+    for item_id in _held_tradeable_ids(game):
+        item = game.registry.special.by_id[item_id]
+        identity = _trade_identity(item)
+        if identity in offered:
             continue
         receive = _resolve_trade(state, game.registry, item_id)
         if receive is None:
             continue  # untradeable (self-cycle or full loop)
+        offered.add(identity)
         offers.append({"give": item_id, "tier": item.tier, "receive": receive})
 
-    offers.sort(key=lambda o: o["give"])
     return offers
 
 
@@ -830,6 +914,10 @@ def trade(game, give_id: str) -> None:
     just-removed give_id no longer counts as held, which may change skip-held
     resolution for other items, but give_id's own edge is fixed in the graph).
     Updates state.shops.trades_done.
+
+    ``give_id`` must be the id an active offer names, which for the Sanctum
+    Keys and the Upgrade Disks is the one member of the family that represents
+    it — the other held members are not separately offerable.
     """
     offers = trade_offers(game)
     offer = next((o for o in offers if o["give"] == give_id), None)
@@ -841,7 +929,7 @@ def trade(game, give_id: str) -> None:
     from . import items as items_mod
 
     # Return the given item to the spawn pool (pool return: consumed=False)
-    si.remove(state, give_id, consumed=False)
+    _give_traded_item(state, give_id)
 
     # Re-resolve at trade time: give_id no longer held, may affect skip-held walks
     receive = _resolve_trade(state, registry, give_id)
@@ -852,11 +940,9 @@ def trade(game, give_id: str) -> None:
         match receive:
             case "dice":
                 items_mod.grant_item(game, "die", 1)
-            case "allowance_token":
-                si.grant(state, registry, receive, source="trade")
             case _:
-                # Item id
-                si.grant(state, registry, receive, source="trade")
+                # Item id (including the allowance_token tier-5 special)
+                _take_trade_return(state, registry, receive)
 
     state.shops.trades_done += 1
 

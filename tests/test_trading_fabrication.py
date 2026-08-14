@@ -8,6 +8,7 @@ from blueprince_sim.engine.game import Game
 from blueprince_sim.engine.grid import N
 from blueprince_sim.engine.locks import DOOR_LOCKED, segment_key
 from blueprince_sim.env.multiday import DayChain
+from blueprince_sim.env.obs import TRADE_OFFER_ROWS
 
 
 # ------------------------------------------------------------------ helpers
@@ -111,16 +112,200 @@ def test_trade_offers_lists_only_tradeable_items():
     assert "file_cabinet_key" not in give_ids, "file_cabinet_key (tier=None) must not appear"
 
 
-def test_trade_offers_excludes_keycard():
-    """trade_offers never includes the keycard even if it were in the inventory.
+# ------------------------------------------------- trade-offer identity collapse
 
-    The keycard lives on state.has_keycard; it is excluded by the id guard.
+def test_trade_identity_groups_agree_on_tier_and_receivability():
+    """Sim ids that collapse into one trade offer must agree on tier and on
+    no_receive, or the surviving offer would misreport the terms of the ids it
+    speaks for.
+
+    The identity key strips a display name's trailing source qualifier, so
+    this is also the guard that a future item whose name happens to carry a
+    parenthetical does not silently join a family it does not belong to: the
+    families are pinned by name here, and only these three exist.
     """
     game = _game(seed=0)
-    game.state.inventory["keycard"] = 1  # hypothetically; bypassing pipeline guard
+    groups: dict[str, list] = {}
+    for item in game.registry.special.items:
+        groups.setdefault(shops._trade_identity(item), []).append(item)
+    multi = {name: members for name, members in groups.items() if len(members) > 1}
+    assert set(multi) == {"Sanctum Key", "Upgrade Disk", "Allowance Token"}, (
+        f"unexpected trade-identity families: {sorted(multi)}"
+    )
+    for name, members in multi.items():
+        tiers = {m.tier for m in members}
+        assert len(tiers) == 1, f"{name!r} members disagree on tier: {tiers}"
+        receivable = {m.no_receive for m in members}
+        assert len(receivable) == 1, (
+            f"{name!r} members disagree on no_receive: {receivable}"
+        )
+
+
+def test_all_held_sanctum_keys_produce_a_single_offer():
+    """Holding every Sanctum Key yields exactly one offer, keyed on the first
+    id in sorted order.
+
+    The wiki states each Sanctum Key is considered the same item, so having
+    multiple only produces one trade offer. The sim splits them into one id
+    per source purely so each source's respawn gates independently; that split
+    must not leak into the Trading Post menu. The representative is the first
+    held id in sorted order, the same rule open_sigil_door uses to pick which
+    key a Sigil door spends.
+    """
+    game = _game(seed=0)
+    for key_id in si.SANCTUM_KEY_IDS:
+        game.state.inventory[key_id] = 1
     _set_trading_post_inner(game)
     offers = shops.trade_offers(game)
-    assert all(o["give"] != "keycard" for o in offers)
+    assert [o["give"] for o in offers] == [sorted(si.SANCTUM_KEY_IDS)[0]], (
+        f"eight Sanctum Keys must be one offer, got {[o['give'] for o in offers]}"
+    )
+
+
+def test_all_held_upgrade_disks_produce_a_single_offer():
+    """Holding every Upgrade Disk yields exactly one offer, keyed on the first
+    id in sorted order.
+
+    Same wiki rule as the Sanctum Keys, and the larger of the two families:
+    sixteen ids exhaust the game's whole supply of disks, so sixteen offers
+    would on their own overflow the eight-row offer cap twice over.
+    """
+    game = _game(seed=0)
+    disk_ids = sorted(
+        it.id for it in game.registry.special.items
+        if it.id.startswith("upgrade_disk_")
+    )
+    assert len(disk_ids) == 16, f"expected the game's 16 disks, got {len(disk_ids)}"
+    for disk_id in disk_ids:
+        game.state.inventory[disk_id] = 1
+    _set_trading_post_inner(game)
+    offers = shops.trade_offers(game)
+    assert [o["give"] for o in offers] == [disk_ids[0]], (
+        f"sixteen Upgrade Disks must be one offer, got {[o['give'] for o in offers]}"
+    )
+
+
+def test_full_tier5_inventory_fits_the_offer_row_cap():
+    """Holding all twelve tier-5 items cannot produce more offers than the
+    action space and the observation array can carry.
+
+    Twelve ids are five game items — the eight Sanctum Keys plus
+    cursed_effigy, emerald_bracelet, master_key and ornate_compass — which
+    fits inside TRADE_OFFER_ROWS. Beyond that cap an offer is never encoded
+    and never masked legal, silently, so the worst held inventory staying
+    under it is the property that makes the menu reachable at all.
+    """
+    game = _game(seed=0)
+    tier5_ids = [it.id for it in game.registry.special.items if it.tier == 5]
+    assert len(tier5_ids) == 12, f"tier 5 is the worst case at 12 ids, got {len(tier5_ids)}"
+    for item_id in tier5_ids:
+        game.state.inventory[item_id] = 1
+    _set_trading_post_inner(game)
+    offers = shops.trade_offers(game)
+    keys_offered = [o["give"] for o in offers if o["give"] in si.SANCTUM_KEY_IDS]
+    assert len(keys_offered) <= 1, f"Sanctum Keys must share one offer, got {keys_offered}"
+    assert len(offers) <= 5, (
+        f"12 tier-5 ids are 5 game items, got {len(offers)}: {[o['give'] for o in offers]}"
+    )
+    assert len(offers) <= TRADE_OFFER_ROWS, (
+        f"{len(offers)} offers exceed the {TRADE_OFFER_ROWS}-row cap and truncate silently"
+    )
+
+
+def test_distinct_items_are_never_collapsed_together():
+    """Two items of the same tier that are different game items keep separate
+    offers.
+
+    The collapse is per game item, not per tier — otherwise a tier would
+    become a single menu entry and every item in it but one unreachable.
+    """
+    game = _game(seed=0)
+    game.state.inventory["shovel"] = 1
+    game.state.inventory["sleeping_mask"] = 1
+    _set_trading_post_inner(game)
+    gives = {o["give"] for o in shops.trade_offers(game)}
+    assert {"shovel", "sleeping_mask"} <= gives, (
+        f"two distinct tier-2 items must keep two offers, got {gives}"
+    )
+
+
+# ------------------------------------------------------- the Keycard round trip
+
+def test_a_held_keycard_is_offered_without_an_inventory_entry():
+    """A Keycard held on state.has_keycard is offered at the Trading Post.
+
+    It is tier 3 and the wiki lists it as receivable; only its storage sets it
+    apart, so the offer walk has to read keycard.held rather than scanning the
+    inventory dict, which never contains it.
+    """
+    game = _game(seed=0)
+    game.state.has_keycard = True
+    _set_trading_post_inner(game)
+    offers = shops.trade_offers(game)
+    assert "keycard" not in game.state.inventory, (
+        "the Keycard must never gain a phantom inventory entry"
+    )
+    assert [o["give"] for o in offers] == ["keycard"]
+
+
+def test_giving_the_keycard_away_takes_door_access_with_it():
+    """Trading the Keycard away clears state.has_keycard and leaves no
+    inventory entry behind.
+
+    This is the trap in the naive fix: deleting the exclusion checks and
+    letting si.remove run would take nothing out of state.has_keycard, so the
+    player would keep security-door access for an item they had given away.
+    """
+    game = _game(seed=0)
+    game.state.has_keycard = True
+    _set_trading_post_inner(game)
+    shops.trade(game, "keycard")
+    assert game.state.has_keycard is False, (
+        "giving the Keycard away must clear the flag every security door reads"
+    )
+    assert game.state.inventory.get("keycard", 0) == 0
+
+
+def test_receiving_the_keycard_sets_the_flag_not_an_inventory_entry():
+    """A Keycard received in trade lands on state.has_keycard.
+
+    The other half of the trap: si.grant would write state.inventory["keycard"],
+    which no door code reads, so the player would pay an item for a card that
+    opens nothing. The graph is pinned rather than rolled so the receive is the
+    Keycard by construction.
+    """
+    game = _game(seed=0)
+    state = game.state
+    state.inventory["shovel"] = 1
+    state.shops.trade_graph = {"shovel": "keycard"}
+    state.shops.trade_graph_rolled = True
+    _set_trading_post_inner(game)
+    assert state.has_keycard is False
+    shops.trade(game, "shovel")
+    assert state.has_keycard is True, "a received Keycard must set has_keycard"
+    assert "keycard" not in state.inventory, (
+        "the Keycard must never gain a phantom inventory entry"
+    )
+
+
+def test_a_keycard_already_held_is_skipped_as_a_trade_return():
+    """A held Keycard is skipped as a trade RETURN, like any held unique.
+
+    The skip-held test has to read keycard.held; reading the inventory dict
+    would find nothing and hand a second Keycard to a player who already has
+    one. The graph is pinned so the walk's next hop is known by construction.
+    """
+    game = _game(seed=0)
+    state = game.state
+    state.has_keycard = True
+    state.inventory["shovel"] = 1
+    state.shops.trade_graph = {"shovel": "keycard", "keycard": "dice"}
+    state.shops.trade_graph_rolled = True
+    _set_trading_post_inner(game)
+    offer = next(o for o in shops.trade_offers(game) if o["give"] == "shovel")
+    assert offer["receive"] == "dice", (
+        "a held Keycard must be walked past, not offered again"
+    )
 
 
 def test_trade_offers_sorted_by_id():
@@ -366,17 +551,20 @@ def test_trade_graph_fixed_for_day():
 
 
 def test_trade_graph_covers_all_tradeable_items():
-    """Every tradeable item (tier not None, id not keycard) appears as a key in the graph."""
+    """Every tradeable item (tier not None) appears as a key in the graph.
+
+    Tier membership is the whole rule: an item carrying a Trading Post tier is
+    in its tier's cycle, with no id carved out. The keycard is included like
+    any other tier-3 item -- where it is stored is a concern of the offer and
+    grant paths, not of the graph.
+    """
     game = _game(seed=0)
     state = game.state
     state.inventory["shovel"] = 1
     _set_trading_post_inner(game)
     shops.trade_offers(game)  # trigger roll
     reg = game.registry
-    tradeable_ids = {
-        it.id for it in reg.special.items
-        if it.tier is not None and it.id != "keycard"
-    }
+    tradeable_ids = {it.id for it in reg.special.items if it.tier is not None}
     assert tradeable_ids == set(state.shops.trade_graph.keys()), (
         "trade graph must contain exactly the tradeable item ids"
     )
