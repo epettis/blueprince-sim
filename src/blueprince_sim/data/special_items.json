@@ -118,7 +118,8 @@
     "source": "https://blueprince.wiki.gg/wiki/Coin_Purse",
     "confidence": "wiki",
     "absent_spawn_areas": [],
-    "blocked_on": null
+    "blocked_on": null,
+    "notes": "coin_interest is read by effects/items/coin_purse.py, fired through special_items.py::on_coins_granted: each coin pickup adds to state.special.coin_interest, pays bonus for every whole per, and carries the remainder, which survives losing the purse. A held Lucky Purse wins COINS_GRANTED_PRIORITY outright, so the accumulator never advances beside it -- both as the wiki describes. Not modelled: the wiki's carry-over lockout, under which a Lucky Purse brought into a later day by Coat Check or the Moon Pendant makes the Coin Purse unobtainable that day. shops.py::fabricate consumes the recipe inputs with remove(consumed=True), and state.special.removed is day-scoped -- special_items.py::configure carries no contraption-component channel -- so the Coin Purse stays in the next day's pool."
    }
   },
   {
@@ -231,7 +232,8 @@
     "source": "https://blueprince.wiki.gg/wiki/Hall_Pass",
     "confidence": "wiki",
     "absent_spawn_areas": [],
-    "blocked_on": null
+    "blocked_on": null,
+    "notes": "Both published waivers are live in effects/items/hall_pass.py: an ItemHook.GEM_COST handler zeroes the cost of a hallway drafted from a hallway doorway, and an ItemHook.MOVE_STEP_COST handler zeroes a hallway-to-hallway move, both keyed on the shared _hallway_from_hallway test and on ItemCapability.FREE_HALLWAY_MOVES. Hall Pass sits first in both priority tuples, so a waived move never spends a Stopwatch charge or advances the Running Shoes counter. Not modelled: the wiki's guaranteed spawn, under which drafting the Guest Bedroom from the Cloister of Mila always puts a Hall Pass in it. guaranteed_in is empty, and cloister.py::mark_bedroom_bonus_item instead grants that Cloister's per-bedroom bonus as one ordinary extra pool draw at the bedroom's first entry, naming no item."
    }
   },
   {
@@ -315,7 +317,8 @@
     "source": "https://blueprince.wiki.gg/wiki/Lucky_Rabbit%27s_Foot",
     "confidence": "wiki",
     "absent_spawn_areas": [],
-    "blocked_on": null
+    "blocked_on": null,
+    "notes": "luck_bonus is read by special_items.py::luck_bonus and added to effective luck wherever items are rolled (items.py::roll_ladder_count, items.py::_dowsing_effective_luck, and special_items.py's own spawn roll). The amount is this sim's own figure: the wiki calls the bonus a small amount and publishes no number for it, so the effect is directionally right but its size is unsourced. Not modelled: the wiki's carry-over lockout, under which a Lucky Purse brought into a later day by Coat Check or the Moon Pendant makes the Lucky Rabbit's Foot unobtainable that day. shops.py::fabricate consumes the recipe inputs with remove(consumed=True), and state.special.removed is day-scoped, so the foot stays in the next day's pool."
    }
   },
   {
@@ -392,7 +395,8 @@
     "source": "https://blueprince.wiki.gg/wiki/Metal_Detector",
     "confidence": "inferred",
     "absent_spawn_areas": [],
-    "blocked_on": null
+    "blocked_on": null,
+    "notes": "metal_detector_spawns is read by special_items.py::on_place, which rolls coins_chance and key_chance once each in the room just drafted -- luck-independent and never retroactive, both as the wiki has it. The two percentages are this sim's own; the wiki publishes no numbers for either. Three source claims are not modelled. The coin outcome always grants exactly one coin, where the wiki has the pile size depend on the room. The detection half -- the proximity beep that locates coins, keys and metallic tools, and the Powered Electromagnet suppressing it -- has no representation at all; special_items.py::grant auto-collects every spawned item, so locating one carries no decision. And the wiki's carry-over lockout is absent: a Detector Shovel or Burning Glass brought into a later day by Coat Check or the Moon Pendant should make the Metal Detector unobtainable that day while a Pick Sound Amplifier never does, but shops.py::fabricate consumes the inputs with remove(consumed=True) and state.special.removed is day-scoped, so the detector stays in the next day's pool."
    }
   },
   {
@@ -455,7 +459,8 @@
     "source": "https://blueprince.wiki.gg/wiki/Running_Shoes",
     "confidence": "inferred",
     "absent_spawn_areas": [],
-    "blocked_on": null
+    "blocked_on": null,
+    "notes": "free_move_interval is read by effects/items/running_shoes.py, which waives the step cost of every n-th grid move and advances its own counter on every other one. It sits last in MOVE_STEP_COST_PRIORITY, so a Hall Pass or an active Stopwatch answers first and the counter does not advance -- matching the wiki's rule that a step loss already prevented some other way does not tick the shoes. The cadence itself is this sim's own rule. The wiki's rule is spatial rather than periodic: the position of the last step lost while holding the shoes is recorded, and a later step loss is waived only when the player is far enough from that position in euclidean distance, so walking back and forth between adjoining rooms never triggers the shoes at all, and no fixed number of moves guarantees a trigger. Also not modelled: the extra activation roll the wiki gives for entering anywhere outside the manor, with its own higher rates in the Gemstone Cavern, the Orindian Ruins and the Inner Sanctum. Area hops never consult the shoes -- game.py::travel_to deducts its area_hop steps directly, and special_items.py::move_step_cost is reached only from game.py::move -- so off the grid the shoes do nothing at all."
    }
   },
   {
@@ -524,7 +529,8 @@
     "source": "https://blueprince.wiki.gg/wiki/Shovel",
     "confidence": "datamined",
     "absent_spawn_areas": [],
-    "blocked_on": null
+    "blocked_on": null,
+    "notes": "The dig_tool tag routes each dig spot at the cell through the shovel table in the top-level dig section (special_items.py::dig_all, which picks the best held tool by DIG_PRIORITY), covering the turnip outcome, the trash experiment trigger, and the Kennel's unlock-the-dug-room effect (the_kennel.py::unlock_dug_room, fired for treasure digs too). All three wiki recipes are in the fabrication table. Not modelled: the wiki's carry-over lockout, under which a Jack Hammer or Detector Shovel brought into a later day by Coat Check or the Moon Pendant makes the Shovel unobtainable that day, while a Dowsing Rod never does. shops.py::fabricate consumes the recipe inputs with remove(consumed=True), and state.special.removed is day-scoped -- special_items.py::configure rebuilds gated_out from cfg each morning and carries no contraption-component channel -- so a carried contraption leaves the Shovel in the next day's pool."
    }
   },
   {
@@ -713,7 +719,8 @@
     "source": "https://blueprince.wiki.gg/wiki/Watering_Can",
     "confidence": "wiki",
     "absent_spawn_areas": [],
-    "blocked_on": null
+    "blocked_on": null,
+    "notes": "watering_can.py::on_pickup fills the can to its capacity param and watering_can.py::apply_on_enter converts one charge into one gem on entering a green room, wired in at special_items.py::_on_pickup and special_items.py::on_enter; on_enter runs once per room, which is the wiki's once-per-Green-Room limit. Refills are not modelled. The wiki also refills the can at the Kitchen tap once the Pump Room has flooded it, and at the Trading Post still after the endgame unlock; rooms.json gives pump_room and kitchen no effects, and nothing outside watering_can.py::on_pickup ever writes state.special.water, so a held can is worth at most capacity gems for the whole day. The book-tinting ability the wiki gates behind that same still is not modelled either."
    }
   },
   {
@@ -1205,7 +1212,8 @@
     "source": "https://blueprince.wiki.gg/wiki/Detector_Shovel",
     "confidence": "datamined",
     "absent_spawn_areas": [],
-    "blocked_on": null
+    "blocked_on": null,
+    "notes": "Both inherited halves are live: dig_tool selects the detector_shovel table in special_items.py::dig_all, which prefers it over a held Shovel via DIG_PRIORITY, and metal_detector_spawns is read by special_items.py::on_place for the extra key/coin roll in the room just drafted. The table carries no turnip row, matching the wiki. Two source claims are not modelled. The on_place coin outcome always grants exactly one coin, where the wiki has the pile size depend on the room drafted. And the wiki's carry-over lockout is absent: a Detector Shovel brought into a later day by Coat Check or the Moon Pendant should make both the Shovel and the Metal Detector unobtainable that day, but shops.py::fabricate consumes the inputs with remove(consumed=True) and state.special.removed is day-scoped, so both components stay in the next day's pool."
    }
   },
   {
@@ -1280,7 +1288,8 @@
     "source": "https://blueprince.wiki.gg/wiki/Lucky_Purse",
     "confidence": "wiki",
     "absent_spawn_areas": [],
-    "blocked_on": null
+    "blocked_on": null,
+    "notes": "Both inherited halves are live, but only one of them is in this record's effects. luck_bonus is read by special_items.py::luck_bonus; the coin doubling is registered in Python instead, as ItemCapability.COIN_MULTIPLIER plus an ItemHook.COINS_GRANTED handler in effects/items/lucky_purse.py, which sits first in COINS_GRANTED_PRIORITY and so supersedes the Coin Purse rather than stacking with it. Not modelled: the wiki's carry-over lockout, under which a Lucky Purse brought into a later day by Coat Check or the Moon Pendant makes both the Coin Purse and the Lucky Rabbit's Foot unobtainable that day. shops.py::fabricate consumes the recipe inputs with remove(consumed=True), and state.special.removed is day-scoped, so both components stay in the next day's pool."
    }
   },
   {
@@ -1574,7 +1583,7 @@
     "confidence": "wiki",
     "absent_spawn_areas": [],
     "blocked_on": null,
-    "notes": "Purchase-only (Armory). Permanently zeroes one floorplan family's CHARGED gem cost (engine/state.py::resolve_gem_cost), capped at max_active simultaneously-axed families (Armory stops selling once spent, engine/special_items.py::configure). Deck membership is untouched: axed rooms still behave as gem rooms for drafting purposes (still pair with a free floorplan, still scale with gems in hand and rank) -- a payment-time price override, never a bucket move."
+    "notes": "Purchase-only (Armory). Permanently zeroes one floorplan family's CHARGED gem cost (engine/state.py::resolve_gem_cost), capped at max_active simultaneously-axed families (Armory stops selling once spent, engine/special_items.py::configure). Deck membership is untouched: axed rooms still behave as gem rooms for drafting purposes (still pair with a free floorplan, still scale with gems in hand and rank) -- a payment-time price override, never a bucket move. The wiki's fourth-Axe rule -- using an Axe beyond the cap un-axes the family that was axed last -- is not modelled, and is unreachable: special_items.py::configure appends the_axe to gated_out once the cap is spent, and _is_available rejects any gated_out id on every grant path, so no further Axe can be obtained."
    }
   },
   {
