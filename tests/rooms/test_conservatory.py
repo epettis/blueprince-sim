@@ -18,6 +18,9 @@ Tests:
 4. ``test_no_per_hand_reroll_consumption``: after placement, ordinary hands
    consume nothing from the ``conservatory_reroll`` substream — the effect is
    one-time, not per-hand.
+5. ``test_reroll_move_stays_consistent_with_set_dynamic_rarity``: a card the
+   reroll moves to a new rarity bucket is where a later ``set_dynamic_rarity``
+   call (e.g. a same-day Gear Wrench pick) can find it.
 """
 
 from __future__ import annotations
@@ -26,6 +29,7 @@ import pytest
 from scipy import stats
 
 from blueprince_sim.config import GameConfig
+from blueprince_sim.engine.decks import set_dynamic_rarity
 from blueprince_sim.engine.game import Game
 from blueprince_sim.engine.grid import N, S
 
@@ -92,6 +96,61 @@ def test_conservatory_moves_deck_cards():
     # card moves for a given seed are (1/4)^3; requiring >= 8/10 seeds to
     # change keeps this far from flaky.
     assert n_changed >= 8, f"deck composition changed for only {n_changed}/10 seeds"
+
+
+def test_reroll_move_stays_consistent_with_set_dynamic_rarity():
+    """A room whose card the Conservatory reroll moves to a new rarity bucket
+    must be findable there by a LATER set_dynamic_rarity call on that same
+    room (e.g. a same-day Gear Wrench pick) -- not silently missed because
+    the reroll left state.dynamic_rarity unset while the card itself sits
+    somewhere other than the room's natal bucket. Before this was fixed,
+    set_dynamic_rarity trusted state.dynamic_rarity (defaulting to the room's
+    static rarity_idx) to find the card's CURRENT deck, so a reroll-moved
+    card was searched for in the wrong deck, found zero copies, and the
+    requested move was silently dropped -- corrupting decks.py's own
+    solitaire invariant (a room's live cards must sit in exactly the bucket
+    its bookkeeping claims) without raising anything.
+    """
+    cfg = GameConfig()
+    game = Game(cfg, seed=0)
+    game.reset(0)
+    conservatory = game.registry.by_id["conservatory"]
+
+    before = [list(d.order) for d in game.state.decks]
+    game._place_room(conservatory, CONSERVATORY_CELL, S)
+    after = [list(d.order) for d in game.state.decks]
+
+    # Locate a card the reroll actually relocated to a different rarity
+    # bucket (test_conservatory_moves_deck_cards already establishes seed 0
+    # is one of the >= 8/10 seeds where this happens).
+    moved = None
+    for gem_bit in (0, 1):
+        for r_old in range(4):
+            left = set(before[r_old * 2 + gem_bit]) - set(after[r_old * 2 + gem_bit])
+            for room_idx in left:
+                for r_new in range(4):
+                    if r_new != r_old and room_idx in after[r_new * 2 + gem_bit]:
+                        moved = (room_idx, gem_bit, r_old, r_new)
+    assert moved is not None, "seed 0 must move at least one card for this regression to run"
+    room_idx, gem_bit, r_old, r_new = moved
+    room = game.registry.rooms[room_idx]
+    is_gem = bool(gem_bit)
+
+    # A third bucket, distinct from both the natal rarity and the reroll's
+    # destination, so a false pass via set_dynamic_rarity's own no-op
+    # idempotence (target == current) is impossible.
+    target = next(r for r in range(4) if r not in (r_old, r_new))
+    set_dynamic_rarity(game.state, game.registry, room.id, target, game.rng)
+
+    assert game.state.deck(target, is_gem).order.count(room.idx) == 1, (
+        f"{room.id}: set_dynamic_rarity did not place the card in the requested "
+        f"bucket {target} -- it looked in the wrong (natal) bucket instead of "
+        f"where the Conservatory reroll actually left it"
+    )
+    assert game.state.deck(r_new, is_gem).order.count(room.idx) == 0, (
+        f"{room.id}: card is still present in its post-reroll bucket {r_new} "
+        f"after being moved -- it now has copies in two buckets at once"
+    )
 
 
 @pytest.fixture(scope="module")

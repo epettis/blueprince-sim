@@ -17,4 +17,4 @@ REROLL_COUNT = 3
 
 @room_hook("conservatory", Hook.ON_PLACE)
 def reroll_deck_rarities(game, room, ctx_room) -> None:
-    reroll_random_rarities(game.state, game.rng, count=REROLL_COUNT)
+    reroll_random_rarities(game.state, game.registry, game.rng, count=REROLL_COUNT)
