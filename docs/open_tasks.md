@@ -855,6 +855,49 @@ around 1,800 LOC.
 
 ## Decisions log
 
+- **2026-08-14, CONTAINER DEBT: took the free win, DEFERRED the
+  `provides_containers` refactor. And found the shape of a whole bug class.**
+
+  Scoping said the room-id allowlist would shrink 8 -> 5 (AST-verified), at
+  ~130 LOC, fixing **no divergence**. Its own confidence that this was worth
+  spending *now* was **65%**. With two substantive items gated on owner
+  rulings, a style-rule PR is the wrong trade -- **deferred, not rejected**.
+
+  The scoping also **corrected the orchestrator**: the claim that the Break
+  Room's payoff would repeat here conflated two different lists. The room-id
+  allowlist is a **dumb string-literal scan with no registry awareness**; the
+  audit-exemption list is the one that consults `registered_rooms()`. Those two
+  payoffs are **decoupled** -- one shrink here, not two.
+
+  **What shipped instead (#270), and why it is the more valuable half:**
+  `_AUDIT_PYTHON_EXEMPT_IDS["mechanarium"]` was dead. Not *wrong* --
+  **superseded**. `draft.py:729` still branches on `room.id == MECHANARIUM_ID`
+  for the door mask, exactly as the entry's comment claimed, so the entry was
+  truthful to its last day. The room simply later gained a `room_hook` that
+  `find_divergences` can see for itself, and the exemption quietly stopped
+  doing anything.
+
+  **The generalisable lesson: a liveness check is not a necessity check.** The
+  channel asked "is the code this entry names still there?" (yes, forever) and
+  never asked "would the audit still flag this without me?" (no, for months).
+  Any exemption, allowlist, or suppression list needs the *second* question, or
+  it accretes entries that are individually defensible and collectively dead.
+  The deferred channel already had that test; the Python channel now does too.
+  Dict is 15 -> 14 entries; each of the 15 was tested by removal against real
+  `rooms.json`, and `mechanarium` was the only dead one.
+
+  **Known limit, recorded rather than hidden:** the new guard uses constructed
+  records (as the whole file does, deliberately, to pin the rule and not
+  today's finding count). It catches an exemption superseded by a `room_hook`
+  -- how this one died -- but **not** one superseded by `effects` being
+  authored into the room's data record. That second path was checked by hand
+  across all 15 entries here and is **not yet automated**.
+
+  Also removed: a `room_cells.get()` whose value was discarded by a callee that
+  never reads the argument. `pull_west_lever` **keeps** the parameter -- it is
+  the shared `LeverPullFn` signature, and `throne_room`/`weight_room` ignore it
+  identically; only `great_hall` reads it.
+
 - **2026-08-13, THE CONSERVATORY: researched to datamined ground truth, and it
   is CORRUPTING `gear_wrench` 14.3% of the time. Four rulings outstanding.**
 
