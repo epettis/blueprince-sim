@@ -122,8 +122,6 @@ ALLOWLIST: dict[str, set[str]] = {
         # Fixture lookups in reset()/anchor-building: the day always starts
         # in the Entrance Hall and the Antechamber is placed as a fixture.
         "entrance_hall", "antechamber",
-        # room.id == "break_room__ix11": one-day keycard pulse grant.
-        "break_room__ix11",
         # by_id["clock_tower"].idx grid-presence check: day-end Tomorrow-room
         # key tally, gated on the Clock Tower itself being on the grid.
         "clock_tower",

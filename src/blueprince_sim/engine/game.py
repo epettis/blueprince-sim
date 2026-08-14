@@ -2837,11 +2837,6 @@ class Game:
             room = self.registry.rooms[st.grid[st.pos]]
         if room is not None:
             effects.fire(self, room, Hook.ON_DAY_END)
-        # Break Room: "call it a day" here (the day ending while the player stands
-        # in the room) grants a starting keycard tomorrow. Grid-only (Break Room has
-        # no off-grid presence), and a one-day pulse -- see state.break_room_keycard.
-        if room is not None and room.id == "break_room__ix11":
-            st.break_room_keycard = True
         # Clock Tower: a day-end tally over the WHOLE grid, not ON_DAY_END (which
         # only fires for the room the player is standing in) -- the effect counts
         # every Tomorrow room present in the mansion, including the Clock Tower

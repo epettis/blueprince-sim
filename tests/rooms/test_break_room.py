@@ -7,6 +7,15 @@ player action -- every day ends through Game._check_termination (out of
 steps or dead end) -- so that termination path is where the room check
 lives. Per the wiki this is a one-day pulse, not a permanent unlock: ending
 a later day elsewhere does not keep granting the keycard.
+
+The pulse is implemented by a ``room_hook`` registered at Hook.ON_DAY_END
+(engine/effects/rooms/break_room.py), fired through the same
+``effects.fire(self, room, Hook.ON_DAY_END)`` call Game._terminate already
+makes for every room's day-end effects -- no id-hardcoded branch remains in
+game.py. This is the room's own dedicated test file, so the room_hook's
+tests live here rather than in tests/test_effect_hooks.py, which covers the
+Hook enum's firing mechanics generically (probe tags), not any one room's
+handler.
 """
 
 from blueprince_sim.engine.game import Game
@@ -29,6 +38,28 @@ def test_ending_the_day_in_break_room_grants_a_keycard_the_next_day(registry, cf
     chain.advance(g1.carryover())
     g2 = Game(chain.next_config(), seed=2)
     assert g2.state.has_keycard
+
+
+def test_merely_entering_break_room_does_not_grant_a_keycard(registry, cfg):
+    """Walking through Break Room and ending the day in a LATER room leaves
+    the flag unset: the pulse is gated on where the day terminates, not on
+    having stepped inside at some earlier point (ON_ENTER carries no handler
+    for this room -- only ON_DAY_END does)."""
+    chain = DayChain(cfg, n_days=5)
+    g1 = Game(chain.next_config(), seed=1)
+    room = registry.by_id["break_room__ix11"]
+    corridor = registry.by_id["corridor"]
+    g1._place_room(room, 7, N | S)
+    g1._place_room(corridor, 12, N | S)
+    g1.move(N)  # entrance -> Break Room (first entry)
+    g1.move(N)  # Break Room -> corridor
+    g1.state.steps = 0
+    g1._check_termination()
+    assert not g1.state.break_room_keycard
+
+    chain.advance(g1.carryover())
+    g2 = Game(chain.next_config(), seed=2)
+    assert not g2.state.has_keycard
 
 
 def test_ending_the_day_elsewhere_does_not_grant_a_keycard(registry, cfg):
