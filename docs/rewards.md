@@ -5,32 +5,71 @@ The Gymnasium env's reward is pluggable (`env/rewards.py`, selected with
 called once per env step with the game, a pre-step snapshot, and the
 terminated flag; `REWARDS` maps names to functions.
 
+## The three milestones
+
+All three reward functions share one objective signal, paid on the **first**
+occurrence of each event in a day (an event flag on `GameState`, not a
+terminal-step test):
+
+| Milestone | Reward | Why |
+|---|---|---|
+| Antechamber, first arrival of the day | `+0.25` | prerequisite; where the day has to end up anyway |
+| Antechamber north door opened | `+0.50` | the thing standing between the estate and Room 46 |
+| Room 46, first arrival of the day | `+1.00` | the win |
+
+The ordering tracks a real dependency chain, not merely a numeric one: the
+Sanctum route runs Antechamber → Sanctum → back to the Antechamber → Room 46,
+and `0.25 < 0.5 < 1.0` pays each step of it in order.
+
+**The north-door reward is for the door opening, not for standing in the
+Sanctum**, and **both levers pay it** — the Inner Sanctum's main lever and the
+Throne Room's backup. They accomplish the same thing, so the reward stays
+neutral about which route a policy learns. It is set at the two lever call
+sites, unified through one `Game._open_north_door()` helper so they cannot
+drift, and is **never** derived from the north segment's own door state: with
+`antechamber_levers=False` the segment is never sealed to begin with, so a
+state-derived reward would pay `+0.5` for free on every day of the pre-lever
+baseline that config exists to reproduce. A dedicated test in
+`test_sanctum_route.py` guards it.
+
 ## `sparse`
 
-`1.0` on the terminal step of a won day (the player walked into the
-Antechamber), `0.0` everywhere else. The cleanest signal — exactly the
+The three milestones and nothing else. The cleanest signal — exactly the
 objective — but with 50–70 decisions per episode and single-digit win
 rates early in training, it is a needle-in-a-haystack signal for PPO.
 
 ## `shaped`
 
-A dense signal that decomposes progress per decision:
+A dense signal that decomposes progress per decision, on top of the
+milestones:
 
 - **Rank progress**: `+0.1` per rank of new deepest-rank progress
   (`deepest_rank` delta). Reaching rank 9 from rank 1 is worth ~0.8 total —
   most of a win — spread over the run.
 - **Resource delta**: `+0.01 ×` the value-weighted change in gems, keys,
-  coins and dice. The weights come from `item_values` in `data/tuning.json`
-  (key 3.0, gem 3.0, coin 1.0, die 4.0) — the same relative values the
-  greedy policies use; they are hand-tuned, not game data. Spending
+  coins, dice **and held special-item value**. The weights come from
+  `item_values` in `data/tuning.json` (key 3.0, gem 3.0, coin 1.0, die 4.0) —
+  the same relative values the greedy policies use; they are hand-tuned, not
+  game data. Including `inventory_value` is what makes a purchase read as a
+  trade of coin value for item value rather than a pure loss. Spending
   resources (keys on locks, gems on rooms) is a small negative that the
   downstream progress reward has to justify.
-- **Time pressure**: `−0.001` per decision, a light incentive to finish.
-- **Win bonus**: `+1.0` on the terminal step of a won day, same as sparse.
+- **Path preservation** (`phi_paths`): a potential encoding the two-open-paths
+  doctrine — `0.0` while two or more routes to the Antechamber survive,
+  `−0.15` at exactly one, `−1.0` at zero. The draft that seals the last route
+  eats ~`−1.0`, dwarfing any dead-end room's payout, and reopening a route
+  pays it back. On a winning step the Antechamber is already reachable, so the
+  potential is 0 and the milestone rewards are undiluted; a `dead_end`
+  termination arrives with the sealing penalty already charged on the prior
+  draft.
+- **Time pressure**: `−0.001 × max(1, steps_spent)` — priced against the
+  resource that actually ends runs. Step *gains* (food, the Orchard bonus) are
+  clamped to zero spent rather than turned into a bonus, and the floor of 1
+  means a zero-step decision still pays the flat `−0.001`.
 
 Steps are deliberately absent from the resource delta: step spend is
-already priced implicitly through the time-pressure term and the fact that
-running dry ends the day.
+already priced through the time-pressure term and the fact that running dry
+ends the day.
 
 ## `phased`
 
@@ -38,8 +77,12 @@ A two-phase variant of `shaped` built around the lock system: gather
 resources in ranks 1–4, then spend keys and keep pathways open in the
 upper ranks. Locks never roll by chance below rank 4 and climb from 25%
 to 130% by ranks 8–9, so keys are worth far more late — the flat resource
-delta in `shaped` can't express that. Three terms differ; gems/coins/dice
-deltas, the `−0.001` time pressure, and the `+1.0` win bonus are the same.
+delta in `shaped` can't express that. Three terms differ; the gems/coins/dice
+and held-item deltas, the path-preservation potential, the step-scaled time
+pressure and the three milestones are the same. The time-pressure term is kept
+in lockstep with `shaped` deliberately — its own docstring promises they
+match, and a silent divergence between reward modes surfaces months later as
+an unreproducible run.
 
 - **Back-loaded rank progress**: `+0.05` per rank through rank 4,
   `+0.15` per rank for ranks 5–9 (`0.90` total, vs `shaped`'s flat
@@ -71,12 +114,67 @@ shift their baselines.
 
 ## Snapshot mechanics
 
-`snapshot(game)` captures `deepest_rank`, the resource counters, and the
-`phased` potentials (`phi_keys`, `phi_frontier`) before each action; the
-reward reads deltas against it after the action resolves.
+`snapshot(game)` captures `deepest_rank`, the resource counters, held
+inventory value, the three milestone flags, and the potentials (`phi_keys`,
+`phi_frontier`, `phi_paths`) before each action; the reward reads deltas
+against it after the action resolves.
 The env owns calling it — reward functions are pure and stateless, so new
 shapes can be added by writing one function and registering it in
 `REWARDS`.
+
+## The horizon spans days
+
+A mid-attempt day ending is reported as `terminated=False, truncated=True`
+rather than `terminated=True`. SB3's `DummyVecEnv` turns that into
+`info["TimeLimit.truncated"]=True`, which makes
+`OnPolicyAlgorithm.collect_rollouts` bootstrap `V(terminal_observation)`, so
+cross-day investment becomes real value the agent can discover. Only the final
+day of an attempt (`current_day >= n_days`) is a true terminal.
+
+This is the correct model rather than merely the cheap one: the day boundary is
+genuinely non-absorbing. Per-day telemetry is unaffected — `EpisodeRecorder`,
+`DraftStats`, `AreaStats` and the win-rate counter all fire on
+`done = terminated | truncated`, which is still True at day end.
+
+**Bootstrapping is only half of it.** `V(s)` also has to be able to tell a
+heavily-upgraded attempt from a fresh one, so four observation keys expose what
+was accumulated: `day` (`[current_day, days_remaining]`), `carryover` (the
+carry-over bools, sorted — see
+[`scoping-and-carryover.md`](scoping-and-carryover.md)), `upgrade_slots` (one
+bit per slot, in `upgrades.all_slot_ids()` order), and `disks_spent` (how many
+finite one-time disk sources are used up).
+
+`gamma` is 0.999 and exposed as a `--gamma` flag. A day measures ~31 env steps,
+so 0.999 already gives ~32 days of lookahead; the discount was never the
+bottleneck. (`max_env_steps = 1000` is a safety cap, not a typical day, and
+reasoning about the horizon from it gives the wrong answer.)
+
+## Deliberate divergences
+
+- **Credit propagates by one-step TD, not by GAE across the attempt.** The
+  truncation bootstrap is unbiased but slower to propagate than multi-step
+  returns; a within-attempt rollout would expose every cross-day transition to
+  GAE at once. This is a convergence-speed cost, accepted, not a correctness
+  one.
+- **The per-day reward ceiling is 1.75, up from 1.25.** The shaping constants
+  were *not* rescaled when the north-door tier was added. If a retrain shows
+  the dense terms drowned out, this is the first place to look.
+- **The Throne Room is priced above the Antechamber.** Drafting and entering
+  one grid room pays `+0.5` while the whole rank-9 grind pays `+0.25`. That is
+  the honest consequence of pricing the door rather than the walk, but it is an
+  incentive inversion: it cannot repeat *within* a day, and nothing stops it
+  repeating across the days of an attempt. Watch `P(north door opened)` against
+  `P(reach Room 46)`; a wide gap is the signature.
+- **Time pressure was recalibrated on principle, not on proof.** Moving from a
+  flat per-decision charge to a per-game-step one is a correction — a travel
+  hop consuming 4–8 steps had cost the same as a 1-step move while
+  `out_of_steps` causes 68% of terminations — but the measurement behind it
+  came from a 50k-episode policy that travels heavily regardless. The
+  magnitude is not cosmetic: measured across 329 episodes the mean per-episode
+  time term moved `−0.04494 → −0.08257`, about 1.84×.
+- **`item_values` are hand-tuned, not game data**, and the `key` weight in
+  `data/tuning.json` is deliberately untouched — it is shared with the greedy
+  policies, and raising it would silently shift their baselines.
 
 ## The proposed investment bonus for permanent upgrades
 

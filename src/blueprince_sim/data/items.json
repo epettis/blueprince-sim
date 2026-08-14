@@ -5,7 +5,7 @@
   "meta": {
    "confidence": "wiki",
    "source": "blueprince.wiki.gg/wiki/Luck: start at 10",
-   "notes": "day_start sets state.luck at the start of each day (Game.reset) and is the base luck value item_ladder bands below key off of (owner ruling, docs/open_tasks.md decisions log 2026-08-13). The live Rabbit's Foot/Lucky Purse amount is special_items.json's own luck_bonus effect param. Per-draft luck banding lives in item_ladder below."
+   "notes": "day_start sets state.luck at the start of each day (Game.reset) and is the base luck value item_ladder bands below key off of (docs/luck.md). The live Rabbit's Foot/Lucky Purse amount is special_items.json's own luck_bonus effect param. Per-draft luck banding lives in item_ladder below."
   }
  },
  "item_ladder": {

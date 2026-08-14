@@ -66,8 +66,11 @@ Luck Penalty), 95% for 2 items (+1 Luck Penalty).
 **Luck Penalty** (`state.luck_penalty`) is a separate per-day accumulator,
 grown by the bands/outcomes above, then subtracted from luck to form the NEXT
 draft's effective luck. It is not itself luck, is not clamped, and resets to
-0 at day start alongside luck (the wiki never states its reset scope; this is
-an owner ruling, `docs/open_tasks.md` decisions log).
+0 at day start alongside luck. The wiki mentions the Luck Penalty on exactly
+three pages and **never states its reset scope**; per-day is an owner ruling.
+Per-day also avoids a real cost: a per-save penalty would have needed a new
+carry channel, because `DayChain._CARRYOVER_KEYS` holds bools only and cannot
+hold an int (see [`scoping-and-carryover.md`](scoping-and-carryover.md)).
 
 Effective luck can also decide a bonus special-item spawn: at
 `spawn_rules.high_luck_at` (16) or above, a luck-proc's special-item pool
@@ -82,6 +85,16 @@ luck resolves through the ladder's lowest band the same as any other value:
 - **Maid's Chamber** (`anti_luck`): −7 luck on placement (wiki DataMinedBox:
   "Maid's Chamber: -7 when drafted"). As a red-room penalty it is negated by
   Shelter.
+
+  The magnitude is **provable, not a trust call**, and the proof is why the
+  clamp above had to go. The Dowsing Rod's datamined box says its low-luck
+  branch is reachable *"only ... having 4 Maid's Chambers drafted"*. At −7,
+  four drafted gives `10 − 28 = −18` stored luck, `+32` (the Rod's own bonus)
+  `= 14`, which is ≤18 and matches; three drafted gives 21, which does not. At
+  −3 the same arithmetic gives 30 and the branch is unreachable at any count.
+  Only −7 satisfies both halves, and reaching −18 is what requires luck to go
+  unclamped. The derivation lives in `tests/rooms/test_maids_chamber.py`'s
+  docstring so it cannot be "simplified" back.
 - **Root Cellar**: no luck effect modelled. Its real effect spreads dig spots
   to other rooms, which needs a house-wide dig-spot model this sim does not
   have; the wiki's datamined luck-modifier list does not include it either.
@@ -114,4 +127,33 @@ this mechanic.
 `data/tuning.json` carries an `item_values` block (key 3.0, gem 3.0,
 coin 1.0, die 4.0, step 0.5). These are **not game data** — they are the
 relative resource values used by the shaped reward function and the greedy
-policies (see `docs/rewards.md` and `docs/greedy-strategy.md`).
+policies (see [`rewards.md`](rewards.md) and
+[`greedy-strategy.md`](greedy-strategy.md)). They live in `tuning.json` rather
+than `items.json` precisely because `items.json` holds published game tables
+only; mixing sim tuning into it is the filing error that made the luck data a
+second source of truth.
+
+## Deliberate divergences
+
+- **Per-room count transforms are modelled for 5 rooms out of ~170.** The
+  `/Luck` page states *"Most rooms don't use the item count given directly"*,
+  and only Nook, Study, Guest Bedroom, Den and Lost & Found have a published
+  transform. **A faithful ladder applied uniformly is still wrong for the
+  other 165 — just wrong differently than before.** Accepted knowingly; play
+  observation is the only path to the rest.
+- **`additional_max` is not game data.** It is a per-category default in
+  `tools/ingest_sheet.py`'s `ADDITIONAL_MAX_DEFAULT`, whose own comment admits
+  the Item Spawns table is Cloudflare-blocked and the values are
+  community-informed estimates. It is an honest stand-in for an unmodellable
+  spawn-pool cap, not a published number.
+- **The extra-item *kind* weights are inferred**, not datamined: coins 40,
+  key 25, gem 25, die 10 (confidence: `inferred` in `data/items.json`). The
+  ladder decides *how many*; nothing published decides *which*.
+- **The Root Cellar has no luck effect.** Its real effect spreads dig spots to
+  other rooms, which needs a house-wide dig-spot model this sim does not have.
+  The wiki's datamined luck-modifier list does not include it either, so
+  nothing is lost on the luck axis specifically.
+- **Every expectation in the luck tests is a hard-coded wiki literal.** No test
+  may derive an expectation by calling the function under test or by reading
+  the same data file the engine reads — that anti-pattern produced two tests
+  that passed for any value of the constant they claimed to pin.

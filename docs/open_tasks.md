@@ -9,6 +9,38 @@ The file reads in three parts: **open tasks** (numbered sections), then the
 which is always the last section. Lessons about *how to work* are not here; they
 are in [`process.md`](process.md).
 
+## How to cite this file
+
+**The decisions log records what was true when each entry was written; the
+topic docs record what is true now.** Readers have repeatedly taken the first
+for the second, and four false claims propagated out of this file in a single
+day before a fifth was caught.
+
+So a cross-reference in `src/`, `tests/`, `tools/`, `data/` or another doc must
+point at **the doc that owns the rule**, never at the log. `open_tasks.md` may
+be cited for exactly two things:
+
+- a **numbered open task**, cited by number — `open_tasks.md` task 11;
+- an **open owner question**, cited as task 23's item — `open_tasks.md` §23 A.
+
+Anything else — a mechanic, a magnitude, a ruling, a doctrine, a deliberate
+divergence — cites the topic doc that owns it. If nothing owns it yet, that is
+the signal to create or extend a topic doc, not to cite the log. In particular
+**do not write "owner ruling, see the decisions log"**: state the rule in the
+topic doc and cite that, because the reason a rule holds is not the same fact
+as who said it.
+
+Current owners:
+[`scoping-and-carryover.md`](scoping-and-carryover.md) (persistence scope and
+the carry channels), [`doctrine.md`](doctrine.md) (sources of truth,
+assumed-solved, trophies, the acceptance bar), [`luck.md`](luck.md),
+[`locking.md`](locking.md), [`rewards.md`](rewards.md),
+[`foundation-design.md`](foundation-design.md), [`areas.md`](areas.md),
+[`drafting.md`](drafting.md), [`special-items-design.md`](special-items-design.md),
+[`experiments-design.md`](experiments-design.md),
+[`upgrade-disks-design.md`](upgrade-disks-design.md),
+[`greedy-strategy.md`](greedy-strategy.md), [`process.md`](process.md).
+
 ## 1. Resource spreading through the house
 
 Several rooms scatter resources into OTHER rooms when drafted, rather than granting
@@ -2183,50 +2215,6 @@ pending that primitive.
     `persistence: "until_used"` means it returns every day forever as a dead
     inventory slot. Couples to the reclassification ruling.
 
-- **2026-08-13, the locked-door legality rule was written FOUR times and had
-  drifted in three of them.**
-
-  The rule "can this locked doorway be opened" existed in: the action mask
-  (fixed #234), `doorway_passable`, `frontier_doorway_triable` (#246 unified two
-  of them deliberately), and **`_action_in_budget`'s end-of-day check**, which
-  was missed. That fourth copy carried **two errors in opposite directions** on
-  one line: it counted only regular keys (so a Master Key holder at zero keys
-  could have the day end with an openable door in reach) and hardcoded a cost of
-  `1` instead of `lock_open_cost` (so a 3-key Great Hall door read as costing
-  one). A **third** divergence -- the Stopwatch refund, honoured by
-  `can_use_key_at_lock` -- was found during review of the fix itself and closed
-  in the same PR.
-
-  **The durable output is not the fix.**
-  `test_frontier_lock_affordability_agrees_with_the_lock_pending_menu` now pins
-  **all four** affordability paths against what the menu actually accepts. **A
-  rule written N times needs an agreement test, not N careful edits.**
-
-  **Also recorded:** `_nav_bfs` models only the Master Key for path costs, never
-  the Stopwatch, so `path_key_cost` is deliberately not refund-adjusted --
-  doing so would require simulating one global charge depleting in walk-order
-  across every locked door en route. A separate pre-existing gap in
-  `key_cost_map`.
-
-- **2026-08-13, `prism_key` needed no new action id, because the locked-door PR
-  had reserved one.** Its blocker (`special_key_menu_choice_not_modeled`) was
-  discharged by `Phase.LOCK_PENDING`, which appended nine ids including three
-  **reserved and permanently masked** for keys not yet buildable. Making the
-  Prism Key row live was un-reserving exactly one. `N_ACTIONS` stayed **436**.
-
-  **Reserving ids for known-future rows is cheap and it worked** -- a reserved
-  id costs one permanently-False mask slot and never shifts later. `key_8` and
-  `secret_garden_key` stay reserved: both are modelled here as
-  `draft_conditions` tags, **not door keys at all**, so their menu behaviour is
-  unimplemented in *both* directions.
-
-  Its colour is never a player pick, so it threads a colour through
-  `_continue_draft` rather than entering `COLOUR_PENDING`, whose mask offers all
-  five colours for the Secret Passage's genuine choice. **A consequence falls
-  out for free:** `_continue_draft` takes the Secret-Passage branch only when
-  `colour is None`, so a Prism Key used on a Secret Passage door **takes
-  priority**, which is exactly what the wiki specifies.
-
 - **2026-08-13, THE LUCK MODEL IS BEING REBUILT. Four owner rulings, and the
   discovery that the sim's luck axis is largely invented.**
 
@@ -2772,70 +2760,6 @@ pending that primitive.
   the learning problem strictly harder by removing information the agent has
   today. **Faithfulness bought with sample efficiency** -- escalate separately;
   do not ride it in on the menu work.
-
-- **2026-08-12, OWNER RULING: opening a locked door becomes an explicit player
-  decision. This supersedes `prism_key` as a one-item change and creates a
-  subsystem.** In the owner's words:
-
-  > "First, you have to try the door to determine if it is locked or not. If
-  > it's locked, you have to choose how to open it. You can try a lockpicking
-  > tool, a standard key, or a special key. This order is important because the
-  > player may want to save their keys and use more steps to find an unlocked
-  > door rather than using a key in the current room. This also facilitates
-  > using special keys like Room 8 Key, Secret Garden Key, Silver Key, and
-  > Prism Key even when a regular key can do the trick because they bias the
-  > pool towards a single room or particular type of room."
-
-  **Four things this makes true that were not before:**
-  1. **Trying a door is a distinct step from opening it**, and it is what
-     reveals whether the door is locked.
-  2. **The opening method is chosen**, not inferred: lockpicking tool vs
-     standard key vs special key.
-  3. **Declining is a real play.** Spending steps to find an unlocked door
-     instead of spending a key is a strategy the model must be able to express.
-  4. **A special key may be used even when a standard key would work**, because
-     the special key biases the draft pool. This is the point the current code
-     forecloses most completely.
-
-  **What this says about the code today, none of which was previously
-  flagged as a defect:** `game.py::_unlock_for_passage` spends the **Silver Key
-  automatically and unconditionally** on every locked draft-open while it is
-  held -- no choice, no decline -- and `special_items.py::open_locked_free` then
-  hardcodes the precedence Master Key -> Stopwatch -> `pick_sound_amplifier` ->
-  `lock_pick_kit`. The player never chooses, so ruling 4 is not merely
-  unimplemented: it is actively prevented.
-
-  **Two narrow designs were on the table and are both dead**: a single "arm the
-  Prism Key" action (+1 action id, +1 obs slot), and a
-  `Phase.SPECIAL_KEY_PENDING` covering only special keys (+2 ids, phase
-  `Discrete(6)` -> `Discrete(7)`). Both were approximations of this subsystem.
-  Scoped separately before anything is built.
-
-  **Generalisable: a question can be answered by rejecting its frame.** Both
-  options offered were reasonable and both were too small, because the question
-  presupposed that only the Prism Key's own path needed to change. **When the
-  owner answers a multiple-choice question with prose, the prose is the
-  ruling.**
-
-- **2026-08-12, `prism_key`: the colour is a property of the ROOM, not a free
-  player pick -- and in a multi-colour room it is ONE RNG DRAW.** Owner ruled
-  the literal reading of the wiki's *"the color is chosen at random from all
-  valid choices"* over the reroll clause (*"may be rechosen by unhovering and
-  rehovering"*), which would have made it a de facto player choice.
-
-  This kills the plan to reuse `Phase.COLOUR_PENDING` as-is: that phase's mask
-  unconditionally offers all five colours (`actions.py:599-603`), and the Prism
-  Key **does not fit purely blue or black rooms at all**. Affects only 6 rooms
-  (the 5 Aquarium variants and `maids_chamber`); everywhere else the colour is
-  forced by the room and no draw is needed.
-
-  Also corrected: **a comment describes its own code backwards, in two
-  places.** `game.py:521-523` and `prism_key`'s `meta.notes` both gloss
-  `remove(..., consumed=False)` as "consumed today, pool-eligible tomorrow". In
-  fact `_is_available` consults only `state.special.removed`, and
-  `consumed=False` never appends to it -- so the item is pool-eligible
-  **today**, which is exactly what the wiki requires. **The behaviour is
-  correct and both comments describe it backwards.**
 
 - **2026-08-12, `battery_pack`: defer the draw now, thread `rng` later if
   wanted -- and the "37 `grant()` call sites" figure was wrong by 4.7x.**
@@ -4931,60 +4855,11 @@ pending that primitive.
   in the decisions log for a day while every category-keyed mechanic quietly
   ignored the Aquarium.
 
-- **2026-08-10, stars are SAVE-scoped and accumulate toward a reroll trade.**
-  Owner, on being shown that stars were still attempt-scoped after the Joya
-  ruling: "Stars do not reset between days. They accumulate until you get the
-  ability to trade them for rerolls."
-
-  Day-to-day carry was already correct; what changed is the **attempt wrap**.
-  `DayChain` no longer resets the star total on wrap, so stars now behave like
-  the Cloister of Joya's Main Course bonus. Those two are the **only**
-  save-scoped carried values; allowance, `chapel_tithes`, `collected_disks`,
-  `lit_targets` and the rest are still attempt-scoped, and one test pins the
-  pair together so adding a third is a deliberate edit rather than a slip.
-
-  Act on this cold as: this settles stars but **not** the wider question. The
-  same argument plausibly applies to applied Upgrade Disks, which the game
-  treats as permanent progression and which we still clear on wrap. That is
-  unasked and unresolved -- do not change it on the strength of this entry.
-
-  **A sink now exists that we do not model.** The owner names trading stars for
-  rerolls, which is a spend the sim has no representation for; the wiki says
-  only that stars "are generally never spent" and gate which constellations
-  appear. So the counter currently accumulates with nothing to spend it on,
-  and any measurement of star totals is an upper bound on what a player would
-  actually be holding. Worth its own research pass before the reroll trade is
-  built.
-
 - **2026-08-10, the Geist Bedroom's dice are picked up inside the room.**
   Owner: "Dice are on the table inside. You have to enter to pick them up."
   Confirms the entry-time reading the wiki only hinted at with the word
   "spawns", and matches every other resource grant in the engine. No change
   was needed; the open question is closed.
-
-- **2026-08-10, the Cloister of Joya's Main Course bonus is SAVE-scoped, not
-  attempt-scoped.** Owner: "permanently increases steps on the Dining Room's
-  main course for all days going forward in the save game, similar to an
-  allowance."
-
-  **This corrects what shipped.** It was first implemented as attempt-scoped,
-  resetting to the base preset on `DayChain`'s wrap like every other carried
-  total, and flagged in task 20 as an assumption pending confirmation. It now
-  survives the wrap.
-
-  **It is the only carried value that does.** `allowance`, `stars`,
-  `chapel_tithes`, `collected_disks`, `lit_targets` and the rest all reset to
-  their base preset on wrap, and a test pins that this exception did not
-  quietly loosen them.
-
-  Act on this cold as: this opens a real question the ruling does not settle.
-  Several other things the game treats as permanent across resets --
-  **stars** in particular, which the wiki calls "a permanent resource" that
-  "do not reset between each day", and arguably applied Upgrade Disks -- are
-  attempt-scoped here. That inconsistency is now visible rather than uniform.
-  **Do not change any of them on the strength of this entry**; ask, because
-  "similar to an allowance" was said of Joya specifically and our allowance
-  does reset on wrap.
 
 - **2026-08-10, the Speakeasy is a no-op and is exempt from the worklist.**
   Owner: "speakeasy is a no-op because we assume they can solve puzzles."
@@ -5025,11 +4900,6 @@ pending that primitive.
   that Python room behaviour is scattered across 20 modules while only 27 rooms
   have a discoverable module of their own. The fix is an invariant ("no engine
   module branches on a room id"), not a file-format migration.
-
-- **2026-07-26, lockers**: locked lockers cost exactly one BASIC key — the wiki is
-  explicit that lockers are not doors, so the Lock Pick Kit, Master Key, Stopwatch
-  and smashers do nothing. This is what makes the Locker Room's key-spreading
-  (task 1) load-bearing rather than flavour.
 
 - **2026-07-27, Catacombs unlock**: `catacombs_unlocked` is true only on days the
   Tomb has been **drafted as the outer room AND entered**. It is deliberately NOT a
@@ -5080,16 +4950,6 @@ pending that primitive.
   condition: greenhouse_or_king`, and `draft.py::_active_conditions` emits
   `greenhouse_or_king` from `state.greenhouse_placed`). Only **Southern Cross** is
   genuinely missing, and it is the one that matters most here — see task 14.
-
-- **2026-07-27, the West Gate is a save-level unlock, not a per-attempt one**:
-  unlatching it is permanent across the whole save (owner-confirmed), so a
-  `GameConfig` field models it and maps onto the `west_gate_unlatched` graph flag.
-
-  This also retracts an earlier worry: honouring the gate does **not** shift the
-  measurement baseline — day-1 outer-room access is unchanged.
-
-  Refined 2026-07-28 (next-but-one entry): the field was also gating outer-room
-  drafting, which is a different fact, and the gate CAN now be earned in-run.
 
 - **2026-07-27, `absent_spawn_rooms` resolved**: the field named off-grid AREAS,
   never rooms, and the check was silent in both directions. Renamed to
@@ -5160,124 +5020,6 @@ pending that primitive.
   unlock into every later "fresh save" episode — measured: a second episode with no
   Garage placed at all inherited the 2-step Grounds route. `carryover()` ORs state
   with config, the same shape as `entrance_vase_broken` / `outer_chip_dug`.
-
-- **2026-07-29, reward horizon — bootstrap across the day boundary**: a mid-attempt
-  day ending is now `truncated=True` rather than `terminated=True`. SB3 bootstraps on
-  `TimeLimit.truncated`, so `V(day N end)` picks up the value of day N+1 and cross-day
-  investment becomes real value the agent can discover. Only the final day of an
-  attempt (`current_day >= n_days`) is a true terminal.
-
-  Chosen over making the episode span the whole attempt because the day boundary is
-  genuinely non-absorbing, so this is the correct model rather than merely the cheap
-  one — and every per-day telemetry consumer (`EpisodeRecorder`, `DraftStats`,
-  `AreaStats`, win-rate) fires on `done = terminated | truncated`, which is still true
-  at day end, so none of them changed.
-
-  **Tradeoff, stated honestly**: credit propagates by one-step TD through the value
-  function rather than by GAE across all within-attempt steps. The TD target is
-  unbiased, but it is slower to propagate than multi-step returns; a within-attempt
-  rollout would expose every cross-day transition to GAE at once. This is a
-  convergence-speed cost, not a correctness one.
-
-  `gamma` stayed at 0.999 and became a `--gamma` flag. An earlier claim that it
-  "barely spans one day" was wrong: it was reasoned from `max_env_steps = 1000`, which
-  is a safety cap, not a typical day. A day measures ~31 env steps, so 0.999 already
-  gives ~32 days of lookahead. The discount was never the bottleneck.
-
-  **Observability is half the fix, and the first cut got it wrong.** Bootstrapping is
-  useless if the agent cannot see what it accumulated: `V(s)` has to be able to tell a
-  heavily-upgraded attempt from a fresh one. The first implementation exposed only
-  `DayChain._CARRYOVER_KEYS` — 6 booleans — while the chain also carries
-  `applied_upgrades` and `collected_disks`, which are the actual "spend today to win
-  later" investments. Four observation keys now cover it:
-
-  - `day` — `[current_day, days_remaining]`; single-day mode is `[1, 0]`.
-  - `carryover` — the 6 carry-over bools, sorted for stable field order.
-  - `upgrade_slots` — one bit per upgrade slot, in `upgrades.all_slot_ids()` order.
-  - `disks_spent` — how many of the finite one-time disk sources are used up.
-
-  `all_slot_ids()` is derived by running `upgraded_slots()` over every registry
-  variant, so the Spare Room's two-level chain stays defined in one place; it yields
-  16 slots, matching the documented "15 rooms carrying 16 upgrade slots". Both it and
-  the `carryover` vector are **sorted, never set-ordered**: Python randomises string
-  hashing per process, so a set-ordered vector would permute between training runs and
-  silently invalidate a checkpoint's learned field positions.
-
-- **2026-08-04, The Foundation's 17 placement positions are ranks 3-8, not
-  sourced**: the wiki states three placement rules (center 3 columns; never Rank
-  2; never the Rank-8 cell directly under the Antechamber) plus a headline count
-  of "17 positions", but the three rules alone leave 21 candidate cells once the
-  Entrance Hall and Antechamber are excluded (23 before excluding them), not 17.
-  The only way to land on exactly 17 is to also drop Ranks 1 and 9:
-  `cols 1-3 x ranks 3-8 = 18, minus the Rank-8-under-Antechamber cell = 17`.
-  Owner decision, on interview: **match the 17** — ranks 3-8 is now the coded
-  rule (`the_foundation` draft condition, `placement.py`), understood as an
-  inference from the stated count rather than a directly sourced rule. Act on
-  this cold as: if a future wiki edit clarifies Rank 1 or Rank 9 explicitly,
-  revisit the count derivation before trusting this rule further.
-
-- **2026-08-04, only three area nodes plus the Foundation anchor go `modelled:
-  true`**: of everything the Foundation's elevator opens up, only `basement`,
-  `mine_south`, and `inner_sanctum` (plus the `the_foundation` grid anchor
-  itself) are advertised as travel destinations. Owner decision, on interview,
-  after measuring: everything else underground (`well`, `reservoir_south`,
-  `reservoir_north`, `mine_north`, `rotating_gear`, `upper_rotating_gear`,
-  `underpass`, `sigil_chambers`, `safehouse`, `catacombs`, `precipice`,
-  `unknown_underground`) stays routed-through-but-unadvertised, so the step tax
-  that motivated the original `modelled` flag (see the 2026-07-27 entry above)
-  stays contained. `mine_south` earns its place specifically because it holds an
-  Upgrade Disk, not because it is merely on the path. Act on this cold as: do
-  not flip additional underground nodes to `modelled: true` without a similar
-  "holds something worth walking to" justification and a fresh off-grid
-  step-share measurement — the Sanctum route alone measured moving the off-grid
-  step share from 29.93% to 41.88% under uniform-random play (see `areas.md`).
-
-- **2026-08-04, the Foundation and Basement elevator gates stay open stubs**:
-  `foundation_elevator_down` / `foundation_elevator_up` are not modelled this
-  round — the wiki's elevator crank reveal (requires a room drafted so a door
-  faces the Foundation's back wall) and nightly car-reset-to-the-top mechanic
-  are real but deferred. Owner decision, on interview: leave them as the
-  existing PR1 stub-gate convention (`stub: true`, passes unconditionally,
-  `retire_in: PR-foundation-elevator`), consistent with every other deferred
-  mechanism in this file. Consequence stated plainly: `the_foundation ->
-  basement` is free once the room is drafted and grid-reachable, so any number
-  measured through it (including the batch/reachability numbers in the PR that
-  landed this) is an upper bound, exactly like the other open stub gates.
-
-- **2026-08-04, Rank-3 draft removal implemented; Rank-4 dynamic rarity left
-  open**: the wiki's "90% chance the Foundation is removed from the draft pool"
-  when drafting on Rank 3 is implemented as a single per-hand roll (not
-  per-card, to keep the RNG-draw count independent of deck order — see
-  `foundation-design.md`). The wiki's separate claim that the Foundation's
-  rarity "adjusts dynamically after reaching Rank 4" is explicitly NOT
-  implemented — no curve is invented for it. Act on this cold as: if this
-  becomes load-bearing later, it needs its own wiki research pass before any
-  code is written; do not infer a curve from the Rank-3 number, they are
-  different mechanics.
-
-- **2026-08-04, the north-door reward is +0.5, paid by either lever, once per
-  day**: the objective becomes three-tier — Antechamber first arrival (+0.25,
-  existing), the Antechamber's north door opening (+0.5, new), Room 46 first
-  arrival (+1.0, existing, the win). Owner decision, on interview: both levers
-  (Inner Sanctum's main lever, Throne Room's backup) pay the same +0.5, because
-  they accomplish the identical thing and the reward should stay neutral about
-  which route a policy learns. Implemented as a per-day EVENT flag
-  (`GameState.north_door_opened`) set only at the two lever call sites (unified
-  through one `Game._open_north_door()` helper so they cannot drift), **never**
-  derived from the north segment's own door state — with
-  `antechamber_levers=False` the segment is never sealed to begin with, so a
-  state-derived reward would pay +0.5 for free on every day of that arm and
-  silently corrupt the pre-lever baseline that config exists to reproduce (this
-  is guarded by a dedicated test in `test_sanctum_route.py`). Two consequences
-  worth acting on: the per-day reward ceiling rises from 1.25 to 1.75 (the
-  earlier 1.25 note argued for staying close to today's scale; a 40% rise puts
-  that back in play, and shaping constants are not rescaled here — check
-  whether dense terms get drowned out in the first retrain); and the Throne
-  Room (one room, +0.5) is now priced higher than the whole rank-9 grind to the
-  Antechamber (+0.25), which is an honest consequence of pricing the door
-  rather than the walk, but is watchable as a farming incentive — compare
-  `P(north door opened)` against `P(reach Room 46)` in the first retrain; a wide
-  gap is the signature.
 
 - **2026-08-04, the three Basement doors are independent, Basement-Key-only
   locks**: the wiki treats `Basement_door` as a door *type* with three
@@ -5418,12 +5160,6 @@ pending that primitive.
   itself is deliberately not wired** — no source for how it is obtained exists
   in our data, so the tags are correctly shaped and stay inert.
 
-- **2026-08-06, our datamined bias magnitudes win over the wiki.** Our data says
-  blueprint 50% and shop 25%; the wiki says 40% and 30%. The decompiled sheet
-  has beaten the wiki before on exact tables, so no numbers change; the
-  disagreement is recorded in the affected entries' `meta.notes` to be
-  re-tested rather than silently resolved.
-
 - **2026-08-06, task 6 ruled: `diary_key` is removed, everything else stays.**
   Owner, after the audit. Only `diary_key` goes — the wiki itself says it has
   "no other known use", and the sim double-sources it (a Tomb luck-roll spawn
@@ -5544,21 +5280,6 @@ pending that primitive.
   investigation — this one survived long enough to be mistaken for a missing
   feature. `test_macro_actions.py::test_every_action_kind_has_a_masking_site`
   now asserts every declared `*_BASE`/`*_ACTION` has a write in `action_mask`.
-
-- **2026-08-07, time pressure is priced per game-step, not per decision.** The
-  flat `-0.001` per decision meant a travel hop consuming 4-8 steps cost the
-  same as a 1-step move, while `out_of_steps` causes **68% of terminations** —
-  so any action packing many steps into one decision was under-taxed per step.
-  Now `0.001 * max(1, steps_spent)`, with step *gains* clamped to zero (food and
-  the Orchard bonus would otherwise turn the term into a reward bonus) and a
-  floor so zero-step decisions still pay the old flat rate.
-
-  **Stated plainly: a principled correction, not a proven fix.** The policy
-  behind the measurement had trained 50k episodes, and a barely-trained masked
-  policy travels heavily regardless. The magnitude is **not** cosmetic either —
-  measured across 329 episodes the mean per-episode time term moves
-  **-0.04494 → -0.08257, ~1.84x**. `phased` got the identical change because its
-  own docstring promised it matches `shaped`.
 
 - **2026-08-07, the depth-vs-reachability question is DEFERRED, to be measured
   after the Tunnel fix.** A Tunnel corridor proves `deepest_rank` can reach 9
@@ -5837,20 +5558,6 @@ pending that primitive.
   later category for no behavioural gain. `test_draft_stats.py` keys on rarity,
   not category, so it should be unaffected — confirm rather than assume.
 
-- **2026-08-09, the assumed-solved doctrine extends to puzzle-reward rooms.**
-  Owner. `gallery`, `room_8` and `parlor` grant their documented rewards on
-  entry with no puzzle modelled, exactly as the room safes and the Shelter's
-  real-time timed safe were ruled on 2026-08-06.
-
-  **`great_hall` and `closed_exhibit` are deliberately excluded.** The
-  distinction that decides it: in the three included rooms the reward IS the
-  mechanic, so granting it loses nothing. The Great Hall's interior subchambers
-  are a randomised *spatial* system behind Silver/Prism Key doors, and the
-  Closed Exhibit's is a *lock* system — in both, flattening the mechanic to a
-  constant would delete the structure, not approximate it. The Great Hall is
-  a lever room at 3.3% placement, so the temptation to inflate it is real and
-  is being declined on purpose.
-
 - **2026-08-09, model correctness outranks observation- and action-space
   stability.** Owner: "Do not worry about changing the observation vector or
   action vector. I need the game to function properly before we train anything
@@ -5885,52 +5592,6 @@ pending that primitive.
   blocks anything.** Whenever training resumes it forces a fresh run, and the
   cheapest time to know that is when it happens, not when a checkpoint fails to
   load.
-
-- **2026-08-09, "tomorrow" bonuses are ONE-DAY PULSES; the Apple Orchard and the
-  Gemstone Cavern are the permanent ones.** This corrects a framing error of
-  mine, found by research rather than by review.
-
-  I briefed the cross-day rooms as "the same shape as `orchard_unlocked`",
-  meaning earned once and true forever. The wiki contradicts that for every one
-  of them: the Sauna, the Morning Room's next-day half, the Freezer's carryover
-  and the Break Room's keycard are **Tomorrow Rooms**, applying only to the
-  single following day and needing to be re-earned. Each room's own
-  `effect_text` says so plainly -- "**Tomorrow**, you will start the day with
-  ..." -- and the wiki contrasts them explicitly against the Apple Orchard,
-  which it singles out as genuinely permanent.
-
-  Implementing my instruction literally would have made one Sauna visit worth
-  +20 steps on every remaining day of a 200-day attempt.
-
-  So the sim now has **two distinct cross-day shapes**, and picking the wrong
-  one is a silent balance error rather than a crash:
-
-  - **One-day pulse** -- a replace-per-day carry, the shape of `chapel_tithes`
-    and `foundation_cell`. Sauna, Morning Room, Freezer, Break Room.
-  - **Permanent once earned** -- an OR-forever flag in
-    `DayChain._CARRYOVER_KEYS`. `orchard_unlocked`, `west_gate_unlatched`,
-    `sealed_entrance_broken`, and now the Gemstone Cavern.
-
-  **The Gemstone Cavern is permanent: +2 gems per day, beginning the day after
-  it is first reached** (owner, from play). It is an area node, not a room --
-  `gemstone_cavern` in `areas.json`, whose own name already records the mechanic
-  ("Gemstone Cavern (2 gems/day - torch on ENTRY)") -- and it is
-  `modelled: false`, so nothing has ever offered it as a destination. Its only
-  approach, `campsite -> gemstone_cavern`, is gated on `vac_puzzle_lever`, a
-  `kind: puzzle` gate that passes under the assumed-solved doctrine, and
-  `campsite` became a modelled destination in PR #84. So the Cavern is reachable
-  today and simply invisible.
-
-  This is the exact shape of `orchard_unlocked`: flag set on first arrival in
-  `Game.travel_to`, carried by `DayChain`, consulted in `Game.reset()`. It also
-  satisfies the 2026-08-04 rule that a node only goes `modelled: true` when it
-  "holds something worth walking to" -- a permanent per-day gem income
-  qualifies, the same way the Orchard's step bonus did.
-
-  Act on this cold as: **"tomorrow" in an effect text means exactly one
-  tomorrow.** Before modelling any cross-day bonus, establish which of the two
-  shapes it is; the wiki's Tomorrow Rooms category is the discriminator, and the
-  Orchard and the Cavern are the known exceptions.
 
 - **2026-08-10, room behaviour moves to a room-id-keyed registry in Python; NOT
   to a class per room.** Owner asked for research on giving every room a class
@@ -6150,45 +5811,9 @@ pending that primitive.
   satisfies is indistinguishable, in every measurement, from not modelling it at
   all.
 
-- **2026-08-09, features are built to be PLAYED, not to be reachable by the
-  policy.** Owner: "I realize that the RL algorithm is unlikely to reach that
-  stage of the game on its own. That's why I'm going to play the game myself to
-  teach it some expert judgement. I need you to implement the features so I can
-  teach it."
-
-  **This retires the objection raised one entry above** against modelling the
-  Inner Sanctum. That objection was that `P(room 46)` is 0.000 over 400 measured
-  days, so a Sanctum gated behind Room 46 would be content no policy can enter.
-  The premise was that the policy has to get there unaided. It does not: the
-  owner reaches it by playing, records the day through the Play tab, and the
-  behavioural-cloning pipeline turns it into training signal.
-
-  So **"unreachable by the current policy" is not a reason to defer a feature.**
-  It is a reason the feature has to exist *before* the demonstrations that teach
-  it, not after.
-
-  **What this does change is the acceptance bar.** A feature is not done when the
-  engine models it correctly -- it is done when the owner can *operate* it in a
-  recorded session. Concretely, every feature of this kind needs:
-
-  - a **player action** in `env/actions.py` with a masking site, not just engine
-    state that some other code path mutates;
-  - that action **exposed in the Play tab**, since that is where demonstrations
-    are recorded;
-  - the resulting day to **replay clean** (`divergence=None`), which is what
-    makes a demo usable as training data.
-
-  A correct mechanic with no action to drive it is unteachable, and the gap is
-  invisible to every test that drives the engine directly.
-
-  Act on this cold as: **ask "can the owner do this in a recorded session?"
-  before calling a feature complete.** The three outer-area bugs found on
-  2026-08-08 were all of exactly this kind -- the engine was right and the
-  player could not act.
-
 - **2026-08-09, all eight Sanctum Keys require Room 46, and simply do not
-  spawn before it.** Owner, resolving the discrepancy surfaced two entries
-  above: "All eight keys require reaching Room 46 for the first time. They
+  spawn before it.** Owner, resolving the discrepancy surfaced by the Inner Sanctum
+  chambers entry above: "All eight keys require reaching Room 46 for the first time. They
   simply do not spawn."
 
   **This overrides the wiki**, which states that condition for exactly one key
@@ -6205,7 +5830,8 @@ pending that primitive.
   **The consequence is deliberate, not a side effect.** Every Sanctum Key, all
   eight Sigil Chambers, and the +16 allowance behind them are unreachable until
   Room 46 is first reached -- and the measured `P(room 46)` is 0.000. That is
-  acceptable under the ruling one entry above: the owner reaches Room 46 by
+  acceptable under the features-are-built-to-be-PLAYED rule
+  ([`doctrine.md`](doctrine.md)): the owner reaches Room 46 by
   playing, and the recorded day teaches the policy. The content exists so it can
   be demonstrated, not because the current policy will stumble into it.
 
@@ -6287,27 +5913,6 @@ pending that primitive.
   deliberately does NOT treat inherited coverage as authorship, and that
   reasoning stands on its own -- it is about what an inherited handler can
   demonstrate, not about whether the parameter exists.
-
-- **2026-08-09, trophies are NOT modelled -- they are achievements only.**
-  Owner, asked directly whether Room 8's Trophy 8 should be a flag or an item:
-  "For Room 8, ignore the trophies. They are only intended as achievements."
-
-  This **unblocks Room 8**, which was the one `[BLOCKING]` item in the queued
-  work order. Room 8's completion reward is Trophy 8 plus Allowance Tokens, one
-  fewer token once the trophy is held; with trophies out of scope, the trophy
-  half is simply not represented and the "one fewer once held" clause becomes a
-  plain first-solve-versus-later-solve distinction on the token count. No
-  trophy flag, no trophy item, no trophy observation dimension.
-
-  Act on this cold as: an achievement is not game state. Do not add a trophy
-  concept later to "complete" Room 8 -- the reward that matters to a policy is
-  the allowance, and that is already modelled (`GameState.allowance`).
-
-  Note this also retires `tests/rooms/test_room_8.py`'s premise. Its docstring
-  asserts the room grants nothing because "Allowance Tokens feed the allowance
-  system, which this sim does not model" -- allowance has been modelled since
-  the 2026-08-09 allowance ruling, so that test now pins known-wrong behaviour
-  and must be replaced rather than kept green.
 
 - **2026-08-09, apple = 2 steps, orange = 5 steps, banana = 3 -- the wiki
   AGREES with the owner.** Recorded because the numbers were reported from play
