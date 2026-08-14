@@ -310,6 +310,12 @@ class SpecialItemsState:
     # per-room count, because it depends on how many Mechanical rooms are
     # standing the moment this particular Mechanarium is placed.
     mechanarium_compartments: dict[int, int] = field(default_factory=dict)
+    # Per-day use count of each bearer room's ``draft_luck`` ladder effect
+    # (Veranda's "first one in a day gives +12, all later ones give +6"),
+    # keyed by the bearer's own room id -- see engine/items.py::draft_luck_bonus.
+    # Reset with GameState like everything else in this dataclass, so it is a
+    # per-DAY count, matching "in a day".
+    draft_luck_uses: dict[str, int] = field(default_factory=dict)
     garage_car_opened: bool = False  # Car Keys garage car trunk used today (once per day)
     # Vault Key ids whose deposit box was opened today (at most once per key per day).
     vault_boxes_opened: list[str] = field(default_factory=list)
@@ -574,7 +580,7 @@ def configure(state, cfg, registry=None) -> None:
 
 # ------------------------------------------------------------- spawn pipeline
 
-def roll_special_spawn(state, registry, room, rng) -> str | None:
+def roll_special_spawn(state, registry, room, rng, draft_bonus: int = 0) -> str | None:
     """Resolve one additional-item proc to a special item, or None to fall
     through to the regular EXTRA_ITEM_TABLE kinds.
 
@@ -583,6 +589,11 @@ def roll_special_spawn(state, registry, room, rng) -> str | None:
     still-available pool item (high-luck entries join at luck >=
     spawn.high_luck_at); at most one special item spawns per room per day.
     Grants the item itself and returns its id, or returns None.
+
+    ``draft_bonus`` is engine/items.py::draft_luck_bonus's ALREADY-COMPUTED
+    result for this room's roll (Veranda / Spare Veranda) -- callers must
+    pass the same value used for this room's ``roll_ladder_count`` call, not
+    recompute it here, since computing it advances a per-day counter.
     """
     if not state.special.enabled:
         return None
@@ -596,7 +607,7 @@ def roll_special_spawn(state, registry, room, rng) -> str | None:
     # Same effective-luck formula as engine/items.py::roll_ladder_count, so a
     # high-luck spawn only becomes eligible exactly when the ladder itself
     # would treat the draft as high luck.
-    effective_luck = state.luck + luck_bonus(state, registry) - state.luck_penalty
+    effective_luck = state.luck + luck_bonus(state, registry) + draft_bonus - state.luck_penalty
     high_luck_at = registry.special.spawn_rules.get("high_luck_at", 16)
 
     pool = list(registry.special.spawn_pool_by_room.get(room.id, ()))

@@ -155,7 +155,7 @@ def test_expected_yields_formula(registry):
     ))
     y = expected_yields(effectful, registry)
     assert y["steps"] == 1.0
-    assert y["luck"] == -3.0  # anti_luck's default amount
+    assert y["luck"] == -7.0  # anti_luck's default amount
 
 
 def test_rooms_meta_carries_yields(registry):

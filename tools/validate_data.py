@@ -101,7 +101,7 @@ KNOWN_EFFECT_TAGS = {"grant", "grant_per_category", "grant_on_draft_category",
                      "counts_as_bedrooms", "inject_pool",
                      "free_green_drafts",
                      "archive_floorplan", "conceal_all_floorplans",
-                     "anti_luck", "mark_visited"}
+                     "anti_luck", "mark_visited", "draft_luck"}
 
 # Room ids whose "always unlocked"/"always locked" effect_text is implemented
 # via locks.json's always_unlocked_rooms/always_locked_rooms tables rather

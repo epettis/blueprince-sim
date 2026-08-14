@@ -456,9 +456,9 @@
    "deck_copies": 1,
    "effects": [
     {
-     "tag": "grant",
-     "resource": "luck",
-     "amount": 3
+     "tag": "draft_luck",
+     "category": "green",
+     "amount": 6
     }
    ],
    "items": {
@@ -468,7 +468,7 @@
    },
    "pool": "upgrade_variant",
    "meta": {
-    "source": "tfmurphy_sheet_v1.3",
+    "source": "tfmurphy_sheet_v1.3; wiki Luck page DataMinedBox (effect magnitude)",
     "confidence": "datamined",
     "directory_number": "3",
     "internal_index": 140,
@@ -4963,9 +4963,9 @@
    "deck_copies": 1,
    "effects": [
     {
-     "tag": "grant",
-     "resource": "luck",
-     "amount": 3
+     "tag": "draft_luck",
+     "category": "green",
+     "ladder": [12, 6]
     }
    ],
    "items": {
@@ -4975,7 +4975,7 @@
    },
    "pool": "base",
    "meta": {
-    "source": "tfmurphy_sheet_v1.3",
+    "source": "tfmurphy_sheet_v1.3; wiki Luck page DataMinedBox (effect magnitude)",
     "confidence": "datamined",
     "directory_number": "67",
     "internal_index": 162,
@@ -5431,7 +5431,7 @@
    "effects": [
     {
      "tag": "anti_luck",
-     "amount": 3
+     "amount": 7
     }
    ],
    "items": {
@@ -5443,7 +5443,7 @@
    "meta": {
     "source": "wiki",
     "confidence": "wiki",
-    "effect_text": "Counts as red room AND bedroom; items less likely in rooms drafted after it (modeled: -3 luck on placement; negated by Shelter).",
+    "effect_text": "Counts as red room AND bedroom; items less likely in rooms drafted after it (modeled: -7 luck on placement; negated by Shelter).",
     "rarity_confidence": "inferred"
    }
   },

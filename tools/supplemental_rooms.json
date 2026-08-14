@@ -85,7 +85,7 @@
       "effects": [
         {
           "tag": "anti_luck",
-          "amount": 3
+          "amount": 7
         }
       ],
       "items": {
@@ -97,7 +97,7 @@
       "meta": {
         "source": "wiki",
         "confidence": "wiki",
-        "effect_text": "Counts as red room AND bedroom; items less likely in rooms drafted after it (modeled: -3 luck on placement; negated by Shelter).",
+        "effect_text": "Counts as red room AND bedroom; items less likely in rooms drafted after it (modeled: -7 luck on placement; negated by Shelter).",
         "rarity_confidence": "inferred"
       }
     },
