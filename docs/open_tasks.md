@@ -900,6 +900,68 @@ pending that primitive.
 
 ## Decisions log
 
+- **2026-08-14, TRADE OFFERS: a LIVE DEFECT, plus a note that was true when
+  written and had the data changed under it.**
+
+  **The defect.** The wiki states, twice: *each Sanctum Key is considered the
+  same item, so having multiple only produces one trade offer* -- and the same
+  rule for Upgrade Disks. **The sim emits one offer per inventory id**
+  (`shops.py::trade_offers`), so eight held Sanctum Keys emit **eight** offers
+  and sixteen Upgrade Disk ids can emit sixteen. This rule appears nowhere in
+  `src/` or `docs/`.
+
+  **It breaches a cap that truncates silently.** `env/actions.py` masks only
+  `TRADE_BASE..+8`; beyond slot 7 an offer is never legal and never encoded --
+  no assertion, no log. Measured: holding all **12** tier-5 items yields 12
+  offers and leaves four **unreachable**. Because offers sort alphabetically,
+  the truncated ones include `sanctum_key_room_46` itself, and an ordinary
+  tier-2 `shovel` gets crowded off the menu by a wall of Sanctum Keys.
+
+  **A mirror of the same identity bug, in the opposite direction:** the wiki
+  says three Microchips give three distinct offers; `trade_offers` emits one
+  regardless of count. `microchip` is the only item with `unique: false`.
+
+  **How it happened, and this is the part worth keeping.** The
+  `sanctum_key_room_46` note claimed the other seven were `tier: null`, and
+  gave the reason: making all eight tradeable *would breach the 8-offer cap*.
+  **That note was TRUE when written** (2026-08-09). **#213 then set all eight
+  to tier 5** (2026-08-12) -- deliberately, wiki-driven, and better-informed
+  about tiers -- rewriting `shops.json`, `shops.py` and three tests **without
+  touching the note it invalidated**. So the note's prophecy came true and was
+  ignored, because the person who made it true never read it.
+
+  **Not "the note decayed OR the data drifted" -- both, in that order.** A
+  note that was always wrong is a documentation error. **A guard that was
+  removed without reading why it was there is a different failure**, and the
+  only way to tell them apart is `git log -S`.
+
+  **A second comment died in the same 29 minutes.** `shops.py`'s
+  `_next_receivable` said its all-give-only fallback *does not occur for any
+  tier in the current data* -- written by #212 at 15:08, falsified by #213 at
+  15:37. Tier 5 has **0 receivable ids of 12**, so that fallback now fires on
+  every tier-5 roll. Corrected here.
+
+  **Also corrected here:** the `sanctum_key_room_46` note, and
+  `special-items-design.md`'s claim that `sanctum_key`, `microchip` and
+  `file_cabinet_key` are all non-unique -- only `microchip` is, and the
+  `sanctum_key` id no longer exists.
+
+  **Two owner questions, separable:**
+  1. **Adopt the wiki's same-item collapse** for Sanctum Keys and Upgrade
+     Disks? A trade-offer identity key (game item, not sim id) applied in
+     `trade_offers` before the sort takes the tier-5 worst case from 12 to 5.
+     **No observation-width change, so no retrain trigger.** The counter-case:
+     the per-source ids exist to gate respawn independently, and collapsing
+     them for trading is a second identity notion.
+  2. **Raise `TRADE_OFFER_ROWS`/`TRADE_BASE` past 8?** Already recorded as an
+     obs-width change and therefore a retrain trigger. **Answering (1) yes
+     makes this stop being urgent; answering no forces it.**
+
+  **Provenance, plainly:** the repo holds **no datamined trading data**.
+  `tools/raw/` has a room table and a wiki-locations snapshot, neither
+  mentioning tiers. Every tier claim traces to the wiki's own DataMinedBox --
+  **do not describe them as repo-datamined.**
+
 - **2026-08-14, RETRACTION. THE BASEMENT KEY IS ALREADY BUILT. Three claims in
   the entry below are FALSE, and one of them originated in this file.**
 

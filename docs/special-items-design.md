@@ -44,7 +44,7 @@ what is missing and a `meta.reachability` of `inert` or `absent`.
       "kind": "standard",               // standard|special_key|contraption|showroom|armory|unique
       "tier": 3,                         // 1-5 Trading Post tier; null = untradeable
       "no_receive": false,               // true: tradeable away, never offered back
-      "unique": true,                    // at most one held (false: sanctum_key, microchip, file_cabinet_key)
+      "unique": true,                    // at most one held (false only for microchip)
       "persistence": "day",             // day|until_used|permanent (informational in PR1; PR2 carry-over uses it)
       "spawn_rooms": ["archives", ...], // sim room ids where it can spawn on first entry
       "spawn_rooms_high_luck": [...],   // additional pool entries at luck >= spawn.high_luck_at
