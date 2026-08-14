@@ -6,10 +6,9 @@ Implemented:
     drafted before. Fires on ON_PLACE (draft); entering the room is not
     required.
 
-Not modelled:
-  - The telescope/constellation system that stars gate: no activation
-    source exists in the sim for southern_cross_active / draxus_active, so
-    the accumulated star count has nothing downstream to spend it on here.
+The star this grants is spent on the night sky like any other: stars are the
+count an Observatory's sky resolves against (engine/constellations.py), so a
+Starfish Aquarium drafted before the sky is viewed enriches it.
 
 "AQUARIUM is every color of room" is not handled here: it lives on
 ``Room.categories`` / ``Room.is_category()`` (engine/model.py), out of scope

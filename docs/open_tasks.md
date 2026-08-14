@@ -559,9 +559,14 @@ What actually remains:
   also boosts the Library and Studio Addition: Dormitory, but our data encodes
   only the Classroom entry. That is a missing-entries problem, not a wrong
   magnitude — do not invent the other two percentages.
+- **The two constellations' activation chains — DONE.** Activating the Southern
+  Cross or Draxus from an Observatory night sky sets its day-scoped flag
+  (`engine/constellations.py::apply_effect`, driven by each record's own
+  `effect.condition` naming the `category_biases` entry). Measured over 300
+  seeds × 3 option slots at an interior cell: `layout: cross` options go
+  3.3% → 39.4%, `layout: dead_end` 27.2% → 46.4%.
 - **Still genuinely unsourced** (no modelled activation source): the five `king_*`
-  tags, `electromagnet`, `chronograph`, `adjacent_duct`, `adjacent_powered`, and
-  the two constellations' activation chains.
+  tags, `electromagnet`, `chronograph`, `adjacent_duct` and `adjacent_powered`.
 
 ## 15. Room-behaviour fidelity: audit every room against the wiki
 

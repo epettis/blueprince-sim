@@ -13,11 +13,13 @@ Implemented:
     branch on "observatory", the same shape as Capability.COMMERCE.
 
 Not modelled:
-  - The four day-long drafting/pricing constellations (Southern Cross,
-    Draxus, The Sail, Florealis) and the four other unimplemented effects:
-    activation exists now, but nothing sets southern_cross_active /
-    draxus_active and the discount/flower/chest mechanics have no primitive.
-    Each record names its own gap in data/constellations.json's blocked_on.
+  - Four constellations stay inert: The Sail's shop discount, Florealis'
+    green-room flower spread, the Ink Well's star-for-redraw option and the
+    Spiral of Stars' word growth, none of which has a primitive to hang off.
+    Each names its own gap in data/constellations.json's blocked_on. The
+    other nine activate -- five pay a resource, and the Southern Cross,
+    Draxus, The Twins and Farmer's Apple write through
+    constellations.py::apply_effect.
 """
 
 from __future__ import annotations

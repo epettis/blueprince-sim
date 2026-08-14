@@ -2,9 +2,11 @@
 electromagnet.
 
 Covers the four conditions the wave-1 category-bias task lit up or deliberately
-left inert-but-shaped: the Southern Cross constellation stub (day-scoped flag,
-no in-game setter), the five king_<color> tags (never emitted -- no Banner of
-the King subsystem is modeled), and drafting_from_library's Bookshop re-deal
+left inert-but-shaped: the Southern Cross's day-scoped flag, set here directly
+because these tests are about the emission and the deal rather than about who
+sets it (tests/test_constellations.py drives the real in-game setter, an
+activated night sky); the five king_<color> tags (never emitted -- no Banner of
+the King subsystem is modeled); and drafting_from_library's Bookshop re-deal
 bias. The Library's rarity-table override is implemented directly in
 decks.py::roll_rarity rather than through the category_biases table -- see
 test_draft_stats.py for its statistical coverage.
@@ -88,9 +90,9 @@ def _electromagnet_entry(registry):
 
 
 def test_southern_cross_absent_by_default_present_when_flag_set(registry):
-    """southern_cross_constellation is unreachable under the zero-value GameState
-    default (no in-game setter exists yet) but appears the instant the day-scoped
-    stub flag is set, proving the emission wiring itself works end to end."""
+    """southern_cross_constellation is absent under the zero-value GameState
+    default and appears the instant the day-scoped flag is set, proving the
+    emission wiring works end to end regardless of what set the flag."""
     cfg = GameConfig()
     state = GameState()
     ctx = _bare_ctx(registry, cfg, state)

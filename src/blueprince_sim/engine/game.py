@@ -897,16 +897,24 @@ class Game:
     def activate_constellation(self, index: int) -> str:
         """Activate constellation ``index`` from the sky at this cell.
 
-        Applies the record's own ``grant`` through the shared
-        effects/tier1.py::_grant path, so constellations spend the same
-        resource vocabulary (and the same clamping) as every room effect. The
-        amount comes from the data, never from a constant here.
+        A record pays out one of two ways and the data says which. Its
+        ``grant`` goes through the shared effects/tier1.py::_grant path, so
+        constellations spend the same resource vocabulary (and the same
+        clamping) as every room effect; its ``effect`` goes to
+        constellations.py::apply_effect. An implemented record carries exactly
+        one of the two, so the other call is a no-op, and every number comes
+        from the record rather than from a constant here.
+
+        The activation is recorded on its sky FIRST: apply_effect reads
+        today's activation count to honour ``stacks``, and would otherwise
+        miss the very activation it is being called for.
         """
         sky = self._activatable_sky(index)
         assert sky is not None and self.phase is Phase.NAVIGATE, "constellation not activatable"
         record = self.registry.constellations.records[index]
         sky.activated.add(record.id)
         _grant(self, record.grant_resource, record.grant_amount)
+        constellations.apply_effect(self, record)
         return record.id
 
     def can_open_car_trunk(self) -> bool:

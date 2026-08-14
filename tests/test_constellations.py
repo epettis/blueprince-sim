@@ -1,10 +1,13 @@
-"""The constellation data, the night-sky mechanic, and the observation key.
+"""The constellation data, the night-sky mechanic, the observation key, and
+what an activation does.
 
-Sky generation and the five pure-resource constellations are live; the other
-eight records stay unimplemented and their action ids permanently masked. What
-these tests pin is the mechanic (a true sum-partition, resolved at LIVE star
-count, under two independent per-day caps) plus the part that cannot be changed
-later -- the action-space width and the observation-space shape.
+Nine records are live -- five pure resource grants plus the four whose effect
+is written somewhere else in the engine -- and the other four stay
+unimplemented with their action ids permanently masked. What these tests pin
+is the mechanic (a true sum-partition, resolved at LIVE star count, under two
+independent per-day caps), the effect each activation actually has DOWNSTREAM
+rather than the flag it sets, and the part that cannot be changed later -- the
+action-space width and the observation-space shape.
 
 Every expected sky here is read out of the ``appearances`` table directly,
 never by calling the generator: a test that asked the generator what it
@@ -15,13 +18,21 @@ the failure the partition is worth testing for.
 from __future__ import annotations
 
 import json
+from dataclasses import replace
 from pathlib import Path
 
 import numpy as np
+import pytest
 
 from blueprince_sim.config import GameConfig
+from blueprince_sim.engine import constellations, experiments, special_items
+from blueprince_sim.engine.decks import build_decks
+from blueprince_sim.engine.draft import deal_draft
 from blueprince_sim.engine.effects.items.telescope import ITEM_ID as TELESCOPE_ID
 from blueprince_sim.engine.game import Game, Phase
+from blueprince_sim.engine.grid import ENTRANCE_CELL, S
+from blueprince_sim.engine.model import Registry
+from blueprince_sim.engine.rng import Rng
 from blueprince_sim.env import actions as A
 from blueprince_sim.env import obs as O
 from blueprince_sim.rl.train import all_unlocks_config
@@ -32,7 +43,7 @@ STARS = {c["id"]: c["stars"] for c in DOC["constellations"]}
 APPEARANCES = DOC["appearances"]
 RECORDS = DOC["constellations"]
 INDEX = {c["id"]: i for i, c in enumerate(RECORDS)}
-IMPLEMENTED = {c["id"]: c for c in RECORDS if c["implemented"]}
+GRANTING = {c["id"]: c for c in RECORDS if "grant" in c}
 MAX_SKIES = DOC["max_skies_per_day"]
 MAX_CONSTELLATION_SKIES = DOC["max_constellation_skies_per_day"]
 
@@ -43,15 +54,25 @@ MAX_CONSTELLATION_SKIES = DOC["max_constellation_skies_per_day"]
 _OBSERVATORY_CELLS = (1, 2, 3, 6, 7, 8, 11, 12)
 
 
-def _observatory_game(*, cells=(1,), stars=0, telescope=False, seed=0) -> Game:
+@pytest.fixture(scope="module")
+def registry() -> Registry:
+    """The packaged data, loaded once and shared: the sampling tests below build
+    hundreds of games and every one of them only reads it."""
+    return Registry.load()
+
+
+def _observatory_game(*, cells=(1,), stars=0, telescope=False, seed=0,
+                      items=(), registry=None) -> Game:
     """A game standing in an Observatory at ``cells[0]`` with ``stars`` stars.
 
     Rooms are written onto the grid rather than drafted so the Observatory's
     own +1-star-per-draft hook does not move the star count out from under a
-    test that is about the star count.
+    test that is about the star count. ``items`` are placed straight into the
+    inventory for the same reason: what is being tested is what a held item
+    does to an activation's payout, not how it was found.
     """
-    cfg = GameConfig(special_items=True) if telescope else GameConfig()
-    game = Game(cfg, seed=seed)
+    cfg = GameConfig(special_items=True) if telescope or items else GameConfig()
+    game = Game(cfg, seed=seed, registry=registry)
     room = game.registry.by_id["observatory"]
     for cell in cells:
         game.state.grid[cell] = room.idx
@@ -61,6 +82,8 @@ def _observatory_game(*, cells=(1,), stars=0, telescope=False, seed=0) -> Game:
     game.phase = Phase.NAVIGATE
     if telescope:
         game.state.inventory[TELESCOPE_ID] = 1
+    for item_id in items:
+        game.state.inventory[item_id] = 1
     return game
 
 
@@ -181,20 +204,20 @@ def test_no_existing_action_id_shifted():
 
 
 def test_unimplemented_constellation_ids_and_the_star_redraw_stay_masked():
-    """The eight unimplemented records and REDRAW_WITH_STAR are never legal, in
+    """The four unimplemented records and REDRAW_WITH_STAR are never legal, in
     any state reachable by play.
 
-    The five implemented ids are deliberately excluded: they go legal in an
-    Observatory, which is the point of this PR. What must not happen is an id
-    whose effect does not exist becoming pressable -- that would silently
-    no-op, or crash on a missing grant. Swept over played-out days on both
-    presets rather than checked at a single reset, since a block that only
-    went legal deep in a day would pass a step-0 check.
+    The nine implemented ids are deliberately excluded: they go legal in an
+    Observatory, which is the point of the block existing. What must not happen
+    is an id whose effect does not exist becoming pressable -- that would
+    silently no-op, or crash on a missing payload. Swept over played-out days
+    on both presets rather than checked at a single reset, since a block that
+    only went legal deep in a day would pass a step-0 check.
     """
     reserved = [A.ACTIVATE_CONSTELLATION_BASE + INDEX[c["id"]]
                 for c in RECORDS if not c["implemented"]]
     reserved.append(A.REDRAW_WITH_STAR_ACTION)
-    assert len(reserved) == 9
+    assert len(reserved) == 5
     for cfg in (GameConfig(), all_unlocks_config()):
         for seed in range(6):
             game = Game(cfg, seed=seed)
@@ -531,10 +554,13 @@ def test_each_implemented_constellation_grants_exactly_its_published_amount():
 
     Driven from the data so no amount is restated here -- a test that
     hardcoded 5 gems would keep passing if the record and the engine drifted
-    apart together.
+    apart together. Keyed on carrying a ``grant`` rather than on
+    ``implemented``: the four records whose effect is not a resource delta are
+    implemented too, and asserting they grant nothing here would only restate
+    the schema.
     """
-    assert len(IMPLEMENTED) == 5
-    for cid, record in IMPLEMENTED.items():
+    assert len(GRANTING) == 5
+    for cid, record in GRANTING.items():
         resource = record["grant"]["resource"]
         game = _observatory_game(stars=record["stars"])
         before = getattr(game.state, resource)
@@ -545,7 +571,7 @@ def test_each_implemented_constellation_grants_exactly_its_published_amount():
             f"{cid} granted the wrong amount of {resource}")
 
 
-def test_the_eight_unimplemented_constellations_refuse_to_activate():
+def test_the_four_unimplemented_constellations_refuse_to_activate():
     """An unimplemented constellation can APPEAR in a sky -- it is part of the
     partition -- but never activates, so its effect cannot silently no-op.
 
@@ -554,7 +580,7 @@ def test_the_eight_unimplemented_constellations_refuse_to_activate():
     ``implemented`` flag rather than simply absent.
     """
     unimplemented = [c for c in RECORDS if not c["implemented"]]
-    assert len(unimplemented) == 8
+    assert len(unimplemented) == 4
     for record in unimplemented:
         cid = record["id"]
         game = _observatory_game(stars=record["stars"])
@@ -606,3 +632,301 @@ def test_night_skies_do_not_survive_the_night():
     game.view_night_sky()
     assert game.state.night_skies
     assert not GameState().night_skies
+
+
+# ------------------------------------------------ the four non-grant effects
+
+#: A lone interior target cell (rank 3, col 2), entered by moving south from
+#: rank 2, col 2. Interior because no door may face the outer wall, which rules
+#: 4-way rooms off every edge -- measuring the Southern Cross against an edge
+#: cell would measure geometry instead of the bias. Same cells as
+#: tests/test_category_biases.py, for the same reason.
+_DRAFT_FROM_CELL = 7
+_DRAFT_DIR = S
+_DRAFT_TARGET_CELL = 12
+
+#: Seeds per arm for the two draw-bias measurements, three option slots each.
+#: Both biases are large (40% and 30% re-deal chances), so this separates them
+#: by a wide margin rather than marginally; it is a fixed count, and a failure
+#: here means the wiring broke, never that the seeds need changing.
+_DRAFT_SEEDS = 300
+
+
+def _layout_rate(registry, *, cid, layout, activate) -> tuple[int, int]:
+    """Deal one hand per seed at ``_DRAFT_TARGET_CELL``; count options of ``layout``.
+
+    Every seed gets its own game, its own decks and its own Rng, so the two
+    arms differ in exactly one thing: whether the constellation was activated
+    -- and it is activated by viewing a real night sky and pressing a real
+    activation, never by writing the flag.
+    """
+    cfg = GameConfig()
+    hits = total = 0
+    for seed in range(_DRAFT_SEEDS):
+        game = _observatory_game(stars=STARS[cid], seed=seed, registry=registry)
+        game.view_night_sky()
+        if activate:
+            game.activate_constellation(INDEX[cid])
+        state = game.state
+        rng = Rng(seed)
+        state.decks = build_decks(registry, cfg, rng)
+        pending = deal_draft(state, registry, cfg, rng, set(),
+                             _DRAFT_FROM_CELL, _DRAFT_DIR, _DRAFT_TARGET_CELL)
+        for option in pending.options:
+            total += 1
+            hits += registry.rooms[option.room_idx].layout == layout
+    return hits, total
+
+
+@pytest.mark.parametrize("cid,layout", [("southern_cross", "cross"), ("draxus", "dead_end")])
+def test_activating_a_draft_bias_constellation_measurably_shifts_the_draw(
+        registry, cid, layout):
+    """Activating the Southern Cross deals four-door rooms far more often, and
+    Draxus deals Dead Ends far more often, than the same seeds do unactivated.
+
+    The point of measuring the DRAW rather than the flag: the flag was already
+    there and already read, so a test that only checked it would pass against
+    an activation wired to the wrong flag, or to a condition tag with no
+    surviving category_biases entry behind it. The un-activated arm doubles as
+    the proof that viewing the sky alone changes nothing.
+    """
+    hits_on, total_on = _layout_rate(registry, cid=cid, layout=layout, activate=True)
+    hits_off, total_off = _layout_rate(registry, cid=cid, layout=layout, activate=False)
+    rate_on = hits_on / total_on
+    rate_off = hits_off / total_off
+    assert rate_on > rate_off * 1.5, (
+        f"{cid}: activation barely moved the draw -- "
+        f"on={rate_on:.4f} ({hits_on}/{total_on}) off={rate_off:.4f} "
+        f"({hits_off}/{total_off})")
+
+
+def test_a_draft_bias_constellation_is_inert_until_it_is_activated(registry):
+    """Drafting the Observatory and looking at the sky sets neither flag; the
+    activation is what sets exactly one of them, and only its own.
+
+    Pairs with the draw measurement above: that one shows the flag reaches the
+    deal, this one shows nothing else on the path sets it early. Both flags are
+    checked on each activation so a dispatch that ignored the record's own
+    condition tag and set both would fail here rather than pass twice.
+    """
+    game = _observatory_game(cells=(1, 6), stars=STARS["southern_cross"], registry=registry)
+    game.view_night_sky()
+    assert not game.state.southern_cross_active and not game.state.draxus_active
+
+    game.activate_constellation(INDEX["southern_cross"])
+    assert game.state.southern_cross_active and not game.state.draxus_active
+
+    game.state.pos = 6
+    game.state.stars = STARS["draxus"]
+    game.view_night_sky()
+    game.activate_constellation(INDEX["draxus"])
+    assert game.state.southern_cross_active and game.state.draxus_active
+
+
+def test_no_activation_survives_the_night(registry):
+    """Every effect this block writes is day-scoped: a new day clears both
+    draft-bias flags and the Entrance Hall's trunks.
+
+    Nothing here is carried, so env/multiday.py's _CARRYOVER_KEYS does not
+    move -- and it could not carry these anyway, since two of the three are not
+    even GameConfig fields.
+    """
+    game = _observatory_game(cells=(1, 6), stars=STARS["southern_cross"], registry=registry)
+    game.view_night_sky()
+    game.activate_constellation(INDEX["southern_cross"])
+    game.state.pos = 6
+    game.state.stars = STARS["the_twins"]
+    game.view_night_sky()
+    game.activate_constellation(INDEX["the_twins"])
+    assert game.state.southern_cross_active
+    assert game.state.special.entrance_hall_trunks
+
+    game.reset()
+    assert not game.state.southern_cross_active
+    assert not game.state.draxus_active
+    assert not game.state.special.entrance_hall_trunks
+
+
+# ------------------------------------------------------------- The Twins
+
+
+def _twins_pair() -> int:
+    """Trunks one Twins activation adds, from the record rather than restated."""
+    return next(c for c in RECORDS if c["id"] == "the_twins")["effect"]["trunks"]
+
+
+def test_activating_the_twins_puts_openable_trunks_in_the_entrance_hall(registry):
+    """The pair reaches the container system, not just a counter: the Entrance
+    Hall's observed container count rises by two and one of them can be opened.
+
+    Opening is what makes this a behaviour test -- the overlay is resolved per
+    CELL rather than per room precisely so dynamically added containers are
+    visible, and a counter nothing reads would satisfy an equality on the
+    counter alone.
+    """
+    game = _observatory_game(stars=STARS["the_twins"], registry=registry)
+    row, col = ENTRANCE_CELL // 5, ENTRANCE_CELL % 5
+    before = int(O.encode(game)["grid_containers"][row, col])
+
+    game.view_night_sky()
+    game.activate_constellation(INDEX["the_twins"])
+    after = int(O.encode(game)["grid_containers"][row, col])
+    assert after - before == _twins_pair()
+
+    game.state.pos = ENTRANCE_CELL
+    game.state.keys = 1
+    assert game.can_open_container()
+    assert game.open_container() is not None
+
+
+def test_the_twins_stacks_so_each_activation_adds_another_pair(registry):
+    """A second activation at a second Observatory adds a second pair, because
+    this record stacks -- unlike the two day-long draft biases, for which the
+    held Telescope's extra sky is documented as worth nothing."""
+    game = _observatory_game(cells=(1, 6), stars=STARS["the_twins"], registry=registry)
+    for cell in (1, 6):
+        game.state.pos = cell
+        game.view_night_sky()
+        game.activate_constellation(INDEX["the_twins"])
+    assert game.state.special.entrance_hall_trunks == 2 * _twins_pair()
+
+
+def test_the_twins_and_the_experiment_effect_share_one_trunk_cap(registry):
+    """The two Entrance-Hall trunk sources draw down a single per-day cap, and
+    a Twins pair that would overshoot lands PARTIALLY rather than being refused.
+
+    Both directions are exercised because a per-source cap would pass a
+    one-source test: the experiment effect fills the hall to one short of the
+    cap, The Twins gets in a single trunk instead of its pair, and after that
+    neither source adds anything. Partial rather than all-or-nothing matters --
+    refusing the pair outright would lose a trunk the cap leaves room for.
+    """
+    cap = experiments.entrance_hall_trunk_cap(registry)
+    assert cap is not None and cap > _twins_pair()
+    game = _observatory_game(cells=(1, 6), stars=STARS["the_twins"], registry=registry)
+    for _ in range(cap - 1):
+        experiments.apply_effect(game, experiments.ENTRANCE_HALL_TRUNK_EFFECT_ID)
+    assert game.state.special.entrance_hall_trunks == cap - 1
+
+    game.view_night_sky()
+    game.activate_constellation(INDEX["the_twins"])
+    assert game.state.special.entrance_hall_trunks == cap, "The Twins overshot the shared cap"
+
+    game.state.pos = 6
+    game.view_night_sky()
+    game.activate_constellation(INDEX["the_twins"])
+    experiments.apply_effect(game, experiments.ENTRANCE_HALL_TRUNK_EFFECT_ID)
+    assert game.state.special.entrance_hall_trunks == cap
+
+
+# --------------------------------------------------------- Farmer's Apple
+
+
+def _apple_effect() -> dict:
+    """Farmer's Apple's own effect block: which dish, and how many steps."""
+    return next(c for c in RECORDS if c["id"] == "farmers_apple")["effect"]
+
+
+def _eat_one(game, food_id: str) -> int:
+    """Eat one ``food_id`` and return the steps it granted."""
+    before = game.state.steps
+    special_items.eat_food(game, food_id, 1)
+    return game.state.steps - before
+
+
+def test_farmers_apple_adds_its_published_steps_to_each_apple_and_stacks(registry):
+    """Every activation raises what one apple is worth by the record's own
+    ``steps``, and a second activation raises it again by the same amount.
+
+    Measured by eating apples rather than by reading a counter: "apples are
+    extra delicious today" has to reach the step total, and the increment must
+    be per-apple, not a one-off grant at activation time.
+    """
+    effect = _apple_effect()
+    game = _observatory_game(cells=(1, 6), stars=STARS["farmers_apple"], registry=registry)
+
+    plain = _eat_one(game, effect["food_id"])
+    game.view_night_sky()
+    game.activate_constellation(INDEX["farmers_apple"])
+    once = _eat_one(game, effect["food_id"])
+    game.state.pos = 6
+    game.view_night_sky()
+    game.activate_constellation(INDEX["farmers_apple"])
+    twice = _eat_one(game, effect["food_id"])
+
+    assert once - plain == effect["steps"]
+    assert twice - once == effect["steps"]
+
+
+def test_farmers_apple_leaves_every_other_dish_alone(registry):
+    """A banana is worth the same under seven activations as under none: the
+    bonus is keyed on the dish id in data, so it cannot leak into the rest of
+    the food table."""
+    game = _observatory_game(cells=_OBSERVATORY_CELLS[:MAX_CONSTELLATION_SKIES],
+                             stars=STARS["farmers_apple"], registry=registry)
+    plain = _eat_one(game, "banana")
+    for cell in _OBSERVATORY_CELLS[:MAX_CONSTELLATION_SKIES]:
+        game.state.pos = cell
+        game.view_night_sky()
+        game.activate_constellation(INDEX["farmers_apple"])
+    assert _eat_one(game, "banana") == plain
+
+
+def test_seven_activations_with_a_salt_shaker_and_a_silver_spoon_reach_48_steps(registry):
+    """The wiki's own worked example, end to end: seven Farmer's Apple
+    activations plus a Salt Shaker and a Silver Spoon take one apple to 48
+    steps -- (2 + 7*3 + 1) * 2.
+
+    Pinned as one whole number because what it really fixes is the ORDER. The
+    constellation bonus sits INSIDE the Salt Shaker's flat +1 and the Silver
+    Spoon's doubling; applying it after that fold would give 25, and between
+    the two would give 27. Seven activations is also exactly the day's
+    constellation-sky cap, so this is the ceiling rather than an arbitrary
+    number -- one Observatory per sky, seven skies, no eighth.
+    """
+    cells = _OBSERVATORY_CELLS[:MAX_CONSTELLATION_SKIES]
+    game = _observatory_game(cells=cells, stars=STARS["farmers_apple"], registry=registry,
+                             items=("salt_shaker", "silver_spoon"))
+    for cell in cells:
+        game.state.pos = cell
+        game.view_night_sky()
+        game.activate_constellation(INDEX["farmers_apple"])
+    steps = _eat_one(game, _apple_effect()["food_id"])
+    assert steps == 48, (
+        f"the apple was worth {steps}, not the published 48 -- 27 or 25 means the "
+        f"Farmer's Apple bonus landed outside the Salt Shaker / Silver Spoon fold "
+        f"instead of on the apple's own base")
+
+
+def test_a_non_stacking_record_neither_re_applies_nor_re_multiplies(registry):
+    """``stacks`` is honoured on both sides of the split: a non-stacking
+    record's second activation writes nothing, and its bonus is counted once
+    however many times it fired.
+
+    Exercised against synthetic copies because no shipped record is both
+    non-stacking and additive -- the four non-stacking ones set day-scoped
+    flags, where a repeat is invisible. Without this the published "no
+    additional effect on a second activation" would quietly become "double it"
+    the day such a constellation lands.
+    """
+    game = _observatory_game(cells=(1, 6), stars=STARS["the_twins"], registry=registry)
+    once_only = replace(registry.constellations.by_id["the_twins"], stacks=False)
+    for cell in (1, 6):
+        game.state.pos = cell
+        game.view_night_sky()
+        game.state.night_skies[cell][0].activated.add(once_only.id)
+        constellations.apply_effect(game, once_only)
+    assert game.state.special.entrance_hall_trunks == _twins_pair()
+
+    apples = _observatory_game(cells=(1, 6), stars=STARS["farmers_apple"], registry=registry)
+    for cell in (1, 6):
+        apples.state.pos = cell
+        apples.view_night_sky()
+        apples.activate_constellation(INDEX["farmers_apple"])
+    con = registry.constellations
+    stacking = constellations.food_step_bonus(con, apples.state, _apple_effect()["food_id"])
+    non_stacking = replace(
+        con, records=tuple(replace(r, stacks=False) for r in con.records))
+    assert stacking == 2 * _apple_effect()["steps"]
+    assert constellations.food_step_bonus(
+        non_stacking, apples.state, _apple_effect()["food_id"]) == _apple_effect()["steps"]

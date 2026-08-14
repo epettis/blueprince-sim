@@ -231,7 +231,7 @@ class GameState:
     # Cloister of Joya's permanent Main Course bonus: +5 (from its own
     # effect_text) for each Kitchen/Pantry/Furnace drafted from its own
     # doorway (effects/rooms/cloister.py), added to every one of the five
-    # main-course dishes (special_items.py::_resolve_food_base), never to the
+    # main-course dishes (special_items.py::_dish_base_steps), never to the
     # Lunch Box. Seeded from cfg.main_course_bonus at reset(); reported by
     # carryover() and replaced wholesale into cfg.main_course_bonus by
     # DayChain each advance() -- the same "replace" shape as allowance/stars,
@@ -283,17 +283,17 @@ class GameState:
     # read by draft.py's _active_conditions. Per-day like greenhouse_placed/furnace_placed:
     # reset() builds a fresh GameState, and nothing carries this across days.
     schoolhouse_placed: bool = False
-    # Southern Cross constellation active tonight: 4-way (layout: cross) room bias on draws
-    # (priority_draws.json "southern_cross_constellation"). Day-scoped stub: no star-count /
-    # night-sky / Observatory-eyepiece subsystem is modeled anywhere in the engine, so nothing
-    # sets this flag during play. Exists so the bias is testable/reachable (set it directly)
-    # rather than dead code; real activation is out of scope here.
+    # Southern Cross constellation active today: 4-way (layout: cross) room bias on draws
+    # (priority_draws.json "southern_cross_constellation", which owns the 40%). Set by
+    # activating the constellation from a night sky (constellations.py::apply_effect, keyed
+    # on that record's own effect.condition), read by draft.py's _active_conditions.
+    # Day-scoped: a fresh GameState clears it, and nothing carries it over.
     southern_cross_active: bool = False
-    # Draxus constellation active tonight: Dead End (layout: dead_end) room bias on draws
-    # (priority_draws.json "draxus_constellation"). Same day-scoped stub as
-    # southern_cross_active — no activation source is modeled; set only by tests/research
-    # callers. Not to be confused with cloister_of_draxus__ix36's own, unrelated, deterministic
-    # "only Dead Ends draftable from this room" rule.
+    # Draxus constellation active today: Dead End (layout: dead_end) room bias on draws
+    # (priority_draws.json "draxus_constellation", which owns the 30%). Same activation path
+    # and same day scope as southern_cross_active. Not to be confused with
+    # cloister_of_draxus__ix36's own, unrelated, deterministic "only Dead Ends draftable from
+    # this room" rule.
     draxus_active: bool = False
     drafting_room_count: int = 0  # grants that many free redraws when drafting from the Classroom
     study_placed: bool = False  # Study: pay 1 gem to redraw (max 8 per hand)
