@@ -267,7 +267,8 @@
       19
      ],
      "denominator": 101,
-     "pity": 3
+     "pity": 3,
+     "pity_fail": -2
     }
    ],
    "implemented": true,
@@ -276,7 +277,7 @@
     "confidence": "datamined",
     "absent_spawn_areas": [],
     "blocked_on": null,
-    "notes": "Rates, denominator and pity live on this record's lockpick effect and are read by special_items.py::_attempt_lockpick, which prefers the Pick Sound Amplifier when both tools are held; the door kinds match too (locks.py's DOOR_SECURITY is a separate segment kind no lockpick path touches). Two rungs of the wiki's published table are NOT modelled. The rate ladder is indexed by state.special.lockpick_attempts, which counts every attempt, while the wiki steps it on successful picks only (\"the chance goes down after a successful lockpick\"; \"after the first three successful lockpicks, remaining lockpicks have a 19/101 chance\"), so three failures already drop this sim to the 19/101 rung. And state.special.lockpick_fails counts consecutive failures and clears on any success, while the wiki's counter also decrements on success, is set to -1 after a pity auto-success, and auto-FAILS at -2 while lockpicking skill is 20 or less -- lockpicking skill itself has no stat here (docs/experiments-design.md, permanent_lockpicking_skill). Also NOT modelled: the wiki's !Garage high-luck spawn entry, which spawn_rooms_high_luck leaves empty, and its statement that building the Pick Sound Amplifier keeps this Kit out of the item pool on SUBSEQUENT days -- shops.py::fabricate marks recipe inputs consumed for the current day only."
+    "notes": "Rates, denominator, pity and pity_fail live on this record's lockpick effect and are read by special_items.py::_attempt_lockpick, which prefers the Pick Sound Amplifier when both tools are held; the door kinds match too (locks.py's DOOR_SECURITY is a separate segment kind no lockpick path touches). The rate ladder is indexed by state.special.lockpick_successes (successful picks today), matching \"the chance goes down after a successful lockpick\" / \"after the first three successful lockpicks, remaining lockpicks have a 19/101 chance\". state.special.lockpick_fails is the two-sided pity counter (+1/fail, -1/success): at >= pity it auto-succeeds and resets to -1; at <= pity_fail it auto-fails and resets to 1. The wiki gates the auto-fail case on lockpicking skill <= 20 -- lockpicking skill itself has no stat here (docs/experiments-design.md, permanent_lockpicking_skill), so this sim applies it unconditionally. NOT modelled: the per-door clause resetting the counter to 0 on a door already attempted (this sim tracks global per-day counters, not per-doorway, per _attempt_lockpick's docstring); the numerator bonus from lockpicking skill and its 98/101 cap; the wiki's !Garage high-luck spawn entry, which spawn_rooms_high_luck leaves empty; and its statement that building the Pick Sound Amplifier keeps this Kit out of the item pool on SUBSEQUENT days -- shops.py::fabricate marks recipe inputs consumed for the current day only."
    }
   },
   {

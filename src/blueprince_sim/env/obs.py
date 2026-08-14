@@ -187,7 +187,9 @@ def observation_space(n_rooms: int, n_items: int, n_recipes: int,
         # trades_left, scepter_color_idx+1 (0=none), treasure_cell+1 (0=none),
         # treasure_dug, dining_room_served,
         # can_open_vault_box (0/1), crown_blocked_room_count
-        "item_state": spaces.Box(-1, 999, shape=(12,), dtype=np.int16),
+        # lockpick_fails (the pity counter) is two-sided and can sit at -2
+        # between attempts (two consecutive successful picks), hence low=-2.
+        "item_state": spaces.Box(-2, 999, shape=(12,), dtype=np.int16),
         # dig spots REMAINING per cell (placed rooms; 0 = empty or fully dug)
         "grid_dig": spaces.Box(0, 9, shape=(9, 5), dtype=np.uint8),
         # current shop's display entries, -1 rows when absent / not in a shop.

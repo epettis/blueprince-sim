@@ -276,8 +276,10 @@ class SpecialItemsState:
     """Mutable per-day special-item bookkeeping, reset with GameState."""
 
     enabled: bool = True  # GameConfig.special_items, copied at reset (gates spawning)
-    lockpick_attempts: int = 0  # picks tried today (indexes the per-day rate table)
-    lockpick_fails: int = 0  # consecutive fails, for the Lock Pick Kit pity rule
+    lockpick_attempts: int = 0  # picks tried today (Lock Pick Kit / Amplifier)
+    lockpick_successes: int = 0  # successful picks today, indexes the per-day rate table
+    lockpick_fails: int = 0  # pity counter: +1/fail, -1/success (meaningful only when
+    # the held tool's lockpick effect has pity > 0; see _attempt_lockpick)
     coin_interest: int = 0  # coins collected since the last Coin Purse interest payout
     water: int = 0  # Watering Can charges left (set to capacity on pickup)
     stopwatch_left: int = 0  # free cost events remaining (0 = stopwatch inactive)
@@ -1119,14 +1121,24 @@ def _attempt_lockpick(game) -> bool:
     """One Lock Pick Kit / Pick Sound Amplifier attempt: probabilistic with
     the datamined rates and pity rule, prefering the Amplifier when both are
     held (better rates, no pity drain). Tracked by GLOBAL per-day counters
-    (``state.special.lockpick_attempts``/``lockpick_fails``), not per
-    doorway -- the wiki documents retrying the SAME door as pointless once
-    it has failed once ("attempting to use the Lock Pick Kit on that door
-    again still does not open the door"), which this sim does not model;
-    a retry here draws a fresh roll off the same global counters instead of
-    an automatic re-fail. False, with no counters touched, when neither tool
-    is held. Shared by :func:`open_locked_free` (movement, auto-cascade) and
-    Game.lockpick_at_lock (LOCK_PENDING, the player's own explicit choice).
+    (``state.special.lockpick_attempts``/``lockpick_successes``/
+    ``lockpick_fails``), not per doorway -- the wiki documents retrying the
+    SAME door as pointless once it has failed once ("attempting to use the
+    Lock Pick Kit on that door again still does not open the door"), which
+    this sim does not model; a retry here draws a fresh roll off the same
+    global counters instead of an automatic re-fail. False, with no counters
+    touched, when neither tool is held. Shared by :func:`open_locked_free`
+    (movement, auto-cascade) and Game.lockpick_at_lock (LOCK_PENDING, the
+    player's own explicit choice).
+
+    The rate ladder (``rates``) is indexed by SUCCESSFUL picks so far today,
+    not attempts -- consecutive failures hold the player at the current rung
+    instead of pushing them down it. The pity counter is two-sided: a fail
+    adds 1, a success subtracts 1. At >= ``pity`` the attempt auto-succeeds
+    and the counter resets to -1; at <= ``pity_fail`` it auto-fails and the
+    counter resets to 1 (the wiki gates this second case on lockpicking
+    skill <= 20; no skill stat exists here, so it always applies). Both
+    checks are skipped when ``pity`` is 0 (the Amplifier has no pity drain).
     """
     state = game.state
     registry = game.registry
@@ -1146,18 +1158,24 @@ def _attempt_lockpick(game) -> bool:
     rates = lockpick_effect.param("rates", [54, 35, 30, 19])
     denominator = lockpick_effect.param("denominator", 101)
     pity = lockpick_effect.param("pity", 0)
+    pity_fail = lockpick_effect.param("pity_fail", -2)
 
-    attempt = state.special.lockpick_attempts
-    rate_idx = min(attempt, len(rates) - 1)
     state.special.lockpick_attempts += 1
+    counter = state.special.lockpick_fails
 
-    # Pity rule: if pity > 0 and consecutive fails >= pity threshold, auto-succeed
-    if pity > 0 and state.special.lockpick_fails >= pity:
-        state.special.lockpick_fails = 0
+    if pity > 0 and counter >= pity:
+        state.special.lockpick_fails = -1
+        state.special.lockpick_successes += 1
         return True
 
+    if pity > 0 and counter <= pity_fail:
+        state.special.lockpick_fails = 1
+        return False
+
+    rate_idx = min(state.special.lockpick_successes, len(rates) - 1)
     if game.rng.chance("lockpick", rates[rate_idx] / denominator):
-        state.special.lockpick_fails = 0
+        state.special.lockpick_fails -= 1
+        state.special.lockpick_successes += 1
         return True
     else:
         state.special.lockpick_fails += 1
