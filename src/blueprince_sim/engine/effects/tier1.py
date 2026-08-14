@@ -188,13 +188,30 @@ def conceal_all_floorplans(game, room, eff, ctx_room) -> None:
 def anti_luck(game, room, eff, ctx_room) -> None:
     """Maid's Chamber: items less likely in rooms drafted after it.
 
-    Modelled as -N luck on placement (default N=3). The datamined magnitude is
-    -7; correcting it is queued with the luck-model rebuild, because -7 also
-    requires removing the clamp below (four Maid's Chambers must reach -18).
-    Clamped at floor (0) so negative luck never misbehaves with the item_ladder band lookup.
-    As a red-room penalty, it is negated by Shelter.
+    Modelled as -N luck on placement (default N=7, the wiki's DataMinedBox:
+    "Maid's Chamber: -7 when drafted"). Unclamped, like every other luck
+    delta (see ``_grant``'s luck case) -- the item_ladder's bands are
+    contiguous and unbounded at both ends (data/items.json), so negative
+    luck resolves through the same lowest band as any other low value. As a
+    red-room penalty, it is negated by Shelter.
     """
     if _red_negated(game, room):
         return
-    amount = eff.param("amount", 3)
-    game.state.luck = max(0, game.state.luck - amount)
+    amount = eff.param("amount", 7)
+    game.state.luck -= amount
+
+
+# draft_luck (Veranda / Spare Veranda) is consumed directly by
+# engine/items.py::draft_luck_bonus, read generically off room.effects at
+# item-roll time (the moment ``roll_room_items`` knows which room's items are
+# being resolved) -- not through this module's per-hook dispatch, because the
+# wiki's own framing ("additional modifiers are applied for that draft
+# (without modifying the current luck value)") needs the SAME computed value
+# threaded through both engine/items.py::roll_ladder_count and
+# engine/special_items.py::roll_special_spawn for one room's resolution, which
+# a fire-and-forget hook handler cannot hand back. Registered as a no-op here
+# so the tag is not warned about as unhandled (same convention as
+# archive_floorplan/conceal_all_floorplans above).
+@effect("draft_luck", Hook.ON_PLACE)
+def draft_luck(game, room, eff, ctx_room) -> None:
+    pass

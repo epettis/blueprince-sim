@@ -1,7 +1,7 @@
 # Luck and item spawns
 
-How rooms yield resources, and how the self-balancing luck stat drives the
-extra-item rolls. Code: `engine/items.py`; data: `data/items.json`
+How rooms yield resources, and how luck drives the extra-item rolls. Code:
+`engine/items.py`, `engine/effects/tier1.py`; data: `data/items.json`
 (wiki-sourced: blueprince.wiki.gg Luck + Item Spawns).
 
 ## Item spawns
@@ -11,9 +11,9 @@ Each room's item content (`Room.items`) has two parts:
 - **Guaranteed items** always spawn when the player first enters the room.
   The pseudo-item `random` (Closet, Walk-In Closet, Attic) spawns a fixed
   *count* of random items and is luck-immune.
-- **Additional items**: up to `additional_max` extra items, each spawning
-  independently with the current luck probability. Fixed-content rooms
-  (`additional_max == 0`) are unaffected by luck.
+- **Additional items**: up to `additional_max` extra items, whose count is
+  rolled once per draft from the published item-count ladder (below), then
+  clamped to `additional_max`.
 
 Each extra item's kind is rolled from a weighted table — coins 40, key 25,
 gem 25, die 10. The exact distribution is not datamined; these weights are
@@ -23,27 +23,91 @@ of 1–5 coins.
 Items are granted when the player **moves into** the room, not when it is
 drafted.
 
-## The luck curve
+Not every room rolls the ladder. `data/items.json`'s `never_roll_rooms` lists
+19 rooms (Entrance Hall, Rotunda, Room 8, Closet and its three Upgrade Closet
+variants, Walk-in Closet, Attic, Chamber of Mirrors, Freezer, Antechamber,
+Passageway, Locksmith, Showroom, Gift Shop, Vestibule, Mechanarium, Treasure
+Trove, Toolshed, Shelter, Shrine) that skip `roll_ladder_count` entirely — no
+Luck Penalty accrues for them either. A room with `additional_max == 0` that
+is NOT on this list still rolls and discards the result, and still pays the
+Luck Penalty for whatever band it lands in.
 
-- Luck starts each day at **10**; the wiki documents that at **29** every
-  room grants its maximum additional items.
-- The spawn probability is interpolated **linearly** between the floor (0 →
-  0%) and `max_effect_at` (29 → 100%). The real curve shape between those
-  anchors is not documented; linear is an inferred placeholder, editable in
-  `data/items.json`.
-- **Self-balancing**: finding 2+ items in one room lowers luck by 1, so hot
-  streaks cool off.
+Five rooms transform the ladder's raw count before the `additional_max`
+clamp (`data/items.json`'s `count_transforms`, wiki: each room's own page):
+Nook and its three variants (`reduce_by_one_chance`), Study
+(`zero_becomes_one`), Guest Bedroom/Guess Bedroom (`zero_becomes_one_or_gem`),
+Den (`one_becomes_trunk`, resolved at grant time), Lost & Found
+(`not_modeled`, a documented no-op).
 
-## Luck modifiers
+## The item-count ladder
 
-- **Root Cellar**: no luck effect. Its real effect spreads dig spots to other
-  rooms and is not modelled; the room keeps only its own dig spot. The wiki's
-  datamined luck-modifier list does not include it.
-- **Maid's Chamber** (`anti_luck`): modelled as −3 luck on placement,
-  clamped at the floor of 0 so negative luck never misbehaves with the
-  probability curve. As a red-room penalty it is negated by Shelter.
-- **Rabbit's Foot**: the +3 bonus is in the data (`rabbits_foot_bonus`) but
-  the item itself is out of scope for the sim.
+Luck starts each day at **10** (`data/items.json`'s `luck.day_start`).
+`engine/items.py::roll_ladder_count` resolves a room's extra-item count from
+the published step ladder (`item_ladder.bands`, wiki "Luck effects"
+DataMinedBox), keyed on **effective luck** = `state.luck` + per-draft
+modifiers (`special_items.luck_bonus`: Rabbit's Foot/Lucky Purse;
+`engine/items.py::draft_luck_bonus`: Veranda/Spare Veranda, see below) −
+`state.luck_penalty`:
+
+| Effective luck | Outcome |
+| --- | --- |
+| ≤4 | 7% for 1 item, 93% for 0 |
+| 5–10 | 1 item with a probability chosen by the first-matching condition (Room 46 reached → 15%; day ≥6 → 25%; Veteran Mode → 15%; day ≥3 → 20%; otherwise → 18%), else 0 |
+| 11–15 | 1.6% variable, 38.4% for 1, 60% for 0 |
+| 16–18 | 3.2% variable, 76.8% for 1, 20% for 0 |
+| 19–22 | always variable |
+| 23–28 | 3 items, +2 Luck Penalty |
+| 29+ | 4 items, +3 Luck Penalty |
+
+"Variable" re-resolves against the SAME effective luck (`item_ladder.variable`):
+≤10 → 1 item; 11–16 → 2 items, +1 Luck Penalty; 17+ → 5% for 3 items (+3
+Luck Penalty), 95% for 2 items (+1 Luck Penalty).
+
+**Luck Penalty** (`state.luck_penalty`) is a separate per-day accumulator,
+grown by the bands/outcomes above, then subtracted from luck to form the NEXT
+draft's effective luck. It is not itself luck, is not clamped, and resets to
+0 at day start alongside luck (the wiki never states its reset scope; this is
+an owner ruling, `docs/open_tasks.md` decisions log).
+
+Effective luck can also decide a bonus special-item spawn: at
+`spawn_rules.high_luck_at` (16) or above, a luck-proc's special-item pool
+gains the room's high-luck entries (`engine/special_items.py::roll_special_spawn`,
+same effective-luck formula as the ladder).
+
+## Stored luck modifiers
+
+Applied to `state.luck` itself, unclamped in either direction — negative
+luck resolves through the ladder's lowest band the same as any other value:
+
+- **Maid's Chamber** (`anti_luck`): −7 luck on placement (wiki DataMinedBox:
+  "Maid's Chamber: -7 when drafted"). As a red-room penalty it is negated by
+  Shelter.
+- **Root Cellar**: no luck effect modelled. Its real effect spreads dig spots
+  to other rooms, which needs a house-wide dig-spot model this sim does not
+  have; the wiki's datamined luck-modifier list does not include it either.
+
+## Per-draft luck modifiers
+
+Wiki framing (Luck page DataMinedBox): "When drafting a room, if the
+condition is met, additional modifiers are applied for that draft (without
+modifying the current luck value)." These add into the effective-luck
+formula above for one room's own item roll only; `state.luck` never changes.
+
+- **Rabbit's Foot / Lucky Purse** (`special_items.luck_bonus`): +3 while
+  either is held, applied to every draft.
+- **Veranda** (`engine/items.py::draft_luck_bonus`, tag `draft_luck` with a
+  `ladder` param): while placed, +12 for the first green room drafted each
+  day, +6 for every later one (wiki: "first one in a day gives +12, all
+  later ones give +6. Applied if the room you drafted is green"). The
+  per-day use count lives in `state.special.draft_luck_uses`, keyed by the
+  bearer room's id.
+- **Spare Veranda** (same tag, flat `amount` param): while placed, +6 for
+  every green room drafted, no first/later split (wiki: "+6 per. Applied if
+  the room drafted is green").
+
+`draft_luck` is read generically off every placed room's effects (category
+check + ladder-or-flat amount) — no engine module branches on a room id for
+this mechanic.
 
 ## Relative item values
 

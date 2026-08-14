@@ -108,19 +108,78 @@ def _resolve_variable(effective: float, variable_bands: list[dict], state: GameS
     return 2
 
 
-def roll_ladder_count(game) -> int:
+def draft_luck_bonus(game, room: Room) -> int:
+    """Per-draft luck modifiers from placed rooms' ``draft_luck`` effects
+    (Veranda, Spare Veranda), summed for ``room``'s item roll only.
+
+    Wiki (Luck page DataMinedBox), the framing that governs this whole
+    channel: "When drafting a room, if the condition is met, additional
+    modifiers are applied for that draft (without modifying the current
+    luck value)." So this is added into ``roll_ladder_count`` /
+    ``special_items.roll_special_spawn``'s effective-luck formula alongside
+    ``special_items.luck_bonus`` (Rabbit's Foot), never written to
+    ``state.luck`` itself.
+
+    Reads every placed room's ``effects`` generically -- no room id is ever
+    named here, only the tag and its data-declared params:
+
+    * ``{"tag": "draft_luck", "category": c, "amount": n}`` (Spare Veranda,
+      wiki: "+6 per"): +n whenever the room being rolled ``is_category(c)``,
+      every qualifying draft, no day-count.
+    * ``{"tag": "draft_luck", "category": c, "ladder": [n0, n1, ...]}``
+      (Veranda, wiki: "first one in a day gives +12, all later ones give
+      +6"): the bearer's own per-day use count indexes ``ladder`` (clamped
+      to the last entry once past its length), advanced by one on every
+      qualifying draft. Tracked per bearer room id in
+      ``state.special.draft_luck_uses`` (reset with GameState, so it is a
+      per-DAY count, matching "in a day").
+
+    Must be called at most ONCE per room's item-roll pipeline (it mutates
+    the day-count) -- ``roll_room_items`` computes it once and threads the
+    single result through every effective-luck formula for that room's
+    resolution, rather than letting each formula recompute it.
+
+    A bearer never applies its own effect to its own roll: Veranda's own
+    room page states the bonus covers "any Green Room drafted AFTER the
+    Veranda", which its own draft cannot be. Structural (idx equality), not
+    a room id check.
+    """
+    state = game.state
+    total = 0
+    for idx in state.grid:
+        if idx < 0 or idx == room.idx:
+            continue
+        bearer = game.registry.rooms[idx]
+        for eff in bearer.effects:
+            if eff.tag != "draft_luck":
+                continue
+            if not room.is_category(eff.param("category", "any")):
+                continue
+            ladder = eff.param("ladder")
+            if ladder is not None:
+                uses = state.special.draft_luck_uses.get(bearer.id, 0)
+                total += ladder[min(uses, len(ladder) - 1)]
+                state.special.draft_luck_uses[bearer.id] = uses + 1
+            else:
+                total += eff.param("amount", 0)
+    return total
+
+
+def roll_ladder_count(game, draft_bonus: int = 0) -> int:
     """Roll the published item-count ladder once for this draft's additional
     items; returns the raw count (BEFORE the ``additional_max`` clamp --
     ``roll_room_items`` clamps it). Adds any Luck Penalty the resolved
     band/outcome carries to ``state.luck_penalty``.
 
     Effective luck = ``state.luck`` + per-draft modifiers
-    (``special_items.luck_bonus``: Rabbit's Foot / Lucky Purse) -
-    ``state.luck_penalty``.
+    (``special_items.luck_bonus``: Rabbit's Foot / Lucky Purse; ``draft_bonus``:
+    Veranda / Spare Veranda, precomputed once by the caller -- see
+    ``draft_luck_bonus``) - ``state.luck_penalty``.
     """
     state, cfg, registry, rng = game.state, game.cfg, game.registry, game.rng
     ladder = registry.item_rules["item_ladder"]
-    effective = state.luck + special_items.luck_bonus(state, registry) - state.luck_penalty
+    effective = (state.luck + special_items.luck_bonus(state, registry) + draft_bonus
+                 - state.luck_penalty)
     band = _find_band(effective, ladder["bands"])
     kind = band["kind"]
 
@@ -232,7 +291,7 @@ def expected_yields(room: Room, registry: Registry) -> dict[str, float]:
             if res in y:
                 y[res] += eff.param("amount", 0)
         elif eff.tag == "anti_luck":
-            y["luck"] -= eff.param("amount", 3)
+            y["luck"] -= eff.param("amount", 7)
     return y
 
 
@@ -399,7 +458,13 @@ def roll_room_items(game, room: Room) -> int:
     if room.id in registry.item_rules["never_roll_rooms"]["rooms"]:
         return found
 
-    raw = roll_ladder_count(game)
+    # Computed ONCE for this room's whole resolution (see draft_luck_bonus's
+    # docstring): it may advance a bearer room's per-day ladder count, so
+    # every effective-luck formula below (the ladder roll AND every extra
+    # slot's special-item roll) must reuse this single value rather than
+    # each recomputing its own.
+    draft_bonus = draft_luck_bonus(game, room)
+    raw = roll_ladder_count(game, draft_bonus)
     raw, bonus_found = _apply_count_transform(game, room, raw)
     found += bonus_found
     extra = min(raw, room.items.additional_max)
@@ -413,7 +478,7 @@ def roll_room_items(game, room: Room) -> int:
         # A luck proc may resolve to one of the room's special items
         # (docs/special-items-design.md spawn model) instead of a resource
         # from the table.
-        if special_items.roll_special_spawn(state, registry, room, rng) is not None:
+        if special_items.roll_special_spawn(state, registry, room, rng, draft_bonus) is not None:
             found += 1
             continue
         weights = tuple(w for _, w in EXTRA_ITEM_TABLE)

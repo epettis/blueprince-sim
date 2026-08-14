@@ -209,7 +209,10 @@ EFFECT_MAP: dict[str, dict] = {
                    "items": {"dig_spots": 1}},
     "terrace": {"effects": [{"tag": "free_green_drafts"}], "items": {"dig_spots": 1}},
     "morning_room": {"items": {"guaranteed": [{"item": "gem", "count": 2}], "dig_spots": 1}},
-    "veranda": {"effects": [{"tag": "grant", "resource": "luck", "amount": 3}],  # inferred magnitude
+    # Datamined (Luck page DataMinedBox): "first one in a day gives +12, all
+    # later ones give +6. Applied if the room you drafted is green." Per-draft
+    # only -- draft_luck never touches stored luck (engine/items.py::draft_luck_bonus).
+    "veranda": {"effects": [{"tag": "draft_luck", "category": "green", "ladder": [12, 6]}],
                 "items": {"dig_spots": 1}},
     "courtyard": {"items": {"guaranteed": [], "dig_spots": 1}},
     "secret_garden": {"items": {"guaranteed": [{"item": "gem", "count": 2}], "dig_spots": 1}},
@@ -350,8 +353,11 @@ EFFECT_OVERRIDE: dict[str, dict] = {
         {"tag": "grant_per_category", "resource": "keys", "amount": 1, "category": "bedroom",
          "cap": 15}]},
     # Spare Veranda: second-level variant with its own name, so EFFECT_MAP's
-    # "veranda" entry does not match; mirrors the base Veranda's luck grant.
-    "spare_veranda__ix140": {"effects": [{"tag": "grant", "resource": "luck", "amount": 3}]},
+    # "veranda" entry does not match. Datamined (Luck page DataMinedBox):
+    # "+6 per. Applied if the room drafted is green." -- unlike the base
+    # Veranda, no first/later split (flat every qualifying draft).
+    "spare_veranda__ix140": {"effects": [
+        {"tag": "draft_luck", "category": "green", "amount": 6}]},
     # Geist Bedroom disables the base Guest Bedroom's random item spawn (and,
     # by extension, its luck-penalty processing): additional_max 0 rather than
     # the blueprint-category default of 1. Its dice grant is a room_hook

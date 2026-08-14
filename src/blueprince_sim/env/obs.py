@@ -113,7 +113,19 @@ def observation_space(n_rooms: int, n_items: int, n_recipes: int,
         # player_area == 0 (the player is on the grid). When player_area > 0
         # the player is off-grid; player_pos holds the last grid cell visited.
         "player_pos": spaces.Discrete(45),
-        "resources": spaces.Box(-1, 999, shape=(7,), dtype=np.int16),
+        # Low bound widened from -1: luck can now go genuinely negative (four
+        # Maid's Chambers at -7 each from a luck_penalty day-start of 10
+        # reaches -18, unclamped -- see engine/effects/tier1.py::anti_luck).
+        # -99 is a round margin above that floor, not a tight bound: steps
+        # (also carried in this array) is 1-per-move through the masked env
+        # action space (Game.move: cost is 0/1, asserts steps>=1 first) and
+        # every bulk step spend the action mask can reach is affordability-
+        # gated to leave steps >= 1 (Game.affordable's Hovel branch, and the
+        # TRAVEL_BASE mask's "steps > cost" check in env/actions.py) -- so
+        # steps cannot go below 0 through env.step(), only through direct
+        # internal calls (tests) that bypass the mask, same as any other
+        # internal-API state this array does not otherwise guard against.
+        "resources": spaces.Box(-99, 999, shape=(7,), dtype=np.int16),
         "options": spaces.Box(-1, max(n_rooms, 999), shape=(3, OPTION_FEATURES), dtype=np.int16),
         # upgrade_options: Room.idx+1 for each of the three offered upgrade variants
         # while in UPGRADE_PENDING, or -1 in every slot otherwise.

@@ -6,22 +6,56 @@ import dataclasses
 from blueprince_sim.engine.game import Game
 from blueprince_sim.engine.grid import E, S
 from blueprince_sim.engine.state import resolve_gem_cost
+from blueprince_sim.env import obs as O
 
 
 def test_maids_chamber_reduces_luck_on_place(registry, cfg):
-    """Placing Maid's Chamber applies -3 luck immediately (ON_PLACE)."""
+    """Placing Maid's Chamber applies -7 luck immediately (ON_PLACE).
+
+    Wiki (Luck page DataMinedBox): "Maid's Chamber: -7 when drafted."
+    """
     g = Game(cfg, seed=1)
     luck_before = g.state.luck
     g._place_room(registry.by_id["maids_chamber"], 7, S | E)
-    assert g.state.luck == luck_before - 3
+    assert g.state.luck == luck_before - 7
 
 
-def test_maids_chamber_luck_clamps_at_zero(registry, cfg):
-    """anti_luck never drives luck below 0."""
+def test_maids_chamber_luck_goes_negative_unclamped(registry, cfg):
+    """Four Maid's Chambers reach -18 with no floor clamp.
+
+    Derivation (also see the Dowsing Rod's datamined box, verified against
+    the live wiki): day-start luck is 10 (data/items.json). The Dowsing
+    Rod's low-luck branch (effective <=18) is reachable "only ... having 4
+    Maid's Chambers drafted." At -7 per chamber: 4 x -7 = -28, so
+    10 - 28 = -18 stored luck; +32 (the Dowsing Rod's own bonus) = 14, which
+    IS <=18. Three chambers give 10 - 21 = -11, +32 = 21, which is NOT
+    <=18 -- so four really is the only way, confirming -7 (not the old -3,
+    which never reaches the branch even at four: 10 - 12 = -2, +32 = 30).
+    A floor clamp at 0 would make -18 unreachable, contradicting that fact.
+    """
     g = Game(cfg, seed=1)
-    g.state.luck = 1
-    g._place_room(registry.by_id["maids_chamber"], 7, S | E)
-    assert g.state.luck == 0
+    g.state.luck = 10  # wiki: "Luck starts each day at 10" -- pinned here, not
+    # read from data/items.json, so this test is independent of that file.
+    for cell in (7, 17, 27, 37):  # four separate, unconnected cells
+        g._place_room(registry.by_id["maids_chamber"], cell, S | E)
+    assert g.state.luck == 10 - 4 * 7 == -18
+
+
+def test_maids_chamber_negative_luck_stays_inside_declared_obs_box(registry, cfg):
+    """-18 luck (four Maid's Chambers, unclamped) must still encode inside
+    the declared "resources" observation Box -- the bound this PR widened
+    specifically to accommodate this floor (env/obs.py).
+    """
+    g = Game(cfg, seed=1)
+    g.state.luck = 10
+    for cell in (7, 17, 27, 37):
+        g._place_room(registry.by_id["maids_chamber"], cell, S | E)
+    assert g.state.luck == -18
+
+    space = O.observation_space(
+        len(registry.rooms), len(registry.special.items), len(registry.special.fabrication))
+    obs = O.encode(g)
+    assert space["resources"].contains(obs["resources"])
 
 
 def test_maids_chamber_luck_negated_by_shelter(registry, cfg):
