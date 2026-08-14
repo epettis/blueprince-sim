@@ -8,8 +8,10 @@ Solarium), (2) deal a room of that rarity solitaire-style from ONLY the deck
 class (free or gem) the round's Free/Gem Draw decision picked for that slot,
 subject to the doorway's filters -- a Free Draw and a Gem Draw never share a
 deal. Four attempts per slot: full rules -> ignore priority filters ->
-reshuffle decks -> forced Closet. Priority draws can force specific rooms
-into slot 3.
+reshuffle decks -> forced Closet. Priority draws (an additional per-floorplan
+acceptance filter that only applies on attempt 1 -- see _priority_draw) can
+force specific rooms into ANY slot; the separate Forced Draw mechanism
+(_forced_draw_garage) is Slot-3-only.
 
 The Mechanarium's cardinal door mask is derived in this module (see
 _mechanarium_orientation) from the number of placed Mechanical rooms rather
@@ -194,15 +196,29 @@ def _deal_from_rarity(ctx: DraftContext, rarity_idx: int, slot: int, cell: int,
 
 def _priority_draw(ctx: DraftContext, cell: int, entry_dir: int,
                    exclude: set[int], is_gem: bool) -> Room | None:
-    """Roll the slot-3 priority draws (Patio group, Commissary/Observatory, Classroom,
-    Tomorrow Rooms).
+    """Roll the priority draws (Patio group, Commissary/Observatory, Garage/Classroom,
+    Tomorrow Rooms): an additional filter applied during attempt 1 of EVERY slot
+    (blueprince.wiki.gg/wiki/Drafting/Advanced, Filters > Priority Draws) -- distinct
+    from the Slot-3-only Forced Draw mechanism (_forced_draw_garage) it used to be
+    conflated with.
 
-    ``is_gem`` is this round's Free/Gem Draw decision for slot 2 (see
-    :func:`_resolve_free_gem`): the priority filter is an additional filter
-    applied within whichever Free/Gem group the round is already working in
-    (blueprince.wiki.gg/wiki/Drafting/Advanced), so a candidate is only
-    eligible when its own class (``not room.is_free``) matches ``is_gem`` --
+    ``is_gem`` is this round's Free/Gem Draw decision for the slot being dealt (see
+    :func:`_resolve_free_gem`): the priority filter is an additional filter applied
+    within whichever Free/Gem group the round is already working in, so a candidate
+    is only eligible when its own class (``not room.is_free``) matches ``is_gem`` --
     the same convention ``_deal_from_rarity`` uses via ``ctx.state.deck``.
+
+    Each floorplan named by an active entry gets its OWN independent acceptance
+    roll at the entry's chance -- "each floorplan has a chance to get accepted"
+    (wiki) -- rather than one roll for the whole named group; this is what makes
+    Commissary and Observatory (and Garage/Classroom) each independently reachable
+    instead of the first room in list order winning outright whenever it happens
+    to be draftable. Accepted rooms are then dealt through the same per-rarity deck
+    machinery ``_deal_from_rarity`` uses (``deck.deal_next``), searching rarity 0..3
+    in a fixed order (matching ``_deal_biased``'s existing "search every rarity"
+    pattern for a biased re-deal), so a hit is actually removed from its deck --
+    "the floorplan gets added to the discard filter for future draws" (wiki) --
+    rather than staying available to be dealt again.
 
     An entry may carry an optional ``condition`` tag (the same vocabulary
     ``_active_conditions`` feeds to ``_apply_category_bias``'s ``category_biases``
@@ -218,8 +234,8 @@ def _priority_draw(ctx: DraftContext, cell: int, entry_dir: int,
     (including the Mail Room's three upgrade variants) are never hand-typed and
     stay correct if a variant is added later.
     """
-    pool_ids = {ctx.registry.rooms[c].id
-                for d in ctx.state.decks for c in d.order}
+    rooms = ctx.registry.rooms
+    pool_ids = {rooms[c].id for d in ctx.state.decks for c in d.order}
     active: set[str] | None = None
     for entry in ctx.registry.priority["priority_draws"]:
         condition = entry.get("condition")
@@ -231,20 +247,31 @@ def _priority_draw(ctx: DraftContext, cell: int, entry_dir: int,
         chance = entry["chance"]
         if ctx.state.greenhouse_placed and "chance_with_greenhouse" in entry:
             chance = entry["chance_with_greenhouse"]
-        if not ctx.rng.chance(f"priority_{entry['label']}", chance):
-            continue
         entry_rooms = entry.get("rooms")
         if not entry_rooms:
-            entry_rooms = [r.id for r in ctx.registry.rooms if r.is_category(entry["category"])]
-        candidates = [rid for rid in entry_rooms
-                      if rid in pool_ids or rid in ctx.registry.by_id and
-                      ctx.registry.by_id[rid].pool == "base"]
-        for rid in candidates:
+            entry_rooms = [r.id for r in rooms if r.is_category(entry["category"])]
+
+        accepted: set[str] = set()
+        for rid in entry_rooms:
+            if not (rid in pool_ids or rid in ctx.registry.by_id and
+                    ctx.registry.by_id[rid].pool == "base"):
+                continue
             room = ctx.registry.by_id.get(rid)
-            if room is not None and room.rarity is not None and \
-                    room.is_free != is_gem and \
-                    room_draftable(ctx, room, cell, entry_dir, exclude):
-                return room
+            if room is None or room.rarity is None or room.is_free == is_gem:
+                continue
+            if ctx.rng.chance(f"priority_{entry['label']}_{rid}", chance):
+                accepted.add(rid)
+        if not accepted:
+            continue
+
+        def pred(card: int, _accepted: set[str] = accepted) -> bool:
+            r = rooms[card]
+            return r.id in _accepted and room_draftable(ctx, r, cell, entry_dir, exclude)
+
+        for rarity_idx in range(4):
+            card = ctx.state.deck(rarity_idx, is_gem).deal_next(pred)
+            if card is not None:
+                return rooms[card]
     return None
 
 
@@ -608,11 +635,12 @@ def draw_slot(ctx: DraftContext, slot: int, cell: int, entry_dir: int,
         if forced is not None:
             return _make_option(ctx, forced, slot, cell, entry_dir, forced_draw=True)
 
-    # Priority draws force specific rooms into slot 3 (attempt-1 rules only).
-    if slot == 2:
-        forced = _priority_draw(ctx, cell, entry_dir, exclude, is_gem)
-        if forced is not None:
-            return _make_option(ctx, forced, slot, cell, entry_dir, forced_draw=True)
+    # Priority draws: an additional attempt-1-only filter, applied to every
+    # slot (not just slot 3 -- see _priority_draw's docstring for the wiki
+    # citation distinguishing this from the Forced Draw above).
+    forced = _priority_draw(ctx, cell, entry_dir, exclude, is_gem)
+    if forced is not None:
+        return _make_option(ctx, forced, slot, cell, entry_dir, forced_draw=True)
 
     # Attempts 1 & 2 (identical here once the priority filter has run above).
     for _attempt in (1, 2):

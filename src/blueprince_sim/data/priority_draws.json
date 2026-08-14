@@ -15,7 +15,8 @@
    "chance_with_greenhouse": 0.5,
    "meta": {
     "confidence": "datamined",
-    "source": "sheet constants: 'Patio Rooms 5%'; Greenhouse boost from wiki.gg Drafting/Advanced"
+    "source": "sheet constants: 'Patio Rooms 5%'; Greenhouse boost from wiki.gg Drafting/Advanced",
+    "notes": "wiki also states Secret Passage moves from this 5% group to the Garage/Classroom 3% group (garage_classroom entry) once a Greenhouse is active -- NOT modeled: doing so needs a room excluded from one entry's list precisely when it is included in another's, and the condition vocabulary (_active_conditions/entry-level `condition`) only supports gating a whole entry on, with no negation or per-room membership primitive. Secret Passage stays in this group unconditionally pending that primitive."
    }
   },
   {
@@ -32,13 +33,15 @@
   },
   {
    "rooms": [
+    "garage",
     "classroom"
    ],
-   "label": "classroom",
+   "label": "garage_classroom",
    "chance": 0.03,
    "meta": {
-    "confidence": "datamined",
-    "source": "sheet constants: 'Classrooms 3%'"
+    "confidence": "wiki",
+    "source": "blueprince.wiki.gg/wiki/Drafting/Advanced: 'Garage, Classroom: 3% chance.'",
+    "notes": "Garage added 2026-08-14 (was Classroom alone) per the wiki's list of always-active Priority Draws. Two nuances from the same wiki line are NOT modeled: 'Garage excluded in early days' (no day gate is applied to Garage's candidacy here -- unrelated to the Garage's OWN Forced Draw day gate in forced_draws) and 'Secret Passage included after Greenhouse effect is active' (see patio_rooms' meta.notes: the condition vocabulary has no per-room/negated membership primitive to model the matching removal from that group)."
    }
   },
   {
