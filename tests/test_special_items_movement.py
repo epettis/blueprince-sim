@@ -3,7 +3,7 @@
 from blueprince_sim.config import GameConfig
 from blueprince_sim.engine import special_items as si
 from blueprince_sim.engine.game import Game, Phase
-from blueprince_sim.engine.grid import N
+from blueprince_sim.engine.grid import E, N
 from blueprince_sim.engine.locks import DOOR_LOCKED, DOOR_SECURITY, segment_key
 from blueprince_sim.engine.model import Registry
 from blueprince_sim.engine.state import GameState
@@ -68,23 +68,75 @@ def test_hall_pass_from_non_hallway_costs_1():
     assert cost == 1
 
 
-# ------------------------------------------------ Running Shoes cadence
+# ------------------------------------------------ Running Shoes distance rule
 
-def test_running_shoes_cadence_6_moves():
-    """Running Shoes make every 3rd move free: moves 1,2 cost 1; move 3 costs 0; pattern repeats.
-
-    The cadence must be exactly every-3rd regardless of room category.
+def test_running_shoes_first_loss_of_day_only_records_position():
+    """The first step lost while holding the shoes always costs 1 -- it has no
+    reference position yet to measure distance against, so it can only record
+    one (the wiki: "the first time the player loses a step ... the player's
+    position is recorded").
     """
     game = _game(frozenset({"running_shoes"}))
     reg = game.registry
-    # Use entrance hall as a stable from-cell (already placed at cell 2)
     entrance = reg.by_id["entrance_hall"]
-    # We call move_step_cost directly — the from_cell room category doesn't affect shoes
-    costs = []
-    for _ in range(6):
-        cost = si.move_step_cost(game, game.state.pos, N, entrance)
-        costs.append(cost)
-    assert costs == [1, 1, 0, 1, 1, 0], f"expected [1,1,0,1,1,0] got {costs}"
+    assert game.state.special.moves_since_free == 0, "setup check: no anchor recorded yet"
+
+    cost = si.move_step_cost(game, game.state.pos, N, entrance)
+
+    assert cost == 1, "the very first loss of the day establishes the baseline, never free"
+
+
+def test_running_shoes_waives_when_destination_far_from_anchor():
+    """A move landing 2.2+ room-lengths (euclidean) from the recorded anchor
+    is free, and the landing cell becomes the new anchor.
+
+    Cell 7 (rank 2, col 2) is the anchor. Moving North from cell 37 (rank 8,
+    col 2) lands on cell 42 (rank 9, col 2) -- 7.0 room-lengths from the
+    anchor on the same column -- past the 2.2 default threshold, computed by
+    hand (not by calling move_step_cost).
+    """
+    game = _game(frozenset({"running_shoes"}))
+    reg = game.registry
+    entrance = reg.by_id["entrance_hall"]
+    game.state.special.moves_since_free = 7 + 1  # anchor cell 7, pre-set (no prior call)
+
+    cost = si.move_step_cost(game, 37, N, entrance)  # neighbor(37, N) == 42
+
+    assert cost == 0, "42 is 7.0 room-lengths from the anchor (7), past the 2.2 threshold"
+    assert game.state.special.moves_since_free == 42 + 1, "the landing cell becomes the anchor"
+
+
+def test_running_shoes_stays_close_costs_normally_and_anchor_unchanged():
+    """A move landing within 2.2 room-lengths of the anchor costs 1, and the
+    anchor is left exactly where it was -- distance keeps accumulating
+    against the SAME reference point rather than resetting every move.
+
+    Cell 6 (rank 2, col 1) is the anchor. Cell 8 (rank 2, col 3) is 2.0 room-
+    lengths away (same rank, two columns over) -- under the 2.2 threshold --
+    computed by hand, not by calling move_step_cost.
+    """
+    game = _game(frozenset({"running_shoes"}))
+    reg = game.registry
+    entrance = reg.by_id["entrance_hall"]
+    game.state.special.moves_since_free = 6 + 1  # anchor cell 6, pre-set (no prior call)
+
+    cost = si.move_step_cost(game, 7, E, entrance)  # neighbor(7, E) == 8
+
+    assert cost == 1, "8 is only 2.0 room-lengths from the anchor (6), under the 2.2 threshold"
+    assert game.state.special.moves_since_free == 6 + 1, "anchor must not move on a normal loss"
+
+
+def test_running_shoes_not_held_declines():
+    """Without the shoes in inventory, the handler declines (None) regardless
+    of anchor state, leaving the priority chain's default cost of 1 in place.
+    """
+    game = _game(frozenset())
+    reg = game.registry
+    entrance = reg.by_id["entrance_hall"]
+
+    cost = si.move_step_cost(game, game.state.pos, N, entrance)
+
+    assert cost == 1, "move_step_cost's own default applies when no item answers"
 
 
 # ------------------------------------------------ Stopwatch move costs
@@ -609,3 +661,91 @@ def test_stopwatch_waives_locked_door():
     assert result is True
     assert game.state.keys == 1, "stopwatch must not spend the key"
     assert game.state.special.stopwatch_left == left_before - 1
+
+
+# ------------------------------------------------ Running Shoes area travel
+
+class _FixedChanceRng:
+    """Wraps a real engine.rng.Rng, overriding ``.chance`` for an exact set of
+    labels to fixed booleans -- every other draw still comes from the real
+    substream underneath. Used to force Running Shoes' area-roll outcomes
+    deterministically instead of hunting for a seed."""
+
+    def __init__(self, real, outcomes: dict) -> None:
+        self._real = real
+        self._outcomes = outcomes
+
+    def __getattr__(self, name):
+        return getattr(self._real, name)
+
+    def chance(self, label, p):
+        if label in self._outcomes:
+            return self._outcomes[label]
+        return self._real.chance(label, p)
+
+
+def test_travel_to_area_hop_waives_both_steps_when_both_rolls_forced_true():
+    """travel_to's area-hop deduction now rolls Running Shoes once per node
+    entered along the route, instead of bypassing it entirely: house ->
+    grounds -> private_drive is a 2-step area_hop through two non-anchor
+    nodes, and forcing both of their rolls to hit waives both steps.
+    """
+    game = _game(frozenset({"running_shoes"}))
+    game.rng = _FixedChanceRng(game.rng, {
+        "running_shoes_area_grounds": True,
+        "running_shoes_area_private_drive": True,
+    })
+    steps_before = game.state.steps
+
+    game.travel_to("private_drive")
+
+    assert game.state.steps == steps_before, (
+        "both of the 2 area_hop steps must be waived when both rolls are forced to hit")
+
+
+def test_travel_to_area_hop_waives_exactly_one_step_on_a_mixed_roll():
+    """One forced hit and one forced miss across the same two-hop route waives
+    exactly one of the two area_hop steps -- proving the per-node rolls are
+    independent, not an all-or-nothing waiver for the whole hop.
+    """
+    game = _game(frozenset({"running_shoes"}))
+    game.rng = _FixedChanceRng(game.rng, {
+        "running_shoes_area_grounds": True,
+        "running_shoes_area_private_drive": False,
+    })
+    steps_before = game.state.steps
+
+    game.travel_to("private_drive")
+
+    assert game.state.steps == steps_before - 1, (
+        "exactly one of the two area_hop steps must be waived on a mixed roll")
+
+
+def test_travel_to_area_hop_not_held_pays_full_cost():
+    """Without Running Shoes held, travel_to's area-hop deduction is
+    untouched: the full 2-step house -> grounds -> private_drive cost is
+    paid, matching pre-fix behavior for a non-holder.
+    """
+    game = _game(frozenset())
+    steps_before = game.state.steps
+
+    game.travel_to("private_drive")
+
+    assert game.state.steps == steps_before - 2, "area_hop must be paid in full when not held"
+
+
+def test_travel_to_grid_anchor_landing_never_rolls_running_shoes():
+    """Landing back on a grid anchor (the house) never rolls Running Shoes,
+    even forced to always hit -- the wiki scopes the area-entry roll to
+    "anywhere outside the house", which a house landing is not.
+    """
+    game = _game(frozenset({"running_shoes"}))
+    game.rng = _FixedChanceRng(game.rng, {"running_shoes_area_grounds": False})
+    game.travel_to("grounds")  # off-grid now; "grounds" roll forced to miss
+    game.rng = _FixedChanceRng(game.rng, {"running_shoes_area_house": True})
+    steps_before = game.state.steps
+
+    game.travel_to("house")
+
+    assert game.state.steps == steps_before - 1, (
+        "the house landing must pay its 1 area_hop step even with a forced-hit roll")

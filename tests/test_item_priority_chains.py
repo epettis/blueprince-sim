@@ -49,21 +49,22 @@ def test_emerald_bracelet_and_hall_pass_both_applicable_waive_exactly_once():
 def test_stopwatch_and_running_shoes_both_held_stopwatch_wins_first():
     """With both Stopwatch and Running Shoes held, the Stopwatch's higher
     priority spends its own charge on a free move and leaves the Running
-    Shoes cadence counter untouched -- only one item's charge is spent per
-    move, and it is always the higher-priority one while its charges last.
+    Shoes reference-position anchor untouched -- only one item's charge is
+    spent per move, and it is always the higher-priority one while its
+    charges last.
     """
     game = _game(frozenset({"stopwatch", "running_shoes"}))
     reg = game.registry
     entrance = reg.by_id["entrance_hall"]
     left_before = game.state.special.stopwatch_left
-    moves_before = game.state.special.moves_since_free
+    anchor_before = game.state.special.moves_since_free
 
     cost = si.move_step_cost(game, game.state.pos, N, entrance)
 
     assert cost == 0
     assert game.state.special.stopwatch_left == left_before - 1
-    assert game.state.special.moves_since_free == moves_before, (
-        "Running Shoes cadence must not advance while the Stopwatch is covering the move")
+    assert game.state.special.moves_since_free == anchor_before, (
+        "Running Shoes' anchor must not move while the Stopwatch is covering the move")
 
 
 def test_hall_pass_and_stopwatch_both_held_hall_pass_wins_free_hallway_move():
