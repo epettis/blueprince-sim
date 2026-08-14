@@ -296,7 +296,12 @@ lack of lever rooms.
 policy learns; batch these and restart deliberately, per the two runs already
 discarded for exactly that reason.
 
-## 16. Sweep comments that re-litigate past behaviour
+## 16. Sweep comments that re-litigate past behaviour -- DONE (2026-08-14)
+
+**Closed by #273, #274, #275, #276.** 69 candidates found by a read-only
+discovery pass; 67 edited, 2 ruled KEEP with git evidence. Two remainders are
+recorded at the end of this section. See the 2026-08-14 decisions-log entry for
+what the sweep found and what it cost.
 
 Opened 2026-08-09, from the PR #89 review. Runs independently of task 15: the
 collision a comment-only pass creates with in-flight room PRs is a merge cost,
@@ -354,6 +359,19 @@ Two things NOT to strip, so the sweep does not overshoot:
   is describing the present, even when it sounds historical -- e.g. that
   `rooms.json` round-trips at 1-space indent, or that `_CARRYOVER_KEYS` is
   sorted because Python randomises string hashing per process. Keep those.
+
+**Remainders (2026-08-14), reported rather than silently left:**
+
+- `tests/test_item_tag_allowlist.py`'s `DEFERRED_UNREAD_TAGS` block (~176-184)
+  uses the same "moved off this list" phrasing as the migration changelog #276
+  rewrote, but sat outside the assigned range and was not edited.
+- `src/blueprince_sim/data/special_items.json`'s `sanctum_key` note still says
+  a widening was "out of this change's scope" -- a self-reference to the PR
+  that wrote it. Noticed during review of #274, left rather than widening that
+  PR's scope mid-review.
+- `tests/luck_utils.py`'s module docstring still phrases a live constraint
+  historically ("the pre-ladder idiom, no longer guarantees..."). Borderline:
+  the constraint is real and current, only the framing is historical.
 
 ## 17. Room behaviour: registry migration
 
@@ -854,6 +872,72 @@ allowlist entry** -- that rule alone catches `ignition_tool` today.
 around 1,800 LOC.
 
 ## Decisions log
+
+- **2026-08-14, TASK 16 COMPLETE (#273-#276). 69 candidates, and the
+  composition mattered more than the count.**
+
+  Run as **read-only discovery first, then three parallel edit lanes** —
+  because this task's own recorded history is **false positives**: it was
+  written naming three violations and **two did not exist**. Discovery quoted
+  every candidate verbatim so it could be ruled on without opening the file.
+
+  **Only ~40 of 69 were the history-narration the task was written to catch.
+  Eight asserted facts that had become FALSE**, and those were the valuable
+  ones — none of which any keyword grep would find, because their wording is
+  entirely present-tense:
+  - `engine/areas.py`'s module docstring called itself an unadopted "PR1
+    deliverable... Nothing in the engine calls this yet." `game.py:11` imports
+    `reachable` and calls it at four sites.
+  - `web/server.py` said "three-tab SPA". There are four.
+  - `test_behavioural_cloning.py` said `draft_counts` is "the only dict-typed
+    `GameConfig` field"; `permanent_rarity` joined it with the Gear Wrench.
+    **Checked whether that was load-bearing: it was not** -- `multiday.py`
+    handles `permanent_rarity` at `:464-469` exactly as `:409-412` handles
+    `draft_counts`. Comment rot, not a bug.
+  - Two docstrings pinned behaviour "ahead of" migrations already landed.
+  - `luck_utils.py` counted 76 `suppress_luck` sites; there are 82.
+
+  **The rule that came out of it: a hardcoded count in a comment rots by
+  construction.** Counts were **dropped, not corrected** -- and on review one
+  agent's rewrite that replaced a rotting *count* with a rotting *enumeration*
+  ("draft_counts, permanent_rarity") was corrected to name neither.
+
+  **Two rulings made with git evidence rather than by pattern**, which is why
+  they were routed through judgment instead of a sweep:
+  - `env/rewards.py`'s "the old flat rate" **could** have been a legitimate
+    counterfactual (a KEEP here). `git log -p` shows the code genuinely was
+    `r -= 0.001` with no steps math. **History -> rewritten.**
+  - `test_in_grid_disks.py`'s reference to the previous cap: `git log -p -S`
+    confirms the space really was `Discrete(8)` with a `min(...,7)` clamp.
+    Without it, testing exactly 8 disks looks arbitrary. **KEEP.**
+
+  **The hard part was never the stripping.** These docstrings are load-bearing
+  -- `tests/test_conventions.py` requires each to state its property *and why*
+  -- and in several the history **was** the only justification. `test_vault.py`
+  justified itself entirely by a deleted invented rule
+  (`found >= 2 items -> luck -= 1`); the rewrite had to establish the real
+  mechanism (`luck_penalty` grows only from high-luck `item_ladder` bands,
+  never from a guaranteed grant) and never mention the deleted rule. Naive
+  deletion would have left docstrings that **pass the convention test while
+  explaining nothing** -- a green gate measuring the wrong thing, the same
+  failure this repo keeps re-learning.
+
+  **Boundary that had to be defended:** the largest false-positive class was
+  **wiki-quoted game mechanics** ("will no longer have any effect") -- that
+  describes Blue Prince, not this repo. ~60 near-misses were examined and
+  cleared. `experiments.json:417` is left **unruled**: it cites real Patch
+  1.04.5 game history but self-labels "(provenance only, not current
+  behavior)" -- the shape of a violation wrapped around legitimate content.
+  **Owner call; a sweep agent should not set that precedent.**
+
+  **Found and NOT fixed, because it is not a comment problem:**
+  `test_trading_fabrication.py:249-263` documents a "self-edge / untradeable
+  that day" branch citing `t5_special_chance=50%`. Shipped `shops.json` sets
+  it to **100** (50 is only the engine's fallback default), so **that branch
+  is unreachable in shipped configuration** -- verified empirically across 200
+  seeds, **0** of which hit it. The test still asserts something real and is
+  not vacuous, but its `continue` is dead. **Test logic, not prose; queued
+  separately.**
 
 - **2026-08-14, CONSTELLATIONS researched. Four corrections to the
   orchestrator, and ITEMS HAVE NO FIDELITY AUDIT AT ALL.**
