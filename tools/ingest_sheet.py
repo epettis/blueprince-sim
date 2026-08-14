@@ -228,7 +228,10 @@ EFFECT_MAP: dict[str, dict] = {
     "pump_room": {"items": {"dig_spots": 1}},
     "workshop": {"items": {"dig_spots": 1}},
     "aquarium": {"items": {"dig_spots": 1}},
-    "patio": {"items": {"dig_spots": 1}},
+    # Owner ruling: the Patio's single dig spot always yields the (sim-only,
+    # single-instance) file_cabinet_key, which gates upgrade_disk_archives --
+    # see data/special_items.json's file_cabinet_key/upgrade_disk_archives notes.
+    "patio": {"items": {"dig_spots": 1, "dig_guaranteed": "file_cabinet_key"}},
     "cloister": {"items": {"dig_spots": 1}},
     # Parlor: box always contains 2 gems on first entry; Wind-up Key is deliberately
     # not modeled (action-space simplification — see docs/special-items-design.md).

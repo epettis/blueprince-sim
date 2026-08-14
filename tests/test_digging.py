@@ -405,3 +405,101 @@ def test_no_metal_detector_no_extra():
     assert st.coins == 0
     assert st.keys == 0
     assert len(st.items_found_log) == 0
+
+
+# ------------------------------------------------ Patio dig_guaranteed / file_cabinet_key
+#
+# Owner ruling: the sim models exactly one file_cabinet_key, obtained by digging
+# the Patio's single dig spot (rooms.json patio.items.dig_guaranteed). It is no
+# longer part of the Aquarium spawn pool. See data/special_items.json's
+# file_cabinet_key/upgrade_disk_archives notes for the full simplification.
+
+def test_patio_dig_with_tool_yields_file_cabinet_key():
+    """Digging the Patio's one dig spot with a tool held always yields file_cabinet_key.
+
+    dig_guaranteed makes this deterministic (not a table roll), across seeds --
+    the owner-ruled single key must be reliably obtainable, not a rare drop.
+    """
+    for seed in (0, 1, 999):
+        st, reg = _state_with_registry()
+        si.grant(st, reg, "shovel", source="test")
+        patio = reg.by_id["patio"]
+        cell = 10
+        st.grid[cell] = patio.idx
+        game = _fake_game(st, reg, seed=seed)
+
+        si.dig_all(game, cell)
+
+        assert si.has(st, "file_cabinet_key"), (
+            f"seed {seed}: digging the Patio with a shovel must yield file_cabinet_key"
+        )
+
+
+def test_patio_dig_without_tool_does_not_yield_key():
+    """Without any dig tool held, dig_all takes no action at the Patio -- no key.
+
+    dig_all's spot loop (including the dig_guaranteed branch) only runs when a
+    dig tool is held; a bare visit to the Patio must not hand over the key.
+    """
+    st, reg = _state_with_registry()
+    assert not si.has(st, "shovel")
+    assert not si.has(st, "detector_shovel")
+    assert not si.has(st, "jack_hammer")
+    patio = reg.by_id["patio"]
+    cell = 10
+    st.grid[cell] = patio.idx
+
+    game = _fake_game(st, reg, seed=0)
+    si.dig_all(game, cell)
+
+    assert not si.has(st, "file_cabinet_key"), "digging with no tool must not yield the key"
+    assert st.special.dug.get(cell, 0) == 0, "no tool means no spot was actually dug"
+
+
+def test_file_cabinet_key_never_spawns_from_aquarium():
+    """The Aquarium's special-item spawn pool never offers file_cabinet_key, at any luck.
+
+    It used to spawn there inertly (implemented=false), eating probability mass
+    from the Aquarium's real item roll; the owner ruling moved its only source to
+    the Patio dig, so the Aquarium roll must never produce it, even at max luck.
+    """
+    st, reg = _state_with_registry()
+    aquarium = reg.by_id["aquarium"]
+    cell = 10
+    st.grid[cell] = aquarium.idx
+    st.luck = 999  # maximal luck: would also open the high-luck pool, if any
+    game = _fake_game(st, reg, seed=0)
+
+    got = si.roll_special_spawn(st, reg, aquarium, game.rng)
+
+    assert got != "file_cabinet_key", "file_cabinet_key must not spawn from the Aquarium roll"
+
+
+def test_file_cabinet_key_persists_across_days_while_held():
+    """persistence="until_used": a held file_cabinet_key survives into tomorrow's
+    starting_items via end_of_day_carry, the same self-persisting shape as the
+    vault/sanctum keys that share that persistence value.
+    """
+    from blueprince_sim.engine.rng import Rng
+
+    st, reg = _state_with_registry()
+    si.grant(st, reg, "file_cabinet_key", source="test")
+
+    carry = si.end_of_day_carry(st, reg, Rng(0))
+
+    assert "file_cabinet_key" in carry, "a held until_used key must carry into tomorrow"
+
+
+def test_file_cabinet_key_does_not_persist_once_consumed():
+    """A file_cabinet_key removed with consumed=True is gone from inventory, so it is
+    absent from end_of_day_carry -- "until_used" means it carries only while held.
+    """
+    from blueprince_sim.engine.rng import Rng
+
+    st, reg = _state_with_registry()
+    si.grant(st, reg, "file_cabinet_key", source="test")
+    si.remove(st, "file_cabinet_key", consumed=True)
+
+    carry = si.end_of_day_carry(st, reg, Rng(0))
+
+    assert "file_cabinet_key" not in carry, "a consumed key must not carry into tomorrow"

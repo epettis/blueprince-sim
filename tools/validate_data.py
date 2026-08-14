@@ -536,6 +536,11 @@ def main(argv: list[str] | None = None) -> int:
         errors.append(f"duplicate room ids: {dupes}")
     by_id = {r["id"]: r for r in rooms}
 
+    # (where, item id) pairs from items.dig_guaranteed, checked against
+    # si_by_id once special_items.json is loaded further down — same deferred
+    # pattern as absent_area_refs (rooms are validated before special_items).
+    dig_guaranteed_refs: list[tuple[str, str]] = []
+
     for r in rooms:
         where = r["id"]
         if r.get("rarity") not in VALID_RARITIES:
@@ -594,6 +599,13 @@ def main(argv: list[str] | None = None) -> int:
                 f"{where}: items.guaranteed has both 'coins' (pile roll) and "
                 f"'coins_exact' (literal amount) -- ambiguous, pick one"
             )
+        dig_guaranteed = r.get("items", {}).get("dig_guaranteed")
+        if dig_guaranteed is not None:
+            if not r.get("items", {}).get("dig_spots"):
+                errors.append(
+                    f"{where}: items.dig_guaranteed {dig_guaranteed!r} set but dig_spots is 0"
+                )
+            dig_guaranteed_refs.append((where, dig_guaranteed))
 
     # weights
     for stage, slots in weights["tables"].items():
@@ -910,6 +922,12 @@ def main(argv: list[str] | None = None) -> int:
         for rid in item.get("guaranteed_in", []):
             if rid not in by_id:
                 errors.append(f"{where}: guaranteed_in references unknown room {rid!r}")
+        req_item = item.get("requires_item")
+        if req_item is not None:
+            if req_item not in si_by_id:
+                errors.append(f"{where}: requires_item {req_item!r} not in special_items")
+            elif req_item == item["id"]:
+                errors.append(f"{where}: requires_item cannot reference itself")
         # absent_spawn_areas names OFF-GRID areas an item comes from — places the
         # sim models as area-graph nodes rather than draftable rooms.  Both
         # directions are errors: a room id here belongs in spawn_rooms, and an id
@@ -984,6 +1002,14 @@ def main(argv: list[str] | None = None) -> int:
                     errors.append(
                         f"special_items dig/{table_name}: item outcome references unknown id {rid!r}"
                     )
+
+    # rooms.json items.dig_guaranteed — deferred from the room loop above,
+    # same pattern as absent_area_refs (special_items.json loads after rooms).
+    for where, dig_guaranteed in dig_guaranteed_refs:
+        if dig_guaranteed not in si_by_id:
+            errors.append(
+                f"{where}: items.dig_guaranteed references unknown special item {dig_guaranteed!r}"
+            )
 
     # Valid grant kinds inside a loot entry's grants list. The four
     # mechanarium_* kinds dispatch to Mechanarium compartment resolvers

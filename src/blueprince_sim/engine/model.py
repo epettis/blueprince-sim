@@ -43,7 +43,12 @@ class Effect:
 class ItemSpec:
     guaranteed: tuple[tuple[str, int], ...] = ()  # (item, count) always granted on first entry
     additional_max: int = 0  # max luck-rolled bonus items on first entry (0 = luck has no effect)
-    dig_spots: int = 0  # shovel dig spots (data only; digging is not modeled yet)
+    dig_spots: int = 0  # shovel dig spots (engine/special_items.py::dig_all)
+    # Special item id this room's FIRST dig spot always yields (instead of a
+    # weighted table roll), while that item is still _is_available; every
+    # remaining spot still rolls the normal table. None for every room but the
+    # Patio (see engine/special_items.py::dig_all).
+    dig_guaranteed: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -169,6 +174,7 @@ def _parse_room(idx: int, raw: dict) -> Room:
             guaranteed=tuple((g["item"], g["count"]) for g in items.get("guaranteed", [])),
             additional_max=int(items.get("additional_max", 0)),
             dig_spots=int(items.get("dig_spots", 0)),
+            dig_guaranteed=items.get("dig_guaranteed"),
         ),
         pool=raw.get("pool", "base"),
         variant_of=raw.get("variant_of"),
