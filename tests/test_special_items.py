@@ -394,7 +394,7 @@ def test_lost_and_found_suppress_luck_floors_at_two_not_zero():
     g = Game(cfg, seed=14)
     suppress_luck(g)
     room = g.registry.by_id["lost_and_found"]
-    items.roll_room_items(g, room)
+    items.roll_room_items(g, room, -1)
     assert g.state.special.count_transform_raw.get("lost_and_found") == 0
     assert _gift_count(g) == 2
 

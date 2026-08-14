@@ -105,6 +105,12 @@ ITEM_ARCHITECTURE: dict[str, set[str]] = {
         # accounted for on the tag allowlist in test_item_tag_allowlist.py, since
         # a dumb id scanner cannot tell a same-spelled tag from an id.)
         "chronograph",
+        # _pick_dowsing_slot reads data/items.json's "dowsing_rod" table
+        # (avoid_rooms) and calls dowsing_rod_active_from_state -- a data
+        # table name and a held-fact check, not a behaviour branch; the
+        # actual capability registration lives in
+        # effects/items/dowsing_rod.py.
+        "dowsing_rod",
     },
     "game.py": {
         # LOCK_PENDING's special-keys-menu dispatch (_special_key_held/
@@ -189,6 +195,15 @@ ITEM_ARCHITECTURE: dict[str, set[str]] = {
         # treasure_map directly above -- the item-id behaviour branch itself
         # (grant/pickup) lives in effects/items/battery_pack.py, not here.
         "battery_pack",
+    },
+    "items.py": {
+        # roll_dowsed_count/_dowsing_effective_luck/_roll_dowsing_band_0_2
+        # read data/items.json's "dowsing_rod" table (its luck_bonus,
+        # regular_routine_luck_max, variable_items_rooms, and penalty_bands
+        # fields) -- a published table name, not a behaviour branch; the
+        # capability registration itself lives in
+        # effects/items/dowsing_rod.py.
+        "dowsing_rod",
     },
 }
 

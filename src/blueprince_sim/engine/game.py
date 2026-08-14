@@ -1683,7 +1683,7 @@ class Game:
                     and not st.outer_room_entered):
                 st.outer_room_entered = True
                 effects.fire(self, outer_room, Hook.ON_ENTER)
-                roll_room_items(self, outer_room)
+                roll_room_items(self, outer_room, -1)
                 if self.cfg.special_items:
                     # Outer rooms spawn special items too (Toolshed's Gear Wrench,
                     # the Trading Post pool); -1 = off-grid, no cell hooks apply.
@@ -1829,6 +1829,13 @@ class Game:
         self._place_room(room, pending.target_cell, opt.orientation,
                          entry_dir=OPPOSITE[pending.direction],
                          gem_cost=0 if waived else cost, archived=opt.archived)
+        if pending.dowsed_slot == slot:
+            # The Dowsing Rod pointed at this slot when the hand was last
+            # dealt/redealt (draft.py::_pick_dowsing_slot) and the player
+            # drafted it: mark the cell so its item roll (engine/items.py::
+            # roll_room_items, fired later on first ENTRY) uses the Dowsing
+            # Rod's own item-count table instead of the ordinary ladder.
+            st.dowsing_marked_cells.add(pending.target_cell)
         del self.doorway_drafts[(pending.from_cell, pending.direction)]
         st.pending = None
         if (self.cfg.special_items and room.is_category("mechanical")
@@ -2451,7 +2458,7 @@ class Game:
         experiments.on_room_entered(self, cell)
         room = self.registry.rooms[st.grid[cell]]
         effects.fire(self, room, Hook.ON_ENTER)
-        roll_room_items(self, room)
+        roll_room_items(self, room, cell)
         if cell in st.cloister_mila_bonus_cells:
             # Cloister of Mila's extra item: a guaranteed, luck-immune pull
             # from the same table roll_room_items uses for its own luck-

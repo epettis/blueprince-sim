@@ -60,9 +60,11 @@ from .special_items import (
     chronograph_active_from_state,
     compass_active_from_state,
     crown_room_blocked_from_state,
+    dowsing_rod_active_from_state,
     electromagnet_active_from_state,
 )
 from .state import DraftOption, GameState, PendingDraft, resolve_gem_cost
+from .upgrades import root_base_id
 
 CLOSET_ID = "closet"
 TUNNEL_ID = "tunnel"
@@ -800,6 +802,54 @@ def _reading_nook_library_option(ctx: DraftContext, cell: int, entry_dir: int) -
     return _make_option(ctx, library, 2, cell, entry_dir, forced_draw=True)
 
 
+def _pick_dowsing_slot(ctx: DraftContext, pending: PendingDraft) -> None:
+    """Point a held Dowsing Rod at one of this hand's dealt options.
+
+    Wiki (Dowsing_Rod page, main body): while drafting, the Rod's model
+    "settl[es] on one of the three floorplans. Choosing and drafting that
+    floorplan after this point triggers the Dowsing Rod's effect"; "If
+    floorplans are redrawn, the Dowsing Rod will reselect one of the new
+    floorplans." Called from ``_fill_options``, shared by ``deal_draft`` (the
+    initial deal) and ``redeal`` (every redraw), so a fresh pick happens
+    every single time this function runs -- satisfying "reselect" for free,
+    with no separate redraw-specific code path.
+
+    Its own 26-room avoid-list DataMinedBox: "In the case that all three
+    offered rooms are one of the rooms on this list, the Dowsing Rod will
+    still pick one of them; in all other cases it picks a different room" --
+    read as: prefer a dealt slot whose room is NOT on
+    ``data/items.json``'s ``dowsing_rod.avoid_rooms`` (matched via
+    ``upgrades.root_base_id``, so an upgraded variant of an avoid-listed
+    room -- e.g. Hallway Closet -- still counts as that family); if every
+    dealt slot is avoid-listed, any of them is fair game. The wiki does not
+    publish a distribution among the eligible candidates; uniform is the
+    modelled assumption. Uses a fresh, dedicated RNG label
+    ("dowsing_rod_slot") never consumed anywhere else in the engine, so
+    holding the Rod cannot perturb any existing golden transcript.
+
+    Sets ``pending.dowsed_slot`` to the picked ``DraftOption.slot`` (0..2),
+    or ``None`` while the Rod is not held, special items are disabled, or
+    the hand ended up with no dealt options at all (the rare forced-Closet-
+    already-excluded failure -- see ``draw_slot``'s docstring).
+    """
+    pending.dowsed_slot = None
+    if not ctx.cfg.special_items:
+        return
+    if not dowsing_rod_active_from_state(ctx.state, ctx.registry):
+        return
+    if not pending.options:
+        return
+    avoid = ctx.registry.item_rules["dowsing_rod"]["avoid_rooms"]
+    rooms = ctx.registry.rooms
+
+    def _avoided(opt: DraftOption) -> bool:
+        return root_base_id(ctx.registry, rooms[opt.room_idx]) in avoid
+
+    preferred = [opt for opt in pending.options if not _avoided(opt)]
+    candidates = preferred if preferred else pending.options
+    pending.dowsed_slot = ctx.rng.choice("dowsing_rod_slot", candidates).slot
+
+
 def _fill_options(ctx: DraftContext, pending: PendingDraft, from_room: Room | None) -> None:
     """Deal the three option slots, then apply concealment.
 
@@ -916,6 +966,8 @@ def _fill_options(ctx: DraftContext, pending: PendingDraft, from_room: Room | No
             exclude.add(opt.room_idx)
     # Clear after the initial deal; redraws of this hand use normal odds.
     ctx.state.special.silver_key_draft = False
+
+    _pick_dowsing_slot(ctx, pending)
 
     # Darkroom: obscures every option dealt from its own doorway while its
     # lights are off (effects/rooms/darkroom.py flips the switch off on first

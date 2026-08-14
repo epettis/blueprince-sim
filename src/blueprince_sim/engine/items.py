@@ -18,6 +18,19 @@ no room id ever appears as a literal in this module):
   so still bumps the penalty) unless it is also in this table.
 * ``count_transforms``: per-room transforms of the ladder's raw extra-item
   count (Nook/Study/Guest Bedroom/Den/Lost & Found's own wiki pages).
+
+A THIRD, entirely separate system sits alongside the ladder: the Dowsing Rod
+(data/items.json's ``dowsing_rod`` table; wiki: Dowsing_Rod page). While the
+item is held, ``draft.py``'s ``_pick_dowsing_slot`` marks one dealt slot per
+hand; drafting it marks that cell in ``state.dowsing_marked_cells``
+(``game.py``'s ``choose``). When that cell's items are rolled here,
+``roll_dowsed_count`` -- the Rod's own +32-luck, own Dowsing Penalty,
+own item-count table -- replaces ``roll_ladder_count`` for that one room, and
+its result BYPASSES the ``additional_max`` clamp entirely (owner ruling: a
+dowsed room may yield 3-4 items even where ``additional_max`` is 1).
+``count_transforms`` still applies on top (except ``deferred_ladder``'s
+Lost & Found, whose own bespoke resolution path is left un-bypassed -- see
+``roll_room_items``).
 """
 
 from __future__ import annotations
@@ -25,6 +38,7 @@ from __future__ import annotations
 from . import special_items
 from .model import Registry, Room
 from .state import GameState
+from .upgrades import root_base_id
 
 EXTRA_ITEM_TABLE = (
     # (item, weight) - what an "additional item" resolves to. The exact
@@ -165,21 +179,28 @@ def draft_luck_bonus(game, room: Room) -> int:
     return total
 
 
-def roll_ladder_count(game, draft_bonus: int = 0) -> int:
-    """Roll the published item-count ladder once for this draft's additional
-    items; returns the raw count (BEFORE the ``additional_max`` clamp --
-    ``roll_room_items`` clamps it). Adds any Luck Penalty the resolved
-    band/outcome carries to ``state.luck_penalty``.
+def _roll_ladder_at(game, effective: float) -> int:
+    """Roll ONE outcome of the published item-count ladder (data/items.json's
+    ``item_ladder``) at a precomputed EFFECTIVE luck value: the band lookup
+    and per-kind resolution shared by two callers --
 
-    Effective luck = ``state.luck`` + per-draft modifiers
-    (``special_items.luck_bonus``: Rabbit's Foot / Lucky Purse; ``draft_bonus``:
-    Veranda / Spare Veranda, precomputed once by the caller -- see
-    ``draft_luck_bonus``) - ``state.luck_penalty``.
+    * ``roll_ladder_count`` below, computing its own effective luck
+      (``state.luck`` + bonuses - ``state.luck_penalty``);
+    * ``roll_dowsed_count``'s "18 or under: runs the regular non-Dowsing Rod
+      routine" branch (wiki, Dowsing_Rod page), which computes a DIFFERENT
+      effective luck (``state.luck`` + bonuses + 32, no ``luck_penalty``
+      subtraction -- see that function's docstring) and rolls the exact same
+      bands/logic at that number, reusing this helper rather than duplicating
+      it (the "regular routine" framing IS this routine, verbatim).
+
+    Either caller's outcome still writes to ``state.luck_penalty`` the same
+    way (a "fixed" band's own penalty, or ``_resolve_variable``'s deltas) --
+    the wiki's Dowsing "the standard Luck Penalty does not apply" is about
+    not SUBTRACTING it from the effective-luck formula, not about
+    suppressing these writes (see ``roll_dowsed_count``).
     """
     state, cfg, registry, rng = game.state, game.cfg, game.registry, game.rng
     ladder = registry.item_rules["item_ladder"]
-    effective = (state.luck + special_items.luck_bonus(state, registry) + draft_bonus
-                 - state.luck_penalty)
     band = _find_band(effective, ladder["bands"])
     kind = band["kind"]
 
@@ -205,6 +226,124 @@ def roll_ladder_count(game, draft_bonus: int = 0) -> int:
     # kind == "fixed": 23-28 (3 items, +2 penalty) or 29+ (4 items, +3 penalty)
     state.luck_penalty += band["penalty"]
     return band["items"]
+
+
+def roll_ladder_count(game, draft_bonus: int = 0) -> int:
+    """Roll the published item-count ladder once for this draft's additional
+    items; returns the raw count (BEFORE the ``additional_max`` clamp --
+    ``roll_room_items`` clamps it). Adds any Luck Penalty the resolved
+    band/outcome carries to ``state.luck_penalty``.
+
+    Effective luck = ``state.luck`` + per-draft modifiers
+    (``special_items.luck_bonus``: Rabbit's Foot / Lucky Purse; ``draft_bonus``:
+    Veranda / Spare Veranda, precomputed once by the caller -- see
+    ``draft_luck_bonus``) - ``state.luck_penalty``.
+    """
+    state, registry = game.state, game.registry
+    effective = (state.luck + special_items.luck_bonus(state, registry) + draft_bonus
+                 - state.luck_penalty)
+    return _roll_ladder_at(game, effective)
+
+
+def _dowsing_effective_luck(game, draft_bonus: int) -> float:
+    """Effective luck for a Dowsing Rod roll (wiki, Dowsing_Rod page: "a +32
+    Luck bonus is applied and the standard Luck Penalty does not apply").
+
+    Unlike ``roll_ladder_count``'s formula, ``state.luck_penalty`` is NOT
+    subtracted here -- this is the only way effective luck can ever drop to
+    the Rod's own <=18 "regular routine" threshold in play (wiki: "The only
+    way to trigger this is having 4 Maid's Chambers drafted"; each applies
+    -7 directly to ``state.luck`` at ON_PLACE, engine/effects/tier1.py's
+    ``anti_luck``, so 4 of them plus this +32 bonus nets 10 - 28 + 32 = 14).
+    """
+    state, registry = game.state, game.registry
+    rod_luck_bonus = registry.item_rules["dowsing_rod"]["rod_luck_bonus"]
+    return state.luck + special_items.luck_bonus(state, registry) + draft_bonus + rod_luck_bonus
+
+
+def _roll_dowsing_outcomes(game, band: dict, effective: float) -> int | None:
+    """Roll ``band``'s weighted outcomes table (data/items.json's
+    ``dowsing_rod.penalty_bands``); returns an item count, or ``None`` for a
+    ``"recurse_0_2"`` outcome (the 3-5 Dowsing Penalty band's own 20% "run as
+    though it was 0-2 Dowsing Penalty" row) -- the caller re-enters the FULL
+    0-2 band procedure (``_roll_dowsing_band_0_2``), not just this table.
+    """
+    state, registry, rng = game.state, game.registry, game.rng
+    outcomes = band["outcomes"]
+    weights = tuple(o["p_pct"] for o in outcomes)
+    outcome = outcomes[rng.roll_weighted("dowsing_penalty_outcome", weights)]
+    result = outcome["result"]
+    if result == "one":
+        return 1
+    if result == "variable":
+        ladder = registry.item_rules["item_ladder"]
+        return _resolve_variable(effective, ladder["variable"], state, rng)
+    if result == "recurse_0_2":
+        return None
+    # "fixed": the 0-2 band's own 3-/4-item rows. Writes BOTH the "standard"
+    # state.luck_penalty (wiki: "+2 Luck Penalty" / "+3 Luck Penalty") and
+    # the Dowsing Rod's own state.dowsing_penalty (wiki: "+1 Dowsing
+    # Penalty" / "+2 Dowsing Penalty") -- the "does not apply" suppression
+    # is about the effective-luck FORMULA (see _dowsing_effective_luck), not
+    # these outcome-carried writes.
+    state.luck_penalty += outcome["penalty"]
+    state.dowsing_penalty += outcome["dowsing_penalty"]
+    return outcome["items"]
+
+
+def _roll_dowsing_band_0_2(game, room: Room, effective: float, table: dict) -> int:
+    """Full "0-2 Dowsing Penalty" resolution (wiki, Dowsing_Rod page,
+    verbatim order): the 17-room ``variable_items_rooms`` list ("gives
+    variable items", unconditional -- no roll), then the
+    ``regular_routine_luck_max`` effective-luck check ("Runs the regular
+    non-Dowsing Rod routine. If it rolls 0 items, it gets increased to 1
+    item."), and only if NEITHER applies, the 81.6/3.4/10/5% weighted table.
+
+    Shared by ``roll_dowsed_count``'s own 0-2-penalty entry AND the 3-5
+    band's "recurse_0_2" outcome above -- so a 3-5-band draw that lands
+    there gets the SAME room-list/regular-routine gates a genuine
+    0-2-penalty draw would, not just the weighted table (the wiki's "run as
+    though it was 0-2 Dowsing Penalty" reads as the whole section).
+    """
+    state, registry, rng = game.state, game.registry, game.rng
+    if root_base_id(registry, room) in table["variable_items_rooms"]:
+        ladder = registry.item_rules["item_ladder"]
+        return _resolve_variable(effective, ladder["variable"], state, rng)
+    if effective <= table["regular_routine_luck_max"]:
+        raw = _roll_ladder_at(game, effective)
+        return raw if raw > 0 else 1
+    result = _roll_dowsing_outcomes(game, table["penalty_bands"][0], effective)
+    assert result is not None, "dowsing_rod: 0-2 band outcomes must not be 'recurse_0_2'"
+    return result
+
+
+def roll_dowsed_count(game, room: Room, draft_bonus: int = 0) -> int:
+    """Roll the Dowsing Rod's own item-count table (data/items.json's
+    ``dowsing_rod.penalty_bands``; wiki: Dowsing_Rod page, "exact impacts on
+    luck" DataMinedBox) for a room the Rod pointed at and the player
+    drafted. Returns the raw extra-item count BEFORE any ``additional_max``
+    clamp -- unlike ``roll_ladder_count``'s result, the caller
+    (``roll_room_items``) must NOT clamp this: Dowsing bypasses the cap
+    entirely (owner ruling -- without it the whole ladder collapses to ~1
+    item and the item is pointless).
+
+    Dispatches on ``state.dowsing_penalty``'s own band (0-2 / 3-5 / 6+;
+    data/items.json's ``dowsing_rod.penalty_bands``, contiguous like
+    ``item_ladder.bands``): the 0-2 band gets the full gated procedure
+    (``_roll_dowsing_band_0_2``); 3-5 and 6+ just roll their own weighted
+    outcomes table (``_roll_dowsing_outcomes``), with 3-5's own 20% row
+    deferring back into the 0-2 procedure.
+    """
+    registry = game.registry
+    table = registry.item_rules["dowsing_rod"]
+    effective = _dowsing_effective_luck(game, draft_bonus)
+    band = _find_band(game.state.dowsing_penalty, table["penalty_bands"])
+    if band is table["penalty_bands"][0]:
+        return _roll_dowsing_band_0_2(game, room, effective, table)
+    result = _roll_dowsing_outcomes(game, band, effective)
+    if result is not None:
+        return result
+    return _roll_dowsing_band_0_2(game, room, effective, table)
 
 
 def expected_yields(room: Room, registry: Registry) -> dict[str, float]:
@@ -442,18 +581,33 @@ def roll_extra_items(game, count: int) -> int:
     return count
 
 
-def roll_room_items(game, room: Room) -> int:
+def roll_room_items(game, room: Room, cell: int) -> int:
     """Spawn a room's items into the player's resources; returns items found.
 
     Guaranteed items always spawn. The additional-item COUNT is then rolled
     from the published item-count ladder UNLESS ``room.id`` is in
     items.json's ``never_roll_rooms`` table ("The following rooms never roll
-    for luck", wiki) -- those rooms skip ``roll_ladder_count`` entirely, so
-    ``state.luck_penalty`` is untouched (contrast an ordinary
-    ``additional_max == 0`` room, which still rolls and discards, and so
-    still pays the penalty). The raw count is then passed through this
-    room's ``count_transforms`` entry, if any, before the ``additional_max``
-    clamp (see ``_apply_count_transform``).
+    for luck", wiki) -- those rooms skip ``roll_ladder_count``/
+    ``roll_dowsed_count`` entirely, so ``state.luck_penalty`` is untouched
+    (contrast an ordinary ``additional_max == 0`` room, which still rolls
+    and discards, and so still pays the penalty); this is unconditional even
+    for a dowsed cell (the never-roll list is an absolute per-room fact, not
+    a luck level the Dowsing Rod's +32 could ever overcome). The raw count
+    is then passed through this room's ``count_transforms`` entry, if any,
+    before the ``additional_max`` clamp (see ``_apply_count_transform``).
+
+    ``cell`` is the grid cell ``room`` is entered at (-1 for an outer-room
+    draft, which never carries a Dowsing mark -- see draft.py's module
+    docstring): checked against ``state.dowsing_marked_cells``
+    (game.py::choose) to decide whether this roll uses ``roll_dowsed_count``
+    instead of ``roll_ladder_count``, and its result BYPASSES the
+    ``additional_max`` clamp (owner ruling) -- EXCEPT for a
+    ``deferred_ladder`` room (Lost & Found): its real item resolution is a
+    separate, later, bespoke pool draw (special_items.py's
+    ``lost_and_found_on_enter``) that this room's own ``additional_max == 0``
+    is relied on to suppress here, so the clamp still applies at this site
+    for it, dowsed or not (a named gap: the Dowsing Rod boost is not
+    threaded through Lost & Found's own bespoke 2-4 clamp).
     """
     state = game.state
     registry = game.registry
@@ -467,6 +621,10 @@ def roll_room_items(game, room: Room) -> int:
             grant_item(game, item, count)
             found += 1
 
+    dowsed = cell in state.dowsing_marked_cells
+    if dowsed:
+        state.dowsing_marked_cells.discard(cell)
+
     if room.id in registry.item_rules["never_roll_rooms"]["rooms"]:
         return found
 
@@ -476,11 +634,13 @@ def roll_room_items(game, room: Room) -> int:
     # slot's special-item roll) must reuse this single value rather than
     # each recomputing its own.
     draft_bonus = draft_luck_bonus(game, room)
-    raw = roll_ladder_count(game, draft_bonus)
+    raw = roll_dowsed_count(game, room, draft_bonus) if dowsed else roll_ladder_count(
+        game, draft_bonus)
     raw, bonus_found = _apply_count_transform(game, room, raw)
     found += bonus_found
-    extra = min(raw, room.items.additional_max)
     transform = registry.item_rules["count_transforms"]["rooms"].get(room.id)
+    deferred = transform is not None and transform["kind"] == "deferred_ladder"
+    extra = raw if (dowsed and not deferred) else min(raw, room.items.additional_max)
     force_trunk = extra == 1 and transform is not None and transform["kind"] == "one_becomes_trunk"
     for _ in range(extra):
         if force_trunk:

@@ -149,6 +149,14 @@ class PendingDraft:
     # for draft.py::_resolve_free_gem's "third round or later this draft"
     # Slot 3 Gem Draw rule (Drafting/Advanced) to ever fire.
     round_num: int = 1
+    # The slot (0..2) the Dowsing Rod points at, or None while it is not held
+    # / the hand ended up with no dealt options (draft.py::_pick_dowsing_slot,
+    # called from _fill_options -- so this is recomputed on every fresh deal
+    # AND every redraw, matching the wiki's "the Dowsing Rod will reselect
+    # one of the new floorplans" after a redraw). Read once, at Game.choose,
+    # to decide whether the drafted room's cell gets marked in
+    # GameState.dowsing_marked_cells for its later item roll.
+    dowsed_slot: int | None = None
     # Chronograph REWIND stack: each entry is the hand a redeal (Game.
     # _redeal_pending -- Study/Classroom/dice redraw, or Crown of the
     # Blueprints' free redeal) just replaced, pushed there before the hand is
@@ -489,6 +497,24 @@ class GameState:
     # (effects/rooms/guest_bedroom.py). Marked at ON_PLACE, read at ON_ENTER;
     # same shape as closet_bonus_cells/cloister_mila_bonus_cells above.
     geist_bedroom_tomb_cells: set[int] = field(default_factory=set)
+    # Cells whose item roll is dowsed: the Dowsing Rod pointed at this slot
+    # when its hand was last dealt/redealt AND the player drafted that slot
+    # (draft.py::_pick_dowsing_slot marks PendingDraft.dowsed_slot; Game.choose
+    # copies it here against the drafted cell). Consumed (discarded) by
+    # engine/items.py::roll_room_items on that cell's first item roll -- same
+    # parking-lot shape as closet_bonus_cells/cloister_mila_bonus_cells above.
+    dowsing_marked_cells: set[int] = field(default_factory=set)
+    # The Dowsing Rod's own Dowsing Penalty (wiki: Dowsing_Rod page's "exact
+    # impacts on luck" DataMinedBox: "starts at 0 and can increase from
+    # effects below. It does not impact anything outside this effect").
+    # Distinct from state.luck_penalty (the "standard" Luck Penalty, which
+    # Dowsing rolls still write into but never subtract -- see
+    # engine/items.py::roll_dowsed_count). Owner-ruled per-day reset, the same
+    # pattern already applied to luck_penalty (the wiki does not explicitly
+    # scope either counter's reset window): a fresh GameState resets this
+    # every day like luck_penalty. NOT in env/multiday.py's _CARRYOVER_KEYS
+    # (a frozenset of bool fields) and never carried across days.
+    dowsing_penalty: int = 0
     # The room id the Guess Bedroom (guess_bedroom__ix70) secretly mimics today,
     # rolled once on its first draft and shared by every Guess Bedroom placed
     # afterward; None when no Guess Bedroom has drafted a valid pick yet, or the

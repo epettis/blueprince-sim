@@ -69,7 +69,7 @@ def test_never_roll_room_yields_zero_items_and_no_penalty_increase(game, registr
         g = Game(GameConfig(), seed=seed, registry=registry)
         g.state.luck = 30
         coins0, keys0, gems0, dice0 = g.state.coins, g.state.keys, g.state.gems, g.state.dice
-        found = items.roll_room_items(g, room)
+        found = items.roll_room_items(g, room, -1)
         assert found == 0, f"seed {seed}: never-roll room must yield 0 items"
         assert (g.state.coins, g.state.keys, g.state.gems, g.state.dice) == (
             coins0, keys0, gems0, dice0), f"seed {seed}: no resource may change"
@@ -91,7 +91,7 @@ def test_never_roll_vs_rolling_room_penalty_contrast(game, registry):
     for seed in range(20):
         g = Game(GameConfig(), seed=seed, registry=registry)
         g.state.luck = 30
-        found = items.roll_room_items(g, kitchen)
+        found = items.roll_room_items(g, kitchen, -1)
         assert found == 0, "additional_max=0 discards the roll's items"
         assert g.state.luck_penalty == 3, (
             "a room that rolls and discards must still pay the 29+ band's +3 penalty")
@@ -111,7 +111,7 @@ def test_room_absent_from_both_tables_is_unaffected(registry):
     for seed in range(20):
         g = Game(GameConfig(), seed=seed, registry=registry_)
         g.state.luck = 25
-        found = items.roll_room_items(g, room)
+        found = items.roll_room_items(g, room, -1)
         assert found == 1, "3-item ladder roll clamped to additional_max=1"
         assert g.state.luck_penalty == 2, "23-28 band's own +2 penalty, untouched by any transform"
 
@@ -236,7 +236,7 @@ def test_den_one_becomes_trunk(registry):
         g = Game(GameConfig(), seed=seed, registry=registry)
         g.state.luck = 25
         dice0 = g.state.dice
-        items.roll_room_items(g, room)
+        items.roll_room_items(g, room, -1)
         if g.state.dice - dice0 == 2:
             saw_double_dice = True
             break
@@ -267,7 +267,7 @@ def test_lost_and_found_deferred_ladder_stashes_raw_and_still_discards_here(regi
     for seed in range(20):
         g = Game(GameConfig(), seed=seed, registry=registry)
         g.state.luck = 30  # 29+ fixed band: deterministic raw=4, +3 penalty
-        found = items.roll_room_items(g, room)
+        found = items.roll_room_items(g, room, -1)
         assert found == 0, "deferred_ladder must not grant items via this generic path"
         assert g.state.luck_penalty == 3, "still an ordinary roll-and-discard room, not never-roll"
         assert g.state.special.count_transform_raw.get("lost_and_found") == 4, (

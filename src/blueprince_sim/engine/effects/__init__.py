@@ -182,6 +182,7 @@ class ItemCapability(Enum):
     FOOD_MULTIPLIER = "food_multiplier"  # doubles food step gains while held
     FREE_HALLWAY_MOVES = "free_hallway_moves"  # hallway<->hallway moves/drafts are free, held
     COIN_MULTIPLIER = "coin_multiplier"  # doubles every coin pickup while held
+    DOWSING_ROD = "dowsing_rod"  # points at a dealt slot on every deal/redraw, held (draft.py)
 
 
 # (item_id, capability) -> its registered params, e.g. {"amount": 1}. Unlike

@@ -83,6 +83,19 @@ EFFECTS_ITEMS_DIR = ENGINE_DIR / "effects" / "items"
 #: module's scan (test_allowlist_has_no_stale_entries), and no other tag
 #: literal may appear anywhere unlisted (test_no_tag_literals_outside_the_allowlist).
 ITEM_TAG_ALLOWLIST: dict[str, set[str]] = {
+    "draft.py": {
+        # _pick_dowsing_slot reads data/items.json's "dowsing_rod" table
+        # (avoid_rooms) -- a data table name, coincidentally spelled the
+        # same as the item's own effect tag; not a tag dispatch (the item
+        # never carries any OTHER effect this module reads).
+        "dowsing_rod",
+    },
+    "items.py": {
+        # roll_dowsed_count/_dowsing_effective_luck/_roll_dowsing_band_0_2
+        # read data/items.json's "dowsing_rod" table -- same data-section-name
+        # collision as draft.py's entry above, not a tag dispatch.
+        "dowsing_rod",
+    },
     "effects/tier1.py": {
         # _grant()'s resource-kind dispatch: case "allowance": applies the
         # delta to state.allowance. This is a room-effect currency-kind
@@ -161,10 +174,10 @@ ITEM_TAG_ALLOWLIST: dict[str, set[str]] = {
 #: still listed is *also* a failure, demanding the entry be removed. Every
 #: entry names the item that carries the tag and its meta.blocked_on.
 DEFERRED_UNREAD_TAGS: frozenset[str] = frozenset({
-    # dowsing_rod item: meta.blocked_on=per_slot_luck_boost_not_modeled --
-    # effect authored (a per-floorplan-slot luck boost with its own penalty
-    # ladder) but per-slot luck isn't modeled; only aggregate luck is.
-    "dowsing_rod",
+    # dowsing_rod moved off this list: it now has real readers
+    # (engine/effects/items/dowsing_rod.py's item_provides registration,
+    # draft.py's _pick_dowsing_slot, items.py's roll_dowsed_count) -- see
+    # tests/test_luck_tables.py and tests/test_luck_ladder.py.
     # gear_wrench moved off this list: it now has a real reader
     # (engine/effects/items/gear_wrench.py::ITEM_ID, read by Game.choose/
     # set_wrench_rarity) -- see tests/test_gear_wrench.py.

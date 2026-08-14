@@ -259,6 +259,13 @@ def observation_space(n_rooms: int, n_items: int, n_recipes: int,
         # a shape change to an existing one -- same rationale as axed_rooms:
         # a permanent, cross-day, per-room investment V(s) needs to see.
         "wrench_rarity": spaces.Box(0, 4, shape=(n_mechanical_rooms,), dtype=np.uint8),
+        # dowsing: [dowsed_slot+1 (0 = no Dowsing Rod pick live right now --
+        # not held, special items off, or no dealt hand), dowsing_penalty
+        # (state.dowsing_penalty, clamped to the space bound)]. Additive: an
+        # agent holding the Dowsing Rod cannot evaluate WHICH of the three
+        # "options" rows is boosted, or how far up its own penalty ladder
+        # today's draws have pushed it, from any existing key.
+        "dowsing": spaces.Box(0, 999, shape=(2,), dtype=np.int16),
     })
 
 
@@ -694,6 +701,15 @@ def encode(game: Game, day_chain: DayChain | None = None) -> dict:
         [st.permanent_rarity.get(rid, -1) + 1 for rid in _mech_room_ids], dtype=np.uint8
     )
 
+    # dowsing: [dowsed_slot+1, dowsing_penalty]. dowsed_slot is only
+    # meaningful while DRAFTING with a live pending hand carrying a pick --
+    # 0 otherwise (no Dowsing Rod boost to show right now), the same
+    # DRAFTING gate "options" itself uses.
+    _dowsed_slot_col = 0
+    if game.phase is Phase.DRAFTING and pending is not None and pending.dowsed_slot is not None:
+        _dowsed_slot_col = pending.dowsed_slot + 1
+    dowsing_obs = np.array([_dowsed_slot_col, min(st.dowsing_penalty, 999)], dtype=np.int16)
+
     return {
         "grid_room": grid_room,
         "grid_doors": grid_doors,
@@ -737,4 +753,5 @@ def encode(game: Game, day_chain: DayChain | None = None) -> dict:
         "shrine": shrine_obs,
         "axed_rooms": axed_rooms_obs,
         "wrench_rarity": wrench_rarity_obs,
+        "dowsing": dowsing_obs,
     }

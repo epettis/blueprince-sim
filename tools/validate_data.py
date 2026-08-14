@@ -837,6 +837,89 @@ def main(argv: list[str] | None = None) -> int:
                               f"got {guaranteed_add!r}")
         # "zero_becomes_one", "one_becomes_trunk", "not_modeled" carry no extra fields.
 
+    # items.json: dowsing_rod -- the Dowsing Rod's own +32-luck/own-Dowsing-
+    # Penalty item-count table (engine/items.py's roll_dowsed_count) plus its
+    # two room lists (draft.py's slot-pick avoid_rooms; this table's own
+    # variable_items_rooms). Same fail-open concern as never_roll_rooms/
+    # count_transforms above -- previously unvalidated entirely. Deliberately
+    # NOT cross-checked against never_roll_rooms/count_transforms/each other:
+    # the wiki publishes these as separate, independently-curated lists (a
+    # room may legitimately sit on more than one, or on none).
+    VALID_DOWSING_RESULTS = {"one", "variable", "fixed", "recurse_0_2"}
+    dowsing = items_doc.get("dowsing_rod", {})
+    dw_conf = dowsing.get("meta", {}).get("confidence")
+    if dw_conf not in VALID_CONFIDENCE:
+        errors.append(f"dowsing_rod.meta: bad confidence {dw_conf!r}")
+    rod_luck_bonus = dowsing.get("rod_luck_bonus")
+    if not isinstance(rod_luck_bonus, int) or rod_luck_bonus <= 0:
+        errors.append(f"dowsing_rod.rod_luck_bonus: must be a positive int, "
+                      f"got {rod_luck_bonus!r}")
+    luck_max = dowsing.get("regular_routine_luck_max")
+    if not isinstance(luck_max, int):
+        errors.append(f"dowsing_rod.regular_routine_luck_max: must be an int, got {luck_max!r}")
+
+    def _check_dowsing_room_list(key: str) -> None:
+        room_ids = dowsing.get(key, [])
+        if not room_ids:
+            errors.append(f"dowsing_rod.{key}: must be non-empty")
+        if len(room_ids) != len(set(room_ids)):
+            errors.append(f"dowsing_rod.{key}: duplicate room ids")
+        for rid in room_ids:
+            if rid not in by_id:
+                errors.append(f"dowsing_rod.{key} references unknown room {rid!r}")
+            elif by_id[rid].get("variant_of") is not None:
+                # These lists are matched generically at runtime via a
+                # variant_of walk to the family ROOT (upgrades.root_base_id)
+                # -- an upgrade-variant id here would never match anything
+                # (an already-upgraded room's own id is never re-checked
+                # against the list, only its root's), silently.
+                errors.append(f"dowsing_rod.{key}: {rid!r} is an upgrade variant, "
+                              f"not a family root -- list the base room instead")
+
+    _check_dowsing_room_list("avoid_rooms")
+    _check_dowsing_room_list("variable_items_rooms")
+
+    bands = dowsing.get("penalty_bands", [])
+    prev_max = None
+    for i, band in enumerate(bands):
+        where = f"dowsing_rod.penalty_bands[{i}]"
+        lo, hi = band.get("min"), band.get("max")
+        if i == 0 and lo is not None:
+            errors.append(f"{where}: first row must be unbounded below (no 'min')")
+        if i == len(bands) - 1 and hi is not None:
+            errors.append(f"{where}: last row must be unbounded above (no 'max')")
+        if lo is not None and hi is not None and lo > hi:
+            errors.append(f"{where}: min {lo} > max {hi}")
+        if prev_max is not None and lo != prev_max + 1:
+            errors.append(f"{where}: not contiguous with previous row "
+                          f"(prev max {prev_max}, this min {lo})")
+        prev_max = hi
+        outcomes = band.get("outcomes", [])
+        if not outcomes:
+            errors.append(f"{where}.outcomes: must be non-empty")
+        total = 0.0
+        for j, outcome in enumerate(outcomes):
+            owhere = f"{where}.outcomes[{j}]"
+            result = outcome.get("result")
+            if result not in VALID_DOWSING_RESULTS:
+                errors.append(f"{owhere}: bad result {result!r}")
+            if result == "recurse_0_2" and i == 0:
+                errors.append(f"{owhere}: 'recurse_0_2' is only valid outside the first "
+                              f"(0-2 Dowsing Penalty) band")
+            p_pct = outcome.get("p_pct")
+            _pct(f"{owhere}.p_pct", p_pct)
+            if isinstance(p_pct, (int, float)):
+                total += p_pct
+            if result == "fixed":
+                for fkey in ("items", "penalty", "dowsing_penalty"):
+                    val = outcome.get(fkey)
+                    if not isinstance(val, int) or val < 0:
+                        errors.append(f"{owhere}.{fkey}: bad value {val!r}")
+        if outcomes and abs(total - 100.0) > 1e-9:
+            errors.append(f"{where}.outcomes: p_pct sums to {total}, expected 100")
+    if not bands:
+        errors.append("dowsing_rod.penalty_bands: must be non-empty")
+
     # locks.json: table shape, referential integrity, sane probabilities
     ew = lock_rules["lock_chance"]["ew_by_rank"]
     if set(ew) != {str(i) for i in range(1, 10)}:

@@ -1220,14 +1220,13 @@
      "tag": "dowsing_rod"
     }
    ],
-   "implemented": false,
+   "implemented": true,
    "meta": {
     "source": "https://blueprince.wiki.gg/wiki/Dowsing_Rod",
     "confidence": "wiki",
     "absent_spawn_areas": [],
-    "blocked_on": "per_slot_luck_boost_not_modeled",
-    "reachability": "inert",
-    "notes": "The Dowsing Rod has nothing to do with colour -- the old slug was wrong. It points at one of the three drawn floorplans and boosts that room's luck specifically, with its own 'Dowsing Penalty' ladder (+32 luck, standard Luck Penalty suppressed, a documented 81.6/3.4/10/5% item-count table). Obtainable today via fabrication (compass + shovel -> dowsing_rod)."
+    "blocked_on": null,
+    "notes": "The Dowsing Rod has nothing to do with colour -- the old slug was wrong. While held, it points at one of the three dealt floorplans on every deal/redraw (engine/draft.py's _pick_dowsing_slot, preferring a slot off data/items.json's dowsing_rod.avoid_rooms list); drafting that slot boosts that room's item spawn via its own system (engine/items.py's roll_dowsed_count), not the normal luck ladder -- see data/items.json's dowsing_rod table for the full published mechanics. Obtainable via fabrication (compass + shovel -> dowsing_rod). NOT modelled (named gaps): the Shelter interaction (a dowsed Lavatory/Furnace should count as sheltered; this sim's Shelter is a global day counter, not a per-room mark), the Coat Check/Compass quirk, real-time 'premature drafting' animation artifacts, and outer-room (West Path Shop) drafts."
    }
   },
   {
