@@ -13,7 +13,7 @@ from .decks import apply_upgrade, build_decks, inject_rooms
 from .draft import COLOUR_CATEGORIES, SECRET_PASSAGE_IDS, deal_draft, redeal
 from .effects import Capability, Hook
 from .effects.items import (basement_key, crown_of_the_blueprints, keycard, master_key,
-                            paper_crown, power_hammer, silver_key, the_axe)
+                            paper_crown, power_hammer, prism_key, silver_key, the_axe)
 from .effects.rooms import dovecote, foyer, mail_room, shrine
 from .grid import (ADJACENT, DIRS, E, ENTRANCE_CELL, N, N_CELLS, OPPOSITE, W,
                    neighbor, rank_of, rotate_mask)
@@ -998,25 +998,35 @@ class Game:
         self._unlock_for_passage(cell, direction, for_draft=True)
         return self._continue_draft(cell, direction, target)
 
-    def _continue_draft(self, cell: int, direction: int, target: int) -> PendingDraft | None:
+    def _continue_draft(self, cell: int, direction: int, target: int,
+                        colour: str | None = None) -> PendingDraft | None:
         """Shared tail of :meth:`open_door` (once past any lock) and every
         LOCK_PENDING resolver (:meth:`use_key_at_lock`/:meth:`lockpick_at_lock`/
         :meth:`use_special_key_at_lock`): the colour-pick check and dealing
         that used to sit directly in :meth:`open_door`. See that method's own
         docstring for the COLOUR_PENDING and empty-hand branches this mirrors.
+
+        ``colour`` is set only by a resolved Prism Key use (see
+        :meth:`use_special_key_at_lock`), which already knows its restriction
+        and deals straight into it -- the from-room's own Secret Passage
+        check below is skipped in that case (a Prism Key's colour takes
+        priority over the Secret Passage's own pick, per the wiki: "the
+        Prism Key takes priority and the Secret Passage's chosen color is
+        ignored").
         """
         st = self.state
         key = (cell, direction)
         pending = self.doorway_drafts.get(key)
         if pending is None:
-            from_room = self.registry.rooms[st.grid[cell]]
-            if from_room.id in SECRET_PASSAGE_IDS:
-                st.pending_colour_cell = cell
-                st.pending_colour_direction = direction
-                self.phase = Phase.COLOUR_PENDING
-                self._check_termination()
-                return None
-            pending = self._deal_and_cache(cell, direction, target)
+            if colour is None:
+                from_room = self.registry.rooms[st.grid[cell]]
+                if from_room.id in SECRET_PASSAGE_IDS:
+                    st.pending_colour_cell = cell
+                    st.pending_colour_direction = direction
+                    self.phase = Phase.COLOUR_PENDING
+                    self._check_termination()
+                    return None
+            pending = self._deal_and_cache(cell, direction, target, colour=colour)
         if not pending.options:
             st.pending = None
             self.phase = Phase.NAVIGATE
@@ -1029,7 +1039,7 @@ class Game:
 
     # ------------------------------------------------------------ LOCK_PENDING
 
-    _RESERVED_SPECIAL_KEYS = frozenset({"secret_garden_key", "key_8", "prism_key"})
+    _RESERVED_SPECIAL_KEYS = frozenset({"secret_garden_key", "key_8"})
 
     def _lock_pending_target(self) -> tuple[int, int]:
         """The (cell, direction) doorway parked in LOCK_PENDING."""
@@ -1117,7 +1127,9 @@ class Game:
             return silver_key.held(self.state)
         if key_id == "basement_key":
             return basement_key.held(self.state)
-        return False  # secret_garden_key / key_8 / prism_key: reserved (see below)
+        if key_id == "prism_key":
+            return prism_key.held(self.state)
+        return False  # secret_garden_key / key_8: reserved (see below)
 
     def _special_key_fits(self, key_id: str, cell: int, direction: int) -> bool:
         if key_id == "master_key":
@@ -1126,17 +1138,20 @@ class Game:
             return silver_key.fits(self, cell, direction)
         if key_id == "basement_key":
             return basement_key.fits(self, cell, direction)
-        return False  # secret_garden_key / key_8 / prism_key: reserved (see below)
+        if key_id == "prism_key":
+            return prism_key.fits(self, cell, direction)
+        return False  # secret_garden_key / key_8: reserved (see below)
 
     def can_use_special_key_at_lock(self, key_id: str) -> bool:
         """Is ``key_id`` a legal special-keys-menu row at the pending lock?
 
         ``secret_garden_key``/``key_8`` are modelled in this sim as
         draft_conditions tags rather than door keys (their menu behaviour is
-        unimplemented in both directions), and ``prism_key`` stays
-        ``implemented: false`` in special_items.json -- all three are
-        reserved action ids, permanently masked off, per
-        data/locks.json's special_key_menu comment.
+        unimplemented in both directions) -- reserved action ids, permanently
+        masked off, per data/locks.json's special_key_menu comment.
+        ``prism_key`` is not reserved: it is legal exactly when held and
+        ``fits`` (a Bedroom/Hallway/Green Room/Shop/Red Room -- see
+        effects/items/prism_key.py::fits), same shape as master_key/silver_key.
         """
         if self.phase is not Phase.LOCK_PENDING or not self.cfg.special_items:
             return False
@@ -1148,25 +1163,39 @@ class Game:
         return self._special_key_fits(key_id, cell, direction)
 
     def use_special_key_at_lock(self, key_id: str) -> PendingDraft | None:
-        """Use special key ``key_id`` on the pending lock, then continue the draft."""
+        """Use special key ``key_id`` on the pending lock, then continue the draft.
+
+        ``prism_key`` resolves its colour restriction here (the room the key
+        is used IN, or a single rng draw in a multi-colour room -- see
+        effects/items/prism_key.py::consume_and_resolve_colour) and threads
+        it straight to :meth:`_resolve_lock_open`, which skips Phase.
+        COLOUR_PENDING entirely: that phase exists for the Secret Passage's
+        player pick, and the Prism Key's colour is never a player pick.
+        """
         assert self.can_use_special_key_at_lock(key_id), f"cannot use {key_id!r} here"
         cell, direction = self._lock_pending_target()
+        colour = None
         if key_id == "silver_key":
             used = silver_key.consume_for_draft(self.state)
             assert used, "silver key vanished mid-resolution"
         elif key_id == "master_key":
             pass  # never consumed (wiki)
+        elif key_id == "prism_key":
+            colour = prism_key.consume_and_resolve_colour(self, cell)
         else:
             raise AssertionError(f"no resolver wired for {key_id!r}")
-        return self._resolve_lock_open(cell, direction)
+        return self._resolve_lock_open(cell, direction, colour=colour)
 
-    def _resolve_lock_open(self, cell: int, direction: int) -> PendingDraft | None:
+    def _resolve_lock_open(self, cell: int, direction: int,
+                           colour: str | None = None) -> PendingDraft | None:
         """Common tail of every successful lock resolution: clear the pending
-        target, open the segment, and continue the draft."""
+        target, open the segment, and continue the draft. ``colour`` threads
+        a resolved Prism Key restriction straight to the deal (see
+        :meth:`use_special_key_at_lock`); None for every other resolver."""
         self.state.pending_lock_cell = -1
         self.state.pending_lock_direction = 0
         self._open_segment(cell, direction)
-        return self._continue_draft(cell, direction, neighbor(cell, direction))
+        return self._continue_draft(cell, direction, neighbor(cell, direction), colour=colour)
 
     def _deal_and_cache(self, cell: int, direction: int, target: int,
                         colour: str | None = None) -> PendingDraft:

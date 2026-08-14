@@ -112,7 +112,7 @@ ITEM_ARCHITECTURE: dict[str, set[str]] = {
         # special_key_menu.order names exactly these six ids (the wiki's
         # published fixed row order), and the dispatch has to name each one
         # to route to its own effects/items/<id>.py held()/fits() pair (or,
-        # for the three reserved ids, to decline outright) -- the same
+        # for the two reserved ids, to decline outright) -- the same
         # engine-owned, first-applicable-wins-shaped table carve-out as
         # special_items.py's DIG_PRIORITY/lock-pick preference order below.
         "basement_key", "key_8", "master_key", "prism_key",

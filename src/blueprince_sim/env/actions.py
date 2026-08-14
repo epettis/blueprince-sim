@@ -142,12 +142,15 @@ Layout (Discrete(427)):
                      (the wiki's published fixed row order: Basement Key,
                      Secret Garden Key, Silver Key, Key 8, Master Key, Prism
                      Key). secret_garden_key/key_8 are modelled in this sim
-                     as draft_conditions tags rather than door keys, and
-                     prism_key stays unimplemented -- all three are reserved
-                     ids, permanently masked off (Game.can_use_special_key_at_lock).
-                     Basement Key's own fits() is also always False: this sim
-                     has no on-grid Basement door (see effects/items/basement_key.py).
-                     Silver Key and Master Key are the only two rows ever
+                     as draft_conditions tags rather than door keys -- both
+                     are reserved ids, permanently masked off
+                     (Game.can_use_special_key_at_lock). Basement Key's own
+                     fits() is also always False: this sim has no on-grid
+                     Basement door (see effects/items/basement_key.py). Prism
+                     Key fits a held-and-colour-fitting room (Bedroom/Hallway/
+                     Green Room/Shop/Red Room) and, once used, colour-restricts
+                     the resulting draft (effects/items/prism_key.py) --
+                     Silver Key, Master Key, and Prism Key are the rows ever
                      actually selectable today.
 """
 
@@ -286,9 +289,9 @@ LOCK_ABANDON_ACTION = LOCK_MENU_BASE + 2      # 429: exit the menu; the door sta
 LOCK_SPECIAL_KEY_BASE = LOCK_MENU_BASE + 3    # 430..435: a special key, data/locks.json's
                                                # special_key_menu.order (the wiki's published
                                                # fixed row order: Basement/Secret Garden/Silver/
-                                               # Key 8/Master/Prism). secret_garden_key, key_8
-                                               # and prism_key are reserved ids, permanently
-                                               # masked off -- see Game.can_use_special_key_at_lock.
+                                               # Key 8/Master/Prism). secret_garden_key and key_8
+                                               # are reserved ids, permanently masked off -- see
+                                               # Game.can_use_special_key_at_lock.
 _N_LOCK_SPECIAL_KEYS = 6  # width pinned as a constant, like _N_AREA_NODES/_N_AXE_TARGETS
 
 # N_ACTIONS = first slot after the lock-menu special-key range.
