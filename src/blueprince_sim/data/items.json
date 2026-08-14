@@ -37,6 +37,38 @@
    {"min": 17, "kind": "roll", "p_three_pct": 5, "three_penalty": 3, "two_penalty": 1}
   ]
  },
+ "never_roll_rooms": {
+  "meta": {
+   "confidence": "wiki",
+   "source": "https://blueprince.wiki.gg/wiki/Luck",
+   "notes": "\"Luck effects\" DataMinedBox: \"Not every room rolls for luck. The rooms that don't completely skip this step, including the Luck Penalty increase. (Rooms that do roll for luck and then discard the result still increase the Luck Penalty.) The following rooms never roll for luck: [19 named rooms].\" engine/items.py's roll_room_items reads this table BEFORE calling roll_ladder_count at all for a listed room -- not merely clamping the result to 0 -- so these rooms never touch state.luck_penalty, unlike every other additional_max==0 room (e.g. Lost & Found), which still rolls and discards. The wiki names 19 rooms by their base name; Closet's three Upgrade Closet variants (Hallway/Bedroom/Empty Closet, rooms.json variant_of=closet) are listed here too since they are the same room family, per the corridor/corriyard__ix50 precedent in locks.json's always_unlocked_rooms. The wiki's own prose also says \"There are some rooms not on this list that only sometimes roll for luck, such as the Guess Bedroom\" -- confirmed (by fetching the raw wiki source) to be a verbatim wiki typo for Guest Bedroom, NOT the sim's own unrelated 'Guess Bedroom' room (guest_bedroom__ix70, a real Guest Bedroom upgrade whose effect mimics a random other Bedroom) -- no such id belongs in this table. JUDGMENT CALL, not implemented here: the Guest Bedroom wiki page separately states 'certain upgrades disable the normal item spawns. If this happens, luck (including incrementing the Luck Penalty) does not get processed' -- this would apply to geist_bedroom__ix69 and quest_bedroom__ix71 (both additional_max=0, item spawn fully replaced by their own effects), but they are not among the wiki's named 19 and auditing every upgrade-disabled room across all 170 rooms.json records is out of scope for this table; those two variants still incorrectly roll-and-discard (bump luck_penalty) today. Report flagged for the owner."
+  },
+  "rooms": [
+   "entrance_hall", "rotunda", "room_8",
+   "closet", "hallway_closet__ix39", "bedroom_closet__ix40", "empty_closet__ix41",
+   "walk_in_closet", "attic", "chamber_of_mirrors", "freezer", "antechamber",
+   "passageway", "locksmith", "showroom", "gift_shop", "vestibule", "mechanarium",
+   "treasure_trove", "toolshed", "shelter", "shrine"
+  ]
+ },
+ "count_transforms": {
+  "meta": {
+   "confidence": "wiki",
+   "source": "https://blueprince.wiki.gg/wiki/Luck (per-room DataMinedBox on each room's own wiki page: Nook, Study, Guest Bedroom, Den, Lost & Found)",
+   "notes": "Per-room transforms of the item_ladder's raw extra-item count, applied BEFORE the additional_max clamp (except one_becomes_trunk, applied at grant time on the post-clamp count -- see engine/items.py's roll_room_items). kind vocabulary: 'reduce_by_one_chance' (Nook: \"There is a 20% chance to reduce the number of items by 1.\"), 'zero_becomes_one' (Study: \"If 0 items is selected, it provides 1 item instead.\"), 'zero_becomes_one_or_gem' (Guest Bedroom: \"If 0 items is rolled, there is a 50% chance to increase it to 1 item, or a 30% chance to spawn 1 gem.\" -- read as sequential/first-match, the same idiom the Luck page's own 5-10 chain and Guaranteed Item order use; not independently documented as exclusive), 'one_becomes_trunk' (Den: \"If 1 item is selected, the item is always replaced with the trunk.\" -- instantly resolves data/special_items.json's containers.kinds.trunk.loot table via special_items.apply_grant_list rather than spawning a physical, player-opened container object; JUDGMENT CALL: every other ladder-triggered proc in this sim is an instant grant, unlike the always-present containers in Attic/Wine Cellar/etc., so this follows that convention instead of building new stateful container-placement machinery), 'not_modeled' (a documented no-op; a legitimate vocabulary member skippable for ANY room, not a per-room special case). Nook's transform also applies to its Upgrade Nook variants (nook__ix97, breakfast_nook__ix98, reading_nook__ix99) and Guest Bedroom's to guess_bedroom__ix70 (the sim's own distinct 'Guess Bedroom' room, unrelated to the wiki typo noted in never_roll_rooms.meta) -- both variant families keep additional_max=1 and the same guaranteed-item shape as their base room. geist_bedroom__ix69 and quest_bedroom__ix71 (additional_max=0, item spawns fully replaced) are deliberately excluded, same reasoning as never_roll_rooms.meta's judgment call. Lost & Found's real quote -- \"One item is added to the result, and the item count then clamped to be in 2-4\" plus \"If any Guaranteed Item spawns, one additional item appears, and this room does not check Luck\" -- is recorded here as 'not_modeled' rather than wired live: this sim already models Lost & Found's items through a wholly separate, pre-existing mechanic (special_items.py's lost_and_found_on_enter, a fixed gives=2 luck-independent pool draw, rooms.json meta already marked APPROXIMATION) that bypasses additional_max/item_ladder entirely (additional_max=0, guaranteed=[]). Wiring the wiki's ladder-based clamp here on top of that would double-grant items for this room. STOP-AND-REPORT judgment call for the owner: the two mechanisms disagree and only one is live."
+  },
+  "rooms": {
+   "nook": {"kind": "reduce_by_one_chance", "p_pct": 20},
+   "nook__ix97": {"kind": "reduce_by_one_chance", "p_pct": 20},
+   "breakfast_nook__ix98": {"kind": "reduce_by_one_chance", "p_pct": 20},
+   "reading_nook__ix99": {"kind": "reduce_by_one_chance", "p_pct": 20},
+   "study": {"kind": "zero_becomes_one"},
+   "guest_bedroom": {"kind": "zero_becomes_one_or_gem", "p_one_pct": 50, "p_gem_pct": 30},
+   "guess_bedroom__ix70": {"kind": "zero_becomes_one_or_gem", "p_one_pct": 50, "p_gem_pct": 30},
+   "den": {"kind": "one_becomes_trunk"},
+   "lost_and_found": {"kind": "not_modeled"}
+  }
+ },
  "coins": {
   "pile_min": 1,
   "pile_max": 5

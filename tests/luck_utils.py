@@ -10,27 +10,38 @@ Its own correctness has a dedicated test (test_luck_ladder.py): if this
 silently stopped suppressing, the 27 test files that call it would go flaky
 at a 7% failure rate per assertion -- the same vacuous-by-luck failure shape
 this repo has recorded four times.
+
+Also forces the two data/items.json ``count_transforms`` labels that can
+turn a genuine "0 items" ladder roll back into 1 item or a bonus gem (Guest
+Bedroom's ``zero_becomes_one_or_gem``, engine/items.py's
+``_apply_count_transform``) to their own "0 items" branch -- otherwise a
+Guest Bedroom / Guess Bedroom draft would still leak an item 65% of the time
+even with the ladder itself fully suppressed.
 """
 
 from __future__ import annotations
 
 from blueprince_sim.engine.rng import Rng
 
-# The two RNG stream labels engine/items.py's roll_ladder_count uses for its
-# own draws (see that module). Kept here as the single source of truth for
-# what this helper intercepts, so the helper and the ladder can't drift apart
-# silently -- if items.py ever renames a label, this stops suppressing and
-# test_luck_ladder.py's own suppression test catches it immediately.
+# The RNG stream labels engine/items.py's roll_ladder_count and
+# _apply_count_transform use for their own draws (see that module). Kept
+# here as the single source of truth for what this helper intercepts, so the
+# helper and the ladder/transforms can't drift apart silently -- if items.py
+# ever renames a label, this stops suppressing and test_luck_ladder.py's own
+# suppression test catches it immediately.
 LUCK_LADDER_OUTCOME_LABEL = "luck_ladder_outcome"
 LUCK_LADDER_VARIABLE_LABEL = "luck_ladder_variable"
+COUNT_TRANSFORM_ZERO_ONE_LABEL = "count_transform_zero_one"
+COUNT_TRANSFORM_ZERO_GEM_LABEL = "count_transform_zero_gem"
 
 
 class _NoLuckRng(Rng):
-    """``Rng`` subclass forcing the item_ladder's own two draw labels to
-    whichever branch yields the FEWEST items; every other label passes
-    through unchanged (same "subclass, not an attribute patch" idiom as
-    test_digging.py's ``_AlwaysFirstRng`` -- ``Rng`` is a slotted class, so a
-    bare instance-attribute patch of ``chance``/``roll_weighted`` is not an
+    """``Rng`` subclass forcing the item_ladder's own draw labels (plus the
+    two zero-item count_transforms labels above) to whichever branch yields
+    the FEWEST items; every other label passes through unchanged (same
+    "subclass, not an attribute patch" idiom as test_digging.py's
+    ``_AlwaysFirstRng`` -- ``Rng`` is a slotted class, so a bare
+    instance-attribute patch of ``chance``/``roll_weighted`` is not an
     option).
 
     Adopts the wrapped ``Rng``'s already-mutated ``_streams`` dict by
@@ -44,8 +55,10 @@ class _NoLuckRng(Rng):
         self._streams = inner._streams
 
     def chance(self, label: str, p: float) -> bool:
-        if label in (LUCK_LADDER_OUTCOME_LABEL, LUCK_LADDER_VARIABLE_LABEL):
-            return False  # "0 items" (flat/chain bands) or "2 items" (variable roll)
+        if label in (LUCK_LADDER_OUTCOME_LABEL, LUCK_LADDER_VARIABLE_LABEL,
+                     COUNT_TRANSFORM_ZERO_ONE_LABEL, COUNT_TRANSFORM_ZERO_GEM_LABEL):
+            return False  # "0 items" (flat/chain bands), "2 items" (variable roll),
+            # or "stay at 0" (Guest Bedroom's zero_becomes_one_or_gem transform)
         return super().chance(label, p)
 
     def roll_weighted(self, label: str, weights) -> int:
