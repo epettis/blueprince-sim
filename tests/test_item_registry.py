@@ -15,11 +15,11 @@ and a leaked registration would corrupt unrelated suites. This mirrors
 tests/test_room_registry.py's ``room_probe`` fixture, which solves the
 identical problem for room_hook.
 
-``validate_capability_registry``/``validate_room_registry`` have no
-production call site beyond their own dedicated tests in
-test_room_registry.py -- there is no pytest-wide fixture or tools/ script
-that invokes them either. ``validate_item_registry`` is exercised the same
-way here, directly, rather than wired into some other call site.
+``validate_capability_registry``/``validate_room_registry`` back
+tools/validate_data.py's "engine/effects registries" check, in addition to
+their dedicated tests in test_room_registry.py. ``validate_item_registry``
+is exercised the same way here, directly, as well as through that same
+tools/validate_data.py call site.
 
 ``item_capability_any`` is the boolean sibling of ``item_capability_sum``
 (an OR over held items' registrations rather than a sum of one param), added

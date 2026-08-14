@@ -1,6 +1,6 @@
 """Rotating Gear (upstairs) -- the `upper_rotating_gear` area node.
 
-Owner spec (docs/open_tasks.md decisions log): a room reached
+Owner spec (docs/areas.md): a room reached
 through a hallway off the Underpass, opened by Boiler Room steam. The player
 unlocks it permanently the first time they enter the Boiler Room; from the
 Underpass it is 1 step to retrieve a gem and the Treasure Trove blackprint,

@@ -372,7 +372,7 @@
    "modelled": false,
    "permanence": "permanent",
    "stub": false,
-   "detail": "Grounds <-> Sealed Entrance <-> Basement: the Power Hammer breaks the barrier once and the route stays open for the rest of the attempt; all three edges (grounds->sealed_entrance, sealed_entrance->basement, basement->sealed_entrance) share this one gate. The wiki distinguishes plank-vs-wall permanence (breaking only the Basement wall regrows overnight; breaking the planks does not) -- the owner's ruling, recorded in docs/open_tasks.md's decisions log (2026-08-04), is that any break here is unconditionally permanent, so that distinction is deliberately NOT modelled. Satisfied either by having already broken through (the sealed_entrance_broken flag, set on first arrival at sealed_entrance and carried across days) or by currently holding a Power Hammer.",
+   "detail": "Grounds <-> Sealed Entrance <-> Basement: the Power Hammer breaks the barrier once and the route stays open for the rest of the attempt; all three edges (grounds->sealed_entrance, sealed_entrance->basement, basement->sealed_entrance) share this one gate. The wiki distinguishes plank-vs-wall permanence (breaking only the Basement wall regrows overnight; breaking the planks does not) -- the owner's ruling, recorded in docs/areas.md's \"Sealed Entrance permanence\" (2026-08-04), is that any break here is unconditionally permanent, so that distinction is deliberately NOT modelled. Satisfied either by having already broken through (the sealed_entrance_broken flag, set on first arrival at sealed_entrance and carried across days) or by currently holding a Power Hammer.",
    "meta": {"source": "docs/areas.md", "confidence": "wiki"}
   },
   {
@@ -538,7 +538,7 @@
    "kind": "flag",
    "permanence": "permanent",
    "stub": false,
-   "detail": "Underpass -> Upper Rotating Gear: red door powered by Boiler Room steam. Owner decision (docs/open_tasks.md decisions log, 2026-08-06): the player unlocks this door permanently the first time they enter the Boiler Room -- no power/steam system modelling needed beyond that one flag. The engine sets this flag in game.py::_gate_ctx from state.boiler_room_steam (set on Boiler Room entry, game.py::_enter) OR the carried-over cfg.boiler_room_steam (shops.py::carryover, env/multiday.py::DayChain).",
+   "detail": "Underpass -> Upper Rotating Gear: red door powered by Boiler Room steam. Owner decision (docs/areas.md's \"graduated\" section, 2026-08-06): the player unlocks this door permanently the first time they enter the Boiler Room -- no power/steam system modelling needed beyond that one flag. The engine sets this flag in game.py::_gate_ctx from state.boiler_room_steam (set on Boiler Room entry, game.py::_enter) OR the carried-over cfg.boiler_room_steam (shops.py::carryover, env/multiday.py::DayChain).",
    "meta": {"source": "docs/areas.md", "confidence": "wiki"}
   },
   {

@@ -116,8 +116,10 @@ so the retrain trigger is visible in review, and then make the change.
 
 - **`implemented: true` does not mean "complete".** A record with a partial gap
   keeps `implemented: true` and **requires** a `meta.simplification` naming
-  what is missing, which makes the gap machine-detectable rather than
-  prose-only. `implemented` keeps meaning *reachable and functional*.
+  what is missing, which keeps the gap machine-*readable* rather than
+  prose-only -- but no validator scans for the pairing today, so a record
+  that omits `meta.simplification` on a partial gap goes uncaught.
+  `implemented` keeps meaning *reachable and functional*.
 - **A disclosure must live on the record it concerns.** A pointer from
   somewhere else does not count: a disclosure a reader cannot reach is not a
   disclosure.

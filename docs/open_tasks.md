@@ -64,7 +64,7 @@ marked below):
 |---|---|---|---|
 | Patio | on draft | gems | Green Rooms, including itself |
 | Secret Garden | on draft | apples and oranges (food) | throughout the house |
-| Locker Room | on draft | basic keys | the estate minus 17 named rooms; can seed itself |
+| Locker Room | on draft | basic keys | the estate minus its named exclusions (see `rooms.md`); can seed itself |
 | Conference Room | passive, while placed | — | absorbs others' spreads, **altering them** |
 | Office | **player action, once/day** | money | throughout the house |
 | Tomb | on other rooms' drafts | 5 gold per Dead End | into the Tomb itself (ALREADY MODELED) |

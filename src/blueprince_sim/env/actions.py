@@ -210,7 +210,7 @@ def _build_axe_target_ids(registry: Registry) -> tuple[str, ...]:
     A "family" is one Room.id keyed by ``upgrades.root_base_id``: axing
     "cloister" zeroes every Cloister upgrade variant's gem cost too, since the
     override lives on the family, not one specific room record (owner
-    ruling, docs/open_tasks.md). Derived from every room with a rarity and a
+    ruling, docs/special-items-behaviour.md). Derived from every room with a rarity and a
     gem cost, reduced to its root id, so this cannot drift from rooms.json;
     sorted alphabetically for determinism, matching
     _build_area_node_ids/special_items.SIGIL_REALMS. The action index for a

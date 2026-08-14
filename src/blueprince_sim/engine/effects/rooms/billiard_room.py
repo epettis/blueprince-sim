@@ -27,7 +27,7 @@ room id, never its upgrade variants (speakeasy__ix10, break_room__ix11,
 pool_hall__ix12 are not wired up here).
 
 Not modelled: the Bullseye Trophy (40 lifetime solves) -- needs a save-scoped
-counter, unruled; see docs/open_tasks.md's scoping pass.
+counter, unruled.
 """
 
 from __future__ import annotations
