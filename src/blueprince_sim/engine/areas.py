@@ -1,8 +1,5 @@
 """Pure area-graph library: nodes, edges, gates, BFS traversal.
 
-PR1 deliverable: data + traversal only.  Nothing in the engine calls this yet;
-ZERO behaviour change to the game.  Engine adoption is PR2; env wiring is PR3.
-
 Every edge costs exactly 1 step (owner-confirmed).  See docs/areas.md for the
 full specification and docs/areas.dot for the co-authoritative edge set.
 """

@@ -3,7 +3,7 @@ zero point -- even at floor luck (<=4) there is still a 7% chance of 1 item
 ("4- Luck: 7% for 1 item, 93% for 0 items", Luck page). Flooring
 ``state.luck`` alone, the pre-ladder idiom, no longer guarantees a room's
 luck-rolled additional items never fire. ``suppress_luck`` replaces that
-idiom at all 76 sites that used it (see docs/open_tasks.md's 2026-08-13
+idiom at every site that used it (see docs/open_tasks.md's 2026-08-13
 decisions log entry).
 
 Its own correctness has a dedicated test (test_luck_ladder.py): if this
@@ -73,9 +73,9 @@ def suppress_luck(game) -> None:
     genuinely never fire -- unlike setting ``state.luck = 0`` alone (see
     module docstring for why that stopped being sufficient).
 
-    Only meaningful with luck at/near the floor, which is every one of this
-    repo's 76 call sites: bands 23-28/29+ are unconditional (no roll at all,
-    just a fixed item count) and cannot be suppressed this way, but they are
+    Only meaningful with luck at/near the floor, which is every call site in
+    this repo: bands 23-28/29+ are unconditional (no roll at all, just a
+    fixed item count) and cannot be suppressed this way, but they are
     also unreachable from floored luck plus this codebase's only per-draft
     modifier (Rabbit's Foot/Lucky Purse, capped at +3) -- effective luck
     tops out at 3, still inside the flat <=4 band.

@@ -1,13 +1,13 @@
 """blueprince-dash: local web server for training observability.
 
-Pure stdlib. Serves a three-tab SPA (learning-progress dashboard, run
+Pure stdlib. Serves a four-tab SPA (dashboard, learning-progress, run
 inspector, and a "Play" tab for recording human demonstrations -- see
 ``play.py``) plus a JSON API over the artifacts a training run writes to its
 checkpoint dir (``latest.json``, ``replays.jsonl``), and runs two background
 workers:
 
 - a metrics sampler that polls ``latest.json`` and appends timestamped rows to
-  ``<checkpoint-dir>/metrics.jsonl`` (subsumes the old out-of-tree sampler);
+  ``<checkpoint-dir>/metrics.jsonl``;
 - an eval worker that, whenever ``latest.zip`` changes, spawns a subprocess
   ``blueprince-train --evaluate N --eval-json <checkpoint-dir>/eval.jsonl`` -
   the deterministic (exploration disabled) baseline series.

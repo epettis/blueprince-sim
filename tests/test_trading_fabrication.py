@@ -525,9 +525,8 @@ def test_trade_already_used_stopwatch_is_skipped_as_a_trade_return():
     through to the next node in the graph instead, the same way it falls
     through a held item.
 
-    Pins the carve-out in shops._trade_target_ok ahead of task 22's
-    migration of its single literal "stopwatch" reference into
-    effects/items/stopwatch.py.
+    Pins the carve-out in shops._trade_target_ok, which delegates to
+    stopwatch.blocks_as_trade_return in effects/items/stopwatch.py.
     """
     game = _game(seed=0)
     state = game.state
