@@ -31,6 +31,13 @@ one day, set up at the Mt. Holly Laboratory terminal:
   — "no limit... other than the physical limits of its trigger" — and the
   chosen effect is carried out on each success.
 - Experiments can be **paused and resumed** from the terminal at will.
+- **Blessing of the Tinkerer cross-triggers.** While that blessing holds, an
+  active experiment also fires whenever a **Mechanical Room** is drafted,
+  independent of the chosen trigger. Implemented in
+  `effects/rooms/shrine.py`, which calls `experiments.trigger_success` on
+  each Mechanical draft while the blessing is active. The four blessing/curse
+  checks there are independent, so a room that is both Shop and Mechanical
+  fires more than one.
 - **Twelve triggers and twelve effects at base.** Raising the Satellite Dish
   and downloading its data packet permanently adds **eight more of each**,
   bringing the total to twenty each; a Packet Management screen then lets the
@@ -248,10 +255,6 @@ that is out of scope on its own terms:
 - **The setup-menu reroll timing exploit** — revisiting the Experimental Setup
   menu before committing lets a player reroll the three-of-each draw; this is
   a UI-timing quirk, not a data rule, and has no analogue in a turn-based sim.
-- **Blessing of the Tinkerer cross-triggers** — any active experiment also
-  fires whenever a Mechanical Room is drafted, independent of the chosen
-  trigger. This is a global modifier on the whole subsystem (and on the
-  Blessing system, itself unimplemented), not a per-record rule.
 - **Radiation level** — the hidden daily counter that experiment successes
   feed, gating the Shelter terminal. Shelter and the Grounds are out of scope.
 - **Dare Mode** — an alternate, harder experiments ruleset on its own wiki
