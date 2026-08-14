@@ -110,11 +110,11 @@ GEM_COST_PRIORITY: tuple[str, ...] = (
 # ItemHook.MOVE_STEP_COST: first applicable item wins. Hall Pass sits first
 # so a free hallway-to-hallway move never touches the Stopwatch or Running
 # Shoes counters; Stopwatch outranks Running Shoes so an active timer is
-# spent down before cadence-based Running Shoes gets a turn.
+# spent down before distance-based Running Shoes gets a turn.
 MOVE_STEP_COST_PRIORITY: tuple[str, ...] = (
     "hall_pass",  # free hallway-to-hallway moves; consumes nothing
     "stopwatch",  # active timer: spends one of its charges
-    "running_shoes",  # cadence: free every nth move; always advances the counter
+    "running_shoes",  # waives a step once the move ends far enough from the anchor
 )
 
 # ItemHook.COINS_GRANTED: first applicable item wins. Lucky Purse's flat
@@ -316,7 +316,8 @@ class SpecialItemsState:
     water: int = 0  # Watering Can charges left (set to capacity on pickup)
     stopwatch_left: int = 0  # free cost events remaining (0 = stopwatch inactive)
     stopwatch_used: bool = False  # a Stopwatch already ran today (unobtainable again)
-    moves_since_free: int = 0  # Running Shoes cadence counter
+    moves_since_free: int = 0  # Running Shoes reference position: 0 = unset,
+    # else the anchor cell + 1 (see effects/items/running_shoes.py)
     dug: dict[int, int] = field(default_factory=dict)  # cell -> dig spots already dug
     # Cloister of Veia: cell -> extra dig spots (+8, additive on top of the
     # room's own items.dig_spots) for a room with a fireplace drafted from its

@@ -8,14 +8,14 @@ from heapq import heappop, heappush
 
 from ..config import GameConfig
 from . import effects, experiments, shops, special_items
-from .areas import GateContext, reachable
+from .areas import GateContext, path, reachable
 from .decks import apply_upgrade, build_decks, inject_rooms, set_dynamic_rarity
 from .draft import (COLOUR_CATEGORIES, SECRET_PASSAGE_IDS, DraftContext, deal_draft,
                     redeal, _pick_dowsing_slot)
 from .effects import Capability, Hook
 from .effects.items import (basement_key, crown_of_the_blueprints, gear_wrench, keycard,
-                            master_key, paper_crown, power_hammer, prism_key, silver_key,
-                            telescope, the_axe)
+                            master_key, paper_crown, power_hammer, prism_key, running_shoes,
+                            silver_key, telescope, the_axe)
 from .effects.rooms import dovecote, foyer, mail_room, shrine
 from .grid import (ADJACENT, DIRS, E, ENTRANCE_CELL, N, N_CELLS, OPPOSITE, W,
                    neighbor, rank_of, rotate_mask)
@@ -1598,6 +1598,11 @@ class Game:
         If the walk ends the day, aborts without setting area (caller must check).
         Off grid: deduct area-hop steps only.
 
+        The area-hop deduction itself consults Running Shoes: one independent
+        activation roll per area node entered along the route (skipping grid
+        anchors), each waiving one of the area_hop steps -- see
+        effects/items/running_shoes.py::area_arrival_steps_saved.
+
         Special case — grid anchors ("house", "garage"):
         sets area=None and pos=<anchor cell>, then fires _enter() when the cell
         has not been entered yet (preserves ON_ENTER effects for the Garage),
@@ -1635,9 +1640,14 @@ class Game:
         area_dist = reachable(self.registry.area_graph, origin, self._gate_ctx())
         area_hop = area_dist.get(dest)
         assert area_hop is not None, f"area node {dest!r} unreachable from {origin!r}"
-        st.steps -= area_hop
-
         anchors = self._grid_anchors()
+        saved = 0
+        if self.cfg.special_items:
+            route = path(self.registry.area_graph, origin, dest, self._gate_ctx())
+            assert route is not None, f"area node {dest!r} unreachable from {origin!r}"
+            saved = running_shoes.area_arrival_steps_saved(self, route, anchors)
+        st.steps -= (area_hop - saved)
+
         if dest in anchors:
             # Destination is a grid anchor, so the player lands back on the grid.
             dest_cell = anchors[dest]
