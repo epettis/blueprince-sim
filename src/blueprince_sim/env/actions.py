@@ -504,8 +504,9 @@ def _cell_has_telescope_planetarium_use(game: Game, cell: int) -> bool:
     after picking up a Telescope elsewhere, or after the day boundary resets
     today's one-upgrade-per-day cap. The Dauja Trunk re-entry case is
     already covered by ``_cell_has_openable_container`` above
-    (``_planetarium_container_kinds`` folds it into the ordinary container
-    read), so this predicate only needs to cover the telescope-use action.
+    (effects/rooms/planetarium.py's ``container_kinds`` overlay folds it into
+    the ordinary container read), so this predicate only needs to cover the
+    telescope-use action.
     """
     st = game.state
     if st.grid[cell] < 0:

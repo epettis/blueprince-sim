@@ -26,6 +26,7 @@ from . import experiments
 from .effects import (
     ItemCapability,
     ItemHook,
+    container_kinds_for,
     fire_item_chain,
     fold_item_chain,
     item_capability_any,
@@ -1656,116 +1657,31 @@ def dig_all(game, cell: int) -> None:
 
 # ----------------------------------------------------------------- containers
 
-# Room id for the Mechanarium's own containers.rooms special-case below --
-# a literal, not an import from draft.py (which itself imports this module),
-# to avoid a circular import between draft.py and special_items.py.
-MECHANARIUM_ROOM_ID = "mechanarium"
-
-# Room id for the Entrance Hall's per-day trunk overlay (entrance_hall_trunk
-# experiment effect). draft.py carries no Entrance Hall constant to import,
-# so this is simply a named literal for readability within this module.
-ENTRANCE_HALL_ROOM_ID = "entrance_hall"
-
-# Room id for the Planetarium's Telescope-unlocked container overlay (Dauja's
-# Trunk). draft.py carries no Planetarium constant to import either, so this
-# is a named literal for readability, same as ENTRANCE_HALL_ROOM_ID --
-# containers.rooms carries no static Planetarium entry, since whether the
-# Trunk exists depends on save-scoped state (GameState.planetarium_planets),
-# not a fixed per-room count.
-PLANETARIUM_ROOM_ID = "planetarium"
-
-# The Mechanarium's diagonal-compartment kinds, in the wiki's fixed open
-# order (1st/2nd/3rd/4th corner). Each is a containers.kinds entry in
-# data/special_items.json with its own deterministic, priority-chain loot.
-_MECHANARIUM_COMPARTMENT_KINDS: tuple[str, ...] = (
-    "mechanarium_lever", "mechanarium_key", "mechanarium_upgrade", "mechanarium_sanctum",
-)
-
-
 def containers_in(registry, room_id: str) -> dict[str, int]:
     """Container kinds and counts for ``room_id``, or {} if none.
 
     Reads from registry.special.containers["rooms"]; returns e.g. {"trunk": 1}.
-    The Mechanarium is never in that table -- its compartment count is
-    per-placement, not per-room (see ``_mechanarium_compartment_kinds``). The
-    Entrance Hall has no static entry either -- every trunk there is added
-    per-day by an experiment effect (see ``_entrance_hall_container_kinds``).
-    The Planetarium has no static entry either -- its Trunk exists only once
-    the Dauja planet is unlocked, a save-scoped condition (see
-    ``_planetarium_container_kinds``).
+    A room whose containers are not a fixed per-room count -- per-placement,
+    added per-day, or save-scoped -- has no entry here at all; it instead
+    registers a ``provides_containers`` overlay (engine/effects/rooms/), which
+    ``_container_kinds_at`` below consults first.
     """
     return dict(registry.special.containers.get("rooms", {}).get(room_id, {}))
-
-
-def _mechanarium_compartment_kinds(state, cell: int) -> dict[str, int]:
-    """The Mechanarium at ``cell``'s openable compartment kinds, one each, in order.
-
-    Sliced from ``_MECHANARIUM_COMPARTMENT_KINDS`` by the count
-    ``seed_mechanarium_compartments`` fixed for this cell at draft time.
-    """
-    n = state.special.mechanarium_compartments.get(cell, 0)
-    return {kind: 1 for kind in _MECHANARIUM_COMPARTMENT_KINDS[:n]}
-
-
-def _entrance_hall_container_kinds(state, registry) -> dict[str, int]:
-    """The Entrance Hall's container kinds: its static table plus today's overlay.
-
-    The static ``containers.rooms`` table carries no Entrance Hall entry --
-    every trunk here comes from ``state.special.entrance_hall_trunks``, bumped
-    by the entrance_hall_trunk experiment effect (experiments.py::apply_effect,
-    capped at 17). Reuses the existing ``trunk`` containers.kinds entry rather
-    than a distinct kind, per the wiki: "There is no difference between a
-    'small chest' and a regular trunk."
-    """
-    kinds = containers_in(registry, ENTRANCE_HALL_ROOM_ID)
-    extra = state.special.entrance_hall_trunks
-    if extra:
-        kinds = dict(kinds)
-        kinds["trunk"] = kinds.get("trunk", 0) + extra
-    return kinds
-
-
-def _planetarium_container_kinds(state, registry) -> dict[str, int]:
-    """The Planetarium's container kinds: its static table plus Dauja's Trunk.
-
-    The static ``containers.rooms`` table carries no Planetarium entry --
-    the Trunk only exists once the Dauja planet has been unlocked via the
-    Telescope (``state.planetarium_planets``, SAVE-scoped). Reads the
-    ``planetarium_planets`` table generically for whichever planet's payload
-    is kind "container" (only Dauja today), rather than hardcoding "dauja",
-    so a future data-only addition of a second container payload needs no
-    engine change here.
-    """
-    kinds = containers_in(registry, PLANETARIUM_ROOM_ID)
-    unlocked = set(state.planetarium_planets)
-    for planet in registry.special.planetarium_planets:
-        if planet["id"] not in unlocked:
-            continue
-        payload = planet.get("payload", {})
-        if payload.get("kind") == "container":
-            kinds = dict(kinds)
-            ckind = payload["container_kind"]
-            kinds[ckind] = kinds.get(ckind, 0) + payload.get("amount", 1)
-    return kinds
 
 
 def _container_kinds_at(state, registry, cell: int) -> list[tuple[str, int]]:
     """Remaining openable (kind, remaining_count) pairs at ``cell``.
 
-    Subtracts already-opened count from the room's total per kind.
-    Returns an empty list when there are no containers or all are opened.
+    Subtracts already-opened count from the room's total per kind. A room
+    with a registered ``provides_containers`` overlay uses that; every other
+    room falls back to the static ``containers_in`` table. Returns an empty
+    list when there are no containers or all are opened.
     """
     if state.grid[cell] < 0:
         return []
     room = registry.rooms[state.grid[cell]]
-    if room.id == MECHANARIUM_ROOM_ID:
-        all_kinds = _mechanarium_compartment_kinds(state, cell)
-    elif room.id == ENTRANCE_HALL_ROOM_ID:
-        all_kinds = _entrance_hall_container_kinds(state, registry)
-    elif room.id == PLANETARIUM_ROOM_ID:
-        all_kinds = _planetarium_container_kinds(state, registry)
-    else:
-        all_kinds = containers_in(registry, room.id)
+    overlay = container_kinds_for(state, registry, room.id, cell)
+    all_kinds = overlay if overlay is not None else containers_in(registry, room.id)
     if not all_kinds:
         return []
     already = state.special.opened_containers.get(cell, 0)
@@ -2119,8 +2035,9 @@ def use_telescope_in_planetarium(game, cell: int) -> str:
     the Cloister of Veia and spread_dig_spots already share), since that dict
     is only read once at ON_PLACE time and this room was already placed
     today. A "container" payload (Dauja) needs no immediate action:
-    ``_planetarium_container_kinds`` reads ``state.planetarium_planets``
-    live, so the Trunk is openable the moment this returns.
+    effects/rooms/planetarium.py's ``container_kinds`` overlay reads
+    ``state.planetarium_planets`` live, so the Trunk is openable the moment
+    this returns.
 
     Returns the revealed planet's id. Caller (Game.use_telescope_planetarium)
     is responsible for the can_use_telescope_planetarium() legality check.
