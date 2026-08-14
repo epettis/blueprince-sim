@@ -23,8 +23,8 @@ of 1–5 coins.
 Items are granted when the player **moves into** the room, not when it is
 drafted.
 
-Not every room rolls the ladder. `data/items.json`'s `never_roll_rooms` lists
-19 rooms (Entrance Hall, Rotunda, Room 8, Closet and its three Upgrade Closet
+Not every room rolls the ladder. `data/items.json`'s `never_roll_rooms` names
+the rooms (Entrance Hall, Rotunda, Room 8, Closet and its three Upgrade Closet
 variants, Walk-in Closet, Attic, Chamber of Mirrors, Freezer, Antechamber,
 Passageway, Locksmith, Showroom, Gift Shop, Vestibule, Mechanarium, Treasure
 Trove, Toolshed, Shelter, Shrine) that skip `roll_ladder_count` entirely — no

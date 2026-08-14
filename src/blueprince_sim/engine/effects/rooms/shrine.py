@@ -8,8 +8,8 @@ instead. Only one blessing (or the curse) can be active at a time.
 
 Six of eight blessings are live: Dancer, High Roller, Gardener, Tinkerer,
 General, Berry Picker. Chef (needs per-day spread-dish tracking on the
-Dining Room) and Monk (needs grounds drafting) stay inert -- see each
-record's own ``blocked_on`` in data/shrine.json.
+Dining Room) and Monk (needs grounds drafting) stay inert, carrying
+``implemented: false`` on their own records in data/shrine.json.
 
 This module owns the room's identity (id/state queries, the donate/take-back
 action bodies, the curse's resource-loss table, Berry Picker's random-pick

@@ -161,11 +161,12 @@ bespoke Antechamber locks are not modeled.
   `data/locks.json` rather than guessed at.
 - The per-door Left/Forward/Right security table is collapsed to one chance
   per room (its strongest door).
-- Not modeled: the "Set"-door double-trigger, Great Hall/Vestibule
-  guaranteed states (including the Vestibule re-locking a random door on
-  each entry — deferred, though the key-aware pathfinder is ready for it),
-  Lock Pick Kit, special keys, Master Key, Foyer/Kennel/Shelter unlock
-  effects, and the Passageway high-security distance waiver.
+- Not modeled: the "Set"-door double-trigger, the Shelter's unlock effect,
+  and the Passageway high-security distance waiver. The Lock Pick Kit, the
+  Master Key and the special keys are menu rows above; the Great Hall's
+  guaranteed locks and side-door search cost, the Vestibule's per-entry
+  re-lock, the Foyer's Hallway override and the Kennel's dig-unlock are all
+  modelled and owned by [`rooms.md`](rooms.md).
 - The Keycard is found by flat chance (25%, inferred) on first entry to a
   wiki-listed source room.
 - Visiting Security always sets offline mode to Unlocked (the strategically

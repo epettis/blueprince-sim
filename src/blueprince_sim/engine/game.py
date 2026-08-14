@@ -2598,7 +2598,7 @@ class Game:
         The Catacombs are unlocked by drafting and physically entering the Tomb on the same
         day: the sim assumes the player solves any puzzle in a room they enter, so entering
         the Tomb solves the angel-statue puzzle. Same-day physical access is still required
-        (owner decision, see docs/open_tasks.md). The flag is NOT a permanent carry-over.
+        (owner decision, see docs/rooms.md). The flag is NOT a permanent carry-over.
         """
         outer_room = self.drafted_outer_room
         return (

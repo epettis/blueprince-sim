@@ -1,4 +1,4 @@
-"""Pantry exact coin grant (see docs/open_tasks.md).
+"""Pantry exact coin grant (see docs/rooms.md).
 
 effect_text states "+4 coins", and entering the Pantry grants exactly 4
 coins every time, unconditional on RNG -- not a probabilistic 1-5 pile roll.

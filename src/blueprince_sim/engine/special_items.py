@@ -594,7 +594,7 @@ def configure(state, cfg, registry=None) -> None:
     for key_id in getattr(cfg, "collected_sanctum_keys", frozenset()):
         if key_id not in gated:
             gated.append(key_id)
-    # Owner ruling (see docs/open_tasks.md): none of the eight Sanctum Keys
+    # Owner ruling (see docs/rooms.md): none of the eight Sanctum Keys
     # spawn anywhere until Room 46 has been reached at least
     # once (cfg.room46_reached, a permanent carry-over flag set the FOLLOWING
     # day -- same convention as gem_gate_active(), which also reads cfg only).

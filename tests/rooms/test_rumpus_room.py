@@ -1,4 +1,4 @@
-"""Rumpus Room exact coin grant (see docs/open_tasks.md).
+"""Rumpus Room exact coin grant (see docs/rooms.md).
 
 effect_text states "+8 coins", and entering the Rumpus Room grants exactly 8
 coins every time, unconditional on RNG -- not a probabilistic 2-10 pile roll.

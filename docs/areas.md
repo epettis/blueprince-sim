@@ -383,7 +383,9 @@ now; the list stays because it records what each one is *for*.
 - `key_of_aries` — from the Unknown (Underground) clock. The one **decided
   against** rather than pending: `meta.wont_implement`, because its payoff is
   already granted.
-- `file_cabinet_key` — Crate Tunnel. Note the Archives disk sits behind it.
+- `file_cabinet_key` — modelled as exactly one key, buried in the Patio's
+  dig spot, gating the Archives Upgrade Disk. The wiki's other two keys
+  (Laundry Room, Crate Tunnel) are not modelled.
 
 ### The three-microchip gate, and two designs rejected for it
 

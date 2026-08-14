@@ -294,7 +294,7 @@ def test_apply_vault_box_action():
     assert "vault_key_233" in g.state.special.vault_boxes_opened
 
 
-# ====================================================== exact coin grant (see docs/open_tasks.md)
+# ========================================================= exact coin grant (see docs/rooms.md)
 #
 # The Vault's effect_text states "+40 coins", and entering the Vault grants
 # exactly 40 coins every time, unconditional on RNG -- not a probabilistic

@@ -79,8 +79,7 @@ ALLOWLIST: dict[str, set[str]] = {
     "draft.py": {
         # Module-level *_ID constants (CLOSET_ID, TUNNEL_ID, LIBRARY_ID,
         # MECHANARIUM_ID, DARKROOM_ID, READING_NOOK_ID,
-        # AQUARIUM_EXPERIMENT_ID, ROTUNDA_ID) -- named constants, still id
-        # branches.
+        # AQUARIUM_EXPERIMENT_ID) -- named constants, still id branches.
         "closet", "tunnel", "library", "mechanarium", "darkroom",
         "reading_nook__ix99", "aquarium__experiment",
         # Same-hand dedup exemption so a Tunnel chain / Aquarium experiment
