@@ -1001,6 +1001,66 @@ pending that primitive.
 
 ## Decisions log
 
+- **2026-08-14, OWNER RULINGS x8. The constellation width is now SETTLED at
+  `N_ACTIONS` 442 -> 457, and two live defects are cleared to fix.**
+
+  **TRADING**
+  1. **Adopt the wiki's same-item collapse** for Sanctum Keys and Upgrade
+     Disks. A trade-offer identity key (game item, not sim id) applied in
+     `shops.py::trade_offers` **before the sort**. Takes tier 5's worst case
+     from 12 offers to 5. **No obs-width change, so no retrain trigger** --
+     and it makes "raise the 8-offer cap" stop being urgent.
+  2. **Make the Keycard tradeable**, via the precedent that already exists:
+     the Lost & Found steal path special-cases `keycard.held`/`keycard.steal`
+     around the generic inventory logic, because the keycard lives in
+     `state.has_keycard`, not `state.inventory`. Trading never got the
+     equivalent. **A naive fix -- deleting the three exclusion checks -- would
+     let a player give it away and KEEP door access**, and would write a
+     phantom inventory entry no door code reads. Use the special-case shape.
+
+  **CONSTELLATIONS -- the width is committed by PR1 and cannot move after**
+  3. **14 action ids, reserving a permanently-masked slot for the Spiral of
+     Stars**, so that build later lands at zero width and zero extra retrain.
+  4. **The Ink Well gets its OWN action id**, not a silent `_redraw_kind`
+     tail. **Reason, and it is the load-bearing one:** every other redraw
+     source spends a hand- or day-scoped resource with a natural bound, while
+     `STAR` spends a **permanent, save-scoped** one with no cap -- behind an id
+     the agent already presses reflexively. An agent that learned "press
+     REDRAW on a bad hand" would convert its entire star bank into rerolls in
+     a single day and destroy the constellation engine it spent weeks
+     building. **Total: 15 appended ids, `N_ACTIONS` 442 -> 457.**
+  5. **Florealis is IN**, reversing the earlier "out to keep the PR down".
+     The reversal is on corrected facts, not preference: the orchestrator
+     reported it had "no primitive whatsoever" (zero hits for `flower` in
+     `src/`). **The measurement was right and the conclusion was wrong** --
+     `GameState.spread_pending` already parks per-cell payouts collected by
+     `Game._collect_spread`, and `state.py` names this exact future use.
+     **~40 lines of reuse, not a subsystem**, so the reason to defer expired.
+  6. **The night sky needs an EXPLICIT VIEW ACTION**, not auto-generation on
+     entry. Skies lock at the star count when first viewed and higher counts
+     partition into strictly more value, so the optimal line is *draft every
+     Observatory first, then walk in and look*. **Auto-generating silently
+     deletes that timing decision.** Costs no extra id -- the view action
+     exists for the Telescope regardless.
+  7. **The Observatory's uncapped `+1 star per draft` stays uncapped.** It is
+     verified faithful and no published cap exists, so capping it would be an
+     invention. **Recorded as a known self-amplifying loop** (draft Observatory
+     -> +1 star -> richer sky -> more resources -> more drafts, up to 4
+     Observatories/day via the Chamber of Mirrors). The retrain reveals
+     whether it dominates; the point is that it is known *before* the retrain.
+
+  **CONSERVATORY**
+  8. **Forced-draw blocking is POSITIONAL, not literal** -- a Forced Draw
+     blocks later entries in the precedence order **only where its own
+     conditions hold**, not merely by being in the pool. This was a 0%-or-100%
+     switch on shipped behaviour: the literal reading would have erased the
+     Garage's measured 17.6% -> 53.6% forced-draw gain the moment a
+     Conservatory floorplan was found. The positional reading is the only one
+     consistent with the sim's single global deck model, and the Morning
+     Room's documented wings-only exception suggests the game works this way.
+     **Conservatory and Garage are provably non-interacting**: corners
+     `{0, 4, 40, 44}` vs West Wing `{15, 20, 25, 30, 35}`, disjoint.
+
 - **2026-08-14, TRADE OFFERS: a LIVE DEFECT, plus a note that was true when
   written and had the data changed under it.**
 
