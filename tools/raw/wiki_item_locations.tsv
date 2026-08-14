@@ -1,0 +1,100 @@
+# wiki_item_locations.tsv -- offline snapshot of each item's wiki.gg |Locations= field.
+#
+# Columns (tab-separated): item_id, locations_raw, fetch_date, source_url
+#
+# locations_raw is the VERBATIM string from the {{ItemInfobox}} (or, for the
+# Vault Key's four tabbed sub-items, the matching NNN_Locations= field) as of
+# fetch_date, fetched via `curl -A "blueprince-sim-research/1.0" "<url>?action=raw"`.
+# A `!` prefix on an entry marks the wiki's high-luck tier, same convention as
+# the wiki page itself. Nothing is filtered, resolved, or excluded here --
+# that happens in the checker, not the snapshot. In particular this file
+# still contains the non-room mechanic tokens (Experiment, Spiral, Package,
+# Trunk, Car Trunk, Dig Spot, Crate, Locker, Dartboard) and the
+# already-modelled-elsewhere rooms (Commissary, Locksmith, Lost & Found,
+# Trading Post) verbatim, so a future diff can see exactly what the wiki said.
+#
+# Scope: one row per special_items.json item whose wiki page carries a real
+# |Locations= (or NNN_Locations=) field -- i.e. every item this sweep's spawn
+# tables were checked against, plus three fixed-location items (key_8,
+# basement_key, master_key) that are Locations=<single value> and are
+# deliberately NOT modelled as spawn_rooms (they are guaranteed_in / a shop
+# purchase instead -- see each item's meta.notes). Items with no |Locations=
+# line at all (Showroom/Armory/Mora Jai Box/Inner Sanctum/Upgrade Disk
+# sources, the Sanctum Keys, Cursed Effigy, Royal Scepter -- all fixed or
+# puzzle-gated, not floor spawns) are not rows here; there is nothing to
+# snapshot for them.
+#
+# HONEST LIMIT: this file pins the wiki's stated Locations as of fetch_date.
+# It catches SIM DRIFT (special_items.json spawn_rooms silently diverging
+# from what this snapshot recorded) but can never catch WIKI DRIFT (the wiki
+# itself being edited after fetch_date). Refreshing this snapshot to a later
+# wiki revision must be a deliberate, reviewed act with a visible diff, not
+# an automatic re-fetch -- a checker that silently re-pulls the wiki on every
+# run would defeat the point of pinning a snapshot at all.
+#
+# A proposed checker (not wired into tools/validate_data.py -- out of scope
+# for this change, another agent owns that file this round):
+#   For each row: split locations_raw on ",", strip "!" tier prefixes,
+#   drop the fixed non-room-mechanic tokens above, drop entries whose
+#   resolved room id is in {commissary, locksmith, lost_and_found,
+#   trading_post}, resolve the remainder to rooms.json ids (case-sensitive
+#   name match, with the known alias "Spare Servant's Quarters" ->
+#   servants_spare_quarters__ix134), and diff the resulting normal/high-luck
+#   sets against special_items.json's spawn_rooms/spawn_rooms_high_luck for
+#   that item id. Any room present in one set but not the other is a finding
+#   (missing = sim under-models the snapshot; extra = sim has a room the
+#   snapshot doesn't, which is expected for the Lost & Found/Trading Post/
+#   guaranteed_in exceptions noted in each item's meta and should be
+#   allow-listed by (item_id, room_id) pair, not silently ignored).
+#
+# Necessity guard for each exclusion category (Commissary, Locksmith,
+# Lost & Found, Trading Post, and the non-room mechanic tokens): a test that
+# temporarily removes the category from the checker's exclusion set and
+# asserts the checker THEN reports the pairs it currently suppresses --
+# proving the exclusion is load-bearing (the checker would otherwise flag
+# those rooms as missing), not merely that the exclusion list still contains
+# the expected strings. Concretely, for Lost & Found: assert that with the
+# exclusion lifted, the checker flags (gear_wrench, lost_and_found),
+# (hall_pass, lost_and_found), (lucky_rabbits_foot, lost_and_found),
+# (prism_key, lost_and_found), (repellent, lost_and_found),
+# (secret_garden_key, lost_and_found), (stopwatch, lost_and_found),
+# (telescope, lost_and_found), (vault_key_370, lost_and_found), and
+# (watering_can, lost_and_found) as missing; symmetric tests for Commissary
+# (8 pairs), Locksmith (5 pairs), Trading Post (5 pairs), and one test per
+# non-room-mechanic token (e.g. lifting the Spiral exclusion should flag
+# (car_keys, spiral) et al. as unresolvable, since Spiral has no rooms.json
+# id at all -- proving the token is excluded because it doesn't resolve, not
+# because the checker forgot to look).
+item_id	locations_raw	fetch_date	source_url
+basement_key	Spiral	2026-08-14	https://blueprince.wiki.gg/wiki/Basement_Key
+battery_pack	Attic, Archives, Car Trunk, Darkroom, Experiment, Hovel, Laboratory, Mail Room, Mechanarium, Patio, Spare Patio, Storeroom, Wine Cellar, Workshop, Toolshed, Trading Post, Clock Tower, !Spare Room, !Garage, !Utility Closet, !Kitchen	2026-08-14	https://blueprince.wiki.gg/wiki/Battery_Pack
+broken_lever	Aquarium, Attic, Darkroom, Dig Spot, Experiment, Drafting Studio, Furnace, Laboratory, Locker, Locker Room, Observatory, Patio, Sauna, Security, Storeroom, Weight Room, Wine Cellar, Workshop, Secret Garden, Servant's Quarters, Conservatory, Spare Greenroom, !Spare Room, !Billiard Room, !Garage, !Music Room, !Utility Closet, !Foyer, !Kitchen, !Closed Exhibit	2026-08-14	https://blueprince.wiki.gg/wiki/Broken_Lever
+car_keys	Bedroom, Billiard Room, Dining Room, Experiment, Guest Bedroom, Gymnasium, Locker, Locker Room, Locksmith, Music Room, Office, Parlor, Patio, Rumpus Room, Sauna, Security, Spare Bedroom, Spare Patio, Spiral, Spare Servant's Quarters, The Pool, Trunk, Walk-In Closet, !Gallery, !Den	2026-08-14	https://blueprince.wiki.gg/wiki/Car_Keys
+coin_purse	Her Ladyship's Spare Room, Spare Master Bedroom, Closet, Walk-In Closet, Parlor, Attic, Workshop, Dining Room, Lavatory, Bedroom, Throne Room, Experiment, Package, !Gallery, !Ballroom, !Drawing Room, !Foyer	2026-08-14	https://blueprince.wiki.gg/wiki/Coin_Purse
+compass	Aquarium, Attic, Closet, Commissary, Drafting Studio, Experiment, Guest Bedroom, Her Ladyship's Spare Room, Observatory, Package, Spare Master Bedroom, Spare Terrace, Spiral, Terrace, Throne Room, Trunk, Walk-In Closet, Workshop, !Den, !Trophy Room	2026-08-14	https://blueprince.wiki.gg/wiki/Compass
+coupon_book	Attic, Conference Room, Dining Room, Experiment, Library, Mail Room, Morning Room, Nook, Office, Package, Vault, Walk-In Closet, !Den, !Pantry, !Secret Passage	2026-08-14	https://blueprince.wiki.gg/wiki/Coupon_Book
+gear_wrench	Experiment, Lost & Found, Spiral, Toolshed	2026-08-14	https://blueprince.wiki.gg/wiki/Gear_Wrench
+hall_pass	Classroom, Lost & Found, Dormitory, Experiment, Spiral	2026-08-14	https://blueprince.wiki.gg/wiki/Hall_Pass
+key_8	Gallery	2026-08-14	https://blueprince.wiki.gg/wiki/Key_8
+lock_pick_kit	Archives, Attic, Car Trunk, Crate, Closed Exhibit, Darkroom, Experiment, Furnace, Locksmith, Package, Rumpus Room, Security, Toolshed, Trunk, Vault, Walk-In Closet, Wine Cellar, Workshop, !Garage	2026-08-14	https://blueprince.wiki.gg/wiki/Lock_Pick_Kit
+lucky_rabbits_foot	Classroom, Maid's Chamber, Morning Room, Spare Bedroom, Spare Servant's Quarters, Her Ladyship's Spare Room, Closet, Walk-In Closet, Rumpus Room, Nursery, Lavatory, Lost & Found, Throne Room, Experiment, !Ballroom, !Den, !Foyer, !Gallery, !Casino	2026-08-14	https://blueprince.wiki.gg/wiki/Lucky_Rabbit%27s_Foot
+magnifying_glass	Archives, Attic, Boudoir, Car Trunk, Chapel, Classroom, Commissary, Conservatory, Drafting Studio, Experiment, Guest Bedroom, Her Ladyship's Chamber, Laboratory, Library, Mail Room, Nook, Observatory, Office, Package, Parlor, Spare Foyer, Study, Toolshed, Workshop, !Den, !Drawing Room	2026-08-14	https://blueprince.wiki.gg/wiki/Magnifying_Glass
+master_key	Showroom	2026-08-14	https://blueprince.wiki.gg/wiki/Master_Key
+metal_detector	Archives, Attic, Clock Tower, Closet, Commissary, Courtyard, Crate, Experiment, Greenhouse, Maid's Chamber, Mail Room, Patio, Secret Garden, Servant's Quarters, Spare Patio, Spare Veranda, Toolshed, Veranda, Workshop, !Garage, !Boiler Room, !Closed Exhibit	2026-08-14	https://blueprince.wiki.gg/wiki/Metal_Detector
+prism_key	Music Room, Lost & Found, Locksmith	2026-08-14	https://blueprince.wiki.gg/wiki/Prism_Key
+repellent	Lost & Found	2026-08-14	https://blueprince.wiki.gg/wiki/Repellent
+running_shoes	Closet, Commissary, Crate, Dormitory, Experiment, Gymnasium, Locker, Locker Room, Rumpus Room, Sauna, Spare Servant's Quarters, The Pool, Walk-In Closet, Weight Room, !Foyer, !Garage	2026-08-14	https://blueprince.wiki.gg/wiki/Running_Shoes
+salt_shaker	Rumpus Room, Commissary, Walk-In Closet, Billiard Room, Morning Room, Dining Room, Trading Post, Experiment, Spiral, !Pantry, !Kitchen	2026-08-14	https://blueprince.wiki.gg/wiki/Salt_Shaker
+secret_garden_key	Dartboard, Attic, Music Room, Locksmith, Trunk, Lost & Found, Dig spot, Car Trunk	2026-08-14	https://blueprince.wiki.gg/wiki/Secret_Garden_Key
+shovel	Aquarium, Attic, Clock Tower, Closet, Commissary, Courtyard, Crate, Experiment, Furnace, Greenhouse, Hovel, Maid's Chamber, Morning Room, Patio, Secret Garden, Solarium, Spare Greenroom, Spare Patio, Spare Terrace, Spare Veranda, Spiral, Storeroom, Terrace, Toolshed, Trading Post, Tunnel, Veranda, Wine Cellar, Workshop, !Boiler Room, !Closed Exhibit, !Foyer, !Garage, !Spare Room, !Utility Closet, !Trophy Room	2026-08-14	https://blueprince.wiki.gg/wiki/Shovel
+silver_key	Closet, Dartboard, Experiment, Mechanarium, Music Room, Her Ladyship's Chamber, Locksmith, Package, Dig Spot, Trunk, Spiral	2026-08-14	https://blueprince.wiki.gg/wiki/Silver_Key
+sledge_hammer	Attic, Closet, Commissary, Courtyard, Crate, Experiment, Greenhouse, Furnace, Secret Garden, Spare Foyer, Spare Hall, Spiral, Storeroom, Toolshed, Trading Post, Tunnel, Veranda, Workshop, Wine Cellar, !Foyer, !Garage, !Music Room, !Spare Room, !Utility Closet, !Closed Exhibit, !Trophy Room	2026-08-14	https://blueprince.wiki.gg/wiki/Sledge_Hammer
+sleeping_mask	Bedroom, Boudoir, Closet, Commissary, Experiment, Her Ladyship's Spare Room, Master Bedroom, Package, Sauna, Spare Bedroom, Spare Master Bedroom, Spare Servant's Quarters, Spiral, Walk-In Closet, !Foyer	2026-08-14	https://blueprince.wiki.gg/wiki/Sleeping_Mask
+stopwatch	Lost & Found, Clock Tower	2026-08-14	https://blueprince.wiki.gg/wiki/Stopwatch
+telescope	Her Ladyship's Chamber, Her Ladyship's Spare Room, Lost & Found, Planetarium, Trading Post, Walk-In Closet, Experiment, Spiral	2026-08-14	https://blueprince.wiki.gg/wiki/Telescope
+treasure_map	Attic, Car Trunk, Clock Tower, Drafting Studio, Lavatory, Library, Locker, Mail Room, Observatory, Rumpus Room, Spare Foyer, Spare Secret Passage, Study, Throne Room, Trunk, Wine Cellar, !Den, !Secret Passage, !Trophy Room	2026-08-14	https://blueprince.wiki.gg/wiki/Treasure_Map
+vault_key_149	Attic, Rumpus Room, Security, Throne Room, Locker, Dig spot, Experiment, !Trophy Room	2026-08-14	https://blueprince.wiki.gg/wiki/Vault_Key
+vault_key_233	Furnace, Lavatory, Morning Room, Office, Sauna, Throne Room, Wine Cellar, Locker, Dig spot, Experiment	2026-08-14	https://blueprince.wiki.gg/wiki/Vault_Key
+vault_key_304	Conference Room, Dig Spot, Her Ladyship's Chamber, Spare Hall, Walk-In Closet, Hovel, !Drawing Room	2026-08-14	https://blueprince.wiki.gg/wiki/Vault_Key
+vault_key_370	Lost & Found, Throne Room, !Closed Exhibit, Dig spot	2026-08-14	https://blueprince.wiki.gg/wiki/Vault_Key
+watering_can	Spare Greenroom, Greenhouse, Toolshed, Hovel, Lost & Found, Experiment, Spiral	2026-08-14	https://blueprince.wiki.gg/wiki/Watering_Can

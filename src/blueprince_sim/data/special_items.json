@@ -25,7 +25,13 @@
     "patio",
     "storeroom",
     "wine_cellar",
-    "workshop"
+    "workshop",
+    "clock_tower",
+    "darkroom",
+    "hovel",
+    "mechanarium",
+    "spare_patio__ix142",
+    "toolshed"
    ],
    "spawn_rooms_high_luck": [
     "spare_room",
@@ -45,7 +51,7 @@
     "confidence": "wiki",
     "absent_spawn_areas": [],
     "blocked_on": null,
-    "notes": "All three fabrication recipes are built and match the wiki (shovel+battery_pack+broken_lever->jack_hammer, sledge_hammer+battery_pack+broken_lever->power_hammer, compass+battery_pack->powered_electromagnet). On pickup, the Workshop's Dynamic Rarity is set to Standard or Unusual at 50/50 (room/options in the top-level battery_pack data section); the roll is deferred to the next hand dealt, where RNG is in scope. The second and later triggers in the same day do not re-roll -- they deterministically toggle to the other option (wiki: 'Triggering this effect multiple times in a day will always switch to the other one'). The wiki's Locations line also names Darkroom, Hovel, Mechanarium, Toolshed, Trading Post and Clock Tower, every one of which exists in rooms.json; spawn_rooms omits them, so the pack is rarer here than published."
+    "notes": "All three fabrication recipes are built and match the wiki (shovel+battery_pack+broken_lever->jack_hammer, sledge_hammer+battery_pack+broken_lever->power_hammer, compass+battery_pack->powered_electromagnet). On pickup, the Workshop's Dynamic Rarity is set to Standard or Unusual at 50/50 (room/options in the top-level battery_pack data section); the roll is deferred to the next hand dealt, where RNG is in scope. The second and later triggers in the same day do not re-roll -- they deterministically toggle to the other option (wiki: 'Triggering this effect multiple times in a day will always switch to the other one'). Trading Post is omitted: the wiki's Locations line lists it too, but the Trading Post's item flow is already modelled through its own trade/upgrade-disk channel, not the generic spawn pool."
    }
   },
   {
@@ -70,9 +76,23 @@
     "weight_room",
     "wine_cellar",
     "workshop",
-    "servants_quarters"
+    "servants_quarters",
+    "conservatory",
+    "darkroom",
+    "furnace",
+    "secret_garden",
+    "spare_greenroom__ix132"
    ],
-   "spawn_rooms_high_luck": [],
+   "spawn_rooms_high_luck": [
+    "billiard_room",
+    "closed_exhibit",
+    "foyer",
+    "garage",
+    "kitchen",
+    "music_room",
+    "spare_room",
+    "utility_closet"
+   ],
    "guaranteed_in": [],
    "effects": [],
    "implemented": true,
@@ -97,7 +117,11 @@
     "attic",
     "workshop",
     "dining_room",
-    "bedroom"
+    "bedroom",
+    "her_ladyships_spare_room__ix135",
+    "lavatory",
+    "spare_master_bedroom__ix136",
+    "throne_room"
    ],
    "spawn_rooms_high_luck": [
     "gallery",
@@ -138,9 +162,16 @@
     "observatory",
     "terrace",
     "walk_in_closet",
-    "workshop"
+    "workshop",
+    "her_ladyships_spare_room__ix135",
+    "spare_master_bedroom__ix136",
+    "spare_terrace__ix141",
+    "throne_room"
    ],
-   "spawn_rooms_high_luck": [],
+   "spawn_rooms_high_luck": [
+    "den",
+    "trophy_room"
+   ],
    "guaranteed_in": [],
    "effects": [],
    "implemented": true,
@@ -149,7 +180,7 @@
     "confidence": "wiki",
     "absent_spawn_areas": [],
     "blocked_on": null,
-    "notes": "mail_room is not a spawn_rooms entry: the wiki lists \"Package\" (a Mail Room delivery), not the Mail Room floor, and this sim already models that delivery via special_items.json's mail_packages (slot1 chains include compass)."
+    "notes": "mail_room is not a spawn_rooms entry: the wiki lists \"Package\" (a Mail Room delivery), not the Mail Room floor, and this sim already models that delivery via special_items.json's mail_packages (slot1 chains include compass). Commissary is also omitted: it is a shop-purchase room, already modelled through shops.json's commissary stock."
    }
   },
   {
@@ -253,7 +284,9 @@
     "closed_exhibit",
     "toolshed"
    ],
-   "spawn_rooms_high_luck": [],
+   "spawn_rooms_high_luck": [
+    "garage"
+   ],
    "guaranteed_in": [],
    "effects": [
     {
@@ -292,7 +325,12 @@
     "nursery",
     "maids_chamber",
     "morning_room",
-    "classroom"
+    "classroom",
+    "her_ladyships_spare_room__ix135",
+    "lavatory",
+    "servants_spare_quarters__ix134",
+    "spare_bedroom__ix131",
+    "throne_room"
    ],
    "spawn_rooms_high_luck": [
     "ballroom",
@@ -340,9 +378,16 @@
     "office",
     "parlor",
     "study",
-    "workshop"
+    "workshop",
+    "classroom",
+    "conservatory",
+    "spare_foyer__ix137",
+    "toolshed"
    ],
-   "spawn_rooms_high_luck": [],
+   "spawn_rooms_high_luck": [
+    "den",
+    "drawing_room"
+   ],
    "guaranteed_in": [],
    "effects": [],
    "implemented": false,
@@ -372,11 +417,18 @@
     "patio",
     "servants_quarters",
     "veranda",
-    "workshop"
+    "workshop",
+    "clock_tower",
+    "maids_chamber",
+    "secret_garden",
+    "spare_patio__ix142",
+    "spare_veranda__ix140",
+    "toolshed"
    ],
    "spawn_rooms_high_luck": [
     "garage",
-    "boiler_room"
+    "boiler_room",
+    "closed_exhibit"
    ],
    "guaranteed_in": [],
    "effects": [
@@ -433,7 +485,9 @@
     "sauna",
     "the_pool",
     "walk_in_closet",
-    "weight_room"
+    "weight_room",
+    "dormitory",
+    "servants_spare_quarters__ix134"
    ],
    "spawn_rooms_high_luck": [
     "foyer",
@@ -506,9 +560,30 @@
     "terrace",
     "veranda",
     "wine_cellar",
-    "workshop"
+    "workshop",
+    "clock_tower",
+    "furnace",
+    "hovel",
+    "maids_chamber",
+    "morning_room",
+    "secret_garden",
+    "solarium",
+    "spare_greenroom__ix132",
+    "spare_patio__ix142",
+    "spare_terrace__ix141",
+    "spare_veranda__ix140",
+    "toolshed",
+    "tunnel"
    ],
-   "spawn_rooms_high_luck": [],
+   "spawn_rooms_high_luck": [
+    "boiler_room",
+    "closed_exhibit",
+    "foyer",
+    "garage",
+    "spare_room",
+    "trophy_room",
+    "utility_closet"
+   ],
    "guaranteed_in": [],
    "effects": [
     {
@@ -542,9 +617,21 @@
     "workshop",
     "wine_cellar",
     "furnace",
-    "secret_garden"
+    "secret_garden",
+    "spare_foyer__ix137",
+    "spare_hall__ix133",
+    "toolshed",
+    "tunnel"
    ],
-   "spawn_rooms_high_luck": [],
+   "spawn_rooms_high_luck": [
+    "closed_exhibit",
+    "foyer",
+    "garage",
+    "music_room",
+    "spare_room",
+    "trophy_room",
+    "utility_closet"
+   ],
    "guaranteed_in": [],
    "effects": [
     {
@@ -572,7 +659,11 @@
     "closet",
     "master_bedroom",
     "sauna",
-    "walk_in_closet"
+    "walk_in_closet",
+    "her_ladyships_spare_room__ix135",
+    "servants_spare_quarters__ix134",
+    "spare_bedroom__ix131",
+    "spare_master_bedroom__ix136"
    ],
    "spawn_rooms_high_luck": [
     "foyer"
@@ -617,7 +708,8 @@
     "source": "https://blueprince.wiki.gg/wiki/Stopwatch",
     "confidence": "inferred",
     "absent_spawn_areas": [],
-    "blocked_on": null
+    "blocked_on": null,
+    "notes": "spawn_rooms stays empty on purpose: the wiki's sole Locations entry (Clock Tower, plus Lost & Found which is excluded as already modelled through the room's own steal pool) is already covered by guaranteed_in. Also listing clock_tower in spawn_rooms would let the room's one-per-day random special roll sometimes 'spend' itself on a Stopwatch that was going to be guaranteed anyway, silently suppressing that day's chance for Clock Tower's other pool members (battery_pack, metal_detector, shovel, treasure_map) -- following the same guaranteed-only pattern already used by key_8 and basement_key."
    }
   },
   {
@@ -664,7 +756,12 @@
     "observatory",
     "rumpus_room",
     "study",
-    "wine_cellar"
+    "wine_cellar",
+    "clock_tower",
+    "lavatory",
+    "spare_foyer__ix137",
+    "spare_secret_passage__ix138",
+    "throne_room"
    ],
    "spawn_rooms_high_luck": [
     "den",
@@ -692,7 +789,8 @@
    "spawn_rooms": [
     "greenhouse",
     "toolshed",
-    "hovel"
+    "hovel",
+    "spare_greenroom__ix132"
    ],
    "spawn_rooms_high_luck": [],
    "guaranteed_in": [],
@@ -721,9 +819,12 @@
    "spawn_rooms": [
     "attic",
     "rumpus_room",
-    "security"
+    "security",
+    "throne_room"
    ],
-   "spawn_rooms_high_luck": [],
+   "spawn_rooms_high_luck": [
+    "trophy_room"
+   ],
    "guaranteed_in": [],
    "effects": [],
    "implemented": true,
@@ -744,7 +845,11 @@
    "spawn_rooms": [
     "office",
     "sauna",
-    "wine_cellar"
+    "wine_cellar",
+    "furnace",
+    "lavatory",
+    "morning_room",
+    "throne_room"
    ],
    "spawn_rooms_high_luck": [],
    "guaranteed_in": [],
@@ -767,9 +872,13 @@
    "spawn_rooms": [
     "conference_room",
     "her_ladyships_chamber",
-    "walk_in_closet"
+    "walk_in_closet",
+    "hovel",
+    "spare_hall__ix133"
    ],
-   "spawn_rooms_high_luck": [],
+   "spawn_rooms_high_luck": [
+    "drawing_room"
+   ],
    "guaranteed_in": [],
    "effects": [],
    "implemented": true,
@@ -787,8 +896,12 @@
    "tier": 3,
    "unique": true,
    "persistence": "until_used",
-   "spawn_rooms": [],
-   "spawn_rooms_high_luck": [],
+   "spawn_rooms": [
+    "throne_room"
+   ],
+   "spawn_rooms_high_luck": [
+    "closed_exhibit"
+   ],
    "guaranteed_in": [],
    "effects": [],
    "implemented": true,
@@ -796,7 +909,8 @@
     "source": "https://blueprince.wiki.gg/wiki/Vault_Key",
     "confidence": "wiki",
     "absent_spawn_areas": [],
-    "blocked_on": null
+    "blocked_on": null,
+    "notes": "Lost & Found is omitted from spawn_rooms: it is already modelled through the room's own steal-pool (special_items.json's lost_and_found table lists vault_key_370)."
    }
   },
   {
@@ -829,8 +943,30 @@
    "tier": 2,
    "unique": true,
    "persistence": "day",
-   "spawn_rooms": [],
-   "spawn_rooms_high_luck": [],
+   "spawn_rooms": [
+    "bedroom",
+    "billiard_room",
+    "dining_room",
+    "guest_bedroom",
+    "gymnasium",
+    "locker_room",
+    "music_room",
+    "office",
+    "parlor",
+    "patio",
+    "rumpus_room",
+    "sauna",
+    "security",
+    "servants_spare_quarters__ix134",
+    "spare_bedroom__ix131",
+    "spare_patio__ix142",
+    "the_pool",
+    "walk_in_closet"
+   ],
+   "spawn_rooms_high_luck": [
+    "den",
+    "gallery"
+   ],
    "guaranteed_in": [],
    "effects": [],
    "implemented": true,
@@ -839,7 +975,7 @@
     "confidence": "wiki",
     "absent_spawn_areas": [],
     "blocked_on": null,
-    "notes": "spawn_rooms is empty here, not garage: the Garage page says the Garage \"does not usually contain special items lying around\" -- the car (Car Keys' use site, /Usage) is not its spawn site. The wiki's Car Keys page lists 25 other rooms as spawn locations, none modelled in this sim's spawn pools yet."
+    "notes": "spawn_rooms excludes garage: the Garage page says the Garage \"does not usually contain special items lying around\" -- the car (Car Keys' use site, /Usage) is not its spawn site. Locksmith is also omitted: it is a shop-purchase room, already modelled through its own stock/trade channel rather than the generic spawn pool."
    }
   },
   {
@@ -1140,7 +1276,8 @@
    "spawn_rooms": [
     "closet",
     "music_room",
-    "her_ladyships_chamber"
+    "her_ladyships_chamber",
+    "mechanarium"
    ],
    "spawn_rooms_high_luck": [],
    "guaranteed_in": [],
