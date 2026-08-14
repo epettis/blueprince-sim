@@ -1334,7 +1334,8 @@
     "source": "https://blueprince.wiki.gg/wiki/Power_Hammer",
     "confidence": "wiki",
     "absent_spawn_areas": [],
-    "blocked_on": null
+    "blocked_on": null,
+    "notes": "Two of the wiki's breakable-wall locations are modelled: the Weight Room's south wall (engine/effects/rooms/weight_room.py::pull_south_lever, gated on power_hammer.held()) and the Grounds/Sealed-Entrance/Basement gate (engine/game.py::_gate_ctx's sealed_entrance_broken flag, also gated on power_hammer.held(); the wiki's two separate walls there -- the Grounds planks and the Sealed-Entrance/Basement wall -- are deliberately collapsed into this one flag, per that function's own docstring). Not modelled: the Greenhouse wall (breaking it drops Greenhouse's dead_end status for future dead-end counts on the wiki; rooms.json's greenhouse.layout stays static at 'dead_end' with no mechanic to change it), the Secret Garden's third valve (no valve/weathervane mechanic exists anywhere in the sim), the Precipice crack (its Castling Puzzle is auto-passed under the 'player solves every puzzle' doctrine rather than gated on this hint), and the Crate Tunnel's fourth-door wall. The Freezer wall is also not modelled by this item -- that gap is disclosed on upgrade_disk_freezer's own record instead (disk granted on first entry, bypassing the wall), noted here too since a reader of this record would not otherwise see it."
    }
   },
   {
@@ -1451,7 +1452,7 @@
     "confidence": "wiki",
     "absent_spawn_areas": [],
     "blocked_on": null,
-    "notes": "Obtainable today: the Showroom sells it for 50 coins (data/shops.json), via shops.py::buy."
+    "notes": "Obtainable today: the Showroom sells it for 50 coins (data/shops.json), via shops.py::buy. The wiki's first-draw-only restriction ('can be used any number of times, but only on the first draw. Redrawing floorplans causes both the drafting option and the visual model to vanish until the next draft') is not modelled: special_items.py::ornate_compass_active is a plain held-check, and game.py::_free_rotation_source grants a free rotation on every hand regardless of redraws -- game.py::_redeal_pending resets rotations_used to 0 on each redraw, re-arming the budget rather than disabling the source."
    }
   },
   {
