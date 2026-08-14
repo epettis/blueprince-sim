@@ -1795,12 +1795,15 @@ def test_add_aquariums_priority_draws_inactive_before_active_after_firing(monkey
         registry.priority["priority_draws"] = add_aq_entries
 
         ctx_inactive = DraftContext(g.state, registry, g.cfg, g.rng, set(), None)
+        # is_gem=True: aquarium is a gem room, so it is only a class-filter
+        # candidate on a Gem Draw (see draft.py's _priority_draw).
         assert _priority_draw(ctx_inactive, _AQUARIUM_TARGET_CELL, _AQUARIUM_DIRECTION,
-                              set()) is None
+                              set(), is_gem=True) is None
 
         experiments.apply_effect(g, "add_aquariums")
         ctx_active = DraftContext(g.state, registry, g.cfg, g.rng, set(), None)
-        picked = _priority_draw(ctx_active, _AQUARIUM_TARGET_CELL, _AQUARIUM_DIRECTION, set())
+        picked = _priority_draw(ctx_active, _AQUARIUM_TARGET_CELL, _AQUARIUM_DIRECTION,
+                                set(), is_gem=True)
         assert picked is not None and picked.id == "aquarium"
     finally:
         registry.priority["priority_draws"] = original
@@ -1822,12 +1825,13 @@ def test_add_aquariums_priority_draws_do_not_affect_the_three_existing_entries(m
         rng_trimmed = Rng(seed)
         ctx_trimmed = DraftContext(GameState(), registry, g.cfg, rng_trimmed, set(), None)
         pick_trimmed = _priority_draw(ctx_trimmed, _AQUARIUM_TARGET_CELL, _AQUARIUM_DIRECTION,
-                                      set())
+                                      set(), is_gem=True)
 
         registry.priority["priority_draws"] = original
         rng_full = Rng(seed)
         ctx_full = DraftContext(GameState(), registry, g.cfg, rng_full, set(), None)
-        pick_full = _priority_draw(ctx_full, _AQUARIUM_TARGET_CELL, _AQUARIUM_DIRECTION, set())
+        pick_full = _priority_draw(ctx_full, _AQUARIUM_TARGET_CELL, _AQUARIUM_DIRECTION,
+                                   set(), is_gem=True)
 
         full_id = pick_full.id if pick_full else None
         trimmed_id = pick_trimmed.id if pick_trimmed else None

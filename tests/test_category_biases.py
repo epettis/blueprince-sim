@@ -512,7 +512,10 @@ def chronograph_priority_draw_hits(registry) -> int:
     hits = 0
     for seed in range(CHRONOGRAPH_TRIALS):
         ctx = _chronograph_ctx(isolated, cfg, seed, held=True)
-        room = _priority_draw(ctx, TARGET_CELL, DIRECTION, set())
+        # is_gem=False: GUARANTEED_TOMORROW_ROOM_ID (freezer) is a free room, so
+        # the round must be dealing from the free group for it to be a candidate
+        # under the class filter (see draft.py's _priority_draw).
+        room = _priority_draw(ctx, TARGET_CELL, DIRECTION, set(), is_gem=False)
         if room is not None:
             assert room.id == GUARANTEED_TOMORROW_ROOM_ID or room.is_category("tomorrow")
             hits += 1
@@ -546,7 +549,7 @@ def test_chronograph_priority_draw_never_fires_without_the_item(registry):
     isolated = _isolated_chronograph_registry(registry)
     for seed in range(500):
         ctx = _chronograph_ctx(isolated, cfg, seed, held=False)
-        room = _priority_draw(ctx, TARGET_CELL, DIRECTION, set())
+        room = _priority_draw(ctx, TARGET_CELL, DIRECTION, set(), is_gem=False)
         assert room is None, f"seed {seed}: fired without the Chronograph held"
 
 
