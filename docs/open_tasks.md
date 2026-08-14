@@ -1028,17 +1028,25 @@ pending that primitive.
      found. Matches the Treasure Trove and Throne Room comments, and needs no
      `inject_rooms` call.
 
-  **One item was offered and NOT selected, recorded as an interpretation so it
-  is visible if wrong: `counts_as_drafting_room` is NOT added.** The wiki types
-  the Conservatory as a Drafting Room, which would grant a Classroom redraw and
-  a Dormitory step grant. It was offered alongside ruling 3 in a multi-select
-  and left unchosen. **Read as: do not add it** -- it changes Classroom redraw
-  economics on all-unlocks configs. **Reopen if that reading is wrong.**
+  5. **ADD `counts_as_drafting_room`.** The wiki types the Conservatory as a
+     Drafting Room and its page carries that interaction template, so drafting
+     it grants a Classroom redraw and a Dormitory step grant. **This is a real
+     behaviour change on all-unlocks configs**, not just a tag.
+  6. **Fix `priority_draws.json`'s decayed Morning Room clause in this work**,
+     not in a later sweep. It currently tells the reader that the Bacon & Eggs
+     prerequisite is **unbuilt**; it is built (`effects/rooms/nook.py` sets the
+     `breakfast` condition and injects the room) and only the forced draw
+     itself is missing. The note sits in the same file and block the
+     Conservatory's forced-draw entry lands in.
 
-  **Also still open from the same scoping, not yet ruled:** whether
-  `priority_draws.json`'s decayed Morning Room clause is fixed in this work or
-  left to a notes sweep -- it currently tells the reader that a **built**
-  prerequisite (Bacon & Eggs, live via `effects/rooms/nook.py`) is unbuilt.
+  **CORRECTION to this entry as first written.** It recorded
+  `counts_as_drafting_room` as **NOT added**, on the reading that an unselected
+  option in a multi-select meant "declined". **That reading was wrong** -- the
+  question was presented as multi-select and read as pick-one, so the omission
+  carried no meaning. Re-asked as a single choice and answered **yes**.
+  **The offering was the defect, not the answer**: a multi-select that looks
+  like a radio group silently converts "I picked the one I cared about" into
+  "I declined the rest". Ask one decision per question.
 
 - **2026-08-14, OWNER RULINGS x8. The constellation width is now SETTLED at
   `N_ACTIONS` 442 -> 457, and two live defects are cleared to fix.**
