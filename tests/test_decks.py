@@ -281,9 +281,9 @@ def test_gear_wrench_pump_room_injection_lands_in_wrenched_bucket_not_natal(regi
     landing only in the natal bucket would silently discard the wrench.
 
     Mutation-tested: reverting inject_rooms to index by ``room.rarity_idx``
-    directly (its shape before this change) makes this fail -- the injected
-    copy then lands in the natal (standard) bucket instead of the wrenched
-    (rare) one, and the natal-bucket assertion below flips true.
+    directly makes this fail -- the injected copy then lands in the natal
+    (standard) bucket instead of the wrenched (rare) one, and the
+    natal-bucket assertion below flips true.
     """
     pump_room = registry.by_id["pump_room"]
     assert pump_room.pool == "pool_temp", "must be pool_temp for this guard to mean anything"

@@ -1,4 +1,4 @@
-"""Trading Post trades and Workshop fabrication (shops.py PR2-C)."""
+"""Trading Post trades and Workshop fabrication."""
 
 import pytest
 
@@ -287,7 +287,6 @@ def test_trade_t5_sometimes_yields_allowance_or_the_traded_disk():
 def test_trade_dice_sentinel_in_graph_yields_die():
     """An item whose trade_graph successor is "dice" yields a die when traded.
 
-    The graph model replaces the old per-roll outcome with a fixed mapping.
     Directly crafting a trade_graph with a "dice" sentinel confirms the die path.
     """
     game = _game(seed=0)

@@ -246,34 +246,16 @@ def test_replay_demo_raises_when_terminal_reached_with_actions_remaining():
     which never re-stamps, so ConfigDigestError always fires there first).
     Tested nowhere else.
 
-    DEVIATION FROM THE ORIGINAL DESIGN, reported rather than silently kept:
-    the previous version of this test reconstructed the record under a
-    deliberately WRONG preset (``unlocks="all"`` on a "fresh"-recorded demo,
-    with config_digest re-stamped to match the lie) and relied on seed=24's
-    specific draft outcomes making that wrong config's day end earlier than
-    the real one. That is exactly the fragility being removed here, but
-    combining "wrong config" with a construction guaranteed to hit the
-    TERMINAL branch specifically turns out not to be possible without
-    reintroducing seed-dependence: a mismatched preset generically changes
-    which rooms are drafted, so replaying the ORIGINAL recorded actions under
-    the wrong config just as often (in fact, more often, empirically) makes
-    some action ILLEGAL somewhere in the middle of the sequence -- a real,
-    valid divergence, just the WRONG detector for what this test isolates.
-    Confirmed directly: padding a wrong-config ("all") replay of seed 24's
-    "fresh" actions past their real end raises on "action ... was not legal",
-    not "terminal state" -- the two failure modes race, and which one wins is
-    itself seed-dependent, i.e. exactly the thing being fixed.
-
-    Constructed instead entirely from the CORRECT config (no lie, no
-    config_digest re-stamp needed -- it already matches), so every real
-    recorded action stays legal throughout and the ONLY possible divergence
-    is the one under test. Both known record producers append the action
-    that ends the day as the LAST list element (replay_demo's own docstring),
-    so a real record's action list already stops exactly at its own true
-    terminal step; appending padding past that point -- well beyond
-    BluePrinceEnv.max_env_steps (1000), the hard per-day truncation bound --
-    guarantees the replay reaches Phase.TERMINAL with actions still queued.
-    Verified deterministic across seeds 0-9, not just one pinned seed.
+    Constructed entirely from the CORRECT config (no config_digest re-stamp
+    needed -- it already matches), so every real recorded action stays legal
+    throughout and the ONLY possible divergence is the one under test. Both
+    known record producers append the action that ends the day as the LAST
+    list element (replay_demo's own docstring), so a real record's action
+    list already stops exactly at its own true terminal step; appending
+    padding past that point -- well beyond BluePrinceEnv.max_env_steps
+    (1000), the hard per-day truncation bound -- guarantees the replay
+    reaches Phase.TERMINAL with actions still queued. Verified deterministic
+    across seeds 0-9, not just one pinned seed.
     """
     record = synthetic_demo_records("fresh", "shaped", n_days=1, seed=24,
                                     action_rng_seed=0, use_chain=False)[0]
@@ -514,9 +496,7 @@ def test_pretrain_raises_agreement_with_demo_actions(bc_fixture):
     against THIS fixture, computed from the triples' masks alone. Unlike a
     multiple of acc_before, it does not depend on the policy network's
     architecture or weight initialisation, so it stays valid as the action
-    space grows: an earlier version of this test asserted
-    ``acc_after > 2 * acc_before`` and broke when growing the action space
-    (436 -> 441) shifted the fixed-seed untrained model's acc_before.
+    space grows.
 
     The 1.5x margin comes from a 15-way sweep (5 policy weight-init seeds x
     3 pretrain seeds) against this exact fixture's triples, which measured

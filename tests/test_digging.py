@@ -459,9 +459,8 @@ def test_patio_dig_without_tool_does_not_yield_key():
 def test_file_cabinet_key_never_spawns_from_aquarium():
     """The Aquarium's special-item spawn pool never offers file_cabinet_key, at any luck.
 
-    It used to spawn there inertly (implemented=false), eating probability mass
-    from the Aquarium's real item roll; the owner ruling moved its only source to
-    the Patio dig, so the Aquarium roll must never produce it, even at max luck.
+    file_cabinet_key's only source is the Patio dig (owner ruling), so the
+    Aquarium roll must never produce it, even at max luck.
     """
     st, reg = _state_with_registry()
     aquarium = reg.by_id["aquarium"]

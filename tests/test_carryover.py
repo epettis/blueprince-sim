@@ -474,19 +474,12 @@ def test_carryover_lunch_box_from_gift_shop():
 def test_carryover_shape_is_complete():
     """carryover() dict always contains all carry-over keys regardless of state.
 
-    The bool keys must always be present (west_gate_unlatched was added in
-    the flag-split PR, weight_room_wall_broken in the antechamber-levers PR,
-    room46_reached in the room46 PR, mine_south_visited in the Sanctum-route PR,
-    boiler_room_steam and treasure_trove_blackprint in the Rotating Gear
-    (upstairs) PR, orchard_unlocked in the Apple Orchard PR,
-    throne_room_blueprint in the Orindian Ruins PR, satellite_dish_unlocked in
-    the sundial-unlock PR); the non-bool keys are also always included.
+    The bool keys must always be present; the non-bool keys are also always
+    included.
 
     planetarium_planets (Telescope-in-Planetarium) joins allowance/stars/
-    main_course_bonus as the third SAVE-scoped "replace wholesale" key
-    reported directly by shops.carryover() -- a deliberate addition to that
-    trio, not an accident: this test previously pinned allowance/stars/
-    main_course_bonus as a fixed set, so growing it required this explicit edit.
+    main_course_bonus as a SAVE-scoped "replace wholesale" key reported
+    directly by shops.carryover().
     """
     bool_keys = {
         "lunch_box_unlocked",

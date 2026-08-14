@@ -164,12 +164,11 @@ def shaped(game: Game, prev: dict, terminated: bool) -> float:
     Time pressure is -0.001 per game-step the decision actually consumed
     (``prev["steps"] - game.state.steps``), floored at one decision's worth
     (``max(1, steps_spent)``) so a zero-step decision (opening a doorway,
-    choosing an option, ...) still pays the old flat rate, and a multi-step
-    decision (a grid walk or an area-graph travel hop covering several rooms
-    at once) now pays proportionally more instead of being priced the same
-    as a single-cell move. Steps GAINED during a decision (food, the Orchard
-    bonus, other step-granting effects) are clamped to zero spent rather than
-    turned into a reward bonus on this term.
+    choosing an option, ...) pays -0.001 flat, and a multi-step decision (a
+    grid walk or an area-graph travel hop covering several rooms at once)
+    pays proportionally more. Steps GAINED during a decision (food, the
+    Orchard bonus, other step-granting effects) are clamped to zero spent
+    rather than turned into a reward bonus on this term.
 
     Path-preservation potential (phi_paths delta): the draft that closes the
     last viable route to the Antechamber eats ~-1.0, dwarfing any dead-end
@@ -192,8 +191,8 @@ def shaped(game: Game, prev: dict, terminated: bool) -> float:
     r += _phi_paths(_ante_paths(game)) - prev["phi_paths"]
     # Time pressure priced against the resource that actually ends runs (steps),
     # not decision count: clamp step GAINS to 0 first (food etc. must not turn
-    # this term into a bonus), then floor at 1 so zero-step decisions still pay
-    # the old flat rate and multi-step decisions pay proportionally more.
+    # this term into a bonus), then floor at 1 so zero-step decisions pay
+    # -0.001 flat and multi-step decisions pay proportionally more.
     steps_spent = max(0, prev["steps"] - game.state.steps)
     r -= 0.001 * max(1, steps_spent)
     if game.state.antechamber_reached and not prev["antechamber_reached"]:
