@@ -24,7 +24,7 @@ import json
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from . import experiments
+from . import constellations, experiments
 from .effects import (
     ItemCapability,
     ItemHook,
@@ -371,14 +371,16 @@ class SpecialItemsState:
     # "today's list + cfg's permanent set" shape as vault_boxes_opened /
     # used_vault_keys.
     sigil_doors_opened: list[str] = field(default_factory=list)
-    # Extra 'trunk' containers added to the Entrance Hall today, capped at 17.
-    # Named for the room, not for the entrance_hall_trunk experiment effect
-    # that currently bumps it (experiments.py::apply_effect), because the
-    # wiki treats The Twins constellation as sharing the same 17-trunk limit
-    # ("identical to triggering this effect twice") -- a future Twins hook
-    # would bump this same counter. Per-day only: neither the trunks nor the
-    # count carry over (owner ruling: 17 is a daily maximum), which falls out
-    # for free from SpecialItemsState being rebuilt fresh with GameState.
+    # Extra 'trunk' containers added to the Entrance Hall today. Named for the
+    # room, not for either source that bumps it: the entrance_hall_trunk
+    # experiment effect (experiments.py::apply_effect) and The Twins
+    # constellation (constellations.py::apply_effect) both spawn here, under
+    # the one cap the wiki gives them ("identical to triggering this effect
+    # twice"). Never assigned directly -- add_entrance_hall_trunks below is the
+    # only writer, so the cap cannot be bypassed by a third source. Per-day
+    # only: neither the trunks nor the count carry over (owner ruling: the cap
+    # is a daily maximum), which falls out for free from SpecialItemsState
+    # being rebuilt fresh with GameState.
     entrance_hall_trunks: int = 0
     # Dig spots the spread_dig_spots experiment effect has added to the
     # Conference Room today (experiments.py::apply_effect), capped at 50.
@@ -412,6 +414,28 @@ class SpecialItemsState:
     # record of which planets are unlocked lives on GameState.planetarium_planets
     # (SAVE-scoped, carried by DayChain), not here.
     planetarium_telescope_used: bool = False
+
+    def add_entrance_hall_trunks(self, cap: int | None, count: int) -> int:
+        """Add up to ``count`` trunks to the Entrance Hall, and return how many landed.
+
+        The one place the shared trunk cap is compared. Two unrelated sources
+        spawn here -- the entrance_hall_trunk experiment effect and The Twins
+        constellation, "identical to triggering this effect twice" -- and both
+        pass the same ``cap``, published on the experiment's own record and
+        read back through experiments.py::entrance_hall_trunk_cap. A method
+        rather than a free function so the field and its invariant stay
+        together and neither caller has to import the other's module.
+
+        Fills partially rather than refusing: The Twins' pair added with one
+        slot left puts one trunk in the hall, not zero. ``cap`` of None means
+        uncapped. Going silent at the cap is the wiki's own wording for the
+        experiment ("will no longer have any effect"), so the caller is not
+        told to stop -- only this effect does.
+        """
+        room = count if cap is None else max(0, cap - self.entrance_hall_trunks)
+        added = min(count, room)
+        self.entrance_hall_trunks += added
+        return added
 
 
 # --------------------------------------------------------------- inventory ops
@@ -1395,6 +1419,20 @@ def on_coins_granted(state, registry, amount: int) -> int:
 
 def _resolve_food_base(state, registry, food_id: str) -> int:
     """Resolve the base step count for one serving of ``food_id``.
+
+    The dish's own value from :func:`_dish_base_steps`, plus whatever today's
+    constellation activations add to THIS dish -- Farmer's Apple is the one
+    that does, once per activation and stacking. The bonus lands on the base,
+    so it sits inside everything :func:`food_steps` then multiplies; see that
+    record in data/constellations.json for the published worked example
+    pinning the order.
+    """
+    return (_dish_base_steps(state, registry, food_id)
+            + constellations.food_step_bonus(registry.constellations, state, food_id))
+
+
+def _dish_base_steps(state, registry, food_id: str) -> int:
+    """The step count one serving of ``food_id`` is worth by its own record.
 
     Looks up the dish record in items.json food.dishes:
     - ``steps``: flat step value (banana, club_sandwich, main courses).

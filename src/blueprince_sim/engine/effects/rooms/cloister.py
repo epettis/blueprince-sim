@@ -34,7 +34,7 @@ Implemented:
     depends on the cell it lands on (see grant_dig_bonus_for_fireplace_rooms).
   - cloister_of_joya__ix30 -- +5 steps, permanently and cumulatively, to every
     one of the five Main Course dishes for each Kitchen/Pantry/Furnace
-    drafted from this Cloister (special_items.py::_resolve_food_base reads
+    drafted from this Cloister (special_items.py::_dish_base_steps reads
     the running total off GameState.main_course_bonus). "Permanently" is read
     as per-attempt (carried by DayChain, cleared on attempt wrap), the same
     shape as allowance/stars -- an owner-flagged assumption, since the wiki
@@ -213,7 +213,7 @@ def raise_main_course_for_kitchen_pantry_furnace(game, room, ctx_room) -> None:
     PANTRY, or FURNACE you draft from this CLOISTER".
 
     Raises every one of the five main-course dishes by 5, cumulatively, each
-    time this fires (special_items.py::_resolve_food_base reads the running
+    time this fires (special_items.py::_dish_base_steps reads the running
     total); never touches the Lunch Box. "Permanently" is read as per-attempt,
     the same carry-over shape as allowance/stars (GameState.main_course_bonus).
     """

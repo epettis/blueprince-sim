@@ -464,8 +464,18 @@ game state every day and already gives the right reset for free.
 
 The counter is named for the **room**, not for this experiment record, because
 the wiki treats The Twins constellation as sharing the same 17-trunk limit
-("identical to triggering this effect twice"), so a future Twins hook reuses
-the same field.
+("identical to triggering this effect twice"). The Twins now uses it: both
+sources call `SpecialItemsState.add_entrance_hall_trunks`, which is the single
+place the cap is compared, and both read the number from **this** record —
+`experiments.py::entrance_hall_trunk_cap` is the accessor, so the constellation
+does not restate 17. `_effect_apply_count` deliberately does **not** list
+`entrance_hall_trunk`: routing it through the generic experiment cap gate would
+have meant a second copy of the check on the constellation side.
+
+A Twins pair that would overshoot lands **partially** rather than being
+refused — with one slot left, an activation adds one trunk, not zero. Note that
+The Twins alone cannot reach the cap in a day: only the first seven night skies
+hold constellations, so seven activations is 14 trunks against a cap of 17.
 
 Adding a container to a room that has no static container entry is what forced
 container counts to resolve **per cell** rather than per room — including the

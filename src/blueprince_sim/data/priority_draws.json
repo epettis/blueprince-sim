@@ -190,7 +190,7 @@
    "meta": {
     "confidence": "datamined",
     "source": "sheet constants: 'Southern Cross 40% 4-Way'; https://blueprince.wiki.gg/wiki/Drafting/Advanced",
-    "notes": "Reachable via state.southern_cross_active, but nothing sets it: no star-count/night-sky/Observatory chain is modeled. Day-scoped stub so the bias is testable rather than dead. 40% datamined. The wiki's own query is Room_Shape=4-way AND NOT Type HOLDS Upgrade AND NOT Name=Mechanarium AND NOT Name=Chamber of Mirrors; the Mechanarium page repeats the Mechanarium exclusion verbatim ('It is also unaffected by the Southern Cross')."
+    "notes": "Gated on state.southern_cross_active, which is set for the day by activating the Southern Cross from an Observatory night sky -- engine/constellations.py::apply_effect, driven by that record's own effect.condition naming this entry. 40% datamined. The wiki's own query is Room_Shape=4-way AND NOT Type HOLDS Upgrade AND NOT Name=Mechanarium AND NOT Name=Chamber of Mirrors; the Mechanarium page repeats the Mechanarium exclusion verbatim ('It is also unaffected by the Southern Cross')."
    }
   },
   {
@@ -201,7 +201,7 @@
    "meta": {
     "confidence": "datamined",
     "source": "sheet constants: 'Draxus 30% Dead End'; https://blueprince.wiki.gg/wiki/Drafting/Advanced",
-    "notes": "Same day-scoped stub as southern_cross_constellation: state.draxus_active is emitted but no activation source is modeled. Not cloister_of_draxus__ix36's own, unrelated 'only Dead Ends draftable here' rule -- shared name is coincidental theming, not a shared mechanism."
+    "notes": "Same shape as southern_cross_constellation: state.draxus_active is set for the day by activating Draxus from an Observatory night sky. Not cloister_of_draxus__ix36's own, unrelated 'only Dead Ends draftable here' rule -- shared name is coincidental theming, not a shared mechanism."
    }
   },
   {

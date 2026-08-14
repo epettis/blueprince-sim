@@ -206,6 +206,13 @@ from .model import RARITY_INDEX
 AQUARIUM_BASE_ID = "aquarium"
 AQUARIUM_EXPERIMENT_ID = "aquarium__experiment"
 
+# The effect record that publishes the Entrance Hall's trunk cap. Named so
+# engine/constellations.py can reach the same number without restating it:
+# The Twins spawns into the same counter under the same limit, and the wiki
+# calls its effect "identical to triggering this effect twice".
+ENTRANCE_HALL_TRUNK_EFFECT_ID = "entrance_hall_trunk"
+
+
 @dataclass(frozen=True, slots=True)
 class ExperimentTrigger:
     id: str  # stable snake_case id, unique across experiments.json
@@ -722,21 +729,34 @@ def on_terminal_accessed(game, room_id: str) -> None:
     trigger_success(game)
 
 
+def entrance_hall_trunk_cap(registry) -> int | None:
+    """The per-day Entrance Hall trunk cap, or None if the record is uncapped.
+
+    Two unrelated sources spawn into the same counter under this one limit --
+    this effect, and The Twins constellation, whose effect the wiki calls
+    "identical to triggering this effect twice". The number is published on
+    this effect's record alone, so both read it from here and neither restates
+    it; the comparison itself lives once, in
+    SpecialItemsState.add_entrance_hall_trunks.
+    """
+    effect = registry.experiments.effect_by_id.get(ENTRANCE_HALL_TRUNK_EFFECT_ID)
+    return None if effect is None else effect.cap
+
+
 def _effect_apply_count(state, effect_id: str) -> int:
     """Times ``effect_id`` has already applied (not no-opped) today, for cap checks.
 
-    entrance_hall_trunk counts against a dedicated Entrance-Hall counter
-    (SpecialItemsState.entrance_hall_trunks) rather than a generic experiment
-    counter, because it is designed to be shared with The Twins constellation
-    -- an unrelated future trigger for the same 17-trunk limit (wiki: "identical
-    to triggering this effect twice") -- so it must not live on ExperimentState,
-    which is specific to this one experiment record. mail_room_letter counts
-    against ExperimentState.letters_delivered. Neither is success_count, which
-    counts trigger fires and keeps advancing even once an effect caps out.
+    mail_room_letter counts against ExperimentState.letters_delivered -- not
+    success_count, which counts trigger fires and keeps advancing even once an
+    effect caps out.
+
+    entrance_hall_trunk is deliberately absent and returns 0 here: its cap is
+    shared with The Twins constellation, so the check cannot live in an
+    experiment-only gate without a second copy on the constellation side. It
+    is enforced instead where the counter itself lives, in
+    SpecialItemsState.add_entrance_hall_trunks, which the two sources call.
     """
     match effect_id:
-        case "entrance_hall_trunk":
-            return state.special.entrance_hall_trunks
         case "mail_room_letter":
             return state.experiment.letters_delivered
         case _:
@@ -754,12 +774,17 @@ def apply_effect(game, effect_id: str) -> None:
 
     Also no-ops, without touching state, once a ``cap``-carrying effect has
     already applied that many times today (see :func:`_effect_apply_count`)
-    -- entrance_hall_trunk's 17th trunk, mail_room_letter's 16th letter. This
-    is deliberately NOT trigger_success's early return: the trigger that
-    called us has already succeeded (success_count advanced, any steps_lost
-    was already charged), and only the effect itself goes silent, matching
-    the wiki's own wording for both ("will no longer have any effect" /
-    "never offered again" -- neither says the trigger stops firing).
+    -- mail_room_letter's 16th letter. This is deliberately NOT
+    trigger_success's early return: the trigger that called us has already
+    succeeded (success_count advanced, any steps_lost was already charged),
+    and only the effect itself goes silent, matching the wiki's own wording
+    ("will no longer have any effect" / "never offered again" -- neither says
+    the trigger stops firing).
+
+    entrance_hall_trunk reaches the same outcome by a different route: its cap
+    is shared with The Twins constellation, so the record's ``cap`` is handed
+    to SpecialItemsState.add_entrance_hall_trunks, which silently adds nothing
+    once the Entrance Hall is full.
     """
     st = game.state
     registry = game.registry
@@ -774,7 +799,7 @@ def apply_effect(game, effect_id: str) -> None:
         case "set_steps":
             st.steps = effect.magnitude.get("steps", 40)
         case "entrance_hall_trunk":
-            st.special.entrance_hall_trunks += 1
+            st.special.add_entrance_hall_trunks(effect.cap, 1)
         case "mail_room_letter":
             st.experiment.letters_delivered += 1
         case "set_dice":

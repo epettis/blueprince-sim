@@ -47,9 +47,11 @@ whole block landed at once, inert: **13 activation ids**, one per
 `data/constellations.json` record in that file's ascending-star order — which
 includes a **permanently masked slot for the Spiral of Stars**, so that build
 later lands at zero width and zero extra retrain — plus **one id to view the
-night sky** and **one dedicated id for the Ink Well's star-redraw**. Every one
-of the 15 is masked `False` unconditionally today, and the matching
-`constellations` observation key is always zeros.
+night sky** and **one dedicated id for the Ink Well's star-redraw**. All 15
+landed masked `False` unconditionally, with the matching `constellations`
+observation key always zeros. Ten have since gone live — the night-sky view and
+nine of the thirteen activations — and the width has not moved, which was the
+whole point of committing it up front.
 
 **The ruling is now satisfied and the width is closed.** No later PR in that
 build may move `N_ACTIONS` or an observation shape; activating a constellation

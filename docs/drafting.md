@@ -294,14 +294,24 @@ The **Southern Cross's** 4-way bias excludes the Mechanarium, the Chamber of
 Mirrors, and every upgrade variant (`exclude_rooms` plus
 `exclude_upgrade_variants`), matching the wiki's own query, which filters
 `Type HOLDS "Upgrade"` and names the two rooms; the Mechanarium page repeats it
-independently. Nothing sets `state.southern_cross_active`, so this is currently
-data-only.
+independently.
 
-Three Cloister frequency boosts exist and two are modelled: the **Terrace**
-makes green rooms free while it is on the estate (`free_green_drafts`), and the
+**Both constellation biases have an in-game setter.** Activating the Southern
+Cross or Draxus from an Observatory night sky sets `state.southern_cross_active`
+/ `state.draxus_active` for the rest of the day
+(`engine/constellations.py::apply_effect`, keyed off each record's own
+`effect.condition`, which names the entry here). Measured over 300 seeds × 3
+option slots at an interior cell: four-door rooms go from **3.3%** of dealt
+options to **39.4%**, Dead Ends from **27.2%** to **46.4%**. Draxus starts from
+a far higher floor because Dead Ends are common in the base pool and the
+attempt-4 fallback is the Closet, itself a dead end.
+
+All three Cloister frequency boosts are now reachable: the **Terrace** makes
+green rooms free while it is on the estate (`free_green_drafts`), the
 **Greenhouse** boost is a `category: green, chance: 0.4` bias conditioned on
-`greenhouse_or_king`. The **Southern Cross** boost is the one that is not,
-and it is the one that matters most to the Cloister's 5.87% per-day offer rate.
+`greenhouse_or_king`, and the **Southern Cross** boost — the one that matters
+most to the Cloister's 5.87% per-day offer rate — arrives through its
+constellation.
 
 ## Placement filters
 

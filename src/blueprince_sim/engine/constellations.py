@@ -1,5 +1,5 @@
 """Constellations and the Observatory night sky: registry, per-cell sky state,
-and sky generation.
+sky generation, and what an activation does.
 
 Data: data/constellations.json (its ``meta.notes`` carry the wiki citations
 this module's rules come from). Design: docs/rl-environment.md's width
@@ -32,6 +32,25 @@ nothing to do with the fact that the largest single sky in the table also
 holds 7 CONSTELLATIONS (at counts 40 and 49) -- see the data file's
 "BEWARE TWO UNRELATED SEVENS" note. Collapsing the two would break the
 mechanic in opposite directions.
+
+**What an activation does** splits two ways, and the split is in the data. A
+record carrying ``grant`` pays an immediate resource delta, applied at the
+call site through the shared effects/tier1.py::_grant path. A record carrying
+``effect`` does something else, dispatched by :func:`apply_effect` on
+``effect.kind``. Every activation is day-scoped: nothing here reaches
+env/multiday.py's ``_CARRYOVER_KEYS``, and the permanent star count remains
+the only thing a night sky leaves behind.
+
+Two of the kinds write when the constellation fires; the third is read where
+it is spent. ``draft_bias`` sets a day-scoped ``GameState`` flag whose
+category bias -- and whose published magnitude -- already lives in
+data/priority_draws.json. ``entrance_hall_trunks`` spawns containers through
+the counter it shares with the ``entrance_hall_trunk`` experiment effect, and
+obeys that effect's published cap through the single check on
+``SpecialItemsState.add_entrance_hall_trunks``. ``food_step_bonus`` writes
+nothing at all: :func:`food_step_bonus` counts today's activations at the
+moment a dish's steps resolve, which is what makes it a property of the day
+rather than of any one apple.
 """
 
 from __future__ import annotations
@@ -40,11 +59,20 @@ import json
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from . import experiments
+
 # The two constellations that sit outside the 0-49 partition table. Named here
 # only so :meth:`ConstellationsRegistry.sky_at` can find their records; their
 # star values (50 and 100) come from the data, never from a literal.
 INK_WELL_ID = "ink_well"
 SPIRAL_ID = "spiral_of_stars"
+
+# The ``effect.kind`` values :func:`apply_effect` dispatches on. Everything a
+# kind needs sits in the record's own ``effect`` block, so no constellation id
+# appears in the dispatch and a fourth kind is a data edit plus one ``case``.
+EFFECT_DRAFT_BIAS = "draft_bias"  # sets the day-scoped flag a category bias reads
+EFFECT_ENTRANCE_HALL_TRUNKS = "entrance_hall_trunks"  # spawns trunks in the Entrance Hall
+EFFECT_FOOD_STEP_BONUS = "food_step_bonus"  # raises one items.json dish's base step value
 
 
 @dataclass(frozen=True)
@@ -53,7 +81,10 @@ class Constellation:
 
     ``grant_resource``/``grant_amount`` mirror the record's ``grant`` block and
     are ``None``/0 on every record whose effect is not an immediate resource
-    delta. Every record carrying a grant is ``implemented``; the rest are not.
+    delta. ``effect_kind``/``effect`` mirror the record's ``effect`` block and
+    are ``None``/empty on every record that grants a resource instead. An
+    ``implemented`` record carries exactly one of the two (validate_data.py
+    enforces it), so a flipped flag can never mean a silent no-op activation.
     """
 
     id: str
@@ -64,6 +95,8 @@ class Constellation:
     implemented: bool
     grant_resource: str | None = None
     grant_amount: int = 0
+    effect_kind: str | None = None  # one of the EFFECT_* constants above, or None
+    effect: dict = field(default_factory=dict)  # that kind's payload, raw from JSON
 
 
 @dataclass
@@ -184,6 +217,8 @@ def load_constellations(data_dir: Path) -> ConstellationsRegistry:
             implemented=r.get("implemented", False),
             grant_resource=(r.get("grant") or {}).get("resource"),
             grant_amount=(r.get("grant") or {}).get("amount", 0),
+            effect_kind=(r.get("effect") or {}).get("kind"),
+            effect=dict(r.get("effect") or {}),
         )
         for r in doc["constellations"]
     )
@@ -254,3 +289,77 @@ def generate_sky(registry: ConstellationsRegistry, state, cell: int, source: str
     sky = NightSky(source=source, stars=state.stars, constellation_ids=shown)
     state.night_skies.setdefault(cell, []).append(sky)
     return sky
+
+
+def _times_applied(state, record: Constellation) -> int:
+    """Today's activations of ``record``, capped at 1 when it does not stack.
+
+    The multiplier for effects that are READ rather than written -- a bonus
+    counted at the moment it is spent, not banked when the constellation
+    fires. Written effects need the same rule expressed as a yes/no instead;
+    :func:`apply_effect` carries that one.
+    """
+    times = activation_count(state, record.id)
+    return times if record.stacks else min(times, 1)
+
+
+def apply_effect(game, record: Constellation) -> None:
+    """Apply one activation of ``record``'s ``effect`` block.
+
+    Called from Game.activate_constellation AFTER the activation is recorded
+    on its sky, so :func:`activation_count` already counts this one. Records
+    carrying a ``grant`` instead have no ``effect`` block and reach this as a
+    no-op; their payout goes through the shared effects/tier1.py::_grant path
+    at the call site, exactly as before.
+
+    Takes ``game`` duck-typed, no import of Game, for the same reason
+    experiments.py::apply_effect does: this module is imported by state.py and
+    must stay free of that cycle.
+    """
+    state = game.state
+    if record.effect_kind is None:
+        return
+    # A non-stacking record's second activation must not re-run anything
+    # additive -- the held Telescope's extra sky is documented as worth nothing
+    # for these. Setting a day-scoped flag twice would be harmless, but the
+    # guard belongs to every kind rather than to the ones that happen to
+    # notice, so it sits here and not inside a branch.
+    if not record.stacks and activation_count(state, record.id) > 1:
+        return
+    if record.effect_kind == EFFECT_DRAFT_BIAS:
+        # The condition tag is the join to the priority_draws.json
+        # category_biases entry that owns the magnitude; draft.py's
+        # _active_conditions re-derives the tag from these flags on every draw,
+        # so activation is a one-line write and the bias is already wired.
+        match record.effect["condition"]:
+            case "southern_cross_constellation":
+                state.southern_cross_active = True
+            case "draxus_constellation":
+                state.draxus_active = True
+    elif record.effect_kind == EFFECT_ENTRANCE_HALL_TRUNKS:
+        state.special.add_entrance_hall_trunks(
+            experiments.entrance_hall_trunk_cap(game.registry),
+            record.effect["trunks"])
+    # EFFECT_FOOD_STEP_BONUS deliberately writes nothing here:
+    # :func:`food_step_bonus` reads the activation count where a dish's steps
+    # resolve, so the bonus needs no counter of its own and applies to apples
+    # eaten before the activation as well as after -- which is what "apples are
+    # extra delicious today" says, a property of the day, not of the apple.
+
+
+def food_step_bonus(registry: ConstellationsRegistry, state, food_id: str) -> int:
+    """Extra base steps one serving of ``food_id`` gets from today's activations.
+
+    Data-keyed on the dish, so nothing here names apples: every record whose
+    ``effect`` is a ``food_step_bonus`` for this dish contributes its own
+    ``steps`` once per counted activation. Added to the dish's BASE, before
+    special_items.py::food_steps folds in the Salt Shaker and Silver Spoon --
+    see the Farmer's Apple record's note for the published worked example that
+    pins that order.
+    """
+    return sum(
+        record.effect.get("steps", 0) * _times_applied(state, record)
+        for record in registry.records
+        if record.effect_kind == EFFECT_FOOD_STEP_BONUS
+        and record.effect.get("food_id") == food_id
+    )

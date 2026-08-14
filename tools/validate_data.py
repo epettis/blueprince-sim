@@ -2094,20 +2094,27 @@ def main(argv: list[str] | None = None) -> int:
             errors.append(f"{where}: missing effect_text")
         if not isinstance(c.get("stacks"), bool):
             errors.append(f"{where}: stacks must be a bool, got {c.get('stacks')!r}")
-        if not c.get("implemented", False) and not c.get("meta", {}).get("blocked_on"):
+        implemented = c.get("implemented", False)
+        if not implemented and not c.get("meta", {}).get("blocked_on"):
             errors.append(f"{where}: implemented=false requires meta.blocked_on")
-        # An implemented constellation is exactly one whose effect is an
-        # immediate resource delta, and the delta lives here rather than in
-        # Python: engine/constellations.py hands this straight to
-        # effects/tier1.py::_grant. The biconditional is what stops a record
-        # being flipped implemented without a payload (a silent no-op
-        # activation) or carrying a payload nothing ever reads.
+        if implemented and c.get("meta", {}).get("blocked_on"):
+            errors.append(f"{where}: implemented records must not carry meta.blocked_on")
+        # An implemented constellation carries EXACTLY ONE payload, and the
+        # payload lives here rather than in Python: 'grant' for an immediate
+        # resource delta (handed to effects/tier1.py::_grant) or 'effect' for
+        # anything else (dispatched by engine/constellations.py::apply_effect).
+        # The biconditional is what stops a record being flipped implemented
+        # without a payload -- a silent no-op activation -- or carrying a
+        # payload nothing ever reads. Both at once would be ambiguous about
+        # what one activation does, so it is an error rather than a sum.
         grant = c.get("grant")
-        if c.get("implemented", False) != (grant is not None):
+        effect = c.get("effect")
+        payloads = [k for k, v in (("grant", grant), ("effect", effect)) if v is not None]
+        if implemented != (len(payloads) == 1):
             errors.append(
-                f"{where}: implemented and the presence of a 'grant' block must "
-                f"agree; got implemented={c.get('implemented', False)!r}, "
-                f"grant={grant!r}")
+                f"{where}: an implemented record must carry exactly one of 'grant' "
+                f"and 'effect', and an unimplemented one neither; got "
+                f"implemented={implemented!r} with {payloads or 'neither'}")
         if grant is not None:
             if grant.get("resource") not in TIER1_RESOURCES:
                 errors.append(
@@ -2117,8 +2124,39 @@ def main(argv: list[str] | None = None) -> int:
                 errors.append(
                     f"{where}/grant: amount must be a positive int, got "
                     f"{grant.get('amount')!r}")
-            if c.get("meta", {}).get("blocked_on"):
-                errors.append(f"{where}: implemented records must not carry meta.blocked_on")
+        if effect is not None:
+            # Each kind is checked against the file that OWNS the thing it
+            # names, which is the whole point of keeping the payload in data:
+            # a draft_bias whose condition tag no longer has a category_biases
+            # entry would activate a bias that can never fire, and a
+            # food_step_bonus naming a dish that is not in items.json would
+            # silently never apply.
+            kind = effect.get("kind")
+            match kind:
+                case "draft_bias":
+                    if effect.get("condition") not in active_condition_tags:
+                        errors.append(
+                            f"{where}/effect: condition "
+                            f"{effect.get('condition')!r} has no priority_draws.json "
+                            f"category_biases entry to activate")
+                case "entrance_hall_trunks":
+                    trunks = effect.get("trunks")
+                    if not isinstance(trunks, int) or trunks <= 0:
+                        errors.append(
+                            f"{where}/effect: trunks must be a positive int, got {trunks!r}")
+                case "food_step_bonus":
+                    if effect.get("food_id") not in dishes:
+                        errors.append(
+                            f"{where}/effect: food_id {effect.get('food_id')!r} is not "
+                            f"in items.json food.dishes")
+                    steps = effect.get("steps")
+                    if not isinstance(steps, int) or steps <= 0:
+                        errors.append(
+                            f"{where}/effect: steps must be a positive int, got {steps!r}")
+                case _:
+                    errors.append(
+                        f"{where}/effect: unknown kind {kind!r}; "
+                        f"engine/constellations.py::apply_effect would ignore it")
 
     # The two constellations outside the 0-49 table. Both are inert: the Ink
     # Well spends stars to redraw and the Spiral grows a word per generated

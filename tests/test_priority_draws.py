@@ -7,9 +7,10 @@ verbatim: "It is also unaffected by the Southern Cross"). The raw
 ``"layout": "cross"`` selector in data/priority_draws.json matches all 19
 cross-layout rooms, so this pins the ``exclude_rooms``/``exclude_upgrade_variants``
 mechanism added to that entry and to the ``_apply_category_bias`` predicate in
-engine/draft.py that reads it. The bias is otherwise inert (nothing sets
-``state.southern_cross_active`` yet), so nothing else in the suite would catch
-a mistake here.
+engine/draft.py that reads it. Nothing else in the suite would catch a mistake
+here: the tests that drive a real Southern Cross activation
+(tests/test_constellations.py) measure the four-door rate in aggregate, which
+three exempt rooms out of nineteen would not visibly move.
 """
 
 from __future__ import annotations

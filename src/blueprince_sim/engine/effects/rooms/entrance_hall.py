@@ -1,11 +1,12 @@
 """Entrance Hall: provides its container-kinds overlay.
 
 registry.special.containers["rooms"] carries no static Entrance Hall entry
--- every trunk here comes from ``state.special.entrance_hall_trunks``,
-bumped by the entrance_hall_trunk experiment effect (experiments.py::
-apply_effect, capped at 17). Reuses the existing ``trunk`` containers.kinds
-entry rather than a distinct kind, per the wiki: "There is no difference
-between a 'small chest' and a regular trunk."
+-- every trunk here comes from ``state.special.entrance_hall_trunks``, which
+two unrelated sources bump under one shared cap: the entrance_hall_trunk
+experiment effect (experiments.py::apply_effect) and The Twins constellation
+(constellations.py::apply_effect). Reuses the existing ``trunk``
+containers.kinds entry rather than a distinct kind, per the wiki: "There is
+no difference between a 'small chest' and a regular trunk."
 """
 
 from __future__ import annotations
