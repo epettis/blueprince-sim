@@ -1819,9 +1819,7 @@ function renderPlayActions() {
   // An empty list here has two very different meanings: mid-draft, every
   // legal action moved into the Draft options panel above (nothing is
   // actually wrong); with no draft open, an empty list means the day truly
-  // has nowhere left to go. Conflating them previously said "day is over"
-  // while a draft was in progress, which is exactly the kind of unexplained-
-  // absence the redraw control was rewritten to stop doing.
+  // has nowhere left to go. The two cases must stay distinguished below.
   const emptyMsg = pending
     ? '<p class="dim">all legal actions are in the Draft options panel above</p>'
     : '<p class="dim">no legal actions — day is over</p>';

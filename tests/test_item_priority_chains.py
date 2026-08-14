@@ -1,11 +1,9 @@
-"""Characterisation tests for task 22 phase 4: pin today's item-conflict
-arithmetic in special_items.py's six priority/fold functions before any of
-their per-item logic moves into engine/effects/items/. These must pass
-unchanged before and after the migration -- if one needs editing afterwards,
-the migration changed behaviour, not just its location.
+"""Characterisation tests pinning special_items.py's item-conflict priority
+arithmetic: gem_cost_modifier, move_step_cost, on_coins_granted, and the
+stopwatch_waives_gems payment guard.
 
-Each test targets one conflict a priority order (or, for food_steps, a fixed
-pipeline order) decides between two simultaneously-held items.
+Each test targets one conflict a priority order decides between two
+simultaneously-held items.
 """
 
 from __future__ import annotations

@@ -376,12 +376,9 @@ def test_config_digest_is_stable_across_a_fresh_process():
 def test_config_digest_round_trips_across_a_multiday_chain():
     """config_for_record's reconstructed GameConfig must hash to the exact
     digest its own record was stamped with, independently for every day of a
-    multi-day chain -- the regression test for the draft_counts dict-diff
-    fix landing just before this digest: draft_counts is the only dict-typed
-    GameConfig field, and before that fix it silently dropped out of every
-    day_config diff, so a reconstructed day-2+ config would have differed
-    from the live one even though nothing here inspects draft_counts
-    directly."""
+    multi-day chain, for every dict-typed GameConfig field as well as the
+    scalar ones -- nothing here inspects those fields directly, so this only
+    holds if config_for_record's diffing reconstructs them correctly too."""
     records = synthetic_demo_records("all", "shaped", n_days=3, seed=40, action_rng_seed=3)
     assert len(records) == 3
     for record in records:
