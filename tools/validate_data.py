@@ -76,7 +76,12 @@ KNOWN_ITEM_EFFECT_TAGS = {
     "metal_detector_spawns", "auto_collect", "mask_red_room", "paper_crown",
     "set_steps_on_pickup", "steps_at_rank", "negate_red_once_per_day",
     "allowance", "battery_pack",
-    # PR2+ / inert tags
+    # "smash", "crown_of_blueprints", and "locksmith_rob" ARE read as tags
+    # (item.effect()/_has_item_effect() in shops.py and special_items.py, and
+    # crown_of_the_blueprints.py's own item.effect(TAG) check). The rest of
+    # this group are inert as *tags*: their items work through other paths
+    # (inventory held()-checks, ItemCapability registration, or an
+    # item_rules data table) rather than through a SpecialItem.effect() read.
     "smash", "repellent", "scepter",
     "crown_of_blueprints", "gear_wrench", "dowsing_rod", "locksmith_rob",
     # Multi-day carry-over (PR2 item persistence)
