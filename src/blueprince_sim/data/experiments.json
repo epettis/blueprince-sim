@@ -5,7 +5,7 @@
   "confidence": "wiki",
   "notes": [
    "The Laboratory/Experiments subsystem lives in engine/experiments.py: the setup terminal, pause/resume, the generic cap and day_gate machinery, and effect application. Records carrying 'implemented': true are live; the rest are inert and carry meta.blocked_on naming what each still needs. Live triggers fire from engine/experiments.py (immediately), Game._place_room via on_room_drafted (the five draft-site triggers), special_items.open_container (trunks_opened) and two sites in game.py (security_door). See docs/experiments-design.md for the phase plan and its Status section for the current live counts -- that section, not this note, is the one kept in step with each PR.",
-   "Deliberately never modelled, at any future phase (see docs/experiments-design.md): the 40-second real-time trigger and the map-view trigger (no wall-clock or interactive map action in this simulator); the setup-menu reroll timing exploit (revisiting the Experimental Setup menu before committing to reroll the three-of-each draw -- a UI-timing exploit, not a data rule); Blessing of the Tinkerer cross-triggers (any active experiment also triggers whenever a Mechanical Room is drafted, independent of the chosen trigger -- a global modifier on the whole subsystem, not a per-record rule); radiation level (a hidden daily counter, incremented by every successful trigger, that gates the Shelter terminal's unlock-all-doors ability -- Shelter/radiation are out of scope); Dare Mode (an alternate, harder experiments ruleset documented on a separate wiki subpage); Research Logs (an in-fiction in-game log of experiment activation history, not a mechanical system)."
+   "Deliberately never modelled, at any future phase (see docs/experiments-design.md): the 40-second real-time trigger and the map-view trigger (no wall-clock or interactive map action in this simulator); the setup-menu reroll timing exploit (revisiting the Experimental Setup menu before committing to reroll the three-of-each draw -- a UI-timing exploit, not a data rule); radiation level (a hidden daily counter, incremented by every successful trigger, that gates the Shelter terminal's unlock-all-doors ability -- Shelter/radiation are out of scope); Dare Mode (an alternate, harder experiments ruleset documented on a separate wiki subpage); Research Logs (an in-fiction in-game log of experiment activation history, not a mechanical system)."
   ]
  },
  "mechanic": {
@@ -64,7 +64,7 @@
     "confidence": "wiki",
     "blocked_on": null,
     "notes": [
-     "All Shops count. Can loop with the Aquariums effect. With Blessing of the Tinkerer active, drafting the Electric Eel Aquarium triggers this twice (most triggers do not double this way) -- a cross-trigger interaction, deliberately not modelled per the phase 0 scope note on Blessing of the Tinkerer."
+     "All Shops count. Can loop with the Aquariums effect. With Blessing of the Tinkerer active, drafting the Electric Eel Aquarium triggers this twice (most triggers do not double this way): effects/rooms/shrine.py fires trigger_success on every Mechanical Room draft while the blessing holds, and the Aquarium chain then fires this record on its own terms."
     ]
    }
   },
