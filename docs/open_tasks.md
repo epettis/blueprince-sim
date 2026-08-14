@@ -855,6 +855,151 @@ around 1,800 LOC.
 
 ## Decisions log
 
+- **2026-08-13, BOTH remaining "subsystem-blocked" blockers re-derived, and both
+  are wrong -- in opposite directions.**
+
+  Re-derived on the strength of the session's record: three `blocked_on` strings
+  had already turned out to name mechanics the game does not have. Neither of
+  these two survived either.
+
+  **`telescope` is OVER-SCOPED, twice.**
+  1. **It has two independent uses and the blocker names one.** The
+     **Planetarium arm** -- a permanent, once-per-day, non-consuming room upgrade
+     unlocking a planet that grants a fixed item (Dauja->Trunk, Fennmora->Apple,
+     Mamora->Ivory Die, Veia->Dirt Pile, Mora->Prism Key, Mora always last) --
+     touches no stars, no night skies, no constellations. **Buildable today on
+     existing primitives. M, not L.**
+  2. **"Constellation activation" is not a missing subsystem.** It is a
+     published data table dispatched over primitives that already exist.
+     Enumerated all eleven: nine map onto `tier1._grant`, the food-steps
+     pipeline, or an existing green-room grant, and **two are already wired and
+     reachable** -- `southern_cross_active` and `draxus_active` are LOADed at
+     `draft.py:326,328` and STOREd **only in tests**. That is one missing
+     *source*, not a subsystem.
+
+  **The star table is published, complete for 0-49, and self-validating.**
+  Reconstructed from the per-constellation appearance lists and checked against
+  the wiki's own invariant ("the total stars of those constellations always
+  equalling the player's star count"): **49 of 50 counts partition exactly**, and
+  the single exception is the one the wiki documents (0 stars still shows the
+  North Star). A validator can assert that invariant.
+
+  **`file_cabinet_key` is the reverse: the blocker is literally true and
+  entirely beside the point.** Its whole mechanically-relevant payload is **one
+  Upgrade Disk that the assumed-solved doctrine already grants**
+  (`upgrade_disk_archives`, `implemented: true`, `guaranteed_in: ["archives"]`,
+  whose own note says so). The other two of the three keys yield newspaper
+  clippings and a letter -- lore, and this sim has no document layer by standing
+  ruling -- and one lives in the **Crate Tunnel, ruled out of scope three
+  separate times**. **Implementing it would only add a gate the assumed-solved
+  doctrine exists to remove.** Fully built, it moves an agent's expected value
+  by **zero**, and would cost the entire Pump Room water subsystem
+  (~800-1200 lines, an action-width change, an obs-width change, a retrain) to
+  do it.
+
+  **So it is not blocked work -- it is a decision nobody wrote down**, carried
+  as work-in-waiting across five separate entries in this file. **Recommended:
+  reclassify to `meta.wont_implement`**, exactly as the Magnifying Glass and Key
+  of Aries were. The validator already enforces the pairing and
+  `test_wont_implement_items_carry_a_reason_and_no_blocker` is the existing
+  guard, so it is **a data edit with no new test**: real backlog 5 -> 4 without a
+  line of engine code. **Owner ruling outstanding.**
+
+  **A FOURTH failure mode for the catalogue.** The three earlier ones named
+  mechanics that do not exist. `dowsing_rod`'s was *literally true but
+  materially misleading* -- a real gap filed under "a subsystem is missing",
+  making it look far larger than it was. `file_cabinet_key`'s is the same shape
+  and worse: **a decision mis-filed as a blocker.** A blocker says "cannot yet";
+  a decision says "will not". Filing the second as the first keeps dead work
+  alive forever and inflates the backlog.
+
+  **Two live defects found in passing, neither part of either item:**
+  - **The day-20/21 sale applied to all EIGHT shops** (`stock_display` computed
+    `is_sale` with no `shop_id` filter). The wiki: *"This sale is unique to the
+    Commissary ... and does not apply to other Shops."* Fixed.
+  - **The Planetarium's 2 stars fire on ENTRY, not on ending the day there.**
+    `rooms.json` grants them via `tier1.grant` on `Hook.ON_ENTER`; the wiki gates
+    them on *"If you call it a day in PLANETARIUM."* **`Hook.ON_DAY_END` exists,
+    is fired for the room the player stands in, and an AST decorator scan across
+    all of `engine/effects/` finds ZERO handlers registered on it** -- a live,
+    never-used capability. Queued.
+  - Also: `file_cabinet_key` **spawns today**, gated on nothing, eating
+    probability mass from the Aquarium's real item roll, and its
+    `persistence: "until_used"` means it returns every day forever as a dead
+    inventory slot. Couples to the reclassification ruling.
+
+- **2026-08-13, four varieties of a test hiding the bug it covers -- all four
+  found today, and each was invisible until something adjacent forced the
+  question.**
+
+  Worth recording as a set, because the shapes are distinct and only the first
+  is the one this repo already knew about:
+
+  1. **Passing BECAUSE of the bug.** Three category-bias tests
+     (`schoolhouse`, `scepter green`, `library->bookshop`) targeted gem-cost
+     rooms from a rank/gem cell where the real table gives ~0%. They passed only
+     because the free/gem size-sort over-delivered gem rooms at low rank.
+  2. **A helper EXPLOITING the bug** to construct its scenario.
+     `test_experiments.py::_force_drawing_room_dealable` trimmed the free deck
+     below the gem deck's count so the size-sort would try gem first.
+  3. **A helper DOCUMENTING the bug** as its reason for a workaround.
+     `tests/test_locks.py::_place_and_stand` set `keys = 5`, and its docstring
+     named the budget-check defect outright. Removing the crutch made **9
+     pre-existing tests** fail without the fix.
+  4. **A test ASSERTING the bug as correct.**
+     `test_trophy_purchase_price_respects_sale_day` pinned the Showroom trophy at
+     50 on a sale day -- the defect, encoded as the expected value.
+
+  **Generalisable: a green suite is evidence about the tests, not only about the
+  code.** When a fix makes tests fail, the first question is which of these four
+  it is -- and only variety 1 is repaired by rebuilding a setup. Variety 4 needs
+  the assertion inverted; varieties 2 and 3 need the crutch removed, which is
+  what proves the bug was real.
+
+- **2026-08-13, the locked-door legality rule was written FOUR times and had
+  drifted in three of them.**
+
+  The rule "can this locked doorway be opened" existed in: the action mask
+  (fixed #234), `doorway_passable`, `frontier_doorway_triable` (#246 unified two
+  of them deliberately), and **`_action_in_budget`'s end-of-day check**, which
+  was missed. That fourth copy carried **two errors in opposite directions** on
+  one line: it counted only regular keys (so a Master Key holder at zero keys
+  could have the day end with an openable door in reach) and hardcoded a cost of
+  `1` instead of `lock_open_cost` (so a 3-key Great Hall door read as costing
+  one). A **third** divergence -- the Stopwatch refund, honoured by
+  `can_use_key_at_lock` -- was found during review of the fix itself and closed
+  in the same PR.
+
+  **The durable output is not the fix.**
+  `test_frontier_lock_affordability_agrees_with_the_lock_pending_menu` now pins
+  **all four** affordability paths against what the menu actually accepts. **A
+  rule written N times needs an agreement test, not N careful edits.**
+
+  **Also recorded:** `_nav_bfs` models only the Master Key for path costs, never
+  the Stopwatch, so `path_key_cost` is deliberately not refund-adjusted --
+  doing so would require simulating one global charge depleting in walk-order
+  across every locked door en route. A separate pre-existing gap in
+  `key_cost_map`.
+
+- **2026-08-13, `prism_key` needed no new action id, because the locked-door PR
+  had reserved one.** Its blocker (`special_key_menu_choice_not_modeled`) was
+  discharged by `Phase.LOCK_PENDING`, which appended nine ids including three
+  **reserved and permanently masked** for keys not yet buildable. Making the
+  Prism Key row live was un-reserving exactly one. `N_ACTIONS` stayed **436**.
+
+  **Reserving ids for known-future rows is cheap and it worked** -- a reserved
+  id costs one permanently-False mask slot and never shifts later. `key_8` and
+  `secret_garden_key` stay reserved: both are modelled here as
+  `draft_conditions` tags, **not door keys at all**, so their menu behaviour is
+  unimplemented in *both* directions.
+
+  Its colour is never a player pick, so it threads a colour through
+  `_continue_draft` rather than entering `COLOUR_PENDING`, whose mask offers all
+  five colours for the Secret Passage's genuine choice. **A consequence falls
+  out for free:** `_continue_draft` takes the Secret-Passage branch only when
+  `colour is None`, so a Prism Key used on a Secret Passage door **takes
+  priority**, which is exactly what the wiki specifies.
+
 - **2026-08-13, THE LUCK MODEL IS BEING REBUILT. Four owner rulings, and the
   discovery that the sim's luck axis is largely invented.**
 
