@@ -34,6 +34,7 @@ from blueprince_sim.engine.effects import (
     validate_item_registry,
     validate_room_registry,
 )
+from blueprince_sim.engine.effects.tier1 import RESOURCES as TIER1_RESOURCES
 from blueprince_sim.engine.model import Registry
 
 DATA = Path(__file__).resolve().parent.parent / "src" / "blueprince_sim" / "data"
@@ -2050,6 +2051,25 @@ def main(argv: list[str] | None = None) -> int:
         dupes = sorted({i for i in con_ids if con_ids.count(i) > 1})
         errors.append(f"constellations: duplicate ids: {dupes}")
 
+    # The two published per-day caps (Observatory/Multiple's SpoilerBox). They
+    # are separate rules: 8 is how many skies can be viewed, 7 is how many of
+    # them can hold constellations, and an eighth sky is viewable-but-empty.
+    # Checked here so neither can quietly become a Python constant, and so the
+    # ordering that makes the empty eighth sky reachable at all is asserted.
+    con_max_skies = con_doc.get("max_skies_per_day")
+    con_max_con_skies = con_doc.get("max_constellation_skies_per_day")
+    for label, value in (("max_skies_per_day", con_max_skies),
+                         ("max_constellation_skies_per_day", con_max_con_skies)):
+        if not isinstance(value, int) or value <= 0:
+            errors.append(f"constellations/{label}: must be a positive int, got {value!r}")
+    if isinstance(con_max_skies, int) and isinstance(con_max_con_skies, int):
+        if con_max_con_skies > con_max_skies:
+            errors.append(
+                f"constellations: max_constellation_skies_per_day "
+                f"({con_max_con_skies}) cannot exceed max_skies_per_day "
+                f"({con_max_skies}) -- a sky that cannot be viewed cannot hold "
+                f"constellations")
+
     # Record order is the action-block and obs-vector order (env/actions.py's
     # ACTIVATE_CONSTELLATION_BASE), so a reorder would silently repoint every
     # id -- strictly ascending stars pins it to one arrangement.
@@ -2076,6 +2096,29 @@ def main(argv: list[str] | None = None) -> int:
             errors.append(f"{where}: stacks must be a bool, got {c.get('stacks')!r}")
         if not c.get("implemented", False) and not c.get("meta", {}).get("blocked_on"):
             errors.append(f"{where}: implemented=false requires meta.blocked_on")
+        # An implemented constellation is exactly one whose effect is an
+        # immediate resource delta, and the delta lives here rather than in
+        # Python: engine/constellations.py hands this straight to
+        # effects/tier1.py::_grant. The biconditional is what stops a record
+        # being flipped implemented without a payload (a silent no-op
+        # activation) or carrying a payload nothing ever reads.
+        grant = c.get("grant")
+        if c.get("implemented", False) != (grant is not None):
+            errors.append(
+                f"{where}: implemented and the presence of a 'grant' block must "
+                f"agree; got implemented={c.get('implemented', False)!r}, "
+                f"grant={grant!r}")
+        if grant is not None:
+            if grant.get("resource") not in TIER1_RESOURCES:
+                errors.append(
+                    f"{where}/grant: resource must be one of "
+                    f"{sorted(TIER1_RESOURCES)}, got {grant.get('resource')!r}")
+            if not isinstance(grant.get("amount"), int) or grant.get("amount") <= 0:
+                errors.append(
+                    f"{where}/grant: amount must be a positive int, got "
+                    f"{grant.get('amount')!r}")
+            if c.get("meta", {}).get("blocked_on"):
+                errors.append(f"{where}: implemented records must not carry meta.blocked_on")
 
     # The two constellations outside the 0-49 table. Both are inert: the Ink
     # Well spends stars to redraw and the Spiral grows a word per generated

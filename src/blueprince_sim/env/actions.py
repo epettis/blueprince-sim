@@ -881,15 +881,20 @@ def action_mask(game: Game, prev_action: int | None = None) -> list[bool]:
     if prev_action is not None and SET_LEVEL_BASE <= prev_action < SET_LEVEL_BASE + 3:
         for i in range(3):
             mask[SET_LEVEL_BASE + i] = False
-    # The constellation block is reserved: no night sky is generated anywhere
-    # in the engine, so none of these ids can ever be pressed. They are written
-    # here rather than left to the `[False] * N_ACTIONS` initialiser so every
-    # declared id has a masking site to point at (docs/rl-environment.md's
-    # rule on reserved versus dead ids) -- this is the site, and it always
-    # writes False.
+    # Night sky. Written here rather than inside the NAVIGATE branch above
+    # because each Game predicate tests the phase itself -- which keeps every
+    # declared id at exactly one masking site (docs/rl-environment.md's rule on
+    # reserved versus dead ids).
+    #
+    # The eight unimplemented constellations come back False from
+    # can_activate_constellation's own ``implemented`` test, so this loop needs
+    # no skip list: data/constellations.json stays the single source for which
+    # ids are live, and flipping a record's ``implemented`` is all it takes.
     for i in range(_N_CONSTELLATIONS):
-        mask[ACTIVATE_CONSTELLATION_BASE + i] = False
-    mask[VIEW_NIGHT_SKY_ACTION] = False
+        mask[ACTIVATE_CONSTELLATION_BASE + i] = game.can_activate_constellation(i)
+    mask[VIEW_NIGHT_SKY_ACTION] = game.can_view_night_sky()
+    # Still reserved: spending a star to redraw the hand (The Ink Well) has no
+    # engine path, and the constellation offering it is implemented: false.
     mask[REDRAW_WITH_STAR_ACTION] = False
     return mask
 
@@ -1019,6 +1024,10 @@ def apply_action(game: Game, action: int) -> None:
         game.set_wrench_rarity(action - WRENCH_RARITY_BASE)
     elif action == USE_TELESCOPE_PLANETARIUM_ACTION:
         game.use_telescope_planetarium()
+    elif ACTIVATE_CONSTELLATION_BASE <= action < VIEW_NIGHT_SKY_ACTION:
+        game.activate_constellation(action - ACTIVATE_CONSTELLATION_BASE)
+    elif action == VIEW_NIGHT_SKY_ACTION:
+        game.view_night_sky()
     else:
         raise ValueError(f"unimplemented action {action}")
 
@@ -1194,4 +1203,9 @@ def describe_action(game: Game, action: int) -> str:
         return f"set Gear Wrench rarity: {rarity}"
     if action == USE_TELESCOPE_PLANETARIUM_ACTION:
         return "use Telescope in Planetarium"
+    if ACTIVATE_CONSTELLATION_BASE <= action < VIEW_NIGHT_SKY_ACTION:
+        record = game.registry.constellations.records[action - ACTIVATE_CONSTELLATION_BASE]
+        return f"activate constellation: {record.name}"
+    if action == VIEW_NIGHT_SKY_ACTION:
+        return "view the night sky"
     return f"action {action}"
