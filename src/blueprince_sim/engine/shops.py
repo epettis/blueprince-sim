@@ -33,7 +33,7 @@ SCEPTER_COLORS = ("blueprint", "green", "red", "bedroom", "hallway", "shop")
 
 @dataclass(frozen=True)
 class ShopsRegistry:
-    sale: dict  # "sale" section: days on which prices halve (round up)
+    sale: dict  # "sale" section: days + shop ids on which prices halve (round up)
     trading: dict  # "trading" section: trades_per_day, dice_chance, t5_special_chance
     shops: dict  # room id -> shop table (stock entries, special_key roll, tiers)
 
@@ -383,8 +383,8 @@ def stock_display(game, shop_id: str) -> list:
     if shop_id not in state.shops.stock:
         return []
 
-    sale_days = game.registry.shop_rules.sale.get("days", [])
-    is_sale = state.day in sale_days
+    sale = game.registry.shop_rules.sale
+    is_sale = state.day in sale.get("days", []) and shop_id in sale.get("shops", [])
     discount = item_capability_sum(state, game.registry, ItemCapability.SHOP_DISCOUNT, "amount")
 
     stored = state.shops.stock[shop_id]

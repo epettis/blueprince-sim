@@ -3,7 +3,11 @@
   "days": [
    20,
    21
-  ]
+  ],
+  "shops": [
+   "commissary"
+  ],
+  "_note": "This sale is unique to the Commissary; the wiki is explicit that it does not apply to other Shops (independent of the Sail Sale, which is a separate, unmodeled per-shop mechanic)."
  },
  "trading": {
   "trades_per_day": 20,
