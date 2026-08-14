@@ -1435,7 +1435,7 @@ class Game:
               cfg/state terms are what make it permanent on this and later days.  Gates
               grounds<->sealed_entrance<->basement (docs/areas.md).  Owner decision: broken
               is broken, unconditionally -- the wiki's plank-vs-wall permanence distinction
-              is deliberately not modelled (see docs/open_tasks.md decisions log).
+              is deliberately not modelled (docs/areas.md's "Sealed Entrance permanence").
           "candlestick_stairway_lit" -- the player has lit the Abandoned Mine (South)'s
               eight candlesticks (the "mine_south" ignition target in special_items.json,
               flagged "area": true since mine_south has no rooms.json record).  Permanent
@@ -1446,14 +1446,14 @@ class Game:
               on the first real room entry (special_items.on_enter), so a mask built
               before that first entry would otherwise see it as unset.  Gates BOTH
               mine_south<->precipice edges: the stairway is a single physical structure
-              the player lowers from inside the mine, not a front door (docs/areas.md;
-              owner correction, see docs/open_tasks.md).
+              the player lowers from inside the mine, not a front door -- owner correction,
+              docs/areas.md's "Corrections already applied".
           "boiler_room_steam" -- carried in from cfg, OR earned today the moment the
               player first enters the Boiler Room.  Same OR-from-cfg-or-state shape as
               west_gate_unlatched (a plain top-level GameState field, never lazily
               seeded the way state.special.lit_targets is, so checking cfg directly
               is already correct before any room is entered on a later day).
-              Permanent once entered (owner decision, see docs/open_tasks.md:
+              Permanent once entered (owner decision, docs/areas.md's "graduated" section:
               "assume the player unlocks this room permanently after entering the
               Boiler Room").  Gates Underpass -> Upper Rotating Gear.
           "grotto_chip_in_place" -- the Blackbridge Grotto pedestal's own microchip has
@@ -1678,13 +1678,13 @@ class Game:
                 if self.cfg.special_items:
                     special_items.on_area_arrival(self, dest)
             # Upper Rotating Gear: grants the gem and the Treasure Trove blackprint
-            # (owner spec, see docs/open_tasks.md). Unlike the Abandoned Mine
+            # (owner spec, docs/areas.md). Unlike the Abandoned Mine
             # (South) Upgrade Disk above, neither grant is an inventory item,
             # so this call is unconditional -- not gated on cfg.special_items.
             if dest == "upper_rotating_gear":
                 special_items.on_area_arrival(self, dest)
             # Orindian Ruins: grants the Throne Room blueprint permanently
-            # (owner spec, docs/open_tasks.md). Not an inventory item, so this
+            # (owner spec, docs/areas.md). Not an inventory item, so this
             # call is unconditional -- not gated on cfg.special_items, same
             # shape as Upper Rotating Gear above.
             if dest == "orindian_ruins":
@@ -1707,8 +1707,8 @@ class Game:
             # passed (via the flag or a held Power Hammer), so this is the one
             # place that needs to latch it for the rest of the attempt. Owner
             # decision: unconditionally permanent, no plank-vs-wall distinction
-            # (see docs/open_tasks.md). Recorded on STATE, never on cfg -- same
-            # shape as west_gate_unlatched/mine_south_visited.
+            # (docs/areas.md's "Sealed Entrance permanence"). Recorded on STATE,
+            # never on cfg -- same shape as west_gate_unlatched/mine_south_visited.
             if dest == "sealed_entrance":
                 st.sealed_entrance_broken = True
             # Inner Sanctum main lever: opens the Antechamber's north door.

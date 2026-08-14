@@ -260,9 +260,12 @@ def item_provides(item_id: str, capability: ItemCapability, **params) -> None:
     ENGINE owns folding that data over the held inventory (see
     ``item_capability_sum``) and the order in which multiple items'
     contributions combine, rather than each item module registering a
-    handler function the way ``room_hook`` does for rooms. Items have no
-    natural event boundary the way a room's "player is standing in it" does,
-    so there is no hook to register a handler for.
+    handler function the way ``room_hook`` does for rooms. This is a
+    deliberate divergence, not a limitation of items: ``item_hook``/
+    ``ItemHook`` below gives items real event handlers for behaviour that
+    needs one. A capability registered here is one the engine folds instead,
+    because it is overwhelmingly "ask every held item whether it changes N"
+    rather than a single event to dispatch.
     """
     _ITEM_CAPABILITY_REGISTRY[(item_id, capability)] = params
 

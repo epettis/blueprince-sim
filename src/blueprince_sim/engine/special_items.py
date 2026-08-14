@@ -743,7 +743,7 @@ def on_area_arrival(game, area_id: str) -> None:
       (docs/areas.md) — obtainable without an ignition tool, unlike the
       candlesticks that separately open the Precipice stairway.
     - Upper Rotating Gear's gem and Treasure Trove blackprint (owner spec,
-      see docs/open_tasks.md). Neither is an inventory item, so neither uses
+      see docs/areas.md). Neither is an inventory item, so neither uses
       ``grant``/``_is_available``: the gem is a plain
       ``state.gems`` bump guarded by a per-day flag (once per day, not once
       ever — a fresh ``GameState`` resets the guard every day), and the

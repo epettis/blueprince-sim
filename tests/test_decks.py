@@ -239,9 +239,9 @@ def test_axing_a_room_never_moves_its_cards_between_decks(registry):
     of the day, on top of letting the axed room be dealt into slot 0 (which
     must always be a statically-free room). kitchen is deck-resident
     (pool == "base"), so a wrongly-implemented bucket move is actually
-    exercised by this test, not a no-op (the Crown PR's own first version of
-    this guard forced an upgrade_variant room, which is never deck-resident
-    at all, so its mutation test was theatre -- see docs/open_tasks.md)."""
+    exercised by this test, not a no-op -- an upgrade_variant room is never
+    deck-resident, so a guard built on one would be theatre (see
+    docs/special-items-behaviour.md's Axe section)."""
     room = registry.by_id["kitchen"]
     assert room.pool == "base", "must be deck-resident for this guard to mean anything"
     assert room.gem_cost > 0

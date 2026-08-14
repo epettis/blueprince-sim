@@ -9,7 +9,7 @@
    "Day 13-21's weights are published in nineteenths (2/19, 6/19, 4/19, 7/19), not percent -- verified against the live wiki page, not a transcription artefact. Stored here as the raw integer numerators; Rng.roll_weighted divides by the weights' own sum, so they need no rescaling to 100.",
    "Also published: 'If an item is not in the item pool when the items spawn (when the dartboard puzzle is solved), the fallback priority is Keycard -> 2 keys.' billiard_room.py generalises this to every rolled outcome (not just Secret Garden Key/Silver Key): a rolled Keycard that is already held falls back to 2 keys the same way.",
    "The wiki's 2-key reward is a plain 'basic keys' pair, i.e. state.keys += 2, not a special/door-specific key -- see the possible-items line 'A pile of 2 keys - most commonly' is the modal outcome in the two earliest bands.",
-   "Not modelled here: the Bullseye Trophy (the 40th lifetime dartboard solve) -- a save-scoped counter, unruled; see docs/open_tasks.md's scoping pass."
+   "Not modelled here: the Bullseye Trophy (the 40th lifetime dartboard solve) -- a save-scoped counter, unruled."
   ]
  },
  "once_per_day": true,
