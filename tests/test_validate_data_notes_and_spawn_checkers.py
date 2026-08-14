@@ -262,11 +262,7 @@ def test_real_data_notes_decay_findings_are_exactly_the_three_known_ones():
     findings = find_notes_decay_findings(
         si_doc["items"], si_doc.get("_notes", []), area_by_id, wiki_locations)
 
-    assert len(findings) == 3
-    joined = "\n".join(findings)
-    assert "magnifying_glass" in joined and "spawn_rooms_high_luck" in joined
-    assert "car_keys" in joined and "wiki lists 15 rooms" in joined
-    assert "master_key.guaranteed_in=" in joined
+    assert findings == [], "\n".join(findings)
 
 
 # ────────────────────────── wiki snapshot / room-name plumbing ──────────────
@@ -432,10 +428,7 @@ def test_real_data_spawn_table_flags_exactly_telescope():
 
     findings = find_spawn_table_findings(si_items, rooms, wiki_locations)
 
-    assert len(findings) == 2
-    assert all("telescope" in f for f in findings)
-    assert any("'lost_and_found'" in f for f in findings)
-    assert any("'trading_post'" in f for f in findings)
+    assert findings == [], "\n".join(findings)
 
 
 # ────────────────────── necessity guard (real data) ─────────────────────────

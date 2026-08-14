@@ -108,31 +108,12 @@ def item_hook_probe():
 
 # ────────────────────── wiring: main() calls all four ──────────────────────
 
-# The notes-decay and spawn-table checkers (special_items.json's meta.notes/
-# _notes corpus against tools/raw/wiki_item_locations.tsv; see
-# tests/test_validate_data_notes_and_spawn_checkers.py for each finding on its
-# own) currently pin 5 real errors against live data, unrelated to the four
-# registries this file exercises -- every "clean baseline" below means
-# exactly these 5 and none of the four registries' own errors.
-_KNOWN_REAL_ERROR_COUNT = 5
 
-
-def _assert_clean_baseline(capsys):
-    """A bare run's only errors are the currently-known real ones -- none of
-    the four registries below are contributing an error of their own."""
-    rc = main([])
-    out = capsys.readouterr().out
-    assert rc == 1
-    assert out.count("ERROR:") == _KNOWN_REAL_ERROR_COUNT
-    assert _BOGUS_ID not in out
-
-
-def test_main_is_clean_on_real_data(capsys):
-    """Sanity baseline: with no probes registered, a bare run's error count is
-    exactly the currently-known real one -- every test below mutates a
-    module-global registry and must leave this true again once its probe is
-    torn down."""
-    _assert_clean_baseline(capsys)
+def test_main_is_clean_on_real_data():
+    """Sanity baseline: with no probes registered, a bare run exits 0 -- every
+    test below mutates a module-global registry and must leave this true
+    again once its probe is torn down."""
+    assert main([]) == 0
 
 
 def test_main_flags_a_bogus_room_hook_registration(capsys, room_hook_probe):
@@ -147,7 +128,7 @@ def test_main_flags_a_bogus_room_hook_registration(capsys, room_hook_probe):
     assert "room_hook" in out
 
     _ROOM_REGISTRY.pop((_BOGUS_ID, Hook.ON_ENTER), None)
-    _assert_clean_baseline(capsys)
+    assert main([]) == 0, "reverting the mutation must restore a clean run"
 
 
 def test_main_flags_a_bogus_capability_registration(capsys, capability_probe):
@@ -161,7 +142,7 @@ def test_main_flags_a_bogus_capability_registration(capsys, capability_probe):
     assert "provides" in out
 
     _CAPABILITY_REGISTRY.discard((_BOGUS_ID, Capability.COMMERCE))
-    _assert_clean_baseline(capsys)
+    assert main([]) == 0, "reverting the mutation must restore a clean run"
 
 
 def test_main_flags_a_bogus_item_provides_registration(capsys, item_capability_probe):
@@ -174,7 +155,7 @@ def test_main_flags_a_bogus_item_provides_registration(capsys, item_capability_p
     assert "item_provides" in out
 
     _ITEM_CAPABILITY_REGISTRY.pop((_BOGUS_ID, ItemCapability.SHOP_DISCOUNT), None)
-    _assert_clean_baseline(capsys)
+    assert main([]) == 0, "reverting the mutation must restore a clean run"
 
 
 def test_main_flags_a_bogus_item_hook_registration(capsys, item_hook_probe):
@@ -187,7 +168,7 @@ def test_main_flags_a_bogus_item_hook_registration(capsys, item_hook_probe):
     assert "item_hook" in out
 
     _ITEM_HOOK_REGISTRY.pop((_BOGUS_ID, ItemHook.GEM_COST), None)
-    _assert_clean_baseline(capsys)
+    assert main([]) == 0, "reverting the mutation must restore a clean run"
 
 
 def test_main_prints_the_empty_effects_census_line(capsys):
