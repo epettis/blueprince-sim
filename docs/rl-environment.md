@@ -137,14 +137,15 @@ The fix, now applied to every registry-derived builder (`_build_axe_target_ids`,
 `_build_pump_source_ids`): **each asserts its own result's length against its
 pinned constant before returning.** A future desync raises immediately,
 everywhere the builder is called (mask building, dispatch, and every test that
-builds a `Game`), instead of corrupting a mask bit silently. Three of the four
-also have an explicit, discoverable test pinning the same invariant
+builds a `Game`), instead of corrupting a mask bit silently. Each also has an explicit,
+discoverable test pinning the same invariant
 (`test_axe_target_count_matches_the_pinned_action_space_width`,
 `test_area_node_count_matches_the_pinned_action_space_width`,
-`test_special_key_menu_count_matches_the_pinned_action_space_width`), the
+`test_special_key_menu_count_matches_the_pinned_action_space_width`,
+`test_pump_source_count_matches_the_pinned_action_space_width`), the
 same shape `test_constellations.py` already used for `_N_CONSTELLATIONS`.
-**`_build_pump_source_ids` has the assert but no equivalent dedicated test** —
-a real gap, not yet closed.
+The builder's own assertion fires only where it is called; the test fails
+on any run.
 
 ## Reserved and dead action ids
 
