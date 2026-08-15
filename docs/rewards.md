@@ -213,12 +213,15 @@ more later*, not *stop winning*.
 **2. It would pay for a no-op.** Of the 18 upgrade-variant groups, **13 are
 engine-identical**: every variant carries the same effects and guaranteed items,
 so nothing downstream can tell them apart. And the one upgrade measured
-end-to-end, Cloister of Orinda, has **no detectable causal value** pre-lock
-(3.045% vs 3.405% control, deepest rank 5.51 vs 5.53 — see
-[`upgrade-value-measurement.md`](upgrade-value-measurement.md)), exactly as
-predicted while the Antechamber has no locks. Shaping toward upgrades today
-teaches a preference for pressing a button that does nothing, which then has to
-be unlearned once Task 9 and the upgrade effects land.
+end-to-end, Cloister of Orinda, had **no detectable causal value** in this
+pre-lock measurement (3.045% vs 3.405% control, deepest rank 5.51 vs 5.53 —
+see [`upgrade-value-measurement.md`](upgrade-value-measurement.md)), exactly
+as predicted while the Antechamber had no locks. **The Antechamber lever gate
+has since shipped, but no post-lock re-measurement was taken before it did**
+— see that document's status note for why the paired before/after comparison
+this argument wanted can no longer be run. Shaping toward upgrades on the
+strength of a stale pre-lock number risks teaching a preference this repo can
+no longer verify either way.
 
 **3. Potential-based shaping cannot express it.** The existing shaping terms
 (`_phi_paths`) are potential-based, which is *why* they are safe: a potential
@@ -240,10 +243,10 @@ objective competing with winning**, and should be understood and reviewed as one
    day 2 from day 190. Per-day episode telemetry is unchanged
    (`done = terminated | truncated` is still True at day end, so SB3's
    episode counter fires as before).
-2. **Make upgrades matter first.** Write the variant effects and land the
-   Antechamber lever (Task 9). There is no point rewarding the acquisition of an
-   upgrade that changes nothing; fix the thing being measured before paying for
-   it.
+2. **Make upgrades matter first.** Write the variant effects, and land the
+   Antechamber lever gate (done — [`antechamber-lever-design.md`](antechamber-lever-design.md)).
+   There is no point rewarding the acquisition of an upgrade that changes
+   nothing; fix the thing being measured before paying for it.
 3. **Only then, if a proxy is still wanted**, calibrate it against the measured
    marginal win probability rather than against 1.0 — order `+0.02` to `+0.05`,
    not `+0.5` — cap it to once per upgrade slot per attempt so a repeatable

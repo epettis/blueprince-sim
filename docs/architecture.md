@@ -244,6 +244,12 @@ test `lockpick` (rates `[54, 35, 30, 19]`), `metal_detector_spawns`
 (`{coins: 60, key: 25}`), `dig_tool`, `luck_bonus` and `allowance` all carry
 published numbers and stay in data.
 
+**`allowance` is a false shared tag.** All 19 instances are the same `+2
+allowance` payload on 19 differently-*sourced* tokens; the variation is
+one-shot bookkeeping (which token grants it), not effect. It stays in data
+regardless — `env/obs.py` and `env/multiday.py` both read it — but a carrier
+count of 19 overstates how much genuine sharing is happening.
+
 **A tag lives in data or in code, never both.** Leaving a tag in `rooms.json`
 while a Python handler also exists creates precisely the second source of truth
 the registry exists to remove. When `coupon_book` registered `SHOP_DISCOUNT`,
@@ -372,6 +378,15 @@ entry for a still-present literal fires the *outside-the-allowlist* test, not
 the *stale-entry* test. The genuine stale-entry direction is only exercised by
 removing the literal from the **source** while keeping the dict entry. A plan
 that conflates the two would let the stale-entry guard pass vacuously forever.
+
+### A live RNG-label hazard
+
+The `extra_item_kind` RNG substream is drawn from two separate modules,
+`game.py` and `items.py`. `rng.py` substreams are independent per label, so
+this only matters for *same-label* ordering — but within that label the two
+call sites are a live hazard for anything touching `roll_extra_items`:
+reordering which one draws first shifts seed-stream consumption for every
+seed downstream of it, independent of any migration in flight.
 
 ### What the ratchets buy
 

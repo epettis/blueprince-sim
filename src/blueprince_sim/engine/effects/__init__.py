@@ -471,6 +471,9 @@ def fire(game, room, hook: Hook, context_room=None) -> None:
     since ``inject_pool`` consumes RNG and reordering it would shift
     seed-stream consumption. The room-id lookup always runs after, in this
     one fixed position, regardless of what tags ``room`` carries.
+
+    Any change touching this ordering must re-run ``tests/test_draft_stats.py``:
+    a movement there is evidence the draft math regressed, not a flaky test.
     """
     for eff in room.effects:
         when = eff.param("when")

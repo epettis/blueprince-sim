@@ -1,9 +1,9 @@
-"""Measures and freezes the item-id debt tracked by task 22: a per-item
-registry migration (moving item behaviour out of the shared modules below
-into ``engine/effects/items/<item_id>.py``, one file per item, the same shape
-``engine/effects/rooms/`` already gives rooms) is planned but has not
-started. This test does not implement that migration -- it exists so a later
-phase can be *shown* to reduce debt rather than merely claimed to.
+"""Measures and freezes the item-id debt: a per-item registry migration
+(moving item behaviour out of the shared modules below into
+``engine/effects/items/<item_id>.py``, one file per item, the same shape
+``engine/effects/rooms/`` already gives rooms) has landed. ``ITEM_DEBT_CAP``
+below pins what remains unmigrated, so a further reduction can be *shown* to
+reduce debt rather than merely claimed to.
 
 Mirrors ``tests/test_room_id_allowlist.py`` in both structure and rationale:
 the scanner is deliberately dumb. It flags every string literal in
@@ -46,8 +46,8 @@ which ids a module names.
   on each id-prefix or priority-tuple block explains why the id has to be
   named there.
 - ``ITEM_DEBT`` holds ids that name a genuine per-item behaviour branch --
-  the kind task 22's migration moves into ``engine/effects/items/<id>.py``.
-  This is the number later phases drive down.
+  the kind the per-item registry migration moves into
+  ``engine/effects/items/<id>.py``. This is the number later phases drive down.
 
 Both dicts are scanned together (see ``_combined_allowlist``), so splitting
 the list does not narrow what the bidirectional checks cover. Three failure
@@ -84,11 +84,10 @@ ENGINE_DIR = Path(_model_module.__file__).resolve().parent
 #: entry -- see test_effects_subdirectories_are_excluded_by_construction).
 EFFECTS_ROOMS_DIR = ENGINE_DIR / "effects" / "rooms"
 
-#: Where task 22's per-item registry migration puts item behaviour, one
-#: module per carrier item; the scan excludes it by construction
-#: (non-recursive glob over effects/*.py) rather than by allowlist entry, so
-#: it required no edit here. See
-#: test_effects_subdirectories_are_excluded_by_construction.
+#: Where the per-item registry migration puts item behaviour, one module per
+#: carrier item; the scan excludes it by construction (non-recursive glob
+#: over effects/*.py) rather than by allowlist entry, so it required no edit
+#: here. See test_effects_subdirectories_are_excluded_by_construction.
 EFFECTS_ITEMS_DIR = ENGINE_DIR / "effects" / "items"
 
 #: module filename -> item ids that module names as string literals for a
@@ -249,8 +248,8 @@ ITEM_DEBT: dict[str, set[str]] = {
     ),
 }
 
-#: ITEM_DEBT's total size after task 22 phase 6's migration (was 3 at the
-#: phase 5b split; 1 remains -- microchip -- which belongs to the out-of-scope
+#: ITEM_DEBT's total size after the per-item registry migration's RNG-touching
+#: phase (1 remains -- microchip -- which belongs to the out-of-scope
 #: Microchip branch). test_item_debt_does_not_exceed_the_cap fails if a
 #: change raises it, so debt can only ratchet down from here.
 ITEM_DEBT_CAP = 1
@@ -378,7 +377,7 @@ def test_allowlist_has_no_stale_entries(registry):
     """An id listed in ITEM_ARCHITECTURE or ITEM_DEBT that no longer appears
     in its module means the refactor already happened and nobody shrank the
     list -- left unchecked a list only grows and stops measuring the debt
-    task 22 tracks."""
+    this scanner tracks."""
     item_ids = {i.id for i in registry.special.items}
     hits = _scan_engine_modules(item_ids)
     stale = {

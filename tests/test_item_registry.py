@@ -23,7 +23,7 @@ tools/validate_data.py call site.
 
 ``item_capability_any`` is the boolean sibling of ``item_capability_sum``
 (an OR over held items' registrations rather than a sum of one param), added
-for task 22 phase 3's eight pure-boolean migrations below. Its own mechanics
+for the eight pure-boolean item migrations below. Its own mechanics
 get the same probe-based tests as ``item_capability_sum`` above; each real
 module's registration then gets a dedicated liveness test -- importing
 ``blueprince_sim.engine.game`` (the production import path every real
@@ -182,8 +182,8 @@ def test_any_ignores_a_different_capability(registry, item_capability_probe):
 
 
 # item id -> ItemCapability member registered by its real
-# engine/effects/items/<item_id>.py module (task 22 phase 3's eight
-# pure-boolean migrations).
+# engine/effects/items/<item_id>.py module (the eight pure-boolean item
+# migrations).
 _PHASE_3_CARRIERS = {
     "powered_electromagnet": ItemCapability.ELECTROMAGNET,
     "chronograph": ItemCapability.CHRONOGRAPH,

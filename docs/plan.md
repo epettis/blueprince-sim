@@ -77,12 +77,17 @@ delete again.
 
 - Reward calibration from multi-day training stats (all shaping constants are
   deliberate knobs: `special_item_values`, `PATHS_*_PENALTY`, scepter bias).
-- Sanctum: the 8 Sanctum Keys have sources and persist, but the Inner Sanctum
-  itself (8 doors, the area behind them) is unmodeled — the largest remaining
-  system and worth its own design pass rather than a rushed PR.
-- Out-of-scope areas that keep a handful of items inert: Grounds, Orindian Ruins,
-  Precipice, lore documents. (`diary_key` used to be listed here; it was removed
-  from the item table outright on 2026-08-06 — see `docs/open_tasks.md` task 6.)
+- Sanctum: the 8 Sanctum Keys have sources and persist, and each of the 8 sigil
+  doors is independently modelled and stays permanently open once unlocked
+  (`Game.open_sigil_door`, `GameConfig.sigil_doors_open`). `sigil_chambers`
+  itself stays `modelled: false` in `areas.json` by a recorded ruling, not by
+  omission — the assumed-solved allowance from each chamber's Mora Jai box
+  pays out the moment its door opens, so there is nothing left worth walking
+  there for.
+- Out-of-scope areas that keep a handful of items inert: Grounds, Precipice,
+  lore documents. Orindian Ruins is no longer in this list — it became
+  reachable (`blackbridge_grotto -> orindian_ruins`, gated on three
+  microchips in the pedestal).
 - Freezer thaw: excluded from the ignition targets because the wiki calls it
   temporary/daily, which the one-shot `lit_targets` model cannot express.
 

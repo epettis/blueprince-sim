@@ -1,4 +1,4 @@
-"""Measures and freezes the effect-tag debt tracked by task 22, and enforces
+"""Measures and freezes the effect-tag debt, and enforces
 the zero-reader rule that catches an authored tag nobody consults (the bug
 class that let ``ignition_tool`` carry two sources of truth -- a data table
 and code that never read it -- until #199 deleted the tag).
@@ -71,9 +71,9 @@ SRC_DIR = ENGINE_DIR.parent.parent
 #: construction (non-recursive glob), matching the sibling scanners.
 EFFECTS_ROOMS_DIR = ENGINE_DIR / "effects" / "rooms"
 
-#: Where task 22's per-item registry migration puts item behaviour, one
-#: module per carrier item -- excluded from the allowlist scan by
-#: construction, same as the room-id scanner excludes effects/rooms/. See
+#: Where the per-item registry migration puts item behaviour, one module per
+#: carrier item -- excluded from the allowlist scan by construction, same as
+#: the room-id scanner excludes effects/rooms/. See
 #: test_effects_subdirectories_are_excluded_by_construction.
 EFFECTS_ITEMS_DIR = ENGINE_DIR / "effects" / "items"
 
@@ -256,7 +256,8 @@ def test_no_tag_literals_outside_the_allowlist(registry):
 def test_allowlist_has_no_stale_entries(registry):
     """An allowlisted tag that no longer appears in its module means the
     refactor already happened and nobody shrank the list -- left unchecked
-    the allowlist only grows and stops measuring the debt task 22 tracks."""
+    the allowlist only grows and stops measuring the debt this scanner
+    tracks."""
     tags = _all_tags(registry)
     hits = _scan_engine_modules(tags)
     stale = {

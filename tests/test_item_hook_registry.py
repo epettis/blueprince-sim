@@ -1,5 +1,5 @@
-"""Observable-firing tests for the item-hook chain registry (task 22 phase
-4): ``item_hook`` keys a handler by (item id, ItemHook), and unlike
+"""Observable-firing tests for the item-hook chain registry: ``item_hook``
+keys a handler by (item id, ItemHook), and unlike
 ``room_hook`` -- whose exclusivity the grid gives it for free -- more than
 one item can register the same hook, so ``fire_item_chain`` (first
 applicable item wins) and ``fold_item_chain`` (every applicable item
@@ -170,7 +170,7 @@ def test_unknown_item_id_hook_validator_rejects_a_bogus_id(registry, item_hook_p
 
 
 # item id -> the ItemHook(s) its real engine/effects/items/<id>.py module
-# registers a handler for (task 22 phase 4's nine per-item migrations).
+# registers a handler for.
 _PHASE_4_CARRIERS = {
     "emerald_bracelet": (ItemHook.GEM_COST,),
     "hall_pass": (ItemHook.GEM_COST, ItemHook.MOVE_STEP_COST),

@@ -1,6 +1,6 @@
 """tools/validate_data.py's registry-typo guard and effects=[] census (task 23).
 
-Task 22 moved a lot of behaviour OUT of rooms.json/special_items.json's
+The item registry migration moved a lot of behaviour OUT of rooms.json/special_items.json's
 ``effects`` arrays and into per-room/per-item Python, registered at import
 time through four registries in engine/effects/__init__.py: ``room_hook``,
 ``Capability`` (via ``provides``/``provides_lever``), ``ItemCapability`` (via
@@ -236,8 +236,8 @@ def _item(iid: str, effects=None, notes: str = "") -> dict:
 
 def test_registered_empty_room_with_accurate_prose_is_not_a_warning():
     """An empty-effects room that IS registered, whose prose does not claim
-    'no effect', produces no warning -- this is exactly what task 22
-    intended (behaviour moved to code), not a defect."""
+    'no effect', produces no warning -- this is exactly what a registry
+    migration intends (behaviour moved to code), not a defect."""
     rooms = [_room("r1", text="Some accurate description of code-side behaviour.")]
     findings, n_empty, n_reg, _, _ = find_empty_effects_findings(
         rooms, [], frozenset({"r1"}), frozenset())

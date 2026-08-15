@@ -21,7 +21,10 @@ effects, LOW stay inert with `meta.blocked_on`).
    substitution rather than waiting for the next day's config.
 3. **Use the Patch 1.7 tables and document the version skew** — see below.
 4. **Ship disks alone, then retrain**, so Cloister of Orinda's pre-Antechamber
-   -lock value can be measured as the baseline for task 9's validation signal.
+   -lock value could be measured as a baseline before the Antechamber lever
+   gate shipped. See [`upgrade-value-measurement.md`](upgrade-value-measurement.md)'s
+   status note: that baseline was never taken, and the window to take it is
+   now closed.
 
 ## Version skew — read this first
 
@@ -73,9 +76,10 @@ three-variant room excluding the current one would leave only two options while
 the terminal must always show three. The wiki does not claim exclusion either.
 Re-picking the variant a room already has is therefore a legal no-op.
 
-This is load-bearing for task 9's validation signal: Cloister of Orinda is only
-offered on ~3/8 of Cloister rolls, so the measured baseline value of Orinda must
-account for its availability, not just its win rate when chosen.
+This is load-bearing for the Antechamber-lever validation signal
+([`upgrade-value-measurement.md`](upgrade-value-measurement.md)): Cloister of
+Orinda is only offered on ~3/8 of Cloister rolls, so any measured value of
+Orinda must account for its availability, not just its win rate when chosen.
 
 ## Data: `data/upgrade_selection.json`
 
@@ -300,19 +304,17 @@ options, sampled" above.
 
 ### Terminal rooms
 
-Security, Laboratory, Office and Shelter exist as records (`security`,
-`laboratory`, `office`, `shelter`). **Blackbridge Grotto has no record at all**
-and exists only as an area-graph node.
+Security, Laboratory, Office and Shelter carry `flags.disk_reader: true`
+(alongside `no_library_draft` / `powered` / `duct`, mirrored into
+`tools/ingest_sheet.py` so a re-ingest does not revert it), and
+`Game.disk_reader_here()` checks it — via `game.inside_outer_room` /
+`drafted_outer_room.disk_reader` for Shelter, which has `pool: outer` and
+sits off the 5x9 grid, or via the grid room at the player's cell otherwise.
 
-There is no "terminal" concept in code or data today — the word is otherwise
-taken by `Phase.TERMINAL`, Security's control hardware, and trade-graph terminal
-nodes, so **pick a different name** (`disk_reader`, say) to avoid collision.
-Suggest a room `flags` entry alongside `no_library_draft` / `powered` / `duct`,
-mirrored into `tools/ingest_sheet.py` so a re-ingest does not revert it.
-
-Note `shelter` has `pool: outer` — it sits off the 5x9 grid, so "standing in it"
-is checked via `game.inside_outer_room` / `game.disk_reader_here()` rather than
-by cell.
+**Blackbridge Grotto is the one remaining gap.** It has no `rooms.json`
+record at all — it exists only as an area-graph node — and
+`disk_reader_here()` has no branch for that case, so standing there never
+reads as a terminal.
 
 ## Resolved calls
 

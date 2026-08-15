@@ -371,8 +371,9 @@ Surfaced by building this graph:
 - **Gemstone Cavern**: 2 gems/day, passive.
 - **Sigil chambers**: each is opened by one Sanctum Key, stays open permanently,
   and grants a **permanent +2 allowance** from the Mora Jai box inside — 8
-  chambers, so +16 allowance in total. Relates to `open_tasks.md` task 10.
-- **Inner Sanctum**: the lever opening the Antechamber's **north** door. Task 9.
+  chambers, so +16 allowance in total.
+- **Inner Sanctum**: the lever opening the Antechamber's **north** door. See
+  [`antechamber-lever-design.md`](antechamber-lever-design.md)'s B2 section.
 - **Abandoned Mine (South)**: an Upgrade Disk **sitting openly on a table**. It
   is obtainable **without** lighting the candlesticks — the candles independently
   open the Precipice stairway. Modeled as a plain area-arrival pickup
@@ -391,12 +392,11 @@ now; the list stays because it records what each one is *for*.
   Orchard sundial, and one Crate Tunnel door. See the gate design below.
 - `sanctum_key` — one per sigil chamber, consumed. Modelled as eight
   per-source ids, so each respawns independently.
-- `basement_key` — a deliberate **KEEP** under the puzzle-only-item test
-  (`open_tasks.md` task 6), and the calibration example for it: holding it is
+- `basement_key` — a deliberate **KEEP**: an item that gates traversal is
+  never puzzle-only, and this is the clearest example of it — holding it is
   the literal difference between `reservoir_south` and the far side of the
   Basement being reachable or not, via `basement_key_well` and
   `basement_key_foundation` (both directions of `the_foundation <-> basement`).
-  An item that gates traversal is never puzzle-only.
 - `key_of_aries` — from the Unknown (Underground) clock. The one **decided
   against** rather than pending: `meta.wont_implement`, because its payoff is
   already granted.
@@ -549,8 +549,8 @@ rest of the attempt. Same shape as `entrance_vase_broken` / `outer_chip_dug`.
 Recorded so they are not re-litigated:
 
 - The ignition candles are in the **Abandoned Mine**, not by the Reservoir, and
-  they open a Mine -> Precipice stairway. `open_tasks.md` task 7 previously said
-  they connected the Precipice and the Reservoir; that text is deleted.
+  they open a Mine -> Precipice stairway, not a direct Precipice-Reservoir
+  connection.
 - **No soft-lock in the Orindian Ruins** — the microchips live in the Grotto.
 - The **car trunk re-locks nightly** and needs Car Keys every time; the Vault box
   is the one that stays open permanently.

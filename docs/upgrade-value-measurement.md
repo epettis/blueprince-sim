@@ -1,18 +1,26 @@
 # Measuring what an upgrade is worth — plan
 
-Status: **spec-ready**, not implemented. Owner-approved 2026-07-27.
+Status: **the difference-in-differences design below needs replacing.** The
+Antechamber lever gate ([`antechamber-lever-design.md`](antechamber-lever-design.md))
+has shipped, which was the "after" arm of Phase 1's paired comparison. The
+"before" arm — a pre-lock baseline — is no longer obtainable: there is no way
+to put a shipped attempt back into an unlocked Antechamber state. Phase 0, the
+Observatory plumbing (Phase 2) and the sequencing rationale below are still
+accurate; the Phase 1 measurement plan itself needs a design that does not
+depend on a closed window.
 
 Companion to [`upgrade-disks-design.md`](upgrade-disks-design.md), which covers
 the draw mechanism itself (merged in PR #33). This document covers how we decide
 whether a given upgrade is any *good*, and how that surfaces in the Training
 Observatory.
 
-The immediate consumer is `open_tasks.md` task 9 (the Antechamber lever). Disks
-shipped alone specifically so Cloister of Orinda's value could be measured
+Disks shipped alone specifically so Cloister of Orinda's value could be measured
 before Antechamber locks exist and again after: if Orinda does not become more
 valuable once an Antechamber door is worth opening, either the upgrade model or
-the lock model is wrong. That comparison is the validation signal, and this
-document is about making it trustworthy.
+the lock model is wrong. That comparison was the validation signal, and this
+document is about making it trustworthy — but see the status note above: the
+"before" measurement was never taken, and the window to take it is now closed
+permanently.
 
 ## Four different questions, often confused
 
@@ -165,7 +173,7 @@ unrelated to the Antechamber — Storeroom keys and Boudoir dice are good
 candidates — in both epochs. The validating comparison is the
 **difference-in-differences**, not Orinda's raw change.
 
-**Reading it for task 9.**
+**Reading it for the Antechamber lever comparison.**
 
 - Orinda's delta rises while controls stay flat — upgrade and lock models agree.
 - Orinda flat, controls flat — either locks do not make Antechamber doors
@@ -248,8 +256,10 @@ metric worth plotting over training.
    so no pre-#33 checkpoint loads.
 4. **Phase 0 uniformity check** on the new checkpoint.
 5. **Phase 2 Observatory panel**, once there is data to render.
-6. Antechamber locks (task 9), retrain, re-run Phase 1, compare
-   difference-in-differences.
+6. ~~Antechamber locks, retrain, re-run Phase 1, compare
+   difference-in-differences.~~ The locks have shipped, but no pre-lock
+   baseline was taken before they did, so this step as designed can no longer
+   run — see the status note at the top of this document.
 
 ### Why the area graph had to come first
 

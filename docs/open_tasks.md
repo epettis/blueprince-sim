@@ -68,196 +68,51 @@ per-system item rules, commerce, containers, ignition),
 [`upgrade-disks-design.md`](upgrade-disks-design.md),
 [`greedy-strategy.md`](greedy-strategy.md), [`process.md`](process.md).
 
-## 1. Resource spreading through the house
+## 1. Resource spreading through the house — the Office row
 
-Several rooms scatter resources into OTHER rooms when drafted, rather than granting
-them on entry. None of this is modeled today (the Tomb's per-dead-end gold is the
-one exception — `coins_per_deadend` in `engine/effects/tier1.py`).
+Patio, Secret Garden, Locker Room, Conference Room and Tomb all spread
+resources into other rooms on draft, and all five are live and tested
+(`effects/rooms/patio.py`, `secret_garden.py`, `locker_room.py`; the Tomb's
+`coins_per_deadend` in `engine/effects/tier1.py`); the Conference Room's
+redirect for each is its own branch inside the spreader that feeds it, not a
+shared generic one, matching each spreader's own formula. The
+arrival-not-first-entry payout constraint is satisfied at `game.py:2705`
+(`_collect_spread` runs before the `entered[cell]` early return).
 
-Known spreaders (owner-reported; **two rows corrected against the wiki 2026-08-06**,
-marked below):
-
-| Room | Trigger | Spreads | Target |
-|---|---|---|---|
-| Patio | on draft | gems | Green Rooms, including itself |
-| Secret Garden | on draft | apples and oranges (food) | throughout the house |
-| Locker Room | on draft | basic keys | the estate minus its named exclusions (see `rooms.md`); can seed itself |
-| Conference Room | passive, while placed | — | absorbs others' spreads, **altering them** |
-| Office | **player action, once/day** | money | throughout the house |
-| Tomb | on other rooms' drafts | 5 gold per Dead End | into the Tomb itself (ALREADY MODELED) |
-
-**Correction 1 — the Office is not an on-draft effect.** It is a player-triggered,
-once-per-day terminal action ("Spread Gold in Estate"), gated behind walking to the
+**Only the Office row remains.** *"Spread Gold in Estate"* is a
+player-triggered, once-per-day terminal action, gated behind walking to the
 Office and operating its terminal — the same terminal concept as the shipped
-`disk_reader` flag. That makes it an **action-space change**, so per this file's own
-standing rule it belongs bundled with a retrain, not with the on-draft spreaders. Do
-not conflate it with the Office *safe* (+1 gem), which is already shipped.
+`disk_reader` flag — not an on-draft effect like the other five. Do not
+conflate it with the Office *safe* (+1 gem), which is already shipped.
 
-**Correction 2 — the Conference Room is not a pure redirect.** The wiki: *"Spread
-effects do not necessarily spread the same number of items to the Conference Room as
-they would spread if the Conference Room were not present."* Patio's gems change
-colour; Secret Garden's CR case is a **completely different fixed formula** (always 4
-apples + 3 oranges, regardless of house size or soil quality) rather than the same
-roll redirected. So each spreader needs its own Conference-Room branch — a single
-generic "change the destination cell" function is the wrong shape.
+Scope: a new `effects/rooms/office.py` (~60 lines, reusing `spread_pending`
+and `Game._collect_spread`, no new primitive) plus a once-per-day flag
+gating the terminal action. **It needs a new action id, so it is a retrain
+trigger.** The gold amount needs an owner ruling — the wiki figure for it is
+recorded nowhere in this repo.
 
-**A spread is a one-shot event, not a standing rule.** *"Spreading only applies to
-rooms currently on the estate. Rooms drafted after the spread is done cannot benefit
-from it unless the spread is performed a second time later."* It is evaluated once, at
-the spreader's own draft moment, over the cells occupied at that instant. This applies
-symmetrically to a Conference Room placed afterward: it absorbs nothing retroactively.
+## 2. Upgrade Disk functionality — the Blackbridge Grotto terminal
 
-Design notes: this writes resources into *other* cells' pending contents, so it needs
-a per-cell "resources waiting here" store. Note the drain cannot hang off first entry
-as originally sketched — `_enter()` returns early once `entered[cell]` is true, and
-the common case is a spreader drafted *after* its targets were already walked through,
-so the drain must sit above that gate and fire on every arrival. The Locker Room case
-matters for balance: its keys are what make the room's 17 locked lockers openable (see
-PR #26).
+Insert, three-option selection, same-day application, permanent carry-over,
+the 16-disk supply cap and the Commissary fix all ship and are verified
+working end to end. The mechanism itself is authoritative in
+[`upgrade-disks-design.md`](upgrade-disks-design.md); per-source collection
+and respawn behaviour is authoritative per-item in `special_items.json`.
 
-## 2. Upgrade Disk functionality
+**Only gap: Blackbridge Grotto is not a terminal.** `Game.disk_reader_here()`
+has no off-grid branch for it — it is a pure area-graph node with no
+`rooms.json` record, unlike Security, Laboratory, Office and Shelter, which
+all carry `flags.disk_reader: true`. Scope: ~20 lines in `game.py` plus a
+flag on the area's `areas.json` node; no action- or observation-space
+change, so no retrain — the precedent is `LIGHT_ACTION`'s own off-grid fix.
+**Needs an architecture call on how to mark the node**: a literal
+`state.area == "blackbridge_grotto"` check would violate the
+no-branch-on-room-id invariant ([`architecture.md`](architecture.md)).
 
-Disks are collected today (Vault box 304, Commissary reserve stock, Trading Post
-tier-5 trades, the Garage car trunk) but cannot be *used*. `GameConfig.upgrade_disks`
-already swaps a base room for its variant in the deck build, so the missing piece is
-the in-run action that awards one.
-
-Wiki research (https://blueprince.wiki.gg/wiki/Upgrade_Disk):
-- **Terminals**: standing at any terminal with a disk lets you insert it. Owner adds
-  Security, Laboratory, Office, Shelter, Blackbridge Grotto as the terminal rooms.
-- **Selection**: the terminal settles on one room to upgrade, then offers **three**
-  upgrade options for it; only the new icons are inspectable before choosing. The
-  disk is consumed, the upgrade applies **immediately** (a room still in today's
-  draft pool can be drafted in its upgraded form the same day), and it is
-  **permanent** across days. Which room gets picked is a weighted, chained
-  algorithm — [`upgrade-disks-design.md`](upgrade-disks-design.md) is authoritative.
-- **Supply**: exactly **16** disks exist, one per upgrade slot.
-  The wiki enumerates **15 fixed one-time locations** (Office desk, Morning Room,
-  Her Ladyship's Chamber, Commissary reserve 15g, Garage car trunk, Great Hall
-  prize door, Vault box 304, Trading Post dynamite chamber, Freezer ice wall, Tomb
-  candles, The Foundation, Abandoned Mine, Lost & Found pool, Mechanarium, Archives
-  cabinet) plus **one repeatable Trading Post trade** — "Unlike the other Upgrade
-  Disks, this disk can appear repeatedly" — which is the 16th. The sim now models
-  **16 of the 16**: seven bespoke sources (`upgrade_disk_vault_304`, `_commissary`,
-  `_garage`, `_trading_post`, `_lost_and_found`, `_tomb`, `_mine_south`), the
-  repeatable `upgrade_disk_trade`, and eight fixed room pickups added via
-  `guaranteed_in` (`_office`, `_morning_room`, `_her_ladyships_chamber`,
-  `_great_hall`, `_freezer`, `_archives`, `_mechanarium`, `_the_foundation`).
-  **The Foundation** and the **Abandoned Mine** were the last two, off-grid until
-  the Sanctum-route PR made `the_foundation`/`basement`/`mine_south`/`inner_sanctum`
-  reachable (see [`areas.md`](areas.md) and [`foundation-design.md`](foundation-design.md)).
-  The Foundation's disk is an ordinary `guaranteed_in` pickup now that the room is
-  on the grid; the Abandoned Mine's is a bespoke arrival grant
-  (`special_items.py::on_area_arrival`, called from `Game.travel_to` on arrival at
-  `mine_south`, since it is a pure area node with no `rooms.json` record).
-
-  **Disks respawn; only SPENDING is permanent** (owner, 2026-07-27): "The disks
-  reappear in their location every day. The safe remains open permanently." So an
-  unspent disk drops from inventory overnight and returns to its source; inserting
-  one at a terminal is the only thing that removes it from the world.
-
-  Every disk therefore carries `persistence: "day"` except `upgrade_disk_trade`,
-  which is genuinely repeatable. The permanence is enforced by the
-  `GameConfig.collected_disks` carryover — populated from *spent* disks only,
-  seeded into `gated_out` at day start, accumulated as a union by `DayChain`, and
-  cleared on attempt wrap, the same shape as `used_vault_keys` and `lit_targets`.
-  `fixed_disks_spent_today` keys off `persistence == "day"`, which makes the
-  trade-disk exemption data-driven rather than a hardcoded id list.
-
-  **Uniqueness alone does NOT enforce this.** A unique item is only blocked while
-  *held*; `remove(consumed=True)` records it in `state.special.removed`, which is
-  per-day state. Without `collected_disks` a spent disk is re-minted the next day —
-  measured at 7 duplicates per day before the fix.
-
-  Re-collection cost differs by source, and this is deliberate, not an oversight:
-
-  - **Vault box 304** — the box stays open permanently; no key needed again.
-  - **Garage car trunk** — re-locks *every night*; Car Keys are required on every
-    single open (owner-confirmed). The most expensive disk to re-collect.
-  - **Tomb / Trading Post** — candles stay lit; the disk returns on re-entry with
-    no ignition tool.
-  - **Commissary** — ordinary stock at 15g, offered on ~31% of days.
-  - **Lost & Found** — stays in the random pool until spent.
-
-  **Pre-existing bug found 2026-07-27: the Commissary disk was never obtainable.**
-  It was flagged `reserve: true`, and the reserve branch only fired when available
-  primary entries fell below `slots`. Four of the thirteen entries are
-  `kind: resource`, which the availability filter never inspects, so primary was
-  permanently >= 4 with `slots = 4` and reserve was unreachable dead code. Measured
-  0/400 daily rolls. The sim was documented as modelling 7 disks but only **6** were
-  ever reachable. Fixed by making it ordinary stock and deleting the dead reserve
-  machinery, so a stray `reserve` key can no longer silently hide an item.
-- **Upgradable rooms**: **15 rooms carrying 16 upgrade slots**, because Spare Room
-  is upgraded twice — the first pick turns it into Spare Bedroom / Greenroom / Hall,
-  and the second upgrades whichever of those was chosen into one of *its* own three
-  sub-variants (`rooms.json` models this as a second-level `variant_of` chain).
-  The other fourteen: Parlor (Gems / Keys / Funeral), Billiard Room (Speakeasy /
-  Break Room / Pool Hall), Closet (Hallway / Bedroom / Empty), Storeroom (Keys /
-  Gems / Coins), Nook (Extra Key / Breakfast / Reading), Mail Room (Same Day / No
-  Contact / Freight), Aquarium (Goldfish / Starfish / Electric Eel), plus
-  unnumbered Boudoir, Guest Bedroom, Nursery, Bunk Room, Hallway, Courtyard, and
-  Cloister. Cloister has **8** variants but the terminal still shows only three, so
-  three of the eight are sampled.
-- The wiki publishes **no** tier list of "best" upgrades. It notes one endgame trick:
-  switching *off* Cloister of Joya keeps its benefit while applying another upgrade.
-
-**Owner decisions** (interview, 2026-07-26) — implement to these:
-1. **The draw mechanism** — which room gets picked, how its three options are
-   offered, and how the chosen upgrade is applied — is specified in full in
-   [`upgrade-disks-design.md`](upgrade-disks-design.md). Read that before
-   implementing; it is authoritative and covers the selection tables, the
-   same-day application, and the action/observation cost.
-2. **Terminals**: Security, Laboratory, Office, Shelter, Blackbridge Grotto (the
-   last is outside the grid, reached through the area graph). Insert requires standing in a
-   terminal room holding a disk; the disk is consumed.
-3. **Persistence**: an upgrade takes effect immediately, lasts the rest of the
-   200-day attempt, and **resets on chain wrap**, consistent with every other
-   carry-over flag. Mechanically that is two paths: the live decks are rewritten
-   the moment the upgrade is chosen (design doc, "Applying the upgrade
-   immediately"), and `carryover()` adds the chosen variant id to
-   `GameConfig.upgrade_disks` — which already drives deck building — so later days
-   rebuild with it, until `DayChain` clears it on wrap.
-4. Supply cap: 16 disks exist in the real game, one per upgrade slot. Once every
-   slot is filled the game keeps offering rooms, at a flat 1/15, so an upgrade
-   already applied can be swapped for a different variant of the same room.
-
-## 6. Remove "puzzle only" items
-
-Some items exist solely to open one specific thing and are consumed doing it. They
-cost an inventory slot, a spawn roll, trade-tier membership and often an action id,
-and return nothing an agent can reason about — the sim already assumes the player
-solves the puzzle of any room they enter, so the *reward* can simply arrive on
-entry. The Wind-up Key was removed on exactly this reasoning (design doc
-simplification #17); apply the same test to the rest of the catalogue.
-
-Candidates to audit: `diary_key` (opens the Sleep Diary only), `key_of_aries`
-(opens the Treasure Trove box only), `file_cabinet_key` (one drawer each),
-`basement_key`, `mora_jai`-adjacent records if any. For each: does holding it ever
-present the agent with a *choice*? If not, delete the item and grant its payoff
-directly.
-
-**Audited and ruled 2026-08-06 — see the decisions log.** Outcome: **`diary_key`
-removed; everything else kept or deferred.** `file_cabinet_key` KEEP,
-`basement_key` KEEP, `sanctum_key` and `key_of_aries` DEFER. Two findings that
-changed the task's premise: the removal candidates were already
-`implemented: false` with zero Python references, so this frees an observation
-dimension and a spawn slot — **not** the action id and inventory slot the task
-assumed; and there is no `mora_jai` record at all, the item standing in for
-"opens a Mora Jai box" is `sanctum_key`. The calibration example for the
-decisive test is `basement_key`: holding it is the literal difference between
-`reservoir_south` and the far side of the Basement being reachable or not.
-
-## 7. Ignition candles in the Abandoned Mine
-
-**Unblocked — the area graph has landed.** Eight candlesticks stand in the
-Abandoned Mine's circular room; lighting them all with an ignition tool (Torch or
-Burning Glass) permanently sinks the floor into a stairway down to **the
-Precipice**. So it is a graph edge, not just a reward — add it as a permanent `abandoned_mine -> precipice` edge.
-
-The Mine is also what connects the Reservoir's north and south halves, which is
-the likely source of the earlier belief that the candles linked the Reservoir to
-the Precipice. They do not: the Reservoir reaches the Precipice only by walking
-through the Mine.
+**Correction to a stale count**: the sim's fixed room pickups via
+`guaranteed_in` are **seven, not eight** — `upgrade_disk_mechanarium` has
+`guaranteed_in: []` and arrives instead through the Mechanarium's diagonal
+compartment chain, not a plain room pickup.
 
 ## 8. Model the Casino games
 
@@ -269,34 +124,12 @@ The Casino is a room of gambling minigames (slot machine, roulette). Two pieces:
 Ties into the Broken Lever (its golden slot machine gives 5 bonus spins instead of
 3) and the Allowance Token (roulette is a repeatable source).
 
-## 9. The Antechamber needs a lever, not just a door
-
-Landing this is the validation test for the Upgrade Disk work: Cloister of
-Orinda opens a random Antechamber door, which is worthless while the Antechamber
-has no locks, so Orinda's measured value should rise once this lands. How to
-measure that — and why the comparison needs control upgrades and a fixed
-instrument — is in
-[`upgrade-value-measurement.md`](upgrade-value-measurement.md). Take the
-pre-lock baseline **before** starting this task.
-
-**Current model is wrong in an important way**: the run is resolved by walking into
-the Antechamber, but in the real game its doors must first be opened by a lever
-found in the **Secret Garden**, **Great Hall**, **Greenhouse** (with a Broken
-Lever), or **Weight Room** (after breaking the wall with a Power Hammer). The
-Greenhouse case is already modeled (PR #28) as opening the Antechamber's south
-segment; the other three are not, and neither is the requirement itself.
-
-This changes the shape of a winning run and therefore the reward landscape — treat
-it as a design pass, not a patch. The north Antechamber door is a separate matter:
-it opens only from the Throne Room and the Sanctum lever.
-
-## 10. Allowance for assumed-solved puzzles
-
-Because the sim assumes the player solves every puzzle in a room they enter,
-several rooms should carry a standing **+2 allowance**: the **Cloister**, the
-**Trading Post**, and the **Closed Exhibit**. Verify against the wiki whether this
-is allowance (the daily gold packet) or a one-time grant, then encode it the same
-way the room safes are ([`rooms.md`](rooms.md)).
+**What already exists, so this reads as "the gambling mechanic is unmodelled"
+rather than "nothing exists":** the Casino grants a guaranteed die on first
+entry as a stand-in for the unmodelled spins (`rooms.json`'s `casino` record);
+the Broken Lever's `slot_bonus` effect is wired to it; and `shops.py`'s
+`_DISCOUNT_EXEMPT_SHOPS` already exempts the Casino from the Coupon Book's
+blanket discount.
 
 ## 11. Model the Pump Room's water levels
 
@@ -330,6 +163,12 @@ So: the six integer levels need to live in carry-over state (permanent, like
 lever's position are ordinary per-day `GameState` (reset every `reset()`,
 never carried).
 
+**The six levels cannot ride the existing carry-over channel.**
+`env/multiday.py`'s `_CARRYOVER_KEYS` maps 1-to-1 onto `GameConfig` bool
+fields; a water level is an integer 0-14, not a flag. This needs a new,
+separate non-bool carry-over channel, plus new observation planes for the six
+levels — neither exists today.
+
 **Gates this retires:**
 - `pump_water_lte8` (`grounds -> well`): Fountain level `<= 8`.
 - `rowboat_water_6` (`reservoir_south <-> safehouse`): Reservoir level
@@ -361,336 +200,106 @@ the area graph's sequencing.
 
 ## 12. The Greenhouse's Power Hammer wall changes its layout
 
-Write-up only — not built in this pass.
+**This is a live inconsistency today, not deferred work — the diagnosis below
+corrects an earlier, wrong premise.** `model.py:137` already folds
+`alt_layouts` into `Room.rotations` at load time, so the Greenhouse's corner
+(L-shape) layout is offered **unconditionally at draft time**, with no Power
+Hammer involved at all — there is no missing "switch" to build, the corner
+shape is already reachable on day one.
 
-**The Greenhouse is the only room whose doors change when a Power Hammer wall
-comes down** (owner, 2026-08-04). Quoting
-`https://blueprince.wiki.gg/wiki/Greenhouse`:
+What is still wrong: `Room.layout` itself — a separate, frozen field, not the
+per-draft rotation choice — stays `"dead_end"` regardless of which rotation
+was actually drafted. So a two-door Greenhouse (the corner layout, which is
+not a dead end) still pays the Tomb's Dead End bounty, because
+`effects/rooms/tomb.py:13-15`'s `spread_coins_for_dead_ends` reads
+`ctx_room.layout == "dead_end"` at draft time regardless of shape. **Measured:
+coins 5 -> 10** for a two-door Greenhouse that should not have counted. The
+same frozen field is read the same wrong way by Cloister of Draxus
+(`effects/rooms/cloister.py:163`, `grant_dice_for_dead_ends`) and the Garage's
+dead-end gate (`draft.py:350`).
 
-- *"The Greenhouse, while initially a Dead End, has a hidden passage which
-  includes an extra exit door. This hidden section can be permanently opened
-  by using the Power Hammer on the brick wall to the left after entering."*
-- *"After the wall is removed, the floorplan is updated to reveal the new
-  door and the room permanently changes to an L-shape room."*
-- *"if the wall was opened on a previous day, it no longer counts towards the
-  total number of Dead Ends in the house."*
-
-The sim already carries the destination shape: the `greenhouse` record in
-`rooms.json` is `layout: "dead_end"` with `alt_layouts: ["corner"]`. What is
-missing is anything that switches between them.
+**Three references in the prior version of this entry did not exist and are
+deleted here:** `Game._enter_lever_room` — the real Weight Room code is
+`effects/rooms/weight_room.py::pull_south_lever`; a `dead_end` reference in
+`effects/tier1.py` — the real reference is `effects/rooms/tomb.py:13-15`
+above; and a claim that day termination (`game.py:3049`) is layout-driven —
+it is not, it computes termination from placed door masks
+(`frontier_doorways()` / `_antechamber_reachable()`), not from `room.layout`.
 
 **The Weight Room is NOT this mechanism, and must not be folded into it.** Its
 Power Hammer wall reveals *"a lever for the south Antechamber door as well as
 two documents"* (`https://blueprince.wiki.gg/wiki/Weight_Room`), and the space
 *"will always be accessible on future days"*. The room's own doors are
 unchanged — it has no `alt_layouts` entry, and the wiki says nothing about its
-shape. `Game._enter_lever_room` already models it correctly, as a permanent
-lever unlock (`weight_room_wall_broken`) that opens the Antechamber's south
-segment. Nothing about the Weight Room needs to change.
+shape. `pull_south_lever` already models it correctly, as a permanent lever
+unlock (`weight_room_wall_broken`) that opens the Antechamber's south segment.
+Nothing about the Weight Room needs to change.
 
-**Why the Greenhouse is harder than a doorway flip:**
+**These are two separate pieces of work and only one of them needs a ruling.**
 
-- **Layout, not just doors.** A room's shape comes from an immutable `Room`
-  record (`model.Registry.load()`) and is consumed by `legal_orientations` at
-  draft/placement time. Nothing lets a room already on the grid swap its shape
-  record mid-run, and nothing carries such a swap across the day boundary the
-  way `foundation_cell` carries a placement.
-- **Two distinct cases.** Breaking the wall today mutates a room already
-  standing on the grid; on every later day the Greenhouse must instead be
-  *drafted and placed* in its `corner` layout from the start. The second case
-  is the easy one — it is a carry-over flag consulted at deck/placement time.
-  The first needs live mutation of a placed room.
-- **Dead End counting.** The Greenhouse starts as a Dead End and stops being
-  one once broken, for the rest of the attempt. That count feeds the Tomb's
-  `coins_per_deadend` effect (`effects/tier1.py`, which reads
-  `ctx_room.layout == "dead_end"` at draft time) and the `dead_end`
-  day-termination path (`game.py`). A layout change that does not also move
-  the Dead End count would leave the Tomb paying out for a room that is no
-  longer a Dead End.
-- **Retroactive across days.** A wall broken on an earlier day stays broken
-  and stays un-counted, so this needs the authoritative-once-set carry-over
-  shape of `foundation_cell`, not a same-day flag like `garage_door_breaker`.
+**(a) The Dead End miscredit — a bug, no flag and no ruling.** Nothing about
+the wall break is involved: the fix is to stop asking the frozen `Room.layout`
+field and start asking the orientation actually drafted. A room is a Dead End
+when its placed door mask has exactly one bit set, and `_place_room` already
+has that orientation in scope — `effects.fire` simply does not pass it through
+to `ON_DRAFT_ROOM` handlers, which is the whole of the plumbing. An effective
+layout accessor keyed on `(room, orientation)` then serves all three readers
+(`tomb.py`, `cloister.py:163`, `draft.py:350`). **The Greenhouse is the only
+room in the table with an `alt_layouts` entry**, so this cannot regress any
+other room's Dead End accounting. **No observation or action change, so no
+retrain.**
 
-**Suggested shape for a future PR:** a `greenhouse_wall_broken` carry-over
-flag, set when the player breaks the wall with a Power Hammer; consulted at
-placement/legality time to substitute the `corner` layout for `dead_end`; plus
-the matching correction to Dead End counting so the Tomb effect and the
-termination path both stop seeing it as a Dead End.
-
-## 14. Category biases that nothing ever activates
-
-Found while auditing the Cloister boosts (2026-08-05). `data/priority_draws.json`
-declares **22 `category_biases` entries; only 8 can ever fire.**
-`draft.py::_active_conditions` emits exactly three condition families —
-`furnace_or_king` (from `state.furnace_placed`), `greenhouse_or_king` (from
-`state.greenhouse_placed`), and `scepter_<color>` (from
-`state.shops.scepter_color`). Verified by grep over all of `src/`: no other code
-path produces any of the remaining tags.
-
-The **14 inert entries**, spanning **9 distinct condition names**:
-
-| Condition | Entries | Biases toward |
-|---|---|---|
-| `king` | 5 | blueprint, hallway, bedroom, shop, blackprint categories |
-| `southern_cross_constellation` | 1 | `layout: cross`, 40% |
-| `draxus_constellation` | 1 | `layout: dead_end`, 30% |
-| `drafting_from_library` | 2 | the Bookshop (50%) and `rarity: rare` (100%) |
-| `schoolhouse` | 1 | the Classroom, 35% |
-| `electromagnet` | 1 | mechanical/rotunda, 40% |
-| `chronograph` | 1 | tomorrow rooms, 40% |
-| `adjacent_duct` | 1 | `flag: powered`, 40% |
-| `adjacent_powered` | 1 | `flag: duct`, 40% |
-
-**Owner decision (interview, 2026-08-05): fold the whole set into the Southern
-Cross work** — build the activation plumbing once and light up every condition
-that has a modelled source, leaving the rest documented as still-unsourced.
-
-**Why Southern Cross is the one that matters for the upgrade study.** The two
-Cloister boosts that already work bias by **category** (`green`); Southern Cross
-biases by **layout** (`cross`). Every Cloister variant is `layout: cross`, but
-`cloister_of_orinda__ix35` is `category: blackprint` and
-`cloister_of_draxus__ix36` is `category: red` — so the two working boosts stop
-applying to exactly the two variants the Orinda measurement cares about.
-Southern Cross is the only one that does not.
-
-**Research needed before any code**: what activates a constellation in the real
-game (Observatory / Telescope?), whether it is per-day or permanent, and whether
-`king` is the Banner of the King (`scepter_*` already cites the Royal Scepter as
-having "the same effect as Banner of the King", which suggests the `king` tag and
-the scepter tags may be the same mechanism entered from two directions). Do not
-infer any of this from the existing table.
-
-### Status after PR #60 and 2026-08-06 — the table above is stale
-
-`_active_conditions` now also emits `schoolhouse`, `southern_cross_constellation`,
-`draxus_constellation` and `drafting_from_library`, so most of the 14 are wired.
-What actually remains:
-
-- **`drafting_from_library` — DONE, and it was the wrong mechanism.** The Library
-  does not bias a re-deal; it **replaces the rarity table outright** (Commonplace
-  0%, Standard 0.01%, Unusual 49.99%, Rare 50%, datamined). Implemented in
-  `decks.py::roll_rarity` with the table in `weights.json`; the inert
-  `category_biases` signpost entry is deleted. The Bookshop 50% entry is separate
-  and still a genuine category bias.
-- **`schoolhouse` — the last small one.** `state.schoolhouse_placed` is read by
-  `_active_conditions` but **nothing ever sets it**. It needs one `Hook.ON_PLACE`
-  effect tag mirroring `greenhouse_bias`/`furnace_bias` in `effects/tier1.py`.
-  The Schoolhouse record already has a working `inject_pool` ON_PLACE effect, so
-  this is a second tag on an existing list. 35% Classroom bias is datamined.
-
-  **Completeness gap worth flagging separately**: the wiki says the Schoolhouse
-  also boosts the Library and Studio Addition: Dormitory, but our data encodes
-  only the Classroom entry. That is a missing-entries problem, not a wrong
-  magnitude — do not invent the other two percentages.
-- **The two constellations' activation chains — DONE.** Activating the Southern
-  Cross or Draxus from an Observatory night sky sets its day-scoped flag
-  (`engine/constellations.py::apply_effect`, driven by each record's own
-  `effect.condition` naming the `category_biases` entry). Measured over 300
-  seeds × 3 option slots at an interior cell: `layout: cross` options go
-  3.3% → 39.4%, `layout: dead_end` 27.2% → 46.4%.
-- **Still genuinely unsourced** (no modelled activation source): the five `king_*`
-  tags, `electromagnet`, `chronograph`, `adjacent_duct` and `adjacent_powered`.
+**(b) Gating the corner layout behind the wall break — needs an owner
+ruling.** This one wants a `greenhouse_wall_broken` carry-over flag and does
+move the observation space. It also **removes something the agent can do
+today**: any Greenhouse can be drafted as a two-door corner from day one, and
+whether that freedom is the bug or the deliberate simplification is the
+owner's call, not an implementation detail. Note (a) is correct and worth
+landing whichever way (b) is ruled.
 
 ## 15. Room-behaviour fidelity: audit every room against the wiki
 
-Opened 2026-08-08. The owner played several days through the Play tab and found
-four modelling gaps in one sitting. Every one is a room whose *record exists* and
-whose behaviour is wrong or missing, which is the class of bug no measurement
-against the sim can find -- every probe agrees with the engine, because the
-engine is what it measures. That makes this a systematic problem rather than
-four tickets.
+The divergence detector (`tools/validate_data.py::find_divergences`) and the
+per-room test split are both in place; the detector currently reports 0
+findings. **That means no room's behaviour is entirely absent from the
+codebase — it is a presence check, not a correctness check.** It compares
+`meta.effect_text` against `effects`/`items.guaranteed`/the room-hook
+registry, so it cannot see a partially-implemented effect or a wrong
+magnitude, only a room whose text claims something and every modelling
+channel is empty.
 
-### The four found by play (verified against the data, not just reported)
-
-- **Secret Passage — colour choice not modelled.** `effects: []`. Its own
-  `meta.effect_text` says "Leads to a room of a color of your choice", and the
-  owner reports the real mechanic: you pick one of **red, green, yellow, orange
-  or purple** (blue and black are NOT offered), and then every room drafted from
-  that room is that colour, unless none of that colour remain. Nothing
-  implements this, and it is a *player choice*, so it needs an action, not just
-  an effect tag.
-
-- **Pantry — grants nothing.** `effects: []`, `meta.effect_text: "+4<coin>"`.
-  Owner: it always gives **one random fruit (apple, orange or banana) and +4
-  coins**. Note apples and oranges do not exist in `data/items.json` today (only
-  `banana` among fruit) -- the same gap the resource-spreading design note hit
-  for the Secret Garden, so the two should be fixed together.
-
-- **Nursery — missing its immediate self-grant.** It has
-  `grant_on_draft_category`, which pays when a Bedroom is drafted *later*, but
-  the owner reports it **immediately grants the bedroom step bonus (+5 by
-  default) on its own draft**. The forward-looking half works; the on-draft half
-  is absent.
-
-- **Eight rooms have a POOL name where a COLOUR should be.** The owner's example
-  was the Vestibule (should be orange). The underlying fault is broader:
-  `category: "studio_addition"` is not a colour at all, and eight rooms carry it
-  -- `solarium`, `classroom`, `clock_tower`, `dormitory`, `vestibule`, `casino`,
-  `dovecote`, `the_kennel`. Category drives real behaviour (category biases,
-  `grant_per_category`, the Cloister/Terrace green boosts, scepter colours), so
-  these eight are silently excluded from every category-keyed mechanic.
-  `lost_and_found` is already correctly `red` -- the owner cited it as the
-  *expected* colour, not a defect.
-
-### The work: a per-room fidelity pass
-
-Ad-hoc fixing has now missed four rooms in a row. Do this systematically instead:
-
-1. **Split room-specific behaviour into per-room unit test files.** Today room
-   behaviour is scattered across `test_game.py`, `test_effects*.py` and others,
-   so "is the Pantry right?" has no single place to look or to fail.
-2. **Research every room's behaviour from the wiki**, with verbatim citations,
-   the way the Garage and Tunnel investigations were done.
-3. **For each room, evaluate the codebase** to determine whether all of that
-   room's functionality is actually modelled -- record present / partial /
-   missing per room, and note where `meta.effect_text` describes something the
-   `effects` list does not implement. That mismatch found three of the four
-   above and is the cheapest first sweep.
-4. **Write unit tests for each room's functionality**, following the repo rule
-   that tests assert observable behaviour rather than data contents.
-5. **Iterate until every room's functionality is properly implemented.**
-
-Expect this to be large -- 169 room records, ~80 in the base pool. It is worth
-scoping as a sequence of PRs (a batch of rooms each) rather than one change, and
-worth starting with the rooms most likely to matter for the win condition, since
-the 2026-08-08 measurement showed victory is unreachable on ~89% of days for
-lack of lever rooms.
+**Test coverage is what remains incomplete.** 45 of 80 base-pool rooms have a
+dedicated `tests/rooms/` file. Of the 35 without one, about 7 carry real,
+non-trivial behaviour and still have no file — `secret_passage`,
+`drafting_studio`, `rotunda`, `utility_closet`, `security`, `laboratory`,
+`conference_room`. Separately, `validate_data.py`'s
+`_AUDIT_DEFERRED_EXEMPT_IDS` already carries 5 rooms/subsystems the audit
+deliberately does not chase, each with a stated reason (`pump_room`,
+`closed_exhibit`, `root_cellar`, `throne_room`, `parlor__ix109`).
 
 **Do not start a training run mid-audit** — room behaviour changes what the
 policy learns. The rule, and the two runs discarded for breaking it, are in
 [`process.md`](process.md).
 
-## 17. Room behaviour: registry migration
-
-Opened 2026-08-10 from the architecture memo (see
-[`architecture.md`](architecture.md) for the reasoning and the measurements).
-Runs alongside task 15 rather
-than blocking it -- task 15 authors what a room does, task 17 changes where that
-lives.
-
-| Phase | Content | Status |
-|---|---|---|
-| 0 | Divergence validator in `validate_data.py` | DONE |
-| 1 | Widen `Hook`: `ON_DRAFT_FROM`, `ON_HAND_DEALT`, `ON_ARRIVE`, `ON_DAY_END` | DONE |
-| 2 | `room_hook` registry with opt-in `inherit` | DONE |
-| 3 | Migrate the 13 singleton tags to `engine/effects/rooms/` | DONE |
-| 4 | Relocate room-behaviour branches out of `game.py` / `draft.py` | DONE |
-| 5 | Retire the behaviour half of the ingest tables | DONE |
-
-The 13 singleton tags, which are the phase-3 worklist: `study_redraws`,
-`allow_duplicates`, `greenhouse_bias`, `anti_luck`, `halve_steps`,
-`furnace_bias`, `solarium_weights`, `coins_per_deadend`, `negate_red_rooms`,
-`pay_gems_with_steps`, `schoolhouse_bias`, `conservatory_rerolls`,
-`coins_per_draft`.
-
-**Two effects draw from the RNG** -- `conservatory_rerolls` and `inject_pool` --
-so migrating them can shift seed-stream consumption order. Keep each handler
-firing at the same point in `fire()` and re-run `test_draft_stats.py`; a move
-there is evidence the draft math regressed, not a flaky test.
-
-**What stays in data, deliberately**: the 9 shared parametric tags -- `grant`,
-`grant_per_category`, `grant_on_draft_category`, `set_resource_on_enter`,
-`counts_as_bedrooms`, `counts_as_drafting_room`, `inject_pool`,
-`free_green_drafts`, `reduce_draft_options`. They carry 44 of 57 effect instances
-and are everything `items.py::expected_yields` introspects.
-
-**Done.** CLAUDE.md no longer says "prefer changing behavior by editing data
-over editing code" -- it carries the three-way guidance instead: tabular facts
-in data, shared parametric tags in data, singleton behaviour in a room module.
-
-## 20. Research outcomes feeding the worklist (2026-08-10)
-
-### Sourced room lists, previously thought unpublished
-
-- **Cloister of Dauja's "rooms with an animal" -- six, enumerated**: Rumpus
-  Room, Aquarium, Nursery, Bunk Room (**once only**, despite counting as two
-  bedrooms elsewhere), Dovecote, The Kennel. Grants **2 stars** on draft.
-  It is an **ad-hoc id list, not a room type** -- the wiki itself cannot
-  explain why the Rumpus Room (a mounted fish) and Nursery (plushies) qualify
-  while taxidermy rooms like the Trophy Room do not. **Do not derive membership
-  from a semantic rule**; it gets both of those wrong.
-- **Cloister of Veia's "rooms with a fireplace" -- seven draftable**: Parlor,
-  Den, Trophy Room, Drawing Room, Furnace, The Armory, and the Dining Room
-  **only when placed in the centre columns or on Rank 9** (on the wings or Rank
-  1 it has windows instead). A dirt pile IS our `dig_spots`, and the grant is
-  **+8 additive**, not "set to 8" -- which matters only for the Furnace, whose
-  baseline is 1, so it reaches 9.
-
-The Dining Room condition is placement-dependent, so `has_fireplace` cannot be
-a static room flag for it.
-
-### Conflicts found, unresolved
-
-- **The trunk loot table diverges from the datamined one in two ways.** We
-  carry coin totals **11, 13 and 14, which do not exist in the game**, and we
-  make the key+gem+coin outcome **three times rarer** than it is (one entry at
-  5% against the game's three at 1/20 each). We also do not model the wiki's
-  "fall back to the option directly below" rule for already-owned items.
-- **The Clock Tower's wiki page contradicts itself**: its infobox says "for
-  each Tomorrow room **you draft today**", its prose says "for every Tomorrow
-  room **present in the mansion**". Our own text picks neither and omits that
-  the Clock Tower counts itself.
-- **`spare_great_hall__ix139` has text byte-identical to `great_hall` but a
-  different mechanic**: its 7th door is not necessarily locked, it has no side
-  doorways, no Antechamber lever and no Upgrade Disk, and a different prize
-  table. **They must not share an implementation.**
-- **The Funeral Parlor's 30-step penalty applies only to the FIRST box opened**,
-  not per empty box, and its gem count is read **when the box is opened**, not
-  at draft. Our text implies otherwise on both counts.
-- **`her_ladyships_chamber` omits a second effect entirely**: drafting it sets
-  the Boudoir's and Walk-In Closet's Dynamic Rarity to Commonplace.
-
-### Resolved, needing no owner call
-
-- **`guess_bedroom__ix70` is fully documented** -- the trailing "?" is in-game
-  flavour ("Your guess is as good as mine."), not datamine uncertainty, and
-  "Guess Bedroom" is the canonical pun name beside Quest and Geist, not a typo.
-  It mimics a random Bedroom in the draft pool, excluding itself, Her
-  Ladyship's Chamber, the Master Bedroom and the Spare Bedroom line, and adds a
-  once-per-day quiz-sheet guess for a random resource prize.
-  **Deferred anyway**: it needs runtime effect and type inheritance from an
-  arbitrary other room, which the engine has no mechanism for. The wiki itself
-  records that the mimicry is inconsistent in-game.
-- **The Aquarium is every room TYPE, not merely every colour** -- Red, Green,
-  Hallway, Bedroom, Shop and Blackprint on top of its native Blueprint -- and
-  it counts for **penalties as well as bonuses** (cursed, it loses 2 of every
-  resource; the Dare Mode shop dare auto-fails on it).
-  `electric_eel_aquarium__ix4` **additionally gains the Mechanical type**,
-  which our record does not encode.
-- **The Speakeasy is a genuine no-op in our model.** "Basic Addition" only
-  makes the Dartboard Puzzle easier (one board, one ring, two numbers, addition
-  only). We do not model the Dartboard Puzzle and we assume puzzles are solved,
-  so there is nothing to implement.
-- **The Vestibule's effect is rerollable for 2 steps** by leaving and
-  re-entering, and the wiki frames that as the intended strategy. Worth
-  watching as a farming incentive once it lands.
-
-### Open question for the owner
-
-- **Cloister of Joya's "permanent" Main Course bonus**: +5 steps to all five
-  main courses, cumulative and uncapped, surviving a change of the Cloister's
-  upgrade. The wiki never says whether "permanent" means the attempt or the
-  whole save. Defaulting to **per attempt**, consistent with every other
-  carry-over resetting on wrap -- flagged for confirmation rather than assumed
-  silently.
-
 ## 21. Capability architecture: the engine provides, rooms declare
 
-Opened 2026-08-10 on an owner ruling; the doctrine, the three layers and the
-enforcement invariant are stated in [`architecture.md`](architecture.md), and
-this section is the remaining worklist. **Started; the invariant is now
-measured rather than estimated.**
+PARTIAL, and the ratchet is not ratcheting. The doctrine, the three layers and
+the enforcement invariant are stated in [`architecture.md`](architecture.md).
+Commerce (the pattern-setter), containers, digging, and the Antechamber levers
+have landed as capabilities.
 
 `tests/test_room_id_allowlist.py` (PR #188) AST-scans `engine/*.py` and
 `engine/effects/*.py` for string literals equal to a real room id, against a
 per-module allowlist. It fails in **both** directions: a new literal in an
-unlisted module, and an allowlisted id that no longer appears. The second
-half is what makes it a ratchet rather than a record.
-
-**The measured starting point below is stale and was already wrong when
-written** -- the real count at the time the test landed was 55 pairs, not 45,
-because `draft.py` had grown and two modules with room-id literals did not
-exist when that table was made. That gap is the argument for the test.
+unlisted module, and an allowlisted id that no longer appears. That makes it a
+ratchet against regrowth, but **the allowlist itself has sat flat at 78 pairs
+across 11 modules since the test landed**, because — unlike the item side's
+`ITEM_DEBT` split, which `ITEM_DEBT_CAP = 1` enforces as a genuine ratchet —
+there is no cap test on the room side. Nothing fails when the count stays
+where it is; only regrowth is caught. About **45** of the 78 pairs are genuine
+per-room behaviour branches that a capability registration would remove; the
+rest are architecture (fixtures, named conditions, id-prefix families) that
+should stay.
 
 `Capability.LEVER` (PR #189) converted the first four rooms and taught us the
 shape: `COMMERCE`'s plain boolean is not enough for a capability that needs a
@@ -727,34 +336,18 @@ which is the engine knowing which rooms are shops. Under the capability model
 room module *registers* commerce for itself, and the Workshop's special-case
 `or room.id == "workshop"` disappears.
 
-### Measured starting point (2026-08-10)
+### Current per-module counts
 
-Room ids are hardcoded in 20 modules outside `effects/rooms/`. The behaviour
-targets, worst first:
+`ALLOWLIST` in `tests/test_room_id_allowlist.py`, largest first: `draft.py`
+15, `upgrades.py` 15, `shops.py` 14, `game.py` 11, `experiments.py` 6,
+`placement.py` 6, `special_items.py` 5, `effects/tier1.py` 2, `decks.py` 2,
+`locks.py` 1, `state.py` 1 -- 78 total across 11 modules. `upgrades.py` (the
+disk selection tables) and `placement.py` (named conditions and fixtures)
+legitimately name rooms and are not migration targets; `env/actions.py` /
+`env/obs.py` / `web/play.py` / `cli/render.py` / `config.py` / `rl/train.py`
+name rooms too but sit outside the scan entirely (env and UI wiring, presets).
 
-| module | room ids |
-|---|---|
-| `engine/game.py` | 14 |
-| `engine/shops.py` | 12 |
-| `engine/special_items.py` | 9 |
-| `engine/draft.py` | 7 |
-| `engine/decks.py`, `engine/locks.py` | 2, 1 |
-
-**Not targets, and not debt** -- these legitimately name rooms:
-`engine/upgrades.py` (15, the disk selection tables), `engine/placement.py` (6,
-where the ids are fixtures and named conditions and the tags are already
-room-agnostic), `env/actions.py` / `env/obs.py` / `web/play.py` /
-`cli/render.py` (env and UI wiring), `config.py` / `rl/train.py` (presets).
-
-Only **27** rooms have a discoverable `effects/rooms/<id>.py` module today.
-
-### Enforcement
-
-A conventions test scanning engine modules for room-id literals against an
-explicit allowlist, in the same spirit as `tests/test_conventions.py`'s
-docstring rule. **The allowlist starts at today's count and may only shrink.**
-That is what stops the architecture rotting back, and it turns "are we done?"
-into a number rather than a judgement call.
+**51** rooms have a discoverable `effects/rooms/<id>.py` module today.
 
 ### Sequencing
 
@@ -763,10 +356,12 @@ Done: commerce (the pattern-setter), containers and digging, the Antechamber
 levers. **Locks need nothing** -- `locks.py` reads `locks.json` and carries no
 room-id branch at all, which the allowlist confirms.
 
-Next, largest first: `shops.py`'s stock builders (12 ids), `draft.py`'s
-named-constant branches, `special_items.py`'s (10). The two day-end branches
-in `game.py` (`break_room__ix11`'s keycard pulse, `clock_tower`'s tally) want
-one shared `Capability.DAY_END` between them.
+Next, largest first: `shops.py`'s stock builders, `draft.py`'s named-constant
+branches, `special_items.py`'s remaining ones. The two day-end branches in
+`game.py` (`break_room__ix11`'s keycard pulse, `clock_tower`'s tally) want one
+shared `Capability.DAY_END` between them -- `Hook.ON_DAY_END` only fires for
+the room the player is standing in, not grid-wide, so the Clock Tower's tally
+needs its own grid-wide dispatch regardless of which capability carries it.
 
 ### What it buys
 
@@ -780,148 +375,16 @@ one shared `Capability.DAY_END` between them.
 - 24 of the 62 findings triaged on 2026-08-10 were false positives caused
   precisely by this scatter.
 
-## 22. Item behaviour: registry migration (scoping)
+**None of this work touches `env/`.** It moves where behaviour lives, not
+what an agent observes or can do, so no phase of this migration is a retrain
+trigger.
 
-Opened 2026-08-11, owner directive. The question, in their words: should items
-be "broken out into a registry similarly to how we broke out the rooms"? The
-stated reasoning -- "the engine can keep track of the capabilities while the
-registry implements those capabilities for each item and special item", and it
-"would also likely make it easier for you to stop re-litigating abilities".
+## 24. Reward calibration
 
-Note **"each item and special item"**: two distinct systems are in scope,
-`engine/items.py` (the luck / room-item yield system, 201 LOC) and
-`engine/special_items.py` (the ~102 inventory items, 2,465 LOC).
-
-**Measured starting point, 2026-08-11.** String literals in `engine/*.py`
-(non-recursive) matched against the 102 ids in `special_items.json`:
-
-| | count |
-|---|---|
-| `(module, item_id)` pairs | **58** -- `special_items.py` 42, `shops.py` 11, `game.py` 4, `placement.py` 1 |
-| `(module, effect_tag)` pairs | **36**, over **37** distinct tags (corrected 2026-08-12: the original 35/38 scanned only `engine/*.py`, missing `effects/tier1.py`, and predates #199 deleting `ignition_tool`) |
-| item-logic LOC | 4,440 -- `special_items.py` 2,465, `shops.py` 1,200, `upgrades.py` 574, `items.py` 201 |
-
-**For comparison the room-id debt is 79 pairs and is held under an enforced
-ratchet (`tests/test_room_id_allowlist.py`). The item debt of 58 is 73% of that,
-and has no equivalent enforcement at all** -- it was unmeasured until
-this entry.
-
-The motivating observation: `implemented: false` in
-`special_items.json` is an *asserted* fact that has repeatedly gone stale (five
-false `blocked_on` strings found the same day, two of them on items the engine
-already grants or reads). A per-item module would make it *derivable*. Whether
-it actually does is the test the recommendation has to pass.
-
-An architecture pass is in flight. It must take a position on the item
-equivalent of task 17's central call -- that migration moved 13 singleton tags
-and **deliberately left 9 shared parametric ones in data** -- and must propose
-an enforcement mechanism that ratchets down rather than only growing.
-
-**Recommendation, 2026-08-12: qualified yes, in two parts.**
-
-**`engine/items.py` is out of scope and already right.** It has zero item-id
-branches and dispatches on eight resource kinds via `match`. That is what task
-21 asks an engine capability to look like; there is nothing to break out.
-
-**`special_items.py` + the item half of `shops.py` (~3,665 LOC): migrate.**
-
-**The finding that decides the shape: items are the mirror image of rooms.**
-Task 17 moved 13 singleton tags and left 9 shared parametric ones carrying 77%
-of instances. Items are **30 singletons against 7 genuinely shared tags**
-(16 instances). By task 17's own rule -- singleton behaviour belongs in a
-module -- **items are a stronger migration candidate than rooms ever were.**
-
-Two refinements to that count, both load-bearing:
-
-- **`allowance` is a false shared tag.** All 19 instances are the same
-  `+2 allowance` payload on 19 differently-*sourced* tokens; the variation is
-  one-shot bookkeeping, not effect. It still stays in data -- `env/obs.py` and
-  `env/multiday.py` read it.
-- **`ignition_tool` is dead data.** Nothing reads the tag; `_ignition_tools()`
-  reads `registry.special.ignition["tools"]`, a separate list in the same file
-  naming the same items. Two sources of truth, one never consulted.
-
-**The registration primitive must NOT be a `room_hook` clone.** A room has a
-natural event boundary; an item does not. Item behaviour is overwhelmingly a
-**fold over the inventory** -- `move_step_cost`, `gem_cost_modifier`,
-`food_steps`, `shield_negates` all ask "does any held item modify this number".
-Copying the hook shape yields 40 modules registered against a constantly-firing
-hook, and makes fold *order* implicit in import order where today it is visible
-as sequential lines. **A bad item registry is strictly worse than the current
-2,465 lines, which are at least readable top to bottom.** The shape is
-`provides(item_id, Capability, **params)` -- following `Capability.LEVER` --
-with the **engine owning the fold and its order** as one explicit tuple, and
-the item declaring only its contribution. Genuine hooks are the minority:
-`ON_PICKUP`, `ON_ENTER_ROOM`, `ON_DAY_END`.
-
-**Scope is ~40 modules, not 102.** The four id-prefix families
-(`upgrade_disk_*` 16, `sanctum_key_*` 8, `vault_key_*` 4, `allowance_token*`
-19 -- 47 items) stay generic; `upgrades.py` already matches them by prefix.
-
-**What it does and does not buy.** It makes the *flag* derivable and kills
-`implemented`/`blocked_on` for `coupon_book`, `microchip` and
-`trophy_of_wealth`. **It does not make the *reason* derivable** -- a blocker is
-a claim about a subsystem, not about the item, so `dowsing_rod` and
-`crown_of_the_blueprints` stay asserted. Roughly 60% of the observed failure.
-**Phase 0 catches more of it, sooner, than the migration does**, which is why
-it comes first and stands alone.
-
-**Phases** (each independently mergeable, gates green throughout):
-
-**Phase 1 landed early, in #199**, before the phase table was written: that PR corrected all fourteen `blocked_on` strings, added `meta.reachability`, and deleted the `ignition_tool` tag. Six phases remain, not seven.
-
-| Phase | Content | Size | Risk |
-|---|---|---|---|
-| 0 | Two scanners + allowlists (`item_id`, `effect_tag`), bidirectional. **No code moves.** | S | Low | **DONE in #200** |
-| 1 | Truth pass on the 14 records; delete the `ignition_tool` tag | XS | Low | **DONE in #199** |
-| 2 | `ItemCapability` primitives + `effects/items/`; migrate `coupon_book` as pattern-setter | S | Low | **DONE in #203** |
-| 3 | Pure-query **singleton** capabilities (8 modules) | M | Low | **DONE in #204** |
-| 4 | Item handlers on game events + the engine-owned priority tuples | M | **Med** | **DONE in #205** |
-| 5 | Id-branch items, split on RNG risk: 5a RNG-free, 5b RNG-adjacent | M | Med | **DONE in #207, #208** |
-| 6 | RNG-touching migrations, **last and alone** | M | **High** | **DONE in #209** |
-| 7 | Shrink both allowlists; ~~delete `implemented`/`blocked_on`~~ | S | Low | **allowlist split DONE in #206. The flag deletion is CANCELLED -- its premise does not hold; see [`architecture.md`](architecture.md) on what `blocked_on` carries that no registry can derive.** |
-
-**No phase is a retrain trigger provided the `items` array is never reordered
-and nothing is inserted mid-array.** `env/obs.py` enumerates it positionally
-for the `inventory` Box -- structurally identical to `Room.idx`. `env/actions.py`
-is item-count-independent (`BUY_BASE` etc. are display slots), so the action
-space is unaffected.
-
-**Two constraints the scoping brief got wrong, corrected here:**
-
-- **`special_items.json` is hand-maintained.** `ingest_sheet.py` touches only
-  `rooms.json`, so the silent-revert hazard does not apply to item data.
-- **RNG risk is narrower than feared.** `rng.py` substreams are independent per
-  label, so only *same-label* ordering matters. Three item-relevant labels have
-  multiple draw sites: `treasure_map` (two functions, one stream -- migrate
-  alone), `lost_and_found` (contained), and **`extra_item_kind`, which spans
-  `game.py` and `items.py`** -- in the module this plan puts out of scope, so
-  it is a hazard for anything touching `roll_extra_items`, independent of this
-  work.
-
-**There is no item-side divergence audit at all.** The five guarded exemption
-channels are room-only; the entire validation of item implementation status is
-a check that `blocked_on` is non-empty -- never that it is *true*. A registry
-does not create a sixth exemption channel, it creates the **first** item audit.
-
-**Enforcement floor: ~10 of 58**, better than rooms will ever reach, because
-**item ids and room ids are disjoint** -- none of the `"bedroom"`-is-also-a-
-category ambiguity that permanently pins ~20 of the room allowlist. Two
-separate scanners are required: **13 of the 38 effect tags are spelled
-identically to an item id**, so a merged scanner would double-count. The tag
-scanner gets a second job: **a tag with zero readers is a hard failure, not an
-allowlist entry** -- that rule alone catches `ignition_tool` today.
-
-**Cost: ~8 PRs, ~650 LOC moved, ~500 LOC new.** `special_items.py` should land
-around 1,800 LOC.
-
-## Also outstanding (from `docs/plan.md`)
-
-- **Reward calibration** from multi-day training statistics — all shaping constants
-  (`special_item_values`, `PATHS_ONE_PENALTY`/`PATHS_ZERO_PENALTY`, scepter bias)
-  are deliberate knobs awaiting real run data.
-- **Inner Sanctum**: the 8 Sanctum Keys have sources and persist, but the area
-  behind the 8 doors is unmodeled.
+All shaping constants (`special_item_values`, `PATHS_ONE_PENALTY` /
+`PATHS_ZERO_PENALTY`, scepter bias) are deliberate knobs, set without real
+multi-day run data behind them. Calibrating them needs training statistics
+from actual attempts, which do not exist yet.
 
 ## 23. OPEN OWNER QUESTIONS
 
