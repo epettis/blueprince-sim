@@ -1,7 +1,7 @@
 """Commerce capability registry: which rooms provide it, and the sites that
 query it instead of branching on room category or id.
 
-Per docs/open_tasks.md task 21, the engine may not branch on a room id or
+Per docs/architecture.md, the engine may not branch on a room id or
 category to decide what a room does. commerce is the first capability: the
 eleven rooms a player can buy, sell, trade, or fabricate at register
 ``Capability.COMMERCE`` via ``provides`` (engine/effects/rooms/commerce.py),
