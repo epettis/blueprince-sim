@@ -28,7 +28,7 @@ dot -Tpng -Gdpi=150 docs/areas.dot -o /tmp/areas.png    # or -Tsvg
 - **Every edge is directed.** The gate that admits you to an area is usually not
   the gate that lets you out, and one passage is strictly one-way. Reverse trips
   are separate edges with their own conditions.
-- **One "travel to area" action per node** (~36 actions), masked to reachable
+- **One "travel to area" action per node**, masked to reachable
   destinations. The engine pathfinds and charges the cost, mirroring how
   `MOVE_TO_BASE` already works for grid cells. This is the action-space change
   that the per-area travel actions delivered.
@@ -38,11 +38,15 @@ dot -Tpng -Gdpi=150 docs/areas.dot -o /tmp/areas.png    # or -Tsvg
 This is the main evidence the rule is right — these three values were verified
 in play and are *derived* by the graph rather than contradicted by it:
 
-| Path | Graph | `GameConfig` |
+| Path | Graph | `GameConfig`, before removal |
 |---|---|---|
 | Entrance Hall -> doorstep | House -> Grounds -> West Path = 2 | `outer_path_entrance_cost = 2` |
 | Garage -> doorstep | Garage -> West Path = 1 | `outer_path_garage_cost = 1` |
 | doorstep -> inside the outer room | West Path -> outer room = 1 | `outer_enter_cost = 1` |
+
+These three fields no longer exist; the graph derives all three, and keeping
+them would be a second source of truth for one number (see "How it works in
+code").
 
 It only works because **the Outer Room drafting cave IS the West Path's south
 section**, not a separate node. An earlier draft split them and was off by one on
@@ -66,7 +70,7 @@ routes through it are unavailable the way an unplaced Garage is.
 | `private_drive` | |
 | `blackbridge_grotto` | **5th disk-reader terminal**; the one modelled terminal with no room record |
 | `orindian_ruins` | Throne Room floorplan |
-| `campsite` | **modelled**; no contents of its own, but it is the only approach to Apple Orchard |
+| `campsite` | **modelled**; the Conservatory's hidden dig spot (arriving with a held shovel permanently sets `conservatory_floorplan_found`), and the only approach to Apple Orchard |
 | `apple_orchard` | **modelled**; +20 steps/day (permanent from first arrival, `GameState.orchard_unlocked`); lights a torch on ENTRY (**not modelled** — see "Stateful mechanisms" below) |
 | `gemstone_cavern` | 2 gems/day; lights a torch on ENTRY |
 | `crate_tunnel` | **Entrance only.** Igniting the torches grants the Tunnel floorplan; everything deeper is story, not progression |
@@ -210,8 +214,10 @@ moment of traversal.
 
 ## Stateful mechanisms this graph requires
 
-None of these exist today, except the Pump Room's water levels (see "The Pump
-Room's water levels" below).
+Of these, only the Pump Room's water levels are modelled directly. The mine cart
+and the Rotating Gear position are both collapsed into the single
+`mine_south_visited` flag rather than tracked as positions. The rest do not
+exist today.
 
 | Mechanism | Behaviour | Persists overnight? |
 |---|---|---|
@@ -235,16 +241,14 @@ PR1 ships graph traversal only. The mechanisms above are not modelled, so the
 edges that depend on them are gated by **stubs that pass unconditionally**
 (owner decision, 2026-07-27).
 
-The alternative — closing them — was rejected because it strands **6 of the 36
-nodes**: Blackbridge Grotto (POWER), Orindian Ruins (behind the Grotto), and
-Underpass / Inner Sanctum / Sigil Chambers / Upper Rotating Gear (Rotating
-Gear position). That would delete
-Blackbridge Grotto, the one modelled terminal with no room record. An unreachable node
-measures exactly zero, which is a worse and more misleading failure than a
-slightly-too-generous world. (The Well and the Safehouse were originally on
-this list too — Pump Room water levels were unmodelled at the time this
-section was written — but both now have real, live gates; see "The Pump
-Room's water levels" below.)
+The alternative — closing them — was rejected because it strands Blackbridge
+Grotto (POWER) and Orindian Ruins (behind the Grotto), deleting the one modelled
+terminal with no room record. An unreachable node measures exactly zero, which is
+a worse and more misleading failure than a slightly-too-generous world. **That
+argument now rests on `lab_steam_and_power` alone**: measured, closing either
+elevator pair strands nothing, because the Underpass chain is held open by the
+real `mine_south_visited` and `boiler_room_steam` flags. The four elevator stubs
+are kept for their step-cost and car-position fidelity, not for reachability.
 
 > **Anything measured while these stubs are open is an UPPER BOUND** on what a
 > real player could reach. Print that caveat next to any number taken before the
@@ -270,13 +274,11 @@ Boiler Room, no power system needed. It is `kind: "flag"`, `stub: false`, set fr
 `state.boiler_room_steam` (Boiler Room entry) OR the carried `cfg.boiler_room_steam`,
 the same shape as `west_gate_unlatched`.
 
-Gates that are **not** stubs are already live: item gates (Basement Key, ignition
-tools, microchips, Sanctum Keys), the `west_gate_unlatched`, `mine_south_visited`,
-`sealed_entrance_broken`, `boiler_room_steam`, and `garage_door_breaker` flags,
-the `outer_room_drawn`
-outer_room gate, the `tomb_catacombs` room gate, the six `puzzle` gates that
-pass under the sim's standing "the player solves every puzzle in a room they
-enter" doctrine, and the four Pump Room gates below.
+Every gate not listed in the stub table above is already live — item, flag, room,
+`outer_room`, and the `puzzle` gates that pass under the sim's standing "the
+player solves every puzzle in a room they enter" doctrine.
+`engine/areas.py::stub_gates()` derives the stub list from the data, so the
+complement is whatever `areas.json` says it is.
 
 ## The Pump Room's water levels
 
@@ -349,8 +351,8 @@ basement`, and `basement -> sealed_entrance` (the reverse `sealed_entrance ->
 grounds` trip was always ungated). The flag is set permanently the first time
 the player arrives at `sealed_entrance`, and is also satisfied on the spot by
 currently holding a Power Hammer. The wiki's
-plank-versus-wall conditional is deliberately not modelled; see the decisions
-log in `open_tasks.md` (2026-08-04) for the unresolved discrepancy to re-test.
+plank-versus-wall conditional is deliberately not modelled; this document owns
+that ruling.
 
 ## Systems the sim lacks entirely
 
@@ -390,8 +392,9 @@ Surfaced by building this graph:
 
 ## Items this unblocks
 
-The items whose whole point is an area gate. All but the last are implemented
-now; the list stays because it records what each one is *for*.
+The items whose whole point is an area gate. All are settled — implemented, or
+explicitly decided against; the list stays because it records what each one is
+*for*.
 
 - `microchip` — 3 exist; all three gate the Orindian Ruins door, the Apple
   Orchard sundial, and one Crate Tunnel door. See the gate design below.
@@ -459,20 +462,12 @@ third source would be making up a game rule, and no ruling exists for one.
 ### `modelled`: which areas are offered as destinations
 
 Every node carries a required boolean `modelled`. Only modelled nodes are offered
-as travel actions; the pathfinder still routes *through* the rest. Today 19 are
-modelled — `house`, `garage`, `west_path`, the 8 outer rooms, `room_46`, the
-four nodes that make the Sanctum route walkable (`the_foundation`, `basement`,
-`mine_south`, `inner_sanctum`), `upper_rotating_gear` (added with the gem/blackprint
-grant, see "graduated" below — this list previously undercounted it as 16), and
-now `apple_orchard` plus its only approach, `campsite` (owner report, 2026-08-08:
-the Orchard's +20-steps-per-day bonus was unreachable in two independent ways —
-never offered as a destination, and its `orchard_unlocked` config flag was never
-set anywhere in-run; both are now fixed, `GameState.orchard_unlocked` following
-the exact `west_gate_unlatched` carry-over shape). `campsite` itself holds
-nothing — it is modelled purely as the required waypoint, the same
-pass-through justification as the four Sanctum nodes.
+as travel actions; the pathfinder still routes *through* the rest. **`areas.json`
+is the list** — do not restate it here, it has been wrong twice. A node graduates
+when it holds something worth walking to: the Sanctum route's disks and keys, the
+Orchard's step bonus, the Grotto's disk terminal.
 
-This is not tidiness, it is a measured fix. With all 36 exposed, 13 nodes were
+This is not tidiness, it is a measured fix. With every node exposed, 13 nodes were
 reachable on day 1 through open stub gates, none of them holding anything
 modelled, and a random policy spent **80% of its steps** wandering them; off-grid,
 99.8% of the legal mask was travel. Gating on `modelled` cut that to 30%.
@@ -531,7 +526,7 @@ An action slot exists for **every** node, modelled or not, so switching an area 
 later is a mask-only change: **no action-space change and therefore no retrain.**
 That is the whole reason the flag lives in the data rather than in a Python list
 of "useful" areas.
-- `env/obs.py` — `player_area` (`Discrete(37)`; 0 = on the grid) says where the
+- `env/obs.py` — `player_area` (`Discrete(n_area_nodes + 1)`; 0 = on the grid) says where the
   player is. `player_pos` still holds a grid cell but is only meaningful when
   `player_area == 0`.
 - `tools/validate_data.py` — referential checks over `areas.json`, plus the
@@ -590,7 +585,7 @@ area graph.
 
 ### Outside-areas panel (Runs tab)
 
-Appears below the 5x9 house grid.  Displays all 36 area nodes as an inline SVG.
+Appears below the 5x9 house grid.  Displays all area nodes as an inline SVG.
 Layout is derived from the API response — x from `depth` (BFS hops from
 `house`, house at the left), y from `band` (surface near the top, anchor on the
 centre line, underground near the bottom).  Nodes that share a depth within a
@@ -622,7 +617,7 @@ band are spread evenly.  Any node with `depth: null` is parked in a separate
   any nonzero visit to the full band colour at the maximum).  Nodes with zero
   visits are drawn at low opacity in a dark fill.  When no area-stats data has
   been recorded yet, a "no off-grid travel recorded yet" note appears in the
-  legend instead of 36 identically-shaded nodes.
+  legend instead of identically-shaded nodes.
 
 Band colours: surface = `#2a9d8f` (teal, matching the existing `outer` palette
 entry), underground = `#7a50a0` (purple), anchor = `#8a919c` (grey).

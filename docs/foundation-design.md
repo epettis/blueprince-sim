@@ -128,8 +128,10 @@ flag, which is only set by lighting the candles while standing *inside* the
 mine, so the Precipice is an exit the player creates from below rather than a
 way in. The mine is reached from the house side — the Catacombs via the Tomb,
 the drained Fountain plus the Basement Key, or the lowered Reservoir crossing
-from the north. Holding the Basement Key restores `reservoir_south` at 3 hops
-and `mine_south` at 4.
+from the north. Holding the Basement Key *and* draining the Fountain to 0 at the
+Pump Room restores `reservoir_south` at 3 hops and `mine_south` at 4; the key
+alone is not enough, because `grounds -> well` needs the Fountain at 8 or below
+and `well -> reservoir_south` needs it at 0.
 
 `basement` is a different story. Before `basement_key_foundation` existed, an
 empty inventory could still reach it in 5 hops purely through the Foundation's
@@ -158,7 +160,7 @@ Owner decisions, 2026-08-04, after measuring the blockers above:
 1. **Three nodes become `modelled: true`**: `basement`, `mine_south`,
    `inner_sanctum` — plus the `the_foundation` anchor itself. Everything else in
    the underground (`well`, `reservoir_south`, `reservoir_north`, `mine_north`,
-   `rotating_gear`, `upper_rotating_gear`, `underpass`, `sigil_chambers`,
+   `rotating_gear`, `underpass`, `sigil_chambers`,
    `safehouse`, `catacombs`, `precipice`, `unknown_underground`) stays
    routed-through-but-unadvertised, so the step tax that drove the original
    `modelled` flag stays contained. `mine_south` earns its place by holding an
@@ -223,6 +225,6 @@ Making the route *exist* is not the same as making it *worth walking*. If the
 retrain still never finds Room 46, the two-tier constants in `env/rewards.py`
 (`ANTECHAMBER_REWARD`, `ROOM46_REWARD`) are the knobs, not this route.
 
-The open stub gates elsewhere in the underground (`pump_water_lte8`,
-`rowboat_water_6`, the two elevators) are untouched and still pass
-unconditionally, so **any Room 46 rate measured now is an upper bound**.
+The open stub gates elsewhere in the underground (the two Foundation elevator
+gates, and `lab_steam_and_power` on the Grotto) are untouched and still pass
+unconditionally.
