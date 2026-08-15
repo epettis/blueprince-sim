@@ -1,0 +1,179 @@
+{
+ "schema_version": 1,
+ "meta": {
+  "source": "https://blueprince.wiki.gg/wiki/Casino (Slot Machine, Roulette Table sections)",
+  "confidence": "wiki",
+  "notes": [
+   "Verified against the live page's raw wikitext (action=raw) on 2026-08-15, not the rendered/summarized view -- an earlier summarized fetch under-counted the Roulette table at 4 rows per column instead of the real 6; the raw wikitext settles it.",
+   "Roulette: 'There are 12 spots on the table, but half of them are red and give nothing if the ball lands there. The ball appears to choose a spot uniformly at random.' Each of the three cost-tier columns lists exactly 6 prize rows, one per non-red spot -- engine/effects/rooms/casino.py models this as a 50% chance of nothing, then a uniform pick among the tier's 6 published prizes (an equivalent distribution to 12 named spots, since which specific spot maps to which prize is never stated and does not change the odds). It 'can only be spun once per day' -- total, across all three cost tiers, not once per tier -- so a play at any tier disables all three for the rest of the day (engine/shops.py's buy() sets the shared 'disabled' flag the same way the Locksmith's Electromagnet robbery does).",
+   "Roulette prize table (raw wikitext, {{icon|gold|N}} columns headed 5/20/100): row1 coins(10/30/200), row2 coins(20/50/300), row3 keys(2/4/'4 and 4 gems'), row4 keys(2)|gems(4)|'10 of each: steps,keys,gems,gold,dice', row5 gems(2)|allowance(2)|allowance(4), row6 gems(2)|'2 free spins'|'2 free spins'.",
+   "Free spins: 'Free spins occur immediately, spinning the same roulette wheel twice again and giving the rewards of both. These free spins can stack if it lands on 2 free spins again.' Modelled as a pending-spin counter on the SAME tier's wheel, incremented by 2 every time a free-spins result is drawn (recursively; no re-charge).",
+   "Slot machine: 'Spinning the slots costs 1 coin, and causes 4 symbols to appear. An individual slot can be rerolled using a bonus spin, keeping the other three results... cost 1 coin and can only be performed up to 3 times.' Golden slots (SpoilerBox 'the golden slots'): 'The golden slot's lever is broken; it can be fixed using a Broken Lever. The only difference between golden slots and regular slots is that it allows 5 bonus spins instead of 3.' -- so special_items.json's machines.casino grants nothing on lever install; engine/effects/rooms/casino.py reads state.special.machines_used directly (day-scoped, matching how the manor itself resets every day) to decide 3 vs 5.",
+   "Datamined reel probabilities (DataMinedBox, independent per reel, same odds on the initial roll and every bonus spin): Dash 27%, Coin 30%, Coin Stack 10%, Clover 1%, Double 10%, Snake 10%, Net 4%, Crown 8% (sums to 100).",
+   "Payout table (Casino Prizes, raw wikitext) and interaction order: 3 coins -> 3 (n/a at 4 coins), 4 coins -> 5; 3 coin stacks -> 9 (n/a at 4), 4 coin stacks -> 15; Clover -> 10 each, added to any other matches; Snake sets the payout to 0, applied AFTER Clover, and does not apply if a Net is present; Net -> 3 per snake and disables Snake, does not stack across multiple nets; Double -> 2x the payout, applied after everything else (including Snake/Net), stacks with itself; 4 crowns -> 100.",
+   "Open question (DataMinedBox, verbatim): 'There is code meant to prevent getting duplicate nets. But you can get more than one net, so how is it broken?' This sim models exactly what the page states -- Net's payout and disable-Snake effect do not stack across multiple nets, i.e. 2+ nets behave identically to exactly 1 -- and does not attempt to resolve or reproduce whatever the underlying game bug actually does with a genuine duplicate. Disclosed in rooms.json's casino record (meta.effect_text points here rather than carrying its own meta.simplification, since this room is supplemental-sourced -- see tools/supplemental_rooms.json -- and test_ingest_overrides.py's simplification mirror-guard does not yet exempt supplemental rooms the way its flags/extra_categories checks do).",
+   "The wiki also publishes a full per-symbol-combination optimal bonus-spin strategy (SpoilerBox 'optimal strategy', +0.43 EV normal / +0.80 EV golden) -- not reproduced here. This sim exposes the reroll BUDGET as the player's real decision (a 'quick spin' entry with 0 bonus spins alongside a 'spin and reroll' entry using the room's own cap), then resolves which single reel to reroll on each pass with a simple greedy heuristic (reroll a Dash first, then an un-netted Snake, stopping once neither remains or the budget/coins run out) rather than the wiki's full branching table -- a disclosed simplification, not a claim of optimal play."
+  ]
+ },
+ "slot_machine": {
+  "spin_cost": 1,
+  "bonus_spin_cost": 1,
+  "max_bonus_spins": 3,
+  "max_bonus_spins_golden": 5,
+  "reels": {
+   "symbols": [
+    "dash",
+    "coin",
+    "coin_stack",
+    "clover",
+    "double",
+    "snake",
+    "net",
+    "crown"
+   ],
+   "weights": [
+    27,
+    30,
+    10,
+    1,
+    10,
+    10,
+    4,
+    8
+   ]
+  },
+  "payouts": {
+   "three_coins": 3,
+   "four_coins": 5,
+   "three_coin_stacks": 9,
+   "four_coin_stacks": 15,
+   "clover_each": 10,
+   "net_per_snake": 3,
+   "four_crowns": 100,
+   "double_multiplier": 2
+  }
+ },
+ "roulette": {
+  "spots": 12,
+  "red_spots": 6,
+  "tiers": [
+   {
+    "cost": 5,
+    "prizes": [
+     {
+      "kind": "coins",
+      "amount": 10
+     },
+     {
+      "kind": "coins",
+      "amount": 20
+     },
+     {
+      "kind": "keys",
+      "amount": 2
+     },
+     {
+      "kind": "keys",
+      "amount": 2
+     },
+     {
+      "kind": "gems",
+      "amount": 2
+     },
+     {
+      "kind": "gems",
+      "amount": 2
+     }
+    ]
+   },
+   {
+    "cost": 20,
+    "prizes": [
+     {
+      "kind": "coins",
+      "amount": 30
+     },
+     {
+      "kind": "coins",
+      "amount": 50
+     },
+     {
+      "kind": "keys",
+      "amount": 4
+     },
+     {
+      "kind": "gems",
+      "amount": 4
+     },
+     {
+      "kind": "allowance",
+      "amount": 2
+     },
+     {
+      "kind": "free_spins",
+      "amount": 2
+     }
+    ]
+   },
+   {
+    "cost": 100,
+    "prizes": [
+     {
+      "kind": "coins",
+      "amount": 200
+     },
+     {
+      "kind": "coins",
+      "amount": 300
+     },
+     {
+      "kind": "multi",
+      "grants": [
+       {
+        "kind": "keys",
+        "amount": 4
+       },
+       {
+        "kind": "gems",
+        "amount": 4
+       }
+      ]
+     },
+     {
+      "kind": "multi",
+      "grants": [
+       {
+        "kind": "steps",
+        "amount": 10
+       },
+       {
+        "kind": "keys",
+        "amount": 10
+       },
+       {
+        "kind": "gems",
+        "amount": 10
+       },
+       {
+        "kind": "coins",
+        "amount": 10
+       },
+       {
+        "kind": "dice",
+        "amount": 10
+       }
+      ]
+     },
+     {
+      "kind": "allowance",
+      "amount": 4
+     },
+     {
+      "kind": "free_spins",
+      "amount": 2
+     }
+    ]
+   }
+  ]
+ }
+}

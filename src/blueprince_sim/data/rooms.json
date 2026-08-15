@@ -5789,12 +5789,7 @@
    "deck_copies": 1,
    "effects": [],
    "items": {
-    "guaranteed": [
-     {
-      "item": "die",
-      "count": 1
-     }
-    ],
+    "guaranteed": [],
     "additional_max": 1,
     "dig_spots": 0
    },
@@ -5802,7 +5797,7 @@
    "meta": {
     "source": "wiki",
     "confidence": "wiki",
-    "effect_text": "Slot machine: spins cost gold (gamble not modeled; grants 1 die as approximation)."
+    "effect_text": "A slot machine (1 coin per spin, up to 3 bonus rerolls at 1 coin each -- 5 once the golden lever is fixed with a Broken Lever) and a once-per-day roulette table (5/20/100-coin tiers, 12 spots half of them red) are modelled as ordinary Casino shop-buy actions (engine/shops.py, engine/effects/rooms/casino.py); see data/casino.json for the full payout tables and modelling simplifications. Supersedes the earlier 1-die stand-in this record used to grant on first entry."
    }
   },
   {

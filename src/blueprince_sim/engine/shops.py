@@ -415,6 +415,20 @@ def buy(game, index: int) -> None:
             entry["sold"] = entry.get("sold", 0) + 1
             state.shops.gift_unlocks.append("cursed_effigy_unlocked")
 
+        case "casino_slot" | "casino_roulette":
+            # Deferred import: effects/rooms/casino.py imports this module at
+            # load time (register_stock_builder), so importing it back at
+            # shops.py's own module level would cycle. The two games'
+            # payout math lives entirely in that module; see its own
+            # docstring for why a "buy" is the whole spin/reroll/claim (or
+            # spin/free-spin-chain) resolved in one call.
+            from .effects.rooms import casino as casino_room
+            if entry["kind"] == "casino_slot":
+                casino_room.resolve_slot_purchase(game, entry)
+            else:
+                casino_room.resolve_roulette_purchase(game, entry, stored)
+            entry["sold"] = entry.get("sold", 0) + 1
+
 
 # ------------------------------------------------------------------- trading
 
