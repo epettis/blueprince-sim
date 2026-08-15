@@ -193,6 +193,33 @@ the other stub retirements in this file, it adds to the action space and
 therefore **belongs bundled with a retrain**, the same reasoning that governed
 the area graph's sequencing.
 
+**The real control panel is smaller than a per-pump-per-source enumeration.**
+The wiki: *"Only one source can be selected at once."* The UI is
+select-then-act — six selection buttons, then four pumps each switchable up
+(drain to a tank) or down (fill from a tank), plus a tank switch behind the
+tanks that decides which tank Pump 2 uses. That is on the order of **14 ids,
+not ~48**; a 4x6x2 enumeration would model combinations the panel cannot
+express, since each pump is wired to fixed sources (Pump 1:
+Aquarium/Greenhouse, Pump 2: Fountain/Reservoir, Pump 3: Kitchen, Pump 4:
+Pool).
+
+**It is a water-pouring puzzle, and that is what decides the macro question.**
+A pump moves as much as it can in one go — *"the amount of water in the
+container being drained, or the amount of space in the container being
+filled, whichever is less"* — so levels are reached by sequences, not
+increments. Crucially the wiki also states the outcome space: *"it is
+possible to set any water source to any valid water level except for the
+Reservoir, which cannot be drained below water level 2."* **So a macro action
+("set source X to level N") loses no reachable state** — it costs only the
+interaction count, which is the puzzle itself. Choosing between the two
+shapes is therefore a question about whether the agent should have to solve
+the pouring puzzle, not about which states it can reach.
+
+**Tanks are part of the state**, not just plumbing: Tank 1 and Tank 2 each
+start at 2 with capacity 4, and a disconnected Reserve Tank (1/6) is not part
+of the system. Water levels are **permanent**; the selected source and the
+lever positions **reset daily**.
+
 ## 15. Room-behaviour fidelity: audit every room against the wiki
 
 The divergence detector (`tools/validate_data.py::find_divergences`) and the
