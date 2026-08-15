@@ -162,6 +162,99 @@ def _walk_facing(game: Game, action_id: int) -> str | None:
     return DIR_NAMES[path[-1]]
 
 
+_EFFECT_TEXT_CACHE: dict[str, dict[str, str]] = {}
+
+
+def _room_effect_text_by_id(data_dir: Path) -> dict[str, str]:
+    """Map every rooms.json room id to its sheet ``effect_text``.
+
+    ``Room`` (engine/model.py) does not carry ``effect_text`` -- nothing in
+    the engine reads it -- so the disk-upgrade menu's raw variant ids (e.g.
+    "parlor__ix108") have no readable name available anywhere in the running
+    registry. Reading the JSON directly is the only way to recover the text
+    that actually distinguishes same-named variants. Cached per data
+    directory since rooms.json does not change mid-process.
+    """
+    key = str(data_dir)
+    cached = _EFFECT_TEXT_CACHE.get(key)
+    if cached is None:
+        raw = json.loads((data_dir / "rooms.json").read_text())["rooms"]
+        cached = {r["id"]: r.get("meta", {}).get("effect_text", "") for r in raw}
+        _EFFECT_TEXT_CACHE[key] = cached
+    return cached
+
+
+def _pending_upgrade_dict(game: Game) -> dict | None:
+    """JSON view of the live Upgrade Disk choice, or None outside UPGRADE_PENDING.
+
+    ``game.state.pending_upgrade_options`` holds three raw variant ids -- the
+    disk menu's own bare-id display the owner flagged as unreadable (open
+    task 30, not specific to the Parlor). ``effect_text`` (see
+    ``_room_effect_text_by_id``) is what actually distinguishes same-named
+    variants; ``slot_name`` is the base room the disk is upgrading, resolved
+    through the slot table since a slot id is not always the room id it
+    upgrades.
+    """
+    if game.phase is not Phase.UPGRADE_PENDING:
+        return None
+    st = game.state
+    slot_id = st.pending_upgrade_slot
+    slot_def = game.registry.upgrade_tables.slot_by_id.get(slot_id) if slot_id else None
+    base_room = game.registry.by_id.get(slot_def.room) if slot_def is not None else None
+    effect_text = _room_effect_text_by_id(game.registry.data_dir)
+    options = []
+    for i, variant_id in enumerate(st.pending_upgrade_options):
+        room = game.registry.by_id.get(variant_id)
+        options.append({
+            "index": i, "id": variant_id,
+            "name": room.name if room is not None else variant_id,
+            "effect_text": effect_text.get(variant_id, ""),
+        })
+    return {
+        "slot": slot_id,
+        "slot_name": base_room.name if base_room is not None else slot_id,
+        "options": options,
+    }
+
+
+_RESOURCE_KEYS = ("steps", "gems", "keys", "coins", "dice", "luck")
+
+
+def _resource_snapshot(game: Game) -> dict[str, int]:
+    """steps/gems/keys/coins/dice/luck plus every held special item, by id.
+
+    One reporting point for task 28: whatever paid a room out -- a record's
+    ``items``, a ``grant`` effect tag, a ``room_hook`` handler, or a container
+    open -- lands on ``GameState`` one way or another, so diffing this
+    snapshot before/after a step surfaces every source without a separate
+    hook per path.
+    """
+    st = game.state
+    snap = {k: getattr(st, k) for k in _RESOURCE_KEYS}
+    snap.update(st.inventory)
+    return snap
+
+
+def _payout_diff(before: dict[str, int], after: dict[str, int], registry) -> list[dict]:
+    """Non-zero deltas between two ``_resource_snapshot`` calls, signed.
+
+    Reports both gains and costs (e.g. a walk's step cost nets against a
+    room's step grant) rather than hiding the cost side -- the action log is
+    meant to say what actually happened, not just the flattering half.
+    """
+    out = []
+    for key in sorted(set(before) | set(after)):
+        delta = after.get(key, 0) - before.get(key, 0)
+        if delta == 0:
+            continue
+        if key in _RESOURCE_KEYS:
+            out.append({"id": key, "name": key, "delta": delta})
+        else:
+            item = registry.special.by_id.get(key)
+            out.append({"id": key, "name": item.name if item is not None else key, "delta": delta})
+    return out
+
+
 def _debug_info(game: Game) -> dict:
     """Overlay data the trained agent's observation does NOT encode directly.
 
@@ -229,6 +322,13 @@ class PlaySession:
             ]
             day = self.env.game.state.day
             frame = _frame(self.env.game, self.last_action, self.facing)
+            # `_frame` is shared with replay.py's build_frames, which never
+            # needs these two fields (a recorded run replays through this
+            # same dict shape, but neither task these serve applies to it) --
+            # added here instead of there so the shared frame builder does
+            # not grow fields only the live Play tab uses.
+            frame["entered"] = list(self.env.game.state.entered)
+            frame["pending_upgrade"] = _pending_upgrade_dict(self.env.game)
             return {
                 "frame": frame,
                 "legal_actions": legal,
@@ -267,7 +367,9 @@ class PlaySession:
                 raise IllegalActionError(action_id)
             text = A.describe_action(self.env.game, action_id)
             walk_facing = _walk_facing(self.env.game, action_id)
+            before = _resource_snapshot(self.env.game)
             _, reward, terminated, truncated, info = self.env.step(action_id)
+            payout = _payout_diff(before, _resource_snapshot(self.env.game), self.env.game.registry)
             self.actions.append(action_id)
             self.day_reward += reward
             if walk_facing is not None:
@@ -276,7 +378,7 @@ class PlaySession:
             if pending is not None:
                 self.facing = DIR_NAMES.get(pending.direction, self.facing)
             self.last_action = {"index": len(self.actions) - 1, "action": action_id,
-                                 "text": text, "explore": False}
+                                 "text": text, "explore": False, "payout": payout}
             if terminated or truncated:
                 self._close_day(info, attempt_final=terminated)
             return self.state()
@@ -389,14 +491,17 @@ class PlaySession:
         for idx, a in enumerate(current_day_actions):
             text = A.describe_action(self.env.game, a)
             walk_facing = _walk_facing(self.env.game, a)
+            before = _resource_snapshot(self.env.game)
             _, reward, _terminated, _truncated, _info = self.env.step(a)
+            payout = _payout_diff(before, _resource_snapshot(self.env.game), self.env.game.registry)
             self.day_reward += reward
             if walk_facing is not None:
                 self.facing = walk_facing
             pending = self.env.game.state.pending
             if pending is not None:
                 self.facing = DIR_NAMES.get(pending.direction, self.facing)
-            self.last_action = {"index": idx, "action": a, "text": text, "explore": False}
+            self.last_action = {"index": idx, "action": a, "text": text, "explore": False,
+                                 "payout": payout}
         self.actions = list(current_day_actions)
 
     def save(self, path: Path) -> int:

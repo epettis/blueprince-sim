@@ -199,19 +199,25 @@
       <div id="play-save-status" class="dim"></div>
     </div>
     <div id="play-draft"></div>
+    <div id="play-upgrade"></div>
     <div class="panel-head">Legal actions</div>
     <div id="play-actions"></div>
   </aside>
 
-  <section id="play-house-panel">
-    <div id="play-debug-marker" class="hidden">● DEBUG OVERLAYS ON</div>
-    <div id="play-house"></div>
-  </section>
-
-  <section id="play-area-panel">
-    <div class="panel-head" style="margin:0 0 6px">Outside areas</div>
-    <div id="play-area-graph"></div>
-    <div id="play-area-legend" class="area-legend"></div>
+  <section id="play-map-panel">
+    <div id="play-map-tabs" class="map-tab-group">
+      <button id="play-map-tab-house" class="map-tab-btn active">House</button>
+      <button id="play-map-tab-area" class="map-tab-btn">Outside areas</button>
+      <span class="dim map-tab-hint">follows the player automatically; click to look around</span>
+    </div>
+    <section id="play-house-panel">
+      <div id="play-debug-marker" class="hidden">● DEBUG OVERLAYS ON</div>
+      <div id="play-house"></div>
+    </section>
+    <section id="play-area-panel" class="hidden">
+      <div id="play-area-graph"></div>
+      <div id="play-area-legend" class="area-legend"></div>
+    </section>
   </section>
 
   <aside id="play-detail-panel">
