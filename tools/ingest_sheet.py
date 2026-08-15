@@ -26,8 +26,8 @@ SUPPLEMENTAL = ROOT / "tools" / "supplemental_rooms.json"
 OUT = ROOT / "src" / "blueprince_sim" / "data" / "rooms.json"
 
 # Rooms whose terminal accepts an Upgrade Disk (docs/upgrade-disks-design.md).
-# Blackbridge Grotto is a fifth in the real game but has no record yet, so it
-# stays gated behind the outside-area work in docs/open_tasks.md task 4.
+# Blackbridge Grotto is a fifth in the real game, but it exists only as an
+# area-graph node with no rooms.json record, so it cannot be listed here.
 DISK_READER_IDS = {"security", "laboratory", "office", "shelter"}
 
 LAYOUT_MAP = {

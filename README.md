@@ -109,7 +109,7 @@ functions in [docs/rewards.md](docs/rewards.md).
 | `data/special_items.json` | wiki.gg item pages, collated in `docs/research/special-items-wiki.md`; some spawn rates are estimates | wiki / inferred |
 | `data/shops.json` | wiki.gg shop pages (stock tables, prices) and the Trading Post trade tiers | wiki |
 | `data/upgrade_selection.json` | wiki.gg Upgrade Disk page, Patch-1.7 selection tables — see [docs/upgrade-disks-design.md](docs/upgrade-disks-design.md) | wiki |
-| `data/areas.json` | owner-reviewed off-grid map (36 nodes, 73 edges) — see [docs/areas.md](docs/areas.md); deferred gates are open stubs flagged `stub: true` | wiki / inferred |
+| `data/areas.json` | owner-reviewed off-grid map — see [docs/areas.md](docs/areas.md); deferred gates are open stubs flagged `stub: true` | wiki / inferred |
 
 Every record carries `meta.source` and `meta.confidence`
 (`datamined > wiki > inferred > placeholder`). To correct a value, edit the

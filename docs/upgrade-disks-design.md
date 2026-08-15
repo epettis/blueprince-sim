@@ -302,7 +302,7 @@ options, sampled" above.
 
 Security, Laboratory, Office and Shelter exist as records (`security`,
 `laboratory`, `office`, `shelter`). **Blackbridge Grotto has no record at all**
-and stays gated behind task 4.
+and exists only as an area-graph node.
 
 There is no "terminal" concept in code or data today — the word is otherwise
 taken by `Phase.TERMINAL`, Security's control hardware, and trade-graph terminal
@@ -337,7 +337,8 @@ by cell.
 Each is faithful-where-known and flagged where invented.
 
 - **Catacombs is permanently locked.** There is no `catacombs` record, so line
-  7's check never passes and the line always falls through. Revisit with task 4.
+  7's check never passes and the line always falls through. Revisit if a
+  `catacombs` room record is ever added.
 - **The veteran day-1 shortcut ignores "already drafted".** The wiki's shortcut
   skips rooms already drafted as well as already upgraded; selection is
   otherwise provably independent of house state, and the drafted test would be
