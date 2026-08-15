@@ -850,6 +850,9 @@ def main(argv: list[str] | None = None) -> int:
                         help="optional cap; default runs until signaled")
     parser.add_argument("--tensorboard", action="store_true",
                         help="also log to <checkpoint-dir>/tb")
+    # The default of 0.05 is a judgement call, not a measured optimum: the
+    # throughput gain from throttling these lines has never been timed on a
+    # real run.
     parser.add_argument("--dashboard-every", type=float, default=0.05,
                         metavar="FRACTION",
                         help="fraction of finished episodes that emit a chain-state "

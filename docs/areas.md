@@ -83,7 +83,7 @@ routes through it are unavailable the way an unplaced Garage is.
 | `catacombs` | |
 | `mine_south` | **modelled, Upgrade Disk**; the mine cart is moved from here |
 | `mine_north` | |
-| `rotating_gear` / `upper_rotating_gear` | |
+| `rotating_gear` / `upper_rotating_gear` | The game's **"Underground"** is `upper_rotating_gear`: a room one step off a hallway from the Underpass, not reachable from `rotating_gear` |
 | `underpass` | |
 | `inner_sanctum` | **modelled** — lever opening the Antechamber **north** door |
 | `sigil_chambers` | 8 chambers, one Sanctum Key each |
@@ -295,10 +295,9 @@ node this edge uniquely supplies, only a shortcut around an existing gate — an
 the closed default was kept instead. **Do not "fix" this gate to a passing
 stub without re-checking this loophole first.**
 
-**`boiler_room_steam` graduated out of this table, 2026-08-06.** Owner ruling
-(docs/open_tasks.md decisions log): the player unlocks Underpass -> Upper
-Rotating Gear permanently the first time they enter the Boiler Room, no power
-system needed. It is now `kind: "flag"`, `stub: false`, set from
+**`boiler_room_steam` is not a stub.** Owner ruling: the player unlocks
+Underpass -> Upper Rotating Gear permanently the first time they enter the
+Boiler Room, no power system needed. It is `kind: "flag"`, `stub: false`, set from
 `state.boiler_room_steam` (Boiler Room entry) OR the carried `cfg.boiler_room_steam`,
 the same shape as `west_gate_unlatched`.
 
@@ -472,6 +471,16 @@ already applied". `mine_south` is unreachable on a fresh day 1 now that both
 directions require `candlestick_stairway_lit`, so the off-grid share is lower
 than 41.88% by an unmeasured amount. The numbers are kept because they are
 what justified the `modelled` flag, and that decision still stands.
+
+**The off-grid step share is a standing debt, not a settled number.** Adding the
+Orchard and campsite took it from 35.67% to **69.28%** (300 seeds,
+uniform-random masked play) and that was accepted deliberately — the tax does
+not matter while too few victory paths exist for training to be worthwhile, and
+optimising a training cost before the game is winnable is optimising the wrong
+thing. **Re-measure it, and revisit which nodes stay `modelled`, before any
+training run is started.** Until then the usual discipline — a node goes
+`modelled: true` only if it holds something worth walking to — is suspended, not
+repealed.
 
 **Apple Orchard/Campsite moved the number sharply, 2026-08-08.** Re-measured
 with the same method (300 seeds, uniform-random masked play, `all_unlocks_config()`,

@@ -31,6 +31,21 @@ possible.
 "could two places disagree about this fact?" If yes, that is the disease, not
 the design.
 
+**The datamine's authority covers magnitudes, not coverage.** It wins on exact
+percentages and payouts. It says nothing about whether a mechanic exists at
+all, and neither does `meta.effect_text`: that field is a single curated line
+and routinely elides a whole mechanic — the Secret Passage's five-colour
+choice, the Pantry's fruit. So a room or item gets a **full wiki pass whose
+specific job is finding what the curated text omits**, with `effect_text`
+treated as a strongly-weighted prior on the numbers it does state and no
+authority on the ones it does not mention.
+
+**Discrepancies about a *mechanic* are batched, not streamed.** Where the wiki
+and the curated text disagree on what something does — as opposed to on a
+number — the record is parked and carried into a single consolidated question
+round put to the owner **before implementation begins**. An agent that hits
+such a discrepancy mid-implementation has already sequenced the work wrong.
+
 ## Supplemental-sourced rooms must be edited in both files
 
 Room records come from two places: the ingested `tools/raw/` tables, and

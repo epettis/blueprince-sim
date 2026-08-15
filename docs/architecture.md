@@ -235,6 +235,15 @@ and the shared tags are also exactly what `items.py::expected_yields`
 introspects generically, which is the second reason they cannot become opaque
 methods.
 
+**On the item side the test is parameters, not carrier count.** A multi-carrier
+tag *with parameters* stays in data; a **parameterless** multi-carrier marker
+may become a capability with several registrants, which is what
+`item_capability_any` exists for. `compass` migrated on exactly that reading —
+it carries no parameters, so nothing published moved into Python. By the same
+test `lockpick` (rates `[54, 35, 30, 19]`), `metal_detector_spawns`
+(`{coins: 60, key: 25}`), `dig_tool`, `luck_bonus` and `allowance` all carry
+published numbers and stay in data.
+
 **A tag lives in data or in code, never both.** Leaving a tag in `rooms.json`
 while a Python handler also exists creates precisely the second source of truth
 the registry exists to remove. When `coupon_book` registered `SHOP_DISCOUNT`,

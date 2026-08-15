@@ -5,7 +5,9 @@ bought it is kept beside it, because a lesson without its evidence is just an
 assertion.
 
 Nothing here is about Blue Prince. Game mechanics, owner rulings and modelling
-decisions live in [`open_tasks.md`](open_tasks.md) and the topic design docs.
+decisions live in the topic design doc that owns the rule, or in a comment
+beside the code it governs. Only rulings for work that is **not built yet**
+wait in [`open_tasks.md`](open_tasks.md)'s decisions log.
 
 Organised by failure class, not by chronology:
 
@@ -121,6 +123,14 @@ vacuous in the first place. Replace it with the property that is actually true,
 sweep seeds, and **assert that at least one seed exercises the branch**, so it
 can never again pass without testing anything.
 
+**No expectation may be derived by calling the function under test, or by
+reading the same data file the engine reads.** A test that recomputes its
+expected value from `registry.item_rules["luck"]` — the identical dict
+`items.py` reads — passes for any value of the constants it claims to pin, and
+it was the only test of `expected_yields`. Hard-code the published percentage as
+a literal and quote the source line in the docstring. Found twice in this repo
+under different disguises, so it is the pattern to look for, not the file.
+
 **A seed is not a scenario constructor.** Build the scenario deterministically.
 Hunting a replacement seed after a change is seed-tuning in disguise and will
 rot again at the next change to the same draw.
@@ -151,6 +161,14 @@ on a new game across 60 seeds read the empty key as "hard to find a stocked
 seed", when the key is simply never populated until entry.
 `tests/test_shops.py::_place_shop` is the correct setup: write grid/pos state
 directly, then call `on_enter_shop`.
+
+**Two setup traps specific to this engine, both of which have silently voided a
+measurement.** `GameConfig()` defaults to `day = 20`, so anything claiming to
+measure day 1 must pass `GameConfig(day=1)` explicitly. And `state.pending` is
+`None` after `reset()` — the hand is dealt by `Game.open_door`, not by reset —
+so a probe that inspects the pending draft on a fresh `Game` reads an empty
+field as "no hand was dealt". One attempt to measure a draft defect failed on
+both at once.
 
 **The composition of the fixture sets the number you measure.** A divergence
 rate of 17% came from a synthetic fixture that was 73.5% travel actions, whose
@@ -240,17 +258,62 @@ mutation in both directions, with all gates green inside a worktree.
 Parallelism is therefore a file-contention question, not a tooling one: check
 whether the queued work shares `env/actions.py` or another hot file first.
 
-**Write rulings into the decisions log immediately, not at session end.**
-Decisions that live only in the conversation are lost to compaction, and the
-cost of losing one is re-litigating something already settled. Record the
-reasoning and the measurement that justified it, not just the outcome, and say
-explicitly when a ruling overrides the wiki or reverses an earlier assumption.
+**Write a ruling down the moment it is made, into the document that owns the
+rule.** Decisions that live only in the conversation are lost to compaction,
+and the cost of losing one is re-litigating something already settled. Record
+the reasoning and the measurement that justified it, not just the outcome, and
+say explicitly when a ruling overrides the wiki or reverses an earlier
+assumption. **A correction recorded only in a PR body does not reach the file
+people read** — one ruling stated the wrong rule for days because the
+implementing agent found the error, fixed the code, and wrote the correction
+only into its own PR description.
+
+**A prose answer to a multiple-choice question is a rejection of the frame.**
+Twice in one session the owner wrote prose instead of picking an option, and
+both times the options were reasonable and the *question* was what was wrong.
+When that happens, the prose is the ruling, and the first thing to look for is
+which presupposition it discards. The related offering defect: **a multi-select
+that looks like a radio group silently converts "I picked the one I cared
+about" into "I declined the rest".** Ask one decision per question.
 
 **Put the comments-state-current-behaviour rule in every implementation
 brief.** Agents narrate their reasoning into the code they write by default, so
 it recurs unless it is stated up front. Comments, docstrings and test
 docstrings describe current behaviour; the rationale, the rejected alternatives
 and the measurement belong in the PR body.
+
+Four exemptions, each of which a sweep has had to defend at least once:
+
+- **`docs/` is exempt.** Design documents exist partly to record why a rule
+  holds, which a comment may not.
+- **A comment explaining a non-obvious constraint the code must still honour
+  describes the present, even when it sounds historical** — that `rooms.json`
+  round-trips at 1-space indent, or that `_CARRYOVER_KEYS` is sorted because
+  Python randomises string hashing per process.
+- **Real-game patch history is allowed in a data note**, even where it reads
+  like code history. "Changed in Patch 1.04.5" is a fact about Blue Prince, not
+  about this repo, and so is every quoted wiki mechanic ("will no longer have
+  any effect") — the largest false-positive class in the last sweep, ~60
+  near-misses examined and cleared.
+- **Source-provenance stamps keep their dates.** "The wiki's Cargo Rooms table,
+  fetched 2026-08-11" is the same kind of fact as `meta.source`, and the fetch
+  date is what makes the claim auditable later. Every *other* dated reference
+  loses its date: a reader needs to find the reasoning behind a surprising
+  rule, not the day it was ruled.
+
+The hard part of such a sweep is never the stripping — it is *Stripping history
+out of a docstring* above. The sweep's own worst case: one test justified
+itself entirely by an invented rule that had since been deleted, so the real
+mechanism had to be established before the history could go.
+
+**Keep an audit's progress bar in the tree it audits, not in a document.** The
+room-fidelity audit creates `tests/rooms/test_<room_id>.py` as it reaches each
+room — one file per room, never a wall of stubs up front, and no file at all for
+a room with nothing to pin. The **absence** of a file is therefore a readable
+record of what has not been audited yet, and it cannot drift from the work the
+way a checklist can. The split also has to ship *first* and alone, because
+per-room files are what make the later PRs genuinely disjoint; without it every
+room fix collides in one shared test file and the audit serialises.
 
 **Work lanes, not numbers.** A metric target set before triage will usually
 price in work that does not exist at that price: a "drop below 70 findings"
