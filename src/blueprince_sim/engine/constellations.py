@@ -41,16 +41,30 @@ call site through the shared effects/tier1.py::_grant path. A record carrying
 env/multiday.py's ``_CARRYOVER_KEYS``, and the permanent star count remains
 the only thing a night sky leaves behind.
 
-Two of the kinds write when the constellation fires; the third is read where
-it is spent. ``draft_bias`` sets a day-scoped ``GameState`` flag whose
-category bias -- and whose published magnitude -- already lives in
-data/priority_draws.json. ``entrance_hall_trunks`` spawns containers through
-the counter it shares with the ``entrance_hall_trunk`` experiment effect, and
-obeys that effect's published cap through the single check on
-``SpecialItemsState.add_entrance_hall_trunks``. ``food_step_bonus`` writes
-nothing at all: :func:`food_step_bonus` counts today's activations at the
+Two of the kinds WRITE when the constellation fires; the other three are READ
+where they are spent, and each read-side kind has its own reader below.
+
+``draft_bias`` sets a day-scoped ``GameState`` flag whose category bias -- and
+whose published magnitude -- already lives in data/priority_draws.json.
+``entrance_hall_trunks`` spawns containers through the counter it shares with
+the ``entrance_hall_trunk`` experiment effect, and obeys that effect's
+published cap through the single check on
+``SpecialItemsState.add_entrance_hall_trunks``.
+
+The read-side three write nothing at all, and none of them needs a
+``GameState`` field. :func:`food_step_bonus` counts today's activations at the
 moment a dish's steps resolve, which is what makes it a property of the day
-rather than of any one apple.
+rather than of any one apple. :func:`shop_half_price` asks, at the moment a
+price resolves, whether an activation covers that shop -- so a shop drafted
+after the activation is on sale too, without anything having to reach
+backwards. :func:`green_room_gems` is asked at the moment a room is drafted,
+which is exactly the trigger the mechanic has: already-placed Green Rooms are
+untouched, and the payout lands once per draft because a cell is drafted once.
+
+That shape is also where their non-stacking comes from. What each reader asks
+is a yes/no -- "was this activated today" -- and a second activation cannot
+change a boolean, so "no additional effect if activated multiple times" holds
+by construction rather than by a guard that could be forgotten.
 """
 
 from __future__ import annotations
@@ -73,6 +87,8 @@ SPIRAL_ID = "spiral_of_stars"
 EFFECT_DRAFT_BIAS = "draft_bias"  # sets the day-scoped flag a category bias reads
 EFFECT_ENTRANCE_HALL_TRUNKS = "entrance_hall_trunks"  # spawns trunks in the Entrance Hall
 EFFECT_FOOD_STEP_BONUS = "food_step_bonus"  # raises one items.json dish's base step value
+EFFECT_SHOP_HALF_PRICE = "shop_half_price"  # halves prices at the shop ids it names
+EFFECT_GREEN_ROOM_GEMS = "green_room_gems"  # parks gems in each newly drafted Green Room
 
 
 @dataclass(frozen=True)
@@ -303,6 +319,16 @@ def _times_applied(state, record: Constellation) -> int:
     return times if record.stacks else min(times, 1)
 
 
+def _activated_today(state, record: Constellation) -> bool:
+    """Whether ``record`` has been activated at all today.
+
+    The yes/no form of :func:`_times_applied`, and the whole of what a
+    non-stacking read-side effect needs: a second activation cannot move a
+    boolean, so its "no additional effect" costs no code.
+    """
+    return activation_count(state, record.id) > 0
+
+
 def apply_effect(game, record: Constellation) -> None:
     """Apply one activation of ``record``'s ``effect`` block.
 
@@ -340,11 +366,24 @@ def apply_effect(game, record: Constellation) -> None:
         state.special.add_entrance_hall_trunks(
             experiments.entrance_hall_trunk_cap(game.registry),
             record.effect["trunks"])
-    # EFFECT_FOOD_STEP_BONUS deliberately writes nothing here:
-    # :func:`food_step_bonus` reads the activation count where a dish's steps
-    # resolve, so the bonus needs no counter of its own and applies to apples
-    # eaten before the activation as well as after -- which is what "apples are
-    # extra delicious today" says, a property of the day, not of the apple.
+    # The three read-side kinds deliberately write nothing here; each is
+    # resolved by its own reader below, at the site that spends it.
+    #
+    # EFFECT_FOOD_STEP_BONUS: :func:`food_step_bonus` reads the activation
+    # count where a dish's steps resolve, so the bonus needs no counter of its
+    # own and applies to apples eaten before the activation as well as after --
+    # which is what "apples are extra delicious today" says, a property of the
+    # day, not of the apple.
+    #
+    # EFFECT_SHOP_HALF_PRICE: :func:`shop_half_price` is read where a price
+    # resolves, which is what makes the sale reach shops "regardless of whether
+    # they are drafted before The Sail is activated or after" without this
+    # having to find them.
+    #
+    # EFFECT_GREEN_ROOM_GEMS: :func:`green_room_gems` is read where a room is
+    # drafted. Writing here would be the wrong trigger outright -- the mechanic
+    # skips "Green Rooms already on the estate", so there is nothing to pay at
+    # activation time and everything to pay at each later draft.
 
 
 def food_step_bonus(registry: ConstellationsRegistry, state, food_id: str) -> int:
@@ -362,4 +401,56 @@ def food_step_bonus(registry: ConstellationsRegistry, state, food_id: str) -> in
         for record in registry.records
         if record.effect_kind == EFFECT_FOOD_STEP_BONUS
         and record.effect.get("food_id") == food_id
+    )
+
+
+def shop_half_price(registry: ConstellationsRegistry, state, shop_id: str) -> bool:
+    """Whether today's activations put ``shop_id``'s prices on half price.
+
+    Data-keyed on the shop: a record is consulted only for the shop ids in its
+    own ``effect.shops``, so no constellation and no shop is named here. The
+    list is an ALLOWLIST, which is the published rule -- "no Shops other than
+    the four listed Shops benefit from the sale" -- and is why this needs no
+    counterpart to shops.py's ``_DISCOUNT_EXEMPT_SHOPS``. That set exists
+    because the Coupon Book reduces every price and has to be held back from
+    two shops; a shop absent from this list was simply never included.
+
+    Returns a BOOLEAN, never a count, and the halving itself is left to the
+    single ``ceil`` in shops.py that shops.json's own Commissary sale already
+    goes through. The wiki calls those two sales identical, so a shop under
+    both must be halved once, and OR-ing two booleans is what makes that true
+    by construction rather than by a special case.
+    """
+    return any(
+        shop_id in record.effect.get("shops", ())
+        for record in registry.records
+        if record.effect_kind == EFFECT_SHOP_HALF_PRICE and _activated_today(state, record)
+    )
+
+
+def green_room_gems(registry: ConstellationsRegistry, state, root_room_id: str) -> int:
+    """Gems today's activations park in a Green Room whose root base id is
+    ``root_room_id``, at the moment it is drafted; 0 when none is active.
+
+    The caller decides Green-ness and supplies the root id, the same division
+    of labour :func:`food_step_bonus` uses -- which keeps rooms.json's ``green``
+    category (the one definition the Patio's own gem spread already reads) and
+    upgrades.py's variant walk out of this module, and out of its import graph.
+
+    Keying on the ROOT base is what makes the published per-room amounts cover
+    the variants: the wiki gives the Courtyard and the Cloister two gem flowers
+    and every other Green Room one, and its own gallery shows the same two for
+    an upgraded Courtyard and for each Cloister of X. ``gems`` is that default,
+    and a record with neither key contributes nothing.
+
+    Summed across records rather than short-circuited, so a second
+    ``green_room_gems`` constellation would add rather than mask -- but each
+    record contributes at most once, since what is counted per record is
+    whether it fired at all today, not how often.
+    """
+    return sum(
+        record.effect.get("gems_by_room", {}).get(
+            root_room_id, record.effect.get("gems", 0))
+        for record in registry.records
+        if record.effect_kind == EFFECT_GREEN_ROOM_GEMS and _activated_today(state, record)
     )

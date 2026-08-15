@@ -2153,6 +2153,50 @@ def main(argv: list[str] | None = None) -> int:
                     if not isinstance(steps, int) or steps <= 0:
                         errors.append(
                             f"{where}/effect: steps must be a positive int, got {steps!r}")
+                case "shop_half_price":
+                    # An ALLOWLIST, so an id that no longer names a shop
+                    # silently drops that shop out of the sale rather than
+                    # erroring at runtime -- exactly the drift this catches.
+                    sale_shops = effect.get("shops")
+                    if not isinstance(sale_shops, list) or not sale_shops:
+                        errors.append(
+                            f"{where}/effect: shops must be a non-empty list, got "
+                            f"{sale_shops!r}")
+                    else:
+                        unknown = [s for s in sale_shops if s not in shops]
+                        if unknown:
+                            errors.append(
+                                f"{where}/effect: shops names {unknown}, which have no "
+                                f"shops.json entry to put on sale")
+                case "green_room_gems":
+                    gems = effect.get("gems")
+                    if not isinstance(gems, int) or gems <= 0:
+                        errors.append(
+                            f"{where}/effect: gems must be a positive int, got {gems!r}")
+                    # Keyed by ROOT BASE id (engine/upgrades.py::root_base_id),
+                    # which is what game.py looks the amount up by: a key
+                    # naming a variant would never be hit, and a key naming a
+                    # non-Green room could never be reached at all, since the
+                    # call site asks only about Green rooms.
+                    for room_id, amount in (effect.get("gems_by_room") or {}).items():
+                        rec = by_id.get(room_id)
+                        if rec is None:
+                            errors.append(
+                                f"{where}/effect: gems_by_room names unknown room "
+                                f"{room_id!r}")
+                        elif rec.get("variant_of") is not None:
+                            errors.append(
+                                f"{where}/effect: gems_by_room key {room_id!r} is a "
+                                f"variant of {rec['variant_of']!r}; keys must be root "
+                                f"base ids, which is what the amount is looked up by")
+                        elif rec.get("category") != "green":
+                            errors.append(
+                                f"{where}/effect: gems_by_room key {room_id!r} is not a "
+                                f"green room, so the lookup can never reach it")
+                        if not isinstance(amount, int) or amount <= 0:
+                            errors.append(
+                                f"{where}/effect: gems_by_room[{room_id!r}] must be a "
+                                f"positive int, got {amount!r}")
                 case _:
                     errors.append(
                         f"{where}/effect: unknown kind {kind!r}; "

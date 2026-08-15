@@ -237,6 +237,28 @@ special items never stock. The Coupon Book applies a per-purchase *reduction*,
 not a refund, so an item priced one above your gold becomes buyable; sale days
 halve prices, rounded up.
 
+**Half price has two independent sources and one rule.** `shops.json`'s `sale`
+block is the Commissary's own Days 20–21 sale; the **Sail Sale** is the
+Florealis-era constellation effect, active on whatever day it is activated and
+covering the four shops its own record names — **Commissary, Kitchen,
+Locksmith, Bookshop**. Both resolve to the same single round-up halving, so a
+Commissary under both is still just half price, never a quarter. Neither is a
+blanket discount: each is an **allowlist**, which is why neither needs an entry
+in the Laundry Room / Casino exemption set below — a shop is on sale only by
+being named. The Sail reaches shops drafted *after* it was activated, because
+the sale is asked about where a price resolves rather than written onto the
+shops standing at the time.
+
+**The halving runs before the Coupon Book's reduction**, and that order is
+published rather than chosen: a Kitchen banana costs 2, and the wiki has it at
+1 on sale and **free** with a Coupon Book — `ceil(2/2) - 1 = 0`. The other
+order would give 1 and the banana would never be free.
+
+The Bookshop is on the list and gets nothing today, because its stock is
+modelled as empty (lore books are out of scope). That is a data gap, not a
+wiring gap, and it is asserted as such so the shop cannot quietly drop off the
+list before it has anything to sell.
+
 The Showroom picks two items from each of its two tiers, avoiding owned ones,
 and reveals the Trophy of Wealth once all four displayed items are bought.
 [`doctrine.md`](doctrine.md) owns why the Trophy is an ordinary item and not a

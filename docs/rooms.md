@@ -165,6 +165,39 @@ the constant with no code change.
 estimate, not a bound** — unlike the open stub gates in
 [`areas.md`](areas.md), it can err in either direction.
 
+### Florealis's gem flowers
+
+The one payout here that no room owns. While the Florealis constellation is
+active, **every Green Room drafted after the activation** parks gems in its
+own cell — **two for the Courtyard and the Cloister, one for every other Green
+Room** — and they are collected on arrival like any other parked payout.
+[`rl-environment.md`](rl-environment.md) owns the constellation block; the
+amounts and the shop-free half of that mechanic live in
+`data/constellations.json`'s own record.
+
+It breaks both invariants above on purpose, because it is **not a spreader**:
+
+- **The estate is not snapshotted.** The trigger is the *draft*, not the
+  activation, so Green Rooms already standing when Florealis fires get nothing
+  and every later draft blooms. That is why the payout is emitted from
+  `Game._place_room` rather than from the activation, and why it needs no
+  per-cell bookkeeping — a cell is drafted once, so N Observatories cannot pay
+  N times.
+- **No Conference Room redirect.** These gems are the drafted room's own
+  contents, not something reaching out to other cells, and nothing published
+  says the Conference Room absorbs them.
+
+**The effect text is a lie and the wiki says so** — "more likely to contain"
+describes nothing random. Florealis "is entirely deterministic and does not
+depend on the location of rooms within the house", so there is no rate to
+source and none is invented.
+
+Two published cases are deliberately out of scope: a Green Room's **own** gem
+flowers, which the wiki states "are independent and do not interact with
+Florealis' effect", and the **Greenhouse drafted as an Outer Room**, which has
+no grid cell to park anything in — the same invariant that already silences the
+outer-room Secret Garden.
+
 ### The Conference Room absorbs everything, including the self-item
 
 A Conference Room already on the estate redirects **everything** a spreader
