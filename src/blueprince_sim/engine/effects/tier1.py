@@ -9,7 +9,7 @@ for the Nursery's ON_DRAFT_ROOM effect).
 from __future__ import annotations
 
 from .. import special_items
-from . import Hook, effect
+from . import Capability, Hook, effect, provides_capability
 
 RESOURCES = ("steps", "gems", "keys", "coins", "dice", "stars")
 
@@ -70,9 +70,12 @@ def grant(game, room, eff, ctx_room) -> None:
     Negative amounts are red-room penalties, which Shelter's negation can
     cancel.
 
-    Chapel -1 coin: the Keeper of Tithes secretly banks each coin actually
-    taken (player had >=1 coin).  Tracked in special.chapel_tithes and paid
-    out when the Chapel altar is lit.
+    Keeper of Tithes: a negative coins grant on a room registering
+    ``Capability.TITHE`` (matched on the room's own id or its ``variant_of``,
+    so an upgrade variant still qualifies -- see effects/rooms/chapel.py)
+    secretly banks each coin actually taken (player had >=1 coin) into
+    special.chapel_tithes before it is spent, paid out when the Chapel altar
+    is lit.
     """
     amount = eff.param("amount", 0)
     if amount < 0 and _red_negated(game, room):
@@ -80,8 +83,11 @@ def grant(game, room, eff, ctx_room) -> None:
     resource = eff.param("resource")
     # Keeper of Tithes: bank the coin before it is taken, but only when the
     # player has at least one coin to lose (no coins -> no penalty -> no tithe).
-    if (resource == "coins" and amount < 0
-            and (room.id == "chapel" or room.variant_of == "chapel")):
+    banks_tithe = resource == "coins" and amount < 0 and (
+        provides_capability(room.id, Capability.TITHE)
+        or (room.variant_of is not None
+            and provides_capability(room.variant_of, Capability.TITHE)))
+    if banks_tithe:
         coins_taken = min(-amount, game.state.coins)
         if coins_taken > 0:
             game.state.special.chapel_tithes += coins_taken

@@ -22,6 +22,7 @@ class Capability(Enum):
     COMMERCE = "commerce"  # room can be bought from, traded with, or fabricated at
     LEVER = "lever"  # room pulls an Antechamber lever on first entry
     NIGHT_SKY = "night_sky"  # room's telescope can view a night sky (Game.can_view_night_sky)
+    TITHE = "tithe"  # a negative coins grant here is banked (Keeper of Tithes; see tier1.grant)
 
 
 _CAPABILITY_REGISTRY: set[tuple[str, Capability]] = set()
