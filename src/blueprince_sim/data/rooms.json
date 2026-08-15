@@ -5995,7 +5995,8 @@
     "no_library_draft": false,
     "powered": false,
     "duct": false,
-    "disk_reader": false
+    "disk_reader": false,
+    "has_fireplace": true
    },
    "deck_copies": 1,
    "effects": [],
@@ -6023,7 +6024,8 @@
     "no_library_draft": false,
     "powered": false,
     "duct": false,
-    "disk_reader": false
+    "disk_reader": false,
+    "has_fireplace": true
    },
    "deck_copies": 1,
    "effects": [

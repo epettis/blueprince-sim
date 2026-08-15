@@ -146,8 +146,8 @@ twice for an upgraded Bunk Room via :func:`_fire_upgraded_floorplan_draft`
 (mirrors :func:`_fire_archived_floorplan`'s own ``counts_as_bedrooms`` read);
 the latter on ``room.is_category("tomorrow")`` (the 12 records carrying
 ``extra_categories: ["tomorrow"]``). ``fireplace_draft`` is also detected by
-:func:`on_room_drafted`, via :func:`_room_has_fireplace`: six of the seven
-fireplace rooms read straight off ``Room.has_fireplace``; the Dining Room's
+:func:`on_room_drafted`, via :func:`_room_has_fireplace`: the fireplace
+rooms read straight off ``Room.has_fireplace``; the Dining Room's
 case is decided against the cell it lands on (centre columns or Rank 9)
 instead, duplicating ``effects/rooms/cloister.py``'s
 ``_dining_room_has_fireplace`` rather than importing it, since that would
@@ -565,7 +565,7 @@ def on_room_drafted(game, room, cell: int, entry_dir: int | None, gem_cost: int,
 def _room_has_fireplace(room, cell: int) -> bool:
     """True when ``room``, placed at ``cell``, has a fireplace today.
 
-    Six of the seven fireplace rooms read straight off the static
+    The fireplace rooms read straight off the static
     ``Room.has_fireplace`` flag; the Dining Room's fireplace instead depends
     on the cell it lands on -- centre columns or Rank 9 have one, the wings
     and Rank 1 have windows instead (per the packet trigger's own

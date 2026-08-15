@@ -2483,7 +2483,7 @@ def main(argv: list[str] | None = None) -> int:
     # only; windows on the wings or Rank 1), decided in effects/rooms/cloister.py
     # against the drafted cell -- it deliberately carries no static flag.
     HAS_FIREPLACE_ROOMS = {"parlor", "den", "trophy_room", "drawing_room",
-                           "furnace", "the_armory"}
+                           "furnace", "the_armory", "hovel", "schoolhouse"}
     actual_fireplace = {r["id"] for r in rooms if r.get("flags", {}).get("has_fireplace")}
     if actual_fireplace != HAS_FIREPLACE_ROOMS:
         missing = HAS_FIREPLACE_ROOMS - actual_fireplace
