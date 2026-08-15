@@ -620,9 +620,12 @@ exactly the silent failure this tool exists to catch.
   is true, which bypasses two of the three anyway — so the gap is real but
   currently invisible. Do not read the default's silence as enforcement.
 - **The Laboratory room's own effect text carries no effects tag in
-  `rooms.json`**, so it still reads as an unmodelled room to the room-fidelity
-  audit even though the whole subsystem behind it is built. The audit's
-  worklist entry is about the room record, not the mechanic.
+  `rooms.json`.** That much is still true, but it no longer reads as an
+  unmodelled room to the room-fidelity audit: `tools/validate_data.py` carries
+  a named Python exemption for `laboratory` (`_AUDIT_PYTHON_EXEMPT_IDS`),
+  since the Experimental Setup terminal is a hand-written room-id check
+  (`Game.at_laboratory_terminal`) rather than an effects tag or `room_hook`
+  the audit can see. The divergence audit is at 0 findings.
 - **`spread_dig_spots` is `implemented: true` with half its wiki behaviour
   unbuilt.** That is the correct flag, not a lie: `implemented` means
   *reachable and functional*, and the Grounds gap is disclosed on the record.

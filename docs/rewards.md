@@ -202,26 +202,33 @@ sound: the per-day horizon cannot see cross-day value (see
 needed. Three measurements argue against this particular shape.
 
 **1. +0.5 does not sit below the win — it dwarfs it.** The premise assumes wins
-are common. They are not. Measured over 20,000 paired episodes of `greedy_rank`
-on the all-unlocks day-20 config, `P(reach Antechamber) = 3.405%`, so the entire
-expected return from playing for the objective is **≈ 0.034**. A guaranteed
-`+0.5` is roughly **15x** that. It is not a thumb on the scale; it replaces the
-objective. The rational policy becomes "collect disks, ignore the Antechamber",
-which is the opposite of the intent — the owner's rule is *invest so you win
-more later*, not *stop winning*.
+are common. They are not, and the gap has only widened since this argument was
+first written. Under the shipped config (`door_locks=True`,
+`antechamber_levers=True`), `greedy_rank`'s `P(reach Antechamber) = 0.100%`
+(n=4000, seeds 0–3999, `all_unlocks_config()` — see
+[`greedy-strategy.md`](greedy-strategy.md)'s baselines), so the entire expected
+return from playing for the objective is **≈ 0.001**. A guaranteed `+0.5` is
+roughly **500x** that. This argument was first written against the pre-lock
+measurement — `greedy_rank`'s `P(reach Antechamber) = 3.405%` over 20,000
+paired episodes on the same config, before Antechamber locks shipped — where
+`+0.5` was already ≈**15x** the ≈0.034 expected return; the shipped, locked
+config only strengthens the conclusion, a fortiori. It is not a thumb on the
+scale; it replaces the objective. The rational policy becomes "collect disks,
+ignore the Antechamber", which is the opposite of the intent — the owner's
+rule is *invest so you win more later*, not *stop winning*.
 
 **2. It would pay for a no-op.** Of the 18 upgrade-variant groups, **13 are
 engine-identical**: every variant carries the same effects and guaranteed items,
 so nothing downstream can tell them apart. And the one upgrade measured
-end-to-end, Cloister of Orinda, had **no detectable causal value** in this
-pre-lock measurement (3.045% vs 3.405% control, deepest rank 5.51 vs 5.53 —
-see [`upgrade-value-measurement.md`](upgrade-value-measurement.md)), exactly
-as predicted while the Antechamber had no locks. **The Antechamber lever gate
-has since shipped, but no post-lock re-measurement was taken before it did**
-— see that document's status note for why the paired before/after comparison
-this argument wanted can no longer be run. Shaping toward upgrades on the
-strength of a stale pre-lock number risks teaching a preference this repo can
-no longer verify either way.
+end-to-end, Cloister of Orinda, had **no detectable causal value** in the
+pre-lock forced-upgrade A/B — see
+[`upgrade-value-measurement.md`](upgrade-value-measurement.md)'s "Pre-lock
+result" for the numbers — exactly as predicted while the Antechamber had no
+locks. **The Antechamber lever gate has since shipped, but no post-lock
+re-measurement was taken before it did** — see that document's status note for
+why the paired before/after comparison this argument wanted can no longer be
+run. Shaping toward upgrades on the strength of a stale pre-lock number risks
+teaching a preference this repo can no longer verify either way.
 
 **3. Potential-based shaping cannot express it.** The existing shaping terms
 (`_phi_paths`) are potential-based, which is *why* they are safe: a potential
