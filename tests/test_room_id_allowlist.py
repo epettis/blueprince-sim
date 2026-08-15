@@ -210,6 +210,15 @@ ALLOWLIST: dict[str, set[str]] = {
     },
 }
 
+#: ALLOWLIST's total entry count, measured 2026-08-14. Mirrors
+#: test_item_id_allowlist.py's ITEM_DEBT_CAP, but for the single undivided
+#: ALLOWLIST above rather than a debt/architecture split -- room-id debt has
+#: been flat at this total since this test file landed (additions and
+#: removals keep cancelling out), so nothing was measuring whether the count
+#: was actually moving. Update this constant, in either direction, whenever
+#: the measured total changes.
+ROOM_ID_ALLOWLIST_CAP = 78
+
 
 def _docstring_node_ids(tree: ast.AST) -> set[int]:
     """``id()`` of every Constant node that is a module/class/function
@@ -335,3 +344,26 @@ def test_allowlisted_ids_are_real_rooms(registry):
     bad = {module: sorted(ids - room_ids) for module, ids in ALLOWLIST.items()
            if ids - room_ids}
     assert not bad, f"ALLOWLIST ids that are not real room ids: {bad}"
+
+
+def test_room_id_debt_matches_the_cap():
+    """ALLOWLIST's total entry count must equal ROOM_ID_ALLOWLIST_CAP, not
+    merely stay under it -- unlike test_item_id_allowlist.py's
+    ITEM_DEBT_CAP (which only bounds ITEM_DEBT from above, since
+    ITEM_ARCHITECTURE can legitimately keep growing), this room list has no
+    architecture/debt split, so a total ABOVE the cap and a total BELOW it
+    are both a bug: above means a new room-id literal landed and nobody paid
+    it down (the regression docs/open_tasks.md #21 exists to catch); below
+    means a refactor already shrank the list and nobody lowered the cap to
+    match, which would silently let the debt grow back up to the stale
+    ceiling without this test ever noticing -- the exact flat-since-launch
+    blind spot the cap was added to close."""
+    total = sum(len(ids) for ids in ALLOWLIST.values())
+    assert total <= ROOM_ID_ALLOWLIST_CAP, (
+        f"ALLOWLIST grew to {total} entries, above the {ROOM_ID_ALLOWLIST_CAP} "
+        "cap -- a new room-id literal landed instead of moving behaviour to "
+        "effects/rooms/")
+    assert total >= ROOM_ID_ALLOWLIST_CAP, (
+        f"ALLOWLIST shrank to {total} entries, below the {ROOM_ID_ALLOWLIST_CAP} "
+        "cap -- lower ROOM_ID_ALLOWLIST_CAP to match, or the cap stops "
+        "measuring real debt and hides room for it to regress back up")
