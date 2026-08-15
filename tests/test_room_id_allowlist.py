@@ -1,4 +1,4 @@
-"""Enforces the capability-architecture invariant from docs/open_tasks.md #21:
+"""Enforces the capability-architecture invariant from docs/architecture.md:
 "no engine module may branch on a room id" -- room-specific behaviour belongs
 in `engine/effects/rooms/<room_id>.py`, registered rather than hardcoded.
 
@@ -51,7 +51,7 @@ modes are load-bearing:
   hardcoded id landed and nobody updated a list),
 - an id listed in either dict no longer appears in its module (the refactor
   already happened and nobody shrank the list -- left unchecked a list only
-  ever grows and stops measuring anything, per docs/open_tasks.md #21), and
+  ever grows and stops measuring anything, per docs/architecture.md), and
 - the same id is listed in both dicts for the same module (the split itself
   has become ambiguous about which bucket the id's debt belongs in).
 
@@ -75,7 +75,7 @@ from pathlib import Path
 from blueprince_sim.engine import model as _model_module
 
 #: Direct children of engine/ only (non-recursive) -- matches
-#: docs/open_tasks.md #21's own "measured starting point" table, which
+#: docs/architecture.md's own "measured starting point" table, which
 #: enumerates top-level engine modules and nothing under effects/. This
 #: also means engine/effects/tier1.py is in scan scope even though it
 #: sits outside effects/rooms/ (see :func:`_scanned_paths`).
@@ -194,7 +194,7 @@ ROOM_ARCHITECTURE: dict[str, set[str]] = {
         # "north_south_only", ...) are not room ids at all; these six happen
         # to be named after the one room whose data declares them, purely as
         # a naming convention, not a room.id branch -- exempted by
-        # docs/open_tasks.md #21 itself ("placement.py's named conditions
+        # docs/architecture.md itself ("placement.py's named conditions
         # legitimately name rooms as data").
         "garage", "boiler_room", "gift_shop", "morning_room",
         "the_foundation", "the_pool",
@@ -244,7 +244,7 @@ ROOM_ARCHITECTURE: dict[str, set[str]] = {
     "upgrades.py": {
         # The Upgrade Disk slot table (module-level room-id lists selecting
         # which base rooms have disk variants): an engine-owned enumeration,
-        # not per-room behaviour -- exempted by docs/open_tasks.md #21
+        # not per-room behaviour -- exempted by docs/architecture.md
         # itself ("upgrades.py's selection tables ... legitimately name
         # rooms as data").
         "aquarium", "billiard_room", "boudoir", "bunk_room", "cloister",
@@ -481,7 +481,7 @@ def test_allowlist_keys_are_scanned_modules():
 def test_no_room_id_literals_outside_the_allowlist(registry):
     """A room-id literal in a module, or an id within a listed module, that
     isn't on ROOM_ARCHITECTURE or ROOM_DEBT means a new hardcoded room id
-    landed in the engine -- the exact regression docs/open_tasks.md #21
+    landed in the engine -- the exact regression docs/architecture.md
     exists to catch."""
     room_ids = {r.id for r in registry.rooms}
     hits = _scan_engine_modules(room_ids)
