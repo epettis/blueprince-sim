@@ -12,6 +12,8 @@ See `docs/areas.md`'s "Corrections already applied" for the full writeup.
 
 from __future__ import annotations
 
+import dataclasses
+
 from blueprince_sim.config import GameConfig
 from blueprince_sim.engine.game import Game
 from blueprince_sim.env import actions as A
@@ -19,16 +21,47 @@ from blueprince_sim.env.multiday import DayChain
 from blueprince_sim.rl.train import all_unlocks_config, fresh_save_config
 
 
-def test_mine_unreachable_on_day_one_under_both_baseline_configs(registry):
-    """With an empty inventory and nothing earned, mine_south is unreachable
-    on day 1 under both training baseline configs, since reaching it requires
-    candlestick_stairway_lit and nothing sets that flag for free."""
-    for cfg in (all_unlocks_config(), fresh_save_config()):
+def test_mine_unreachable_with_no_alternative_entrance_open(registry):
+    """With an empty inventory and no earned route into the mine, mine_south is
+    unreachable: the Catacombs, the drained Fountain and the Reservoir crossing
+    are all shut, which leaves the candlestick stairway as the only door, and no
+    config grants candlestick_stairway_lit for free. Pinned under
+    fresh_save_config() and a plain GameConfig(), the two configs that leave
+    every alternative entrance closed."""
+    for label, cfg in (("fresh_save_config()", fresh_save_config()),
+                       ("GameConfig()", GameConfig())):
         g = Game(cfg, seed=1, registry=registry)
         g.state.steps = 200
-        assert g.area_route_cost("mine_south") is None, (
-            f"mine_south must be unreachable under {cfg.__class__.__name__} day={cfg.day}"
+        assert "candlestick_stairway_lit" not in g._gate_ctx().flags, (
+            f"setup: {label} must not hand out candlestick_stairway_lit"
         )
+        assert g.area_route_cost("mine_south") is None, (
+            f"mine_south must be unreachable under {label} day={cfg.day}"
+        )
+
+
+def test_all_unlocks_reaches_the_mine_by_the_reservoir_not_the_stairway(registry):
+    """all_unlocks_config() reaches mine_south, and it does so through an earned
+    alternative entrance rather than the stairway: candlestick_stairway_lit is
+    still unset there, and clearing reservoir_13_reached -- the flag behind the
+    reservoir_north<->reservoir_south rowboat crossing, the last hop before
+    mine_south -- shuts the route again. That keeps the stairway gate itself
+    pinned as the only *other* way in even where the mine is reachable."""
+    cfg = all_unlocks_config()
+    g = Game(cfg, seed=1, registry=registry)
+    g.state.steps = 200
+    assert "candlestick_stairway_lit" not in g._gate_ctx().flags, (
+        "all_unlocks_config() must not hand out candlestick_stairway_lit"
+    )
+    assert g.area_route_cost("mine_south") is not None, (
+        "the earned reservoir crossing must reach mine_south under all_unlocks_config()"
+    )
+
+    shut = Game(dataclasses.replace(cfg, reservoir_13_reached=False), seed=1, registry=registry)
+    shut.state.steps = 200
+    assert shut.area_route_cost("mine_south") is None, (
+        "with the rowboat crossing shut and the stairway unlit, mine_south must close again"
+    )
 
 
 def test_holding_torch_alone_does_not_open_stairway(registry):

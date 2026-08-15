@@ -84,6 +84,15 @@ _UPGRADE_DISK_EXCLUSIONS: frozenset[str] = frozenset({
     "goldfish_aquarium__ix2", "starfish_aquarium__ix3", "electric_eel_aquarium__ix4",
 })
 
+# Treasure Trove is in _STUDIO_ADDITION_EXCLUSIONS above (black-box reward
+# mechanic unmodelled), but decks.py::eligible_pool gives it a second door
+# independent of cfg.studio_additions: cfg.treasure_trove_blackprint, which
+# all_unlocks_config sets True. That door routes around the exclusion, so
+# banned_rooms -- checked in eligible_pool ahead of every pool door, the same
+# mechanism _UPGRADE_DISK_EXCLUSIONS already reuses for this purpose -- blocks
+# it here too, preserving the exclusion's intent.
+_TREASURE_TROVE_EXCLUSION: frozenset[str] = frozenset({"treasure_trove"})
+
 @functools.cache
 def all_studio_additions() -> frozenset[str]:
     """Studio-addition room ids whose behaviour is modelled, derived from the registry.
@@ -139,7 +148,8 @@ def atomic_replace(tmp: Path, final: Path, *, attempts: int = 8,
 
 
 def all_unlocks_config(reward: str = "shaped") -> GameConfig:
-    """All permanent unlocks enabled; no upgrade disks applied.
+    """Every permanent unlock and every env/multiday.py::_CARRYOVER_KEYS carry
+    flag enabled, regardless of GameConfig default; no upgrade disks applied.
 
     day=20: late-game weight tables (week2 stage, gem gates active at day>=16).
     This is the training baseline; results are NOT comparable to fresh_save_config
@@ -150,12 +160,29 @@ def all_unlocks_config(reward: str = "shaped") -> GameConfig:
         orchard_unlocked=True,         # +20 starting steps
         mine_unlocked=True,            # +2 gems at day start
         west_gate_unlatched=True,      # Grounds<->West Path shortcut open
+        mine_south_visited=True,       # opens reservoir_north<->mine_north and rotating_gear<->underpass
+        sealed_entrance_broken=True,   # opens grounds<->sealed_entrance<->basement
+        boiler_room_steam=True,        # opens Underpass -> Upper Rotating Gear
+        treasure_trove_blackprint=True,  # adds Treasure Trove to the draft pool (banned below, see _TREASURE_TROVE_EXCLUSION)
+        throne_room_blueprint=True,    # adds Throne Room to the draft pool
+        conservatory_floorplan_found=True,  # adds Conservatory to the draft pool
+        room8_solved=True,             # Room 8 pays the repeat-solve reward instead of the first-solve one
+        satellite_dish_unlocked=True,  # unlocks the Satellite Dish
+        reservoir_13_reached=True,     # opens the reservoir_north<->reservoir_south rowboat crossing
+        room46_reached=True,           # feeds the gem deck-size gate, Crown of the Blueprints, Billiard Room band
+        lunch_box_unlocked=True,       # Dining Rooms spawn the lunch box daily
+        cursed_effigy_unlocked=True,   # the Shrine spawns the Effigy
+        entrance_vase_broken=True,     # west vase's microchip granted at day start
+        weight_room_wall_broken=True,  # Weight Room south Antechamber door open without the Power Hammer
+        greenhouse_wall_broken=True,   # Greenhouse corner rotations draftable without the Power Hammer
+        outer_chip_dug=True,           # West Path chip already granted on reaching the doorstep
         studio_additions=all_studio_additions(),
         upgrade_disks=frozenset(),     # explicitly: no room upgrades
-        # Blocks the 3 Aquarium upgrade variants from ever being drafted (see
-        # _UPGRADE_DISK_EXCLUSIONS above) -- only takes effect for a single-day
-        # run; a multi_day DayChain overwrites this every day regardless.
-        banned_rooms=_UPGRADE_DISK_EXCLUSIONS,
+        # Blocks the 3 Aquarium upgrade variants (_UPGRADE_DISK_EXCLUSIONS) and
+        # Treasure Trove (_TREASURE_TROVE_EXCLUSION) from ever being drafted --
+        # only takes effect for a single-day run; a multi_day DayChain overwrites
+        # this every day regardless.
+        banned_rooms=_UPGRADE_DISK_EXCLUSIONS | _TREASURE_TROVE_EXCLUSION,
         reward=reward,
     )
 
