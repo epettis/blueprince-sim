@@ -166,9 +166,9 @@ during **attempt 1 of every slot**, not just slot 3:
 
 | entry | chance | note |
 |---|---|---|
-| Patio group (Patio, Veranda, Greenhouse, Morning Room, Secret Passage) | 5% | 50% while a Greenhouse is placed |
+| Patio group (Patio, Veranda, Greenhouse, Morning Room) | 5% | 50% while a Greenhouse is placed; also carries Secret Passage until a Greenhouse is placed |
 | Commissary / Observatory | 13% | |
-| Garage / Classroom | 3% | |
+| Garage / Classroom | 3% | also carries Secret Passage once a Greenhouse is placed |
 | Aquarium ×2 rows | 13% and 3% | only while `add_aquariums` is active |
 | Tomorrow Rooms | 40% | only while a Chronograph is held |
 
@@ -200,9 +200,26 @@ An entry may also carry a `condition` tag drawn from the same vocabulary
 consuming no RNG**, while its condition is inactive; the active-condition set
 is computed lazily so the unconditional path never pays for it.
 
-The condition vocabulary gates a **whole entry** on or off. It has no negation
-and no per-room membership primitive, which is exactly what the Secret
-Passage's Greenhouse migration would need — see `open_tasks.md` §23 A.
+The condition vocabulary above gates a **whole entry** on or off. A separate,
+file-level `membership_moves` list moves one *room* between two entries
+instead: each record names a room, a `from` label, a `to` label and a
+`condition` — a `GameState` boolean read directly by name (`getattr`), not one
+of the `_active_conditions` tags above. `draft.py::_apply_membership_moves`
+applies it wherever an entry's candidate room list is built, removing the room
+from the `from` entry's list and adding it to the `to` entry's while the
+condition holds; it is a no-op (same list object, no RNG-order change) while
+the condition is inactive.
+
+The only record today moves the **Secret Passage** between `patio_rooms` and
+`garage_classroom`, keyed on `state.greenhouse_placed` — the same signal
+`chance_with_greenhouse` above already reads — so the room sits in exactly one
+of the two entries' lists in every state. This collapses a wording gap in the
+wiki's two clauses (`patio_rooms`: "included if Greenhouse has not been
+drafted"; `garage_classroom`: "included after Greenhouse effect is active"):
+since the Greenhouse filter is "the same filter as king", a King's-green
+activation could, read literally, satisfy the second clause with no Greenhouse
+drafted. This model does not distinguish that case — see the
+`membership_moves` entry's own `meta.notes` in `priority_draws.json`.
 
 ### Forced draws
 

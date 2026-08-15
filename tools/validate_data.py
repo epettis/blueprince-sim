@@ -36,6 +36,7 @@ from blueprince_sim.engine.effects import (
 )
 from blueprince_sim.engine.effects.tier1 import RESOURCES as TIER1_RESOURCES
 from blueprince_sim.engine.model import Registry
+from blueprince_sim.engine.state import GameState
 
 DATA = Path(__file__).resolve().parent.parent / "src" / "blueprince_sim" / "data"
 # Offline snapshot of each item's wiki.gg |Locations= field (see that file's
@@ -362,6 +363,60 @@ def find_divergences(
             )
 
     return kind1, kind2
+
+
+def find_membership_moves_findings(
+    priority: dict, by_id: dict[str, dict]
+) -> tuple[list[str], list[str]]:
+    """Validate priority_draws.json's ``membership_moves`` (draft.py::
+    _apply_membership_moves, called from _priority_draw where each entry's
+    candidate room list is built): each record names one room conditionally
+    migrating from one priority_draws entry's candidate list to another's
+    while a single ``GameState`` boolean holds -- e.g. the Secret Passage
+    leaving ``patio_rooms`` for ``garage_classroom`` once a Greenhouse is
+    placed.
+
+    Returns ``(errors, warnings)``. Errors: an unknown room id; a ``from``/
+    ``to`` label that is not a real priority_draws entry's own ``label``; the
+    named room missing from the ``from`` entry's ``rooms`` (nothing to
+    remove); the named room already present in the ``to`` entry's ``rooms``
+    (the move would duplicate it). Warnings: a ``condition`` that names no
+    real ``GameState`` attribute -- permissive, matching every other
+    condition-tag check in this module, since ``getattr`` at draft time
+    degrades a typo to a silent no-op rather than a crash. ``condition`` here
+    names a ``GameState`` attribute directly (checked via ``hasattr``), a
+    different vocabulary from priority_draws entries' own ``condition`` tags,
+    which name ``_active_conditions`` entries instead.
+    """
+    errors: list[str] = []
+    warnings: list[str] = []
+    labels = {e["label"]: e for e in priority.get("priority_draws", [])}
+    for move in priority.get("membership_moves", []):
+        room, frm, to = move["room"], move["from"], move["to"]
+        if room not in by_id:
+            errors.append(f"membership_moves: references unknown room {room!r}")
+        from_entry = labels.get(frm)
+        to_entry = labels.get(to)
+        if from_entry is None:
+            errors.append(f"membership_moves: unknown 'from' label {frm!r}")
+        elif room not in from_entry.get("rooms", []):
+            errors.append(
+                f"membership_moves: {room!r} is not in {frm!r}'s rooms, so there is "
+                f"nothing to remove"
+            )
+        if to_entry is None:
+            errors.append(f"membership_moves: unknown 'to' label {to!r}")
+        elif room in to_entry.get("rooms", []):
+            errors.append(
+                f"membership_moves: {room!r} is already in {to!r}'s rooms, so the "
+                f"move would duplicate it"
+            )
+        cond = move.get("condition")
+        if cond is not None and not hasattr(GameState, cond):
+            warnings.append(
+                f"membership_moves: condition {cond!r} is not a GameState attribute "
+                f"(permissive)")
+    return errors, warnings
 
 
 _NO_EFFECT_CLAIM = re.compile(r"no effect model", re.IGNORECASE)
@@ -1002,6 +1057,11 @@ def main(argv: list[str] | None = None) -> int:
         if condition is not None and condition not in active_condition_tags:
             warnings.append(
                 f"priority draw {entry['label']!r}: unknown condition {condition!r} (permissive)")
+
+    move_errors, move_warnings = find_membership_moves_findings(priority, by_id)
+    errors.extend(move_errors)
+    warnings.extend(move_warnings)
+
     for rid in priority["forced_draw_precedence"]["order"]:
         if rid not in by_id:
             warnings.append(f"forced-draw precedence references unknown room {rid}")

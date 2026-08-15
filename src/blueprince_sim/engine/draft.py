@@ -203,6 +203,43 @@ def _deal_from_rarity(ctx: DraftContext, rarity_idx: int, slot: int, cell: int,
     return rooms[card] if card is not None else None
 
 
+def _apply_membership_moves(ctx: DraftContext, label: str, entry_rooms: list[str]) -> list[str]:
+    """Apply priority_draws.json's ``membership_moves`` to one priority-draw
+    entry's candidate room list (``entry_rooms``, keyed by the entry's own
+    ``label``).
+
+    A membership-move record names one room migrating from one priority_draws
+    entry to another while a single ``GameState`` boolean (its ``condition``,
+    read via ``getattr``) holds -- the Secret Passage leaving ``patio_rooms``
+    for ``garage_classroom`` once ``state.greenhouse_placed`` is set (wiki:
+    "moves Secret Passage to the 3% one"). Keying both halves off this one
+    signal -- the same one ``chance_with_greenhouse`` already reads on
+    ``patio_rooms`` -- keeps the two memberships strictly complementary: the
+    room sits in exactly one of the two entries' candidate lists in every
+    state (see ``membership_moves``' own ``meta.notes`` in priority_draws.json
+    for the simplification this collapses).
+
+    Returns ``entry_rooms`` unchanged (the same list object, no copy) whenever
+    no move actually touches ``label`` with its condition active, so the
+    ordinary case allocates nothing and leaves ``_priority_draw``'s RNG
+    consumption (roll order and count) untouched.
+    """
+    moves = ctx.registry.priority.get("membership_moves")
+    if not moves:
+        return entry_rooms
+    for move in moves:
+        # Default False: a condition naming no GameState attribute leaves the
+        # move inert rather than raising mid-draft. validate_data.py warns on
+        # such a record, and the gate requires 0 warnings, so it cannot ship.
+        if not getattr(ctx.state, move["condition"], False):
+            continue
+        if move["from"] == label and move["room"] in entry_rooms:
+            entry_rooms = [rid for rid in entry_rooms if rid != move["room"]]
+        elif move["to"] == label and move["room"] not in entry_rooms:
+            entry_rooms = entry_rooms + [move["room"]]
+    return entry_rooms
+
+
 def _priority_draw(ctx: DraftContext, cell: int, entry_dir: int,
                    exclude: set[int], is_gem: bool) -> Room | None:
     """Roll the priority draws (Patio group, Commissary/Observatory, Garage/Classroom,
@@ -242,6 +279,12 @@ def _priority_draw(ctx: DraftContext, cell: int, entry_dir: int,
     Chronograph's Tomorrow Rooms bias uses ``category`` so its twelve room ids
     (including the Mail Room's three upgrade variants) are never hand-typed and
     stay correct if a variant is added later.
+
+    An entry's resolved candidate list is then passed through
+    ``_apply_membership_moves``, which can remove or add one room per an active
+    ``priority_draws.json::membership_moves`` record (currently: the Secret
+    Passage moving between ``patio_rooms`` and ``garage_classroom`` while a
+    Greenhouse is placed) -- see that function's docstring.
     """
     rooms = ctx.registry.rooms
     pool_ids = {rooms[c].id for d in ctx.state.decks for c in d.order}
@@ -259,6 +302,7 @@ def _priority_draw(ctx: DraftContext, cell: int, entry_dir: int,
         entry_rooms = entry.get("rooms")
         if not entry_rooms:
             entry_rooms = [r.id for r in rooms if r.is_category(entry["category"])]
+        entry_rooms = _apply_membership_moves(ctx, entry["label"], entry_rooms)
 
         accepted: set[str] = set()
         for rid in entry_rooms:

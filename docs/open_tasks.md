@@ -38,7 +38,7 @@ point at **the doc that owns the rule**, never at the log. `open_tasks.md` may
 be cited for exactly two things:
 
 - a **numbered open task**, cited by number — `open_tasks.md` task 11;
-- an **open owner question**, cited as task 23's item — `open_tasks.md` §23 A.
+- an **open owner question**, cited by its letter within task 23.
 
 Anything else — a mechanic, a magnitude, a ruling, a doctrine, a deliberate
 divergence — cites the topic doc that owns it. If nothing owns it yet, that is
@@ -988,12 +988,11 @@ around 1,800 LOC.
 - **Inner Sanctum**: the 8 Sanctum Keys have sources and persist, but the area
   behind the 8 doors is unmodeled. Overlaps heavily with task 4.
 
-## 23. OPEN OWNER QUESTIONS -- re-verified and re-consolidated (2026-08-14)
+## 23. OPEN OWNER QUESTIONS
 
-A pass re-checked every question this section previously carried against the
-code, the data, and the decisions log. Almost all of them were already
-answered -- by shipped code, by an owner ruling recorded in the log, or both --
-and had simply never been removed from this list. **One remains.**
+The single home for questions that need an owner ruling before the work they
+block can start. **Nothing is open here right now**; a new question is added as
+a lettered item, and cited from elsewhere by that letter.
 
 Answered questions are **deleted from this section, not annotated** -- a
 question left in a questions list reads as open whatever note sits under it.
@@ -1001,18 +1000,6 @@ When one turns out to be answered, delete it here and record the answer in the
 doc that owns the rule. **Do not restate the count in prose elsewhere**: this
 header has already been wrong once, because a question was removed and the
 count above it was not.
-
-### A. Does the Greenhouse move Secret Passage from the 5% group to the 3% group?
-
-The wiki: Secret Passage sits in the Patio priority-draw group (5%, boosted to
-50% while a Greenhouse is placed) only until a Greenhouse is drafted, then
-moves to the Garage/Classroom group (3%). `priority_draws.json`'s own note
-explains precisely why this isn't modelled: it needs a room excluded from one
-priority-draw entry's list exactly when it becomes included in another's, and
-the condition vocabulary (`_active_conditions` / entry-level `condition`) only
-supports gating a whole entry on or off, with no negation or per-room
-membership primitive. Secret Passage stays in the 5% group unconditionally
-pending that primitive.
 
 ## Decisions log
 

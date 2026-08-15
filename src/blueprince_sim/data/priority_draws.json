@@ -16,7 +16,7 @@
    "meta": {
     "confidence": "datamined",
     "source": "sheet constants: 'Patio Rooms 5%'; Greenhouse boost from wiki.gg Drafting/Advanced",
-    "notes": "wiki also states Secret Passage moves from this 5% group to the Garage/Classroom 3% group (garage_classroom entry) once a Greenhouse is active -- NOT modeled: doing so needs a room excluded from one entry's list precisely when it is included in another's, and the condition vocabulary (_active_conditions/entry-level `condition`) only supports gating a whole entry on, with no negation or per-room membership primitive. Secret Passage stays in this group unconditionally pending that primitive."
+    "notes": "wiki also states Secret Passage moves from this 5% group to the Garage/Classroom 3% group (garage_classroom entry) once a Greenhouse is placed -- modeled via the file-level membership_moves list below, applied in draft.py::_priority_draw where each entry's candidate room list is built; see that record's own meta for the greenhouse_placed signal and the disclosed wiki-wording gap."
    }
   },
   {
@@ -41,7 +41,7 @@
    "meta": {
     "confidence": "wiki",
     "source": "blueprince.wiki.gg/wiki/Drafting/Advanced: 'Garage, Classroom: 3% chance.'",
-    "notes": "Garage added 2026-08-14 (was Classroom alone) per the wiki's list of always-active Priority Draws. Two nuances from the same wiki line are NOT modeled: 'Garage excluded in early days' (no day gate is applied to Garage's candidacy here -- unrelated to the Garage's OWN Forced Draw day gate in forced_draws) and 'Secret Passage included after Greenhouse effect is active' (see patio_rooms' meta.notes: the condition vocabulary has no per-room/negated membership primitive to model the matching removal from that group)."
+    "notes": "Garage added 2026-08-14 (was Classroom alone) per the wiki's list of always-active Priority Draws. 'Garage excluded in early days' is NOT modeled (no day gate is applied to Garage's candidacy here -- unrelated to the Garage's OWN Forced Draw day gate in forced_draws). 'Secret Passage included after Greenhouse effect is active' IS modeled via the file-level membership_moves list (see patio_rooms' meta.notes and that record's own meta for the greenhouse_placed signal and the disclosed wiki-wording gap)."
    }
   },
   {
@@ -80,6 +80,19 @@
     "confidence": "datamined",
     "source": "sheet constants: 'Chronograph 40% Tomorrow Rooms'; blueprince.wiki.gg/wiki/Chronograph datamined box: 'This is a Priority Draw (40% for all Tomorrow Rooms)'.",
     "notes": "Live: condition 'chronograph' is emitted by _active_conditions while a Chronograph is held (special_items.json effect tag 'chronograph', checked via chronograph_active_from_state). 'category' resolves at draw time to every room whose category is 'tomorrow' (draft.py::_priority_draw, matching Room.is_category rather than a hand-typed room list, so a future Tomorrow-room addition is picked up automatically) -- Clock Tower, Coat Check, Freezer, Mail Room plus its three upgrades, Morning Room, Planetarium, Sauna, the Hallway's Tomorrow upgrade, and the Break Room. The item's other effect, rewinding a redraw, is also live: Game.can_rewind/rewind pop PendingDraft.rewind_stack, driven by env/actions.py's REWIND_ACTION."
+   }
+  }
+ ],
+ "membership_moves": [
+  {
+   "room": "secret_passage",
+   "from": "patio_rooms",
+   "to": "garage_classroom",
+   "condition": "greenhouse_placed",
+   "meta": {
+    "confidence": "wiki",
+    "source": "blueprince.wiki.gg/wiki/Drafting/Advanced: patio_rooms clause 'Secret Passage is included if Greenhouse has not been drafted'; garage_classroom clause 'Secret Passage included after Greenhouse effect is active'",
+    "notes": "Both clauses are keyed off the single signal state.greenhouse_placed -- the same one chance_with_greenhouse already uses on patio_rooms -- so the room sits in exactly one of the two entries' rooms lists in every state (draft.py::_apply_membership_moves; asserted by tests/test_secret_passage_membership.py). Simplification disclosed: the wiki's two clauses are worded differently ('has not been drafted' vs 'effect is active'), and since the Greenhouse filter is 'the same filter as king', a King's-green activation could, read literally and independently, satisfy 'effect is active' with no Greenhouse drafted -- this model does not distinguish that case."
    }
   }
  ],
