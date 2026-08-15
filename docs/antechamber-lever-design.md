@@ -12,8 +12,9 @@ The Antechamber has four doors. Three of them — **West, South, East** — are 
 walls until a lever elsewhere on the estate is pulled. The fourth, **North**, leads
 off-grid to Room 46 and is a separate matter (B2).
 
-Today the sim opens all four unconditionally (`game.py`, `placed_doors[42] = 0xF`)
-and a day is won by walking into cell 42. That skips the entire gate.
+Before this change the sim opened all four unconditionally (`game.py`,
+`placed_doors[42] = 0xF`) and a day was won by walking into cell 42. That skipped
+the entire gate.
 
 ### Doors reset every night
 
@@ -152,9 +153,10 @@ the walk continues.
 
 ### The Antechamber stops ending the day
 
-`game.py` terminates the day the moment the player stands on cell 42
-(`_terminate("antechamber")`). Room 46 lies *through* the Antechamber, so that
-termination makes the real objective unreachable by construction — it has to go.
+Before this change, `game.py` terminated the day the moment the player stood on
+cell 42 (`_terminate("antechamber")`). Room 46 lies *through* the Antechamber, so
+that termination made the real objective unreachable by construction — it had to
+go.
 
 It was always a simplification: the README lists "Antechamber entry model" among
 the known ones, and the wiki says the day continues (a pillar presents the Basement
@@ -168,10 +170,6 @@ Consequences, all of which must be handled together:
   or `dead_end` as they already do.
 - `GameState` records `antechamber_reached` and `room46_reached` as separate
   per-day facts, so both remain measurable.
-- **Six code sites currently key the win off `termination_reason == "antechamber"`**
-  — `game.py::success`, three in `env/rewards.py`, three in `rl/train.py`, plus
-  `cli/batch.py` and `cli/play.py`. All must move to the Room 46 flag together, or
-  the reward and the reported win rate will silently disagree.
 
 `P(reach Antechamber)` stops being the headline metric. It stays reported as a
 milestone rate; `P(reach Room 46)` becomes the victory rate. **Numbers from before
@@ -220,16 +218,17 @@ collection as worth something.
 ### Reward split
 
 - Antechamber, first arrival of the day: **+0.25**, once.
+- North door opened, first time each day (either lever): **+0.5**, once.
 - Room 46, first arrival of the day: **+1.0**, once.
 
-4:1 keeps Room 46 dominant while the Antechamber stays a dense enough milestone to
-train against, and a 1.25 ceiling stays close to today's scale so the existing
-shaping constants remain roughly calibrated. Both are single constants, easy to
-retune once there is real run data.
+The ordering pays each step of the real dependency chain in turn, and the ceiling
+stays close to today's scale so the existing shaping constants remain roughly
+calibrated. All three are single constants in `env/rewards.py`, easy to retune
+once there is real run data.
 
 ### Upper bound, stated plainly
 
-The Sanctum route runs through `rotating_gear`, `underpass` and `reservoir_north`,
-whose gates are still **open stubs** — the Rotating Gear position and the Pump Room
-water level are not modelled, and there is no notion of POWER. So any Room 46 rate
-measured now is an **UPPER BOUND**, and that caveat belongs next to every number.
+The Sanctum route carries no stub gates: every edge on it is a real flag, item, or
+puzzle gate. It is still an upper bound in one narrower sense —
+`pallet_jack_puzzle` and `tunnel_metal_door` pass under the sim's standing
+assumed-solved doctrine, as every puzzle gate does.
