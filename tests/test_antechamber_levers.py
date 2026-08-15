@@ -228,8 +228,8 @@ def test_random_masked_play_never_hits_an_engine_assertion():
 
 # ---------------------------------------------------------------------------
 # Capability.LEVER: which rooms register it, and that dispatch is
-# capability-gated rather than an id list living in game.py (docs/open_tasks.md
-# task 21). Mirrors tests/test_capabilities.py's Capability.COMMERCE coverage.
+# capability-gated rather than an id list living in game.py (docs/architecture.md).
+# Mirrors tests/test_capabilities.py's Capability.COMMERCE coverage.
 
 @pytest.mark.parametrize("room_id", LEVER_ROOM_IDS)
 def test_lever_room_provides_lever(room_id):

@@ -5,7 +5,7 @@ test_shelter.py for the other gem-safe rooms.
 
 The sim assumes every puzzle in an entered room gets solved, so the safe in
 these rooms just hands over a gem the moment the player walks in - see
-docs/open_tasks.md task 3. That doctrine is why the Boudoir is included
+docs/doctrine.md. That doctrine is why the Boudoir is included
 despite its 1225 code (owner decision): solving the lock is
 assumed, so it pays out.
 
