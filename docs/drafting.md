@@ -483,6 +483,10 @@ fire at all.
 
 - **Study**: 1 gem per redraw, max 8 per draft, while the Study is placed.
 - **Classroom**: free redraws equal to the drafting-room count.
+- **Drawing Room**: +1 free redraw on the hand dealt from its own doorway —
+  per door, since `ON_DRAFT_FROM` fires once per fresh doorway and not on a
+  redraw of the same one; not a once-per-day flag, since a second Drawing
+  Room doorway drafted later the same day grants another.
 - **Ivory Dice**: spend a die for a redraw.
 - **Paper Crown**: +1 free redraw when the initial deal is all non-red.
 - **The Ink Well** (constellation, day-scoped once activated): spend 1

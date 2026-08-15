@@ -65,3 +65,52 @@ def test_shelter_category_does_not_activate_the_outer_shop_dead_branch():
     assert g.registry.by_id["shelter"].category == "blueprint"
     g.travel_to("shelter")
     assert shops.current_shop_id(g) is None
+
+
+def test_shelter_has_no_effect_on_a_red_room_already_drafted():
+    """"It has no effect on rooms I have already drafted" (owner ruling,
+    docs/open_tasks.md #29): a Chapel placed on the grid BEFORE the Shelter
+    is drafted keeps paying its -1 coin penalty on first entry, even though
+    that entry happens after the Shelter is on the board with charges to
+    spend -- protection is scoped by draft order, not by which event happens
+    to fire the penalty first. Built inline rather than via
+    ``_shelter_at_the_doorstep`` because that helper already drafts the
+    Shelter -- the Chapel must land on the grid BEFORE it. ``_enter`` fires
+    ON_ENTER directly, so the test does not depend on the two rooms' cells
+    actually connecting."""
+    g = Game(GameConfig(west_gate_unlatched=True, special_items=False), seed=0)
+    chapel = g.registry.by_id["chapel"]
+    g._place_room(chapel, 7, 0)
+    assert "chapel" in g.placed_ids
+    g.state.coins = 5
+
+    g.open_outer_draft()
+    g.choose(0)
+    assert g.drafted_outer_room is not None and g.drafted_outer_room.id == "shelter", (
+        "setup: seed 0 must deal the Shelter"
+    )
+    g.travel_to("shelter")
+    assert g.red_negations >= 3
+
+    coins_before = g.state.coins
+    g._enter(7)
+    assert g.state.coins == coins_before - 1, (
+        "the Chapel was drafted before the Shelter, so its penalty must still apply"
+    )
+
+
+def test_shelter_still_protects_a_red_room_drafted_after_it():
+    """The forward-looking half of the same ruling: a red room placed AFTER
+    the Shelter is drafted still has its penalty negated, exactly as before
+    this fix -- only the already-drafted case is newly excluded."""
+    g = _shelter_at_the_doorstep()
+    g.travel_to("shelter")
+    assert g.red_negations >= 3
+    gymnasium = g.registry.by_id["gymnasium"]
+    g._place_room(gymnasium, 7, 0)  # drafted AFTER the Shelter
+    g.state.steps = 20
+    steps_before = g.state.steps
+    g._enter(7)
+    assert g.state.steps == steps_before, (
+        "a red room drafted after the Shelter is still protected"
+    )
