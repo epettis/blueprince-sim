@@ -441,16 +441,21 @@ fire at all.
 - **Classroom**: free redraws equal to the drafting-room count.
 - **Ivory Dice**: spend a die for a redraw.
 - **Paper Crown**: +1 free redraw when the initial deal is all non-red.
+- **The Ink Well** (constellation, day-scoped once activated): spend 1
+  permanent star, with no per-draft cap. It has its own action id rather than
+  riding the shared REDRAW action, because every other redraw source spends a
+  hand- or day-scoped resource with a natural bound while this one spends a
+  save-scoped bank behind an id the agent presses reflexively.
 
 **There is no per-hand redraw budget.** The wiki is explicit: *"There is no
 limit to how many times floorplans can be redrawn in one draft."* The Study's
 own 8-per-draft gem cap is a separate, real mechanic and stays.
 
-**All redraw sources apply to the outer-room draft too.** An outer hand is
-reshuffled from its own fixed pool of 8 on its own RNG label rather than going
-through the grid pipeline — running `redeal()` on an outer hand would read
-`state.grid[-1]`, silently fabricating a "from room" and dealing grid rooms
-into an outer hand.
+**All redraw sources, including the Ink Well's star redraw, apply to the
+outer-room draft too.** An outer hand is reshuffled from its own fixed pool of
+8 on its own RNG label rather than going through the grid pipeline — running
+`redeal()` on an outer hand would read `state.grid[-1]`, silently fabricating
+a "from room" and dealing grid rooms into an outer hand.
 
 Each redraw re-runs the whole `_fill_options` pass, which is what gives several
 mechanics their "re-select on redraw" behaviour for free: the Dowsing Rod picks
@@ -603,15 +608,11 @@ was made three times in one session about `test_draft_stats.py` alone.
   Sourced, deliberately not implemented: distinguishing the initial deal needs
   per-hand state.
 - **The Aquarium gets two separate condition-gated priority-draw rows** where
-  the wiki says the effect "adds Aquarium to the 3/13% passive filters". Our
-  `_priority_draw` resolves a row's `rooms` list by fixed order, first
-  draftable wins, while the real game treats a priority draw as a filter and
-  draws by deck order among the survivors. Joining the rows would starve the
-  Aquarium behind the Commissary and Observatory once it has 3, 6 or 9 copies
-  in the deck against the Commissary's single card. Separate rows reproduce the
-  published **15.61%** exactly, at the cost of two extra RNG substreams. If the
-  resolution is ever fixed to draw by deck order among survivors, joining the
-  rows becomes both literal and correct.
+  the wiki says the effect "adds Aquarium to the 3/13% passive filters" — each
+  floorplan in a row gets its own independent acceptance roll (see "Priority
+  draws" above), so this is modelled as independent 13% and 3% rolls rather
+  than one combined entry. Separate rows reproduce the published **15.61%**
+  exactly, at the cost of two extra RNG substreams.
 - **Reserve copies are not modelled** for colour-selective drafting. Filter-only
   was rejected because the wiki says thin pools are *frequent* for Green Rooms
   and Shops; full fidelity was rejected because it requires relaxing the
@@ -619,8 +620,10 @@ was made three times in one session about `test_draft_stats.py` alone.
   Default triples are the middle option.
 - **The Garage's passive priority draw and its forced draw are different
   gates.** The passive 3% row is Day-5-or-Veteran; the forced draw is
-  Day-3-or-Veteran. Only the forced draw is implemented. Do not conflate the
-  two thresholds.
+  Day-3-or-Veteran. The passive draw itself is modelled (the
+  `garage_classroom` `priority_draws` entry); what is not modelled is its own
+  Day-5-or-Veteran gate, so it rolls unconditionally from Day 1. Do not
+  conflate the two thresholds.
 - **Only the Garage slice of `forced_draw_precedence` is built.** The
   Conservatory, Morning Room and Utility Closet entries stay as data behind
   their own prerequisites; the Utility Closet's own forced draw is gated on the

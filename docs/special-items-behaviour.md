@@ -112,8 +112,8 @@ Because one call drains a whole cell, anything counting dig outcomes fires in
 **bursts**, not once per player action.
 
 **Dig-spot counts are inferred.** The wiki's Dig Spot list names rooms but not
-counts, so every listed room carries one spot except the datamined Tomb (2) and
-Tunnel (3). A per-cell overlay (written by the Cloister of Veia and by the
+counts, so a listed room carries one spot unless its own datamined record
+names a count. A per-cell overlay (written by the Cloister of Veia and by the
 `spread_dig_spots` experiment effect) adds to that baseline.
 
 **The `jack_hammer` table is knowingly unreconciled.** The `shovel` and
@@ -121,9 +121,11 @@ Tunnel (3). A per-cell overlay (written by the Cloister of Veia and by the
 not: it lumps outcomes the wiki lists separately (gem 1/3, dice 1/2/3, the
 Stopwatch) and **adds four vault keys the wiki does not list**. Its trash rows
 and `nothing` row carry the wiki's published absolute rates and the remainder
-is scaled to fill; the rest of the table awaits a full reconciliation. The
-open question — where the vault keys came from — is a live task in
-`open_tasks.md`, and it must be settled before a rebuild deletes them.
+is scaled to fill; the rest of the table awaits a full reconciliation. The four
+vault keys stay until each is judged on its own vault's contents — a vault
+holding modelled resources justifies keeping its key, a vault holding only
+puzzle or story content does not — and the outcome belongs in `dig.meta.note`
+so it is not re-opened. Do not let a rebuild delete them first.
 
 ## Containers
 
@@ -260,10 +262,11 @@ covering the four shops its own record names — **Commissary, Kitchen,
 Locksmith, Bookshop**. Both resolve to the same single round-up halving, so a
 Commissary under both is still just half price, never a quarter. Neither is a
 blanket discount: each is an **allowlist**, which is why neither needs an entry
-in the Laundry Room / Casino exemption set below — a shop is on sale only by
-being named. The Sail reaches shops drafted *after* it was activated, because
-the sale is asked about where a price resolves rather than written onto the
-shops standing at the time.
+in the Coupon Book's `{laundry_room, casino}` exemption set
+(`shops.py::_DISCOUNT_EXEMPT_SHOPS`), which exists because that reduction *is*
+blanket — a shop is on sale only by being named. The Sail reaches shops
+drafted *after* it was activated, because the sale is asked about where a
+price resolves rather than written onto the shops standing at the time.
 
 **The halving runs before the Coupon Book's reduction**, and that order is
 published rather than chosen: a Kitchen banana costs 2, and the wiki has it at
@@ -352,7 +355,8 @@ three Microchips give three distinct offers; the sim emits one regardless of
 count. That is a count *expansion* of a single id, not an identity collapse of
 several — the opposite transform — and since all three copies share one graph
 edge, expanding would spend three of the eight offer rows on three identical
-offers. `microchip` is the only item with `unique: false`.
+offers. It is one of a handful of non-unique items, and the only one the wiki
+gives a per-copy trade offer.
 
 The consequence the collapse removes — silent truncation past the offer row
 cap, and which entries got crowded out — is owned by
@@ -619,10 +623,13 @@ filtered.
   auto-executed for the opposite reason: it can cost a key.
 - **The Knight's Shield auto-applies** to the first red room entered that day.
   No choice is offered.
-- **The Stopwatch's 60 real-time seconds become 10 free cost events**, and the
-  **Running Shoes' 2.2 room-length trigger becomes every third move free.**
-  Both are turn-based stand-ins for real-time quantities, and both are data
-  knobs rather than constants.
+- **The Stopwatch's 60 real-time seconds become 10 free cost events**, a
+  turn-based stand-in for a real-time quantity and a data knob rather than a
+  constant. The **Running Shoes' 2.2 room-length rule is modelled literally**
+  on the grid (euclidean distance from the cell where a step was last lost),
+  with one gap: off-grid, area nodes carry no grid coordinate, so the sim
+  rolls only the per-node activation chance there and never the distance
+  rule. The gap is on the record's own `meta.simplification`.
 - **The Prism Key opens a locked door and recycles**; its colour-draft trigger
   is deferred. See [`drafting.md`](drafting.md) for colour-selective drafting.
 - **The Silver Key's cross/T bias applies to the initial deal only.**
