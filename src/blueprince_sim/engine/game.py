@@ -3265,10 +3265,15 @@ class Game:
         """End the day when out of steps or no purposeful action remains.
 
         Called after every state-changing action. The day does NOT end when the
-        player reaches the Antechamber — Room 46 is the objective. "dead_end"
-        means no frontier doorway exists and the Antechamber is unreachable;
-        "out_of_steps" also covers having steps left but nothing useful within
-        the budget (see :meth:`_action_in_budget`).
+        player reaches the Antechamber — Room 46 is the objective.
+
+        Running out of steps ends the day outright. Otherwise the day ends only
+        when NOTHING purposeful remains (:meth:`_action_in_budget` on the grid,
+        :meth:`_outer_action_in_budget` off it) — having no frontier doorway
+        left is a reason, not a trigger: it only picks the recorded reason.
+        "dead_end" means the day stopped with no frontier doorway anywhere and
+        no path into the Antechamber; "out_of_steps" covers every other stop,
+        including steps remaining with nothing useful left to spend them on.
         """
         st = self.state
         if st.steps <= 0:
@@ -3277,14 +3282,15 @@ class Game:
             # Off-grid: check if any outer-area action is affordable
             if not self._outer_action_in_budget():
                 self._terminate("out_of_steps")
-        elif not self.frontier_doorways() and not self._antechamber_reachable():
-            # No undrafted doors anywhere reachable and no path to walk into
-            # the Antechamber: the day cannot progress.
-            self._terminate("dead_end")
         elif not self._action_in_budget():
-            # Steps remain, but nothing useful is within the step budget:
-            # re-entering rooms grants nothing, so the day cannot progress.
-            self._terminate("out_of_steps")
+            if not self.frontier_doorways() and not self._antechamber_reachable():
+                # No undrafted doors anywhere and no path to walk into the
+                # Antechamber: the house itself has nothing left to offer.
+                self._terminate("dead_end")
+            else:
+                # Doors remain, but none of them is within the step (or key)
+                # budget, and nothing else is purposeful either.
+                self._terminate("out_of_steps")
 
     def _outer_action_in_budget(self) -> bool:
         """True if any action is affordable while the player is off-grid.
