@@ -61,6 +61,7 @@ from . import observatory  # noqa: F401
 from . import parlor  # noqa: F401
 from . import patio  # noqa: F401
 from . import planetarium  # noqa: F401
+from . import pump_room  # noqa: F401  (registers pump-panel capability on import)
 from . import quest_bedroom  # noqa: F401
 from . import room_8  # noqa: F401
 from . import rotunda  # noqa: F401

@@ -16,7 +16,7 @@ from .effects import Capability, Hook
 from .effects.items import (basement_key, crown_of_the_blueprints, gear_wrench, keycard,
                             master_key, paper_crown, power_hammer, prism_key, running_shoes,
                             silver_key, telescope, the_axe)
-from .effects.rooms import dovecote, foyer, mail_room, shrine
+from .effects.rooms import dovecote, foyer, mail_room, pump_room, shrine
 from .effects.tier1 import _grant
 from .grid import (ADJACENT, DIRS, E, ENTRANCE_CELL, N, N_CELLS, OPPOSITE, W,
                    neighbor, rank_of, rotate_mask)
@@ -44,6 +44,8 @@ class Phase(Enum):
     LOCK_PENDING = 6  # locked doorway: awaiting use_key/lockpick/a special key/abandon
     WRENCH_PENDING = 7  # Gear Wrench: awaiting a permanent rarity pick for the Mechanical
                         # Room just placed (Game.choose/Game.set_wrench_rarity)
+    PUMP_LEVEL_PENDING = 8  # Pump Room panel: a source has been picked, awaiting its
+                            # target level (Game.set_pump_source/Game.set_pump_level)
 
 
 class RedrawKind(Enum):
@@ -107,6 +109,7 @@ class Game:
         st.applied_upgrades = set(cfg.upgrade_disks)
         st.axed_rooms = tuple(cfg.axed_rooms)
         st.permanent_rarity = dict(cfg.permanent_rarity)
+        st.water_levels = dict(cfg.water_levels)
         st.planetarium_planets = tuple(cfg.planetarium_planets)
         # Seeds today's dynamic_rarity bucket bookkeeping with every
         # Gear-Wrench-set override, right after build_decks (which already
@@ -647,6 +650,97 @@ class Game:
         assert self.can_set_security_level(), "must stand in Security"
         self.state.security_level = level
 
+    # --------------------------------------------------------- pump room panel
+    # docs/areas.md's Pump Room section (owner ruling): the macro "set source
+    # to level" action -- the player picks a source, then a target level, in
+    # two decisions -- reaches every level the real (tank/pump) panel can reach.
+
+    def _pump_source(self, source_id: str) -> pump_room.PumpSource | None:
+        """The named water source's PumpSource record, or None if unknown."""
+        for src in pump_room.load_sources(self.registry.data_dir):
+            if src.id == source_id:
+                return src
+        return None
+
+    def water_level(self, source_id: str) -> int:
+        """Current level of ``source_id`` (0 for an unknown id).
+
+        ``state.water_levels`` only ever records OVERRIDES (set by
+        ``set_pump_level``); a source never touched this attempt falls back
+        to its data/pump_room.json "initial" value.
+        """
+        if source_id in self.state.water_levels:
+            return self.state.water_levels[source_id]
+        src = self._pump_source(source_id)
+        return src.initial if src is not None else 0
+
+    def can_set_pump_source(self) -> bool:
+        """Standing at the Pump Room panel, on the grid, mid-day, panel idle."""
+        return (self.phase is Phase.NAVIGATE and not self.off_grid
+                and self.state.pos == self._capability_cell(Capability.PUMP_PANEL) >= 0)
+
+    def set_pump_source(self, source_id: str) -> None:
+        """Select a water source at the panel; awaits a target-level pick next."""
+        assert self.can_set_pump_source(), "must stand in the Pump Room"
+        assert self._pump_source(source_id) is not None, f"unknown pump source {source_id!r}"
+        self.state.pending_pump_source = source_id
+        self.phase = Phase.PUMP_LEVEL_PENDING
+
+    def can_set_pump_level(self, level: int) -> bool:
+        """Legal to set the pending source to ``level`` right now.
+
+        PUMP_LEVEL_PENDING only, with the pending source's own [min, max]
+        range (data/pump_room.json) -- the Reservoir's min is 2, every other
+        source's is 0. Always at least one legal level (the source's current
+        one is always in range), so this phase can never dead-end.
+        """
+        if self.phase is not Phase.PUMP_LEVEL_PENDING:
+            return False
+        source_id = self.state.pending_pump_source
+        if source_id is None:
+            return False
+        src = self._pump_source(source_id)
+        return src is not None and src.min <= level <= src.max
+
+    def set_pump_level(self, level: int) -> None:
+        """Set the pending source's level, permanently, and return to NAVIGATE.
+
+        Setting the Reservoir to exactly 13 also permanently opens the
+        reservoir_north<->reservoir_south rowboat crossing
+        (state.reservoir_13_reached; docs/areas.md) -- unlike
+        pump_water_lte8/rowboat_water_6, which stay live checks against the
+        current level rather than latching.
+        """
+        assert self.can_set_pump_level(level), f"level {level} not valid for the pending source"
+        source_id = self.state.pending_pump_source
+        self.state.water_levels[source_id] = level
+        if source_id == "reservoir" and level == 13:
+            self.state.reservoir_13_reached = True
+        self.state.pending_pump_source = None
+        self.phase = Phase.NAVIGATE
+
+    def _pump_carryover(self) -> dict:
+        """Cross-day carry for the Pump Room's water levels and the permanent
+        Reservoir-13 crossing flag.
+
+        Reports the FULL current water_levels dict every day (state.water_levels
+        is seeded from cfg.water_levels at Game.reset and only ever changed by
+        set_pump_level), the same "state already IS the accumulated total"
+        shape as draft_counts/foundation_cell -- but NOT SAVE-scoped like
+        permanent_rarity/axed_rooms: DayChain.advance() resets water_levels at
+        the attempt wrap (see GameConfig.water_levels for why).
+        reservoir_13_reached ORs cfg and state, the same shape as
+        west_gate_unlatched/sealed_entrance_broken -- once the Reservoir has
+        ever been set to 13 this attempt, the crossing stays open even after
+        the level moves away.
+        """
+        return {
+            "water_levels": dict(self.state.water_levels),
+            "reservoir_13_reached": (
+                self.cfg.reservoir_13_reached or self.state.reservoir_13_reached
+            ),
+        }
+
     # ------------------------------------------------------------- commerce
     # Thin delegates into engine/shops.py (docs/special-items-behaviour.md).
     # All shopping happens from menus in the real game: no step cost.
@@ -1052,6 +1146,7 @@ class Game:
         result.update(self._shrine_carryover())
         result.update(self._axe_carryover())
         result.update(self._wrench_carryover())
+        result.update(self._pump_carryover())
         return result
 
     def _wrench_carryover(self) -> dict:
@@ -1594,6 +1689,23 @@ class Game:
               it starts in place with no prerequisite and simply respawns each day.
               Contributes 1 to the three_microchips item gate's total (see
               areas.py::gate_open's counts_flag handling).
+          "pump_water_lte8" -- Grounds -> Well: live check against the CURRENT Fountain
+              level (Game.water_level("fountain") <= 8), re-derived every call rather
+              than latched -- unlike every permanent flag above, this can go both true
+              and false again within the same day as the panel is operated.
+          "rowboat_water_6" -- Reservoir South <-> Safehouse: same live-check shape as
+              pump_water_lte8, on the Reservoir's level (== 6).
+          "fountain_water_0" -- Well -> Reservoir South, ADDITIONAL to the permanent
+              basement_key_well item gate on that same edge: same live-check shape as
+              pump_water_lte8, on the Fountain's level (== 0) -- "this passage is only
+              traversible while the fountain water level is 0" (Well page), checked on
+              EVERY traversal, never latched.
+          "reservoir_water_13" -- Reservoir North <-> Reservoir South: carried in from
+              cfg.reservoir_13_reached, OR earned today the moment Game.set_pump_level
+              records the Reservoir at exactly 13 (state.reservoir_13_reached). Same
+              OR-from-cfg-or-state permanent shape as west_gate_unlatched -- UNLIKE the
+              three live checks above, this latches: once true, it stays open even
+              after the level later moves away from 13.
         """
         st = self.state
         flags: set[str] = set()
@@ -1612,6 +1724,14 @@ class Game:
             flags.add("garage_door_breaker")
         if not st.grotto_chip_taken:
             flags.add("grotto_chip_in_place")
+        if self.water_level("fountain") <= 8:
+            flags.add("pump_water_lte8")
+        if self.water_level("reservoir") == 6:
+            flags.add("rowboat_water_6")
+        if self.water_level("fountain") == 0:
+            flags.add("fountain_water_0")
+        if self.cfg.reservoir_13_reached or st.reservoir_13_reached:
+            flags.add("reservoir_water_13")
         # North door open: Inner Sanctum or Throne Room lever pulled this day.
         north_seg = segment_key(ANTECHAMBER_CELL, N)
         if self.state.door_state.get(north_seg) != DOOR_SEALED:

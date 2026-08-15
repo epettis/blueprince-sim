@@ -133,6 +133,10 @@ def action_group(action_id: int) -> str:
         return "use"
     if action_id == A.REDRAW_WITH_STAR_ACTION:
         return "control"
+    if A.PUMP_SOURCE_BASE <= action_id < A.PUMP_LEVEL_BASE:
+        return "control"
+    if A.PUMP_LEVEL_BASE <= action_id < A.N_ACTIONS:
+        return "choose"
     return "other"
 
 

@@ -5,7 +5,7 @@ to draft, or a room to enter) and the engine walks the shortest connected
 path, paying the normal one-step-per-room cost. Re-entering rooms grants
 nothing, so free-form single-tile moves were retired.
 
-Layout (Discrete(458)):
+Layout (Discrete(479)):
   0..179   draft at doorway: cell (45) x direction (4: N,E,S,W) ->
            cell*4 + dir_index. Walks to the room first if needed. Legal for
            every frontier doorway reachable with at least one step to spare
@@ -199,6 +199,19 @@ Layout (Discrete(458)):
                      id, never a source folded into REDRAW_ACTION -- see the
                      constant's comment. Legal once the Ink Well has been
                      activated (Game.can_redraw_with_star).
+  458..463 the Pump Room panel, appended at the end so no earlier id
+           shifts: pick a water source (data/pump_room.json's six sources,
+           file order: aquarium, fountain, greenhouse, kitchen, pool,
+           reservoir). NAVIGATE only, standing at the Pump Room's cell
+           (Game.can_set_pump_source) -- no separate "open the panel" id,
+           the same shape as SET_LEVEL_BASE. Parks Phase.PUMP_LEVEL_PENDING.
+  464..478 pick the pending source's target level 0..14 (PUMP_LEVEL_PENDING
+           only), masked to that source's own [min, max] (the Reservoir's
+           min is 2, every other source's is 0; the Reservoir's own 2..14
+           is the widest range of the six, which is why the menu is 15 ids
+           wide). The macro action sets the level directly (docs/areas.md's
+           Pump Room section: the "set source to level" owner ruling) -- no
+           tank/pump puzzle to solve.
 """
 
 from __future__ import annotations
@@ -210,6 +223,7 @@ from ..engine.locks import SECURITY_LEVELS
 from ..engine import shops as _shops
 from ..engine import special_items as _si
 from ..engine.effects import Capability, provides_capability
+from ..engine.effects.rooms import pump_room as _pump_room
 from ..engine.effects.rooms import shrine as _shrine
 from ..engine.model import RARITIES, Registry
 from ..engine.upgrades import root_base_id
@@ -438,8 +452,32 @@ VIEW_NIGHT_SKY_ACTION = ACTIVATE_CONSTELLATION_BASE + _N_CONSTELLATIONS  # 456
 # an id the agent already presses reflexively.
 REDRAW_WITH_STAR_ACTION = VIEW_NIGHT_SKY_ACTION + 1  # 457
 
-# N_ACTIONS = first slot after the Ink Well's star-redraw action.
-N_ACTIONS = REDRAW_WITH_STAR_ACTION + 1  # 458
+# 458..463: pick a Pump Room water source (data/pump_room.json's six sources,
+# file order = alphabetical by id: aquarium, fountain, greenhouse, kitchen,
+# pool, reservoir), appended at the end so no earlier id shifts. NAVIGATE
+# only, standing at the Pump Room's cell (Game.can_set_pump_source) -- no
+# separate "open the panel" id, the same shape as SET_LEVEL_BASE offering
+# Security's three levels directly while standing at its terminal. Picking a
+# source parks Phase.PUMP_LEVEL_PENDING awaiting a target level next.
+PUMP_SOURCE_BASE = REDRAW_WITH_STAR_ACTION + 1  # 458
+_N_PUMP_SOURCES = 6  # width pinned as a constant (like _N_AXE_TARGETS) so
+                     # N_ACTIONS stays importable with no Registry loaded;
+                     # _build_pump_source_ids asserts its own result agrees.
+
+# 464..478: pick the pending source's target level, 0..14 (PUMP_LEVEL_PENDING
+# only), appended at the end so no earlier id shifts. 15 ids cover every
+# source's range in one fixed-width menu -- the Reservoir's own max (14) is
+# the widest -- with Game.can_set_pump_level masking each id to the pending
+# source's own [min, max] (data/pump_room.json; the Reservoir's min is 2,
+# every other source's is 0). The macro action sets the level directly
+# (docs/areas.md's Pump Room section: the "set source to level" owner
+# ruling): no tank/pump puzzle to solve, so this phase can never dead-end --
+# the source's current level is always one of the legal ids.
+PUMP_LEVEL_BASE = PUMP_SOURCE_BASE + _N_PUMP_SOURCES  # 464
+_N_PUMP_LEVELS = 15  # levels 0..14
+
+# N_ACTIONS = first slot after the Pump Room's level-pick block.
+N_ACTIONS = PUMP_LEVEL_BASE + _N_PUMP_LEVELS  # 479
 
 DIR_INDEX = {d: i for i, d in enumerate(DIRS)}
 
@@ -465,6 +503,29 @@ def _build_lock_special_key_order(registry: Registry) -> tuple[str, ...]:
         f"-- bump the constant (and every action id from REWIND_ACTION "
         f"onward, plus N_ACTIONS) to match. This is a deliberate width "
         f"change, never a silent one."
+    )
+    return result
+
+
+def _build_pump_source_ids(registry: Registry) -> tuple[str, ...]:
+    """Pump Room water-source ids in data/pump_room.json's own file order
+    (alphabetical by id). The action index for a source is PUMP_SOURCE_BASE +
+    the index here; both the action space and the observation encoder use
+    this single source.
+
+    Asserts its own length against the pinned ``_N_PUMP_SOURCES``, the same
+    shape as ``_build_lock_special_key_order``/``_build_axe_target_ids``: the
+    mask-building loop that walks this tuple has no bounds check, so a source
+    added to or removed from data/pump_room.json without a matching bump here
+    would silently write past the reserved block into PUMP_LEVEL_BASE's mask bit.
+    """
+    result = tuple(s.id for s in _pump_room.load_sources(registry.data_dir))
+    assert len(result) == _N_PUMP_SOURCES, (
+        f"data/pump_room.json now has {len(result)} water sources but "
+        f"_N_PUMP_SOURCES is pinned at {_N_PUMP_SOURCES} -- bump the "
+        f"constant (and every action id from PUMP_LEVEL_BASE onward, plus "
+        f"N_ACTIONS) to match. This is a deliberate width change, never a "
+        f"silent one."
     )
     return result
 
@@ -875,6 +936,12 @@ def action_mask(game: Game, prev_action: int | None = None) -> list[bool]:
                 for i, level in enumerate(SECURITY_LEVELS):
                     if level != st.security_level:
                         mask[SET_LEVEL_BASE + i] = True
+            # Pump Room panel: all six sources are always offered together
+            # while standing there, same shape as SET_LEVEL_BASE (no separate
+            # "open the panel" id).
+            if game.can_set_pump_source():
+                for i in range(_N_PUMP_SOURCES):
+                    mask[PUMP_SOURCE_BASE + i] = True
     elif game.phase is Phase.DRAFTING:
         pending = game.state.pending
         for opt in pending.options:
@@ -934,6 +1001,14 @@ def action_mask(game: Game, prev_action: int | None = None) -> list[bool]:
         for i in range(_N_WRENCH_RARITIES):
             if game.can_set_wrench_rarity(i):
                 mask[WRENCH_RARITY_BASE + i] = True
+    elif game.phase is Phase.PUMP_LEVEL_PENDING:
+        # The pending source's own [min, max] range (data/pump_room.json);
+        # always at least one legal level (the source's current one is
+        # always in range), so this phase can never dead-end -- no abandon
+        # id needed, the same shape as WRENCH_PENDING/COLOUR_PENDING.
+        for level in range(_N_PUMP_LEVELS):
+            if game.can_set_pump_level(level):
+                mask[PUMP_LEVEL_BASE + level] = True
     # Security-setpoint repeat guard: if the last applied action was a
     # set-level id, mask all three off so the agent must do something else
     # before touching the setpoint again.
@@ -1087,6 +1162,11 @@ def apply_action(game: Game, action: int) -> None:
         game.view_night_sky()
     elif action == REDRAW_WITH_STAR_ACTION:
         game.redraw(RedrawKind.STAR)
+    elif PUMP_SOURCE_BASE <= action < PUMP_LEVEL_BASE:
+        source_ids = _build_pump_source_ids(game.registry)
+        game.set_pump_source(source_ids[action - PUMP_SOURCE_BASE])
+    elif PUMP_LEVEL_BASE <= action < N_ACTIONS:
+        game.set_pump_level(action - PUMP_LEVEL_BASE)
     else:
         raise ValueError(f"unimplemented action {action}")
 
@@ -1269,4 +1349,11 @@ def describe_action(game: Game, action: int) -> str:
         return "view the night sky"
     if action == REDRAW_WITH_STAR_ACTION:
         return "redraw the hand for 1 star (Ink Well)"
+    if PUMP_SOURCE_BASE <= action < PUMP_LEVEL_BASE:
+        source_id = _build_pump_source_ids(game.registry)[action - PUMP_SOURCE_BASE]
+        return f"Pump Room: select source {source_id}"
+    if PUMP_LEVEL_BASE <= action < N_ACTIONS:
+        level = action - PUMP_LEVEL_BASE
+        source_id = game.state.pending_pump_source or "?"
+        return f"Pump Room: set {source_id} to level {level}"
     return f"action {action}"

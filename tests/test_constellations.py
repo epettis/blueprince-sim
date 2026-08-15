@@ -166,8 +166,8 @@ def test_the_action_block_has_one_id_per_record():
 # ------------------------------------------------------- the action space
 
 
-def test_action_space_width_is_458():
-    """N_ACTIONS and the constellation block's own id range agree with
+def test_action_space_width_is_479():
+    """The constellation block's own id range, and N_ACTIONS, agree with
     docs/rl-environment.md's width-change register.
 
     Action ids are positional, so any PR that moves this width must state the
@@ -176,11 +176,19 @@ def test_action_space_width_is_458():
     target range) from widening in a later, unrelated PR; that only shifts
     ids at or above the earlier block's own end, which
     test_no_existing_action_id_shifted below is what actually pins.
+
+    N_ACTIONS is no longer REDRAW_WITH_STAR_ACTION + 1: the Pump Room panel
+    block (docs/areas.md's Pump Room section) appends 21 more ids after it
+    (458..478, a source pick plus a target-level pick), so this test only
+    pins where the constellation block itself ends, not the space's final width.
     """
     assert A.ACTIVATE_CONSTELLATION_BASE == A.USE_TELESCOPE_PLANETARIUM_ACTION + 1
     assert A.VIEW_NIGHT_SKY_ACTION == A.ACTIVATE_CONSTELLATION_BASE + A._N_CONSTELLATIONS
     assert A.REDRAW_WITH_STAR_ACTION == A.VIEW_NIGHT_SKY_ACTION + 1
-    assert A.N_ACTIONS == A.REDRAW_WITH_STAR_ACTION + 1 == 458
+    assert A.REDRAW_WITH_STAR_ACTION == 457
+    assert A.PUMP_SOURCE_BASE == A.REDRAW_WITH_STAR_ACTION + 1
+    assert A.PUMP_LEVEL_BASE == A.PUMP_SOURCE_BASE + A._N_PUMP_SOURCES
+    assert A.N_ACTIONS == A.PUMP_LEVEL_BASE + A._N_PUMP_LEVELS == 479
 
 
 def test_no_existing_action_id_shifted():
@@ -265,18 +273,21 @@ def test_action_group_buckets_the_constellation_block():
 
 #: Shape, bounds and dtype of every observation key as of the width commit,
 #: for the fixed registry sizes passed below. The constellation key was this
-#: file's own addition; "carryover" has since grown twice more: 16 -> 17 for
-#: the Conservatory's conservatory_floorplan_found flag, then 17 -> 18 for the
-#: Greenhouse's greenhouse_wall_broken flag (env/multiday.py's
-#: _CARRYOVER_KEYS) -- every other row must stay exactly as it is, because a
-#: bound change is a retrain trigger on the same terms as a shape change
-#: (docs/rl-environment.md). "axed_rooms" stays 48 here because this call
-#: never overrides observation_space()'s n_axe_targets default (48); the real
-#: env (BluePrinceEnv) always passes the registry-derived count instead.
+#: file's own addition; "carryover" has since grown three times more: 16 -> 17
+#: for the Conservatory's conservatory_floorplan_found flag, 17 -> 18 for the
+#: Greenhouse's greenhouse_wall_broken flag, then 18 -> 19 for the Pump Room's
+#: reservoir_13_reached flag (env/multiday.py's _CARRYOVER_KEYS); "phase" has
+#: widened 8 -> 9 for Phase.PUMP_LEVEL_PENDING; and "water_levels" is a new
+#: key for the Pump Room's six source levels (docs/areas.md's Pump Room section) --
+#: every other row must stay exactly as it is, because a bound change is a
+#: retrain trigger on the same terms as a shape change (docs/rl-environment.md).
+#: "axed_rooms" stays 48 here because this call never overrides
+#: observation_space()'s n_axe_targets default (48); the real env
+#: (BluePrinceEnv) always passes the registry-derived count instead.
 _EXPECTED_SPACE = {
     "allowance": ((1,), 0, 9999, "int16"),
     "axed_rooms": ((48,), 0, 1, "uint8"),
-    "carryover": ((18,), 0, 999, "int16"),
+    "carryover": ((19,), 0, 999, "int16"),
     "constellations": ((15,), 0, 99, "int16"),
     "day": ((2,), 0, 9999, "int16"),
     "disks_held": ("Discrete", 17, "int64"),
@@ -301,7 +312,7 @@ _EXPECTED_SPACE = {
     "item_state": ((12,), -2, 999, "int16"),
     "mail": ((3,), 0, 99, "int16"),
     "options": ((3, 13), -1, 999, "int16"),
-    "phase": ("Discrete", 8, "int64"),
+    "phase": ("Discrete", 9, "int64"),
     "planetarium_planets": ((5,), 0, 1, "uint8"),
     "player_area": ("Discrete", 39, "int64"),
     "player_pos": ("Discrete", 45, "int64"),
@@ -318,6 +329,7 @@ _EXPECTED_SPACE = {
     "treasure_trove_piles": ((1,), 0, 32, "int16"),
     "upgrade_options": ((3,), -1, 999, "int16"),
     "upgrade_slots": ((16,), 0, 1, "uint8"),
+    "water_levels": ((6,), 0, 14, "uint8"),
     "wrench_rarity": ((8,), 0, 4, "uint8"),
 }
 
@@ -334,10 +346,16 @@ def _signature(space) -> dict:
 
 
 def test_only_the_constellation_key_was_added_to_the_observation_space():
-    """The observation space gains exactly one key and nothing else moves.
+    """The observation space matches this pinned full-key snapshot exactly.
 
-    Both halves matter and only one is obvious: a resized key silently
-    reinterprets trained weights, and a widened BOUND does the same to a
+    Originally "the constellation key was this file's own addition and
+    nothing else moves"; three more width changes have landed since (see the
+    comment above _EXPECTED_SPACE) and each updated this same snapshot rather
+    than adding a parallel test, so the name is now a historical label, not a
+    literal description of what this test guards today.
+
+    Both a resized key and a widened BOUND matter -- a resized key silently
+    reinterprets trained weights, and a widened bound does the same to a
     normalising policy, so the snapshot pins low and high as well as shape.
     Registry sizes are passed as literals so the expected table is a function
     of the code alone, not of how many rooms happen to be in rooms.json.

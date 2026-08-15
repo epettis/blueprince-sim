@@ -150,6 +150,46 @@ def test_category_override_reproduces_committed_extra_categories(room_id, rooms_
     assert set(entry["extra_categories"]) == set(committed["extra_categories"]), room_id
 
 
+def test_meta_override_ids_all_exist_in_rooms_json(rooms_by_id):
+    """Every META_OVERRIDE key names a record present in rooms.json - the typo guard."""
+    missing = sorted(set(ingest_sheet.META_OVERRIDE) - set(rooms_by_id))
+    assert not missing, f"META_OVERRIDE has id(s) absent from rooms.json: {missing}"
+
+
+@pytest.mark.parametrize("room_id", sorted(ingest_sheet.META_OVERRIDE))
+def test_meta_override_reproduces_committed_meta(room_id, rooms_by_id):
+    """Applying META_OVERRIDE reproduces the meta.* fields rooms.json actually carries.
+
+    meta.simplification (the Pump Room's macro-action disclosure,
+    docs/areas.md's Pump Room section) is there only because a human put it
+    there, so without this the committed record and the ingest table could
+    drift apart and a re-ingest would quietly drop the disclosure.
+    """
+    entry = {"id": room_id, "effects": [], "items": {"guaranteed": []},
+              "meta": {"source": "x", "confidence": "datamined"}}
+    ingest_sheet.apply_effect_override(entry)
+    committed_meta = rooms_by_id[room_id]["meta"]
+    added = ingest_sheet.META_OVERRIDE[room_id]
+    assert added, f"{room_id}: META_OVERRIDE set nothing"
+    for key, value in added.items():
+        assert committed_meta.get(key) == value, f"{room_id}: meta.{key}"
+
+
+def test_no_room_carries_an_unmirrored_simplification(rooms_by_id):
+    """No rooms.json record has a meta.simplification the ingest table omits.
+
+    The reverse direction of the guard above: rooms.json is generated, so a
+    simplification note present there but absent from META_OVERRIDE survives
+    only until someone regenerates the file.
+    """
+    unmirrored = sorted(
+        rid for rid, rec in rooms_by_id.items()
+        if rec.get("meta", {}).get("simplification")
+        and rid not in ingest_sheet.META_OVERRIDE)
+    assert not unmirrored, (
+        f"meta.simplification in rooms.json but not in ingest META_OVERRIDE: {unmirrored}")
+
+
 def test_supplemental_member_rooms_carry_their_own_flags():
     """The three supplemental-sourced member rooms carry their membership flag
     in supplemental_rooms.json, which neither override table can reach.

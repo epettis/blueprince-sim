@@ -464,6 +464,15 @@ class GameState:
     # back to GameConfig. carryover() ORs this with cfg.satellite_dish_unlocked;
     # DayChain carries the result, permanently unlocking the Satellite Dish.
     satellite_dish_unlocked: bool = False
+    # Set the moment Game.set_pump_level records the Reservoir at exactly 13.
+    # Same shape as west_gate_unlatched: an IN-RUN discovery recorded on
+    # STATE, never written back to GameConfig. Game._pump_carryover() ORs
+    # this with cfg.reservoir_13_reached; DayChain carries the result,
+    # permanently opening the reservoir_north<->reservoir_south rowboat
+    # crossing (docs/areas.md) even after the level later moves away from 13
+    # -- UNLIKE pump_water_lte8/rowboat_water_6, which re-check the live
+    # level on every traversal instead of latching.
+    reservoir_13_reached: bool = False
     # Set the first time the player enters a Sauna today. Unlike orchard_unlocked
     # this is a ONE-DAY pulse, not a permanent unlock: carryover() reports only
     # today's own value (never ORed with cfg.sauna_bonus), and DayChain replaces
@@ -668,6 +677,16 @@ class GameState:
     # otherwise land in its un-wrenched natal bucket).
     permanent_rarity: dict[str, int] = field(default_factory=dict)
 
+    # Pump Room: water source id -> permanently-set level (data/pump_room.json's
+    # six sources: aquarium, fountain, greenhouse, kitchen, pool, reservoir).
+    # Seeded from cfg.water_levels at Game.reset; changed only by
+    # Game.set_pump_level. A source absent from this dict sits at its own
+    # data-file "initial" value (Game.water_level resolves the fallback), so
+    # this dict only ever records OVERRIDES, not the full six-source table.
+    # Reported whole by Game._pump_carryover() -- NOT SAVE-scoped, unlike
+    # permanent_rarity above (see GameConfig.water_levels for why).
+    water_levels: dict[str, int] = field(default_factory=dict)
+
     # Telescope-in-Planetarium: ordered tuple of unlocked planet ids (the
     # data/special_items.json planetarium_planets table's own id order --
     # never re-sorted, since the wiki's reveal order is random except Mora
@@ -709,6 +728,12 @@ class GameState:
     # Game.choose right after placing the room instead of returning to
     # NAVIGATE. Same shape as pending_upgrade_slot: None outside WRENCH_PENDING.
     pending_wrench_room_id: str | None = None
+
+    # --- PUMP_LEVEL_PENDING (engine/game.py's Game.set_pump_source / set_pump_level) ---
+    # The water source id awaiting a target-level pick, set by Game.set_pump_source
+    # instead of returning to NAVIGATE. Same shape as pending_wrench_room_id:
+    # None outside PUMP_LEVEL_PENDING.
+    pending_pump_source: str | None = None
 
     def deck(self, rarity_idx: int, is_gem: bool) -> DeckState:
         return self.decks[rarity_idx * 2 + (1 if is_gem else 0)]

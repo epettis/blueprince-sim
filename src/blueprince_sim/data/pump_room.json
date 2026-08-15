@@ -1,0 +1,50 @@
+{
+ "schema_version": 1,
+ "meta": {
+  "source": "https://blueprince.wiki.gg/wiki/Pump_Room",
+  "confidence": "wiki",
+  "notes": [
+   "Six independent water sources, each with its own initial/min/max level (owner-verified against the wiki's own summary: 'it is possible to set any water source to any valid water level except for the Reservoir, which cannot be drained below water level 2'). Every other source's min is 0.",
+   "File order is the action-index order for env/actions.py's PUMP_SOURCE_BASE block (alphabetical by id, matching the repo's other registry-derived action orderings).",
+   "The real Pump Room is a water-pouring puzzle: two tanks (capacity 4, starting at 2 each) and four pumps move water one stroke at a time between a tank and a fixed pair of sources per pump (Pump 1: Aquarium/Greenhouse, Pump 2: Fountain/Reservoir, Pump 3: Kitchen, Pump 4: Pool). None of that -- the tanks, the pumps, or the disconnected Reserve Tank (1/6) -- is modelled here; see data/rooms.json's pump_room.meta.simplification and docs/areas.md's Pump Room section for the owner ruling that licenses skipping straight to the outcome."
+  ]
+ },
+ "sources": [
+  {
+   "id": "aquarium",
+   "initial": 6,
+   "min": 0,
+   "max": 6
+  },
+  {
+   "id": "fountain",
+   "initial": 12,
+   "min": 0,
+   "max": 12
+  },
+  {
+   "id": "greenhouse",
+   "initial": 1,
+   "min": 0,
+   "max": 5
+  },
+  {
+   "id": "kitchen",
+   "initial": 0,
+   "min": 0,
+   "max": 3
+  },
+  {
+   "id": "pool",
+   "initial": 8,
+   "min": 0,
+   "max": 9
+  },
+  {
+   "id": "reservoir",
+   "initial": 14,
+   "min": 2,
+   "max": 14
+  }
+ ]
+}

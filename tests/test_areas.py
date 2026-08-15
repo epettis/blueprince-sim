@@ -78,6 +78,9 @@ def _all_open_ctx(outer_room_id: str | None = "tomb") -> GateContext:
     grotto_chip_in_place is the counts_flag on three_microchips; held microchip count
     of 3 already satisfies that gate on its own, but the flag is included too since
     this context claims every flag any gate checks.
+    pump_water_lte8/rowboat_water_6/fountain_water_0/reservoir_water_13 are the
+    Pump Room's four live-derived flag gates (docs/areas.md's Pump Room
+    section) -- include all four too.
     """
     return GateContext(
         held_items={
@@ -95,6 +98,10 @@ def _all_open_ctx(outer_room_id: str | None = "tomb") -> GateContext:
             "antechamber_north_door_open",
             "boiler_room_steam",
             "grotto_chip_in_place",
+            "pump_water_lte8",
+            "rowboat_water_6",
+            "fountain_water_0",
+            "reservoir_water_13",
         }),
         rooms_entered=frozenset({"tomb"}),
         outer_room_id=outer_room_id,
@@ -700,21 +707,31 @@ def test_garage_to_west_path_open_with_breaker_flag(graph: AreaGraph) -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_reservoir_crossing_gate_defaults_closed(graph: AreaGraph) -> None:
-    """reservoir_water_13 never passes, even with every other gate's context wide open.
+def test_reservoir_crossing_gate_closed_by_default_open_once_set(graph: AreaGraph) -> None:
+    """reservoir_water_13 is a live flag gate (docs/areas.md's Pump Room
+    section): closed whenever the Reservoir has never been set to exactly 13
+    this attempt (the flag is absent from GateContext.flags), and open once it has
+    (Game.set_pump_level sets state.reservoir_13_reached, which Game._gate_ctx
+    folds into this same flag name).
 
-    Every other deferred (unmodelled) gate in this graph defaults OPEN so no node
-    is stranded (stub=True). This one is a deliberate exception (owner ruling):
-    it is kind=unmodelled but stub=False, so
-    gate_open's stub short-circuit never fires and the "unmodelled" case falls
-    through to its unconditional False. If this gate is ever flipped to stub=True
-    (the ordinary way to retire a deferred mechanism), this assertion catches it.
-
-    Only the behaviour is asserted here, not the record's kind/stub/default_closed
-    fields -- that shape is validate_data.py's job, which requires every unmodelled
-    gate to declare exactly one of stub=true or default_closed=true.
+    This used to be a deliberate permanently-closed exception (kind=unmodelled,
+    default_closed=true) predating the Pump Room build. It is now an ordinary
+    kind=flag gate, the same shape as west_gate_unlatched/boiler_room_steam --
+    _all_open_ctx() includes it, so this test builds its own "closed" context
+    with every OTHER gate's terms present but this flag absent, to isolate it.
     """
-    assert gate_open(graph, "reservoir_water_13", _all_open_ctx()) is False
+    ctx_closed = _ctx(
+        held_items={"microchip": 3, "power_hammer": 1, "torch": 1,
+                    "basement_key": 1, "sanctum_key_room_46": 1},
+        flags=frozenset({
+            "west_gate_unlatched", "mine_south_visited", "garage_door_breaker",
+            "sealed_entrance_broken", "antechamber_north_door_open",
+            "boiler_room_steam", "grotto_chip_in_place", "pump_water_lte8",
+            "rowboat_water_6", "fountain_water_0",
+        }),
+    )
+    assert gate_open(graph, "reservoir_water_13", ctx_closed) is False
+    assert gate_open(graph, "reservoir_water_13", _all_open_ctx()) is True
 
 
 def test_reservoir_crossing_does_not_bypass_basement_key(graph: AreaGraph) -> None:
@@ -728,6 +745,13 @@ def test_reservoir_crossing_does_not_bypass_basement_key(graph: AreaGraph) -> No
     a passing puzzle gate), so an unconditional crossing here would walk straight
     around basement_key_well: holding basement_key must still be required to
     reach either node.
+
+    ctx_with_key also sets pump_water_lte8 (needed just to REACH well at all,
+    grounds -> well's own gate), fountain_water_0 (well -> reservoir_south's
+    SECOND gate, docs/areas.md's Pump Room section, additional to
+    basement_key_well), and rowboat_water_6 (reservoir_south -> safehouse's
+    own gate) -- this test isolates the basement_key_well question, not any
+    of the Pump Room ones.
     """
     ctx_no_key = _ctx(flags=frozenset({"sealed_entrance_broken"}))
     dist_no_key = reachable(graph, "house", ctx_no_key)
@@ -736,7 +760,11 @@ def test_reservoir_crossing_does_not_bypass_basement_key(graph: AreaGraph) -> No
     assert "mine_south" not in dist_no_key
 
     ctx_with_key = _ctx(
-        held_items={"basement_key": 1}, flags=frozenset({"sealed_entrance_broken"})
+        held_items={"basement_key": 1},
+        flags=frozenset({
+            "sealed_entrance_broken", "pump_water_lte8", "fountain_water_0",
+            "rowboat_water_6",
+        }),
     )
     dist_with_key = reachable(graph, "house", ctx_with_key)
     assert "reservoir_south" in dist_with_key

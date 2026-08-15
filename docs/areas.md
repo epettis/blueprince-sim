@@ -137,7 +137,7 @@ once satisfied, **D** = resets daily, **-** = ungated.
 | `campsite` -> `apple_orchard` | padlock code 1128 | P |
 | `campsite` -> `gemstone_cavern` | V.A.C. puzzle (Utility Closet) + lever | P |
 | `grounds` -> `sealed_entrance` | Power Hammer breaks through, permanently | P |
-| `grounds` -> `well` | Pump Room: **Fountain** level <= 8 | D |
+| `grounds` -> `well` | Pump Room: **Fountain** level <= 8 (live check, every traversal) | D |
 | `grounds` -> `crate_tunnel` | ignition tool lights the torches | D |
 | `grounds` -> `precipice` | cliffside elevator: 4 torches lit AND car at the top | D |
 | `precipice` -> `grounds` | elevator, **only if the car was ridden down** | D |
@@ -151,12 +151,12 @@ once satisfied, **D** = resets daily, **-** = ungated.
 | `sealed_entrance` -> `basement` | Power Hammer breaks through, permanently | P |
 | `basement` -> `sealed_entrance` | same permanent break (`sealed_entrance_broken`) | P |
 | `basement` -> `reservoir_north` | pallet-jack puzzle | P |
-| `well` -> `reservoir_south` | Basement Key (not consumed); **+ Fountain==0, not modelled** | P |
+| `well` -> `reservoir_south` | Basement Key (not consumed) **+ Fountain == 0**, both checked (the second live, every traversal) | P |
 | `reservoir_south` <-> `mine_south` | none | - |
-| `reservoir_north` <-> `reservoir_south` | rowboat; **Reservoir** level exactly 13, permanent once set (two-way). **Defaults CLOSED** — see below | P |
+| `reservoir_north` <-> `reservoir_south` | rowboat; **Reservoir** level has EVER been set to exactly 13, permanent once set (two-way) | P |
 | `reservoir_north` -> `mine_north` | mine cart moved (**requires Mine South visited**) | P |
 | `reservoir_north` <-> `rotating_gear` | none | - |
-| `reservoir_south` <-> `safehouse` | rowboat; **Reservoir** level exactly 6 (two-way) | D |
+| `reservoir_south` <-> `safehouse` | rowboat; **Reservoir** level exactly 6, live (two-way) | D |
 | `tomb` -> `catacombs` | seven-angel puzzle; wall permanent, but the Tomb must be drafted that day | P |
 | `catacombs` -> `mine_south` | lower Draxus's scythe. **ONE-WAY**, shuts at day end | D |
 | `mine_south` <-> `precipice` | stairway lit from **INSIDE** the mine only; permanent | P |
@@ -198,26 +198,26 @@ checks "a Basement Key is currently held". The two coincide because
 Antechamber pillar every day the player visits it, so once earned it is always
 held — there is no in-game scenario where the key was used and then given up.
 
-**The Well's traversal condition is incomplete.** Per the wiki, `well ->
-reservoir_south` needs the Basement Key unlock (modelled, permanent) **and**
-the Fountain drained to level 0, checked on *every* traversal, not just the
-first (the Well page: *"this passage is only traversible while the fountain
-water level is 0"*). That second condition is **not implemented** — the Pump
-Room's water levels are not modelled at all yet (see "Systems the sim lacks
-entirely" below and the new open_tasks.md task). Until then, `well ->
-reservoir_south` is gated only by the key, which is looser than the real game
-whenever the Fountain sits above 0.
+**The Well's traversal condition has two independent parts.** Per the wiki,
+`well -> reservoir_south` needs the Basement Key unlock (modelled, permanent)
+**and** the Fountain drained to level 0, checked on *every* traversal, not
+just the first (the Well page: *"this passage is only traversible while the
+fountain water level is 0"*). The gate is `basement_key_well` (an item gate)
+**plus** `fountain_water_0` (a live flag gate, re-derived from
+`Game.water_level("fountain")` on every `_gate_ctx()` call rather than
+latched) — the two are independent conditions, and both must hold at the
+moment of traversal.
 
 ## Stateful mechanisms this graph requires
 
-None of these exist today.
+None of these exist today, except the Pump Room's water levels (see "The Pump
+Room's water levels" below).
 
 | Mechanism | Behaviour | Persists overnight? |
 |---|---|---|
 | **Cliffside elevator position** | Moves ONLY by being ridden; cannot be called from the far side. Appears at the top once all 4 torches are lit | **No** |
 | **Foundation elevator position** | The keycard **summons** the car; it is not a ride toll | **No** |
 | **Four torches** | Apple Orchard and Gemstone Cavern light on ENTRY; Schoolhouse and Hovel light on **DRAFT**. All four lit summons the cliffside elevator | **Yes** |
-| **Pump Room water levels** | Six independent per-source levels, moved by two tanks/four pumps. Fountain gates the Well; Reservoir gates the Safehouse rowboat — see above and `open_tasks.md` | **Yes; levers reset daily** |
 | **Rotating Gear position** | Stays where it was left | **Yes** |
 | **Mine cart** | Blocks `reservoir_north -> mine_north` until moved from the south side | (via the South-visited flag) |
 
@@ -235,14 +235,16 @@ PR1 ships graph traversal only. The mechanisms above are not modelled, so the
 edges that depend on them are gated by **stubs that pass unconditionally**
 (owner decision, 2026-07-27).
 
-The alternative — closing them — was rejected because it strands **8 of the 36
-nodes**: Blackbridge Grotto (POWER), Orindian Ruins (behind the Grotto), the
-Safehouse (Reservoir level) and the Well (Fountain level), and Underpass /
-Inner Sanctum / Sigil Chambers / Upper Rotating Gear (Rotating Gear position).
-That would delete
+The alternative — closing them — was rejected because it strands **6 of the 36
+nodes**: Blackbridge Grotto (POWER), Orindian Ruins (behind the Grotto), and
+Underpass / Inner Sanctum / Sigil Chambers / Upper Rotating Gear (Rotating
+Gear position). That would delete
 Blackbridge Grotto, the one modelled terminal with no room record. An unreachable node
 measures exactly zero, which is a worse and more misleading failure than a
-slightly-too-generous world.
+slightly-too-generous world. (The Well and the Safehouse were originally on
+this list too — Pump Room water levels were unmodelled at the time this
+section was written — but both now have real, live gates; see "The Pump
+Room's water levels" below.)
 
 > **Anything measured while these stubs are open is an UPPER BOUND** on what a
 > real player could reach. Print that caveat next to any number taken before the
@@ -259,59 +261,8 @@ rather than repeating it, so the two cannot drift.
 | `foundation_elevator_down` | PR-foundation-elevator | The Foundation -> Basement: crank revealed AND car at the top |
 | `foundation_elevator_up` | PR-foundation-elevator | Basement -> The Foundation: keycard to SUMMON if the car is not already down |
 | `lab_steam_and_power` | PR-power-system | Private Drive -> Blackbridge Grotto: Laboratory steam/lever puzzle AND POWER |
-| `pump_water_lte8` | PR-pump-room | Grounds -> Well: **Fountain** level <= 8 |
-| `rowboat_water_6` | PR-pump-room | Reservoir South <-> Safehouse: rowboat, Reservoir level 6 |
 | `cliffside_elevator_down` | PR-torches-elevator | Grounds -> Precipice: 4 torches lit AND car at the top |
 | `cliffside_elevator_up` | PR-torches-elevator | Precipice -> Grounds: only if the car was ridden down |
-
-**`reservoir_water_13` is a deliberate exception to "deferred gates default
-OPEN", 2026-08-06.** Every gate in the table above is `kind: "unmodelled"` with
-`stub: true`, which makes it pass unconditionally — the 2026-07-27 convention
-exists because closing them stranded nodes that measure zero. This is why the
-Reservoir's own `rowboat_water_6` (Reservoir South <-> Safehouse) and
-`pump_water_lte8` (Grounds <-> Well) are both open stubs above.
-
-`reservoir_water_13` (Reservoir North <-> Reservoir South, the boat crossing
-side-to-side; see `open_tasks.md` task 11) is **not** in that table, and does
-**not** default open, even though it is equally unmodelled and equally
-`retire_in: "PR-pump-room"`. It is declared `kind: "unmodelled"`, `stub:
-false`, **`default_closed: true`** — the same `kind` as the open stubs, but
-with `stub` left off, so `engine/areas.py::gate_open`'s stub short-circuit
-never fires and the `"unmodelled"` case falls through to its unconditional
-`False`. It still carries `retire_in`, so it remains discoverable as deferred
-work even though `stub_gates()` (keyed on `stub: true`) does not list it —
-correctly, since that table exists to flag measurements that are upper bounds,
-and a gate that never passes produces no upper bound.
-
-**`default_closed` is a declaration, not a mechanism.** Nothing in the engine
-reads it; `gate_open` already returns `False` for `kind: "unmodelled"` on its
-own. It exists so `tools/validate_data.py` can require every unmodelled gate to
-state which way it fails — **exactly one of** `stub: true` (default-open) or
-`default_closed: true` (default-closed), never both, never neither. The
-previous rule was "unmodelled implies `stub: true`", which had to be relaxed to
-allow this gate at all; relaxing it to merely *permit* `stub: false` would have
-meant a typo could silently shut an edge and strand whatever sat behind it —
-the precise failure mode behind the withdrawn `basement_key_well` change, where
-closing one door dropped the action mask at `mine_south` to zero. Requiring the
-declaration keeps that impossible: a closed gate is always somebody's stated
-decision, never an omission.
-
-The reason: this edge is **brand new** — no `reservoir_north <->
-reservoir_south` edge existed before this gate landed — so closing it strands
-nothing and the reachable set is byte-identical to before. Opening it instead
-would have created a real loophole. Measured (empty inventory, only
-`sealed_entrance_broken` set — the free route
-`house -> grounds -> sealed_entrance -> basement -> reservoir_north`, where
-`pallet_jack_puzzle` passes unconditionally): an OPEN crossing takes
-`reservoir_south` from unreachable to 5 hops, `mine_south` from unreachable to
-6, and `safehouse` — a **Sanctum Key source** — from unreachable to 6, all
-without ever holding a Basement Key. That is exactly the class of loophole the
-2026-08-06 Precipice fix (below) closed: a free walk around
-`basement_key_well`. So the "unreachable node measures zero" argument that
-justifies every other open stub does not apply here — there is no unreachable
-node this edge uniquely supplies, only a shortcut around an existing gate — and
-the closed default was kept instead. **Do not "fix" this gate to a passing
-stub without re-checking this loophole first.**
 
 **`boiler_room_steam` is not a stub.** Owner ruling: the player unlocks
 Underpass -> Upper Rotating Gear permanently the first time they enter the
@@ -323,9 +274,69 @@ Gates that are **not** stubs are already live: item gates (Basement Key, ignitio
 tools, microchips, Sanctum Keys), the `west_gate_unlatched`, `mine_south_visited`,
 `sealed_entrance_broken`, `boiler_room_steam`, and `garage_door_breaker` flags,
 the `outer_room_drawn`
-outer_room gate, the `tomb_catacombs` room gate, and the six `puzzle` gates that
+outer_room gate, the `tomb_catacombs` room gate, the six `puzzle` gates that
 pass under the sim's standing "the player solves every puzzle in a room they
-enter" doctrine.
+enter" doctrine, and the four Pump Room gates below.
+
+## The Pump Room's water levels
+
+**Built.** Six independent per-source integer levels
+(`data/pump_room.json`: Fountain 0-12, Reservoir 2-14, Aquarium 0-6, Kitchen
+0-3, Greenhouse 0-5, Pool 0-9), each permanent for the rest of the attempt
+once changed. The real Pump Room is a water-pouring puzzle — two tanks and
+four pumps move water one stroke at a time — but the sim's standing
+assumed-solved doctrine (every room puzzle is taken as solved) licenses a
+macro action instead: `Game.set_pump_source`/`Game.set_pump_level`, a
+factored two-step menu (`env/actions.py`'s `PUMP_SOURCE_BASE`/
+`PUMP_LEVEL_BASE`, `Phase.PUMP_LEVEL_PENDING`) that sets a source directly to
+any level the wiki says the real panel can reach — *"it is possible to set
+any water source to any valid water level except for the Reservoir, which
+cannot be drained below water level 2"* — so it costs only the interaction
+count, never a reachable state. The tanks, the four pumps, and the
+disconnected Reserve Tank (1/6) are not modelled at all; see
+`data/rooms.json`'s `pump_room.meta.simplification`. Levels are carried
+across days through a dedicated non-bool `DayChain` channel
+(`GameConfig.water_levels`/`DayChain.water_levels`), **not**
+`_CARRYOVER_KEYS`, which stays bool-only.
+
+Four gates read the six levels, three of them **live checks re-derived every
+traversal** (not latched — the level can move both ways within a day as the
+panel is operated) and one **permanent once satisfied**:
+
+| Gate | Edge | Rule | Live or latched |
+|---|---|---|---|
+| `pump_water_lte8` | `grounds -> well` | Fountain <= 8 | Live |
+| `rowboat_water_6` | `reservoir_south <-> safehouse` | Reservoir == 6 | Live |
+| `fountain_water_0` | `well -> reservoir_south`, ADDITIONAL to `basement_key_well` | Fountain == 0 | Live |
+| `reservoir_water_13` | `reservoir_north <-> reservoir_south` | Reservoir has EVER been 13 | **Latched permanent** (`GameState.reservoir_13_reached`, carried via `_CARRYOVER_KEYS`) |
+
+All four are `kind: "flag"`, `stub: false` — ordinary live gates, the same
+shape as `west_gate_unlatched`/`boiler_room_steam` — computed in
+`Game._gate_ctx()` from `Game.water_level(source_id)` rather than stored
+directly on `GateContext`.
+
+**The sequencing trap this build had to land against.** Before this PR,
+`pump_water_lte8`/`rowboat_water_6` were `stub: true` (passed
+unconditionally) and the Fountain's real default (12) sits above the `<= 8`
+threshold — so shipping the water-LEVEL state without the action that moves
+it would have *tightened* those two gates and made the Well unreachable by
+default, a strictly worse world than the stub. `reservoir_water_13` was the
+opposite case: `kind: "unmodelled"`, `default_closed: true` (never passed) —
+a deliberate exception to "deferred gates default open", because an OPEN
+crossing there is a loophole around `basement_key_well`. Measured, empty
+inventory, only `sealed_entrance_broken` set (the free
+`house -> grounds -> sealed_entrance -> basement -> reservoir_north` route):
+**before** this build, `reservoir_south`/`mine_south`/`safehouse` are all
+unreachable (the Fountain sits at 12, not <=8; the Reservoir sits at 14, not
+6 or ever-13). **After**, they stay unreachable in that SAME default state —
+but become reachable at the identical hop counts the old stub-open data once
+measured (`reservoir_south` 5, `mine_south` 6, `safehouse` 6) the moment the
+player actually walks to the Pump Room and sets the Reservoir to 13 then 6.
+The loophole is real, but now costs two deliberate player decisions instead
+of being a free default — see `tests/test_pump_room.py`'s
+`test_reservoir_loophole_reachability_before_and_after_choosing_the_levels`,
+which pins both sides of this measurement as a test rather than a one-off
+script.
 
 **Sealed Entrance permanence (owner decision).** The wiki distinguishes which
 barrier breaks: *"If just the Basement wall is destroyed, it will respawn on the
@@ -348,12 +359,6 @@ Surfaced by building this graph:
 - **Power.** Required to open Blackbridge Grotto and to run the Laundry Room's
   special functions. A keycard/power notion exists for security doors but does
   not cover this.
-- **Pump Room water levels.** No action exists to raise or lower any of the six
-  independent per-source levels, and three edges depend on specific ones: the
-  Fountain gates the Well descent (and a traversal-time `== 0` check on
-  `well -> reservoir_south` that is not modelled at all yet), and the
-  Reservoir gates both the Safehouse rowboat and crossing the Reservoir. See
-  the "Model the Pump Room's water levels" task in `open_tasks.md`.
 
 ## Contents worth modelling
 

@@ -37,7 +37,7 @@ So a cross-reference in `src/`, `tests/`, `tools/`, `data/` or another doc must
 point at **the doc that owns the rule**, never at the log. `open_tasks.md` may
 be cited for exactly two things:
 
-- a **numbered open task**, cited by number — `open_tasks.md` task 11;
+- a **numbered open task**, cited by number — `open_tasks.md` task 8;
 - an **open owner question**, cited by its letter within task 23.
 
 Anything else — a mechanic, a magnitude, a ruling, a doctrine, a deliberate
@@ -125,100 +125,6 @@ entry as a stand-in for the unmodelled spins (`rooms.json`'s `casino` record);
 the Broken Lever's `slot_bonus` effect is wired to it; and `shops.py`'s
 `_DISCOUNT_EXEMPT_SHOPS` already exempts the Casino from the Coupon Book's
 blanket discount.
-
-## 11. Model the Pump Room's water levels
-
-Write-up only (owner decision, 2026-08-04: gate the Basement doors on the
-Basement Key now, take on the Pump Room next) — not built in this pass. Two
-graph edges already carry stub gates waiting on this
-(`pump_water_lte8`, `rowboat_water_6`, both `retire_in: "PR-pump-room"`), and a
-third traversal condition (below) is not modelled at all yet.
-
-**The room.** Six water sources, each with its own independent integer level
-— there is no single estate-wide "water level":
-
-| Source | Initial / max level |
-|---|---|
-| Fountain | 12 / 12 |
-| Reservoir | 14 / 14 |
-| Aquarium | 6 / 6 |
-| Kitchen | 0 / 3 |
-| Greenhouse | 1 / 5 |
-| Pool | 8 / 9 |
-
-Two tanks (capacity 4 each) and four pumps move water between a tank and any
-one of the six sources: *"Switching a pump up causes water to drain from a
-selected water source into a tank. Switching a pump down causes water to fill
-a selected water source from a tank."*
-
-**Persistence rule.** *"Changes to the water levels are permanent, although
-the selected source and position of the pump levers will reset each day."*
-So: the six integer levels need to live in carry-over state (permanent, like
-`collected_disks`), while which source each pump currently targets and each
-lever's position are ordinary per-day `GameState` (reset every `reset()`,
-never carried).
-
-**The six levels cannot ride the existing carry-over channel.**
-`env/multiday.py`'s `_CARRYOVER_KEYS` maps 1-to-1 onto `GameConfig` bool
-fields; a water level is an integer 0-14, not a flag. This needs a new,
-separate non-bool carry-over channel, plus new observation planes for the six
-levels — neither exists today.
-
-**Gates this retires:**
-- `pump_water_lte8` (`grounds -> well`): Fountain level `<= 8`.
-- `rowboat_water_6` (`reservoir_south <-> safehouse`): Reservoir level
-  `== 6`.
-- `reservoir_water_13` (`reservoir_north <-> reservoir_south`): Reservoir level
-  `== 13` lets the boat cross the Reservoir side-to-side. **The edge and gate now
-  exist** (2026-08-06) — this entry used to say the crossing was "not represented
-  as a graph edge/gate at all". Distinct from the Safehouse rowboat gate.
-
-  **Unlike every other gate in this list it defaults CLOSED**, so retiring it
-  *opens* a route rather than tightening one. That is the reverse of the usual
-  stub-retirement direction and it must be re-measured, not assumed safe: an open
-  crossing puts the `safehouse` (a Sanctum Key source) 6 key-free hops from the
-  house. See `docs/areas.md` for the measurement and the reasoning.
-
-**New traversal condition to add**, not currently modelled even as a stub:
-`well -> reservoir_south` needs Fountain level `== 0`, checked on **every**
-traversal (not just once) — *"this passage is only traversible while the
-fountain water level is 0"* (Well). This is on top of the existing permanent
-Basement Key unlock (`basement_key_well`); the two are independent conditions
-(key unlocks the door permanently, water level gates whether the passage is
-currently passable). See `areas.md` for the full edge-table writeup.
-
-**Action-space consequence.** Setting pump target/direction is a player
-action with no equivalent today — this is not a pure data/gate change like
-the other stub retirements in this file, it adds to the action space and
-therefore **belongs bundled with a retrain**, the same reasoning that governed
-the area graph's sequencing.
-
-**The real control panel is smaller than a per-pump-per-source enumeration.**
-The wiki: *"Only one source can be selected at once."* The UI is
-select-then-act — six selection buttons, then four pumps each switchable up
-(drain to a tank) or down (fill from a tank), plus a tank switch behind the
-tanks that decides which tank Pump 2 uses. That is on the order of **14 ids,
-not ~48**; a 4x6x2 enumeration would model combinations the panel cannot
-express, since each pump is wired to fixed sources (Pump 1:
-Aquarium/Greenhouse, Pump 2: Fountain/Reservoir, Pump 3: Kitchen, Pump 4:
-Pool).
-
-**It is a water-pouring puzzle, and that is what decides the macro question.**
-A pump moves as much as it can in one go — *"the amount of water in the
-container being drained, or the amount of space in the container being
-filled, whichever is less"* — so levels are reached by sequences, not
-increments. Crucially the wiki also states the outcome space: *"it is
-possible to set any water source to any valid water level except for the
-Reservoir, which cannot be drained below water level 2."* **So a macro action
-("set source X to level N") loses no reachable state** — it costs only the
-interaction count, which is the puzzle itself. Choosing between the two
-shapes is therefore a question about whether the agent should have to solve
-the pouring puzzle, not about which states it can reach.
-
-**Tanks are part of the state**, not just plumbing: Tank 1 and Tank 2 each
-start at 2 with capacity 4, and a disconnected Reserve Tank (1/6) is not part
-of the system. Water levels are **permanent**; the selected source and the
-lever positions **reset daily**.
 
 ## 15. Room-behaviour fidelity: audit every room against the wiki
 
