@@ -2,12 +2,15 @@
 
 Status: **the difference-in-differences design below needs replacing.** The
 Antechamber lever gate ([`antechamber-lever-design.md`](antechamber-lever-design.md))
-has shipped, which was the "after" arm of Phase 1's paired comparison. The
-"before" arm — a pre-lock baseline — is no longer obtainable: there is no way
-to put a shipped attempt back into an unlocked Antechamber state. Phase 0, the
-Observatory plumbing (Phase 2) and the sequencing rationale below are still
-accurate; the Phase 1 measurement plan itself needs a design that does not
-depend on a closed window.
+has shipped, which was meant to supply the "after" arm of Phase 1's paired
+comparison. The **"before" (pre-lock) arm was taken** — see "Pre-lock result"
+under Phase 1 below — but the paired **post-lock** re-measurement needed to
+complete the before/after difference-in-differences was never taken before the
+lever gate shipped, and there is no way to put a shipped attempt back into an
+unlocked-Antechamber state to take it now. Phase 0, the Observatory plumbing
+(Phase 2) and the sequencing rationale below are still accurate; the Phase 1
+measurement plan itself needs a design that does not depend on a closed
+window.
 
 Companion to [`upgrade-disks-design.md`](upgrade-disks-design.md), which covers
 the draw mechanism itself (merged in PR #33). This document covers how we decide
@@ -18,9 +21,9 @@ Disks shipped alone specifically so Cloister of Orinda's value could be measured
 before Antechamber locks exist and again after: if Orinda does not become more
 valuable once an Antechamber door is worth opening, either the upgrade model or
 the lock model is wrong. That comparison was the validation signal, and this
-document is about making it trustworthy — but see the status note above: the
-"before" measurement was never taken, and the window to take it is now closed
-permanently.
+document is about making it trustworthy — but see the status note above: only
+the pre-lock arm was ever taken, and the window to take the paired post-lock
+arm is now closed permanently.
 
 ## Four different questions, often confused
 
@@ -159,13 +162,24 @@ between the two measurements. A fixed scripted policy holds it constant — and,
 usefully, needs no checkpoint, so Phase 1 can run without waiting for a retrain.
 Run the learned policy as a secondary realism check.
 
-**Pair the seeds.** Win rate is ~1.8%, so comparing two independent ~2% rates
-needs enormous N. With identical seeds, seed-level difficulty cancels, most
-pairs give exactly zero, and power comes from the discordant pairs (McNemar)
-rather than from N directly.
+**Pair the seeds.** The base rate is far lower than "win rate ~1.8%" once
+suggested. Under the shipped config (`door_locks=True`, `antechamber_levers=True`),
+`greedy_rank`'s P(reach Antechamber) measures **0.100%** (n=4000, seeds
+0–3999, `all_unlocks_config()`), and **P(reach Room 46) measures 0.000% for
+every scripted policy tried, across 16,000 episodes** — see
+[`greedy-strategy.md`](greedy-strategy.md)'s baselines. Comparing two
+independent rates this low needs even more enormous N than before. With
+identical seeds, seed-level difficulty cancels, most pairs give exactly zero,
+and power comes from the discordant pairs (McNemar) rather than from N
+directly — **but at a literal-zero Room-46 rate, a McNemar design over that
+outcome has no discordant pairs at all**: both arms report zero wins on every
+paired seed, so there is nothing to count. Room 46 is not a usable McNemar
+outcome until some policy reaches it at least occasionally; this is a design
+fact, not a sample-size problem.
 
-**Lead with deepest rank, not win rate.** At a 1.8% base rate the binary outcome
-is badly underpowered for the effect sizes in play. Mean deepest rank is
+**Lead with deepest rank, not win rate.** At a sub-1% base rate the binary
+outcome is badly underpowered for the effect sizes in play, and Room 46 in
+particular is currently unmeasurable this way. Mean deepest rank is
 near-continuous and much more sensitive. Report both; headline the rank.
 
 **Always run control upgrades alongside.** Measure two or three upgrades
@@ -188,12 +202,36 @@ never drafts measures about zero even if it would be strong when used. Report
 the post-upgrade draft rate beside every delta so that case is visible rather
 than mysterious.
 
-## Phase 2 — Training Observatory
+### Pre-lock result (2026-07-28)
+
+The forced-upgrade A/B for Cloister of Orinda was run once, before the
+Antechamber lever gate shipped (2026-07-30): treatment (Orinda preset)
+P(reach Antechamber) **3.045%** vs. control **3.405%**, mean deepest rank
+**5.51** vs. **5.53**. No detectable causal value, exactly as predicted while
+the Antechamber had no locks worth opening. This is the "before" arm of the
+paired before/after comparison described above — it **was** taken. What was
+never taken, and can no longer be taken now that the lever gate has shipped
+without a matching post-lock run, is the paired **post-lock** re-measurement
+needed to compute the difference-in-differences.
+
+## Phase 2 — Training Observatory (partly shipped)
 
 The binding constraint: the Observatory server is **deliberately torch-free**.
 It shells out to `blueprince-train --evaluate` as a subprocess precisely so torch
 never loads into the web process. All computation therefore lands in that
 subprocess; the server only renders.
+
+**What has shipped is not what this section specifies.** `Observatory.upgrade_stats()`
+(`web/server.py`) reads `upgrades.jsonl` (event-triggered, unsampled — see
+"Consequence" above) and feeds a Dashboard-tab panel (`static/app.js`'s
+`renderUpgradeStats()`) with three blocks: per-variant offered/chosen counts and
+selection rate, a "disk economy over time" chart (mean disks held / mean slots
+upgraded), and gate-context tiles (decisions, Catacombs-unlocked count,
+zero-draft-count decisions). None of that is **preference** or **causal value**
+in this document's sense — it is availability and utilization telemetry. The
+`eval.jsonl`-based causal panel this section specifies below — `d_rank`,
+`d_win`, `n_discordant`, `drafted_rate`, `slot_bias`, the delta-over-checkpoints
+chart, and the Runs-tab `upgrade` frame field — remains unbuilt.
 
 **Data channel.** Extend `eval.jsonl` — already written by the eval subprocess,
 already read by `Observatory.eval` — with an `upgrades` block. Per variant:
@@ -272,8 +310,8 @@ metric worth plotting over training.
   was the only cheap window, and it took it.
 
 That precondition on step 2 is now met. **A different one replaces it**: the
-Conservatory batch moved both spaces again (`N_ACTIONS` to 458, `_CARRYOVER_KEYS`
-to 17), so a baseline is bankable only on a checkpoint trained after that batch.
+Conservatory batch moved both spaces again, so a baseline is bankable only on a
+checkpoint trained after that batch.
 
 ### What the Catacombs gate actually needs
 
@@ -283,11 +321,7 @@ outer rooms, and the sim already assumes the player solves any puzzle in a room
 they enter. `catacombs_unlocked` is therefore a same-day check on the Tomb
 (`flags.unlocks_catacombs`), landed ahead of the area graph.
 
-Likewise, seven of the nine unmodelled Upgrade Disks sit in rooms that already
-deal — Office, Morning Room, Her Ladyship's Chamber, Great Hall, Freezer,
-Archives, Mechanarium. Only **The Foundation** (record exists, `pool=none`) and
-the **Abandoned Mine** (no record) are genuinely off-grid. Both levers named
-above never needed the area graph.
+This gate never needed the area graph either.
 
 **The Catacombs gate was measured and does not deliver.** It was landed on the
 strength of a projected 42x lift computed from synthetic contexts. Under real
@@ -298,7 +332,8 @@ the gate, is the constraint.
 
 ## Open decisions
 
-- **Disk supply** — RESOLVED: 14 of the 16 are modelled. The two that remain,
-  The Foundation and the Abandoned Mine, are off-grid.
+- **Disk supply** — RESOLVED: all 16 sources are modelled. All 16
+  `upgrade_disk` item records are `implemented: true`; `the_foundation` and
+  `mine_south` are both `modelled: True` area nodes.
 - **A/B scope** — all 16 upgrades per eval, or a watchlist of Orinda plus
   controls with an occasional full sweep? The watchlist is recommended.

@@ -38,14 +38,16 @@ the method. Opening a `DOOR_LOCKED` segment parks the doorway in
 and hands the choice to the player. Trying is free; only a menu choice spends
 anything.
 
-Nine action ids, 427–435:
+Nine action ids, `LOCK_MENU_BASE + 0` … `LOCK_MENU_BASE + 8` in `env/actions.py`
+(the absolute width has rotted before and moves again with `N_ACTIONS`; see
+[`rl-environment.md`](rl-environment.md) for the current register):
 
-| id | Row | Effect |
+| offset | Row | Effect |
 |---|---|---|
-| 427 | **Use a key** | spends `lock_open_cost` keys (base 1, plus a Great Hall side door's search surcharge); an active Stopwatch charge refunds it entirely, given ≥1 key in hand |
-| 428 | **Lockpick** | one Lock Pick Kit / Pick Sound Amplifier attempt; failure spends nothing and does **not** exit the menu |
-| 429 | **Abandon** | back to `NAVIGATE`, door still locked, nothing spent |
-| 430–435 | **A special key** | `data/locks.json`'s `special_key_menu.order` |
+| `+0` | **Use a key** | spends `lock_open_cost` keys (base 1, plus a Great Hall side door's search surcharge); an active Stopwatch charge refunds it entirely, given ≥1 key in hand |
+| `+1` | **Lockpick** | one Lock Pick Kit / Pick Sound Amplifier attempt; failure spends nothing and does **not** exit the menu |
+| `+2` | **Abandon** | back to `NAVIGATE`, door still locked, nothing spent |
+| `+3` … `+8` | **A special key** | `data/locks.json`'s `special_key_menu.order` |
 
 **Abandon is always legal**, so the phase is never a dead end — and declining
 is a real play: spending steps to find an unlocked door instead of spending a
@@ -130,10 +132,18 @@ unpowered + offline mode Unlocked (requires a Security visit).
 
 ## The Antechamber's doors
 
-The Antechamber's doorways roll on the ordinary rank 8↔9 lock table
-(130% ⇒ locked at neutral bias), but drafting a connecting room opens them
-via in-drafting, so entry stays free once connected. The real game's
-bespoke Antechamber locks are not modeled.
+Two arms, controlled by `cfg.antechamber_levers`:
+
+- **Shipped default (`antechamber_levers=True`)**: all four of the
+  Antechamber's doorway segments start `DOOR_SEALED` and open only by pulling
+  a lever elsewhere in the house — the real game's bespoke Antechamber locks.
+  See [`antechamber-lever-design.md`](antechamber-lever-design.md) for the
+  lever sources and per-segment mechanics.
+- **Legacy arm (`antechamber_levers=False`)**: the doorways instead roll on
+  the ordinary rank 8↔9 lock table (130% ⇒ locked at neutral bias), and
+  drafting a connecting room opens them via in-drafting, so entry stays free
+  once connected. This reproduces the pre-lever model and exists for
+  comparison (see `greedy-strategy.md`'s baselines).
 
 ## Deliberate divergences
 

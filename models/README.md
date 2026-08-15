@@ -35,6 +35,19 @@ Reward changes warm-start cleanly from a released model; changing the
 observation (`env/obs.py`) or action space (`env/actions.py`) changes the
 network shape and requires training from scratch.
 
+## `baseline-ep8275991` cannot be loaded
+
+The one release in this tree today, `baseline-ep8275991`, was trained at
+`N_ACTIONS = 196` (its manifest's `trained_with_git_sha` shows the action
+space at that commit); the action space and the observation have both grown
+substantially since. By this file's own rule above, this release cannot be
+loaded by the `--evaluate` / resume recipes shown here. It is kept as
+**provenance and an A/B reference for its own epoch**, not as a runnable
+checkpoint: the manifest and `metrics.jsonl` document what that training run
+achieved against the spaces current at the time, and have no other home. The
+recipes above are written generically because they apply to a release cut
+against the *current* observation/action spaces — not to this one.
+
 ## Cutting a new release
 
 `tools/make_release.py` is the single source of truth — it writes the manifest

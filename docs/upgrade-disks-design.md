@@ -4,15 +4,19 @@ Status: **implemented** 2026-07-26 — tables in
 `src/blueprince_sim/data/upgrade_selection.json`, selection in
 `engine/upgrades.py`, deck substitution in `decks.apply_upgrade`, the player-facing
 API on `Game` (`can_insert_disk` / `insert_disk` / `choose_upgrade`).
-The individual upgrade *effects* are still unwritten — that is the next task.
+Most of the individual upgrade *effects* are now written. `tools/validate_data.py
+--audit` is the live check on what remains; an `effects: []` tag on a variant
+does **not** by itself mean the variant is inert — its behaviour can instead
+live in a `room_hook`, a container entry, or a named audit exemption, and a
+naive effects-only check undercounts what is actually modelled.
 Authoritative for the draw mechanism;
 [`upgrade-value-measurement.md`](upgrade-value-measurement.md) covers whether an
 upgrade is worth anything.
 
 Scope of this document: **how inserting a disk picks which room gets upgraded,
 and how the chosen upgrade takes effect.** Writing the individual upgrade
-*effects* is separate work (owner rated all 57 options; only HIGH and MEDIUM get
-effects, LOW stay inert with `meta.blocked_on`).
+*effects* was separate work; what remains unmodelled is tracked per record with
+`meta.blocked_on`, not by a bulk priority tier.
 
 ## Owner decisions driving this design
 
@@ -256,10 +260,14 @@ wrap. This is the union-merge channel described in
 
 ### Catacombs
 
-Line 7's *Unlocked Catacombs* check has no counterpart — there is no `catacombs`
-record in `rooms.json` (it is task-4 area content). Model it as **permanently
-false**, so line 7 always falls through to line 8, and register it as a known
-simplification. Revisit when the area graph lands.
+Line 7's *Unlocked Catacombs* check is modelled as a live gate on the
+**Tomb**, not on a `catacombs` room record — there is still no `catacombs`
+room in `rooms.json`; Catacombs is an area-graph node, not a grid room.
+`engine/upgrades.py`'s `case "catacombs_unlocked":` reads
+`SelectionContext.catacombs_unlocked`, fed by `Game.catacombs_unlocked()`: a
+same-day check that today's Tomb has been drafted and entered. This landed
+ahead of the area graph, since the gate only needs the Tomb — already one of
+the eight modelled outer rooms — under the sim's assumed-solved doctrine.
 
 ## Applying the upgrade immediately
 
@@ -296,9 +304,11 @@ sizes are unchanged except in the Cloister case.
   they are mechanically identical).
 - `CHOOSE_UPGRADE_BASE` (3 slots) — legal only while an upgrade is pending.
 
-`N_ACTIONS` 275 -> **279**. Observation gains the three offered variant ids (and
-plausibly a held-disk count). **This is a retrain point** — which is why the
-owner chose to ship disks alone.
+This PR widened the action space and added the three offered variant ids (and
+a held-disk count) to the observation — **a retrain point at the time**, which
+is why the owner chose to ship disks alone. Both spaces have moved repeatedly
+since; [`rl-environment.md`](rl-environment.md) owns the current width
+register.
 
 Three slots suffice for every room, including Cloister — see "Always three
 options, sampled" above.
@@ -344,9 +354,10 @@ member, never a registry lookup, so an area id works exactly like a room id.
 
 Each is faithful-where-known and flagged where invented.
 
-- **Catacombs is permanently locked.** There is no `catacombs` record, so line
-  7's check never passes and the line always falls through. Revisit if a
-  `catacombs` room record is ever added.
+- **The Catacombs gate is modelled on the Tomb, not on a `catacombs` room.**
+  There is still no `catacombs` room record — Catacombs is an area-graph node
+  — so line 7's *Unlocked Catacombs* check reads `Game.catacombs_unlocked()`
+  (a same-day Tomb draft-and-entry check) instead.
 - **The veteran day-1 shortcut ignores "already drafted".** The wiki's shortcut
   skips rooms already drafted as well as already upgraded; selection is
   otherwise provably independent of house state, and the drafted test would be

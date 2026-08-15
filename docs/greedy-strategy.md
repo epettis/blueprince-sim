@@ -24,9 +24,12 @@ score of an option is:
 - `red_penalty`: − weight for red rooms.
 
 Weight sets: `greedy_rank`/`frontier_greedy` use
-`{connectivity 1.5, north 2.5, cost 0.5, red_penalty 2.0}`; `economy` adds
-`items 0.8` and a `redraw_below 2.0` threshold — hands scoring below it are
-redrawn when a free redraw or a die is available.
+`{connectivity 1.5, north 2.5, cost 0.5, red_penalty 2.0}`. `economy` is a
+**distinct** weight set, not a superset of it: `{connectivity 1.2, north 2.0,
+items 0.8, cost 0.4, red_penalty 2.5, redraw_below 2.0}` — four of the shared
+weights move, not only the two new ones (`items`, `redraw_below`). Hands
+scoring below `redraw_below` are redrawn when a free redraw or a die is
+available.
 
 ## Navigation: `greedy_rank` (push north)
 
@@ -74,10 +77,19 @@ Shared by all greedy navigators, one switch-flip per decision:
 
 ## Baselines
 
-`frontier_greedy` is the strongest scripted policy (≈36% win rate on the
-all-unlocks config before door locks; ≈1.8% with door locks on — see the
-lock PR notes). `random` exists to floor the comparison; it drafts and
-walks uniformly among legal actions.
+Measured with `cli.batch` on `all_unlocks_config()` (day-20, all unlocks),
+seeds 0–3999, n=4000 per policy. Under the shipped config
+(`door_locks=True`, `antechamber_levers=True`): `frontier_greedy` reaches the
+Antechamber on **0.500%** of days (Wilson 95% CI 0.324%–0.771%), `greedy_rank`
+**0.100%**, `economy` **0.125%**, `random` **0.000%** — and **P(reach Room 46)
+= 0.000% for every scripted policy**, across all 16,000 episodes. "Win rate"
+is no longer quite the right word for this number: the objective is two-tier
+(reach the Antechamber, then reach Room 46) and no scripted policy reaches the
+second tier at all in this fixture. With `antechamber_levers=False` (the
+legacy pre-lever arm), `frontier_greedy`'s Antechamber rate rises to **~20%**
+(measured 20.280%, CI 19.063%–21.555%, same seeds and n). `frontier_greedy`
+remains the strongest scripted policy under both arms. `random` exists to
+floor the comparison; it drafts and walks uniformly among legal actions.
 
 ## The owner's playbook (the human strategy the policies aspire to)
 
@@ -89,24 +101,34 @@ inexpressible and encoding them anyway would make a policy worse, not better.
 1. **Prioritise permanent upgrades over winning today.** Unlock the Orchard,
    the Gemstone Cavern, the West Gate. Losing today is acceptable if it buys
    future wins. Insert any Upgrade Disk at a terminal immediately.
-   → **Mostly not expressible.** `orchard_unlocked` and `mine_unlocked` are read
-   at exactly two lines (`game.py`, day-start `+20` steps and `+2` gems) and have
-   **no in-run setter** — they are pure config. `west_gate_unlatched` *is*
-   earnable in-run (PR #41). Disk insertion is fully modelled. See the reward
-   horizon problem below, which is what really blocks this rule.
+   → **Partly expressible.** `orchard_unlocked` has an in-run setter (set on
+   Apple Orchard arrival, `game.py`), is a `_CARRYOVER_KEYS` member, and is
+   read in more than just the day-start `+20` steps bonus (also folded into
+   the carryover flags `Game` reports). `mine_unlocked` still matches the old
+   claim: read only for the day-start `+2` gems and has **no in-run setter** —
+   pure config. `west_gate_unlatched` *is* earnable in-run (PR #41). Disk
+   insertion is fully modelled. See "The reward horizon spans the attempt"
+   below for what actually blocks this rule now.
 2. **The Power Hammer is the single best upgrade.** Build it, leave the house,
    break the Sealed Entrance — the fastest route to Reservoir North.
-   → **Not modelled.** The `grounds -> sealed_entrance` and
-   `sealed_entrance -> basement` edges exist, but those nodes are
-   `modelled: false` with no contents, so travelling there is a pure step sink.
-   If this is genuinely the strongest line in the real game, the sim is missing
-   the owner's highest-value play entirely — a modelling priority, not a
-   tuning one.
+   → **Modelled.** The Power Hammer wall-break mechanic
+   (`effects/rooms/weight_room.py`, `effects/rooms/greenhouse.py`) is fully
+   built, and `sealed_entrance_broken` is earned in-run — latched on first
+   arrival at Sealed Entrance while holding a Power Hammer — and carried
+   across days via `_CARRYOVER_KEYS`. `basement` itself is `modelled: true`;
+   only the `sealed_entrance` area node is a bare pass-through
+   (`modelled: false`, no contents of its own). The route to Reservoir North
+   this rule describes works end to end; no scripted policy specifically
+   pursues it.
 3. **Move the mine cart (Abandoned Mine South); light the four torches for
    Precipice access.**
-   → **Not modelled.** `mine_south_visited` appears once in the codebase, in a
-   comment reading "NOT modelled; never added here". The torch gates are stubs
-   that pass unconditionally.
+   → **Partly modelled.** `mine_south_visited` is a live `GameConfig`/
+   `GameState` field, a `_CARRYOVER_KEYS` member, and has an in-run setter (set
+   on first Mine South arrival); `mine_south` itself is `modelled: true` — the
+   Upgrade Disk sits openly there, obtainable without lighting candlesticks.
+   The mine-cart move is modelled. The four torches and the cliffside elevator
+   to the Precipice remain genuine stubs (`cliffside_elevator_down`/`_up`,
+   `modelled: false`, "Passes (stub open)").
 4. **Draft Security, Laboratory or Office until every Upgrade Disk is
    collected.**
    → **Expressible and unimplemented — the best available lever.** The disk
@@ -133,15 +155,20 @@ inexpressible and encoding them anyway would make a policy worse, not better.
    `items` term at all; `economy` (`items 0.8`) is the closer baseline. Benchmarks
    of "the owner's strategy" against `greedy_rank` are measuring the wrong policy.
 
-### The reward horizon is what actually blocks rule 1
+### The reward horizon spans the attempt
 
-An episode is **one day** and the return is **one day's reward** — the env
-terminates at `Phase.TERMINAL` with `+1.0` for reaching the Antechamber *that
-day*. `DayChain` carries discoveries across days; nothing carries *return*
-across days.
+The horizon is not one day. A mid-attempt day ends with `terminated=False,
+truncated=True` rather than a true terminal, so SB3 bootstraps
+`V(terminal_observation)` and cross-day return flows back through the value
+function; only the final day of an attempt (`current_day >= n_days`) is a true
+terminal. See [`rewards.md`](rewards.md), "The horizon spans days", which owns
+this. The Antechamber pays `+0.25` and Room 46 pays `+1.0`, both on first
+arrival each day. Four observation keys — `day`, `carryover`, `upgrade_slots`
+and `disks_spent` — let `V(s)` distinguish a heavily-upgraded attempt from a
+fresh one, so "it may cost me a win today, but it will increase my wins in the
+future" is representable in principle.
 
-So "it may cost me a win today, but it will increase my wins in the future" is
-not merely unimplemented, it is **unrewardable**: an agent that invests scores
-strictly worse and gradient descent removes the behaviour. Rules 1–4 cannot be
-trained until the horizon spans the attempt. This is a reward-design problem,
-not a policy problem, and it gates the rest.
+What actually blocks rule 1 today is on the **policy** side, not the reward
+side: no scripted policy scores a disk terminal at all (see rule 4 above), so
+nothing exists yet that would trade a day's win for an upgrade, even though
+the value function could in principle credit the trade.
