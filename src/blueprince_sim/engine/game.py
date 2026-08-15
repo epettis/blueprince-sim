@@ -11,7 +11,7 @@ from . import constellations, effects, experiments, shops, special_items
 from .areas import GateContext, path, reachable
 from .decks import apply_upgrade, build_decks, inject_rooms, set_dynamic_rarity
 from .draft import (COLOUR_CATEGORIES, SECRET_PASSAGE_IDS, DraftContext, deal_draft,
-                    redeal, _pick_dowsing_slot)
+                    redeal, waive_first_option, _pick_dowsing_slot)
 from .effects import Capability, Hook
 from .effects.items import (basement_key, crown_of_the_blueprints, gear_wrench, keycard,
                             master_key, paper_crown, power_hammer, prism_key, running_shoes,
@@ -2118,6 +2118,7 @@ class Game:
             room = outer[i]
             pending.options.append(DraftOption(
                 room_idx=room.idx, orientation=room.door_mask, gem_cost=0, slot=slot))
+        waive_first_option(pending)
         ctx = DraftContext(self.state, self.registry, self.cfg, self.rng, self.placed_ids, None)
         _pick_dowsing_slot(ctx, pending)
 
@@ -2232,11 +2233,19 @@ class Game:
         self._check_termination()
 
     def _effective_cost(self, room: Room, opt) -> int:
-        """Gem cost of an option: slot 0 and free-category rooms cost nothing.
+        """Gem cost of an option: slot 0, the hand's first presented option,
+        and free-category rooms all cost nothing.
+
+        ``opt.cost_waived`` is the deal's grant of a free first option
+        (draft.py::waive_first_option, an owner ruling). It coincides with
+        slot 0 on every hand that dealt one, and carries the waiver to slot 1
+        or 2 on a colour-selective hand whose earlier slots came up unfilled.
+        A synthetic option built outside a dealt hand (:meth:`berry_pick`)
+        carries neither and prices normally.
 
         Held items can waive or modify the remaining cost (Emerald Bracelet,
         Hall Pass, Stopwatch — see special_items.gem_cost_modifier)."""
-        if opt.slot == 0:
+        if opt.slot == 0 or opt.cost_waived:
             return 0
         if any(room.is_category(c) for c in self.free_categories):
             return 0
@@ -2322,8 +2331,10 @@ class Game:
         self._check_termination()
 
     # There is no decline: opening a door commits you to drafting one of the
-    # dealt rooms. Slot 1 is always the free forced-Closet fallback, so an
-    # affordable option always exists.
+    # dealt rooms. The hand's first presented option is always granted free
+    # (draft.py::waive_first_option), so an affordable option always exists --
+    # and a hand that dealt nothing at all never enters DRAFTING in the first
+    # place (see open_door/choose_colour).
 
     def can_redraw_with_star(self) -> bool:
         """True when the Ink Well's star-for-redraw option is legal right now:

@@ -126,6 +126,10 @@ class DraftOption:
     forced: bool = False   # placed by a priority/forced draw
     hidden: bool = False   # face-down: identity/orientation concealed, still draftable
     archived: bool = False  # this floorplan was archived by an active Archives; implies hidden
+    # The hand's first presented option is granted free: its gem cost is zeroed
+    # whatever the room would ordinarily charge (owner ruling; see draft.py::
+    # waive_first_option and Game._effective_cost, which honours this flag).
+    cost_waived: bool = False
 
 
 @dataclass(slots=True)
@@ -172,10 +176,12 @@ class PendingDraft:
     # strictly back through every prior hand to the original deal and then
     # stop, and can never oscillate. A shallow copy of ``options`` is pushed
     # (never a deepcopy): DraftOption is a slots dataclass whose fields are
-    # only ever mutated in place by Game.rotate_options on the CURRENTLY LIVE
-    # hand, and each redeal builds an entirely new set of DraftOption objects
-    # (draft.py::_fill_options/_make_option), so a stacked hand's objects are
-    # never touched again once superseded. Lives here, not on GameState or in
+    # only ever mutated in place on the CURRENTLY LIVE hand -- by
+    # Game.rotate_options, and by draft.py::waive_first_option at deal time,
+    # before the hand can have been stacked -- and each redeal builds an
+    # entirely new set of DraftOption objects (draft.py::_fill_options/
+    # _make_option), so a stacked hand's objects are never touched again once
+    # superseded. Lives here, not on GameState or in
     # DayChain._CARRYOVER_KEYS: the Chronograph is persistence="day" and this
     # history is meaningless past the hand (and the day) it belongs to.
     rewind_stack: list[list[DraftOption]] = field(default_factory=list)
