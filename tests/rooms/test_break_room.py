@@ -16,6 +16,11 @@ game.py. This is the room's own dedicated test file, so the room_hook's
 tests live here rather than in tests/test_effect_hooks.py, which covers the
 Hook enum's firing mechanics generically (probe tags), not any one room's
 handler.
+
+Game._terminate also broadcasts Hook.ON_DAY_END_ALL to every room placed on
+the grid (see effects/rooms/clock_tower.py); Break Room's own handler is
+registered only at ON_DAY_END, not ON_DAY_END_ALL, so that broadcast must
+not change this room's "only where the day ends" behaviour -- pinned below.
 """
 
 from blueprince_sim.engine.game import Game
@@ -94,3 +99,24 @@ def test_the_keycard_lapses_the_day_after_it_is_granted(registry, cfg):
     chain.advance(g2.carryover())          # day 2 did not end in Break Room
     g3 = Game(chain.next_config(), seed=3)
     assert not g3.state.has_keycard
+
+
+def test_the_day_end_broadcast_hook_does_not_grant_a_keycard_from_elsewhere(registry, cfg):
+    """With Break Room merely present on the grid (never entered) and the day
+    ending in a different room, Hook.ON_DAY_END_ALL -- the broadcast every
+    placed room now receives at day end (see effects/rooms/clock_tower.py) --
+    fires for Break Room too, but its handler is registered only at
+    Hook.ON_DAY_END, so the flag still stays unset. Proves the new broadcast
+    hook did not leak into this room's "only where the day ends" pulse."""
+    g = Game(cfg, seed=1)
+    break_room = registry.by_id["break_room__ix11"]
+    corridor = registry.by_id["corridor"]
+    g._place_room(break_room, 7, N | S)
+    g._place_room(corridor, 12, N | S)
+    g.state.pos = 12
+    g.state.steps = 0
+
+    g._check_termination()
+
+    assert g.is_done()[0]
+    assert not g.state.break_room_keycard

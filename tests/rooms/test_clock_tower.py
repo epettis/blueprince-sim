@@ -9,10 +9,16 @@ The Clock Tower's real effect ("The Clock Tower increases the next day starting
 key for every Tomorrow room present in the mansion. This includes the Clock
 Tower itself.", wiki prose -- the infobox's "for each Tomorrow room you draft
 today" is the losing reading, per the owner ruling) is a day-end grid tally,
-implemented in Game._terminate rather than the room's own ON_DAY_END hook:
-ON_DAY_END only fires for the room the player is standing in at day end, which
-would be wrong for an effect that counts the whole grid. See
-tests/test_carryover.py for the DayChain-driven next-day key grant.
+implemented as a room_hook on Hook.ON_DAY_END_ALL (engine/effects/rooms/
+clock_tower.py) rather than the room's own ON_DAY_END hook: ON_DAY_END only
+fires for the room the player is standing in at day end, which would be
+wrong for an effect that counts the whole grid. ON_DAY_END_ALL is broadcast
+from Game._terminate to every room placed on the grid (mirroring
+Hook.ON_DRAFT_ROOM's broadcast in Game._place_room), so this handler runs
+whenever the Clock Tower is placed, regardless of where the player ends the
+day. See tests/test_effect_hooks.py for the hook's own generic firing
+mechanics and tests/test_carryover.py for the DayChain-driven next-day key
+grant.
 """
 
 from __future__ import annotations
@@ -214,3 +220,24 @@ def test_tally_is_over_the_grid_at_day_end_not_drafted_room_count(cfg):
 
     assert len(g.drafted_rooms) == 4          # clock_tower, closet, utility_closet, sauna
     assert g.state.clock_tower_tomorrow_keys == 2   # clock_tower + sauna only
+
+
+def test_tally_still_runs_when_the_day_ends_off_grid_entirely(cfg):
+    """The day ending off the 5x9 grid altogether -- inside today's drafted
+    outer room, nowhere near the Clock Tower's own cell -- still runs the
+    tally: Hook.ON_DAY_END_ALL is broadcast over state.grid regardless of
+    where the player physically is when the day terminates, unlike the
+    room-the-day-ends-in-only ON_DAY_END."""
+    g = Game(cfg, seed=1)
+    _place(g, "clock_tower", 6)
+    _place(g, "sauna", 7)
+    outer_room = g.outer_rooms[0]
+    g.placed_ids.add(outer_room.id)
+    g.state.outer_room_drafted = True
+    g.state.area = outer_room.id
+    g.state.steps = 0
+
+    g._check_termination()
+
+    assert g.is_done()[0]
+    assert g.state.clock_tower_tomorrow_keys == 2

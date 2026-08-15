@@ -635,7 +635,7 @@ class Game:
         """Standing at the Security terminal, on the grid, mid-day."""
         return (self.phase is Phase.NAVIGATE and self.cfg.door_locks
                 and not self.off_grid
-                and self.state.pos == self.room_cells.get("security", -1) >= 0)
+                and self.state.pos == self._capability_cell(Capability.SECURITY_LEVEL) >= 0)
 
     def set_security_level(self, level: str) -> None:
         """Set the security-door frequency (low/normal/high) at the terminal.
@@ -762,19 +762,20 @@ class Game:
         return result
 
     def at_planetarium(self) -> bool:
-        """True when the player is standing in the Planetarium.
+        """True when the player is standing in a room providing
+        ``Capability.TELESCOPE_REVEAL`` (the Planetarium).
 
-        Same exact-id-match shape as :meth:`at_laboratory_terminal` -- the
-        Telescope's Planetarium upgrade is specific to this one room, not a
-        shared capability flag. The Planetarium has no upgrade variants and
-        no outer-room presence.
+        Same shape as :meth:`at_laboratory_terminal` -- the Telescope's
+        Planetarium upgrade is specific to this one room, not a shared menu.
+        The Planetarium has no upgrade variants and no outer-room presence.
         """
         if self.inside_outer_room or self.off_grid:
             return False
         st = self.state
         if not (0 <= st.pos < len(st.grid)) or st.grid[st.pos] < 0:
             return False
-        return self.registry.rooms[st.grid[st.pos]].id == "planetarium"
+        return effects.provides_capability(
+            self.registry.rooms[st.grid[st.pos]].id, Capability.TELESCOPE_REVEAL)
 
     def can_use_telescope_planetarium(self) -> bool:
         """True when using the Telescope in the Planetarium is legal right now.
@@ -1524,9 +1525,25 @@ class Game:
                  if rid in self.room_cells]
         return min(cells) if cells else -1
 
+    def _capability_cell(self, capability: Capability) -> int:
+        """Cell of the placed room registered for ``capability``, or -1 if none placed.
+
+        Generalizes single-room cell lookups (the Utility Closet breaker box,
+        the Security terminal) into a query over whichever room registers the
+        capability via ``effects.provides``, instead of naming that room's id
+        directly. Each capability queried this way is registered by exactly
+        one room today, so the first placed match is unambiguous.
+        """
+        for room_id in effects.rooms_with_capability(capability):
+            cell = self.room_cells.get(room_id, -1)
+            if cell >= 0:
+                return cell
+        return -1
+
     def _utility_closet_cell(self) -> int:
-        """Cell where utility_closet is placed, or -1."""
-        return self.room_cells.get("utility_closet", -1)
+        """Cell of the room providing ``Capability.BREAKER_BOX`` (the Utility
+        Closet), or -1 if not placed."""
+        return self._capability_cell(Capability.BREAKER_BOX)
 
     def _breaker_on(self) -> bool:
         """True if utility_closet is placed AND its cell has been entered."""
@@ -2898,21 +2915,23 @@ class Game:
     # -------------------------------------------------------- experiments
 
     def at_laboratory_terminal(self) -> bool:
-        """True when the player is standing in the Laboratory, at its terminal.
+        """True when the player is standing in a room providing
+        ``Capability.EXPERIMENT_TERMINAL`` (the Laboratory).
 
         Distinct from ``disk_reader_here()``: Security, Laboratory, Office and
         Shelter all carry ``flags.disk_reader``, but the Experimental Setup
-        menu is specific to the Laboratory's own terminal, so this checks the
-        room id directly rather than the shared disk-reader flag. The
+        menu is specific to the Laboratory's own terminal, so this checks a
+        dedicated capability rather than the shared disk-reader flag. The
         Laboratory has no upgrade variants and no outer-room presence, so an
-        exact on-grid id match is the whole check.
+        exact on-grid capability match is the whole check.
         """
         if self.inside_outer_room or self.off_grid:
             return False
         st = self.state
         if not (0 <= st.pos < len(st.grid)) or st.grid[st.pos] < 0:
             return False
-        return self.registry.rooms[st.grid[st.pos]].id == "laboratory"
+        return effects.provides_capability(
+            self.registry.rooms[st.grid[st.pos]].id, Capability.EXPERIMENT_TERMINAL)
 
     def can_start_setup(self) -> bool:
         """True when operating the Experimental Setup terminal is legal right now.
@@ -3018,7 +3037,8 @@ class Game:
         """End the day; this is the sole place Phase.TERMINAL is set.
 
         Every day-ending route in this module runs through here (called only
-        from _check_termination), so it is the single fire site for ON_DAY_END.
+        from _check_termination), so it is the single fire site for
+        ON_DAY_END and ON_DAY_END_ALL.
         """
         self.phase = Phase.TERMINAL
         self.termination_reason = reason
@@ -3036,16 +3056,15 @@ class Game:
             room = self.registry.rooms[st.grid[st.pos]]
         if room is not None:
             effects.fire(self, room, Hook.ON_DAY_END)
-        # Clock Tower: a day-end tally over the WHOLE grid, not ON_DAY_END (which
-        # only fires for the room the player is standing in) -- the effect counts
-        # every Tomorrow room present in the mansion, including the Clock Tower
-        # itself, regardless of where the player ends the day.
-        clock_tower_idx = self.registry.by_id["clock_tower"].idx
-        if clock_tower_idx in st.grid:
-            st.clock_tower_tomorrow_keys = sum(
-                1 for idx in st.grid
-                if idx >= 0 and self.registry.rooms[idx].is_category("tomorrow")
-            )
+        # ON_DAY_END_ALL: broadcast to every room placed on the grid, regardless
+        # of where the player ends the day -- the day-end counterpart to
+        # ON_DRAFT_ROOM's broadcast in _place_room. Room-wide effects that need
+        # the whole grid rather than just where the day ends (e.g. the Clock
+        # Tower's Tomorrow-room tally, effects/rooms/clock_tower.py) hang off
+        # this instead of ON_DAY_END.
+        for idx in st.grid:
+            if idx >= 0:
+                effects.fire(self, self.registry.rooms[idx], Hook.ON_DAY_END_ALL)
 
     def _check_termination(self) -> None:
         """End the day when out of steps or no purposeful action remains.

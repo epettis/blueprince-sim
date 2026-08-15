@@ -19,10 +19,14 @@ logger = logging.getLogger("blueprince_sim.effects")
 
 
 class Capability(Enum):
+    BREAKER_BOX = "breaker_box"  # room's breaker box gates keycard power/darkroom lights (Utility Closet)
     COMMERCE = "commerce"  # room can be bought from, traded with, or fabricated at
+    EXPERIMENT_TERMINAL = "experiment_terminal"  # room's Experimental Setup menu is open (Laboratory)
     FABRICATION = "fabrication"  # room's fabricate menu is open (Workshop; see shops.py)
     LEVER = "lever"  # room pulls an Antechamber lever on first entry
     NIGHT_SKY = "night_sky"  # room's telescope can view a night sky (Game.can_view_night_sky)
+    SECURITY_LEVEL = "security_level"  # room's security-level terminal is open (Security)
+    TELESCOPE_REVEAL = "telescope_reveal"  # room's Telescope planet-reveal menu is open (Planetarium)
     TITHE = "tithe"  # a negative coins grant here is banked (Keeper of Tithes; see tier1.grant)
     TRADE = "trade"  # room's interior trade menu is open (Trading Post; see shops.py)
     VASE = "vase"  # room's vase can be smashed for a microchip (Entrance Hall; see shops.py)
@@ -55,6 +59,18 @@ def registered_capability_rooms() -> frozenset[str]:
     directly.
     """
     return frozenset(room_id for room_id, _cap in _CAPABILITY_REGISTRY)
+
+
+def rooms_with_capability(capability: Capability) -> frozenset[str]:
+    """Room ids registered as providing this specific ``capability``.
+
+    Unlike ``registered_capability_rooms`` (every id with ANY capability),
+    this narrows to one capability -- letting a caller resolve "which room
+    provides X" generically instead of naming that room's id directly (e.g.
+    ``Game._capability_cell``, which turns a capability into the grid cell
+    of whichever placed room provides it).
+    """
+    return frozenset(room_id for room_id, cap in _CAPABILITY_REGISTRY if cap is capability)
 
 
 def validate_capability_registry(registry) -> list[str]:
@@ -174,7 +190,8 @@ class Hook(Enum):
     ON_DRAFT_FROM = "on_draft_from"  # a hand is initially dealt from this room's doorway
     ON_HAND_DEALT = "on_hand_dealt"  # this room appears as an option in the current hand
     ON_ARRIVE = "on_arrive"        # player arrives at this cell, every time (incl. re-entry)
-    ON_DAY_END = "on_day_end"      # the day terminates (out_of_steps / dead_end)
+    ON_DAY_END = "on_day_end"      # the day terminates, for the room the player stands in only
+    ON_DAY_END_ALL = "on_day_end_all"  # the day terminates, broadcast to every placed room (see ON_DRAFT_ROOM)
 
 
 EffectHandler = Callable  # (game, room, effect, context_room) -> None

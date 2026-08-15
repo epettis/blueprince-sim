@@ -19,12 +19,18 @@ its Trunk is a live read, answered by this module's own ``provides_containers``
 overlay below -- registry.special.containers["rooms"] carries no static
 Planetarium entry, since the Trunk only exists once Dauja is unlocked, a
 save-scoped condition.
+
+``Capability.TELESCOPE_REVEAL`` is read by ``Game.at_planetarium`` to gate the
+Telescope-in-Planetarium reveal menu to this room, the same shape as the
+Laboratory's Experimental Setup capability (``effects/rooms/laboratory.py``).
 """
 
 from __future__ import annotations
 
-from .. import Hook, provides_containers, room_hook
+from .. import Capability, Hook, provides, provides_containers, room_hook
 from ... import special_items
+
+provides("planetarium", Capability.TELESCOPE_REVEAL)
 
 
 def _unlocked_payloads(state, registry) -> list[dict]:
