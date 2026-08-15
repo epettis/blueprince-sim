@@ -2226,7 +2226,7 @@
     "confidence": "wiki",
     "absent_spawn_areas": [],
     "blocked_on": null,
-    "notes": "The Underpass's Mora Jai box gives a +2 Allowance Token, following the owner ruling that every Mora Jai box holds one (see allowance_token_master_bedroom). The Underpass is an area node with no rooms.json record, so guaranteed_in cannot reach it -- granted instead by special_items.py::on_area_arrival on arrival at the underpass area node, the same shape as the Abandoned Mine's Upgrade Disk. One-time source, gated via GameConfig.collected_allowance_tokens."
+    "notes": "The Underpass's Mora Jai box gives a +2 Allowance Token, following the owner ruling that every Mora Jai box holds one (see allowance_token_master_bedroom). The Underpass is an area node with no rooms.json record, so guaranteed_in cannot reach it -- granted instead by special_items.py::on_area_arrival on arrival at the underpass area node, the same shape as the Abandoned Mine's Upgrade Disk. One-time source, gated via GameConfig.collected_allowance_tokens. underpass is areas.json modelled=false, so this source is not reachable via a Play-tab travel action: no travel action is ever offered for the node, and routing THROUGH it does not fire on_area_arrival either, so the grant is exercised directly in tests only -- the same disclosure sanctum_key_reservoir_north and sanctum_key_safehouse carry."
    }
   },
   {
