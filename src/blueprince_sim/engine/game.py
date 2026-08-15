@@ -93,6 +93,7 @@ class Game:
         st.coins = cfg.frozen_coins + cfg.allowance
         st.allowance = cfg.allowance
         st.stars = cfg.stars
+        st.stars_at_day_start = cfg.stars
         st.experiment.letters_delivered = cfg.letters_delivered
         st.has_keycard = cfg.break_room_keycard
         st.day = cfg.day
