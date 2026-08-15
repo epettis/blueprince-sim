@@ -1,18 +1,20 @@
 """Observable-firing tests for the widened effect Hook enum.
 
-Covers ON_DRAFT_FROM, ON_HAND_DEALT, ON_ARRIVE, and ON_DAY_END -- the four
-hooks added so Classroom/Library/Archives, Dovecote, the open resource-spread
-task, and Tomorrow Rooms/the Break Room no longer need id-hardcoded fire
-sites in game.py. Two handlers are registered for ON_DAY_END in the shipped
-code: the Planetarium's "grant" tag (engine/effects/tier1.py; a day-end Stars
-grant, tests/rooms/test_planetarium.py) and the Break Room's room_hook
-(engine/effects/rooms/break_room.py; a day-end keycard pulse,
-tests/rooms/test_break_room.py). No handler is registered for ON_DRAFT_FROM,
-ON_HAND_DEALT, or ON_ARRIVE anywhere in the shipped code, so this file
-registers its own temporary probes via the importable ``@effect`` decorator
-and tears them down after every test (see the ``probe`` fixture) -- the
-handler registry in engine/effects/__init__.py is module-global, and a
-leaked registration would corrupt unrelated suites.
+Covers ON_DRAFT_FROM, ON_HAND_DEALT, ON_ARRIVE, ON_DAY_END, and ON_DAY_END_ALL
+-- the hooks added so Classroom/Library/Archives, Dovecote, the open
+resource-spread task, and Tomorrow Rooms/the Break Room/the Clock Tower no
+longer need id-hardcoded fire sites in game.py. Three handlers are registered
+in the shipped code: the Planetarium's "grant" tag on ON_DAY_END
+(engine/effects/tier1.py; a day-end Stars grant, tests/rooms/test_planetarium.py),
+the Break Room's room_hook on ON_DAY_END (engine/effects/rooms/break_room.py;
+a day-end keycard pulse, tests/rooms/test_break_room.py), and the Clock
+Tower's room_hook on ON_DAY_END_ALL (engine/effects/rooms/clock_tower.py; the
+day-end Tomorrow-room tally, tests/rooms/test_clock_tower.py). No handler is
+registered for ON_DRAFT_FROM, ON_HAND_DEALT, or ON_ARRIVE anywhere in the
+shipped code, so this file registers its own temporary probes via the
+importable ``@effect`` decorator and tears them down after every test (see
+the ``probe`` fixture) -- the handler registry in engine/effects/__init__.py
+is module-global, and a leaked registration would corrupt unrelated suites.
 
 Room data is mutated too (every room gets a synthetic probe tag appended to
 its effects, so whichever room the RNG deals into a hand can be observed
@@ -38,6 +40,7 @@ _PROBE_TAGS = {
     Hook.ON_HAND_DEALT: "__test_probe_on_hand_dealt__",
     Hook.ON_ARRIVE: "__test_probe_on_arrive__",
     Hook.ON_DAY_END: "__test_probe_on_day_end__",
+    Hook.ON_DAY_END_ALL: "__test_probe_on_day_end_all__",
 }
 
 
@@ -289,3 +292,70 @@ def test_on_day_end_fires_for_the_drafted_outer_room_when_inside_it(probe_regist
     g._check_termination()
 
     assert calls == [(Hook.ON_DAY_END, outer_room.id)]
+
+
+def test_on_day_end_all_fires_for_every_placed_room_not_just_where_day_ends(
+        probe_registry, cfg, probe):
+    """ON_DAY_END_ALL fires once for every room placed on the grid when the
+    day terminates -- including a room far from where the player actually
+    ends the day -- unlike ON_DAY_END, which fires only for the room the
+    player is standing in (see
+    test_on_day_end_fires_for_the_room_the_day_ends_in above). The Entrance
+    Hall and Antechamber are always on the grid too (day-start fixtures), so
+    this checks corridor/closet are AMONG the fires, not that they are the
+    only ones."""
+    calls = probe(Hook.ON_DAY_END_ALL)
+    g = Game(cfg, seed=10, registry=probe_registry)
+    corridor = probe_registry.by_id["corridor"]
+    closet = probe_registry.by_id["closet"]
+    a, b = 7, 12
+    g._place_room(corridor, a, N | S)
+    g._place_room(closet, b, N | S)
+    g.state.pos = a
+    g.state.entered[a] = True
+    g.state.steps = 0
+
+    g._check_termination()
+
+    assert g.is_done()[0]
+    assert {(Hook.ON_DAY_END_ALL, "corridor"), (Hook.ON_DAY_END_ALL, "closet")} <= set(calls)
+
+
+def test_on_day_end_all_does_not_reach_the_drafted_outer_room(probe_registry, cfg, probe):
+    """ON_DAY_END_ALL's broadcast walks state.grid only -- an off-grid drafted
+    outer room is not a grid cell, so it is not among the rooms fired at,
+    unlike ON_DAY_END which does reach it (see
+    test_on_day_end_fires_for_the_drafted_outer_room_when_inside_it above)."""
+    calls = probe(Hook.ON_DAY_END_ALL)
+    g = Game(cfg, seed=11, registry=probe_registry)
+    outer_room = g.outer_rooms[0]
+    g.placed_ids.add(outer_room.id)
+    g.state.outer_room_drafted = True
+    g.state.area = outer_room.id
+    g.state.steps = 0
+
+    g._check_termination()
+
+    assert (Hook.ON_DAY_END_ALL, outer_room.id) not in calls
+
+
+def test_on_day_end_and_on_day_end_all_both_fire_for_the_room_the_day_ends_in(
+        probe_registry, cfg, probe):
+    """The room the day ends in gets BOTH its ON_DAY_END fire (the narrow,
+    room-the-day-ends-in event) and its ON_DAY_END_ALL fire (the broadcast,
+    since it is also a placed room on the grid) -- the two hooks coexist
+    rather than one replacing the other."""
+    day_end_calls = probe(Hook.ON_DAY_END)
+    all_calls = probe(Hook.ON_DAY_END_ALL)
+    g = Game(cfg, seed=12, registry=probe_registry)
+    corridor = probe_registry.by_id["corridor"]
+    a = 7
+    g._place_room(corridor, a, N | S)
+    g.state.pos = a
+    g.state.entered[a] = True
+    g.state.steps = 0
+
+    g._check_termination()
+
+    assert day_end_calls == [(Hook.ON_DAY_END, "corridor")]
+    assert (Hook.ON_DAY_END_ALL, "corridor") in all_calls

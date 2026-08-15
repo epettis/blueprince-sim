@@ -136,7 +136,10 @@ _AUDIT_PYTHON_EXEMPT_IDS = {
     # effects/items.guaranteed/room_hook site the audit can see.
     "aquarium": "engine/model.py",
     "chamber_of_mirrors": "engine/draft.py",     # duplicate-room drafting
-    "clock_tower": "engine/game.py",             # day-end Tomorrow-room key tally
+    # clock_tower moved off this list: the day-end Tomorrow-room key tally is
+    # now a real room_hook (effects/rooms/clock_tower.py, Hook.ON_DAY_END_ALL),
+    # which find_divergences' registered_room_ids channel already sees --
+    # the hand-written-branch exemption this list is for no longer applies.
     # Absorbing a spread is implemented by each spreader's own branch rather
     # than by the Conference Room; the Patio's is the representative one.
     "conference_room": "engine/effects/rooms/patio.py",

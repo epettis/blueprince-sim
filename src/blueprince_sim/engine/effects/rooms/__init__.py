@@ -26,6 +26,7 @@ from . import break_room  # noqa: F401
 from . import bunk_room  # noqa: F401
 from . import chapel  # noqa: F401  (registers the tithe-banking capability on import)
 from . import classroom  # noqa: F401
+from . import clock_tower  # noqa: F401  (registers the day-end Tomorrow-room tally on import)
 from . import closet  # noqa: F401
 from . import cloister  # noqa: F401
 from . import coat_check  # noqa: F401
@@ -47,6 +48,7 @@ from . import hallway  # noqa: F401
 from . import her_ladyships_chamber  # noqa: F401
 from . import hovel  # noqa: F401
 from . import kitchen  # noqa: F401  (registers its stock builder on import)
+from . import laboratory  # noqa: F401  (registers the experiment-terminal capability on import)
 from . import locker_room  # noqa: F401
 from . import locksmith  # noqa: F401  (registers its stock builder on import)
 from . import mail_room  # noqa: F401
@@ -74,6 +76,7 @@ from . import throne_room  # noqa: F401  (registers lever capability on import)
 from . import tomb  # noqa: F401
 from . import trading_post  # noqa: F401  (registers the trade-menu capability on import)
 from . import treasure_trove  # noqa: F401
+from . import utility_closet  # noqa: F401  (registers the breaker-box capability on import)
 from . import vestibule  # noqa: F401
 from . import weight_room  # noqa: F401
 from . import workshop  # noqa: F401  (registers fabrication capability + stock builder)

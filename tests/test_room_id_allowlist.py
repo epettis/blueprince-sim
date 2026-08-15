@@ -155,6 +155,17 @@ ROOM_ARCHITECTURE: dict[str, set[str]] = {
         # -- happens to spell the Study's id because that room names the
         # mechanic (gem-cost redraws).
         "study",
+        # room_46: an area-graph node id (areas.json's "room_46", kind
+        # "area"), not a room.id branch -- travel_to's `dest == "room_46"`
+        # arm (first-arrival bookkeeping) and area_route_cost("room_46") both
+        # dispatch on the SAME destination-id parameter every other area node
+        # in travel_to does (west_path, mine_south, orindian_ruins, ...),
+        # none of which are room ids at all. "room_46" collides with a real
+        # room id only because rooms.json also carries a Room 46 record for
+        # reference (items/wiki data), even though it is never placed on the
+        # grid -- the same collision class as bedroom/hallway's category
+        # names above, just against the area graph instead of a category.
+        "room_46",
     },
     "locks.py": {
         # rules["security"]: a locks.json data-SECTION name (room_door_chance
@@ -281,42 +292,21 @@ ROOM_DEBT: dict[str, set[str]] = {
         "dining_room",
     },
     "game.py": {
-        # Clock Tower's day-end Tomorrow-room tally: a room-specific
-        # carve-out bolted onto the shared end-of-day sequence (fires
-        # house-wide regardless of where the player ends the day, which is
-        # exactly why it is NOT expressed as an ordinary per-room
-        # ON_DAY_END hook -- see the comment at its call site).
-        "clock_tower",
-        # at_laboratory_terminal: an exact room.id match deliberately used
-        # INSTEAD OF the shared flags.disk_reader capability that Security/
-        # Laboratory/Office/Shelter all otherwise carry, because the
-        # Experimental Setup menu is Laboratory-specific -- a hardcoded id
-        # standing in for what a dedicated Capability could express.
-        "laboratory",
-        # can_use_telescope_planetarium's position gate: "Same exact-id-match
-        # shape as at_laboratory_terminal" (this module's own docstring) --
-        # the Telescope-in-Planetarium mechanic is Planetarium-specific.
-        "planetarium",
-        # room_46: first-arrival bookkeeping (st.room46_reached, guaranteed
-        # Crown of the Blueprints/Sanctum Key grant) inside travel_to's
-        # shared per-destination dispatch -- Room 46's own intrinsic
-        # first-visit content, the same carve-out shape as the other
-        # entries here.
-        "room_46",
-        # can_set_security_level's position gate: the same "exact id match
-        # instead of the shared disk_reader capability" shape as Laboratory/
-        # Planetarium above -- the security-level menu is Security-specific.
-        "security",
         # _place_room's carve-out (room.id == "the_foundation"): records the
         # cell/orientation for next-day carryover inside the otherwise
         # generic per-room placement function every drafted room goes
         # through -- the Foundation's own cross-day-persistence behaviour.
+        # clock_tower/laboratory/planetarium/room_46/security/utility_closet
+        # moved off this list: the Clock Tower's day-end tally now reads
+        # Hook.ON_DAY_END_ALL (registered by effects/rooms/clock_tower.py);
+        # at_laboratory_terminal/at_planetarium/can_set_security_level/
+        # _utility_closet_cell now read dedicated Capability facts
+        # (EXPERIMENT_TERMINAL/TELESCOPE_REVEAL/SECURITY_LEVEL/BREAKER_BOX,
+        # each registered by that room's own effects/rooms/<id>.py module)
+        # instead of comparing a room id directly; room_46 moved to
+        # ROOM_ARCHITECTURE above (an area-graph node id, not a room.id
+        # branch).
         "the_foundation",
-        # _utility_closet_cell, read by can_toggle_keycard_power and
-        # can_toggle_darkroom_lights: the breaker-box position gate is
-        # Utility-Closet-specific, the same dedicated-mechanic shape as
-        # Laboratory/Planetarium/Security above.
-        "utility_closet",
     },
     "shops.py": set(
         # commissary/gift_shop/kitchen/locksmith/showroom/workshop moved off
@@ -350,9 +340,11 @@ ROOM_DEBT: dict[str, set[str]] = {
     },
 }
 
-#: ROOM_DEBT's total entry count, measured 2026-08-14 (after moving shops.py's
-#: per-shop stock-roll dispatch, Showroom trophy overlay, Trading Post menu
-#: gate, and Entrance Hall vase gate off this list -- see its entry above).
+#: ROOM_DEBT's total entry count, measured 2026-08-15 (after moving game.py's
+#: clock_tower/laboratory/planetarium/security/utility_closet debt to
+#: Hook.ON_DAY_END_ALL / dedicated Capability facts, and reclassifying
+#: room_46 to ROOM_ARCHITECTURE as an area-graph node id -- see game.py's
+#: entries above).
 #: test_room_id_debt_matches_the_cap fails in BOTH directions: above means a
 #: new debt entry landed and nobody paid it down; below means a conversion
 #: already shrank ROOM_DEBT and nobody lowered this constant to match, which
@@ -360,7 +352,7 @@ ROOM_DEBT: dict[str, set[str]] = {
 #: module docstring for why this mirrors #332's original bidirectional
 #: ROOM_ID_ALLOWLIST_CAP rather than test_item_id_allowlist.py's
 #: upper-bound-only ITEM_DEBT_CAP.
-ROOM_ID_DEBT_CAP = 16
+ROOM_ID_DEBT_CAP = 10
 
 
 def _combined_allowlist() -> dict[str, set[str]]:
