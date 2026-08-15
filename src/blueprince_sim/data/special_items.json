@@ -735,14 +735,13 @@
    "spawn_rooms_high_luck": [],
    "guaranteed_in": [],
    "effects": [],
-   "implemented": false,
+   "implemented": true,
    "meta": {
     "source": "https://blueprince.wiki.gg/wiki/Telescope",
     "confidence": "wiki",
     "absent_spawn_areas": [],
-    "blocked_on": "constellation_activation_not_modeled",
-    "reachability": "inert",
-    "notes": "The Telescope has two independent uses and BOTH are built in the engine, while this record itself is still inert. The Observatory arm (the item's own infobox description: a second independent night sky letting constellations activate twice) is wired: engine/game.py::can_view_night_sky asks effects/items/telescope.py::held for the extra per-Observatory sky, and nine of the thirteen constellations now activate (engine/constellations.py). blocked_on is consequently STALE -- what actually holds this record at implemented: false is that letting a tier-4 item into the spawn pool is an unmeasured change to the item economy, not a missing mechanic. The Planetarium arm IS built: Game.use_telescope_planetarium (engine/game.py) reveals one of the five planetarium_planets table below per day (Mora always last), each granting its payload permanently -- engine/effects/rooms/planetarium.py re-applies every unlocked payload on later days' placement/first entry. Not consumed by use. Gated out of the spawn pool at < 1 start-of-day star (engine/effects/items/telescope.py::gate, wired into special_items.configure()). guaranteed_in dropped: no wiki text supports a guaranteed Telescope on first Planetarium entry. spawn_rooms holds only loose-on-the-floor locations (owner ruling: obtainable-here is a separate concept from spawns-here, modeled elsewhere, and never added to spawn_rooms). Lost & Found and Trading Post are both wiki-listed telescope locations but are obtain-elsewhere channels, not floor spawns: Lost & Found already lists \"telescope\" in this file's own lost_and_found.pool, and Trading Post's tier-4 trade cycle already includes every tier-4 item generically (engine/shops.py::_roll_trade_graph, keyed on SpecialItem.tier) -- so both stay out of spawn_rooms rather than double-counting. The wiki's other two listed locations, Experiment and Spiral, are not rooms -- Experiment redirects to the Laboratory's unrelated Experiments mechanic, and Spiral is the Spiral of Stars, a 100-star secret constellation, not a room or area node -- so neither is added here either."
+    "blocked_on": null,
+    "notes": "The Telescope has two independent uses and both are fully wired. The Observatory arm (the item's own infobox description: a second independent night sky letting constellations activate twice) is wired: engine/game.py::can_view_night_sky asks effects/items/telescope.py::held for the extra per-Observatory sky, and twelve of the thirteen constellations activate through it (engine/constellations.py); the remaining one, the Spiral of Stars, stays implemented: false on its own record. The Planetarium arm is wired too: Game.use_telescope_planetarium (engine/game.py) reveals one of the five planetarium_planets table below per day (Mora always last), each granting its payload permanently -- engine/effects/rooms/planetarium.py re-applies every unlocked payload on later days' placement/first entry. Not consumed by use. Gated out of the spawn pool at < 1 start-of-day star (engine/effects/items/telescope.py::gate, wired into special_items.configure()); the implemented flag itself never gated spawning -- engine/special_items.py's spawn_pool_by_room build has no implemented check -- so the Telescope already spawns from the four spawn_rooms below regardless of this flag. guaranteed_in dropped: no wiki text supports a guaranteed Telescope on first Planetarium entry. spawn_rooms holds only loose-on-the-floor locations (owner ruling: obtainable-here is a separate concept from spawns-here, modeled elsewhere, and never added to spawn_rooms). Lost & Found and Trading Post are both wiki-listed telescope locations but are obtain-elsewhere channels, not floor spawns: Lost & Found already lists \"telescope\" in this file's own lost_and_found.pool, and Trading Post's tier-4 trade cycle already includes every tier-4 item generically (engine/shops.py::_roll_trade_graph, keyed on SpecialItem.tier) -- so both stay out of spawn_rooms rather than double-counting. The wiki's other two listed locations, Experiment and Spiral, are not rooms -- Experiment redirects to the Laboratory's unrelated Experiments mechanic, and Spiral is the Spiral of Stars, a 100-star secret constellation, not a room or area node -- so neither is added here either."
    }
   },
   {
@@ -2439,7 +2438,7 @@
     "confidence": "wiki",
     "absent_spawn_areas": [],
     "blocked_on": null,
-    "notes": "One unique disk per source so each is inherently one-time use. Granted by opening Vault box 304. Box stays open permanently (vault_key_304 stays in used_vault_keys); the disk returns daily to the open box until spent. Draw mechanism implemented (chunk 2); individual upgrade effects deferred (task 9)."
+    "notes": "One unique disk per source so each is inherently one-time use. Granted by opening Vault box 304. Box stays open permanently (vault_key_304 stays in used_vault_keys); the disk returns daily to the open box until spent. Draw mechanism implemented (chunk 2); individual upgrade effects deferred."
    }
   },
   {
@@ -2460,7 +2459,7 @@
     "confidence": "wiki",
     "absent_spawn_areas": [],
     "blocked_on": null,
-    "notes": "Reserve stock item in the Commissary, restocked every day: an unspent disk drops overnight and is offered again, and the player pays the 15 gold each time (the cost is the throttle, making hoarding wasteful). Once spent it leaves the reserve stock permanently via collected_disks. Draw mechanism implemented (chunk 2); individual upgrade effects deferred (task 9)."
+    "notes": "Reserve stock item in the Commissary, restocked every day: an unspent disk drops overnight and is offered again, and the player pays the 15 gold each time (the cost is the throttle, making hoarding wasteful). Once spent it leaves the reserve stock permanently via collected_disks. Draw mechanism implemented (chunk 2); individual upgrade effects deferred."
    }
   },
   {
@@ -2481,7 +2480,7 @@
     "confidence": "wiki",
     "absent_spawn_areas": [],
     "blocked_on": null,
-    "notes": "One unique disk per source so each is inherently one-time use. Found in the Garage car trunk. The trunk re-locks every night (unlike the Vault boxes), so Car Keys are required on every open, not just the first; the disk inside returns daily until spent. Once spent, later trunk uses draw from the later_pool. Draw mechanism implemented (chunk 2); individual upgrade effects deferred (task 9)."
+    "notes": "One unique disk per source so each is inherently one-time use. Found in the Garage car trunk. The trunk re-locks every night (unlike the Vault boxes), so Car Keys are required on every open, not just the first; the disk inside returns daily until spent. Once spent, later trunk uses draw from the later_pool. Draw mechanism implemented (chunk 2); individual upgrade effects deferred."
    }
   },
   {
@@ -2502,7 +2501,7 @@
     "confidence": "wiki",
     "absent_spawn_areas": [],
     "blocked_on": null,
-    "notes": "One unique disk per source so each is inherently one-time use. Granted by lighting the Trading Post dynamite chamber. Chamber stays open (trading_post in lit_targets); the disk returns daily until spent. Draw mechanism implemented (chunk 2); individual upgrade effects deferred (task 9)."
+    "notes": "One unique disk per source so each is inherently one-time use. Granted by lighting the Trading Post dynamite chamber. Chamber stays open (trading_post in lit_targets); the disk returns daily until spent. Draw mechanism implemented (chunk 2); individual upgrade effects deferred."
    }
   },
   {
@@ -2544,7 +2543,7 @@
     "confidence": "wiki",
     "absent_spawn_areas": [],
     "blocked_on": null,
-    "notes": "Awarded by the Lost and Found. Stays in the draw pool while unspent, so an unspent disk drops overnight and can be drawn again on a later day; once spent it leaves the pool permanently (the pool draw filters on _is_available, which reads gated_out/collected_disks). Draw mechanism implemented (chunk 2); individual upgrade effects deferred (task 9)."
+    "notes": "Awarded by the Lost and Found. Stays in the draw pool while unspent, so an unspent disk drops overnight and can be drawn again on a later day; once spent it leaves the pool permanently (the pool draw filters on _is_available, which reads gated_out/collected_disks). Draw mechanism implemented (chunk 2); individual upgrade effects deferred."
    }
   },
   {
@@ -2565,7 +2564,7 @@
     "confidence": "wiki",
     "absent_spawn_areas": [],
     "blocked_on": null,
-    "notes": "One unique disk per source so each is inherently one-time use. Granted by lighting the candles in the Tomb. Candles stay lit (tomb in lit_targets); the disk returns daily until spent. Draw mechanism implemented (chunk 2); individual upgrade effects deferred (task 9)."
+    "notes": "One unique disk per source so each is inherently one-time use. Granted by lighting the candles in the Tomb. Candles stay lit (tomb in lit_targets); the disk returns daily until spent. Draw mechanism implemented (chunk 2); individual upgrade effects deferred."
    }
   },
   {
@@ -2588,7 +2587,7 @@
     "confidence": "wiki",
     "absent_spawn_areas": [],
     "blocked_on": null,
-    "notes": "One unique disk per source so each is inherently one-time use. Found in the Office desk on first entry (no real-game gate). Draw mechanism implemented; individual upgrade effects deferred (task 9).",
+    "notes": "One unique disk per source so each is inherently one-time use. Found in the Office desk on first entry (no real-game gate). Draw mechanism implemented; individual upgrade effects deferred.",
     "simplification": "none - no gate in the real game"
    }
   },
@@ -2612,7 +2611,7 @@
     "confidence": "wiki",
     "absent_spawn_areas": [],
     "blocked_on": null,
-    "notes": "One unique disk per source so each is inherently one-time use. Found on the Morning Room table on first entry (no real-game gate). Draw mechanism implemented; individual upgrade effects deferred (task 9).",
+    "notes": "One unique disk per source so each is inherently one-time use. Found on the Morning Room table on first entry (no real-game gate). Draw mechanism implemented; individual upgrade effects deferred.",
     "simplification": "none - no gate in the real game"
    }
   },
@@ -2636,7 +2635,7 @@
     "confidence": "wiki",
     "absent_spawn_areas": [],
     "blocked_on": null,
-    "notes": "One unique disk per source so each is inherently one-time use. Found on the far table in Her Ladyship's Chamber on first entry (no real-game gate). Draw mechanism implemented; individual upgrade effects deferred (task 9).",
+    "notes": "One unique disk per source so each is inherently one-time use. Found on the far table in Her Ladyship's Chamber on first entry (no real-game gate). Draw mechanism implemented; individual upgrade effects deferred.",
     "simplification": "none - no gate in the real game"
    }
   },
@@ -2660,7 +2659,7 @@
     "confidence": "wiki",
     "absent_spawn_areas": [],
     "blocked_on": null,
-    "notes": "One unique disk per source so each is inherently one-time use. Found behind the prize door in the Great Hall. Real-game gate (prize door) is not modeled; disk granted on first entry per the sim's 'player solves every puzzle' doctrine. Draw mechanism implemented; individual upgrade effects deferred (task 9).",
+    "notes": "One unique disk per source so each is inherently one-time use. Found behind the prize door in the Great Hall. Real-game gate (prize door) is not modeled; disk granted on first entry per the sim's 'player solves every puzzle' doctrine. Draw mechanism implemented; individual upgrade effects deferred.",
     "simplification": "prize door not modeled - disk granted on first entry instead"
    }
   },
@@ -2684,7 +2683,7 @@
     "confidence": "wiki",
     "absent_spawn_areas": [],
     "blocked_on": null,
-    "notes": "One unique disk per source so each is inherently one-time use. Found behind the ice wall in the Freezer. Real-game gate (Power Hammer breaks ice wall; wall regrows daily) is not modeled as a container/wall mechanic in the sim; disk granted on first entry per the 'player solves every puzzle' doctrine. Draw mechanism implemented; individual upgrade effects deferred (task 9).",
+    "notes": "One unique disk per source so each is inherently one-time use. Found behind the ice wall in the Freezer. Real-game gate (Power Hammer breaks ice wall; wall regrows daily) is not modeled as a container/wall mechanic in the sim; disk granted on first entry per the 'player solves every puzzle' doctrine. Draw mechanism implemented; individual upgrade effects deferred.",
     "simplification": "ice wall / Power Hammer mechanic not modeled - disk granted on first entry instead"
    }
   },
@@ -2709,7 +2708,7 @@
     "confidence": "wiki",
     "absent_spawn_areas": [],
     "blocked_on": null,
-    "notes": "One unique disk per source so each is inherently one-time use. Found in the Archives filing cabinet; gated on holding file_cabinet_key (requires_item), the one owner-ruled key the sim models. Granted on first entry once the key is held, same as every other in-grid guaranteed_in disk. Draw mechanism implemented; individual upgrade effects deferred (task 9)."
+    "notes": "One unique disk per source so each is inherently one-time use. Found in the Archives filing cabinet; gated on holding file_cabinet_key (requires_item), the one owner-ruled key the sim models. Granted on first entry once the key is held, same as every other in-grid guaranteed_in disk. Draw mechanism implemented; individual upgrade effects deferred."
    }
   },
   {
@@ -2730,7 +2729,7 @@
     "confidence": "wiki",
     "absent_spawn_areas": [],
     "blocked_on": null,
-    "notes": "One unique disk per source so each is inherently one-time use. Found behind the Mechanarium's third diagonal compartment (mechanarium_upgrade_chain in engine/special_items.py), gated behind the diagonal-door spawn threshold (min(4, mechanical_rooms - cardinal_doors_spawned) -- see engine/effects/rooms/mechanarium.py) rather than granted on first entry. Draw mechanism implemented; individual upgrade effects deferred (task 9).",
+    "notes": "One unique disk per source so each is inherently one-time use. Found behind the Mechanarium's third diagonal compartment (mechanarium_upgrade_chain in engine/special_items.py), gated behind the diagonal-door spawn threshold (min(4, mechanical_rooms - cardinal_doors_spawned) -- see engine/effects/rooms/mechanarium.py) rather than granted on first entry. Draw mechanism implemented; individual upgrade effects deferred.",
     "simplification": "compartments open in a fixed 1st/2nd/3rd/4th order at no cost, rather than the player's free choice of which door to open first"
    }
   },
@@ -2754,7 +2753,7 @@
     "confidence": "wiki",
     "absent_spawn_areas": [],
     "blocked_on": null,
-    "notes": "One unique disk per source so each is inherently one-time use. Found on a pile of boxes near the back of the room; disk granted on first entry per the 'player solves every puzzle' doctrine. Draw mechanism implemented; individual upgrade effects deferred (task 9). Sourcing caveat: The Foundation's own wiki page does not mention this disk - only the Upgrade_Disk article does, which is the same source the other in-grid disks are drawn from (docs/foundation-design.md).",
+    "notes": "One unique disk per source so each is inherently one-time use. Found on a pile of boxes near the back of the room; disk granted on first entry per the 'player solves every puzzle' doctrine. Draw mechanism implemented; individual upgrade effects deferred. Sourcing caveat: The Foundation's own wiki page does not mention this disk - only the Upgrade_Disk article does, which is the same source the other in-grid disks are drawn from (docs/foundation-design.md).",
     "simplification": "none - no gate in the real game"
    }
   },
@@ -2776,7 +2775,7 @@
     "confidence": "wiki",
     "absent_spawn_areas": [],
     "blocked_on": null,
-    "notes": "Sits openly on a table in the Abandoned Mine (South), obtainable without lighting the eight candlesticks (those independently open the Mine -> Precipice stairway; mine_south is itself an ignition target in this file's ignition.targets, and lighting it sets the \"candlestick_stairway_lit\" flag gating both mine_south<->precipice edges in areas.json). mine_south is a pure area node with no rooms.json record, so guaranteed_in cannot key off it; granted instead by engine/special_items.py::on_area_arrival, called from Game.travel_to on arrival. Draw mechanism implemented; individual upgrade effects deferred (task 9)."
+    "notes": "Sits openly on a table in the Abandoned Mine (South), obtainable without lighting the eight candlesticks (those independently open the Mine -> Precipice stairway; mine_south is itself an ignition target in this file's ignition.targets, and lighting it sets the \"candlestick_stairway_lit\" flag gating both mine_south<->precipice edges in areas.json). mine_south is a pure area node with no rooms.json record, so guaranteed_in cannot key off it; granted instead by engine/special_items.py::on_area_arrival, called from Game.travel_to on arrival. Draw mechanism implemented; individual upgrade effects deferred."
    }
   }
  ],
