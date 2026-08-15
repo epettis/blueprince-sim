@@ -1,10 +1,10 @@
 # The Antechamber lever gate — design
 
-Authoritative spec for open task 9. Read this before implementing; where it and a
+Authoritative spec for the Antechamber lever gate mechanism. Where it and a
 summary elsewhere disagree, this wins.
 
-Scope: **B1, the entry gate only.** Room 46 and the north door are B2 and are
-described here only far enough to show the seam.
+Scope: **B1 (the entry gate) and B2 (Room 46, the north door, and the
+two-tier objective) are both shipped.**
 
 ## The rule
 
@@ -147,7 +147,8 @@ the walk continues.
 ## B2 — Room 46, the north door, and the two-tier objective
 
 **Room 46 is the objective; the Antechamber is a prerequisite, not a victory**
-(owner, 2026-08-02). This is the part of task 9 that changes what "winning" means.
+(owner, 2026-08-02). This is the part of the lever-gate work that changes what
+"winning" means.
 
 ### The Antechamber stops ending the day
 

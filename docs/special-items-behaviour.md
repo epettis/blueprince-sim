@@ -159,6 +159,20 @@ disk again, and once it is inserted the trunk switches to the later pool. The
 Keycard appears in that pool and is granted through the Keycard special case,
 never the generic grant.
 
+**Known divergence: the Trunk's key+gem+coin outcome is three times rarer
+than the datamine gives it.** `containers.kinds.trunk` carries seven coin-only
+entries (amounts 9 through 15) at weight 31.25 each, and the key+1gem+coin
+outcome is a single entry at weight 50 of ~993.75 total weight (~5%), where
+the datamine gives three separate outcomes at 1/20 each (~15%).
+`containers.meta.notes` already documents the midpoint collapse behind that
+one entry (coin count modelled as 2, the midpoint of the published 1-4 range)
+but not this separate 3x rarity loss. Unfixed as of this writing.
+
+Two further, unrelated trunk divergences from the same datamine comparison,
+also unfixed: the coin-only entries include totals of 11, 13 and 14, which do
+not exist in the published table; and the wiki's "fall back to the option
+directly below" rule for an already-owned item is not modelled at all.
+
 **Vault deposit boxes are a distinct mechanic**, not a container kind for
 counting purposes. Each vault key opens its own numbered box; the key stays in
 inventory but is permanently removed from the spawn pool.

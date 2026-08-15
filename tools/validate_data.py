@@ -305,6 +305,11 @@ def find_divergences(
     full, so counting them as unmodelled measures the audit's blind spot rather
     than the sim's. ``shop_rules`` defaults to no shops, which keeps every
     caller that does not pass it on the pre-existing behaviour.
+
+    This ``meta.effect_text``-versus-``effects`` mismatch is the check's reason
+    for existing: of the four room-modelling gaps the owner found by playing
+    the game (Secret Passage, Pantry, Nursery, the studio-addition colour
+    fault), this comparison caught three of the four on its own.
     """
     if deferred_exempt_ids is None:
         deferred_exempt_ids = _AUDIT_DEFERRED_EXEMPT_IDS
@@ -432,7 +437,7 @@ def find_empty_effects_findings(
     engine/effects registries, and flag prose that contradicts its own
     registration.
 
-    Task 22 moved a lot of behaviour OUT of the ``effects`` array and into
+    The item registry migration moved a lot of behaviour OUT of the ``effects`` array and into
     per-room/per-item Python (``room_hook``, ``Capability`` via
     ``provides``/``provides_lever``, ``ItemCapability`` via
     ``item_provides``, ``ItemHook`` via ``item_hook``). The cost: ``effects:

@@ -4,8 +4,7 @@ hallway room from a hallway doorway costs no gem, for as long as it is held.
 Both waivers share one context test -- is the room on each side of the
 event a hallway room -- so it lives here as ``_hallway_from_hallway`` rather
 than being hardcoded at each engine call site: the item, not the engine,
-owns what "applicable" means for its own waiver (owner ruling, task 22
-phase 4).
+owns what "applicable" means for its own waiver (owner ruling).
 """
 
 from __future__ import annotations
