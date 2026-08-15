@@ -16,6 +16,7 @@ import numpy as np
 from blueprince_sim.config import GameConfig
 from blueprince_sim.engine import special_items as si
 from blueprince_sim.engine.game import Game, Phase
+from blueprince_sim.engine.upgrades import all_slot_ids
 from blueprince_sim.env import actions as A
 from blueprince_sim.env import obs as O
 from blueprince_sim.env.blueprince_env import BluePrinceEnv
@@ -41,11 +42,21 @@ def _grant_disk(game: Game, disk_id: str = "upgrade_disk_vault_304") -> None:
 
 
 def _space(game: Game):
-    """Build the declared observation space for ``game``."""
+    """Build the declared observation space for ``game``, mirroring
+    BluePrinceEnv's own construction (env/blueprince_env.py) so every
+    registry-derived width matches what encode() actually produces -- rather
+    than the module's convenience defaults, which drift the moment content
+    changes the registry-derived count (e.g. a room gaining a rarity and a
+    nonzero gem cost changes _build_axe_target_ids' length; see PR #329)."""
     return O.observation_space(
         len(game.registry.rooms),
         len(game.registry.special.items),
         len(game.registry.special.fabrication),
+        len(game.registry.area_graph.nodes),
+        n_slots=len(all_slot_ids(game.registry)),
+        n_axe_targets=len(A._build_axe_target_ids(game.registry)),
+        n_mechanical_rooms=len(A._build_mechanical_room_ids(game.registry)),
+        n_planetarium_planets=len(game.registry.special.planetarium_planets),
     )
 
 

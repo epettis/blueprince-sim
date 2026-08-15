@@ -153,6 +153,9 @@ def grant_on_draft_category(game, room, eff, ctx_room) -> None:
 
 @effect("counts_as_drafting_room", Hook.ON_PLACE)
 def counts_as_drafting_room(game, room, eff, ctx_room) -> None:
+    """Raises the Drafting Room count, which only the Classroom's free-redraw
+    grant consumes. The Dormitory's step grant is modelled unconditionally and
+    never reads this counter, so this tag has no effect on it."""
     game.state.drafting_room_count += 1
 
 

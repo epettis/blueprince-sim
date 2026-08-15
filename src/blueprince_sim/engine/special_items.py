@@ -753,9 +753,9 @@ def on_area_arrival(game, area_id: str) -> None:
     this is the only site that reads its guaranteed list.
 
     The other nodes that reach this function -- mine_south, upper_rotating_gear,
-    orindian_ruins, reservoir_north, safehouse, underpass -- are off-grid with
-    no rooms.json record, so the lookup cannot key on them and the block is a
-    no-op on their arrivals. **That is a property of which nodes call this
+    orindian_ruins, reservoir_north, safehouse, underpass, campsite -- are
+    off-grid with no rooms.json record, so the lookup cannot key on them and
+    this block is a no-op on their arrivals. **That is a property of which nodes call this
     function, not of area nodes in general**: ``antechamber``, ``tomb``,
     ``trading_post`` and ``the_foundation`` are each both a room record and an
     area node, and each carries guaranteed items that the grid ``on_enter``
@@ -783,6 +783,13 @@ def on_area_arrival(game, area_id: str) -> None:
       ``state.throne_room_blueprint`` flag is unconditional on every arrival
       (idempotent), and ``decks.py::eligible_pool`` reads it (via the
       carried ``GameConfig`` field) to add the Throne Room to the draft pool.
+    - The campsite's hidden dig spot (owner spec, docs/areas.md), same non-
+      inventory shape as the Throne Room blueprint above -- except gated on a
+      held shovel (``has(state, "shovel")``), since the owner ruled this one
+      is NOT unconditional on arrival. Setting the permanent ``state.
+      conservatory_floorplan_found`` flag adds the Conservatory to the draft
+      pool the following day (``decks.py::eligible_pool``, pool ==
+      "found_floorplan").
     - Two of the eight Sanctum Key sources (``reservoir_north``, ``safehouse``)
       sit off-grid with no rooms.json record, same shape as the Abandoned
       Mine's disk above -- configure()'s room46_reached/collected_sanctum_keys
@@ -833,6 +840,15 @@ def on_area_arrival(game, area_id: str) -> None:
         registry = game.registry
         if _is_available(state, "allowance_token_underpass", registry):
             grant(state, registry, "allowance_token_underpass", source="underpass")
+    elif area_id == "campsite":
+        # The Conservatory's hidden dig spot (owner spec, docs/areas.md): found
+        # only while a shovel is held. Not an inventory item itself, so this
+        # sets a permanent state flag rather than using grant()/_is_available,
+        # the same shape as the Treasure Trove blackprint/Throne Room blueprint
+        # above -- except gated on a held tool, since the owner rejected the
+        # unconditional-on-arrival reading those two use.
+        if has(game.state, "shovel"):
+            game.state.conservatory_floorplan_found = True
 
 
 def on_enter(game, room, cell: int) -> None:

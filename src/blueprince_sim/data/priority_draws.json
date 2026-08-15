@@ -106,7 +106,7 @@
    "meta": {
     "confidence": "datamined",
     "source": "blueprince.wiki.gg/wiki/Garage datamined box: 'the chance of the roll succeeding is 90%. If the West Gate permanent addition has been unlocked, the chance is increased to 92.5%.' Gate: 'Veteran Mode is active, or Day 3 has been reached.'",
-    "notes": "Only the Garage slice of forced_draw_precedence is implemented (owner decision); conservatory/morning_room/utility_closet remain unbuilt pending their own prerequisites (Found Floorplan, Bacon & Eggs, and Garage-drafted-first respectively). The separate Day-5-or-Veteran 3% passive Priority Draw for the Garage (wiki) is a different, unimplemented mechanic -- do not conflate the two gates."
+    "notes": "Only the Garage slice of forced_draw_precedence is implemented (owner decision); the conservatory/morning_room/utility_closet forced draws themselves remain unbuilt, even though two of their three prerequisites are already live: Found Floorplan (decks.py::eligible_pool's found_floorplan pool, gated on cfg.conservatory_floorplan_found) and Bacon & Eggs (effects/rooms/nook.py sets the breakfast draft-condition and injects the room) are both built; only Garage-drafted-first (utility_closet) is unconfirmed. The separate Day-5-or-Veteran 3% passive Priority Draw for the Garage (wiki) is a different, unimplemented mechanic -- do not conflate the two gates."
    }
   }
  ],

@@ -43,6 +43,12 @@ class GameConfig:
     # day), permanently adding the Throne Room to the draft pool
     # (decks.py::eligible_pool) from the following day onward.
     throne_room_blueprint: bool = False
+    # The Conservatory's hidden dig spot at the campsite has been found (a held
+    # shovel on campsite arrival, any prior day), permanently adding the
+    # Conservatory to the draft pool (decks.py::eligible_pool, pool ==
+    # "found_floorplan") from the following day onward. Same carry shape as
+    # treasure_trove_blackprint/throne_room_blueprint.
+    conservatory_floorplan_found: bool = False
     # Room 8 solved on a prior day this attempt: later solves pay the reduced
     # repeat-solve reward instead of the first-solve one (effects/rooms/room_8.py).
     # Same carry shape as west_gate_unlatched (recorded on GameState, ORed in

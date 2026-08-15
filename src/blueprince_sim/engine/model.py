@@ -83,7 +83,7 @@ class Room:
     deck_copies: int  # copies shuffled into this room's deck at day start
     effects: tuple[Effect, ...]  # Tier-1 room effects (dispatched via the effects/ hook registry)
     items: ItemSpec  # items granted/rolled when the room is first entered
-    pool: str  # base|studio_addition|outer|pool_temp|upgrade_variant|conditional|none
+    pool: str  # base|studio_addition|found_floorplan|outer|pool_temp|upgrade_variant|conditional|none
     variant_of: str | None = None  # base room id this upgrade variant replaces
     confidence: str = "wiki"  # data provenance: datamined > wiki > inferred > placeholder
 

@@ -769,8 +769,8 @@
       "id": "conservatory",
       "name": "Conservatory",
       "category": "green",
-      "rarity": null,
-      "gem_cost": 0,
+      "rarity": "unusual",
+      "gem_cost": 1,
       "layout": "corner",
       "draft_conditions": [
         "corner_only"
@@ -781,17 +781,21 @@
         "duct": false
       },
       "deck_copies": 1,
-      "effects": [],
+      "effects": [
+        {
+          "tag": "counts_as_drafting_room"
+        }
+      ],
       "items": {
         "guaranteed": [],
         "additional_max": 0,
         "dig_spots": 1
       },
-      "pool": "conditional",
+      "pool": "found_floorplan",
       "meta": {
-        "source": "wiki (corner-only; re-rolls the rarity of 3 pool rooms per draft)",
+        "source": "wiki (corner-only; re-rolls the rarity of 3 pool rooms per draft; unusual rarity, 1 gem; a Drafting Room; Found Floorplan reached via a held-shovel dig spot at the campsite)",
         "confidence": "inferred",
-        "effect_text": "Corner-only room; re-rolls the rarity of 3 rooms in your pool each time you draft it. Implemented as a one-time effect when the Conservatory itself is drafted: 3 random undealt deck cards each roll a fresh rarity (uniform over the 4 rarities; the real re-roll distribution is unpublished - inferred) via the dedicated conservatory_reroll RNG substream, and changed cards move to the new rarity's deck of the same free/gem class at a random undealt position (reinsertion point also inferred)."
+        "effect_text": "Corner-only Drafting Room; re-rolls the rarity of 3 rooms in your pool each time you draft it. Implemented as a one-time effect when the Conservatory itself is drafted: 3 random undealt deck cards each roll a fresh rarity (uniform over the 4 rarities; the real re-roll distribution is unpublished - inferred) via the dedicated conservatory_reroll RNG substream, and changed cards move to the new rarity's deck of the same free/gem class at a random undealt position (reinsertion point also inferred). Reachable only via its Found Floorplan: a hidden dig spot at the campsite, found on arrival while holding a shovel (special_items.py::on_area_arrival), which permanently adds it to the draft pool from the following day (decks.py::eligible_pool, pool == \"found_floorplan\"). Its own rarity cannot be changed by the Conservatory or the Gear Wrench (unmodelled remodel-consumption mechanic; see docs/open_tasks.md)."
       }
     },
     {
