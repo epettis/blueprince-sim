@@ -95,8 +95,8 @@ def test_trade_offers_lists_only_tradeable_items():
 
     royal_scepter (tier=None) and file_cabinet_key (tier=None, untradeable per
     the wiki's Trading Post tier lists) must not appear; shovel (tier=2) must
-    appear. broken_lever is tier=1/no_receive now (give-only, wiki-verified),
-    so it is a valid "give" and is exercised separately in the no_receive tests.
+    appear. broken_lever is tier=1/receive: false now (give-only, wiki-verified),
+    so it is a valid "give" and is exercised separately in the give-only tests.
     """
     game = _game(seed=0)
     # royal_scepter is gated out by configure(); use file_cabinet_key which is
@@ -115,14 +115,20 @@ def test_trade_offers_lists_only_tradeable_items():
 # ------------------------------------------------- trade-offer identity collapse
 
 def test_trade_identity_groups_agree_on_tier_and_receivability():
-    """Sim ids that collapse into one trade offer must agree on tier and on
-    no_receive, or the surviving offer would misreport the terms of the ids it
-    speaks for.
+    """Sim ids that collapse into one trade offer must agree on tier, and on
+    `receive` except for the one item the owner ruled receivable, or the
+    surviving offer would misreport the terms of the ids it speaks for.
 
     The identity key strips a display name's trailing source qualifier, so
     this is also the guard that a future item whose name happens to carry a
     parenthetical does not silently join a family it does not belong to: the
     families are pinned by name here, and only these three exist.
+
+    The Upgrade Disk family is the deliberate exception: `upgrade_disk_trade`
+    is the single receivable disk (the 16th, granted only by the tier-5 trade
+    special), while the 15 fixed-source disks stay give-only. Receivability is
+    read per id by `_trade_target_ok`, never through the collapsed identity,
+    so the split cannot misreport a give offer.
     """
     game = _game(seed=0)
     groups: dict[str, list] = {}
@@ -135,10 +141,14 @@ def test_trade_identity_groups_agree_on_tier_and_receivability():
     for name, members in multi.items():
         tiers = {m.tier for m in members}
         assert len(tiers) == 1, f"{name!r} members disagree on tier: {tiers}"
-        receivable = {m.no_receive for m in members}
+        receivable = {m.receive for m in members if m.id != "upgrade_disk_trade"}
         assert len(receivable) == 1, (
-            f"{name!r} members disagree on no_receive: {receivable}"
+            f"{name!r} members disagree on receive: {receivable}"
         )
+    assert game.registry.special.by_id["upgrade_disk_trade"].receive, (
+        "upgrade_disk_trade is the Upgrade Disk family's one receivable member; "
+        "if it is no longer receivable the carve-out above must go"
+    )
 
 
 def test_all_held_sanctum_keys_produce_a_single_offer():
@@ -597,8 +607,8 @@ def test_trade_graph_successors_same_tier_or_sentinel():
         )
 
 
-def test_trade_graph_no_receive_ids_never_a_successor():
-    """A give-only (no_receive) item is never anyone's successor in the graph.
+def test_trade_graph_give_only_ids_never_a_successor():
+    """A give-only (receive: false) item is never anyone's successor in the graph.
 
     Every wiki-verified give-only item (microchip, treasure_map, watering_can,
     plus the broader tier sweep: give-only keys, contraptions, Upgrade Disks,
@@ -611,15 +621,11 @@ def test_trade_graph_no_receive_ids_never_a_successor():
     invariant.
 
     Self-edges (an id mapped to itself) are excluded from "successors": tier 5
-    is now entirely give-only, so every tier-5 id's un-overridden successor is
+    is entirely give-only, so every tier-5 id's un-overridden successor is
     itself (_next_receivable's no-receivable-in-tier fallback) -- that is
     _resolve_trade's untradeable-today case, not another give reaching it, so
-    it must not trip this check. upgrade_disk_trade is also excluded: it is
-    marked no_receive (never handed back by the ordinary same-tier cycle,
-    matching the wiki's unbold "Upgrade Disk"), but the tier-5-only special
-    branch in _roll_trade_graph assigns it directly as a successor string,
-    bypassing that cycle entirely -- the same wiki-documented exception
-    test_trade_graph_successors_same_tier_or_sentinel treats as a sentinel.
+    it must not trip this check. upgrade_disk_trade needs no exclusion: it is
+    receivable, so it is not in the give-only set this test sweeps.
     """
     reg_ids = None
     for seed in range(5):
@@ -630,7 +636,7 @@ def test_trade_graph_no_receive_ids_never_a_successor():
         shops.trade_offers(game)  # trigger roll
         reg = game.registry
         if reg_ids is None:
-            reg_ids = {it.id for it in reg.special.items if it.no_receive} - {"upgrade_disk_trade"}
+            reg_ids = {it.id for it in reg.special.items if not it.receive}
             assert reg_ids, "expected at least one give-only item in the registry"
         successors = {v for k, v in state.shops.trade_graph.items() if v != k}
         assert not (reg_ids & successors), (
@@ -638,7 +644,7 @@ def test_trade_graph_no_receive_ids_never_a_successor():
         )
 
 
-def test_trade_graph_no_receive_id_is_still_a_giveable_source():
+def test_trade_graph_give_only_id_is_still_a_giveable_source():
     """A give-only item is still a key in the graph — it can be given away,
     just never received.  Its successor is a real (different, receivable)
     item or a sentinel, never itself.
@@ -649,19 +655,19 @@ def test_trade_graph_no_receive_id_is_still_a_giveable_source():
     _set_trading_post_inner(game)
     shops.trade_offers(game)
     graph = state.shops.trade_graph
-    for no_receive_id in ("microchip", "treasure_map", "watering_can"):
-        assert no_receive_id in graph, f"{no_receive_id!r} must still be a graph source"
-        assert graph[no_receive_id] != no_receive_id, (
-            f"{no_receive_id!r} must not resolve to itself"
+    for give_only_id in ("microchip", "treasure_map", "watering_can"):
+        assert give_only_id in graph, f"{give_only_id!r} must still be a graph source"
+        assert graph[give_only_id] != give_only_id, (
+            f"{give_only_id!r} must not resolve to itself"
         )
 
 
-def test_trade_no_receive_item_skipped_as_a_trade_return():
+def test_trade_give_only_item_skipped_as_a_trade_return():
     """A give-only item is skipped by the resolution walk even if it sits
     directly in a (hand-built) chain, falling through to the next node —
     the same carve-out as an already-held or already-used-Stopwatch node.
 
-    Pins shops._trade_target_ok's no_receive check directly, independent of
+    Pins shops._trade_target_ok's `receive` check directly, independent of
     whether the real graph builder could ever produce this shape.
     """
     game = _game(seed=0)
@@ -676,6 +682,61 @@ def test_trade_no_receive_item_skipped_as_a_trade_return():
     assert shovel_offer["receive"] == "compass", (
         "a give-only node must be skipped as a trade return, falling through "
         "to the next node in the graph"
+    )
+
+
+def test_tier5_trade_actually_yields_the_traded_upgrade_disk():
+    """The tier-5 special really hands back upgrade_disk_trade.
+
+    _roll_trade_graph assigns "upgrade_disk_trade" as the successor of tier-5
+    gives on roughly half of all tier-5 edges. Those edges must resolve to a
+    real offer: the disk is receivable, so _trade_target_ok accepts it and the
+    walk terminates there instead of falling through to a tier-4 item.
+
+    Swept over seeds rather than pinned to one, since which tier-5 ids draw the
+    disk is seed-dependent; the property is that SOME tier-5 edge assigned the
+    disk resolves to it, and that no edge assigned the disk resolves elsewhere
+    while the player holds none.
+    """
+    seen_edges = 0
+    for seed in range(20):
+        game = _game(seed=seed)
+        state = game.state
+        state.inventory["shovel"] = 1
+        _set_trading_post_inner(game)
+        shops.trade_offers(game)  # trigger roll
+        graph = state.shops.trade_graph
+        for give_id, successor in graph.items():
+            if successor != "upgrade_disk_trade":
+                continue
+            seen_edges += 1
+            resolved = shops._resolve_trade(state, game.registry, give_id)
+            assert resolved == "upgrade_disk_trade", (
+                f"seed={seed}: {give_id!r} is assigned the traded Upgrade Disk "
+                f"but resolves to {resolved!r} — the disk must be receivable"
+            )
+    assert seen_edges, "expected at least one edge assigned upgrade_disk_trade"
+
+
+def test_held_traded_upgrade_disk_stops_being_offered():
+    """The traded disk is unique: once held, the tier-5 trade decays past it.
+
+    This is the flip side of the test above and the reason the item can be
+    receivable without becoming an infinite disk faucet — _trade_target_ok
+    refuses a held unique, so the walk falls through to the graph's other
+    outcomes exactly as the docstring claims.
+    """
+    game = _game(seed=0)
+    state = game.state
+    state.inventory["shovel"] = 1
+    _set_trading_post_inner(game)
+    shops.trade_offers(game)
+    graph = state.shops.trade_graph
+    give_id = next(g for g, s in graph.items() if s == "upgrade_disk_trade")
+    assert shops._resolve_trade(state, game.registry, give_id) == "upgrade_disk_trade"
+    state.inventory["upgrade_disk_trade"] = 1
+    assert shops._resolve_trade(state, game.registry, give_id) != "upgrade_disk_trade", (
+        "a held traded Upgrade Disk must stop resolving (unique)"
     )
 
 

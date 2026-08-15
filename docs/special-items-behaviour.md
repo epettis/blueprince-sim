@@ -272,7 +272,7 @@ auto-collected.
 ### The Trading Post
 
 For each tier the receivable ids are shuffled into one cycle, each pointing at
-the next. **Give-only ids** (`no_receive: true`) attach as extra *sources* into
+the next. **Give-only ids** (`receive: false`) attach as extra *sources* into
 that cycle: they can be given, but nothing's successor ever lands on them, so
 they can never be received. Per-item `dice_chance` may replace a successor with
 a die; tier 5 checks its special chance first. The graph is rolled once, on the
@@ -299,10 +299,11 @@ receivable markers at all, and the datamine says so outright. The tier-5
 special chance is therefore the **split between the two tier-5 specials**
 (Allowance Token and the Upgrade Disk), not a chance of falling through to the
 cycle; read as a fall-through it self-edged and left the Master Key with no
-offer at all in 40% of seeds. When the disk is unavailable a tier-5 trade
-decays to a tier-4 item, which incidentally reproduces the wiki's "tier 5 items
-can sometimes trade for tier 4 items". The wiki's menu-timing quirk behind that
-line is not modelled.
+offer at all in 40% of seeds. Measured over 200 seeds the realised split is
+52% Allowance Token / 48% Upgrade Disk. The traded disk is unique, so once it
+is held a tier-5 trade decays to a tier-4 item, which incidentally reproduces
+the wiki's "tier 5 items can sometimes trade for tier 4 items". The wiki's
+menu-timing quirk behind that line is not modelled.
 
 **Re-tiering moves reward shaping**, because `inventory_value` keys off `tier`.
 The last sweep took a plausible held inventory from 88.0 to 161.0 — a 1.83×
@@ -325,8 +326,10 @@ independently, so this is a second identity notion living alongside the first.
 resolves**, the rule `open_sigil_door` already uses to pick which key a Sigil
 door spends, extended past dead edges so a family with any tradeable member
 always offers one. Collapsing is a menu-side rule only: the graph still keys on
-sim ids, and the receive side needs no equivalent, because every member of both
-families is `no_receive` and so is refused as a trade return already.
+sim ids, and the receive side needs no equivalent. Every Sanctum Key is
+`receive: false` and so is refused as a trade return already; of the sixteen
+Upgrade Disks only `upgrade_disk_trade` is receivable, and being unique it is
+refused once held, so neither family can ever offer two receive rows.
 
 **The Microchip is the mirror case and is NOT fixed by this.** The wiki says
 three Microchips give three distinct offers; the sim emits one regardless of

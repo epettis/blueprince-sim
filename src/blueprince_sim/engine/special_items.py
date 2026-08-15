@@ -166,7 +166,7 @@ class SpecialItem:
     name: str  # human-readable display name
     kind: str  # standard|special_key|contraption|showroom|armory|unique
     tier: int | None  # Trading Post tier 1-5; None = untradeable
-    no_receive: bool  # tradeable away but never offered as a trade RECEIVE (wiki give-only)
+    receive: bool  # may be offered as a trade RECEIVE; False = give-only (wiki), absent = True
     unique: bool  # at most one may be held
     persistence: str  # day|until_used|permanent (consumed by the PR2 carry-over layer)
     spawn_rooms: tuple[str, ...]  # room ids where it can spawn on first entry
@@ -241,7 +241,7 @@ def load_special_items(data_dir: Path) -> SpecialItemsRegistry:
             name=r["name"],
             kind=r["kind"],
             tier=r.get("tier"),
-            no_receive=bool(r.get("no_receive", False)),
+            receive=bool(r.get("receive", True)),
             unique=bool(r.get("unique", True)),
             persistence=r.get("persistence", "day"),
             spawn_rooms=tuple(r.get("spawn_rooms", [])),
