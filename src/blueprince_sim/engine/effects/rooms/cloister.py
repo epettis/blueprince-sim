@@ -29,9 +29,9 @@ Implemented:
     elsewhere does not), so it is carried as the has_animal flag on those six
     records rather than derived from any semantic rule.
   - cloister_of_veia__ix32 -- +8 dig spots (additive) in a room with a
-    fireplace drafted from this Cloister. Six of the seven fireplace rooms
-    carry a static has_fireplace flag; the Dining Room's fireplace instead
-    depends on the cell it lands on (see grant_dig_bonus_for_fireplace_rooms).
+    fireplace drafted from this Cloister. The fireplace rooms carry a static
+    has_fireplace flag; the Dining Room's fireplace instead depends on the
+    cell it lands on (see grant_dig_bonus_for_fireplace_rooms).
   - cloister_of_joya__ix30 -- +5 steps, permanently and cumulatively, to every
     one of the five Main Course dishes for each Kitchen/Pantry/Furnace
     drafted from this Cloister (special_items.py::_dish_base_steps reads
@@ -201,8 +201,8 @@ def grant_dig_bonus_for_fireplace_rooms(game, room, ctx_room) -> None:
     CLOISTER".
 
     Additive on top of the room's own items.dig_spots (the Furnace's baseline
-    1 reaches 9, not a flat 8). Six of the seven fireplace rooms carry a
-    static has_fireplace flag; the Dining Room instead only has a fireplace
+    1 reaches 9, not a flat 8). The fireplace rooms carry a static
+    has_fireplace flag; the Dining Room instead only has a fireplace
     in the centre columns or on Rank 9 (windows elsewhere), so its case is
     decided against the cell it actually lands on rather than the flag.
     """

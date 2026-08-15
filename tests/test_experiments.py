@@ -2150,6 +2150,24 @@ def test_fireplace_draft_dining_room_fires_on_rank9_even_on_a_wing():
     assert g.state.experiment.success_count == 1
 
 
+def test_fireplace_draft_fires_for_a_hovel():
+    """The Hovel carries the static has_fireplace flag (owner ruling) and
+    fires fireplace_draft on draft, same as any other static fireplace room."""
+    g = _game_at_laboratory()
+    _configure(g, "fireplace_draft", "permanent_allowance")
+    _place(g, "hovel", 11)
+    assert g.state.experiment.success_count == 1
+
+
+def test_fireplace_draft_fires_for_a_schoolhouse():
+    """The Schoolhouse carries the static has_fireplace flag (owner ruling) and
+    fires fireplace_draft on draft, same as any other static fireplace room."""
+    g = _game_at_laboratory()
+    _configure(g, "fireplace_draft", "permanent_allowance")
+    _place(g, "schoolhouse", 11)
+    assert g.state.experiment.success_count == 1
+
+
 # --------------------------------------------------- upgraded_floorplan_draft
 
 def test_upgraded_floorplan_draft_fires_for_an_upgrade_variant():

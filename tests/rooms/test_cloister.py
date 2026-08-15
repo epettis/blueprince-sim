@@ -420,6 +420,28 @@ def test_veia_dining_room_on_a_wing_at_rank_nine_still_qualifies(registry, cfg):
     assert g.state.special.veia_dig_bonus.get(wing_rank9_cell) == 8
 
 
+def test_veia_grants_dig_bonus_for_a_hovel(registry, cfg):
+    """The Hovel carries the static has_fireplace flag (owner ruling), so it
+    qualifies for Veia's +8 dig bonus like any other static fireplace room."""
+    g = Game(cfg, seed=1)
+    veia = registry.by_id["cloister_of_veia__ix32"]
+    hovel = registry.by_id["hovel"]
+    g._place_room(veia, 10, veia.door_mask)
+    _draft_from(g, 10, 11, hovel)
+    assert g.state.special.veia_dig_bonus[11] == 8
+
+
+def test_veia_grants_dig_bonus_for_a_schoolhouse(registry, cfg):
+    """The Schoolhouse carries the static has_fireplace flag (owner ruling), so
+    it qualifies for Veia's +8 dig bonus like any other static fireplace room."""
+    g = Game(cfg, seed=1)
+    veia = registry.by_id["cloister_of_veia__ix32"]
+    schoolhouse = registry.by_id["schoolhouse"]
+    g._place_room(veia, 10, veia.door_mask)
+    _draft_from(g, 10, 11, schoolhouse)
+    assert g.state.special.veia_dig_bonus[11] == 8
+
+
 def test_veia_does_not_react_to_a_non_fireplace_room_from_its_own_doorway(registry, cfg):
     """A room with no has_fireplace flag dealt from Veia's own doorway gets
     no dig bonus."""
