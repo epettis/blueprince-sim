@@ -20,9 +20,12 @@ logger = logging.getLogger("blueprince_sim.effects")
 
 class Capability(Enum):
     COMMERCE = "commerce"  # room can be bought from, traded with, or fabricated at
+    FABRICATION = "fabrication"  # room's fabricate menu is open (Workshop; see shops.py)
     LEVER = "lever"  # room pulls an Antechamber lever on first entry
     NIGHT_SKY = "night_sky"  # room's telescope can view a night sky (Game.can_view_night_sky)
     TITHE = "tithe"  # a negative coins grant here is banked (Keeper of Tithes; see tier1.grant)
+    TRADE = "trade"  # room's interior trade menu is open (Trading Post; see shops.py)
+    VASE = "vase"  # room's vase can be smashed for a microchip (Entrance Hall; see shops.py)
 
 
 _CAPABILITY_REGISTRY: set[tuple[str, Capability]] = set()

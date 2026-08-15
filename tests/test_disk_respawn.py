@@ -462,7 +462,9 @@ def _commissary_stock_ids(game, table=None):
         {"id": "gem", "kind": "resource", "price": 1},
         {"id": "upgrade_disk_commissary", "kind": "item", "price": 15},
     ]}
-    shops._roll_commissary(game, table)
+    # commissary's stock builder is registered by effects/rooms/commissary.py
+    # into shops._STOCK_BUILDERS, the same dispatch on_enter_shop itself uses.
+    shops._STOCK_BUILDERS["commissary"](game, table)
     return [e.get("id") for e in game.state.shops.stock["commissary"]]
 
 

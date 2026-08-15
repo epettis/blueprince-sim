@@ -92,11 +92,11 @@ ITEM_TAG_ALLOWLIST: dict[str, set[str]] = {
         "allowance",
     },
     "shops.py": {
-        # item.effect("locksmith_rob") gates the Locksmith's rob-on-theft
-        # mechanic -- a genuine tag dispatch.
-        "locksmith_rob",
         # _has_item_effect(..., "smash") gates smash-capable container
-        # opening -- a genuine tag dispatch.
+        # opening -- a genuine tag dispatch. (item.effect("locksmith_rob"),
+        # the Locksmith's rob-on-theft mechanic, moved to
+        # effects/rooms/locksmith.py along with the rest of that room's
+        # stock builder, so it is no longer named here.)
         "smash",
         # "allowance": state.allowance carry-over dict key (day-boundary
         # config export), not a tag read -- collides with the resource name

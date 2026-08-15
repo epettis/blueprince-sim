@@ -178,12 +178,13 @@ ROOM_ARCHITECTURE: dict[str, set[str]] = {
         "the_foundation", "the_pool",
     },
     "shops.py": {
-        # _REPELLENT_ILLEGAL_TARGETS frozenset member only in this module
-        # (the win room, the secret room -- see the room.id != "entrance_hall"
-        # vase-smash gate below for why "entrance_hall" itself is ROOM_DEBT
-        # instead): a small, closed, wiki-documented exemption set, never
-        # expected to grow.
-        "antechamber", "room_46",
+        # _REPELLENT_ILLEGAL_TARGETS frozenset member (the day-start room,
+        # the win room, the secret room): a small, closed, wiki-documented
+        # exemption set, never expected to grow. "entrance_hall" names no
+        # other behaviour branch in this module -- can_smash_vase reads
+        # Capability.VASE (registered by effects/rooms/entrance_hall.py)
+        # instead of comparing the room id directly.
+        "entrance_hall", "antechamber", "room_46",
         # SCEPTER_COLORS tuple: floorplan *category* names for the Royal
         # Scepter, not room ids -- "bedroom"/"hallway" collide with real
         # room ids the same way experiments.py's is_category() calls do.
@@ -317,25 +318,24 @@ ROOM_DEBT: dict[str, set[str]] = {
         # Laboratory/Planetarium/Security above.
         "utility_closet",
     },
-    "shops.py": {
-        # can_smash_vase's room.id != "entrance_hall" gate: the vase-smash
-        # mechanic is Entrance-Hall-specific (this module's OTHER
-        # "entrance_hall" use, the _REPELLENT_ILLEGAL_TARGETS frozenset
-        # member, stays legitimate exemption data -- see ROOM_ARCHITECTURE
-        # above -- but this genuine behaviour branch is what makes the id
-        # debt for this module).
-        "entrance_hall",
-        # on_enter_shop's `match room.id:` dispatch (per-shop stock
-        # builders): "the clearest behaviour branches in the file, and the
-        # ones docs/open_tasks.md #21 names as the pattern-setter to fix."
-        "commissary", "gift_shop", "kitchen", "locksmith", "showroom",
-        "workshop",
-        # _inside_trading_post: Trading Post's own interior-menu gate: no
-        # shared capability covers it (Capability.COMMERCE is too broad --
-        # it also covers the other ten commerce rooms, which must NOT count
-        # as "inside the Trading Post").
-        "trading_post",
-    },
+    "shops.py": set(
+        # commissary/gift_shop/kitchen/locksmith/showroom/workshop moved off
+        # this list: on_enter_shop's `match room.id:` stock-roll dispatch is
+        # now a registry (_STOCK_BUILDERS) that each shop's own
+        # effects/rooms/<id>.py module populates via
+        # shops.register_stock_builder, the same registration shape as
+        # room_hook/provides -- shops.py itself no longer names any of the
+        # six ids. The Showroom's Trophy of Wealth overlay (formerly a
+        # second "showroom" branch in stock_display/buy) moved the same way,
+        # via shops.register_stock_overlay. trading_post moved off this list
+        # too: _inside_trading_post now reads Capability.TRADE (registered
+        # by effects/rooms/trading_post.py) instead of comparing the outer
+        # room's id directly. entrance_hall moved off this list:
+        # can_smash_vase now reads Capability.VASE (registered by
+        # effects/rooms/entrance_hall.py) instead of comparing the room id
+        # directly -- see ROOM_ARCHITECTURE above for this module's one
+        # remaining "entrance_hall" use.
+    ),
     "special_items.py": {
         # _maybe_serve_main_course's room.id != "dining_room" gate: the Main
         # Course mechanic is Dining-Room-specific, hardcoded inside on_enter
@@ -350,16 +350,17 @@ ROOM_DEBT: dict[str, set[str]] = {
     },
 }
 
-#: ROOM_DEBT's total entry count, measured 2026-08-14 (after moving Chapel's
-#: tithe-banking carve-out to effects/rooms/chapel.py -- see its entry
-#: above). test_room_id_debt_matches_the_cap fails in BOTH directions: above
-#: means a new debt entry landed and nobody paid it down; below means a
-#: conversion already shrank ROOM_DEBT and nobody lowered this constant to
-#: match, which would hide room for the debt to regress back up unnoticed --
-#: see the module docstring for why this mirrors #332's original
-#: bidirectional ROOM_ID_ALLOWLIST_CAP rather than test_item_id_allowlist.py's
+#: ROOM_DEBT's total entry count, measured 2026-08-14 (after moving shops.py's
+#: per-shop stock-roll dispatch, Showroom trophy overlay, Trading Post menu
+#: gate, and Entrance Hall vase gate off this list -- see its entry above).
+#: test_room_id_debt_matches_the_cap fails in BOTH directions: above means a
+#: new debt entry landed and nobody paid it down; below means a conversion
+#: already shrank ROOM_DEBT and nobody lowered this constant to match, which
+#: would hide room for the debt to regress back up unnoticed -- see the
+#: module docstring for why this mirrors #332's original bidirectional
+#: ROOM_ID_ALLOWLIST_CAP rather than test_item_id_allowlist.py's
 #: upper-bound-only ITEM_DEBT_CAP.
-ROOM_ID_DEBT_CAP = 24
+ROOM_ID_DEBT_CAP = 16
 
 
 def _combined_allowlist() -> dict[str, set[str]]:
