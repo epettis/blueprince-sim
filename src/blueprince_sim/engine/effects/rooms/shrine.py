@@ -48,24 +48,6 @@ from ...grid import OPPOSITE, rank_of
 
 DATA_FILENAME = "shrine.json"
 SHRINE_ROOM_ID = "shrine"
-CURSE_DAYS = 2  # wiki: taking back the offering curses the player for 2 days
-
-# Resources lost per drafted-room colour while cursed (wiki spoilerbox). Additive
-# across every colour the room carries (Room.is_category), which reproduces both
-# published worked examples without any per-room special-casing: the Maid's Chamber
-# (primary red + extra bedroom) loses 2 steps/1 key/1 gem/1 coin, and the Aquarium
-# (every colour) loses 2 of each.
-_COLOR_LOSS: dict[str, dict[str, int]] = {
-    "bedroom": {"steps": 1},
-    "hallway": {"keys": 1},
-    "green": {"gems": 1},
-    "shop": {"coins": 1},
-    "red": {"steps": 1, "keys": 1, "gems": 1, "coins": 1},
-}
-# Published exemption: "The Veranda does not incur any penalty." The wiki's own
-# commented-out (unpublished) addendum -- that the exemption does not hold when
-# its cost is bypassed -- is deliberately not encoded here.
-CURSE_EXEMPT_ROOM_IDS = frozenset({"veranda"})
 
 
 @dataclass(frozen=True, slots=True)
@@ -86,11 +68,22 @@ class ShrineBlessing:
     blocked_on: str | None  # reason it is inert, or None when implemented
 
 
+@dataclass(frozen=True, slots=True)
+class ShrineCurse:
+    duration_days: int  # days the curse lasts once triggered
+    # per-colour-category resource loss, additive across every colour a
+    # drafted room carries (Room.is_category) -- see data/shrine.json's own
+    # curse.notes for the two published worked examples this reproduces
+    resource_loss_per_category: dict[str, dict[str, int]]
+    exempt_room_ids: frozenset[str]  # room ids the curse never charges
+
+
 @dataclass(frozen=True)
 class ShrineRules:
     bands: tuple[ShrineBand, ...]           # 5 bands, ascending duration
     blessings: tuple[ShrineBlessing, ...]   # 8 blessings, data-file order
     blessing_index: dict[str, int]          # blessing id -> its index in blessings
+    curse: ShrineCurse                      # theft-curse duration/loss/exemption rules
 
 
 _RULES_CACHE: dict[Path, ShrineRules] = {}
@@ -114,9 +107,18 @@ def load_shrine_rules(data_dir: Path) -> ShrineRules:
         )
         for b in raw["blessings"]
     )
+    raw_curse = raw["curse"]
+    curse = ShrineCurse(
+        duration_days=raw_curse["duration_days"],
+        resource_loss_per_category={
+            cat: dict(deltas) for cat, deltas in raw_curse["resource_loss_per_category"].items()
+        },
+        exempt_room_ids=frozenset(raw_curse["exempt_room_ids"]),
+    )
     parsed = ShrineRules(
         bands=bands, blessings=blessings,
         blessing_index={b.id: i for i, b in enumerate(blessings)},
+        curse=curse,
     )
     _RULES_CACHE[data_dir] = parsed
     return parsed
@@ -187,7 +189,8 @@ def can_take_back(game) -> bool:
 
 
 def take_back(game) -> None:
-    """Refund the parked coins, drop the blessing, and curse the player for CURSE_DAYS.
+    """Refund the parked coins, drop the blessing, and curse the player for the
+    data-file's curse duration (data/shrine.json's curse.duration_days).
 
     Also permanently unlocks the Gift Shop's Cursed Coffers (state.shops.gift_unlocks,
     the same one-time-forever list shops.py already reads for cursed_effigy_unlocked):
@@ -200,7 +203,7 @@ def take_back(game) -> None:
     st.shrine_offered_coins = 0
     st.shrine_blessing_id = ""
     st.shrine_blessing_days = 0
-    st.shrine_curse_days = CURSE_DAYS
+    st.shrine_curse_days = rules(game).curse.duration_days
     st.shops.gift_unlocks.append("cursed_effigy_unlocked")
 
 
@@ -229,12 +232,13 @@ def apply_gardener_injection(game) -> None:
 
 # ------------------------------------------------------------------ curse resource loss
 
-def _curse_loss_for(room) -> dict[str, int]:
+def _curse_loss_for(game, room) -> dict[str, int]:
     """Per-resource loss curse-drafting ``room`` incurs, additive across its colours."""
-    if room.id in CURSE_EXEMPT_ROOM_IDS:
+    curse = rules(game).curse
+    if room.id in curse.exempt_room_ids:
         return {}
     totals: dict[str, int] = {}
-    for category, deltas in _COLOR_LOSS.items():
+    for category, deltas in curse.resource_loss_per_category.items():
         if room.is_category(category):
             for res, amt in deltas.items():
                 totals[res] = totals.get(res, 0) + amt
@@ -243,7 +247,7 @@ def _curse_loss_for(room) -> dict[str, int]:
 
 def _apply_curse_loss(game, room) -> None:
     st = game.state
-    loss = _curse_loss_for(room)
+    loss = _curse_loss_for(game, room)
     if not loss:
         return
     st.steps = max(0, st.steps - loss.get("steps", 0))

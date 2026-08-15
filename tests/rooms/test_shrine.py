@@ -9,6 +9,7 @@ active at a time.
 
 from __future__ import annotations
 
+import dataclasses
 import random
 
 import pytest
@@ -295,6 +296,69 @@ def test_no_curse_no_loss():
     g.state.keys = 5
     _place_at(g, "hallway", 7)
     assert g.state.keys == 5
+
+
+def _with_mutated_curse(monkeypatch, reg, **curse_overrides) -> None:
+    """Swap the cached ShrineRules for ``reg``'s data_dir with one whose curse
+    is ``dataclasses.replace``d by ``curse_overrides``, restored automatically
+    at the end of the test (monkeypatch.setitem)."""
+    real_rules = shrine.load_shrine_rules(reg.data_dir)
+    mutated_curse = dataclasses.replace(real_rules.curse, **curse_overrides)
+    mutated_rules = dataclasses.replace(real_rules, curse=mutated_curse)
+    monkeypatch.setitem(shrine._RULES_CACHE, reg.data_dir, mutated_rules)
+
+
+def test_curse_duration_follows_the_loaded_rules_data(monkeypatch):
+    """The days actually applied by take_back() come from ShrineRules.curse
+    .duration_days, not a fixed constant: swapping the loaded rules object for
+    one with duration_days=99 makes take_back() curse for 99 days, proving the
+    duration is read from parsed data rather than hardcoded."""
+    reg = Registry.load()
+    _with_mutated_curse(monkeypatch, reg, duration_days=99)
+
+    g = Game(GameConfig(), seed=1, registry=reg)
+    _at_shrine(g)
+    g.state.coins = 999
+    idx = shrine.rules(g).blessing_index["dancer"]
+    g.donate_shrine(idx, 0)
+    g.take_back_shrine_offering()
+    assert g.state.shrine_curse_days == 99
+
+
+def test_curse_exemption_follows_the_loaded_rules_data(monkeypatch):
+    """A room added to ShrineRules.curse.exempt_room_ids stops being charged:
+    the Hallway ordinarily loses a key while cursed (see
+    test_curse_deducts_the_matching_resource_per_colour_drafted), but with the
+    loaded rules mutated to exempt it, no key is lost -- proving the exemption
+    list actually gates the loss rather than a hardcoded id check."""
+    reg = Registry.load()
+    real_rules = shrine.load_shrine_rules(reg.data_dir)
+    _with_mutated_curse(
+        monkeypatch, reg,
+        exempt_room_ids=frozenset(real_rules.curse.exempt_room_ids | {"hallway"}),
+    )
+
+    g = Game(GameConfig(shrine_curse_days=2), seed=1, registry=reg)
+    g.state.keys = 5
+    _place_at(g, "hallway", 7)
+    assert g.state.keys == 5
+
+
+def test_curse_resource_loss_follows_the_loaded_rules_data(monkeypatch):
+    """The resources deducted per colour come from ShrineRules.curse
+    .resource_loss_per_category: mutating the Hallway category to cost 3 keys
+    instead of 1 changes the actual deduction, proving the loss amount is
+    read from parsed data rather than a hardcoded table."""
+    reg = Registry.load()
+    real_rules = shrine.load_shrine_rules(reg.data_dir)
+    mutated_losses = dict(real_rules.curse.resource_loss_per_category)
+    mutated_losses["hallway"] = {"keys": 3}
+    _with_mutated_curse(monkeypatch, reg, resource_loss_per_category=mutated_losses)
+
+    g = Game(GameConfig(shrine_curse_days=2), seed=1, registry=reg)
+    g.state.keys = 5
+    _place_at(g, "hallway", 7)
+    assert g.state.keys == 2
 
 
 # ------------------------------------------------------------------ Dancer

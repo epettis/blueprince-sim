@@ -102,6 +102,9 @@ VALID_ITEM_PERSISTENCE = {"day", "until_used", "permanent"}
 # should) vs "absent" (nothing in the engine touches it; unobtainable in play).
 VALID_ITEM_REACHABILITY = {"inert", "absent"}
 VALID_DIG_OUTCOME_KINDS = {"junk", "nothing", "coins", "gold_coin", "turnip", "key", "item", "gems"}
+# GameState resource attributes shrine.json's curse.resource_loss_per_category may
+# deduct (engine/effects/rooms/shrine.py::_apply_curse_loss reads exactly these four).
+VALID_SHRINE_CURSE_RESOURCES = {"steps", "keys", "gems", "coins"}
 
 KNOWN_EFFECT_TAGS = {"grant", "grant_per_category", "grant_on_draft_category",
                      "set_resource_on_enter",
@@ -2195,12 +2198,29 @@ def main(argv: list[str] | None = None) -> int:
                 errors.append(f"{where}: implemented=false requires meta.blocked_on")
 
     sh_curse = shrine_doc.get("curse", {})
+    sh_curse_days = sh_curse.get("duration_days")
+    if not isinstance(sh_curse_days, int) or sh_curse_days <= 0:
+        errors.append(f"shrine/curse: duration_days must be a positive int, got {sh_curse_days!r}")
     for rid in sh_curse.get("exempt_room_ids", []):
         if rid not in by_id:
             errors.append(f"shrine/curse: exempt_room_ids references unknown room {rid!r}")
-    for cat in sh_curse.get("resource_loss_per_category", {}):
+    for cat, deltas in sh_curse.get("resource_loss_per_category", {}).items():
         if cat not in VALID_CATEGORIES:
             errors.append(f"shrine/curse: resource_loss_per_category has unknown category {cat!r}")
+        if not isinstance(deltas, dict) or not deltas:
+            errors.append(
+                f"shrine/curse: resource_loss_per_category[{cat!r}] must be a non-empty object, "
+                f"got {deltas!r}")
+            continue
+        for res, amt in deltas.items():
+            if res not in VALID_SHRINE_CURSE_RESOURCES:
+                errors.append(
+                    f"shrine/curse: resource_loss_per_category[{cat!r}] has unknown resource "
+                    f"{res!r}")
+            if not isinstance(amt, int) or amt <= 0:
+                errors.append(
+                    f"shrine/curse: resource_loss_per_category[{cat!r}][{res!r}]={amt!r} must "
+                    f"be a positive int")
 
     # ── constellations.json (night-sky partition; see docs/rl-environment.md) ─
     # A night sky is the unique SET of constellations whose star values sum to
