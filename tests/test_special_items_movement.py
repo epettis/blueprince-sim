@@ -79,7 +79,7 @@ def test_running_shoes_first_loss_of_day_only_records_position():
     game = _game(frozenset({"running_shoes"}))
     reg = game.registry
     entrance = reg.by_id["entrance_hall"]
-    assert game.state.special.moves_since_free == 0, "setup check: no anchor recorded yet"
+    assert game.state.special.shoes_anchor_code == 0, "setup check: no anchor recorded yet"
 
     cost = si.move_step_cost(game, game.state.pos, N, entrance)
 
@@ -98,12 +98,12 @@ def test_running_shoes_waives_when_destination_far_from_anchor():
     game = _game(frozenset({"running_shoes"}))
     reg = game.registry
     entrance = reg.by_id["entrance_hall"]
-    game.state.special.moves_since_free = 7 + 1  # anchor cell 7, pre-set (no prior call)
+    game.state.special.shoes_anchor_code = 7 + 1  # anchor cell 7, pre-set (no prior call)
 
     cost = si.move_step_cost(game, 37, N, entrance)  # neighbor(37, N) == 42
 
     assert cost == 0, "42 is 7.0 room-lengths from the anchor (7), past the 2.2 threshold"
-    assert game.state.special.moves_since_free == 42 + 1, "the landing cell becomes the anchor"
+    assert game.state.special.shoes_anchor_code == 42 + 1, "the landing cell becomes the anchor"
 
 
 def test_running_shoes_stays_close_costs_normally_and_anchor_unchanged():
@@ -118,12 +118,12 @@ def test_running_shoes_stays_close_costs_normally_and_anchor_unchanged():
     game = _game(frozenset({"running_shoes"}))
     reg = game.registry
     entrance = reg.by_id["entrance_hall"]
-    game.state.special.moves_since_free = 6 + 1  # anchor cell 6, pre-set (no prior call)
+    game.state.special.shoes_anchor_code = 6 + 1  # anchor cell 6, pre-set (no prior call)
 
     cost = si.move_step_cost(game, 7, E, entrance)  # neighbor(7, E) == 8
 
     assert cost == 1, "8 is only 2.0 room-lengths from the anchor (6), under the 2.2 threshold"
-    assert game.state.special.moves_since_free == 6 + 1, "anchor must not move on a normal loss"
+    assert game.state.special.shoes_anchor_code == 6 + 1, "anchor must not move on a normal loss"
 
 
 def test_running_shoes_not_held_declines():

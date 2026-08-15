@@ -57,13 +57,13 @@ def test_stopwatch_and_running_shoes_both_held_stopwatch_wins_first():
     reg = game.registry
     entrance = reg.by_id["entrance_hall"]
     left_before = game.state.special.stopwatch_left
-    anchor_before = game.state.special.moves_since_free
+    anchor_before = game.state.special.shoes_anchor_code
 
     cost = si.move_step_cost(game, game.state.pos, N, entrance)
 
     assert cost == 0
     assert game.state.special.stopwatch_left == left_before - 1
-    assert game.state.special.moves_since_free == anchor_before, (
+    assert game.state.special.shoes_anchor_code == anchor_before, (
         "Running Shoes' anchor must not move while the Stopwatch is covering the move")
 
 

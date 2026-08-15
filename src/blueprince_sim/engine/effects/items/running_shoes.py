@@ -38,22 +38,21 @@ def _distance_move(state, registry, from_cell, direction, to_room):
     the other MOVE_STEP_COST items, this one always decides the outcome once
     held, never declining with None.
 
-    ``state.special.moves_since_free`` doubles as the encoded reference
-    position: 0 means no step has been lost yet today (the sentinel, since
-    cell 0 is itself a legitimate anchor), otherwise the anchor cell is
-    ``value - 1``.
+    ``state.special.shoes_anchor_code`` holds the encoded reference position:
+    0 means no step has been lost yet today (the sentinel, since cell 0 is
+    itself a legitimate anchor), otherwise the anchor cell is ``value - 1``.
     """
     e = _effect(state, registry)
     if e is None:
         return None
     threshold = e.param("distance_threshold", 2.2)
     to_cell = neighbor(from_cell, direction)
-    anchor_code = state.special.moves_since_free
+    anchor_code = state.special.shoes_anchor_code
     if anchor_code == 0:
-        state.special.moves_since_free = to_cell + 1
+        state.special.shoes_anchor_code = to_cell + 1
         return 1
     if _room_distance(anchor_code - 1, to_cell) >= threshold:
-        state.special.moves_since_free = to_cell + 1
+        state.special.shoes_anchor_code = to_cell + 1
         return 0
     return 1
 
