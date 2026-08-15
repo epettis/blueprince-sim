@@ -303,8 +303,10 @@ class SpecialItemsState:
     water: int = 0  # Watering Can charges left (set to capacity on pickup)
     stopwatch_left: int = 0  # free cost events remaining (0 = stopwatch inactive)
     stopwatch_used: bool = False  # a Stopwatch already ran today (unobtainable again)
-    moves_since_free: int = 0  # Running Shoes reference position: 0 = unset,
-    # else the anchor cell + 1 (see effects/items/running_shoes.py)
+    shoes_anchor_code: int = 0  # Running Shoes reference position, sentinel-encoded:
+    # 0 = no anchor recorded yet today; otherwise the anchor cell is (value - 1)
+    # (0 must be free for "unset" since cell 0 is itself a legitimate anchor;
+    # see effects/items/running_shoes.py)
     dug: dict[int, int] = field(default_factory=dict)  # cell -> dig spots already dug
     # Cloister of Veia: cell -> extra dig spots (+8, additive on top of the
     # room's own items.dig_spots) for a room with a fireplace drafted from its
