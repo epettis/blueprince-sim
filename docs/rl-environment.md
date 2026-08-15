@@ -43,7 +43,7 @@ never wrong.
 | `len(DayChain._CARRYOVER_KEYS)` | **19** | `env/multiday.py`, drives the `carryover` obs Box |
 
 **Last change: `N_ACTIONS` 479 → 481, the Office's second terminal process
-(docs/open_tasks.md task 1).** Two ids, appended after the Pump Room panel
+([`rooms.md`](rooms.md), "The Office's coins").** Two ids, appended after the Pump Room panel
 block: 479 Spread Gold in Estate, 480 Run Payroll — both gated on standing at
 the Office's cell (`Capability.OFFICE_TERMINAL`, `engine/effects/rooms/office.py`),
 the same shape as `SECURITY_LEVEL`/`PUMP_PANEL`. Spread Gold in Estate IS a

@@ -396,7 +396,7 @@ EFFECT_OVERRIDE: dict[str, dict] = {
 # Validated against the sheet's own ids the same way as the other three tables
 # (validate_effect_override).
 META_OVERRIDE: dict[str, dict] = {
-    # docs/open_tasks.md task 1 (owner rulings): the Office's two terminal
+    # docs/rooms.md (owner rulings): the Office's two terminal
     # processes each carry an unpublished-or-ambiguous figure -- see
     # engine/effects/rooms/office.py for the mechanics these disclose.
     "office": {

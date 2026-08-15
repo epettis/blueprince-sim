@@ -181,7 +181,7 @@ class DayChain:
         # axed_rooms, since nothing rules Pump Room progress to survive past
         # one save).
         self.water_levels: dict[str, int] = dict(base_cfg.water_levels)
-        # Run Payroll's weekly cooldown record (docs/open_tasks.md task 1):
+        # Run Payroll's weekly cooldown record (docs/rooms.md):
         # "office_payroll" -> the day it was last used. REPLACED (not merged)
         # from each day's own carryover value every advance() -- state.
         # payroll_last_used already IS the full current dict, the same shape

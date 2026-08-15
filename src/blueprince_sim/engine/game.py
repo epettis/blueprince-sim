@@ -652,7 +652,7 @@ class Game:
         self.state.security_level = level
 
     # ------------------------------------------------------- Office terminal
-    # docs/open_tasks.md task 1 (owner rulings): the Office runs two
+    # docs/rooms.md (owner rulings): the Office runs two
     # independent terminal processes, both gated on standing at the same
     # ``Capability.OFFICE_TERMINAL`` cell -- see effects/rooms/office.py.
 

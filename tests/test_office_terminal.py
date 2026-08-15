@@ -1,4 +1,4 @@
-"""The Office's two terminal processes (docs/open_tasks.md task 1).
+"""The Office's two terminal processes (docs/rooms.md).
 
 Spread Gold in Estate IS a spread (GameState.spread_pending/Game._collect_spread,
 Conference Room redirect); Run Payroll is explicitly NOT one (no Conference Room

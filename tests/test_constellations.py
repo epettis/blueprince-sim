@@ -180,7 +180,7 @@ def test_action_space_width_is_481():
     N_ACTIONS is no longer REDRAW_WITH_STAR_ACTION + 1: the Pump Room panel
     block (docs/areas.md's Pump Room section) appends 21 more ids after it
     (458..478, a source pick plus a target-level pick), and the Office
-    terminal block (docs/open_tasks.md task 1) appends 2 more after that
+    terminal block (docs/rooms.md) appends 2 more after that
     (479 Spread Gold in Estate, 480 Run Payroll), so this test only pins
     where the constellation block itself ends, not the space's final width.
     """

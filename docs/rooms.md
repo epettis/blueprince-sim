@@ -212,7 +212,7 @@ Patio itself**", while the Locker Room page says "any key that would be spread
 to **another room**", which read literally would leave its own self-key behind.
 Both spreaders behave the same way.
 
-### The Office's coins (docs/open_tasks.md task 1)
+### The Office's coins
 
 Spread Gold in Estate is triggered by a **player action** at the Office's
 terminal (`SPREAD_GOLD_ACTION`), once per day — not by a draft — and it
@@ -542,7 +542,7 @@ extra category: `utility_closet`, `boiler_room`, `pump_room`, `security`,
 `workshop`, `laboratory`, `electric_eel_aquarium__ix4`, `mechanarium`.
 
 **`office`** — its terminal runs two independent processes
-(docs/open_tasks.md task 1), both gated on standing at its cell
+(see "The Office's coins" above), both gated on standing at its cell
 (`Capability.OFFICE_TERMINAL`, `engine/effects/rooms/office.py`), distinct
 from the room's own `flags.disk_reader` (a third, unrelated terminal
 process, already shipped):

@@ -9,7 +9,7 @@ the same shape as ``security.py``'s ``Capability.SECURITY_LEVEL`` /
 ``flags.disk_reader`` (a different terminal process, already shipped).
 
 Implemented:
-  - spread_gold -- "Spread Gold in Estate" (docs/open_tasks.md task 1): once
+  - spread_gold -- "Spread Gold in Estate" (docs/rooms.md): once
     per day, a pile of coins into every currently drafted room, including the
     Office itself but never a room drafted afterward. This IS a spread: piles
     are parked in ``GameState.spread_pending`` and paid out by

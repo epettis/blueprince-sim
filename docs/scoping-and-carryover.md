@@ -93,7 +93,7 @@ crash:
   Room section — NOT SAVE-scoped, unlike `permanent_rarity`/`axed_rooms`,
   since nothing rules Pump Room progress to survive past one save),
   `payroll_last_used` (Run Payroll's weekly cooldown record —
-  `engine/effects/rooms/office.py`, docs/open_tasks.md task 1 — the same NOT
+  `engine/effects/rooms/office.py`, [`rooms.md`](rooms.md) — the same NOT
   SAVE-scoped shape as `water_levels`).
 - **Replace, then decay** — a counter that one elapsed day reduces:
   `mail_transit_days`, `shrine_blessing_days` and `shrine_curse_days` each

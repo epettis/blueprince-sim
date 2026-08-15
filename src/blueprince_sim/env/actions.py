@@ -218,7 +218,7 @@ Layout (Discrete(479)):
            drafted afterward -- a spread (GameState.spread_pending,
            Game._collect_spread), so a placed Conference Room redirects
            every pile into its own cell, the same way it redirects the
-           Patio/Locker Room/Secret Garden (docs/open_tasks.md task 1; owner
+           Patio/Locker Room/Secret Garden (docs/rooms.md; owner
            ruling on the pile size, unpublished by the wiki).
   480      Run Payroll (NAVIGATE; standing at the Office terminal, weekly
            cooldown elapsed): 5-coin piles for the Maid's Chamber and the
@@ -497,14 +497,14 @@ _N_PUMP_LEVELS = 15  # levels 0..14
 # per day), appended at the end so no earlier id shifts. A spread -- see
 # Game.spread_gold/effects/rooms/office.py -- so it is redirected the same
 # way the Patio/Locker Room/Secret Garden are when a Conference Room is
-# already placed (docs/open_tasks.md task 1).
+# already placed (docs/rooms.md).
 SPREAD_GOLD_ACTION = PUMP_LEVEL_BASE + _N_PUMP_LEVELS  # 479
 
 # 480: Run Payroll (NAVIGATE; standing at the Office terminal, weekly
 # cooldown elapsed), appended at the end so no earlier id shifts. NOT a
 # spread -- see Game.run_payroll/effects/rooms/office.py -- paid out through
 # GameState.payroll_pending instead of spread_pending, with no Conference
-# Room interaction (docs/open_tasks.md task 1).
+# Room interaction (docs/rooms.md).
 RUN_PAYROLL_ACTION = SPREAD_GOLD_ACTION + 1  # 480
 
 # N_ACTIONS = first slot after Run Payroll.

@@ -365,7 +365,7 @@ def test_action_layer_selects_a_source_then_a_level(registry):
 def test_pump_level_pending_never_dead_ends(registry):
     """Every id in the PUMP_LEVEL_BASE block agrees with the Office terminal
     block's own start (no reserved-but-unmasked tail -- SPREAD_GOLD_ACTION is
-    N_ACTIONS's own end minus 2 now that docs/open_tasks.md task 1 appended
+    N_ACTIONS's own end minus 2 now that the Office terminal block appended
     two more ids after the Pump Room panel), and at least one level is always
     legal in PUMP_LEVEL_PENDING -- the source's current level is always in
     its own range, so this phase can never mask every id False."""
