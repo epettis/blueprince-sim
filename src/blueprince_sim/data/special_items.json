@@ -2522,7 +2522,7 @@
     "confidence": "wiki",
     "absent_spawn_areas": [],
     "blocked_on": null,
-    "notes": "The 16th and only repeatably-OFFERED disk: 15 fixed locations plus this one exhaust the game's supply of 16. The wiki says 'Unlike the other Upgrade Disks, this disk can appear repeatedly' - the OFFER recurs, but the disk is unique, so once held the tier-5 trade falls through to its other outcomes."
+    "notes": "The 16th and only repeatably-OFFERED disk: 15 fixed locations plus this one exhaust the game's supply of 16. It is granted ONLY by the tier-5 trade special (shops.py::_SPECIAL_ONLY_RECEIVES keeps it out of its own tier-4 cycle): the wiki bolds every id receivable within its own tier and leaves 'Upgrade Disk' unbold at tier 4, while the tier-5 section says the disk is in the list of items given as Tier 5 trades, which contains no other items. The wiki says 'Unlike the other Upgrade Disks, this disk can appear repeatedly' - the OFFER recurs, but the disk is unique, so once held the tier-5 trade falls through to its other outcomes."
    }
   },
   {

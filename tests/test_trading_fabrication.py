@@ -718,6 +718,44 @@ def test_tier5_trade_actually_yields_the_traded_upgrade_disk():
     assert seen_edges, "expected at least one edge assigned upgrade_disk_trade"
 
 
+def test_traded_upgrade_disk_is_never_reachable_from_a_tier4_give():
+    """An ordinary tier-4 trade never hands back the traded Upgrade Disk — only
+    the tier-5 special grants it.
+
+    The wiki's Trading Post tier lists bold every id receivable within its own
+    tier. "Upgrade Disk" sits unbold in the tier-4 list, and the tier-5 section
+    says the disk "is in the list of items given as Tier 5 trades (which
+    contains no other items)".
+
+    The disk stays `receive: true` so the tier-5 branch's direct assignment
+    still resolves; the exclusion lives in cycle membership instead. That means
+    a `receive`-flag check cannot catch a regression here, and this sweep is
+    what pins it. Both the graph edge and the resolved outcome are asserted, as
+    a tier-4 give could otherwise reach the disk by walking past a skipped node.
+    """
+    tier4_gives = 0
+    for seed in range(20):
+        game = _game(seed=seed)
+        state = game.state
+        state.inventory["shovel"] = 1
+        _set_trading_post_inner(game)
+        shops.trade_offers(game)  # trigger roll
+        for give_id, successor in state.shops.trade_graph.items():
+            if game.registry.special.by_id[give_id].tier != 4:
+                continue
+            tier4_gives += 1
+            assert successor != "upgrade_disk_trade", (
+                f"seed={seed}: tier-4 give {give_id!r} is assigned the traded "
+                f"Upgrade Disk, which only the tier-5 special may grant"
+            )
+            resolved = shops._resolve_trade(state, game.registry, give_id)
+            assert resolved != "upgrade_disk_trade", (
+                f"seed={seed}: tier-4 give {give_id!r} resolves to the traded "
+                f"Upgrade Disk, which only the tier-5 special may grant"
+            )
+    assert tier4_gives, "expected the sweep to exercise at least one tier-4 give"
+
+
 def test_held_traded_upgrade_disk_stops_being_offered():
     """The traded disk is unique: once held, the tier-5 trade decays past it.
 

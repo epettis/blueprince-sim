@@ -85,7 +85,8 @@ class ShopsState:
     # dice_chance% of successors are replaced with "dice"; tier-5 may also
     # yield allowance_token (t5_special_chance%).  The 15 fixed-source Upgrade
     # Disks are one-time per source and never reachable by trade; the 16th,
-    # upgrade_disk_trade, is the one receivable disk the trade path grants.
+    # upgrade_disk_trade, is granted ONLY by that tier-5 special and never by
+    # its own tier-4 cycle (_SPECIAL_ONLY_RECEIVES).
     trade_graph: dict[str, str] = field(default_factory=dict)
     # True once _roll_trade_graph has been called for this episode.
     trade_graph_rolled: bool = False
@@ -695,6 +696,16 @@ def _take_trade_return(state, registry, item_id: str) -> None:
         si.grant(state, registry, item_id, source="trade")
 
 
+# Ids the tier-5 special grants directly and that the ordinary same-tier cycle
+# must never hand back.  The wiki's Trading Post tier lists bold every id that
+# can be received in its own tier; "Upgrade Disk" sits unbold in the tier-4
+# list, and the tier-5 section says the disk "is in the list of items given as
+# Tier 5 trades (which contains no other items)".  So the traded disk stays
+# `receive: true` — _trade_target_ok must accept it when the tier-5 branch
+# assigns it — while being excluded from tier 4's cycle membership here.
+_SPECIAL_ONLY_RECEIVES = frozenset({"upgrade_disk_trade"})
+
+
 def _next_receivable(ids: list[str], receivable: list[bool], start: int) -> str:
     """The next id after ``start`` (cyclically through ``ids``) whose item is
     receivable — a give-only item is never returned.
@@ -719,9 +730,10 @@ def _roll_trade_graph(game) -> None:
 
     Called lazily on first use inside the Trading Post (substream "trade_graph").
     For each tier 1–5 the tradeable items (SpecialItem.tier == tier) are
-    shuffled once into a single order.  The RECEIVABLE ids in that order
-    (SpecialItem.receive is True) form a cycle: each points to the next
-    receivable id, cyclically, skipping over any give-only ids in between.  A
+    shuffled once into a single order.  The ids in that order that are
+    receivable THROUGH THE CYCLE (SpecialItem.receive is True, minus
+    ``_SPECIAL_ONLY_RECEIVES``) form a cycle: each points to the next such id,
+    cyclically, skipping over any give-only ids in between.  A
     give-only id is attached as an extra source pointing at that same next
     receivable id, but — since it is skipped by the scan — nothing ever points
     back at it, so it can be given but never received.  A tier with exactly one
@@ -766,7 +778,10 @@ def _roll_trade_graph(game) -> None:
         if not ids:
             continue
         game.rng.shuffle("trade_graph", ids)
-        receivable = [registry.special.by_id[i].receive for i in ids]
+        receivable = [
+            registry.special.by_id[i].receive and i not in _SPECIAL_ONLY_RECEIVES
+            for i in ids
+        ]
         for i, item_id in enumerate(ids):
             successor = _next_receivable(ids, receivable, i)
             match tier:
