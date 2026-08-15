@@ -245,11 +245,14 @@ registry, so it cannot see a partially-implemented effect or a wrong
 magnitude, only a room whose text claims something and every modelling
 channel is empty.
 
-**Test coverage is what remains incomplete.** 45 of 80 base-pool rooms have a
-dedicated `tests/rooms/` file. Of the 35 without one, about 7 carry real,
-non-trivial behaviour and still have no file — `secret_passage`,
-`drafting_studio`, `rotunda`, `utility_closet`, `security`, `laboratory`,
-`conference_room`. Separately, `validate_data.py`'s
+**Test coverage is what remains incomplete.** 51 of 80 base-pool rooms have a
+dedicated `tests/rooms/` file, out of 87 files in total. Of the 29 without
+one, 4 carry an empty `meta.effect_text` and so have nothing to pin -- the
+absence of a file is the record that a room needed none. `security` is the
+one room with real behaviour and no file of its own, deliberately: its
+offline-unlock, control-room gating and security-door truth table are pinned
+in `tests/test_locks.py`, and its disk terminal in `tests/test_upgrade_env.py`.
+Separately, `validate_data.py`'s
 `_AUDIT_DEFERRED_EXEMPT_IDS` already carries 5 rooms/subsystems the audit
 deliberately does not chase, each with a stated reason (`pump_room`,
 `closed_exhibit`, `root_cellar`, `throne_room`, `parlor__ix109`).
