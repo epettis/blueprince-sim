@@ -162,13 +162,47 @@ def test_draxus_grants_dice_for_a_dead_end_drafted_from_it_but_base_cloister_doe
 
 def test_draxus_does_not_react_to_a_non_dead_end_room_from_its_own_doorway(registry, cfg):
     """A non-Dead-End room dealt from Draxus's own doorway grants no dice --
-    the trigger is ctx_room.layout == "dead_end", not the doorway alone."""
+    the trigger is the room's actual drafted orientation having exactly one
+    door, not the doorway alone."""
     g = Game(cfg, seed=1)
     draxus = registry.by_id["cloister_of_draxus__ix36"]
     patio = registry.by_id["patio"]  # layout "corner", not a dead end
     g._place_room(draxus, 10, draxus.door_mask)
     _draft_from(g, 10, 11, patio)
     assert g.state.dice == 0
+
+
+def test_draxus_does_not_react_to_a_greenhouse_drafted_in_a_corner_orientation(registry, cfg):
+    """The Greenhouse's ``layout`` is "dead_end", but its ``alt_layouts``
+    include "corner", so it can be drafted with two doors. A Greenhouse dealt
+    from Draxus's own doorway in one of its corner rotations (door mask 3, 6,
+    9, or 12) is not a Dead End and grants no dice, even though its frozen
+    Room.layout still reads "dead_end"."""
+    g = Game(cfg, seed=1)
+    draxus = registry.by_id["cloister_of_draxus__ix36"]
+    greenhouse = registry.by_id["greenhouse"]
+    corner_mask = 3  # S|E -- one of the Greenhouse's draftable corner rotations
+    assert corner_mask in greenhouse.rotations, "setup: corner rotation must be legal"
+    g._place_room(draxus, 10, draxus.door_mask)
+    # Mirrors _draft_from, but with the corner mask instead of the room's
+    # canonical door_mask (the one piece _draft_from itself cannot vary).
+    g.state.pending = PendingDraft(from_cell=10, direction=N, target_cell=11)
+    g._place_room(greenhouse, 11, corner_mask)
+    assert g.state.dice == 0
+
+
+def test_draxus_grants_dice_for_a_greenhouse_drafted_as_a_genuine_dead_end(registry, cfg):
+    """The same Greenhouse, dealt from Draxus's own doorway in its one-door
+    canonical orientation (its own ``layout`` value), IS a Dead End and
+    grants dice -- the contrast with the corner case above proves the check
+    follows the drafted orientation, not a blanket exemption for the
+    Greenhouse id."""
+    g = Game(cfg, seed=1)
+    draxus = registry.by_id["cloister_of_draxus__ix36"]
+    greenhouse = registry.by_id["greenhouse"]
+    g._place_room(draxus, 10, draxus.door_mask)
+    _draft_from(g, 10, 11, greenhouse)
+    assert g.state.dice == 4
 
 
 def test_two_cloisters_each_track_only_their_own_doorway(registry, cfg):

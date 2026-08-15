@@ -102,3 +102,16 @@ def rotate_mask(mask: int, quarter_turns: int) -> int:
     """Rotate a door mask clockwise by ``quarter_turns`` * 90 degrees."""
     k = quarter_turns % 4
     return ((mask << k) | (mask >> (4 - k))) & 0xF
+
+
+def is_dead_end_mask(mask: int) -> bool:
+    """True when a door mask has exactly one bit set (one doorway, no through-path).
+
+    ``DIRS`` is exactly the four single-bit masks, so membership already is
+    the one-bit test. This is the actual "is a Dead End" fact for a drafted
+    room: a room whose ``alt_layouts`` include a multi-door shape (e.g. the
+    Greenhouse's ``corner`` rotations) is not a Dead End when drafted in that
+    orientation, even though its frozen ``Room.layout`` still reads
+    ``"dead_end"``.
+    """
+    return mask in DIRS

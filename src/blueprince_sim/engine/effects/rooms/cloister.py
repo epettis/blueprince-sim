@@ -46,7 +46,7 @@ what it does and does not cover.
 
 from __future__ import annotations
 
-from ...grid import E, N, W, is_center_column, rank_of
+from ...grid import E, N, W, is_center_column, is_dead_end_mask, rank_of
 from ...locks import DOOR_SEALED, segment_key
 from .. import Hook, room_hook
 from ..tier1 import _grant
@@ -159,8 +159,18 @@ def open_door_per_blackprint(game, room, ctx_room) -> None:
 @room_hook("cloister_of_draxus__ix36", Hook.ON_DRAFT_ROOM)
 def grant_dice_for_dead_ends(game, room, ctx_room) -> None:
     """"Gain 4[dice] for each DEAD-END room ... you draft from this CLOISTER"
-    (see the module docstring for the "WILL draft" gap)."""
-    if ctx_room is not None and ctx_room.layout == "dead_end" and _drafted_from(game, room):
+    (see the module docstring for the "WILL draft" gap).
+
+    "Dead End" is the room's actual drafted orientation (exactly one door)
+    on a room whose card is even capable of a Dead End shape, not its frozen
+    Room.layout -- a room whose alt_layouts include a multi-door shape (the
+    Greenhouse's corner rotations) does not pay this when drafted in that
+    orientation, and the Mechanarium's per-placement derived mask never
+    counts even when it happens to land on one door (Room.is_dead_end_capable).
+    """
+    if (ctx_room is not None and ctx_room.is_dead_end_capable
+            and is_dead_end_mask(game.state.draft_hook_orientation)
+            and _drafted_from(game, room)):
         _grant(game, "dice", DICE_PER_DEAD_END)
 
 
