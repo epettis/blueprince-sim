@@ -143,6 +143,13 @@ class GameConfig:
     # future days, so entering the Weight Room opens the south Antechamber door
     # without needing to hold the Power Hammer again. Carried by DayChain.
     weight_room_wall_broken: bool = False
+    # Greenhouse wall broken before with the Power Hammer: the wall stays broken on
+    # future days, so the Greenhouse's corner rotations (Room.gated_rotations,
+    # engine/model.py) stay draftable without needing to hold the Power Hammer
+    # again. Same carry shape as weight_room_wall_broken -- same mechanic, same
+    # item, read by engine/placement.py::legal_orientations via
+    # Room.alt_layouts_gate. Carried by DayChain.
+    greenhouse_wall_broken: bool = False
     outer_chip_dug: bool = False        # West Path chip dug up before: granted on reaching the doorstep
     # Room ids banned from the draft pool by the Repellent item.  Each
     # repellent use records a ban for 7 days; DayChain decrements the counters

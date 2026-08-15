@@ -36,10 +36,21 @@ def legal_orientations(room: Room, cell: int, entry_dir: int, state: GameState,
     T-shape's orientation against an edge. Blank-wall-facing doors are allowed
     by default (they become permanently blocked doors) unless
     ``cfg.strict_door_matching`` is set.
+
+    ``room.gated_rotations`` (the Greenhouse's corner shapes, held back until
+    its Power Hammer wall break) only joins the candidate masks once
+    ``room.alt_layouts_gate`` names a true ``cfg``/``state.shops`` flag; every
+    other room has no gate and is unaffected.
     """
     back = OPPOSITE[entry_dir]
+    masks = room.rotations
+    if room.alt_layouts_gate and (
+        getattr(cfg, room.alt_layouts_gate, False)
+        or getattr(state.shops, room.alt_layouts_gate, False)
+    ):
+        masks = masks + room.gated_rotations
     out = []
-    for mask in room.rotations:
+    for mask in masks:
         if not mask & back:
             continue
         ok = True

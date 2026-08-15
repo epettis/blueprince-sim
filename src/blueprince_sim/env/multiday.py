@@ -37,6 +37,7 @@ _CARRYOVER_KEYS: frozenset[str] = frozenset({
     "mine_south_visited",    # set on mine_south arrival; opens the underpass route
     "sealed_entrance_broken",  # set on sealed_entrance arrival; opens the Basement route
     "weight_room_wall_broken",  # Power Hammer wall break: permanent on future days
+    "greenhouse_wall_broken",  # Power Hammer wall break: permanent on future days (same mechanic)
     "room46_reached",             # Room 46 first visited: permanent gem-deck gate
     "room8_solved",             # Room 8 first solved: later solves pay the repeat-solve reward
     "boiler_room_steam",       # set on Boiler Room entry; opens the Upper Rotating Gear route

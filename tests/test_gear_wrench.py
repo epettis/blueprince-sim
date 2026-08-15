@@ -217,11 +217,11 @@ def test_wrench_rarity_survives_a_daychain_attempt_wrap():
 
 
 def test_carryover_keys_frozenset_is_unaffected():
-    """DayChain._CARRYOVER_KEYS stays a 17-entry frozenset of bool
+    """DayChain._CARRYOVER_KEYS stays an 18-entry frozenset of bool
     GameConfig fields only -- permanent_rarity is dict-valued permanent
     state and lives in the separate channel next_config()/advance() thread
     explicitly, the same way axed_rooms/draft_counts do, never in this set."""
-    assert len(DayChain._CARRYOVER_KEYS) == 17
+    assert len(DayChain._CARRYOVER_KEYS) == 18
     assert "permanent_rarity" not in DayChain._CARRYOVER_KEYS
 
 

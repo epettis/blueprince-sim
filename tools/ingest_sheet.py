@@ -71,6 +71,17 @@ CONDITION_OVERRIDE: dict[str, list[str]] = {
     "the_foundation": ["the_foundation"],
 }
 
+# Owner-ruling gates on a room's alt_layouts rotations: room id -> the GameConfig/
+# ShopsState bool field name (engine/config.py, engine/shops.py) that must be set
+# before engine/model.py folds that room's alt_layouts into legal play (see
+# engine/placement.py::legal_orientations). No raw-sheet column encodes this, so
+# it is hard-coded here to survive re-ingest, the same shape as CONDITION_OVERRIDE.
+ALT_LAYOUTS_GATE: dict[str, str] = {
+    # Greenhouse: the corner passage is what the wiki's Power Hammer wall break
+    # reveals, not a layout draftable from day one (owner ruling).
+    "greenhouse": "greenhouse_wall_broken",
+}
+
 CONDITION_MAP = {
     "West Wing": ["west_wing"],
     "East Wing": ["east_wing"],
@@ -635,6 +646,7 @@ def build_room(row: dict) -> dict | None:
     is_variant = row["unlock"].startswith("Upgrade ")
     if row["unlock"] == "Knight Chess Piece Active":
         conds = conds + ["knight_chess_piece"]
+    alt_layouts_gate = ALT_LAYOUTS_GATE.get(rid)
     entry = {
         "id": rid,
         "name": name,
@@ -643,6 +655,7 @@ def build_room(row: dict) -> dict | None:
         "gem_cost": gem_cost,
         "layout": layouts[0],
         "alt_layouts": layouts[1:],
+        **({"alt_layouts_gate": alt_layouts_gate} if alt_layouts_gate else {}),
         "draft_conditions": conds,
         "flags": {
             "no_library_draft": row["no_library"] == "Yes",

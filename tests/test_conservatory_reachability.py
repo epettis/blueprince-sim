@@ -142,11 +142,11 @@ def test_floorplan_found_is_available_starting_the_following_day(registry):
 # --------------------------------------------------------------- carryover plumbing
 
 def test_carryover_keys_frozenset_includes_conservatory_floorplan_found():
-    """DayChain._CARRYOVER_KEYS carries the flag as a bool entry, growing the
-    17-entry set (16 -> 17) that also holds throne_room_blueprint/
+    """DayChain._CARRYOVER_KEYS carries the flag as a bool entry, in the
+    18-entry set that also holds throne_room_blueprint/
     treasure_trove_blackprint -- the same shape this flag follows."""
     assert "conservatory_floorplan_found" in _CARRYOVER_KEYS
-    assert len(_CARRYOVER_KEYS) == 17
+    assert len(_CARRYOVER_KEYS) == 18
 
 
 def test_carryover_flag_appears_in_the_carryover_observation():

@@ -108,15 +108,18 @@ def test_tomb_grants_nothing_for_a_non_dead_end_drafted_after_it(registry, cfg):
 
 def test_tomb_grants_nothing_for_a_greenhouse_drafted_in_a_corner_orientation(registry, cfg):
     """The Greenhouse's ``layout`` is "dead_end", but its ``alt_layouts``
-    include "corner", so it can be drafted with two doors. A Greenhouse
+    include "corner", so it can be drafted with two doors (once its Power
+    Hammer wall break, ``Room.alt_layouts_gate``, admits ``Room.
+    gated_rotations`` at draft time -- ``_place_room`` itself takes any
+    orientation directly and does not re-check legality). A Greenhouse
     drafted in one of its corner rotations (door mask 3, 6, 9, or 12) is not
     a Dead End and must not pay the Tomb, even though its frozen Room.layout
     still reads "dead_end"."""
     g = Game(cfg, seed=1)
     tomb = registry.by_id["tomb"]
     greenhouse = registry.by_id["greenhouse"]
-    corner_mask = 3  # S|E -- one of the Greenhouse's draftable corner rotations
-    assert corner_mask in greenhouse.rotations, "setup: corner rotation must be legal"
+    corner_mask = 3  # S|E -- one of the Greenhouse's gated corner rotations
+    assert corner_mask in greenhouse.gated_rotations, "setup: corner rotation must be a real shape"
     g._place_room(tomb, 6, tomb.door_mask)
     coins_before = g.state.coins
     g._place_room(greenhouse, 11, corner_mask)

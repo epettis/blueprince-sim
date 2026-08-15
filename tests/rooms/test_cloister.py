@@ -174,15 +174,18 @@ def test_draxus_does_not_react_to_a_non_dead_end_room_from_its_own_doorway(regis
 
 def test_draxus_does_not_react_to_a_greenhouse_drafted_in_a_corner_orientation(registry, cfg):
     """The Greenhouse's ``layout`` is "dead_end", but its ``alt_layouts``
-    include "corner", so it can be drafted with two doors. A Greenhouse dealt
-    from Draxus's own doorway in one of its corner rotations (door mask 3, 6,
-    9, or 12) is not a Dead End and grants no dice, even though its frozen
-    Room.layout still reads "dead_end"."""
+    include "corner", so it can be drafted with two doors (once its Power
+    Hammer wall break admits ``Room.gated_rotations`` at draft time --
+    ``_place_room`` itself takes any orientation directly and does not
+    re-check legality). A Greenhouse dealt from Draxus's own doorway in one
+    of its corner rotations (door mask 3, 6, 9, or 12) is not a Dead End and
+    grants no dice, even though its frozen Room.layout still reads
+    "dead_end"."""
     g = Game(cfg, seed=1)
     draxus = registry.by_id["cloister_of_draxus__ix36"]
     greenhouse = registry.by_id["greenhouse"]
-    corner_mask = 3  # S|E -- one of the Greenhouse's draftable corner rotations
-    assert corner_mask in greenhouse.rotations, "setup: corner rotation must be legal"
+    corner_mask = 3  # S|E -- one of the Greenhouse's gated corner rotations
+    assert corner_mask in greenhouse.gated_rotations, "setup: corner rotation must be a real shape"
     g._place_room(draxus, 10, draxus.door_mask)
     # Mirrors _draft_from, but with the corner mask instead of the room's
     # canonical door_mask (the one piece _draft_from itself cannot vary).

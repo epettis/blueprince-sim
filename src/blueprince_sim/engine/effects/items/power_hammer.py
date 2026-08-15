@@ -1,7 +1,8 @@
 """Power Hammer: while held, can break a sealed wall on first arrival -- the
-grounds<->sealed_entrance<->basement area gate and the Weight Room's south
-lever both read this as a live "wall breakable today" fact, on top of the
-permanent cfg/state flags that make an already-broken wall stay broken.
+grounds<->sealed_entrance<->basement area gate, the Weight Room's south
+lever, and the Greenhouse's corner-layout wall all read this as a live "wall
+breakable today" fact, on top of the permanent cfg/state flags that make an
+already-broken wall stay broken.
 """
 
 from __future__ import annotations
