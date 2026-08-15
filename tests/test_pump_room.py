@@ -375,3 +375,16 @@ def test_pump_level_pending_never_dead_ends(registry):
     g.set_pump_source("aquarium")
     mask = action_mask(g)
     assert any(mask[PUMP_LEVEL_BASE:N_ACTIONS])
+
+
+def test_pump_source_count_matches_the_pinned_action_space_width(registry):
+    """_build_pump_source_ids' own length agrees with the pinned
+    _N_PUMP_SOURCES, the width of the PUMP_SOURCE_BASE block. The builder
+    asserts this itself, but only when something happens to call it; pinning
+    it here fails on any run instead. A source added to data/pump_room.json
+    without bumping the constant shifts PUMP_LEVEL_BASE and every id after
+    it, which silently remaps the action space rather than raising -- the
+    same failure the axe, area-node and special-key builders each pin.
+    """
+    from blueprince_sim.env.actions import _N_PUMP_SOURCES
+    assert len(_build_pump_source_ids(registry)) == _N_PUMP_SOURCES == 6
