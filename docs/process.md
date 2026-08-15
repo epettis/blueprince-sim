@@ -268,6 +268,14 @@ people read** — one ruling stated the wrong rule for days because the
 implementing agent found the error, fixed the code, and wrote the correction
 only into its own PR description.
 
+**An unwritten ruling is indistinguishable from an unverified claim.** A brief
+relayed a decision the owner had given in conversation and never recorded. The
+implementing agent went looking for it, found the docs asserting the opposite,
+and reported the brief as unsupported — correctly, because from where it sat
+there was no difference between a real ruling and an invented one. The cost is
+not only the decision that might have been lost, but the doubt cast on every
+other claim in the same brief.
+
 **A prose answer to a multiple-choice question is a rejection of the frame.**
 Twice in one session the owner wrote prose instead of picking an option, and
 both times the options were reasonable and the *question* was what was wrong.

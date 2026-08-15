@@ -296,3 +296,19 @@ def test_a_modelled_area_is_still_offered() -> None:
     ]
     assert offered, "no travel destination offered at all — the mask is broken"
     assert all(game.registry.area_graph.nodes[nid].modelled for nid in offered)
+
+
+def test_area_node_count_matches_the_pinned_action_space_width(registry):
+    """_build_area_node_ids' own length agrees with the pinned _N_AREA_NODES
+    (the action space's own TRAVEL_BASE..OPEN_SIGIL_DOOR_BASE width).
+
+    An area node added to areas.json without a matching bump to _N_AREA_NODES
+    would desync the two; the mask-building loop that walks this tuple has no
+    bounds check, so the extra node would silently write past the reserved
+    TRAVEL block into OPEN_SIGIL_DOOR_BASE's mask bit -- the same corruption
+    class discovered in the Axe block (PR #329, _N_AXE_TARGETS pinned at 48
+    while a 49th axe-eligible room silently overflowed into LOCK_MENU_BASE).
+    _build_area_node_ids' own assertion is the primary guard; this test pins
+    it as an explicit, discoverable invariant the way test_constellations.py
+    does for _N_CONSTELLATIONS."""
+    assert len(_build_area_node_ids(registry)) == A._N_AREA_NODES == 38

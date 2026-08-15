@@ -40,6 +40,14 @@ def eligible_pool(registry: Registry, cfg: GameConfig) -> list[Room]:
     config`` -- it only matters under ``fresh_save_config``, which passes no
     ``studio_additions``. The dedicated flag exists anyway because the pool
     gate is inherently per-room, the same shape as Treasure Trove's.
+
+    The Conservatory (``pool == "found_floorplan"``, a value of its own --
+    NOT a reuse of ``studio_addition``) has one door: ``cfg.conservatory_
+    floorplan_found``, set once the player has arrived at the campsite
+    holding a shovel (special_items.py::on_area_arrival). Gated the same way
+    as Treasure Trove/Throne Room -- a GameConfig flag, checked per-room --
+    but on its own pool value rather than ``studio_addition`` membership,
+    since the room is not one of the eight studio-addition rooms.
     """
     replaced: set[str] = set()
     chosen_variants: list[Room] = []
@@ -63,6 +71,8 @@ def eligible_pool(registry: Registry, cfg: GameConfig) -> list[Room]:
         elif room.id == "treasure_trove" and cfg.treasure_trove_blackprint:
             out.append(room)
         elif room.id == "throne_room" and cfg.throne_room_blueprint:
+            out.append(room)
+        elif room.pool == "found_floorplan" and cfg.conservatory_floorplan_found:
             out.append(room)
         # "outer": drafted at the dedicated outer location, not in decks
         # "pool_temp": injected by The Pool's effect during the day

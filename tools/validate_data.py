@@ -49,8 +49,8 @@ VALID_LAYOUTS = {"dead_end", "straight", "corner", "t", "cross"}
 VALID_CATEGORIES = {"blueprint", "bedroom", "hallway", "green", "shop", "red",
                     "blackprint", "studio_addition", "outer", "objective", "mechanical",
                     "tomorrow"}
-VALID_POOLS = {"base", "studio_addition", "outer", "pool_temp", "upgrade_variant",
-               "conditional", "none"}
+VALID_POOLS = {"base", "studio_addition", "found_floorplan", "outer", "pool_temp",
+               "upgrade_variant", "conditional", "none"}
 VALID_CONFIDENCE = {"datamined", "wiki", "inferred", "placeholder"}
 KNOWN_CONDITIONS = {"west_wing", "east_wing", "west_or_east_wing", "not_on_wing",
                     "no_corner", "corner_only", "interior_only",

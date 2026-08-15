@@ -5,7 +5,7 @@ to draft, or a room to enter) and the engine walks the shortest connected
 path, paying the normal one-step-per-room cost. Re-entering rooms grants
 nothing, so free-form single-tile moves were retired.
 
-Layout (Discrete(457)):
+Layout (Discrete(458)):
   0..179   draft at doorway: cell (45) x direction (4: N,E,S,W) ->
            cell*4 + dir_index. Walks to the room first if needed. Legal for
            every frontier doorway reachable with at least one step to spare
@@ -113,7 +113,7 @@ Layout (Discrete(457)):
            rest of today (no exemption for colour-selective drafts, the
            Silver Key, the Prism Key, or ducts -- owner ruling), grants 1
            gem, and redeals the hand for free (Game.crown_block).
-  379..426 use The Axe on one of the 48 axeable floorplan families
+  379..427 use The Axe on one of the 49 axeable floorplan families
            (_build_axe_target_ids order: every room with a rarity and a gem
            cost, reduced to its upgrades.root_base_id, sorted alphabetically):
            NAVIGATE, legal with an Axe held, the target not already axed, and
@@ -123,22 +123,22 @@ Layout (Discrete(457)):
            family's gem cost for the rest of the save -- a payment-time price
            override (engine/state.py::resolve_gem_cost), never a deck change
            (Game.can_axe_room/axe_room).
-  427..435 the locked-door menu (Phase.LOCK_PENDING only), entered by
+  428..436 the locked-door menu (Phase.LOCK_PENDING only), entered by
            opening a doorway (0..179 above) that turns out to be DOOR_LOCKED
            -- trying it is free, only a menu choice actually opens it (owner
            ruling: the player decides how, not the engine):
-             427     use a key: spends lock_open_cost keys (base 1, plus a
+             428     use a key: spends lock_open_cost keys (base 1, plus a
                      Great Hall side door's search surcharge), or refunds
                      entirely to an active Stopwatch charge given >=1 key in
                      hand (Game.can_use_key_at_lock/use_key_at_lock).
-             428     lockpick: one Lock Pick Kit / Pick Sound Amplifier
+             429     lockpick: one Lock Pick Kit / Pick Sound Amplifier
                      attempt; failure spends nothing and does not exit the
                      menu (Game.can_lockpick_at_lock/lockpick_at_lock).
-             429     abandon: exits back to NAVIGATE, door still locked,
+             430     abandon: exits back to NAVIGATE, door still locked,
                      nothing spent -- always legal in LOCK_PENDING, so the
                      phase is never a dead end (Game.can_abandon_lock/
                      abandon_lock).
-             430..435 a special key, data/locks.json's special_key_menu.order
+             431..436 a special key, data/locks.json's special_key_menu.order
                      (the wiki's published fixed row order: Basement Key,
                      Secret Garden Key, Silver Key, Key 8, Master Key, Prism
                      Key). secret_garden_key/key_8 are modelled in this sim
@@ -152,14 +152,14 @@ Layout (Discrete(457)):
                      the resulting draft (effects/items/prism_key.py) --
                      Silver Key, Master Key, and Prism Key are the rows ever
                      actually selectable today.
-  436      REWIND last draft (the Chronograph), appended at the end so no
+  437      REWIND last draft (the Chronograph), appended at the end so no
            earlier id shifts: DRAFTING only, legal while a Chronograph is
            held and ``pending.rewind_stack`` is non-empty (i.e. after at
            least one redraw this hand). Pops the hand a redraw most recently
            replaced back into the pending options for free, unlimited times,
            strictly backward through the stack to the original deal (never
            forward -- rewinding never pushes) -- see Game.can_rewind/rewind.
-  437..440 choose the Gear Wrench's permanent rarity 0..3 (WRENCH_PENDING
+  438..441 choose the Gear Wrench's permanent rarity 0..3 (WRENCH_PENDING
            only), appended at the end so no earlier id shifts. Order matches
            engine.model.RARITIES (commonplace, standard, unusual, rare); all
            four are always offered, including the room's own current rarity
@@ -167,7 +167,7 @@ Layout (Discrete(457)):
            Game.can_set_wrench_rarity). Entered from :meth:`Game.choose`
            when the just-placed room is a Mechanical Room
            (Room.is_category("mechanical")) and a Gear Wrench is held.
-  441      use the Telescope in the Planetarium, appended at the end so no
+  442      use the Telescope in the Planetarium, appended at the end so no
            earlier id shifts: NAVIGATE only, legal standing in the
            Planetarium with a Telescope held, today's one-upgrade-per-day
            cap not yet spent, and at least one of the five planets still
@@ -175,12 +175,12 @@ Layout (Discrete(457)):
            use_telescope_planetarium). Reveals one planet (random order,
            Mora always last) and grants its permanent payload; does not
            consume the Telescope.
-  442..456 the constellation block, appended at the end so no earlier id
+  443..457 the constellation block, appended at the end so no earlier id
            shifts. Each id has its own predicate, so none is masked False
            unconditionally except the one record still reserved
            (spiral_of_stars -- docs/rl-environment.md licenses that reserved
            slot as a recorded owner ruling):
-             442..454 activate one constellation, one id per
+             443..455 activate one constellation, one id per
                      data/constellations.json record in file order (ascending
                      star value: north_star, the_twins, the_slice,
                      diamondus_minor, southern_cross, farmers_apple, clavis,
@@ -189,13 +189,13 @@ Layout (Discrete(457)):
                      constellations whose star values SUM to the star count
                      it was first viewed at, so activation is per
                      constellation, never one "activate the sky" id.
-             455     view the night sky: generate today's sky at this cell
+             456     view the night sky: generate today's sky at this cell
                      (locked to the star count at that moment) or re-open the
                      one already generated there. An explicit action rather
                      than an on-entry auto-generation, because higher star
                      counts partition into strictly more value and the timing
                      of the look is the decision.
-             456     redraw the dealt hand for 1 star (The Ink Well). Its own
+             457     redraw the dealt hand for 1 star (The Ink Well). Its own
                      id, never a source folded into REDRAW_ACTION -- see the
                      constant's comment. Legal once the Ink Well has been
                      activated (Game.can_redraw_with_star).
@@ -224,12 +224,28 @@ def _build_area_node_ids(registry: Registry) -> tuple[str, ...]:
     The ordering is derived from registry.area_graph so it cannot drift from
     areas.json. The action index for a node is TRAVEL_BASE + the index here.
     Both the action space and the observation encoder use this single source.
+
+    Asserts its own length against the pinned ``_N_AREA_NODES``: the action
+    space reserves exactly that many slots (``TRAVEL_BASE..OPEN_SIGIL_DOOR_
+    BASE``), and the mask-building loop that walks this tuple has no bounds
+    check, so an area node added to areas.json without a matching bump here
+    would silently write past the reserved block into OPEN_SIGIL_DOOR_BASE's
+    mask bit -- the same corruption class _build_axe_target_ids's own
+    assertion guards against, below.
     """
-    return tuple(sorted(registry.area_graph.nodes.keys()))
+    result = tuple(sorted(registry.area_graph.nodes.keys()))
+    assert len(result) == _N_AREA_NODES, (
+        f"areas.json now has {len(result)} area-graph nodes but "
+        f"_N_AREA_NODES is pinned at {_N_AREA_NODES} -- bump the constant "
+        f"(and every action id from OPEN_SIGIL_DOOR_BASE onward, plus "
+        f"N_ACTIONS) to match. This is a deliberate width change, never a "
+        f"silent one."
+    )
+    return result
 
 
 def _build_axe_target_ids(registry: Registry) -> tuple[str, ...]:
-    """Sorted tuple of every floorplan family The Axe can target (48 today).
+    """Sorted tuple of every floorplan family The Axe can target.
 
     A "family" is one Room.id keyed by ``upgrades.root_base_id``: axing
     "cloister" zeroes every Cloister upgrade variant's gem cost too, since the
@@ -240,13 +256,30 @@ def _build_axe_target_ids(registry: Registry) -> tuple[str, ...]:
     _build_area_node_ids/special_items.SIGIL_REALMS. The action index for a
     target is AXE_TARGET_BASE + the index here. Both the action space and the
     observation encoder use this single source.
+
+    Asserts its own length against the pinned ``_N_AXE_TARGETS`` on every
+    call: the action space reserves exactly that many slots (``AXE_TARGET_
+    BASE..LOCK_MENU_BASE``), and the mask-building loop that walks this tuple
+    has no bounds check, so a room gaining a rarity and a nonzero gem cost
+    without a matching bump here silently writes past the reserved block into
+    LOCK_MENU_BASE's mask bit -- exactly what happened when the Conservatory
+    (PR #329) did this, marking "use a key at a lock" legal outside any lock
+    menu.
     """
     roots = {
         root_base_id(registry, r)
         for r in registry.rooms
         if r.rarity is not None and r.gem_cost > 0
     }
-    return tuple(sorted(roots))
+    result = tuple(sorted(roots))
+    assert len(result) == _N_AXE_TARGETS, (
+        f"the registry now has {len(result)} axe-eligible floorplan families "
+        f"but _N_AXE_TARGETS is pinned at {_N_AXE_TARGETS} -- bump the "
+        f"constant (and every action id from LOCK_MENU_BASE onward, plus "
+        f"N_ACTIONS) to match. This is a deliberate width change, never a "
+        f"silent one."
+    )
+    return result
 
 
 def _build_mechanical_room_ids(registry: Registry) -> tuple[str, ...]:
@@ -288,8 +321,10 @@ INSERT_DISK_ACTION = 269     # insert an Upgrade Disk at a disk reader (NAVIGATE
 CHOOSE_UPGRADE_BASE = 270    # 270..272: choose upgrade variant slot 0/1/2 (UPGRADE_PENDING)
 TRAVEL_BASE = 273            # 273..310: travel to area-graph node (38 nodes)
 
-# N_AREA_NODES: one travel slot per area-graph node. Asserted by tests via
-# mask length, not a literal comparison.
+# N_AREA_NODES: one travel slot per area-graph node. _build_area_node_ids
+# asserts its own result agrees with this pin on every call (mask length
+# alone would not catch a mismatch: mask is always built at N_ACTIONS
+# entries regardless of what gets written into it).
 _N_AREA_NODES = 38
 
 # 311..318: use a held Sanctum Key on one of the Inner Sanctum's eight realm
@@ -332,48 +367,55 @@ TAKE_GROTTO_CHIP_ACTION = BERRY_PICK_ACTION + 1  # 375
 # DRAFTING only; see Game.can_crown_block/crown_block.
 CROWN_BLOCK_BASE = TAKE_GROTTO_CHIP_ACTION + 1  # 376
 
-# 379..426: use The Axe on one of the 48 axeable floorplan families
+# 379..427: use The Axe on one of the 49 axeable floorplan families
 # (_build_axe_target_ids order), appended at the end so no earlier id shifts.
 # NAVIGATE only, not gated on position; see Game.can_axe_room/axe_room.
 AXE_TARGET_BASE = CROWN_BLOCK_BASE + 3  # 379
-_N_AXE_TARGETS = 48  # width pinned as a constant (like _N_AREA_NODES) so
-                      # N_ACTIONS stays importable with no Registry loaded
+_N_AXE_TARGETS = 49  # width pinned as a constant (like _N_AREA_NODES) so
+                      # N_ACTIONS stays importable with no Registry loaded.
+                      # _build_axe_target_ids asserts its own result agrees
+                      # with this pin on every call -- a room gaining a
+                      # rarity and a gem cost (the Conservatory, PR #329)
+                      # once desynced the two silently and corrupted
+                      # LOCK_MENU_BASE's mask bit; the assertion makes that
+                      # loud instead.
 
-# 427..435: the locked-door menu (Phase.LOCK_PENDING only), appended at the
+# 428..436: the locked-door menu (Phase.LOCK_PENDING only), appended at the
 # end so no earlier id shifts. See Game.can_use_key_at_lock/use_key_at_lock,
 # can_lockpick_at_lock/lockpick_at_lock, can_use_special_key_at_lock/
 # use_special_key_at_lock, can_abandon_lock/abandon_lock.
-LOCK_MENU_BASE = AXE_TARGET_BASE + _N_AXE_TARGETS  # 427
-LOCK_USE_KEY_ACTION = LOCK_MENU_BASE          # 427: spend a regular key (Stopwatch may refund it)
-LOCK_LOCKPICK_ACTION = LOCK_MENU_BASE + 1     # 428: one Lock Pick Kit / Amplifier attempt
-LOCK_ABANDON_ACTION = LOCK_MENU_BASE + 2      # 429: exit the menu; the door stays locked
-LOCK_SPECIAL_KEY_BASE = LOCK_MENU_BASE + 3    # 430..435: a special key, data/locks.json's
+LOCK_MENU_BASE = AXE_TARGET_BASE + _N_AXE_TARGETS  # 428
+LOCK_USE_KEY_ACTION = LOCK_MENU_BASE          # 428: spend a regular key (Stopwatch may refund it)
+LOCK_LOCKPICK_ACTION = LOCK_MENU_BASE + 1     # 429: one Lock Pick Kit / Amplifier attempt
+LOCK_ABANDON_ACTION = LOCK_MENU_BASE + 2      # 430: exit the menu; the door stays locked
+LOCK_SPECIAL_KEY_BASE = LOCK_MENU_BASE + 3    # 431..436: a special key, data/locks.json's
                                                # special_key_menu.order (the wiki's published
                                                # fixed row order: Basement/Secret Garden/Silver/
                                                # Key 8/Master/Prism). secret_garden_key and key_8
                                                # are reserved ids, permanently masked off -- see
                                                # Game.can_use_special_key_at_lock.
-_N_LOCK_SPECIAL_KEYS = 6  # width pinned as a constant, like _N_AREA_NODES/_N_AXE_TARGETS
+_N_LOCK_SPECIAL_KEYS = 6  # width pinned as a constant, like _N_AREA_NODES/_N_AXE_TARGETS.
+                          # _build_lock_special_key_order asserts agreement too.
 
-# 436: REWIND last draft (the Chronograph), appended at the end so no earlier
+# 437: REWIND last draft (the Chronograph), appended at the end so no earlier
 # id shifts. DRAFTING only; see Game.can_rewind/rewind.
-REWIND_ACTION = LOCK_SPECIAL_KEY_BASE + _N_LOCK_SPECIAL_KEYS  # 436
+REWIND_ACTION = LOCK_SPECIAL_KEY_BASE + _N_LOCK_SPECIAL_KEYS  # 437
 
-# 437..440: choose the Gear Wrench's permanent rarity (Phase.WRENCH_PENDING
+# 438..441: choose the Gear Wrench's permanent rarity (Phase.WRENCH_PENDING
 # only), appended at the end so no earlier id shifts. Order matches
 # engine.model.RARITIES. See Game.can_set_wrench_rarity/set_wrench_rarity.
-WRENCH_RARITY_BASE = REWIND_ACTION + 1  # 437
+WRENCH_RARITY_BASE = REWIND_ACTION + 1  # 438
 _N_WRENCH_RARITIES = len(RARITIES)  # 4; RARITIES is a fixed model constant,
                                      # not registry-derived, so no width-pin
                                      # comment is needed the way _N_AXE_TARGETS
                                      # etc. carry one
 
-# 441: use the Telescope in the Planetarium, appended at the end so no
+# 442: use the Telescope in the Planetarium, appended at the end so no
 # earlier id shifts. See Game.can_use_telescope_planetarium/
 # use_telescope_planetarium.
-USE_TELESCOPE_PLANETARIUM_ACTION = WRENCH_RARITY_BASE + _N_WRENCH_RARITIES  # 441
+USE_TELESCOPE_PLANETARIUM_ACTION = WRENCH_RARITY_BASE + _N_WRENCH_RARITIES  # 442
 
-# 442..454: activate one constellation in the night sky, one id per
+# 443..455: activate one constellation in the night sky, one id per
 # data/constellations.json record in file order (ascending star value:
 # north_star, the_twins, the_slice, diamondus_minor, southern_cross,
 # farmers_apple, clavis, diamondus_major, draxus, the_sail, florealis,
@@ -381,23 +423,23 @@ USE_TELESCOPE_PLANETARIUM_ACTION = WRENCH_RARITY_BASE + _N_WRENCH_RARITIES  # 44
 # That file's record order is the single source for this block and for
 # env/obs.py's "constellations" key, the way data/locks.json's
 # special_key_menu.order is for LOCK_SPECIAL_KEY_BASE.
-ACTIVATE_CONSTELLATION_BASE = USE_TELESCOPE_PLANETARIUM_ACTION + 1  # 442
+ACTIVATE_CONSTELLATION_BASE = USE_TELESCOPE_PLANETARIUM_ACTION + 1  # 443
 _N_CONSTELLATIONS = 13  # width pinned as a constant (like _N_AXE_TARGETS) so
                         # N_ACTIONS stays importable with no Registry loaded;
                         # tools/validate_data.py holds the record count at 13
 
-# 455: view the night sky (generate or re-open today's sky at this cell).
-VIEW_NIGHT_SKY_ACTION = ACTIVATE_CONSTELLATION_BASE + _N_CONSTELLATIONS  # 455
+# 456: view the night sky (generate or re-open today's sky at this cell).
+VIEW_NIGHT_SKY_ACTION = ACTIVATE_CONSTELLATION_BASE + _N_CONSTELLATIONS  # 456
 
-# 456: redraw the dealt hand by spending 1 star (The Ink Well). A dedicated
+# 457: redraw the dealt hand by spending 1 star (The Ink Well). A dedicated
 # id, never a source inside REDRAW_ACTION: every other redraw source spends a
 # hand- or day-scoped resource with a natural bound, while a star is permanent
 # and save-scoped with no cap, so folding it in would put an uncapped drain on
 # an id the agent already presses reflexively.
-REDRAW_WITH_STAR_ACTION = VIEW_NIGHT_SKY_ACTION + 1  # 456
+REDRAW_WITH_STAR_ACTION = VIEW_NIGHT_SKY_ACTION + 1  # 457
 
 # N_ACTIONS = first slot after the Ink Well's star-redraw action.
-N_ACTIONS = REDRAW_WITH_STAR_ACTION + 1  # 457
+N_ACTIONS = REDRAW_WITH_STAR_ACTION + 1  # 458
 
 DIR_INDEX = {d: i for i, d in enumerate(DIRS)}
 
@@ -407,8 +449,24 @@ def _build_lock_special_key_order(registry: Registry) -> tuple[str, ...]:
     a published wiki table rather than a Python constant. The action index for
     a row is LOCK_SPECIAL_KEY_BASE + the index here; both the action space and
     the observation encoder would use this single source (matching
-    _build_area_node_ids/_build_axe_target_ids)."""
-    return tuple(registry.lock_rules["special_key_menu"]["order"])
+    _build_area_node_ids/_build_axe_target_ids).
+
+    Asserts its own length against the pinned ``_N_LOCK_SPECIAL_KEYS``, the
+    same shape as the other two builders' guards: the mask-building loop that
+    walks this tuple has no bounds check, so a row added to or removed from
+    data/locks.json's special_key_menu.order without a matching bump here
+    would silently write past the reserved block into REWIND_ACTION's mask
+    bit.
+    """
+    result = tuple(registry.lock_rules["special_key_menu"]["order"])
+    assert len(result) == _N_LOCK_SPECIAL_KEYS, (
+        f"data/locks.json's special_key_menu.order now has {len(result)} "
+        f"rows but _N_LOCK_SPECIAL_KEYS is pinned at {_N_LOCK_SPECIAL_KEYS} "
+        f"-- bump the constant (and every action id from REWIND_ACTION "
+        f"onward, plus N_ACTIONS) to match. This is a deliberate width "
+        f"change, never a silent one."
+    )
+    return result
 
 
 def _cell_is_shop_re_enterable(game: Game, cell: int) -> bool:

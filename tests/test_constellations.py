@@ -166,26 +166,37 @@ def test_the_action_block_has_one_id_per_record():
 # ------------------------------------------------------- the action space
 
 
-def test_action_space_width_is_457():
-    """N_ACTIONS is 457 and the constellation block occupies 442..456.
+def test_action_space_width_is_458():
+    """N_ACTIONS and the constellation block's own id range agree with
+    docs/rl-environment.md's width-change register.
 
-    The width is committed here and cannot move afterwards: action ids are
-    positional, so every later change to it invalidates a trained policy's
-    embedding and every recorded demo.
+    Action ids are positional, so any PR that moves this width must state the
+    before and after there (see the register) and record why -- but nothing
+    below the constellation block prevents an EARLIER block (e.g. the Axe
+    target range) from widening in a later, unrelated PR; that only shifts
+    ids at or above the earlier block's own end, which
+    test_no_existing_action_id_shifted below is what actually pins.
     """
-    assert A.ACTIVATE_CONSTELLATION_BASE == 442
-    assert A.VIEW_NIGHT_SKY_ACTION == 455
-    assert A.REDRAW_WITH_STAR_ACTION == 456
-    assert A.N_ACTIONS == 457
+    assert A.ACTIVATE_CONSTELLATION_BASE == A.USE_TELESCOPE_PLANETARIUM_ACTION + 1
+    assert A.VIEW_NIGHT_SKY_ACTION == A.ACTIVATE_CONSTELLATION_BASE + A._N_CONSTELLATIONS
+    assert A.REDRAW_WITH_STAR_ACTION == A.VIEW_NIGHT_SKY_ACTION + 1
+    assert A.N_ACTIONS == A.REDRAW_WITH_STAR_ACTION + 1 == 458
 
 
 def test_no_existing_action_id_shifted():
     """Every action id declared before the constellation block still has the
-    value it had, so the block was appended and nothing was inserted.
+    value the current width register commits it to -- an append, never a
+    mid-array insert.
 
     A mid-array insert is the failure this guards: it costs nothing at import
     time and silently makes every id after the insertion point mean something
-    else, which no test that only checks N_ACTIONS would catch.
+    else, which no test that only checks N_ACTIONS would catch. Ids from
+    AXE_TARGET_BASE through USE_TELESCOPE_PLANETARIUM_ACTION are pinned at
+    their CURRENT values, not frozen forever -- the Axe target range is
+    itself a pinned-but-registry-derived width (see
+    env/actions.py::_build_axe_target_ids) that can legitimately widen in its
+    own dedicated, recorded PR, shifting every id from LOCK_MENU_BASE onward.
+    What must never happen is a shift with no recorded width-register entry.
     """
     assert (A.OPEN_BASE, A.CHOOSE_BASE, A.REDRAW_ACTION) == (0, 180, 183)
     assert (A.OUTER_DRAFT_ACTION, A.TOGGLE_POWER_ACTION, A.SET_LEVEL_BASE) == (184, 185, 186)
@@ -199,11 +210,11 @@ def test_no_existing_action_id_shifted():
     assert (A.TOGGLE_EXPERIMENT_ACTION, A.TOGGLE_DARKROOM_ACTION) == (326, 327)
     assert (A.CHOOSE_COLOUR_BASE, A.DONATE_BASE, A.TAKE_BACK_OFFERING_ACTION) == (328, 333, 373)
     assert (A.BERRY_PICK_ACTION, A.TAKE_GROTTO_CHIP_ACTION, A.CROWN_BLOCK_BASE) == (374, 375, 376)
-    assert (A.AXE_TARGET_BASE, A.LOCK_MENU_BASE, A.LOCK_USE_KEY_ACTION) == (379, 427, 427)
+    assert (A.AXE_TARGET_BASE, A.LOCK_MENU_BASE, A.LOCK_USE_KEY_ACTION) == (379, 428, 428)
     assert (A.LOCK_LOCKPICK_ACTION, A.LOCK_ABANDON_ACTION, A.LOCK_SPECIAL_KEY_BASE) == (
-        428, 429, 430)
-    assert (A.REWIND_ACTION, A.WRENCH_RARITY_BASE) == (436, 437)
-    assert A.USE_TELESCOPE_PLANETARIUM_ACTION == 441
+        429, 430, 431)
+    assert (A.REWIND_ACTION, A.WRENCH_RARITY_BASE) == (437, 438)
+    assert A.USE_TELESCOPE_PLANETARIUM_ACTION == 442
 
 
 def test_unimplemented_constellation_ids_stay_masked():
@@ -253,14 +264,18 @@ def test_action_group_buckets_the_constellation_block():
 
 
 #: Shape, bounds and dtype of every observation key as of the width commit,
-#: for the fixed registry sizes passed below. The constellation key is the one
-#: addition; every other row must stay exactly as it is, because a bound change
-#: is a retrain trigger on the same terms as a shape change
-#: (docs/rl-environment.md).
+#: for the fixed registry sizes passed below. The constellation key was this
+#: file's own addition; "carryover" has since grown again, 16 -> 17, for the
+#: Conservatory's conservatory_floorplan_found flag (env/multiday.py's
+#: _CARRYOVER_KEYS) -- every other row must stay exactly as it is, because a
+#: bound change is a retrain trigger on the same terms as a shape change
+#: (docs/rl-environment.md). "axed_rooms" stays 48 here because this call
+#: never overrides observation_space()'s n_axe_targets default (48); the real
+#: env (BluePrinceEnv) always passes the registry-derived count instead.
 _EXPECTED_SPACE = {
     "allowance": ((1,), 0, 9999, "int16"),
     "axed_rooms": ((48,), 0, 1, "uint8"),
-    "carryover": ((16,), 0, 999, "int16"),
+    "carryover": ((17,), 0, 999, "int16"),
     "constellations": ((15,), 0, 99, "int16"),
     "day": ((2,), 0, 9999, "int16"),
     "disks_held": ("Discrete", 17, "int64"),

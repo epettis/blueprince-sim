@@ -1071,3 +1071,21 @@ def test_all_placed_rooms_stay_reachable_without_keys(registry):
         for cell, idx in enumerate(g.state.grid):
             if idx >= 0 and cell != ANTECHAMBER_CELL:
                 assert dist[cell] >= 0, f"seed {seed}: cell {cell} unreachable"
+
+
+def test_special_key_menu_count_matches_the_pinned_action_space_width(registry):
+    """_build_lock_special_key_order's own length agrees with the pinned
+    _N_LOCK_SPECIAL_KEYS (the action space's own LOCK_SPECIAL_KEY_BASE..
+    REWIND_ACTION width).
+
+    A row added to or removed from data/locks.json's special_key_menu.order
+    without a matching bump to _N_LOCK_SPECIAL_KEYS would desync the two; the
+    mask-building loop that walks this tuple has no bounds check, so an extra
+    row would silently write past the reserved block into REWIND_ACTION's
+    mask bit -- the same corruption class discovered in the Axe block (PR
+    #329, _N_AXE_TARGETS pinned at 48 while a 49th axe-eligible room silently
+    overflowed into LOCK_MENU_BASE). _build_lock_special_key_order's own
+    assertion is the primary guard; this test pins it as an explicit,
+    discoverable invariant the way test_constellations.py does for
+    _N_CONSTELLATIONS."""
+    assert len(A._build_lock_special_key_order(registry)) == A._N_LOCK_SPECIAL_KEYS == 6

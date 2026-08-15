@@ -1816,6 +1816,12 @@ class Game:
             # direct engine call (e.g. a test) until a later PR flips that flag.
             if dest == "underpass" and self.cfg.special_items:
                 special_items.on_area_arrival(self, dest)
+            # Campsite: the Conservatory's hidden dig spot (owner spec,
+            # docs/areas.md), found only while a shovel is held. Gated on
+            # cfg.special_items since the check reads an inventory item, the
+            # same shape as mine_south's disk above.
+            if dest == "campsite" and self.cfg.special_items:
+                special_items.on_area_arrival(self, dest)
             # Sealed Entrance: the Power Hammer break is permanent once it happens.
             # Arriving here at all means the grounds->sealed_entrance edge already
             # passed (via the flag or a held Power Hammer), so this is the one

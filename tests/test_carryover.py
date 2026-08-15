@@ -498,6 +498,7 @@ def test_carryover_shape_is_complete():
         "orchard_unlocked",
         "throne_room_blueprint",
         "satellite_dish_unlocked",
+        "conservatory_floorplan_found",
     }
     expected_keys = bool_keys | {
         "starting_items", "banned_rooms", "used_vault_keys",

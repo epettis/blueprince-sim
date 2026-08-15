@@ -128,7 +128,7 @@
    "kind": "area",
    "modelled": true,
    "surface": true,
-   "meta": {"source": "docs/areas.md", "confidence": "wiki", "notes": "No contents of its own; modelled because it is the only approach to Apple Orchard."}
+   "meta": {"source": "docs/areas.md", "confidence": "wiki", "notes": "Modelled because it is the only approach to Apple Orchard, and holds the Conservatory's hidden dig spot: arriving here with a held shovel permanently sets conservatory_floorplan_found (special_items.py::on_area_arrival), which decks.py::eligible_pool reads to add the Conservatory to the draft pool from the following day."}
   },
   {
    "id": "apple_orchard",

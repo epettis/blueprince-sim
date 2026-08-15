@@ -263,11 +263,11 @@ def test_the_cap_also_survives_a_daychain_attempt_wrap():
 
 
 def test_carryover_keys_frozenset_is_unaffected():
-    """DayChain._CARRYOVER_KEYS stays a 16-entry frozenset of bool GameConfig
+    """DayChain._CARRYOVER_KEYS stays a 17-entry frozenset of bool GameConfig
     fields only -- axed_rooms is ordered/set-valued permanent state and lives
     in the separate channel next_config()/advance() thread explicitly, the
     same way sigil_doors_open/collected_sanctum_keys do, never in this set."""
-    assert len(DayChain._CARRYOVER_KEYS) == 16
+    assert len(DayChain._CARRYOVER_KEYS) == 17
     assert "axed_rooms" not in DayChain._CARRYOVER_KEYS
 
 
@@ -346,11 +346,25 @@ def test_axed_rooms_observation_flips_on_for_the_axed_target():
 
 def test_axed_rooms_observation_width_matches_target_count(registry):
     """The observation vector's width is exactly the number of axeable
-    families (48 today), matching the action space's own AXE_TARGET range."""
+    families, matching the action space's own AXE_TARGET range."""
     from blueprince_sim.env.actions import _N_AXE_TARGETS
     g = Game(GameConfig(special_items=True), seed=0, registry=registry)
     obs = O.encode(g)
-    assert len(obs["axed_rooms"]) == _N_AXE_TARGETS == 48
+    assert len(obs["axed_rooms"]) == _N_AXE_TARGETS == 49
+
+
+def test_axe_target_count_matches_the_pinned_action_space_width(registry):
+    """_build_axe_target_ids' own length agrees with the pinned _N_AXE_TARGETS
+    (the action space's own AXE_TARGET_BASE..LOCK_MENU_BASE width) -- the
+    ACTION side of the invariant test_axed_rooms_observation_width_matches_
+    target_count above only pins on the observation side. A room gaining a
+    rarity and a nonzero gem cost without a matching bump here desyncs the two
+    and silently corrupts LOCK_MENU_BASE's mask bit (see
+    _build_axe_target_ids' own docstring and assertion); this test -- and that
+    assertion -- are what would have caught the Conservatory (PR #329) doing
+    exactly that before it shipped."""
+    from blueprince_sim.env.actions import _N_AXE_TARGETS
+    assert len(_build_axe_target_ids(registry)) == _N_AXE_TARGETS == 49
 
 
 # --------------------------------------------------------------- shop gate

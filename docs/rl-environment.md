@@ -39,24 +39,41 @@ never wrong.
 
 | width | value | where |
 |---|---|---|
-| `N_ACTIONS` | **457** | `env/actions.py` |
-| `len(DayChain._CARRYOVER_KEYS)` | **16** | `env/multiday.py`, drives the `carryover` obs Box |
+| `N_ACTIONS` | **458** | `env/actions.py` |
+| `len(DayChain._CARRYOVER_KEYS)` | **17** | `env/multiday.py`, drives the `carryover` obs Box |
 
-**Last change: 442 → 457, the constellation build's committed width.** The
-whole block landed at once, inert: **13 activation ids**, one per
-`data/constellations.json` record in that file's ascending-star order — which
-includes a **permanently masked slot for the Spiral of Stars**, so that build
-later lands at zero width and zero extra retrain — plus **one id to view the
-night sky** and **one dedicated id for the Ink Well's star-redraw**. All 15
-landed masked `False` unconditionally, with the matching `constellations`
-observation key always zeros. Fourteen have since gone live — the night-sky
-view, twelve of the thirteen activations, and the star-redraw id (masked on
-`Game.can_redraw_with_star`, not unconditionally `False` any more) — and the
-width has not moved, which was the whole point of committing it up front.
+**Last change: 457 → 458, the Axe block widening from 48 to 49 targets, landed
+in the same PR as `_CARRYOVER_KEYS` 16 → 17.** Conservatory reachability (see
+[`scoping-and-carryover.md`](scoping-and-carryover.md)) gave the Conservatory
+a real rarity and a nonzero gem cost, which made it the 49th floorplan family
+`_build_axe_target_ids` derives from the registry — every room with a rarity
+and `gem_cost > 0`. `_N_AXE_TARGETS` was pinned at 48 and nothing checked the
+two agreed: the mask-building loop that walks `_build_axe_target_ids`'
+result has no bounds check, so the 49th family silently wrote past the
+reserved `AXE_TARGET_BASE..LOCK_MENU_BASE` block and corrupted
+`LOCK_USE_KEY_ACTION`'s mask bit, marking "use a key at a lock" legal outside
+any lock menu. `_N_AXE_TARGETS` is now 49, and `_build_axe_target_ids` (and
+its `_build_area_node_ids`/`_build_lock_special_key_order` siblings) each
+assert their own length against their pinned constant on every call, so a
+future desync fails loudly instead of corrupting a mask bit. Every id from
+`LOCK_MENU_BASE` onward shifted by one; `test_no_existing_action_id_shifted`
+in `tests/test_constellations.py` pins the new values.
 
-**The ruling is now satisfied and the width is closed.** No later PR in that
-build may move `N_ACTIONS` or an observation shape; activating a constellation
-is a masking-site and encoder change only.
+Both width changes are retrain triggers on their own terms and landed
+together deliberately — batching space-affecting changes before one
+deliberate restart is this repo's standing discipline, and the
+`_CARRYOVER_KEYS` resize already forced a retrain regardless, so growing the
+action space by one in the same batch cost nothing extra.
+
+The constellation build itself (442 → 457, superseded by the above) landed at
+once, inert: 13 activation ids, one per `data/constellations.json` record in
+that file's ascending-star order — which includes a permanently masked slot
+for the Spiral of Stars, so that build later lands at zero width and zero
+extra retrain — plus one id to view the night sky and one dedicated id for
+the Ink Well's star-redraw. That ruling is satisfied and closed: no PR in
+that build may move an id inside it; activating a constellation is a
+masking-site and encoder change only. It does not freeze ids outside the
+block, including earlier ones like the Axe range above.
 
 The Ink Well's separate id is the load-bearing part of that change, and the
 reason generalises: every other redraw source spends a hand- or day-scoped
@@ -83,6 +100,41 @@ just an engine detail.**
 - **A padded observation array's row cap is a width too.** Raising
   `TRADE_OFFER_ROWS`, `SHOP_STOCK_ROWS` or any similar cap is a retrain
   trigger on the same terms.
+
+### Pinned-but-derived widths must assert their own agreement
+
+Several `_N_*` constants in `env/actions.py` are **pinned** (a literal, so
+`N_ACTIONS` stays importable with no `Registry` loaded) but correspond to a
+count that is genuinely **derived** from a data file: `_N_AXE_TARGETS`
+(`_build_axe_target_ids`, every room with a rarity and a nonzero gem cost),
+`_N_AREA_NODES` (`_build_area_node_ids`, `areas.json`'s nodes),
+`_N_LOCK_SPECIAL_KEYS` (`_build_lock_special_key_order`,
+`data/locks.json`'s `special_key_menu.order`), and `_N_CONSTELLATIONS`
+(`data/constellations.json`'s records, held at 13 by `tools/validate_data.py`
+and cross-checked in `tests/test_constellations.py`).
+
+**Nothing else enforces that the pin and the derived count agree**, and the
+mask-building loop for each block has no bounds check — it enumerates the
+derived tuple and writes `mask[BASE + i]` unconditionally. A content change
+that grows the derived count past the pin does not raise or truncate: it
+writes past the reserved block into the *next* block's first action id,
+silently corrupting an unrelated action's legality bit. This is exactly what
+happened to `_N_AXE_TARGETS` (see the width-change register above) — a
+mask length check (`len(mask) == N_ACTIONS`) does **not** catch it, because
+`mask` is always allocated at the full `N_ACTIONS` length regardless of what
+gets written into it.
+
+The fix, now applied to all three registry-derived builders
+(`_build_axe_target_ids`, `_build_area_node_ids`,
+`_build_lock_special_key_order`): **each asserts its own result's length
+against its pinned constant before returning.** A future desync raises
+immediately, everywhere the builder is called (mask building, dispatch, and
+every test that builds a `Game`), instead of corrupting a mask bit silently.
+Each also has an explicit, discoverable test pinning the same invariant
+(`test_axe_target_count_matches_the_pinned_action_space_width`,
+`test_area_node_count_matches_the_pinned_action_space_width`,
+`test_special_key_menu_count_matches_the_pinned_action_space_width`), the
+same shape `test_constellations.py` already used for `_N_CONSTELLATIONS`.
 
 ## Reserved and dead action ids
 

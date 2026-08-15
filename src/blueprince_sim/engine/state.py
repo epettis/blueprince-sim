@@ -425,6 +425,14 @@ class GameState:
     # cfg.throne_room_blueprint; DayChain carries the result, permanently
     # adding the Throne Room to the draft pool from the following day.
     throne_room_blueprint: bool = False
+    # Set on campsite arrival with a shovel held: the Conservatory's hidden dig
+    # spot has been found. Same shape as west_gate_unlatched: recorded on
+    # STATE, never written back to GameConfig. carryover() ORs this with
+    # cfg.conservatory_floorplan_found; DayChain carries the result,
+    # permanently adding the Conservatory to the draft pool
+    # (decks.py::eligible_pool, pool == "found_floorplan") from the following
+    # day.
+    conservatory_floorplan_found: bool = False
     # Set the first time Room 8 is solved today (see effects/rooms/room_8.py).
     # Same shape as west_gate_unlatched: an IN-RUN discovery recorded on
     # STATE, never written back to GameConfig (one config object is shared by

@@ -1258,8 +1258,9 @@ doc that owns it; when the remaining work lands, the entry goes.
   **upstream** of the owner's open constellation question and reframes it.
 
   **Scope, measured:** nothing is permanent except Spiral of Stars' word count.
-  Everything else is immediate or day-scoped. **`_CARRYOVER_KEYS` does not
-  move** (it is bool-only, 16, and never has). Four of the eleven base
+  Everything else is immediate or day-scoped. **The constellation work does not move `_CARRYOVER_KEYS`**, a
+  channel that is bool-only, though its length is not fixed (see
+  [`scoping-and-carryover.md`](scoping-and-carryover.md)). Four of the eleven base
   constellations are **non-stacking**, so the Telescope's second sky is a
   **no-op for four of them** -- any cost case assuming it doubles everything is
   wrong.
