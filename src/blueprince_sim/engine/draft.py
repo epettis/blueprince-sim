@@ -61,7 +61,7 @@ from __future__ import annotations
 
 from ..config import GameConfig
 from .decks import roll_rarity
-from .grid import N, OPPOSITE, neighbor, rank_of, rotate_mask
+from .grid import N, OPPOSITE, is_dead_end_mask, neighbor, rank_of, rotate_mask
 from .model import Registry, Room
 from .placement import legal_orientations, satisfies_draft_conditions
 from .rng import Rng
@@ -341,13 +341,21 @@ def _garage_dead_end_gate(ctx: DraftContext, earlier_options: list[DraftOption])
     rarity-rolled slot rather than forcing a placement. If either slot hasn't
     been dealt yet (a rare failure path), "both Dead End" is trivially false and
     the gate passes.
+
+    "Dead End" is each option's actual dealt orientation (exactly one door)
+    on a room whose card is even capable of a Dead End shape, not the room's
+    frozen ``Room.layout`` -- a room whose ``alt_layouts`` include a multi-
+    door shape (the Greenhouse's corner rotations) is not a Dead End when
+    dealt in that orientation, and the Mechanarium's per-placement derived
+    mask never counts even when it happens to land on one door
+    (``Room.is_dead_end_capable``).
     """
     if len(earlier_options) < 2:
         return True
     rooms = ctx.registry.rooms
-    slot0_room = rooms[earlier_options[0].room_idx]
-    slot1_room = rooms[earlier_options[1].room_idx]
-    both_dead_end = slot0_room.layout == "dead_end" and slot1_room.layout == "dead_end"
+    both_dead_end = all(
+        rooms[opt.room_idx].is_dead_end_capable and is_dead_end_mask(opt.orientation)
+        for opt in earlier_options[:2])
     slot1_normal = not earlier_options[1].forced
     return not (both_dead_end and slot1_normal)
 

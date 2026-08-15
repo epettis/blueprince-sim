@@ -94,7 +94,8 @@ def test_tomb_grants_coins_for_a_dead_end_drafted_after_it(registry, cfg):
 
 def test_tomb_grants_nothing_for_a_non_dead_end_drafted_after_it(registry, cfg):
     """A room drafted after the Tomb that is NOT a Dead End grants no coins --
-    coins_per_deadend is keyed on ctx_room.layout, not on drafting alone."""
+    coins_per_deadend is keyed on the room's actual drafted orientation having
+    exactly one door, not on drafting alone."""
     g = Game(cfg, seed=1)
     tomb = registry.by_id["tomb"]
     not_dead_end = next(r for r in registry.rooms
@@ -103,6 +104,37 @@ def test_tomb_grants_nothing_for_a_non_dead_end_drafted_after_it(registry, cfg):
     coins_before = g.state.coins
     g._place_room(not_dead_end, 11, not_dead_end.door_mask)
     assert g.state.coins == coins_before
+
+
+def test_tomb_grants_nothing_for_a_greenhouse_drafted_in_a_corner_orientation(registry, cfg):
+    """The Greenhouse's ``layout`` is "dead_end", but its ``alt_layouts``
+    include "corner", so it can be drafted with two doors. A Greenhouse
+    drafted in one of its corner rotations (door mask 3, 6, 9, or 12) is not
+    a Dead End and must not pay the Tomb, even though its frozen Room.layout
+    still reads "dead_end"."""
+    g = Game(cfg, seed=1)
+    tomb = registry.by_id["tomb"]
+    greenhouse = registry.by_id["greenhouse"]
+    corner_mask = 3  # S|E -- one of the Greenhouse's draftable corner rotations
+    assert corner_mask in greenhouse.rotations, "setup: corner rotation must be legal"
+    g._place_room(tomb, 6, tomb.door_mask)
+    coins_before = g.state.coins
+    g._place_room(greenhouse, 11, corner_mask)
+    assert g.state.coins == coins_before
+
+
+def test_tomb_grants_coins_for_a_greenhouse_drafted_as_a_genuine_dead_end(registry, cfg):
+    """The same Greenhouse, drafted in its one-door canonical orientation
+    (its own ``layout`` value), IS a Dead End and pays the Tomb -- the
+    contrast with the corner case above proves the check follows the
+    drafted orientation, not a blanket exemption for the Greenhouse id."""
+    g = Game(cfg, seed=1)
+    tomb = registry.by_id["tomb"]
+    greenhouse = registry.by_id["greenhouse"]
+    g._place_room(tomb, 6, tomb.door_mask)
+    coins_before = g.state.coins
+    g._place_room(greenhouse, 11, greenhouse.door_mask)
+    assert g.state.coins == coins_before + 5
 
 
 def test_tomb_grants_coins_for_its_own_placement(registry, cfg):

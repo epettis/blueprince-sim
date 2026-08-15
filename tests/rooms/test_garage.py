@@ -17,11 +17,12 @@ from scipy import stats
 
 from blueprince_sim.config import GameConfig
 from blueprince_sim.engine import special_items as si
+from blueprince_sim.engine.draft import DraftContext, _garage_dead_end_gate
 from blueprince_sim.engine.game import Game
 from blueprince_sim.engine.grid import N, S
 from blueprince_sim.engine.model import Registry
 from blueprince_sim.engine.rng import Rng
-from blueprince_sim.engine.state import GameState
+from blueprince_sim.engine.state import DraftOption, GameState
 from blueprince_sim.env.actions import OPEN_CAR_TRUNK_ACTION, action_mask
 
 GARAGE_ID = "garage"
@@ -179,6 +180,85 @@ def test_forced_draw_is_deterministic_for_a_given_seed(registry: Registry):
 
     for seed in (1, 2, 3, 42):
         assert _snapshot(seed) == _snapshot(seed), f"seed {seed} was not deterministic"
+
+
+# ---------------------------------------------------------------------------
+# _garage_dead_end_gate
+# ---------------------------------------------------------------------------
+
+def _gate_ctx(registry: Registry) -> DraftContext:
+    """Minimal DraftContext for _garage_dead_end_gate, which only reads
+    ``ctx.registry.rooms`` -- mirrors test_mechanarium.py's own ``_ctx``."""
+    return DraftContext(GameState(), registry, GameConfig(), Rng(0), set(), None)
+
+
+def _option(registry: Registry, room_id: str, orientation: int, slot: int,
+            forced: bool = False) -> DraftOption:
+    room_idx = registry.by_id[room_id].idx
+    return DraftOption(room_idx=room_idx, orientation=orientation, gem_cost=0, slot=slot,
+                       forced=forced)
+
+
+def test_garage_gate_passes_when_a_corner_drafted_greenhouse_fills_a_dead_end_slot(
+        registry: Registry):
+    """The Greenhouse's frozen Room.layout is "dead_end", but a corner-oriented
+    draft (door mask 3) has two doors and is not one. With it in slot 0 and a
+    real Dead End (Closet) in slot 1, "both slots are Dead Ends" is false, so
+    the gate passes (does not block the Forced Draw attempt)."""
+    greenhouse = registry.by_id["greenhouse"]
+    corner_mask = 3  # S|E -- one of the Greenhouse's draftable corner rotations
+    assert corner_mask in greenhouse.rotations, "setup: corner rotation must be legal"
+    closet = registry.by_id["closet"]
+    assert closet.layout == "dead_end", "setup: Closet must be a Dead End"
+    options = [
+        _option(registry, "greenhouse", corner_mask, slot=0),
+        _option(registry, "closet", closet.door_mask, slot=1),
+    ]
+    assert _garage_dead_end_gate(_gate_ctx(registry), options) is True
+
+
+def test_garage_gate_blocks_when_a_dead_end_drafted_greenhouse_fills_a_dead_end_slot(
+        registry: Registry):
+    """The same Greenhouse, drafted in its one-door canonical orientation, IS
+    a Dead End: paired with another Dead End (Closet) in slot 1 by a normal
+    (non-forced) draw, the gate blocks the Forced Draw attempt -- the
+    contrast with the corner case above proves the gate follows the drafted
+    orientation, not a blanket exemption for the Greenhouse id."""
+    greenhouse = registry.by_id["greenhouse"]
+    closet = registry.by_id["closet"]
+    options = [
+        _option(registry, "greenhouse", greenhouse.door_mask, slot=0),
+        _option(registry, "closet", closet.door_mask, slot=1),
+    ]
+    assert _garage_dead_end_gate(_gate_ctx(registry), options) is False
+
+
+def test_garage_gate_passes_when_slot_1_dead_end_was_forced(registry: Registry):
+    """Two Dead Ends in slots 0/1 only block the gate when slot 1 came from a
+    normal roll-based draw -- ``forced=True`` (priority/forced draw, Tunnel
+    chain, forced-Closet fallback) leaves the gate open."""
+    closet = registry.by_id["closet"]
+    options = [
+        _option(registry, "closet", closet.door_mask, slot=0),
+        _option(registry, "closet", closet.door_mask, slot=1, forced=True),
+    ]
+    assert _garage_dead_end_gate(_gate_ctx(registry), options) is True
+
+
+def test_garage_gate_passes_when_a_lone_mechanarium_fills_a_dead_end_slot(registry: Registry):
+    """A Mechanarium with no other Mechanical room on the estate is drafted
+    with a genuine single-door mask (draft.py's _mechanarium_orientation),
+    but its card is printed "cross", never "dead_end" -- the wiki is explicit
+    that it never counts as a Dead End (see test_mechanarium.py). Paired with
+    a real Dead End (Closet) in slot 1, the gate must still pass."""
+    mechanarium = registry.by_id["mechanarium"]
+    assert not mechanarium.is_dead_end_capable, "setup: Mechanarium must never be Dead-End-capable"
+    closet = registry.by_id["closet"]
+    options = [
+        _option(registry, "mechanarium", N, slot=0),  # single-door mask, as if lone-drafted
+        _option(registry, "closet", closet.door_mask, slot=1),
+    ]
+    assert _garage_dead_end_gate(_gate_ctx(registry), options) is True
 
 
 # ---------------------------------------------------------------------------

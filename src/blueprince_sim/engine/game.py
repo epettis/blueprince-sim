@@ -2634,7 +2634,10 @@ class Game:
         # Nursery's own Bedroom category) fires before the broadcast to other
         # rooms below. Passing context_room=room lets each ON_DRAFT_ROOM
         # handler tell a self-fire (room is ctx_room) from a relational one
-        # and gate on the effect's include_self param.
+        # and gate on the effect's include_self param. st.draft_hook_orientation
+        # carries this same just-drafted room's actual orientation (see its
+        # field doc) through both fires below, for handlers that need it.
+        st.draft_hook_orientation = orientation
         effects.fire(self, room, Hook.ON_DRAFT_ROOM, context_room=room)
         # Relational draft hooks on every other placed room (Nursery etc.).
         for other_cell, idx in enumerate(st.grid):

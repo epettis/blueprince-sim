@@ -348,6 +348,15 @@ class GameState:
     experiment: ExperimentState = field(default_factory=ExperimentState)
 
     pending: PendingDraft | None = None  # in-flight draft hand; None outside the drafting phase
+    # Door mask of the room whose ON_DRAFT_ROOM hook is currently dispatching, set by
+    # Game._place_room immediately before firing (both its own self-fire and the
+    # broadcast to every other placed room use the same just-drafted room, so one
+    # assignment covers both). Handlers that need the room's actual drafted
+    # orientation -- e.g. the Tomb's coins_per_deadend, Cloister of Draxus' dice grant
+    # -- read this instead of Room.layout, which stays a room's canonical shape even
+    # when an alt_layouts rotation was drafted (the Greenhouse's two-door corner).
+    # Meaningless outside an ON_DRAFT_ROOM dispatch; nothing else reads it.
+    draft_hook_orientation: int = 0
     # Secret Passage / Spare Secret Passage colour pick: the doorway (cell, direction)
     # awaiting Game.choose_colour(), set by Game.open_door instead of dealing a hand
     # when the doorway's from-room is a Secret Passage variant and this is its first

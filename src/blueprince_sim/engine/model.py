@@ -6,7 +6,7 @@ import json
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from .grid import N, E, S, W, rotate_mask
+from .grid import N, E, S, W, is_dead_end_mask, rotate_mask
 
 RARITIES = ("commonplace", "standard", "unusual", "rare")
 RARITY_INDEX = {r: i for i, r in enumerate(RARITIES)}
@@ -90,6 +90,25 @@ class Room:
     @property
     def is_free(self) -> bool:
         return self.gem_cost == 0
+
+    @property
+    def is_dead_end_capable(self) -> bool:
+        """True when a Dead End card shape is among this room's declared
+        layout/alt_layouts -- i.e. some entry in ``rotations`` has exactly
+        one door. Rotation preserves door count, so this is a fixed per-room
+        fact rather than something that depends on which orientation was
+        actually drafted (the Greenhouse is the only room where it matters:
+        its ``rotations`` mixes one-door dead_end masks with two-door corner
+        ones, from ``layout``/``alt_layouts`` respectively).
+
+        A room whose actual placed door mask is synthesized outside
+        ``rotations`` -- the Mechanarium's per-placement derived mask
+        (draft.py's ``_mechanarium_orientation``) is the one case in the
+        registry -- stays False here even on a placement where that mask
+        happens to have one door: its card is printed "cross", never
+        "dead_end", and the wiki is explicit that it never counts as one.
+        """
+        return any(is_dead_end_mask(m) for m in self.rotations)
 
     @property
     def rarity_idx(self) -> int:
