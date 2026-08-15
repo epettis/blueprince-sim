@@ -8,15 +8,29 @@ the one-shot-per-day rule, the Ruins gate staying open while all three chips
 are held (test_areas.py pins the gate-logic truth table directly; this file
 proves the same row through real gameplay), the Apple Orchard sundial
 becoming lightable for the first time, and the next-day respawn.
+
+Reaching the Grotto at all needs the Laboratory entered too (open_tasks.md
+#25's lab_visited gate, alongside the still-stub lab_steam_and_power); every
+setup below enters it directly via ``_enter_laboratory``.
 """
 
 from __future__ import annotations
 
 from blueprince_sim.config import GameConfig
 from blueprince_sim.engine.game import Game
+from blueprince_sim.engine.grid import N, S
 from blueprince_sim.engine.shops import carryover
 from blueprince_sim.env import actions as A
 from blueprince_sim.env.multiday import DayChain
+
+
+def _enter_laboratory(g: Game) -> None:
+    """Place and enter the Laboratory directly, satisfying the ``lab_visited``
+    gate on private_drive -> blackbridge_grotto without going through a draft.
+
+    Cell 12 (rank 3, center column) is free in every test below.
+    """
+    g._place_room(g.registry.by_id["laboratory"], 12, N | S, entered=True)
 
 
 def _at_grotto_with_two_chips(registry) -> Game:
@@ -25,6 +39,7 @@ def _at_grotto_with_two_chips(registry) -> Game:
     g = Game(GameConfig(), seed=1, registry=registry)
     g.state.steps = 50
     g.state.inventory["microchip"] = 2
+    _enter_laboratory(g)
     g.travel_to("blackbridge_grotto")
     assert g.state.area == "blackbridge_grotto", "setup must actually reach the Grotto"
     return g
@@ -109,6 +124,7 @@ def test_sundial_becomes_lightable_after_taking_the_grotto_chip(registry):
     g.state.steps = 50
     g.state.inventory["microchip"] = 2
     g.state.inventory["torch"] = 1
+    _enter_laboratory(g)
 
     g.travel_to("apple_orchard")
     mask_before = A.action_mask(g)
@@ -130,13 +146,18 @@ def test_grotto_chip_respawns_the_next_day_through_a_daychain(registry):
     """grotto_chip_taken carries no _CARRYOVER_KEYS entry and no GameConfig
     field, so a DayChain never carries the taken-ness forward: the next
     day's Game starts with the flag False and the action legal again at the
-    Grotto, even though today's carryover() report does not mention it."""
+    Grotto, even though today's carryover() report does not mention it.
+
+    lab_visited is ALSO day-scoped (open_tasks.md #25): tomorrow's fresh Game
+    needs its own Laboratory entry to reach the Grotto again, same as today's.
+    """
     cfg = GameConfig()
     chain = DayChain(cfg)
 
     g = Game(chain.next_config(), seed=1, registry=registry)
     g.state.steps = 50
     g.state.inventory["microchip"] = 2
+    _enter_laboratory(g)
     g.travel_to("blackbridge_grotto")
     A.apply_action(g, A.TAKE_GROTTO_CHIP_ACTION)
     assert g.state.grotto_chip_taken is True
@@ -151,5 +172,6 @@ def test_grotto_chip_respawns_the_next_day_through_a_daychain(registry):
     tomorrow = Game(next_cfg, seed=2, registry=registry)
     assert tomorrow.state.grotto_chip_taken is False
     tomorrow.state.steps = 50
+    _enter_laboratory(tomorrow)
     tomorrow.travel_to("blackbridge_grotto")
     assert tomorrow.can_take_grotto_chip(), "the pedestal chip must be back in place the next day"

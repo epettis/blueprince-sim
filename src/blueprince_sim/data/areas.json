@@ -333,8 +333,18 @@
    "modelled": false,
    "permanence": "permanent",
    "stub": true,
-   "detail": "Private Drive -> Blackbridge Grotto: requires Laboratory steam/lever puzzle AND POWER. Deferred: Power system not modelled. Passes (stub open).",
+   "detail": "Private Drive -> Blackbridge Grotto: requires POWER, routed to the house by the Laboratory's steam/lever puzzle. Deferred: no power system is modelled anywhere in the engine (no 'is the house powered' state exists to key a real gate off). Passes (stub open); an UPPER BOUND until PR-power-system lands. The edge's other conjunct, actually having visited the Laboratory, is the separate 'lab_visited' gate on the same edge -- it is real, not deferred.",
    "retire_in": "PR-power-system",
+   "meta": {"source": "docs/areas.md", "confidence": "wiki"}
+  },
+  {
+   "id": "lab_visited",
+   "kind": "room",
+   "modelled": false,
+   "permanence": "daily",
+   "stub": false,
+   "detail": "Private Drive -> Blackbridge Grotto: the Laboratory must be entered today (GateContext.rooms_entered), the same live per-day shape as tomb_catacombs. Daily rather than a permanent once-ever unlock because no state hook exists yet to latch a first-ever visit permanently across days -- that would ride on the same power-system work as lab_steam_and_power (see docs/areas.md's 'Blackbridge Grotto gate' section).",
+   "room_id": "laboratory",
    "meta": {"source": "docs/areas.md", "confidence": "wiki"}
   },
   {
@@ -610,7 +620,7 @@
   {"from": "trading_post", "to": "west_path", "requires": [], "meta": {"source": "docs/areas.md", "confidence": "inferred"}},
   {"from": "grounds", "to": "private_drive", "requires": [], "meta": {"source": "docs/areas.md", "confidence": "wiki"}},
   {"from": "private_drive", "to": "grounds", "requires": [], "meta": {"source": "docs/areas.md", "confidence": "wiki"}},
-  {"from": "private_drive", "to": "blackbridge_grotto", "requires": ["lab_steam_and_power"], "meta": {"source": "docs/areas.md", "confidence": "wiki"}},
+  {"from": "private_drive", "to": "blackbridge_grotto", "requires": ["lab_steam_and_power", "lab_visited"], "meta": {"source": "docs/areas.md", "confidence": "wiki"}},
   {"from": "blackbridge_grotto", "to": "private_drive", "requires": [], "meta": {"source": "docs/areas.md", "confidence": "wiki"}},
   {"from": "blackbridge_grotto", "to": "orindian_ruins", "requires": ["three_microchips"], "meta": {"source": "docs/areas.md", "confidence": "wiki"}},
   {"from": "orindian_ruins", "to": "blackbridge_grotto", "requires": [], "meta": {"source": "docs/areas.md", "confidence": "wiki"}},

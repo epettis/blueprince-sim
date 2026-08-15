@@ -158,7 +158,7 @@ digraph blueprince_outside {
 	grounds       -> private_drive [];
 	private_drive -> grounds       [];
 
-	private_drive      -> blackbridge_grotto [label="Laboratory steam/lever\npuzzle + POWER", style=bold];
+	private_drive      -> blackbridge_grotto [label="Laboratory visited today\n+ POWER (stub)", style=dashed];
 	blackbridge_grotto -> private_drive       [];
 
 	// No soft-lock: the microchips live in the Grotto (owner-corrected).
