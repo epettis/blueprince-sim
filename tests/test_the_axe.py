@@ -263,11 +263,11 @@ def test_the_cap_also_survives_a_daychain_attempt_wrap():
 
 
 def test_carryover_keys_frozenset_is_unaffected():
-    """DayChain._CARRYOVER_KEYS stays an 18-entry frozenset of bool GameConfig
+    """DayChain._CARRYOVER_KEYS stays a 19-entry frozenset of bool GameConfig
     fields only -- axed_rooms is ordered/set-valued permanent state and lives
     in the separate channel next_config()/advance() thread explicitly, the
     same way sigil_doors_open/collected_sanctum_keys do, never in this set."""
-    assert len(DayChain._CARRYOVER_KEYS) == 18
+    assert len(DayChain._CARRYOVER_KEYS) == 19
     assert "axed_rooms" not in DayChain._CARRYOVER_KEYS
 
 

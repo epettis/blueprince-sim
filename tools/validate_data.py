@@ -214,9 +214,15 @@ _AUDIT_DEFERRED_EXEMPT_IDS = {
         "Keys') has no grid-level representation."
     ),
     "pump_room": (
-        "Blocked on the Pump Room water model: six independent source "
-        "levels, two tanks, four pumps, permanent carryover and a new "
-        "action set."
+        "The six water levels, their permanent carry-over and the "
+        "set-source-to-level macro action are all built (docs/areas.md's "
+        "Pump Room section), but the room's own effects/items.guaranteed "
+        "stay empty: the panel is Capability.PUMP_PANEL plus Game methods, "
+        "which this data-only text-vs-effects check cannot see (only "
+        "room_hook is checked by default). The two tanks, four pumps and "
+        "the disconnected Reserve Tank remain deliberately unmodelled "
+        "(assumed-solved doctrine); see data/rooms.json's "
+        "pump_room.meta.simplification."
     ),
     "closed_exhibit": (
         "Blocked on the security-lock puzzle subsystem. Its own "

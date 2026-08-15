@@ -39,17 +39,25 @@ never wrong.
 
 | width | value | where |
 |---|---|---|
-| `N_ACTIONS` | **458** | `env/actions.py` |
-| `len(DayChain._CARRYOVER_KEYS)` | **18** | `env/multiday.py`, drives the `carryover` obs Box |
+| `N_ACTIONS` | **479** | `env/actions.py` |
+| `len(DayChain._CARRYOVER_KEYS)` | **19** | `env/multiday.py`, drives the `carryover` obs Box |
 
-**Last change: `_CARRYOVER_KEYS` 17 → 18, `greenhouse_wall_broken`.** Owner
-ruling: the Greenhouse's corner-layout rotations (`Room.gated_rotations`,
-`engine/model.py`) are draftable only once a Power Hammer has broken its
-wall, a fact that carries across days the same way `weight_room_wall_broken`
-does — see [`scoping-and-carryover.md`](scoping-and-carryover.md).
-`N_ACTIONS` is unaffected: this is an observation-only change, unlike the
-prior width change (457 → 458), which landed batched with a `_CARRYOVER_KEYS`
-resize of its own (`git log -S "_N_AXE_TARGETS = 49"` has that history).
+**Last change: `N_ACTIONS` 458 → 479, the Pump Room panel (docs/areas.md's
+Pump Room section).** A factored two-step menu — pick a water source (6 ids,
+`PUMP_SOURCE_BASE`), then pick its target level 0..14 (15 ids,
+`PUMP_LEVEL_BASE`, `Phase.PUMP_LEVEL_PENDING`) — rather than a flat
+source-by-level enumeration (53 ids), the same multi-phase-menu idiom as
+`LOCK_MENU_BASE`/`UPGRADE_PENDING`/`COLOUR_PENDING`. The macro action sets a
+level directly (owner ruling: the tank/pump water-pouring puzzle is assumed
+solved, like every other room puzzle), so it loses no reachable state — the
+wiki states every valid level per source is reachable this way. `_CARRYOVER_KEYS`
+18 → 19, `reservoir_13_reached`: the Reservoir North<->South rowboat crossing
+opens permanently the first time the Reservoir is set to exactly 13, unlike
+the other two Pump Room gates (`pump_water_lte8`/`rowboat_water_6`), which
+re-check the live level on every traversal instead of latching. The six water
+levels themselves are NOT in `_CARRYOVER_KEYS` (bool-only) — they ride the
+same non-bool carry-over shape as `permanent_rarity`/`draft_counts`
+(`GameConfig.water_levels`, `DayChain.water_levels`/`next_config`/`advance`).
 
 The constellation build itself (442 → 457, superseded by the above) landed at
 once, inert: 13 activation ids, one per `data/constellations.json` record in

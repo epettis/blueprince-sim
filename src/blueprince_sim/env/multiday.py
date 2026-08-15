@@ -46,6 +46,8 @@ _CARRYOVER_KEYS: frozenset[str] = frozenset({
     "throne_room_blueprint",   # set on Orindian Ruins arrival; adds Throne Room to pool
     "satellite_dish_unlocked",  # set on lighting the apple_orchard sundial; unlocks Satellite Dish
     "conservatory_floorplan_found",  # set on campsite arrival with a held shovel; adds Conservatory to pool
+    "reservoir_13_reached",  # set the first time the Reservoir is set to level 13; opens the
+                             # reservoir_north<->reservoir_south rowboat crossing permanently
 })
 
 
@@ -170,6 +172,15 @@ class DayChain:
         self.applied_upgrades: frozenset[str] = frozenset(base_cfg.upgrade_disks)
         # Draft counts: cumulative by root base room id; replaced from carryover each advance.
         self.draft_counts: dict[str, int] = dict(base_cfg.draft_counts)
+        # Pump Room: water source id -> permanently-set level (docs/areas.md's
+        # Pump Room section). REPLACED (not merged) from each day's own carryover value
+        # every advance() -- state.water_levels already IS the full current
+        # dict, the same "state already is the running total" shape as
+        # draft_counts immediately above -- and, like draft_counts, reset at
+        # the attempt wrap below (NOT SAVE-scoped like permanent_rarity/
+        # axed_rooms, since nothing rules Pump Room progress to survive past
+        # one save).
+        self.water_levels: dict[str, int] = dict(base_cfg.water_levels)
         # The Foundation's permanent placement: once drafted it never moves again this
         # attempt. -1/0 = not yet drafted. Not bool-valued, so handled explicitly here
         # (and in advance()/next_config()) rather than through _CARRYOVER_KEYS.
@@ -256,6 +267,7 @@ class DayChain:
             sigil_doors_open=self.sigil_doors_open,
             upgrade_disks=self.applied_upgrades,
             draft_counts=dict(self.draft_counts),
+            water_levels=dict(self.water_levels),
             planetarium_planets=self.planetarium_planets,
             foundation_cell=self.foundation_cell,
             foundation_doors=self.foundation_doors,
@@ -413,6 +425,13 @@ class DayChain:
         if dc_val is not None:
             self.draft_counts = dict(dc_val)
 
+        # --- water_levels (Pump Room's permanently-set source levels; replace each
+        #     advance, the same draft_counts/foundation_cell shape -- state.
+        #     water_levels already IS the full current dict) ---
+        wl_val = carryover.get("water_levels")
+        if wl_val is not None:
+            self.water_levels = dict(wl_val)
+
         # --- foundation_cell / foundation_doors (permanent placement; replace each advance) ---
         # shops.carryover() already resolves "cfg wins once set", so this is a
         # straight replace, same shape as chapel_tithes.
@@ -537,6 +556,9 @@ class DayChain:
             # base config presets, which is the same baseline day 1 started from.
             self.applied_upgrades = frozenset(self.base_cfg.upgrade_disks)
             self.draft_counts = dict(self.base_cfg.draft_counts)
+            # Fresh attempt; the six sources go back to the base preset's levels
+            # (not SAVE-scoped, unlike permanent_rarity/axed_rooms above).
+            self.water_levels = dict(self.base_cfg.water_levels)
             # Fresh attempt: The Foundation goes back to being undrafted, same
             # baseline as day 1 originally started from.
             self.foundation_cell = self.base_cfg.foundation_cell

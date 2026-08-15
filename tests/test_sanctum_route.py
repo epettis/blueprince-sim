@@ -118,12 +118,16 @@ def test_mine_south_visited_flag_gates_the_underpass_route(registry):
 # ---------------------------------------------------------------------------
 
 def test_full_sanctum_route_reachable_end_to_end(registry):
-    """Holding the Basement Key, with the Foundation drafted and grid-connected:
-    the whole Sanctum route resolves through the real Game API. Visiting
-    mine_south sets mine_south_visited; only afterward does area_route_cost
-    report a finite route to inner_sanctum, through the Foundation's elevator,
-    the Basement, and the Underpass."""
-    g = Game(GameConfig(special_items=True, antechamber_levers=True), seed=1, registry=registry)
+    """Holding the Basement Key, with the Foundation drafted and grid-connected,
+    and the Fountain drained to 0 (well -> reservoir_south's second gate,
+    docs/areas.md's Pump Room section): the whole Sanctum route resolves through the
+    real Game API. Visiting mine_south sets mine_south_visited; only afterward
+    does area_route_cost report a finite route to inner_sanctum, through the
+    Foundation's elevator, the Basement, and the Underpass."""
+    g = Game(
+        GameConfig(special_items=True, antechamber_levers=True, water_levels={"fountain": 0}),
+        seed=1, registry=registry,
+    )
     g.state.steps = 200
     g.state.inventory["basement_key"] = 1
     _place_foundation_connected(g)
@@ -373,8 +377,10 @@ def test_basement_key_spawns_on_antechamber_entry_and_is_not_consumed(registry):
     """The Basement Key is granted from the pillar that emerges the first time
     the Antechamber is entered each day, and opening the well -> reservoir_south
     gate with it does not remove it from inventory -- the wiki's 'Using the
-    Basement Key does not consume the key'."""
-    g = Game(GameConfig(special_items=True), seed=1, registry=registry)
+    Basement Key does not consume the key'. The Fountain is drained to 0 in
+    config (well -> reservoir_south's second gate, docs/areas.md's Pump Room
+    section) so this test isolates the Basement Key question, not the Fountain one."""
+    g = Game(GameConfig(special_items=True, water_levels={"fountain": 0}), seed=1, registry=registry)
     assert g.state.inventory.get("basement_key", 0) == 0
     _enter_at(g, ANTECHAMBER_CELL)
     assert g.state.inventory.get("basement_key", 0) == 1

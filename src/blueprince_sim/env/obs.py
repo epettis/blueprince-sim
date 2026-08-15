@@ -19,7 +19,9 @@ from .actions import (
     _build_area_node_ids,
     _build_axe_target_ids,
     _build_mechanical_room_ids,
+    _build_pump_source_ids,
     _N_CONSTELLATIONS,
+    _N_PUMP_SOURCES,
 )
 from .multiday import DayChain
 
@@ -315,6 +317,16 @@ def observation_space(n_rooms: int, n_items: int, n_recipes: int,
         # Bound 99 is far above every reachable value (7 is the largest sky,
         # at 40 and 49 stars).
         "constellations": spaces.Box(0, 99, shape=(CONSTELLATION_OBS_LEN,), dtype=np.int16),
+        # water_levels: current level per Pump Room water source, in
+        # actions._build_pump_source_ids order (data/pump_room.json's file
+        # order, alphabetical: aquarium, fountain, greenhouse, kitchen, pool,
+        # reservoir) -- Game.water_level(source_id), which already resolves a
+        # never-touched source to its data-file "initial" value, so this is
+        # never a sentinel-vs-real ambiguity the way item_state's +1 shift is.
+        # A permanent, cross-day investment V(s) needs to see, same rationale
+        # as axed_rooms/wrench_rarity/planetarium_planets. Bound 14 is the
+        # Reservoir's own max, the widest of the six.
+        "water_levels": spaces.Box(0, 14, shape=(_N_PUMP_SOURCES,), dtype=np.uint8),
     })
 
 
@@ -787,6 +799,13 @@ def encode(game: Game, day_chain: DayChain | None = None) -> dict:
         len(sky.unactivated()) for sky in st.night_skies.get(st.pos, ()))
     np.clip(constellations_obs, 0, 99, out=constellations_obs)
 
+    # water_levels: current level per Pump Room water source, in
+    # actions._build_pump_source_ids order. Game.water_level already resolves
+    # a source never touched this attempt to its data-file "initial" value.
+    water_levels_obs = np.array(
+        [game.water_level(sid) for sid in _build_pump_source_ids(registry)], dtype=np.uint8
+    )
+
     return {
         "grid_room": grid_room,
         "grid_doors": grid_doors,
@@ -833,4 +852,5 @@ def encode(game: Game, day_chain: DayChain | None = None) -> dict:
         "dowsing": dowsing_obs,
         "planetarium_planets": planetarium_planets_obs,
         "constellations": constellations_obs,
+        "water_levels": water_levels_obs,
     }

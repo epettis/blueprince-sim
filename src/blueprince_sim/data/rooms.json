@@ -2404,7 +2404,8 @@
     "confidence": "datamined",
     "directory_number": "33",
     "internal_index": 114,
-    "effect_text": "Control water flow throughout the Estate"
+    "effect_text": "Control water flow throughout the Estate",
+    "simplification": "the macro action lets the player set a source directly to any level the real panel can reach ('set source to level', one decision) rather than solving the tank/pump water-pouring puzzle -- the wiki states every valid level per source is reachable this way, so the outcome space matches and only the interaction count is left out. The two tanks, four pumps and the disconnected Reserve Tank are not modelled at all; see data/pump_room.json for the six sources' levels and docs/areas.md for the gates they drive."
    }
   },
   {

@@ -67,6 +67,14 @@ class GameConfig:
     # records only) alongside base -- from the FOLLOWING day onward, same as
     # orchard_unlocked's own steps bonus, since this is read from cfg, not state.
     satellite_dish_unlocked: bool = False
+    # The Reservoir's water level has been set to exactly 13 at least once this
+    # attempt: permanently opens the reservoir_north<->reservoir_south rowboat
+    # crossing (docs/areas.md), UNLIKE the other two Pump Room gates
+    # (pump_water_lte8/rowboat_water_6), which re-check the live level on every
+    # traversal instead of latching. Same carry shape as west_gate_unlatched
+    # (recorded on GameState, ORed in via Game.carryover(), never written back
+    # here). Set by Game.set_pump_level the moment the Reservoir is set to 13.
+    reservoir_13_reached: bool = False
     # Sauna entered on the previous day: +20 starting steps today only (Game.reset).
     # A ONE-DAY pulse, not a permanent unlock like orchard_unlocked: DayChain replaces
     # this each advance() from that day's own carryover rather than OR-ing it in
@@ -138,6 +146,19 @@ class GameConfig:
     # Cumulative per-attempt draft counts keyed by root base room id, carried
     # from previous days.  Plain dict — NOT in the frozenset-coercion list.
     draft_counts: dict[str, int] = field(default_factory=dict)
+    # Pump Room: water source id -> permanently-set level (data/pump_room.json's
+    # six sources; a source absent from this dict sits at its own data-file
+    # "initial" value). Set by Game.set_pump_level (docs/areas.md's Pump Room
+    # section: the macro "set source to level" action). REPLACED (not merged) from each
+    # day's own carryover value every advance() -- state.water_levels already
+    # IS the full current dict, the same "state already is the running total"
+    # shape as draft_counts immediately above -- but unlike permanent_rarity/
+    # axed_rooms below, this is NOT SAVE-scoped: DayChain.advance() resets it
+    # at the attempt wrap along with draft_counts/foundation_cell, since
+    # nothing rules Pump Room progress to survive past one save the way the
+    # Axe/Gear Wrench/Telescope do. A plain dict, not in the
+    # frozenset-coercion list, same shape as draft_counts/permanent_rarity.
+    water_levels: dict[str, int] = field(default_factory=dict)
     entrance_vase_broken: bool = False  # west vase smashed before: its microchip granted at day start
     # Weight Room wall broken before with the Power Hammer: the wall stays broken on
     # future days, so entering the Weight Room opens the south Antechamber door

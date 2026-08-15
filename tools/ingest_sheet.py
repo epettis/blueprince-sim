@@ -389,6 +389,32 @@ EFFECT_OVERRIDE: dict[str, dict] = {
         {"tag": "grant", "resource": "gems", "amount": 1}]},
 }
 
+# Per-record meta.* overrides, keyed by the FINAL record id, merged key-by-key
+# into the record's "meta" object (never replacing the whole dict) -- the same
+# additive shape as FLAG_OVERRIDE, kept apart from EFFECT_OVERRIDE because
+# meta lives alongside effects/items rather than inside either of them.
+# Validated against the sheet's own ids the same way as the other three tables
+# (validate_effect_override).
+META_OVERRIDE: dict[str, dict] = {
+    # docs/areas.md's Pump Room section (owner ruling): the macro "set source
+    # to level" action reaches every level the real panel can reach, so the
+    # outcome space matches and only the tank/pump interaction is left out --
+    # see data/pump_room.json for what that leaves unmodelled.
+    "pump_room": {
+        "simplification": (
+            "the macro action lets the player set a source directly to any "
+            "level the real panel can reach ('set source to level', one "
+            "decision) rather than solving the tank/pump water-pouring "
+            "puzzle -- the wiki states every valid level per source is "
+            "reachable this way, so the outcome space matches and only the "
+            "interaction count is left out. The two tanks, four pumps and "
+            "the disconnected Reserve Tank are not modelled at all; see "
+            "data/pump_room.json for the six sources' levels and "
+            "docs/areas.md for the gates they drive."
+        )
+    },
+}
+
 # Membership flags, keyed by final record id and merged into the record's
 # "flags" object. Kept apart from EFFECT_OVERRIDE because that table REPLACES
 # "effects" wholesale, so adding a flag to a room that already has effects
@@ -487,8 +513,9 @@ def apply_effect_override(entry: dict) -> None:
     field, so it is safe to call regardless of what EFFECT_MAP already set. A
     field the override entry omits is left untouched. FLAG_OVERRIDE is applied
     too, merging key by key so naming one flag leaves the room's others alone.
-    CATEGORY_OVERRIDE is applied last, replacing ``entry["extra_categories"]``
-    wholesale when the id has an entry.
+    META_OVERRIDE is applied the same way, merging key by key into "meta"
+    rather than replacing it. CATEGORY_OVERRIDE is applied last, replacing
+    ``entry["extra_categories"]`` wholesale when the id has an entry.
     """
     override = EFFECT_OVERRIDE.get(entry["id"])
     if override:
@@ -497,13 +524,14 @@ def apply_effect_override(entry: dict) -> None:
         if "items" in override:
             entry["items"].update(override["items"])
     entry.setdefault("flags", {}).update(FLAG_OVERRIDE.get(entry["id"], {}))
+    entry.setdefault("meta", {}).update(META_OVERRIDE.get(entry["id"], {}))
     if entry["id"] in CATEGORY_OVERRIDE:
         entry["extra_categories"] = list(CATEGORY_OVERRIDE[entry["id"]])
 
 
 def validate_effect_override(seen_ids: set[str]) -> None:
-    """Raise if EFFECT_OVERRIDE, FLAG_OVERRIDE or CATEGORY_OVERRIDE keys an id
-    the sheet parse did not produce.
+    """Raise if EFFECT_OVERRIDE, FLAG_OVERRIDE, META_OVERRIDE or
+    CATEGORY_OVERRIDE keys an id the sheet parse did not produce.
 
     *seen_ids* is the set of ids assembled from the parsed sheet rows only
     (tools/supplemental_rooms.json is merged in separately and none of the
@@ -512,6 +540,7 @@ def validate_effect_override(seen_ids: set[str]) -> None:
     """
     for name, table in (("EFFECT_OVERRIDE", EFFECT_OVERRIDE),
                         ("FLAG_OVERRIDE", FLAG_OVERRIDE),
+                        ("META_OVERRIDE", META_OVERRIDE),
                         ("CATEGORY_OVERRIDE", CATEGORY_OVERRIDE)):
         unknown = sorted(set(table) - seen_ids)
         if unknown:

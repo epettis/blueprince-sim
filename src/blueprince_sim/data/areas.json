@@ -378,12 +378,11 @@
   },
   {
    "id": "pump_water_lte8",
-   "kind": "unmodelled",
+   "kind": "flag",
    "modelled": false,
    "permanence": "daily",
-   "stub": true,
-   "detail": "Grounds -> Well: Pump Room water level <= 8. Deferred: Pump Room water level not modelled. Passes (stub open).",
-   "retire_in": "PR-pump-room",
+   "stub": false,
+   "detail": "Grounds -> Well: Fountain water level <= 8, re-checked on every traversal against the current (permanent) level -- not latched, since the level can move both ways within a day as the panel is operated. The engine sets the 'pump_water_lte8' flag in GateContext when Game.water_level('fountain') <= 8.",
    "meta": {"source": "docs/areas.md", "confidence": "wiki"}
   },
   {
@@ -469,6 +468,15 @@
    "meta": {"source": "docs/areas.md", "confidence": "wiki"}
   },
   {
+   "id": "fountain_water_0",
+   "kind": "flag",
+   "modelled": false,
+   "permanence": "daily",
+   "stub": false,
+   "detail": "Well -> Reservoir South, ADDITIONAL to basement_key_well on the same edge: 'this passage is only traversible while the fountain water level is 0' (Well page), re-checked on every traversal, independent of the permanent Basement Key unlock -- not latched. The engine sets the 'fountain_water_0' flag in GateContext when Game.water_level('fountain') == 0.",
+   "meta": {"source": "docs/areas.md", "confidence": "wiki"}
+  },
+  {
    "id": "mine_south_visited",
    "kind": "flag",
    "modelled": false,
@@ -479,23 +487,20 @@
   },
   {
    "id": "rowboat_water_6",
-   "kind": "unmodelled",
+   "kind": "flag",
    "modelled": false,
    "permanence": "daily",
-   "stub": true,
-   "detail": "Reservoir South <-> Safehouse: rowboat; water level must be exactly 6. Two-way once set. Deferred: Pump Room water level not modelled. Passes (stub open).",
-   "retire_in": "PR-pump-room",
+   "stub": false,
+   "detail": "Reservoir South <-> Safehouse: rowboat, Reservoir water level exactly 6 (two-way), re-checked on every traversal against the current (permanent) level -- not latched. The engine sets the 'rowboat_water_6' flag in GateContext when Game.water_level('reservoir') == 6.",
    "meta": {"source": "docs/areas.md", "confidence": "wiki"}
   },
   {
    "id": "reservoir_water_13",
-   "kind": "unmodelled",
+   "kind": "flag",
    "modelled": false,
    "permanence": "permanent",
    "stub": false,
-   "default_closed": true,
-   "detail": "Reservoir North <-> Reservoir South: the boat crosses the Reservoir side-to-side once the Reservoir water level is set to exactly 13, permanent once set (docs/open_tasks.md task 11). Deferred: Pump Room water level not modelled -- but unlike the other two Pump Room stubs (pump_water_lte8, rowboat_water_6), this gate defaults CLOSED rather than open (owner ruling 2026-08-06). Closing it strands no node and changes no reachable set. An OPEN crossing would instead let an empty inventory walk basement -> reservoir_north -> reservoir_south -> mine_south / safehouse for free, around the basement_key_well door -- the same class of free-traversal loophole the Precipice gate also guards against (see docs/areas.md). Measured before landing: house->reservoir_south=5, house->mine_south=6, house->safehouse=6 with this edge open and an empty inventory, all unreachable with it closed.",
-   "retire_in": "PR-pump-room",
+   "detail": "Reservoir North <-> Reservoir South: the boat crosses the Reservoir side-to-side once the Reservoir water level has EVER been set to exactly 13 (docs/areas.md's Pump Room section) -- permanent once set, UNLIKE pump_water_lte8/rowboat_water_6 above, which stay live checks against the current level rather than latching. The engine sets the 'reservoir_water_13' flag in GateContext from GameState.reservoir_13_reached (OR'd with the carried GameConfig.reservoir_13_reached), set permanently by Game.set_pump_level the moment the Reservoir is recorded at 13.",
    "meta": {"source": "docs/areas.md", "confidence": "wiki"}
   },
   {
@@ -629,7 +634,7 @@
   {"from": "basement", "to": "sealed_entrance", "requires": ["sealed_entrance_broken"], "meta": {"source": "docs/areas.md", "confidence": "wiki"}},
   {"from": "basement", "to": "reservoir_north", "requires": ["pallet_jack_puzzle"], "meta": {"source": "docs/areas.md", "confidence": "wiki"}},
   {"from": "reservoir_north", "to": "basement", "requires": [], "meta": {"source": "docs/areas.md", "confidence": "wiki"}},
-  {"from": "well", "to": "reservoir_south", "requires": ["basement_key_well"], "meta": {"source": "docs/areas.md", "confidence": "wiki"}},
+  {"from": "well", "to": "reservoir_south", "requires": ["basement_key_well", "fountain_water_0"], "meta": {"source": "docs/areas.md", "confidence": "wiki"}},
   {"from": "reservoir_south", "to": "well", "requires": [], "meta": {"source": "docs/areas.md", "confidence": "wiki"}},
   {"from": "reservoir_south", "to": "mine_south", "requires": [], "meta": {"source": "docs/areas.md", "confidence": "wiki"}},
   {"from": "mine_south", "to": "reservoir_south", "requires": [], "meta": {"source": "docs/areas.md", "confidence": "wiki"}},
