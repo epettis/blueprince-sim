@@ -116,9 +116,10 @@ count that is genuinely **derived** from a data file: `_N_AXE_TARGETS`
 (`_build_axe_target_ids`, every room with a rarity and a nonzero gem cost),
 `_N_AREA_NODES` (`_build_area_node_ids`, `areas.json`'s nodes),
 `_N_LOCK_SPECIAL_KEYS` (`_build_lock_special_key_order`,
-`data/locks.json`'s `special_key_menu.order`), and `_N_CONSTELLATIONS`
-(`data/constellations.json`'s records, held at 13 by `tools/validate_data.py`
-and cross-checked in `tests/test_constellations.py`).
+`data/locks.json`'s `special_key_menu.order`), `_N_PUMP_SOURCES`
+(`_build_pump_source_ids`, `data/pump_room.json`'s water sources), and
+`_N_CONSTELLATIONS` (`data/constellations.json`'s records, held at 13 by
+`tools/validate_data.py` and cross-checked in `tests/test_constellations.py`).
 
 **Nothing else enforces that the pin and the derived count agree**, and the
 mask-building loop for each block has no bounds check — it enumerates the
@@ -131,17 +132,19 @@ mask length check (`len(mask) == N_ACTIONS`) does **not** catch it, because
 `mask` is always allocated at the full `N_ACTIONS` length regardless of what
 gets written into it.
 
-The fix, now applied to all three registry-derived builders
-(`_build_axe_target_ids`, `_build_area_node_ids`,
-`_build_lock_special_key_order`): **each asserts its own result's length
-against its pinned constant before returning.** A future desync raises
-immediately, everywhere the builder is called (mask building, dispatch, and
-every test that builds a `Game`), instead of corrupting a mask bit silently.
-Each also has an explicit, discoverable test pinning the same invariant
+The fix, now applied to every registry-derived builder (`_build_axe_target_ids`,
+`_build_area_node_ids`, `_build_lock_special_key_order`,
+`_build_pump_source_ids`): **each asserts its own result's length against its
+pinned constant before returning.** A future desync raises immediately,
+everywhere the builder is called (mask building, dispatch, and every test that
+builds a `Game`), instead of corrupting a mask bit silently. Three of the four
+also have an explicit, discoverable test pinning the same invariant
 (`test_axe_target_count_matches_the_pinned_action_space_width`,
 `test_area_node_count_matches_the_pinned_action_space_width`,
 `test_special_key_menu_count_matches_the_pinned_action_space_width`), the
 same shape `test_constellations.py` already used for `_N_CONSTELLATIONS`.
+**`_build_pump_source_ids` has the assert but no equivalent dedicated test** —
+a real gap, not yet closed.
 
 ## Reserved and dead action ids
 

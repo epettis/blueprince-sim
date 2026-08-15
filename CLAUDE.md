@@ -16,7 +16,7 @@ source .venv/bin/activate          # do this before pytest / ruff / blueprince-*
 - Tests: `pytest` (or `python -m pytest tests/ -q`).
 - Single test: `pytest tests/test_placement.py::test_garage_placement`.
 - Lint: `ruff check .` (line length 100). Keep it clean before committing.
-- **Validate data (run after any edit to `data/*.json`): `python tools/validate_data.py`** — must report 0 errors, 0 warnings.
+- **Validate data (run after any edit to `src/blueprince_sim/data/*.json`, shorthand `data/` below): `python tools/validate_data.py`** — must report 0 errors, 0 warnings.
 - Regenerate `data/rooms.json` from the raw dump + `tools/supplemental_rooms.json`: `python tools/ingest_sheet.py` (rebuilds the file, overwriting manual JSON edits — see caveat below).
 - Play / evaluate: `blueprince-sim play --seed 42`; `blueprince-sim batch --episodes 5000 --policy greedy_rank`. Any `GameConfig` field can be overridden with `--set key=value` or a `--config file.yaml`.
 - Train: `blueprince-train --checkpoint-dir runs/<name>` (continuous MaskablePPO, auto-resumes from `latest.zip`, SIGTERM-graceful).
@@ -36,11 +36,12 @@ rarity, layout, gem cost, category, draft conditions, deck copies — live in
 Room *behaviour* splits by how many rooms share it:
 
 - **Shared and parametric → a data tag**, one handler in `engine/effects/tier1.py`
-  serving many rooms, each room's numbers in its own `effects` list. These are
-  `grant`, `grant_per_category`, `grant_on_draft_category`,
-  `set_resource_on_enter`, `counts_as_bedrooms`, `counts_as_drafting_room`,
-  `inject_pool`, `free_green_drafts`, `archive_floorplan`, and `anti_luck`
-  (which `items.py::expected_yields` reads generically).
+  serving many rooms, each room's numbers in its own `effects` list. `grant`
+  alone carries most instances; `items.py::expected_yields` reads them
+  generically. **Three are singleton holdovers rather than shared tags** —
+  `anti_luck`, `archive_floorplan`, `conceal_all_floorplans` — see
+  [docs/architecture.md](docs/architecture.md). For the live list, read the
+  `@effect` registrations in `engine/effects/tier1.py`.
 - **Belonging to exactly one room → `engine/effects/rooms/<room_id>.py`**,
   registered with `@room_hook(room_id, Hook.<member>)`, mirroring
   `tests/rooms/test_<room_id>.py` one-to-one.
@@ -50,7 +51,9 @@ add a tag instance in data; if it is bespoke to one room, write a `room_hook`
 handler rather than invent a new single-use tag.
 
 `Hook` members: `ON_PLACE`, `ON_ENTER`, `ON_DRAFT_ROOM`, `ON_DAY_START`,
-`ON_DRAFT_FROM`, `ON_HAND_DEALT`, `ON_ARRIVE`, `ON_DAY_END`.
+`ON_DRAFT_FROM`, `ON_HAND_DEALT`, `ON_ARRIVE`, `ON_DAY_END`, `ON_DAY_END_ALL`.
+`ON_DAY_END` fires for the room the player stands in only; `ON_DAY_END_ALL`
+broadcasts to every placed room.
 
 Data files: `rooms.json` (room table), `weights.json` (rarity roll tables), `priority_draws.json`, `items.json`, `locks.json` (locked/security door tables), `special_items.json` (the 102 inventory items: spawn pools, effects, dig tables, Lost & Found pool, fabrication recipes — see `docs/special-items-schema.md` for the data contract and `docs/special-items-behaviour.md` for what the items do), `shops.json` (the 8 shops and the Trading Post trade graph), `areas.json` (the off-grid area graph driving `engine/areas.py` and the travel actions — see `docs/areas.md`), `upgrade_selection.json` (the Upgrade Disk selection tables — see `docs/upgrade-disks-design.md`). Every record carries `meta.source` + `meta.confidence` (`datamined > wiki > inferred > placeholder`).
 
@@ -85,8 +88,8 @@ Data files: `rooms.json` (room table), `weights.json` (rarity roll tables), `pri
 
 ## Known gaps and deferred work
 
-- All wiki rooms now have records in `rooms.json`, but several still lack their special *behavior*: Planetarium (Telescope planets), Treasure Trove (black box), Closed Exhibit (security puzzle — Paper Crown pickup is simplified to guaranteed), Throne Room. The Mechanarium's doors and diagonal compartments ARE modeled (`engine/draft.py`, `effects/rooms/mechanarium.py`), the Parlor's prize is modeled under the assumed-solved doctrine (`effects/rooms/parlor.py`), the Lost & Found's steal/gift behavior IS modeled (`special_items.py`), and Vault deposit boxes are modeled (`game.py::can_open_vault_box` / `open_vault_box`).
-- **Special items**: the item system is fully landed — inventory, spawning, digging and per-item effects, plus shop purchases (`shops.py::buy`), Trading Post trades, Workshop fabrication, item-use actions (Repellent, Royal Scepter), the carry-over wrapper, and the env observation/action wiring (`BUY_BASE`/`TRADE_BASE`/`FABRICATE_BASE` in `env/actions.py`; `inventory`/`shop_stock`/`trade_offers`/`fabricate` in `env/obs.py`). Records still flagged `implemented: false` are inert and carry `meta.blocked_on` — **`microchip` is the notable one** (`blocked_on: outer_areas_not_modeled`, worth re-examining now that the area graph has landed).
+- All wiki rooms now have records in `rooms.json`, but a few still lack their special *behavior*: Closed Exhibit (security puzzle — Paper Crown pickup is simplified to guaranteed), the Treasure Trove's black box (its per-draft coin piles ARE modelled), and the Throne Room's crown objective (its lever and Mora Jai +2 allowance ARE modelled). The Planetarium's Telescope planets ARE modelled (`effects/rooms/planetarium.py`, `Capability.TELESCOPE_REVEAL`, `special_items.py::use_telescope_in_planetarium`, save-scoped `state.planetarium_planets`). The Mechanarium's doors and diagonal compartments ARE modeled (`engine/draft.py`, `effects/rooms/mechanarium.py`), the Parlor's prize is modeled under the assumed-solved doctrine (`effects/rooms/parlor.py`), the Lost & Found's steal/gift behavior IS modeled (`special_items.py`), and Vault deposit boxes are modeled (`game.py::can_open_vault_box` / `open_vault_box`).
+- **Special items**: the item system is fully landed — inventory, spawning, digging and per-item effects, plus shop purchases (`shops.py::buy`), Trading Post trades, Workshop fabrication, item-use actions (Repellent, Royal Scepter), the carry-over wrapper, and the env observation/action wiring (`BUY_BASE`/`TRADE_BASE`/`FABRICATE_BASE` in `env/actions.py`; `inventory`/`shop_stock`/`trade_offers`/`fabricate` in `env/obs.py`). Records flagged `implemented: false` are inert. The two that remain (`magnifying_glass`, `key_of_aries`) carry `meta.wont_implement` rather than `meta.blocked_on`: both are puzzle-only effects deliberately excluded, not deferred work. `tools/validate_data.py` prints the current census on every run.
 - **Chamber of Mirrors** is stored as a cross, but its four arms only connect after each door is entered from outside; that gated traversal is not modeled (see its `meta.layout_note`).
 - Room layouts were audited against `blueprince.wiki.gg` Category:Room shapes; two datamined rooms that disagreed with the wiki are corrected via `LAYOUT_OVERRIDE` in `tools/ingest_sheet.py`. Ambiguous currency glyphs in the raw sheet are resolved by UTF-8 byte value (`0x94`=key, `0x92`=gem) in the ingest `GLYPH_MAP`.
 - Broader modeling simplifications (Antechamber entry model, step costs, week boundaries, luck curve, redraw semantics, out-of-scope room effects) are catalogued in the README "Known simplifications & open questions" section.

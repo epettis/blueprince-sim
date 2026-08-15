@@ -25,10 +25,11 @@ to 1 and everything named in the wrap block goes back to its `base_cfg` value.
 ## The three carry channels
 
 Everything that crosses a day boundary goes through one dict:
-`Game.carryover()` (assembled in `engine/shops.py::carryover`) is handed to
-`DayChain.advance()`, and `DayChain.next_config()` folds the result into the
-next day's `GameConfig`. There are exactly three channel shapes, and the first
-question about any new cross-day fact is which one it belongs in.
+`Game.carryover()` (assembled mostly in `engine/shops.py::carryover`, with the
+Pump Room block added in `game.py`) is handed to `DayChain.advance()`, and
+`DayChain.next_config()` folds the result into the next day's `GameConfig`.
+There are exactly three channel shapes, and the first question about any new
+cross-day fact is which one it belongs in.
 
 ### 1. `DayChain._CARRYOVER_KEYS` — bool fields, attempt-scoped
 
@@ -119,7 +120,7 @@ An item's own record carries its persistence:
 
 It carries `permanent` and `until_used` self-persisters plus the Coat Check and
 Moon Pendant carries. This is the channel that makes an *item* survive the
-night, and it is the one most often missed when someone proposes a 19th
+night, and it is the one most often missed when someone proposes a new
 `_CARRYOVER_KEYS` member to make something "permanent" — an item that is
 already `persistence: "permanent"` needs no flag at all.
 
@@ -139,10 +140,15 @@ they survive into the next attempt:
 - `permanent_rarity` — the Gear Wrench's room-id → rarity-index map.
 - `planetarium_planets` — the Telescope-in-Planetarium's unlocked planets.
 
-`tests/test_carryover.py` pins this set deliberately, so adding a fourteenth
-member is an explicit edit rather than a slip. That test is the guard: a
+Each field above has its own save-scoping test somewhere in the suite (e.g.
+`tests/test_carryover.py::test_shrine_state_is_save_scoped_across_a_daychain_attempt_wrap`,
+plus per-field tests in `tests/test_the_axe.py`, `tests/test_gear_wrench.py`,
+`tests/test_constellations.py` and `tests/rooms/test_planetarium.py`), so a
 carve-out is a claim about the *game*, not a convenience, and each one above
-was ruled individually.
+was ruled individually. **No test pins the carve-out list itself as a set**,
+so a new field added to this list is caught by nothing — the per-field
+coverage above proves each existing entry belongs, not that the list is
+closed to undiscussed additions.
 
 ## What the attempt wrap clears
 

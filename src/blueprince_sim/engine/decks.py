@@ -47,7 +47,7 @@ def eligible_pool(registry: Registry, cfg: GameConfig) -> list[Room]:
     holding a shovel (special_items.py::on_area_arrival). Gated the same way
     as Treasure Trove/Throne Room -- a GameConfig flag, checked per-room --
     but on its own pool value rather than ``studio_addition`` membership,
-    since the room is not one of the eight studio-addition rooms.
+    since the room is not one of the studio-addition rooms.
     """
     replaced: set[str] = set()
     chosen_variants: list[Room] = []

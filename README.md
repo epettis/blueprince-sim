@@ -88,7 +88,7 @@ functions in [docs/rewards.md](docs/rewards.md).
 | `orchard_unlocked` | +20 starting steps (50 -> 70) |
 | `mine_unlocked` | +2 gems at day start (Gemstone Cavern) |
 | `west_gate_unlatched` | Grounds<->West Path shortcut open (earned in-run; not outer-draft gate) |
-| `studio_additions` | set of the 8 Drafting Studio rooms added to the pool (incl. `solarium`, `classroom`) |
+| `studio_additions` | set of Drafting Studio rooms added to the pool (incl. `solarium`, `classroom`) |
 | `upgrade_disks` | upgrade-variant room ids that replace their base room |
 | `veteran_mode`, `day`, `room46_reached` | stage selection + gem deck-size gates |
 | `satisfied_conditions` | item-gated rooms: `breakfast`, `secret_garden_key`, `knight_chess_piece`, `room8_key` |
@@ -130,10 +130,12 @@ data JSON (or regenerate: `python tools/ingest_sheet.py`, which rebuilds
 
 ## Known simplifications & open questions
 
-- **Antechamber entry**: modeled as pre-placed at rank 9 center with all
-  doors usable; you win by **walking into** it (which costs the entry step),
-  not merely by connecting a door — so you can fall one tile short. Its
-  doorway locks are covered in [docs/locking.md](docs/locking.md).
+- **Antechamber entry**: modeled as pre-placed at rank 9 center with **every
+  doorway sealed** — a lever room must be drafted *and* entered to open one
+  (`cfg.antechamber_levers`, default on). You win by **walking into** it
+  (which costs the entry step), not merely by connecting a door — so you can
+  fall one tile short. Its doorway locks are covered in
+  [docs/locking.md](docs/locking.md).
 - **Steps**: drafting a room is free; moving into a room costs 1 step (and is
   when that room's resources are granted). Starting steps 50 (community
   consensus, not datamined).
@@ -143,10 +145,11 @@ data JSON (or regenerate: `python tools/ingest_sheet.py`, which rebuilds
   [docs/locking.md](docs/locking.md).
 - **Week boundaries**: day 1-7 / 8-14 / 15+ mapping to the sheet's Week 1 /
   Week 2 / late tables is no longer an inference. The wiki's Time page states
-  Day One is Sunday, 7 November 1993 (the Drafting Studio calendar), so
-  in-game weeks run Sunday -> Saturday and days 1-7 / 8-14 really are week 1
-  / week 2. The same derivation (day % 7 == 0 is a Saturday) drives Run
-  Payroll's weekly cooldown -- see `engine/effects/rooms/office.py`.
+  Day One's date as 7 November 1993 (the Drafting Studio calendar); 7
+  November 1993 was a Sunday on the real calendar, so in-game weeks run
+  Sunday -> Saturday and days 1-7 / 8-14 really are week 1 / week 2. The same
+  derivation (day % 7 == 0 is a Saturday) drives Run Payroll's weekly
+  cooldown -- see `engine/effects/rooms/office.py`.
 - **Orientation weights and redraws**: the unpublished North/Compass weight
   columns and the whole-hand redraw approximation are noted in
   [docs/drafting.md](docs/drafting.md). The Compass and Ornate Compass are
@@ -155,12 +158,11 @@ data JSON (or regenerate: `python tools/ingest_sheet.py`, which rebuilds
 - **Luck curve** between 10 and 29 is linear (shape not documented); the
   extra-item type distribution is an estimate — see
   [docs/luck.md](docs/luck.md).
-- Rooms whose systems are out of scope (cross-day "Tomorrow" effects,
-  dartboard/parlor puzzles) have their draft presence and
-  costs modeled but their effects reduced or no-op'd; see `meta.effect_text` in
-  `rooms.json` for what the real room does. Shop menus, dig spots/tools and
-  Vault deposit boxes, the Pump Room's water levels and the Casino's slot
-  machine and roulette were once on this list and are now modeled.
+- A shrinking set of rooms have their draft presence and costs modeled but a
+  genuinely unmodelled effect deferred with a stated reason; see
+  `meta.effect_text` in `rooms.json` for what the real room does, and
+  `tools/validate_data.py::_AUDIT_DEFERRED_EXEMPT_IDS` for the current list
+  and why each entry is still there.
 - Red-room rarities/layouts and a few studio-addition costs are estimates
   (their wiki table is bot-blocked); marked `inferred` in data.
 - **Upgrade Disks**: the selection tables are post-Patch-1.7 while the draft
@@ -215,7 +217,7 @@ What it does:
   directions exposed as separate N/E/S/W bits so orientation can drive the
   pick - and phase.
 - **Scenario**: `all_unlocks_config()` - orchard (+20 steps), mine
-  (+2 gems), outer rooms, all 8 studio additions; `upgrade_disks` empty.
+  (+2 gems), outer rooms, all studio additions; `upgrade_disks` empty.
 - **Checkpointing**: every 10,000 completed episodes (`--checkpoint-every`),
   written atomically (temp file + rename) as `latest.zip` + `latest.json`
   (episode/timestep counters, rolling win rate). Every 5th checkpoint is

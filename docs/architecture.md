@@ -27,8 +27,8 @@ Four reasons, recorded so the question does not reopen:
 - **It is generated.** `tools/ingest_sheet.py` builds it from the datamined
   dump. Converting it breaks the re-ingest path that absorbs a future datamine
   and carries `meta.source` / `meta.confidence` forward.
-- **The content is densely tabular.** 170 rooms, with 46 carrying effects tags,
-  plus flags, draft conditions, dig spots and guaranteed items.
+- **The content is densely tabular.** 170 rooms, a minority carrying effects
+  tags, plus flags, draft conditions, dig spots and guaranteed items.
 - **`validate_data.py`'s cross-record schema and referential checks are natural
   over one document** and awkward over 170 modules.
 - **`test_ingest_overrides.py`'s round-trip guarantee only exists because the
@@ -105,7 +105,7 @@ solely to prove the two agree.
 
 ## The registries
 
-Five registries live in `engine/effects/__init__.py`. All of them are populated
+The registries below live in `engine/effects/__init__.py`. All of them are populated
 by import-time calls from modules under `effects/rooms/` and `effects/items/`,
 and none of them can validate an id at registration time, because no `Registry`
 exists yet when the decorators run.
@@ -214,10 +214,11 @@ artefact**; pin the arithmetic before moving anything in them.
 Because every registration runs at import time, a typo'd id cannot be caught
 where it is written — it would simply never fire, silently. Each registry
 therefore has a `validate_*` function returning ids the loaded `Registry` does
-not know, and `tools/validate_data.py` calls
+not know, and `tools/validate_data.py` calls one per registry above:
 `validate_room_registry`, `validate_capability_registry`,
-`validate_container_registry` and `validate_item_registry`. **A typo'd id in
-any of them fails the data validator, not only the test suite.**
+`validate_container_registry`, `validate_item_registry` and
+`validate_item_hook_registry`. **A typo'd id in any of them fails the data
+validator, not only the test suite.**
 
 ## What stays in data
 
@@ -315,8 +316,7 @@ turn "are we done?" into a number.
 
 `tests/test_room_id_allowlist.py` AST-scans the direct children of `engine/`
 for string literals equal to a real room id, against a per-module allowlist
-keyed `module filename -> {room ids}`. It currently carries **78 pairs across
-11 modules**.
+keyed `module filename -> {room ids}`.
 
 **The scanner is deliberately dumb.** It flags every literal that equals a room
 id and makes no attempt to guess whether the site is a behaviour branch
@@ -355,7 +355,7 @@ Not every listed id is debt. `upgrades.py` (the disk selection tables) and
 The item side splits its allowlist in two, and the split is the point:
 **architecture may grow; debt may not.**
 
-- **`ITEM_ARCHITECTURE`** (47 pairs) — ids that name engine-owned, permanent
+- **`ITEM_ARCHITECTURE`** — ids that name engine-owned, permanent
   structure. Four kinds: the engine-owned priority tuples, id-prefix family
   constants, named draft conditions, and trade-graph/pipeline carve-outs.
 - **`ITEM_DEBT`** (1 pair) — a genuine per-item behaviour branch that should be
@@ -424,10 +424,13 @@ needs no new call site. Do not re-introduce a lazy one.**
   registries are deliberately different shapes for the reason above — items
   have no event boundary — even though the surface symmetry invites making them
   match.
-- **The room-id allowlist has no architecture/debt split**, unlike the item
-  one. Room-id entries carry their justification as a per-entry comment
-  instead. The item split exists because a phase of work was measured *by* the
-  debt number; the room list has never had that requirement.
+- **The room-id debt cap is bidirectional; the item one is upper-bound-only.**
+  Both allowlists split into architecture and debt. `ROOM_ID_DEBT_CAP` fails
+  when `ROOM_DEBT`'s total is above *or below* it, because a conversion that
+  shrinks the debt without lowering the cap leaves silent headroom for it to
+  regress. `ITEM_DEBT_CAP` bounds only from above, since a genuinely one-off
+  id can always move to `ITEM_ARCHITECTURE` later without that being
+  suspicious.
 - **`effects/tier1.py` is outside the room-id scan**, because the scan covers
   direct children of `engine/` only, matching the granularity the measurement
   table used. Its remaining id branch is tracked by a dedicated test rather
