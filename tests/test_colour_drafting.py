@@ -262,3 +262,124 @@ def test_redraw_keeps_the_hand_on_colour(cfg):
     assert g.state.pending.colour == "red"
     for opt in g.state.pending.options:
         assert g.registry.rooms[opt.room_idx].is_category("red")
+
+
+# ------------------------------------------------------- the free first option
+
+#: The green defaults (priority_draws.json::colour_defaults), parked on the grid
+#: by _only_a_gem_green_is_dealable so the fallback ladder's last rung is closed.
+GREEN_DEFAULTS = ("courtyard", "aquarium", "cloister")
+
+
+def _only_a_gem_green_is_dealable(g: Game, monkeypatch) -> None:
+    """Rig the decks so a green hand can only fill its Gem-Draw slot.
+
+    Empties every free deck, so a Free Draw slot has nothing to deal and slot
+    0 -- whose deck-size gate looks at the free deck alone (decks.py::
+    rarity_deck_ok) -- cannot even roll a rarity; parks the three green
+    defaults on the grid, so ``_deal_colour_default`` is closed too. The
+    Solarium's gem deck is the only one left passing its size gate, padded to
+    that gate with off-colour rooms the colour filter drops, so the rarity
+    roll can only land there. Pins the round's Free/Gem decision to "slot 2 is
+    a Gem Draw" (a published outcome of weights.json::free_gem_draws -- every
+    round of 3+, and most rank rolls -- but a rolled one, so it is fixed here
+    rather than hunted for in a seed).
+    """
+    solarium = g.registry.by_id["solarium"]
+    padding = [g.registry.by_id[rid].idx for rid in ("kitchen", "locksmith", "chapel")]
+    gate = g.registry.weights["deck_size_gates"]["gem"][solarium.rarity_idx]
+    for rarity_idx in range(4):
+        for is_gem in (False, True):
+            deck = g.state.deck(rarity_idx, is_gem)
+            deck.order = []
+            deck.pos = 0
+    gem_deck = g.state.deck(solarium.rarity_idx, True)
+    gem_deck.order = [solarium.idx] + (padding * gate)[:gate - 1]
+    g.placed_ids |= set(GREEN_DEFAULTS)
+    g.state.gems = 0
+    monkeypatch.setattr("blueprince_sim.engine.draft._resolve_free_gem",
+                        lambda ctx, rank, round_num: (False, True))
+
+
+def test_the_secret_passage_grants_its_first_option_free_from_a_later_slot(cfg, monkeypatch):
+    """"The Secret Passage will grant the first option with zero cost, even if
+    it would ordinarily cost gems" (owner ruling): the waiver follows the first
+    option the hand actually presents, not the literal slot index 0. A
+    colour-selective hand's slots fail independently, so slots 0 and 1 can come
+    up unfilled while the Gem-Draw slot 2 deals a gem room -- and that room is
+    then granted free even with no gems in hand. Pins the deal's shape too, so
+    the test cannot pass without the later-slot case actually arising."""
+    g = Game(cfg, seed=1)
+    _place_secret_passage(g)
+    _only_a_gem_green_is_dealable(g, monkeypatch)
+    g.open_door(SECRET_PASSAGE_CELL, N)
+    pending = g.choose_colour("green")
+    assert pending is not None and g.phase is Phase.DRAFTING
+
+    assert [o.slot for o in pending.options] == [2], (
+        "the branch under test needs slots 0 and 1 unfilled and slot 2 dealt")
+    first = pending.options[0]
+    room = g.registry.rooms[first.room_idx]
+    assert not room.is_free, "a free room would price at 0 anyway and test nothing"
+    assert first.cost_waived and first.gem_cost == 0
+    assert g._effective_cost(room, first) == 0
+    assert g.state.gems == 0 and g.affordable(room, first)
+
+
+def test_a_drafting_hand_always_offers_an_affordable_option(cfg, monkeypatch):
+    """"Always allow a free option" (owner ruling). There is no decline, and
+    every other DRAFTING action needs resources the player may not hold, so a
+    hand with nothing affordable would leave the phase with an empty action
+    mask -- unsurvivable for a masked policy. Checks the mask itself on the
+    hand that used to have none, not just the option's price."""
+    g = Game(cfg, seed=1)
+    _place_secret_passage(g)
+    _only_a_gem_green_is_dealable(g, monkeypatch)
+    g.open_door(SECRET_PASSAGE_CELL, N)
+    g.choose_colour("green")
+    assert g.phase is Phase.DRAFTING
+    assert any(g.affordable(g.registry.rooms[o.room_idx], o) for o in g.state.pending.options)
+    mask = A.action_mask(g)
+    assert mask[A.CHOOSE_BASE + 2], "the hand's only option must be choosable"
+    g.choose(2)  # must not raise: the waiver is what makes this payable
+    assert g.state.gems == 0, "a waived cost must not be charged"
+
+
+def test_a_redraw_re_waives_the_new_hands_first_option(cfg, monkeypatch):
+    """The waiver is applied per hand, not once per doorway: a redraw replaces
+    every option, so the freshly dealt first option carries it and the discarded
+    one keeps its own copy on the rewind stack. Guarding only the initial deal
+    would let a redraw land on an unaffordable hand."""
+    from blueprince_sim.engine.game import RedrawKind
+
+    g = Game(cfg, seed=5)
+    _place_secret_passage(g)
+    for deck in g.state.decks:
+        deck.order = []
+    g.open_door(SECRET_PASSAGE_CELL, N)
+    g.choose_colour("green")
+    assert g.phase is Phase.DRAFTING, "the drained-pool hand must fall back to the defaults"
+    assert g.state.pending.options[0].cost_waived
+
+    g.state.pending.redraws_left = 1
+    _only_a_gem_green_is_dealable(g, monkeypatch)
+    g.redraw(RedrawKind.FREE)
+    assert [o.slot for o in g.state.pending.options] == [2], (
+        "the redealt hand must be the later-slot-only one, or nothing is being tested")
+    assert g.state.pending.options[0].cost_waived
+    assert sum(A.action_mask(g)) > 0
+    assert g.state.pending.rewind_stack[-1][0].cost_waived, (
+        "the discarded hand keeps its own waiver, so a rewind restores a takeable hand")
+
+
+def test_an_ordinary_hand_waives_slot_0_and_prices_the_rest(cfg):
+    """The free-first-option rule is a no-op on an ordinary hand: options are
+    built in slot order, so the waiver lands on slot 0, whose cost the deal
+    already zeroes. Slots 1 and 2 are left unwaived, which is what stops the
+    rule from quietly making a whole hand free."""
+    g = Game(cfg, seed=11)
+    g.open_door(g.state.pos, next(d for c, d in g.open_doorways() if c == g.state.pos))
+    options = g.state.pending.options
+    assert [o.slot for o in options] == [0, 1, 2], "an ordinary hand deals all three slots"
+    assert options[0].cost_waived and options[0].gem_cost == 0
+    assert not any(o.cost_waived for o in options[1:])

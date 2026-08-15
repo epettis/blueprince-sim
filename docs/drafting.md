@@ -134,6 +134,42 @@ specifies there. Before it existed, slot 3 ran ~44% gem where the real game
 past its carve-outs is 75–93.75%, and day 1 dealt 8.6% gem where Veteran Mode
 forces 0%.
 
+## The free first option
+
+A Free Draw is about which *deck* a slot reads, not about what the option
+costs. Cost is a separate rule, and it is an owner ruling from play:
+
+> "Always allow a free option. This is particularly important with the Secret
+> Passage. The Secret Passage will grant the first option with zero cost, even
+> if it would ordinarily cost gems. It simply zeroes out the cost. The normal
+> drafting priorities apply. However, if left with no other option, the option
+> is free."
+
+`draft.py::waive_first_option` implements both halves as one rule: once the
+hand is assembled, the **first option it presents** is granted free —
+`gem_cost` set to 0 and `DraftOption.cost_waived` set, which
+`Game._effective_cost` honours at pay time. It runs on every hand: the initial
+deal, every redraw, and the outer-room draft.
+
+This is a **price** rule, not a draw rule. Which rooms are dealt is settled
+before it runs; it consumes no RNG and moves no draw statistic.
+
+`pending.options` is built in slot order, so the first member is normally slot
+0 — whose cost the deal already zeroes, making the rule a no-op on every
+ordinary hand. It bites only when slot 0 dealt nothing, which today only a
+colour-selective hand can do (its slots skip the universal forced-Closet
+attempt; see [Colour-selective drafting](#colour-selective-drafting)). There
+the waiver lands on slot 1 or 2 instead, which is exactly the Secret Passage
+case the ruling names.
+
+The consequence worth stating on its own: **DRAFTING always offers at least
+one affordable option.** A hand that dealt nothing never enters DRAFTING at
+all (`Game.open_door`/`choose_colour` fall back to NAVIGATE), and any hand that
+did dealt a free first option. There is no decline, so without this the phase
+could present zero legal actions — `env/actions.py::action_mask` enables CHOOSE
+only for affordable slots, and every other DRAFTING row (redraw, rotate, berry
+pick, crown block, rewind) needs resources the player may not hold.
+
 ## Per-slot rarity roll
 
 Each of the three option slots is dealt independently:
@@ -287,8 +323,9 @@ is dealt was gaming nothing, and **no reward change was made on that
 evidence**. The guaranteed Tunnel goes in slot 0 rather than a middle slot,
 overriding the owner's own recollection: the wiki's `Drafting/Advanced` is
 1-indexed (its "Slot 1 always makes a Free Draw" matches this engine's
-free-only slot 0, and "a Library is drawn into Slot 3" matches the existing
-index 2). The conflict was surfaced rather than resolved silently, per
+free-*deck*-only slot 0 — a draw-class rule, distinct from the free-first-
+option price rule above — and "a Library is drawn into Slot 3" matches the
+existing index 2). The conflict was surfaced rather than resolved silently, per
 [`doctrine.md`](doctrine.md), and ruled for the wiki.
 
 ### Category biases
@@ -420,10 +457,17 @@ universal forced-Closet attempt 4 must never run, because the Closet's category
 is `blueprint` — never one of the five selectable colours — and the wiki states
 the colour invariant with no exhaustion exception. A default is still filtered
 through `room_draftable` and can lose to the one-copy-per-grid rule like any
-other candidate; if all three are unavailable the slot is left unfilled and the
-caller falls back to NAVIGATE rather than parking in DRAFTING with nothing to
-choose. That branch is reachable only because reserve copies are unmodelled: it
-is a modelling artifact, not a game rule.
+other candidate; if all three are unavailable the slot is left unfilled and, if
+that empties the whole hand, the caller falls back to NAVIGATE rather than
+parking in DRAFTING with nothing to choose. That branch is reachable only
+because reserve copies are unmodelled: it is a modelling artifact, not a game
+rule.
+
+Slots fail **independently**, so an unfilled slot does not imply an empty hand:
+the Free/Gem decision can leave slots 0 and 1 drawing from a free deck with
+nothing legal on-colour while slot 2 draws a gem room from the gem deck. The
+[free first option](#the-free-first-option) is what keeps the surviving
+one-option hand takeable.
 
 The **Silver Key's cross/T bias is skipped entirely** during a colour-selective
 draft rather than merely narrowed by the filter — *"If the Silver Key is used in

@@ -119,7 +119,9 @@ def _navigate_north(game: Game) -> None:
 
 
 def _forced_slot(game: Game) -> int:
-    """Lowest slot as a last resort - slot 0 is always the free fallback."""
+    """Lowest dealt slot as a last resort - the hand's first presented option
+    is always granted free (draft.py::waive_first_option), so this slot is
+    always affordable, whether or not the deal filled slot 0."""
     return min(o.slot for o in game.state.pending.options)
 
 

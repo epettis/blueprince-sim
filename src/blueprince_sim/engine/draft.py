@@ -819,9 +819,11 @@ def _make_option(ctx: DraftContext, room: Room, slot: int, cell: int, entry_dir:
 
     A single legal orientation is taken as-is; otherwise the datamined
     south-biased roll picks one. Slot 0 is always free; other slots carry the
-    room's resolved gem cost. ``forced_draw`` marks priority-draw, forced-
-    Closet, and Tunnel-chain deals. The Mechanarium's mask is derived instead
-    (see _mechanarium_orientation) and consumes no "orientation" RNG draw.
+    room's resolved gem cost, which ``waive_first_option`` then zeroes for
+    whichever option the assembled hand presents first. ``forced_draw`` marks
+    priority-draw, forced-Closet, and Tunnel-chain deals. The Mechanarium's
+    mask is derived instead (see _mechanarium_orientation) and consumes no
+    "orientation" RNG draw.
     """
     if room.id == MECHANARIUM_ID:
         orientation = _mechanarium_orientation(ctx, cell, entry_dir)
@@ -999,6 +1001,34 @@ def _pick_dowsing_slot(ctx: DraftContext, pending: PendingDraft) -> None:
     pending.dowsed_slot = ctx.rng.choice("dowsing_rod_slot", candidates).slot
 
 
+def waive_first_option(pending: PendingDraft) -> None:
+    """Grant the hand's first presented option for free.
+
+    Owner ruling, from play: *"Always allow a free option. This is
+    particularly important with the Secret Passage. The Secret Passage will
+    grant the first option with zero cost, even if it would ordinarily cost
+    gems. It simply zeroes out the cost. The normal drafting priorities apply.
+    However, if left with no other option, the option is free."*
+
+    A price rule, not a draw rule: which rooms are dealt is settled before
+    this runs and is not touched here, so no RNG is consumed and no draw
+    statistic moves. ``pending.options`` is built in slot order, so its first
+    member is the lowest slot that actually dealt -- normally slot 0 (whose
+    cost the deal already zeroes, making this a no-op), and slot 1 or 2 on a
+    colour-selective hand whose earlier slots came up unfilled. Zeroing the
+    cost of whichever option is actually presented first is what makes "there
+    is always a free option" true by construction, and with it the guarantee
+    that DRAFTING always offers at least one affordable slot: an empty hand
+    never enters DRAFTING at all (Game.open_door/choose_colour).
+
+    ``DraftOption.gem_cost`` and ``DraftOption.cost_waived`` are both set, so
+    the dealt record and the pay-time price (Game._effective_cost) agree.
+    """
+    if pending.options:
+        pending.options[0].gem_cost = 0
+        pending.options[0].cost_waived = True
+
+
 def _fill_options(ctx: DraftContext, pending: PendingDraft, from_room: Room | None) -> None:
     """Deal the three option slots, then apply concealment.
 
@@ -1125,6 +1155,9 @@ def _fill_options(ctx: DraftContext, pending: PendingDraft, from_room: Room | No
             exclude.add(opt.room_idx)
     # Clear after the initial deal; redraws of this hand use normal odds.
     ctx.state.special.silver_key_draft = False
+
+    # The hand's first presented option is always free (see waive_first_option).
+    waive_first_option(pending)
 
     _pick_dowsing_slot(ctx, pending)
 
