@@ -447,8 +447,12 @@ uniformly over the four rarities, each move routed through `set_dynamic_rarity`
 so a later same-day Gear Wrench pick finds the card where it actually is.
 [`drafting.md`](drafting.md) owns the standing divergence that this re-roll
 never writes the permanent rarity record the wiki says it shares with the Gear
-Wrench. **The room is undraftable today** (`rarity: null`), which is what masked
-a live bug in that re-roll for months — see "Deliberate divergences".
+Wrench. Reachable only through its **Found Floorplan**: arriving at the
+campsite while holding a shovel permanently sets
+`state.conservatory_floorplan_found`, and `decks.py::eligible_pool` adds the
+room to the pool from the *following* day, since `build_decks` runs at day
+start. It is `rarity: unusual`, `gem_cost: 1` — so it deals from the **gem**
+decks — `corner_only`, and it counts as a Drafting Room.
 
 **`funeral_parlor__ix110`** — the prize box holds one gem per Red Room in the
 house, counted at the moment the box is opened (this room's own first entry),
@@ -580,7 +584,8 @@ exists and is a **deliberate permanent finding**, not an oversight. Do not
 it: once a planet is unlocked the room carries that planet's payload every day
 going forward, re-applied generically from the data table rather than by
 hard-coding which planet is which. **Its 2 stars are gated on ending the day
-there**, not on entry — see "Deliberate divergences".
+there**, not on entry: `Hook.ON_DAY_END` fires only for the room the player
+stands in at termination.
 
 **`quest_bedroom__ix71`** — a **Bedroom**, not an objective room. Our ingest let
 `type2 == "Objective"` override the real type, so the room landed as
@@ -723,19 +728,14 @@ observable effect.
 
 ## Deliberate divergences
 
-- **The Conservatory is undraftable, and its whole effect is dead code.** Its
-  record carries `rarity: null` and `eligible_pool` drops rarity-less rooms
-  before it checks the pool, so it can never enter `build_decks`; its forced-draw
-  entry is unbuilt. This masked a live bug for months — the re-roll moved cards
-  between rarity decks without writing `state.dynamic_rarity`, so a later
-  `set_dynamic_rarity` looked in the wrong bucket and silently dropped the move,
-  corrupting the Gear Wrench in 14.3% of 300 seeds. That bug is fixed; the
-  undraftability is not, and is a live task. **Dead code can still be a hazard:
-  unreachable is not the same as harmless.**
-- **The Planetarium's 2 stars fire on entry, where the wiki gates them on
-  ending the day there.** `Hook.ON_DAY_END` exists and is fired for the room the
-  player stands in at termination, so the capability is present and unused for
-  this grant.
+- **The Conservatory's re-roll never writes the permanent rarity record.**
+  [`drafting.md`](drafting.md) owns that divergence. What this room's own
+  history adds is a general shape: the re-roll moved cards between rarity
+  decks without writing `state.dynamic_rarity`, so a later
+  `set_dynamic_rarity` looked in the wrong bucket and silently dropped the
+  move, corrupting the Gear Wrench in 14.3% of 300 seeds — and it went
+  unnoticed because the room was unreachable at the time. **Dead code can
+  still be a hazard: unreachable is not the same as harmless.**
 - **The Mail Room's Dynamic Rarity effect is not modelled.** A waiting package
   sets the Mail Room to Commonplace for the day, which makes the delivered room
   far easier to draw again — a real strategic effect, not flavour. **Any
@@ -751,9 +751,13 @@ observable effect.
   variant. Narrow — it needs two different Mail Room upgrades applied across one
   attempt, and only one variant is normally active at a time. Recorded rather
   than patched; fixing it means keying the cycle by variant id.
-- **The Locker Room's 17 locked lockers are not modelled**, nor is their
-  datamined loot table: opening one is a player action needing its own action id,
-  which belongs with a retrain rather than with a passive spread.
+- **The Locker Room's locker loot is inferred, not datamined.** The 3 open and
+  17 locked lockers are modelled as containers at the room's cell (one key
+  each for the locked ones, free for the open ones —
+  [`special-items-behaviour.md`](special-items-behaviour.md) owns the kinds),
+  but their loot tables are inferred from the item pages that name a locker as
+  a source. The wiki's 36-locker total minus 16 sealed is what fixes the 3/17
+  split.
 - **Per-room spread failure is not modelled.** The wiki notes some targeted
   rooms do not actually receive their spread, with no published success rate, so
   the computed count is simply the number of items placed.
