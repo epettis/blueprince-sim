@@ -305,7 +305,7 @@
    "implemented": true,
    "meta": {
     "source": "https://blueprince.wiki.gg/wiki/Lock_Pick_Kit",
-    "confidence": "datamined",
+    "confidence": "wiki",
     "absent_spawn_areas": [],
     "blocked_on": null,
     "notes": "Rates, denominator, pity and pity_fail live on this record's lockpick effect and are read by special_items.py::_attempt_lockpick, which prefers the Pick Sound Amplifier when both tools are held; the door kinds match too (locks.py's DOOR_SECURITY is a separate segment kind no lockpick path touches). The rate ladder is indexed by state.special.lockpick_successes (successful picks today), matching \"the chance goes down after a successful lockpick\" / \"after the first three successful lockpicks, remaining lockpicks have a 19/101 chance\". state.special.lockpick_fails is the two-sided pity counter (+1/fail, -1/success): at >= pity it auto-succeeds and resets to -1; at <= pity_fail it auto-fails and resets to 1. The wiki gates the auto-fail case on lockpicking skill <= 20 -- lockpicking skill itself has no stat here (docs/experiments-design.md, permanent_lockpicking_skill), so this sim applies it unconditionally. NOT modelled: the per-door clause resetting the counter to 0 on a door already attempted (this sim tracks global per-day counters, not per-doorway, per _attempt_lockpick's docstring); the numerator bonus from lockpicking skill and its 98/101 cap; and its statement that building the Pick Sound Amplifier keeps this Kit out of the item pool on SUBSEQUENT days -- shops.py::fabricate marks recipe inputs consumed for the current day only."
@@ -601,7 +601,7 @@
    "implemented": true,
    "meta": {
     "source": "https://blueprince.wiki.gg/wiki/Shovel",
-    "confidence": "datamined",
+    "confidence": "wiki",
     "absent_spawn_areas": [],
     "blocked_on": null,
     "notes": "The dig_tool tag routes each dig spot at the cell through the shovel table in the top-level dig section (special_items.py::dig_all, which picks the best held tool by DIG_PRIORITY), covering the turnip outcome, the trash experiment trigger, and the Kennel's unlock-the-dug-room effect (the_kennel.py::unlock_dug_room, fired for treasure digs too). All three wiki recipes are in the fabrication table. Not modelled: the wiki's carry-over lockout, under which a Jack Hammer or Detector Shovel brought into a later day by Coat Check or the Moon Pendant makes the Shovel unobtainable that day, while a Dowsing Rod never does. shops.py::fabricate consumes the recipe inputs with remove(consumed=True), and state.special.removed is day-scoped -- special_items.py::configure rebuilds gated_out from cfg each morning and carries no contraption-component channel -- so a carried contraption leaves the Shovel in the next day's pool."
@@ -1340,7 +1340,7 @@
    "implemented": true,
    "meta": {
     "source": "https://blueprince.wiki.gg/wiki/Detector_Shovel",
-    "confidence": "datamined",
+    "confidence": "wiki",
     "absent_spawn_areas": [],
     "blocked_on": null,
     "notes": "Both inherited halves are live: dig_tool selects the detector_shovel table in special_items.py::dig_all, which prefers it over a held Shovel via DIG_PRIORITY, and metal_detector_spawns is read by special_items.py::on_place for the extra key/coin roll in the room just drafted. The table carries no turnip row, matching the wiki. Two source claims are not modelled. The on_place coin outcome always grants exactly one coin, where the wiki has the pile size depend on the room drafted. And the wiki's carry-over lockout is absent: a Detector Shovel brought into a later day by Coat Check or the Moon Pendant should make both the Shovel and the Metal Detector unobtainable that day, but shops.py::fabricate consumes the inputs with remove(consumed=True) and state.special.removed is day-scoped, so both components stay in the next day's pool."
@@ -1445,7 +1445,7 @@
    "implemented": true,
    "meta": {
     "source": "https://blueprince.wiki.gg/wiki/Pick_Sound_Amplifier",
-    "confidence": "datamined",
+    "confidence": "wiki",
     "absent_spawn_areas": [],
     "blocked_on": null
    }
@@ -3674,7 +3674,7 @@
   },
   "meta": {
    "source": "https://blueprince.wiki.gg/wiki/Trunk",
-   "confidence": "datamined",
+   "confidence": "wiki",
    "notes": "Trunk loot from https://blueprince.wiki.gg/wiki/Trunk (datamined probabilities). Fractions sum to ~0.994 as published; weights are fractions x1000 normalised by actual total. The 1-key+1-gem+1-4-coin outcome models coin count as 2 (midpoint). Locker split from https://blueprince.wiki.gg/wiki/Locker_Room: 3 open + 17 locked out of 36 (16 sealed/inaccessible excluded). Locker loot is inferred. Gymnasium: 2 total, split 1 open + 1 locked (inferred). Trunk rooms: attic/wine_cellar/storeroom/boiler_room sourced from item spawn-room lists (wiki); hallway__ix75 sourced from https://blueprince.wiki.gg/wiki/Hallway (\"a Hallway upgrade always contains a trunk\", guaranteed rather than spawn-rolled); others inferred. Garage car trunk loot from Car Keys wiki page. Mechanarium diagonal compartments (https://blueprince.wiki.gg/wiki/Mechanarium, verbatim priority lists): mechanarium_lever/_key/_upgrade/_sanctum are not randomly rolled -- each kind's single loot entry dispatches to a dedicated first-available-wins resolver in engine/special_items.py (mechanarium_lever/_key_chain/_upgrade_chain/_sanctum_chain grant kinds), not a weighted table."
   },
   "vault_boxes": {
@@ -3919,7 +3919,7 @@
   },
   "meta": {
    "source": "https://blueprince.wiki.gg/wiki/Mail_Room",
-   "confidence": "datamined"
+   "confidence": "wiki"
   }
  },
  "freight_packages": {

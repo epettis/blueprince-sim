@@ -495,6 +495,46 @@ def find_empty_effects_findings(
     return findings, len(empty_rooms), n_room_registered, len(empty_items), n_item_registered
 
 
+def find_datamined_item_confidence_findings(si_doc: dict) -> list[str]:
+    """Reject ``meta.confidence: "datamined"`` anywhere in special_items.json.
+
+    There is no repo-datamined item data: ``tools/raw/`` holds a room table and
+    a wiki snapshot, and neither carries item spawn locations or Trading Post
+    tiers, so every item claim traces to the wiki -- including the ones the wiki
+    itself presents in a DataMinedBox, which is still a wiki claim in this
+    repo's provenance ladder. ``docs/special-items-schema.md`` owns that rule;
+    this check is what keeps it from drifting back, since ``confidence`` is
+    documentation and nothing branches on it, so a wrong label fails silently.
+
+    Walks the whole document, not just ``items``: the shared subsystem tables
+    (``containers``, ``mail_packages``, ...) carry their own ``meta`` and had
+    drifted the same way.
+
+    Delete this check if genuinely datamined item data is ever ingested -- it
+    is meant to fail loudly at that point rather than quietly permit both.
+    """
+    findings: list[str] = []
+
+    def walk(node, path: str) -> None:
+        if isinstance(node, dict):
+            if node.get("confidence") == "datamined":
+                findings.append(
+                    f"{path}: confidence 'datamined' is never valid in "
+                    f"special_items.json -- no item data in this repo is "
+                    f"datamined; a wiki DataMinedBox is still 'wiki' "
+                    f"(docs/special-items-schema.md, Provenance)"
+                )
+            for key, value in node.items():
+                walk(value, f"{path}.{key}")
+        elif isinstance(node, list):
+            for i, value in enumerate(node):
+                label = value.get("id", i) if isinstance(value, dict) else i
+                walk(value, f"{path}[{label}]")
+
+    walk(si_doc, "special_items")
+    return findings
+
+
 # The mechanically decidable subset of special_items.json's prose notes: a
 # note that names a field together with an explicit value, in one of the four
 # shapes _NOTES_*_RE below match. Everything else in the corpus is narrative
@@ -1367,6 +1407,7 @@ def main(argv: list[str] | None = None) -> int:
     if len(si_ids) != len(set(si_ids)):
         dupes = {i for i in si_ids if si_ids.count(i) > 1}
         errors.append(f"special_items: duplicate ids: {dupes}")
+    errors.extend(find_datamined_item_confidence_findings(si_doc))
     si_by_id = {item["id"]: item for item in si_items}
     # "die" is a resource token allowed in lost_and_found pool and fabrication
     si_resolvable = set(si_by_id) | {"die"}
