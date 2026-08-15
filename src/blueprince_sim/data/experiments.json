@@ -4,7 +4,7 @@
   "source": "https://blueprince.wiki.gg/wiki/Experiments, https://blueprince.wiki.gg/wiki/Experiments/Triggers, https://blueprince.wiki.gg/wiki/Experiments/Effects, https://blueprince.wiki.gg/wiki/Spoilers:Experiments/Triggers, https://blueprince.wiki.gg/wiki/Spoilers:Experiments/Effects",
   "confidence": "wiki",
   "notes": [
-   "The Laboratory/Experiments subsystem lives in engine/experiments.py: the setup terminal, pause/resume, the generic cap and day_gate machinery, and effect application. Records carrying 'implemented': true are live; the rest are inert and carry meta.blocked_on naming what each still needs. Live triggers fire from engine/experiments.py (immediately), Game._place_room via on_room_drafted (the five draft-site triggers), special_items.open_container (trunks_opened) and two sites in game.py (security_door). See docs/experiments-design.md for the phase plan and its Status section for the current live counts -- that section, not this note, is the one kept in step with each PR.",
+   "The Laboratory/Experiments subsystem lives in engine/experiments.py: the setup terminal, pause/resume, the generic cap and day_gate machinery, and effect application. Records carrying 'implemented': true are live; the rest are inert and carry meta.blocked_on naming what each still needs. Every trigger routes through engine/experiments.py::trigger_success; docs/experiments-design.md's 'Where triggers fire' section enumerates the call sites and -- not this note -- is the one kept in step with each PR.",
    "Deliberately never modelled, at any future phase (see docs/experiments-design.md): the 40-second real-time trigger and the map-view trigger (no wall-clock or interactive map action in this simulator); the setup-menu reroll timing exploit (revisiting the Experimental Setup menu before committing to reroll the three-of-each draw -- a UI-timing exploit, not a data rule); radiation level (a hidden daily counter, incremented by every successful trigger, that gates the Shelter terminal's unlock-all-doors ability -- Shelter/radiation are out of scope); Dare Mode (an alternate, harder experiments ruleset documented on a separate wiki subpage); Research Logs (an in-fiction in-game log of experiment activation history, not a mechanical system)."
   ]
  },
@@ -17,7 +17,7 @@
   "base_effect_count": 12,
   "packet_trigger_count": 8,
   "packet_effect_count": 8,
-  "packet_note": "The Satellite Dish data packet permanently adds the 8 packet triggers and 8 packet effects to the pool, bringing each to 20; Packet Management then lets the player choose which >=8 of each may appear. Phases 5-8 (out of scope for this data pass)."
+  "packet_note": "The Satellite Dish data packet permanently adds the 8 packet triggers and 8 packet effects to the pool, bringing each to 20; Packet Management then lets the player choose which >=8 of each may appear. Packet Management is not modelled: every implemented packet id becomes sample-eligible the moment cfg.satellite_dish_unlocked is set (docs/experiments-design.md, \"The packet pool opens at load time, not draw time\")."
  },
  "triggers": [
   {
@@ -449,7 +449,7 @@
     "confidence": "wiki",
     "blocked_on": null,
     "notes": [
-     "17 is a hard, wiki-stated cap (predetermined spawn order across the Entrance Hall's four walls). Shared with The Twins constellation, whose effect is identical to triggering this effect twice -- so the counter this effect bumps (special.entrance_hall_trunks) is named for the Entrance Hall, not for this experiment record, and is reusable once The Twins is modelled.",
+     "17 is a hard, wiki-stated cap (predetermined spawn order across the Entrance Hall's four walls). Shared with The Twins constellation, whose effect is identical to triggering this effect twice -- so the counter this effect bumps (special.entrance_hall_trunks) is named for the Entrance Hall, not for this experiment record. The Twins spawns into that same counter through the SpecialItemsState.add_entrance_hall_trunks check (engine/constellations.py::apply_effect, via experiments.py::entrance_hall_trunk_cap), so both share the 17 cap.",
      "Owner ruling, from play: the 17 cap and the trunks it spawns are a DAILY maximum -- neither carries over to the next day. No GameConfig field or carryover() entry; SpecialItemsState is rebuilt fresh with GameState every day, which already gives this the right reset semantics for free.",
      "\"There is no difference between a 'small chest' and a regular trunk\" (wiki): modelled by reusing the existing containers.kinds 'trunk' entry rather than inventing a distinct 'small_chest' kind.",
      "Wiki: the effect \"will no longer have any effect\" past the cap, distinct from mail_room_letter's \"never offered again\" -- this effect stays offerable forever, it just silently no-ops once 17 trunks have been added."
@@ -551,7 +551,7 @@
      "The Conference Room branch's cap IS exact and published (\"up to 50 dig spots... after 17 triggers\"): recorded as magnitude.conference_room_spot_cap (50) rather than the top-level cap field, because cap counts successful APPLICATIONS (see ExperimentEffect's own field comment) while this branch's limit is a spot TOTAL -- 17 triggers of 3 spots each is 51, one more than the stated 50, so the engine enforces the spot cap directly (clamping the final batch) rather than an application count that would occasionally overshoot by one spot.",
      "\"The first five [dig spots] appearing on the conference table and the remainder appearing on the surrounding floor\" (wiki) is placement flavour with no mechanical consequence at this engine's per-cell granularity; not modelled.",
      "KNOWN GAP, not built: the Dovecote birdbath sub-effect. Wiki: with a Dovecote on the estate, this effect ALSO fills 6 off-grid birdbaths with dirt in a fixed 3-trigger pattern (3 birdbaths on the first trigger, 2 on the second, 1 on the third), 'entirely independent of the main effect' and occurring 'regardless of whether the regular dig spots are spread to the Grounds or the Conference Room.' Off-grid like the Grounds branch itself, so blocked on the same missing off-grid dig-spot concept.",
-     "KNOWN GAP, not built: the Blessing of the Chef 'Mudslide Icecream' dish. Wiki: while that Blessing is active, triggering this effect can add a unique Dining Room dish (5 steps, plus a dirt-pile flavour detail) -- the Blessing system itself is unimplemented, so this is out of scope until that lands."
+     "KNOWN GAP, not built: the Blessing of the Chef 'Mudslide Icecream' dish. Wiki: while that Blessing is active, triggering this effect can add a unique Dining Room dish (5 steps, plus a dirt-pile flavour detail) -- Blessing of the Chef is one of the two blessings still inert (data/shrine.json's chef record, meta.blocked_on \"dining_room_spread_dish_tracking_not_modeled\"), so this is out of scope until that record lands."
     ]
    }
   },
@@ -704,7 +704,7 @@
    "meta": {
     "source": "https://blueprince.wiki.gg/wiki/Spoilers:Experiments/Effects",
     "confidence": "wiki",
-    "blocked_on": "no reservoir ROOM exists -- the Reservoir is an areas.json node only, so there is nothing on the grid whose water level an effect could raise or lower"
+    "blocked_on": "no experiment-side writer is wired yet -- the state now exists (data/pump_room.json's 'reservoir' source; Game.water_level / state.water_levels), and the wiki's own drain bypasses the pump panel's min of 2 down to 0, so this is buildable rather than blocked."
    }
   },
   {
@@ -748,7 +748,7 @@
     "notes": [
      "The wiki states west/east/south doors 'appear to be preferred' over north but gives no numbers; magnitude.weighting left null (gap -- do not invent).",
      "Has no effect once all four doors are unsealed (still triggers, no-op).",
-     "Mechanically implemented (engine/experiments.py::_apply_unseal_antechamber_door), but pool=\"packet\" keeps it undrawable in setup until the packet subsystem itself (phases 5-8) is authorised -- see the packet_note in this file's mechanic block. Unseals the first still-sealed segment in west/south/east/north order (the same order Game.__init__ seals them in), reusing Game._open_segment -- the same low-level call every Antechamber lever room already makes -- rather than a weighted pick, since magnitude.weighting is unpublished."
+     "Mechanically implemented (engine/experiments.py::_apply_unseal_antechamber_door), drawable in setup once cfg.satellite_dish_unlocked is set: engine/experiments.py::draw_offers appends the implemented packet ids to the base sampling pool. Unseals the first still-sealed segment in west/south/east/north order (the same order Game.__init__ seals them in), reusing Game._open_segment -- the same low-level call every Antechamber lever room already makes -- rather than a weighted pick, since magnitude.weighting is unpublished."
     ]
    }
   },
@@ -768,7 +768,7 @@
     "confidence": "wiki",
     "blocked_on": null,
     "notes": [
-     "Mechanically implemented (engine/experiments.py), but pool=\"packet\" keeps it undrawable in setup until the packet subsystem itself (phases 5-8) is authorised -- see the packet_note in this file's mechanic block."
+     "Drawable in setup once cfg.satellite_dish_unlocked is set: engine/experiments.py::draw_offers appends the implemented packet ids to the base sampling pool."
     ]
    }
   },
@@ -809,7 +809,7 @@
     "blocked_on": null,
     "notes": [
      "The eligible item pool is a live wiki Cargo query (Items where Locations HOLDS 'Experiment'), not present in static wikitext; magnitude.item_pool left null (gap -- do not invent). If fewer than 2 pool items are currently available to spawn, a Silver Key is granted instead.",
-     "Mechanically implemented (engine/experiments.py::_apply_random_item_then_zero_keys), but pool=\"packet\" keeps it undrawable in setup until the packet subsystem itself (phases 5-8) is authorised -- see the packet_note in this file's mechanic block. Since the true item pool is unpublished (above), the random item is instead drawn from the same generic extra-item table (items.EXTRA_ITEM_TABLE: coins/key/gem/die) Closet/Walk-In/Attic and gain_key_gem_or_die already use, rather than inventing a special-item list; the wiki's fewer-than-2-available Silver Key fallback is not modelled since that table is a fixed 4 entries and never that small."
+     "Mechanically implemented (engine/experiments.py::_apply_random_item_then_zero_keys), drawable in setup once cfg.satellite_dish_unlocked is set: engine/experiments.py::draw_offers appends the implemented packet ids to the base sampling pool. Since the true item pool is unpublished (above), the random item is instead drawn from the same generic extra-item table (items.EXTRA_ITEM_TABLE: coins/key/gem/die) Closet/Walk-In/Attic and gain_key_gem_or_die already use, rather than inventing a special-item list; the wiki's fewer-than-2-available Silver Key fallback is not modelled since that table is a fixed 4 entries and never that small."
     ]
    }
   },
@@ -830,7 +830,7 @@
     "confidence": "wiki",
     "blocked_on": null,
     "notes": [
-     "Mechanically implemented (engine/experiments.py::_apply_half_steps_for_dice), but pool=\"packet\" keeps it undrawable in setup until the packet subsystem itself (phases 5-8) is authorised -- see the packet_note in this file's mechanic block. Steps are floored (math.floor(steps * 0.5), so an odd count like 7 becomes 3, not 4) and lost before the 4 Ivory Die are granted, per the wiki's stated order; the dice are still granted even when the step loss alone ends the day (see the function's own docstring for why no termination check is added here)."
+     "Mechanically implemented (engine/experiments.py::_apply_half_steps_for_dice), drawable in setup once cfg.satellite_dish_unlocked is set: engine/experiments.py::draw_offers appends the implemented packet ids to the base sampling pool. Steps are floored (math.floor(steps * 0.5), so an odd count like 7 becomes 3, not 4) and lost before the 4 Ivory Die are granted, per the wiki's stated order; the dice are still granted even when the step loss alone ends the day (see the function's own docstring for why no termination check is added here)."
     ]
    }
   }
