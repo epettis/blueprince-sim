@@ -35,10 +35,11 @@ Implemented:
     ``_collect_spread`` pays out ``spread_pending`` -- so a target drafted
     AFTER the terminal is used still receives its pile (wiki: draft order
     does not matter). Weekly cooldown (owner ruling): unusable again until
-    the next in-game Saturday after the day it was used. Day One is Sunday, 7
-    November 1993 (wiki Time page's Drafting Studio calendar), so in-game
-    weeks run Sunday -> Saturday and every Saturday is exactly a multiple of
-    7 (days 7, 14, 21, ...) -- see ``is_saturday``.
+    the next in-game Saturday after the day it was used. The wiki's Time page
+    states Day One's date as 7 November 1993 (the Drafting Studio calendar);
+    7 November 1993 was a Sunday on the real calendar, so in-game weeks run
+    Sunday -> Saturday and every Saturday is exactly a multiple of 7 (days 7,
+    14, 21, ...) -- see ``is_saturday``.
 
 Not modelled (owner ruling, data/rooms.json's office.meta.simplification):
   - The wiki carries an open question box on this cooldown offering two

@@ -61,6 +61,14 @@ checkpoints (pre-#19) are interface-incompatible — fresh checkpoint dir requir
   the Broken Lever installs on the Greenhouse machine (opens the Antechamber's
   rank-8 doorway segment, `segment_key(37, N) == segment_key(42, S)`) and the
   Casino slot. Actions 274/275.
+- **Sanctum**: the 8 Sanctum Keys have sources and persist, and each of the 8
+  sigil doors is independently modelled and stays permanently open once
+  unlocked (`Game.open_sigil_door`, `GameConfig.sigil_doors_open`, obs key
+  `sigil_doors_open` shape (8,), `OPEN_SIGIL_DOOR_BASE`, carried in
+  `DayChain`). `sigil_chambers` itself stays `modelled: false` in
+  `areas.json` by a recorded ruling, not by omission — the assumed-solved
+  allowance from each chamber's Mora Jai box pays out the moment its door
+  opens, so there is nothing left worth walking there for.
 
 Suite: 692 tests green at #28. Every catalogued item now either functions or is
 blocked only on an explicitly out-of-scope area (Grounds, Sanctum, Orindian Ruins,
@@ -77,17 +85,11 @@ delete again.
 
 - Reward calibration from multi-day training stats (all shaping constants are
   deliberate knobs: `special_item_values`, `PATHS_*_PENALTY`, scepter bias).
-- Sanctum: the 8 Sanctum Keys have sources and persist, and each of the 8 sigil
-  doors is independently modelled and stays permanently open once unlocked
-  (`Game.open_sigil_door`, `GameConfig.sigil_doors_open`). `sigil_chambers`
-  itself stays `modelled: false` in `areas.json` by a recorded ruling, not by
-  omission — the assumed-solved allowance from each chamber's Mora Jai box
-  pays out the moment its door opens, so there is nothing left worth walking
-  there for.
-- Out-of-scope areas that keep a handful of items inert: Grounds, Precipice,
-  lore documents. Orindian Ruins is no longer in this list — it became
-  reachable (`blackbridge_grotto -> orindian_ruins`, gated on three
-  microchips in the pedestal).
+- Lore documents keep a handful of items inert: `magnifying_glass` is
+  `meta.wont_implement` (the sim has no document or lore layer). Orindian
+  Ruins is no longer in this list — it became reachable
+  (`blackbridge_grotto -> orindian_ruins`, gated on three microchips in the
+  pedestal).
 - Freezer thaw: excluded from the ignition targets because the wiki calls it
   temporary/daily, which the one-shot `lit_targets` model cannot express.
 
@@ -112,7 +114,12 @@ delete again.
 
 ## Maintenance sharp edges
 
-- `N_ACTIONS` is asserted in four test files; any action-space change updates all.
+- `N_ACTIONS` is pinned as a literal in exactly one place
+  (`tests/test_constellations.py::test_action_space_width_is_481`); every
+  other test file that references it does so relationally (against `len(mask)`,
+  action-id arithmetic, etc.), not against a literal. Any action-space change
+  updates [`docs/rl-environment.md`](rl-environment.md)'s width-change
+  register, which is the source of truth for what else must move.
 - `tests/test_macro_actions.py::test_masked_rollout_never_revisits_pointlessly`
   hand-enumerates the walk-to re-entry predicates — extend it whenever a new
   re-entry reason is added.
