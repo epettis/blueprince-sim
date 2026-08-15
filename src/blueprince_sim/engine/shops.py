@@ -19,15 +19,48 @@ import math
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Callable
+
+# Per-shop stock-builder / stock-overlay registries: room id -> callable,
+# populated by each shop's own effects/rooms/<id>.py module at import time
+# (register_stock_builder / register_stock_overlay below), the same
+# registration shape as effects/__init__.py's room_hook/provides. Defined
+# here, ABOVE the imports below that transitively load effects/rooms/ (via
+# special_items -> .effects -> rooms), so a shop module's own top-level
+# registration call already finds these two functions on this (still
+# mid-import) module -- the same "define before the cycle-triggering import"
+# ordering this file already relies on for the deferred engine.items import
+# the next comment explains.
+StockBuilderFn = Callable  # (game, table: dict) -> None
+_STOCK_BUILDERS: dict[str, StockBuilderFn] = {}
+
+
+def register_stock_builder(room_id: str, fn: StockBuilderFn) -> None:
+    """Register ``room_id``'s daily stock-builder, called once by
+    ``on_enter_shop`` the first time that room is entered each day."""
+    _STOCK_BUILDERS[room_id] = fn
+
+
+StockOverlayFn = Callable  # (game, display: list[dict]) -> dict | None
+_STOCK_OVERLAYS: dict[str, StockOverlayFn] = {}
+
+
+def register_stock_overlay(room_id: str, fn: StockOverlayFn) -> None:
+    """Register ``room_id``'s ``stock_display`` overlay: called with the
+    shop's already-priced stored-entry display list, returning one extra RAW
+    entry to price and append (see ``stock_display``), or None to append
+    nothing right now."""
+    _STOCK_OVERLAYS[room_id] = fn
+
 
 # NOTE: engine.items must stay a deferred import (items -> state -> shops
 # would cycle at module load); special_items imports only model, so it's safe.
 # constellations is safe for the same reason: it imports only experiments,
 # which reaches no further than grid and model.
-from . import constellations, special_items as si
-from .effects import Capability, ItemCapability, item_capability_sum, provides_capability
-from .effects.items import (car_keys, keycard, lunch_box, repellent, royal_scepter,
-                            silver_key, stopwatch)
+from . import constellations, special_items as si  # noqa: E402
+from .effects import (  # noqa: E402
+    Capability, ItemCapability, item_capability_sum, provides_capability)
+from .effects.items import keycard, lunch_box, repellent, royal_scepter, stopwatch  # noqa: E402
 
 
 # Scepter colors are floorplan categories; the bias entries in
@@ -108,8 +141,9 @@ class ShopsState:
 
 def on_enter_shop(game, room) -> None:
     """First entry to a placed shop room: roll today's stock (seeded substream
-    "shop_stock"), the Locksmith special-key offer, and fire the Electromagnet
-    Locksmith robbery. Task B."""
+    "shop_stock") via the room's registered stock builder, or the shared
+    availability-filtered fallback below for shops with no per-room quirks.
+    Task B."""
     state = game.state
     shop_rules = game.registry.shop_rules
     # Once-per-room-per-day guard
@@ -118,244 +152,21 @@ def on_enter_shop(game, room) -> None:
 
     table = shop_rules.shops.get(room.id, {})
 
-    match room.id:
-        case "commissary":
-            _roll_commissary(game, table)
-        case "locksmith":
-            _roll_locksmith(game, table)
-        case "showroom":
-            _roll_showroom(game, table)
-        case "gift_shop":
-            _roll_gift_shop(game, table)
-        case "workshop":
-            _roll_workshop(game)
-        case "kitchen":
-            _roll_kitchen(game, table)
-        case _:
-            # Simple shops (armory, bookshop, laundry_room, etc.):
-            # availability rules for item entries; resources are always available.
-            entries = []
-            for raw in table.get("stock", []):
-                entry = dict(raw)
-                entry.setdefault("sold", 0)
-                if entry.get("kind") == "item":
-                    if not si._is_available(state, entry["id"], game.registry):
-                        continue
-                entries.append(entry)
-            state.shops.stock[room.id] = entries
-
-    # Electromagnet Locksmith robbery
-    if room.id == "locksmith":
-        for item_id, cnt in state.inventory.items():
-            if cnt <= 0:
-                continue
-            item = game.registry.special.by_id.get(item_id)
-            if item is None:
-                continue
-            e = item.effect("locksmith_rob")
-            if e is not None:
-                # Rob the locksmith: grant 24 keys
-                n_keys = e.param("keys", 24)
-                state.keys += n_keys
-                state.items_found_log.append(("key", n_keys))
-                state.shops.locksmith_robbed = True
-                break
-
-
-def _roll_commissary(game, table: dict) -> None:
-    """Build the Commissary's daily stock: slots distinct available entries.
-
-    Every entry competes for the same ``slots`` places. ``kind: "item"`` entries
-    are filtered through ``_is_available`` first, so a unique already held — or an
-    Upgrade Disk already spent, and hence in collected_disks/gated_out — is never
-    displayed. ``kind: "resource"`` entries (gem, key, banana, ...) are unlimited
-    and always eligible.
-    """
-    state = game.state
-    registry = game.registry
-    slots = table.get("slots", 4)
-    raw_stock = table.get("stock", [])
-
-    candidates = []
-    for raw in raw_stock:
-        entry = dict(raw)
-        entry.setdefault("sold", 0)
-        if raw.get("kind") == "item":
-            if not si._is_available(state, raw["id"], registry):
-                continue
-        candidates.append(entry)
-
-    # Shuffle indices for deterministic random selection
-    indices = list(range(len(candidates)))
-    game.rng.shuffle("shop_stock", indices)
-    state.shops.stock["commissary"] = [candidates[i] for i in indices[:slots]]
-
-
-def _roll_locksmith(game, table: dict) -> None:
-    """Build the Locksmith's daily stock including the special-key offer."""
-    state = game.state
-    registry = game.registry
-
-    entries = []
-    for raw in table.get("stock", []):
-        entry = dict(raw)
-        entry.setdefault("sold", 0)
-        if raw.get("not_if_owned") and raw.get("kind") == "item":
-            if si.has(state, raw["id"]):
-                continue
-        entries.append(entry)
-
-    # Roll the special key (30/40/30 priority lists)
-    special_key_data = table.get("special_key", {})
-    rolls = special_key_data.get("rolls", [])
-    price = special_key_data.get("price", 8)
-    fallback = special_key_data.get("fallback", [car_keys.ITEM_ID, silver_key.ITEM_ID])
-
-    # Roll which priority list to use (cumulative chance)
-    chosen_order = None
-    total = 0
-    roll_val = game.rng.uniform("shop_stock", 0.0, 100.0)
-    for roll_entry in rolls:
-        total += roll_entry["chance"]
-        if roll_val < total:
-            chosen_order = roll_entry["order"]
-            break
-    if chosen_order is None and rolls:
-        chosen_order = rolls[-1]["order"]
-
-    special_key_id = None
-    if chosen_order:
-        for kid in chosen_order:
-            if si._is_available(state, kid, registry):
-                special_key_id = kid
-                break
-
-    if special_key_id is None:
-        # Walk fallback list
-        for kid in fallback:
-            # car_keys: must be available; silver_key: always ok (non-unique)
-            if si._is_available(state, kid, registry):
-                special_key_id = kid
-                break
-            # silver_key at end of fallback is non-unique so _is_available passes
-        # If we still have nothing, force silver_key (non-unique; _is_available passes)
-        if special_key_id is None:
-            special_key_id = fallback[-1] if fallback else silver_key.ITEM_ID
-
-    state.shops.special_key_offer = special_key_id
-    # Append the synthetic special-key entry
-    synthetic = {
-        "id": special_key_id,
-        "kind": "item",
-        "price": price,
-        "special_key": True,
-        "sold": 0,
-    }
-    entries.append(synthetic)
-    state.shops.stock["locksmith"] = entries
-
-
-def _roll_showroom(game, table: dict) -> None:
-    """Pick 2 from tier_a + 2 from tier_b avoiding already-owned items."""
-    state = game.state
-    registry = game.registry
-
-    entries = []
-    for tier_key in ("tier_a", "tier_b"):
-        tier = table.get(tier_key, [])
-        available = [
-            dict(raw, sold=0, kind="item")
-            for raw in tier
-            if si._is_available(state, raw["id"], registry)
-        ]
-        # Shuffle for uniform selection
-        game.rng.shuffle("shop_stock", available)
-        entries.extend(available[:2])
-
-    state.shops.stock["showroom"] = entries
-
-
-def _roll_gift_shop(game, table: dict) -> None:
-    """Build the Gift Shop's stock, filtering one-time purchases by config."""
-    state = game.state
-    cfg = game.cfg
-
-    entries = []
-    for raw in table.get("stock", []):
-        entry = dict(raw)
-        entry.setdefault("sold", 0)
-        # Lunch Box: only when not already unlocked
-        if lunch_box.hide_from_gift_shop(raw.get("id"), cfg):
-            continue
-        # cursed_coffers: only when not already unlocked
-        if raw.get("id") == "cursed_coffers" and cfg.cursed_effigy_unlocked:
-            continue
-        entries.append(entry)
-
-    state.shops.stock["gift_shop"] = entries
-
-
-def _roll_workshop(game) -> None:
-    """First-entry Workshop effect: grant one free component (or 5 coins fallback).
-
-    Components are the union of all fabrication recipe input ids. One is
-    selected uniformly from those still available (substream "shop_stock").
-    Fallback: 5 coins when no component is available. The once-per-day guard
-    is satisfied by storing an empty list under state.shops.stock["workshop"].
-    """
-    state = game.state
-    registry = game.registry
-
-    comp_ids = sorted(_component_ids(registry))  # sorted for determinism
-    available = [c for c in comp_ids if si._is_available(state, c, registry)]
-
-    if available:
-        idx = game.rng.randint("shop_stock", 0, len(available) - 1)
-        chosen = available[idx]
-        si.grant(state, registry, chosen, source="workshop")
+    builder = _STOCK_BUILDERS.get(room.id)
+    if builder is not None:
+        builder(game, table)
     else:
-        # Fallback: grant 5 coins
-        bonus = si.on_coins_granted(state, registry, 5)
-        state.coins += 5 + bonus
-        state.items_found_log.append(("coins", 5))
-
-    state.shops.stock["workshop"] = []
-
-
-def _roll_kitchen(game, table: dict) -> None:
-    """Build the Kitchen's daily stock: static entries + one rolled special dish.
-
-    Static stock (banana × limit 5, club_sandwich × limit 1) is always present.
-    Exactly ONE special is selected from the ``special_roll`` list using a
-    cumulative-chance roll (substream ``shop_stock``, same pattern as the
-    Locksmith's priority roll). Each special carries ``kind``, ``grant``,
-    ``price``, and ``limit`` in the data record.
-    """
-    state = game.state
-    entries = []
-
-    # Static entries (always offered)
-    for raw in table.get("stock", []):
-        entry = dict(raw)
-        entry.setdefault("sold", 0)
-        entries.append(entry)
-
-    # Roll the daily special (40% Bacon & Eggs / 30% Chef Salad / 30% Tomato Soup)
-    specials = table.get("special_roll", [])
-    if specials:
-        roll_val = game.rng.uniform("shop_stock", 0.0, 100.0)
-        total = 0.0
-        chosen_special = specials[-1]  # fallback: last entry
-        for s in specials:
-            total += s["chance"]
-            if roll_val < total:
-                chosen_special = s
-                break
-        entry = {k: v for k, v in chosen_special.items() if k != "chance"}
-        entry.setdefault("sold", 0)
-        entries.append(entry)
-
-    state.shops.stock["kitchen"] = entries
+        # Simple shops (armory, bookshop, laundry_room, etc.):
+        # availability rules for item entries; resources are always available.
+        entries = []
+        for raw in table.get("stock", []):
+            entry = dict(raw)
+            entry.setdefault("sold", 0)
+            if entry.get("kind") == "item":
+                if not si._is_available(state, entry["id"], game.registry):
+                    continue
+            entries.append(entry)
+        state.shops.stock[room.id] = entries
 
 
 def current_shop_id(game) -> str | None:
@@ -387,6 +198,61 @@ def current_shop_id(game) -> str | None:
     return None
 
 
+def _priced_entry(entry: dict, is_sale: bool, discount: int, state) -> dict:
+    """Format one raw stock entry into a display dict: resolved price (sale
+    then Coupon Book), sold_out, affordable, blocked.
+
+    Shared by every stored entry in ``stock_display`` and by a shop's
+    registered overlay entry (:func:`register_stock_overlay`), if any --
+    an overlay entry is priced through this exact same pipeline, not a
+    second copy of it, so a registered ``"disabled"`` flag or
+    ``requires_item`` gate on either kind of entry behaves identically.
+    """
+    raw_price = entry["price"]
+    # Sale day: ceil(price / 2)
+    if is_sale:
+        raw_price = math.ceil(raw_price / 2)
+    # Coupon Book (and any future SHOP_DISCOUNT item): max(0, price - discount)
+    if discount:
+        raw_price = max(0, raw_price - discount)
+
+    # Determine sold_out
+    sold_out = False
+    if entry.get("kind") == "item" and not entry.get("special_key"):
+        # Item entries: sold when entry["sold"] > 0
+        if entry.get("sold", 0) > 0:
+            sold_out = True
+    elif entry.get("special_key"):
+        # Synthetic special key entry
+        if state.shops.special_key_sold:
+            sold_out = True
+    else:
+        # Resource entries with a limit
+        limit = entry.get("limit")
+        if limit is not None and entry.get("sold", 0) >= limit:
+            sold_out = True
+
+    # A shop's own stock builder may mark an entry "disabled" outside the
+    # ordinary sold/limit accounting (e.g. the Locksmith's Electromagnet
+    # robbery, which disables the key rows for the rest of the day the
+    # moment it fires, not because they were bought or hit a limit).
+    if entry.get("disabled"):
+        sold_out = True
+
+    # Containers (Cursed Coffers) need their opener in hand to be buyable.
+    requires = entry.get("requires_item")
+    blocked = bool(requires) and not si.has(state, requires)
+
+    return {
+        "id": entry.get("id"),
+        "kind": entry.get("kind"),
+        "price": raw_price,
+        "sold_out": sold_out,
+        "affordable": state.coins >= raw_price,
+        "blocked": blocked,
+    }
+
+
 def stock_display(game, shop_id: str) -> list:
     """Resolved display entries for a given shop_id using the current game state.
 
@@ -398,6 +264,12 @@ def stock_display(game, shop_id: str) -> list:
     This is the shared pricing/sold-out logic consumed by both ``stock_for``
     (current-shop path, checks position first) and the action-mask walk-to
     re-entry check (needs to peek at arbitrary cell shops without moving there).
+
+    A shop may register a stock overlay (:func:`register_stock_overlay`) --
+    the Showroom's Trophy of Wealth, appended once every stored entry is
+    sold out -- which runs after the stored entries are priced and, if it
+    returns an extra raw entry, is priced through the same pipeline and
+    appended last.
     """
     state = game.state
     if shop_id not in state.shops.stock:
@@ -419,80 +291,13 @@ def stock_display(game, shop_id: str) -> list:
     )
 
     stored = state.shops.stock[shop_id]
-    display = []
+    display = [_priced_entry(entry, is_sale, discount, state) for entry in stored]
 
-    # For the showroom: check if trophy should be appended
-    # Trophy appended dynamically once all stored showroom entries are sold
-    showroom_trophy = None
-    if shop_id == "showroom":
-        shop_table = game.registry.shop_rules.shops.get("showroom", {})
-        trophy_data = shop_table.get("trophy")
-        if trophy_data and not si._is_available(state, trophy_data["id"], game.registry):
-            # trophy already owned — never show it
-            pass
-        elif trophy_data:
-            showroom_trophy = trophy_data
-
-    for entry in stored:
-        raw_price = entry["price"]
-        # Sale day: ceil(price / 2)
-        if is_sale:
-            raw_price = math.ceil(raw_price / 2)
-        # Coupon Book (and any future SHOP_DISCOUNT item): max(0, price - discount)
-        if discount:
-            raw_price = max(0, raw_price - discount)
-
-        # Determine sold_out
-        sold_out = False
-        if entry.get("kind") == "item" and not entry.get("special_key"):
-            # Item entries: sold when entry["sold"] > 0
-            if entry.get("sold", 0) > 0:
-                sold_out = True
-        elif entry.get("special_key"):
-            # Synthetic special key entry
-            if state.shops.special_key_sold:
-                sold_out = True
-        else:
-            # Resource entries with a limit
-            limit = entry.get("limit")
-            if limit is not None and entry.get("sold", 0) >= limit:
-                sold_out = True
-
-        # Locksmith robbery disables key and set_of_3_keys (not the special key)
-        if shop_id == "locksmith" and state.shops.locksmith_robbed:
-            if entry.get("id") in ("key", "set_of_3_keys") and not entry.get("special_key"):
-                sold_out = True
-
-        # Containers (Cursed Coffers) need their opener in hand to be buyable.
-        requires = entry.get("requires_item")
-        blocked = bool(requires) and not si.has(state, requires)
-
-        display.append({
-            "id": entry.get("id"),
-            "kind": entry.get("kind"),
-            "price": raw_price,
-            "sold_out": sold_out,
-            "affordable": state.coins >= raw_price,
-            "blocked": blocked,
-        })
-
-    # Showroom: append trophy once all stored entries sold
-    if shop_id == "showroom" and showroom_trophy:
-        all_sold = all(d["sold_out"] for d in display)
-        if all_sold:
-            raw_price = showroom_trophy["price"]
-            if is_sale:
-                raw_price = math.ceil(raw_price / 2)
-            if discount:
-                raw_price = max(0, raw_price - discount)
-            display.append({
-                "id": showroom_trophy["id"],
-                "kind": "item",
-                "price": raw_price,
-                "sold_out": False,
-                "affordable": state.coins >= raw_price,
-                "blocked": False,
-            })
+    overlay = _STOCK_OVERLAYS.get(shop_id)
+    if overlay is not None:
+        extra = overlay(game, display)
+        if extra is not None:
+            display.append(_priced_entry(extra, is_sale, discount, state))
 
     return display
 
@@ -528,13 +333,12 @@ def buy(game, index: int) -> None:
     price = d["price"]
     state.coins -= price
 
-    # Determine which stored entry this is (trophy is appended last and has no stored entry)
+    # Determine which stored entry this is. index >= len(stored) can only
+    # happen for a shop's registered overlay entry (e.g. the Showroom's
+    # Trophy of Wealth, register_stock_overlay's own docstring) -- it is
+    # always appended last and has no stored entry of its own.
     stored = state.shops.stock[shop_id]
-    is_trophy = (shop_id == "showroom" and index == len(display) - 1
-                 and index >= len(stored))
-
-    if is_trophy:
-        # Trophy purchase
+    if index >= len(stored):
         si.grant(state, game.registry, d["id"], source="shop")
         return
 
@@ -611,14 +415,20 @@ def buy(game, index: int) -> None:
 # ------------------------------------------------------------------- trading
 
 def _inside_trading_post(game) -> bool:
-    """True when the player is currently inside the Trading Post outer room."""
+    """True when the player is currently inside the Trading Post outer room.
+
+    Reads Capability.TRADE rather than comparing the outer room's id
+    directly: Capability.COMMERCE (which commerce.py also registers for the
+    Trading Post) is too broad here, since it covers the other ten commerce
+    rooms too, none of which have a trade menu.
+    """
     from .game import Phase
     if game.phase is not Phase.NAVIGATE:
         return False
     if not game.inside_outer_room:
         return False
     outer_room = next((r for r in game.outer_rooms if r.id in game.placed_ids), None)
-    return outer_room is not None and outer_room.id == "trading_post"
+    return outer_room is not None and provides_capability(outer_room.id, Capability.TRADE)
 
 
 # Trailing "(source)" qualifier on a display name. The sim splits the Sanctum
@@ -980,7 +790,13 @@ def trade(game, give_id: str) -> None:
 # ---------------------------------------------------------------- fabrication
 
 def _inside_workshop(game) -> bool:
-    """True when the player stands in the Workshop during NAVIGATE phase."""
+    """True when the player stands in the Workshop during NAVIGATE phase.
+
+    Reads Capability.FABRICATION rather than comparing the room id directly:
+    Capability.COMMERCE (which commerce.py also registers for the Workshop)
+    is too broad here, the same reasoning as Capability.TRADE for the
+    Trading Post above.
+    """
     from .game import Phase
     state = game.state
     if game.phase is not Phase.NAVIGATE:
@@ -991,7 +807,7 @@ def _inside_workshop(game) -> bool:
     if state.grid[cell] < 0:
         return False
     room = game.registry.rooms[state.grid[cell]]
-    return room.id == "workshop"
+    return provides_capability(room.id, Capability.FABRICATION)
 
 
 def _component_ids(registry) -> frozenset[str]:
@@ -1123,7 +939,11 @@ def activate_scepter(game, color: str) -> None:
 
 
 def can_smash_vase(game) -> bool:
-    """Standing in the Entrance Hall with a smash-capable item, vase intact. Task D."""
+    """Standing in the Entrance Hall with a smash-capable item, vase intact.
+
+    Reads Capability.VASE (registered by effects/rooms/entrance_hall.py)
+    rather than comparing the room id directly. Task D.
+    """
     from .game import Phase
 
     if game.phase is not Phase.NAVIGATE:
@@ -1134,12 +954,12 @@ def can_smash_vase(game) -> bool:
         return False
     if game.off_grid:
         return False
-    # Must be standing in the Entrance Hall
+    # Must be standing in the room with the vase
     cell = game.state.pos
     if game.state.grid[cell] < 0:
         return False
     room = game.registry.rooms[game.state.grid[cell]]
-    if room.id != "entrance_hall":
+    if not provides_capability(room.id, Capability.VASE):
         return False
     # Must hold a smash-capable item (any item with the "smash" effect tag)
     return si._has_item_effect(game.state, game.registry, "smash")

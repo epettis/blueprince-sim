@@ -132,6 +132,81 @@ def test_commissary_stock_not_rerolled_on_second_entry():
     assert first == second
 
 
+# ------------------------------------------------- stock-builder registry
+
+def test_all_six_stock_shops_register_a_builder():
+    """commissary/gift_shop/kitchen/locksmith/showroom/workshop each register
+    a stock builder into shops._STOCK_BUILDERS, and showroom additionally
+    registers its Trophy of Wealth overlay into shops._STOCK_OVERLAYS.
+
+    Each registration happens at import time from the shop's own
+    effects/rooms/<id>.py module (importing blueprince_sim.engine.shops, as
+    every other test in this file does, is enough to trigger the whole
+    effects/rooms/ import cascade). A shop module that stopped importing, or
+    stopped calling register_stock_builder, would silently drop its entry
+    here rather than raising anywhere else.
+    """
+    for room_id in ("commissary", "gift_shop", "kitchen", "locksmith", "showroom", "workshop"):
+        assert room_id in shops._STOCK_BUILDERS, f"{room_id} has no registered stock builder"
+    assert "showroom" in shops._STOCK_OVERLAYS
+
+
+def test_stock_builder_registry_actually_dispatches():
+    """on_enter_shop's dispatch calls the room's REGISTERED builder, not just
+    the generic fallback -- proven by removing commissary's registration and
+    observing the stock shape change.
+
+    With its builder registered, the Commissary draws exactly ``slots`` (4)
+    entries from its 13-entry table (test_commissary_offers_exactly_4_distinct_entries).
+    Without a registered builder, on_enter_shop falls through to the shared
+    fallback branch (every available entry, ignoring "slots" entirely) -- so
+    a shop silently losing its registration would stock ALL 13 entries
+    instead of 4, a loud, easily-caught divergence rather than an empty or
+    unchanged stock.
+    """
+    saved = shops._STOCK_BUILDERS.pop("commissary")
+    try:
+        g = _game(seed=42)
+        _enter_shop(g, "commissary")
+        entries = g.state.shops.stock["commissary"]
+        assert len(entries) == 13, (
+            "with no registered builder, on_enter_shop's fallback must offer "
+            f"every available entry (13), not the Commissary's own 4-slot draw; got {len(entries)}"
+        )
+    finally:
+        shops._STOCK_BUILDERS["commissary"] = saved
+
+
+def test_kitchen_stock_has_static_entries_and_exactly_one_special():
+    """The Kitchen's daily stock always includes both static entries
+    (banana, club_sandwich) plus exactly one of the three rolled specials.
+    """
+    specials = {"bacon_and_eggs", "chef_salad", "tomato_soup"}
+    for seed in range(20):
+        g = _game(seed=seed)
+        _enter_shop(g, "kitchen")
+        ids = [e["id"] for e in g.state.shops.stock["kitchen"]]
+        assert "banana" in ids and "club_sandwich" in ids
+        rolled = [i for i in ids if i in specials]
+        assert len(rolled) == 1, f"seed={seed}: expected exactly 1 special, got {rolled}"
+
+
+def test_kitchen_special_choice_is_deterministic_per_seed():
+    """The same seed always rolls the same Kitchen daily special.
+
+    Determinism is the foundational invariant behind every stock roll; this
+    pins it for the Kitchen's own special_roll the same way
+    test_commissary_stock_is_deterministic_per_seed pins the Commissary's.
+    """
+    g1 = _game(seed=13)
+    g2 = _game(seed=13)
+    _enter_shop(g1, "kitchen")
+    _enter_shop(g2, "kitchen")
+    ids1 = [e["id"] for e in g1.state.shops.stock["kitchen"]]
+    ids2 = [e["id"] for e in g2.state.shops.stock["kitchen"]]
+    assert ids1 == ids2
+
+
 # ---------------------------------------------------------- resource purchase
 
 def test_buy_gem_grants_gem_and_spends_coins():
@@ -909,3 +984,38 @@ def test_armory_all_4_entries_available():
     assert "torch" in ids
     assert "the_axe" in ids
     assert len(entries) == 4
+
+#: Shops whose daily stock is built by a registered per-shop builder rather
+#: than on_enter_shop's generic path. Measured from effects/rooms/.
+_CUSTOM_STOCK_SHOPS = frozenset({
+    "commissary", "gift_shop", "kitchen", "locksmith", "showroom", "workshop",
+})
+
+
+def test_no_shop_registers_a_stock_builder_unexpectedly():
+    """_STOCK_BUILDERS holds no id beyond the shops known to need bespoke
+    stock rules.
+
+    The companion test above asserts each expected shop IS registered; this
+    asserts nothing else is. A shop gaining a builder silently moves it off
+    on_enter_shop's generic path, which changes what it stocks without
+    failing anything -- the same one-directional blind spot the room-id debt
+    cap was widened to close.
+    """
+    import blueprince_sim.engine.effects.rooms  # noqa: F401  (registers builders)
+
+    assert set(shops._STOCK_BUILDERS) - _CUSTOM_STOCK_SHOPS == set()
+
+
+def test_a_shop_without_a_builder_still_stocks_through_the_generic_path():
+    """The generic fallback is a real path, not dead code: the Armory has no
+    registered builder and still stocks its wares on entry.
+
+    This is the other half of the test above -- it proves the fallback works,
+    which is exactly why a missing registration is silent and needs pinning.
+    """
+    game = _game()
+    _enter_shop(game, "the_armory")
+
+    assert game.state.shops.stock["the_armory"], "generic path stocked nothing"
+    assert "the_armory" not in shops._STOCK_BUILDERS

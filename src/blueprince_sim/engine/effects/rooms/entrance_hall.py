@@ -1,4 +1,5 @@
-"""Entrance Hall: provides its container-kinds overlay.
+"""Entrance Hall: provides its container-kinds overlay and the vase-smash
+capability.
 
 registry.special.containers["rooms"] carries no static Entrance Hall entry
 -- every trunk here comes from ``state.special.entrance_hall_trunks``, which
@@ -7,12 +8,17 @@ experiment effect (experiments.py::apply_effect) and The Twins constellation
 (constellations.py::apply_effect). Reuses the existing ``trunk``
 containers.kinds entry rather than a distinct kind, per the wiki: "There is
 no difference between a 'small chest' and a regular trunk."
+
+``Capability.VASE`` is read by shops.py's ``can_smash_vase`` to gate the
+west-side vase-smash discovery action to this room.
 """
 
 from __future__ import annotations
 
-from .. import provides_containers
+from .. import Capability, provides, provides_containers
 from ... import special_items
+
+provides("entrance_hall", Capability.VASE)
 
 
 @provides_containers("entrance_hall")
