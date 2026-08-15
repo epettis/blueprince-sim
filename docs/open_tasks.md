@@ -175,12 +175,15 @@ doc that owns it; when the remaining work lands, the entry goes.
   new value stops entrenching that; moving the other seven is this separate
   pass.
 
-  **Care is required, and one specific trap is known.** `decks.py`'s
-  `throne_room` and `treasure_trove` must **not** be repointed: both are
-  `pool: "studio_addition"` and reach the pool through a second door,
-  `cfg.studio_additions`, which `all_unlocks_config()` sets while never setting
-  either blueprint flag. Repointing them silently drops both from the
-  all-unlocks training pool.
+  **Care is required around `throne_room` and `treasure_trove`.** Both are
+  `pool: "studio_addition"`, and each reaches the pool by two doors:
+  `cfg.studio_additions`, and its own blueprint flag
+  (`cfg.throne_room_blueprint` / `cfg.treasure_trove_blackprint`), which
+  `all_unlocks_config()` sets. Repointing either one therefore no longer drops
+  it from the training pool silently: the Throne Room still arrives by its own
+  flag, and the Treasure Trove is held out of that pool deliberately and
+  visibly by `banned_rooms`, because its black-box reward is unmodelled
+  (`rl/train.py`). Check both doors and the ban before moving either.
 
 - **The Spiral of Stars.** Twelve of the thirteen constellations are
   `implemented: true`; the Spiral is the exception, carrying
@@ -216,7 +219,9 @@ doc that owns it; when the remaining work lands, the entry goes.
 
   Since `carried_items` is attempt-scoped, none of the three is save-scoped
   today. `DayChain._CARRYOVER_KEYS` remains **bool-only**, and its length is
-  never frozen, so growing it is available if the boolean reading wins.
+  never frozen, so growing it is available if the boolean reading wins --
+  though not free: `test_all_unlocks_config_sets_every_carryover_key` fails
+  until any new key is enabled in `all_unlocks_config()` too.
 
 - **The retrain is owed, and is held on the owner's explicit say-so alone.**
   `baseline-ep8275991` was trained against rules the sim no longer implements —
