@@ -15,9 +15,8 @@ governs at a boundary) and non-probability facts (registry structure) read
 real registry data -- the outcome PERCENTAGES asserted against are always
 hand-typed literals.
 
-Source: https://blueprince.wiki.gg/wiki/Luck, "Luck effects" DataMinedBox,
-fetched during the item_ladder migration (see docs/open_tasks.md's
-2026-08-13 decisions log entry).
+Source: https://blueprince.wiki.gg/wiki/Luck, "Luck effects" DataMinedBox.
+docs/luck.md owns the ladder itself.
 """
 
 from __future__ import annotations

@@ -188,6 +188,13 @@ An entry targets its candidates either with an explicit `rooms` list or with a
 Chronograph's Tomorrow Rooms row uses the selector so its twelve room ids
 (including the Mail Room's three upgrade variants) are never hand-typed.
 
+**The 5% / 13% / 3% constants are not independently checkable in this repo.**
+`priority_draws.json` cites a "TFMurphy decompiled sheet v1.3 constants block",
+and that sheet is not here: `tools/raw/` holds a 147-line *room* table with
+nothing about draw procedure. The values are almost certainly right, but **do
+not describe them as repo-datamined** — the datamine-outranks-wiki rule cannot
+be exercised on them, because there is no datamine here to read.
+
 An entry may also carry a `condition` tag drawn from the same vocabulary
 `category_biases` entries use. A conditioned entry is **skipped entirely,
 consuming no RNG**, while its condition is inactive; the active-condition set

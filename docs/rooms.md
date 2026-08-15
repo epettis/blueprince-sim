@@ -260,6 +260,11 @@ them.
 | Underpass (**area node**) | 1 | +2 |
 | Inner Sanctum (**area node**) | **8** | **+16** |
 
+**One gap left open on purpose:** the wiki lists a Vault deposit box **53**
+alongside 149 and 233, and this repo carries no `vault_key_53`. Whether that is
+a missing box or a wiki-only number is unverified, and it is stated rather than
+guessed in either direction.
+
 **A fully explored save banks +36 allowance from boxes alone**, before any
 repeatable source — 36 coins at the start of every subsequent day. Allowance is
 unspendable income arriving before any decision is made, so it shifts what an
@@ -348,9 +353,9 @@ colour**, carried as `extra_categories` rather than a one-room escape hatch. The
 Electric Eel Aquarium additionally counts as Mechanical. Measured before the
 fix: a Patio spread targeted **24** rooms where the wiki implies **29**,
 understating the payout by up to 5 gems in a large house. *A ruling recorded but
-never implemented is indistinguishable from one never made* — the flag this
-replaced sat in the decisions log for a day while every category-keyed mechanic
-quietly ignored the Aquarium. The Starfish Aquarium separately grants +1
+never implemented is indistinguishable from one never made* — this one sat
+written-down-but-unbuilt for a day while every category-keyed mechanic quietly
+ignored the Aquarium. The Starfish Aquarium separately grants +1
 permanent star on every draft.
 
 **`billiard_room`** — the Dartboard is a puzzle object inside the room, never a

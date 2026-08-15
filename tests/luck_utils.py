@@ -1,10 +1,10 @@
 """Test-only luck suppression: the wiki's published item-count ladder has no
 zero point -- even at floor luck (<=4) there is still a 7% chance of 1 item
 ("4- Luck: 7% for 1 item, 93% for 0 items", Luck page). Flooring
-``state.luck`` alone, the pre-ladder idiom, no longer guarantees a room's
-luck-rolled additional items never fire. ``suppress_luck`` replaces that
-idiom at every site that used it (see docs/luck.md's item-count ladder
-table, the floor-luck row).
+``state.luck`` alone does not stop a room's luck-rolled additional items from
+firing; ``suppress_luck`` is what gives that guarantee, and every site needing
+it calls this helper (see docs/luck.md's item-count ladder table, the
+floor-luck row).
 
 Its own correctness has a dedicated test (test_luck_ladder.py): if this
 silently stopped suppressing, the 27 test files that call it would go flaky

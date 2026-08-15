@@ -175,6 +175,22 @@ reasoning about the horizon from it gives the wrong answer.)
 - **`item_values` are hand-tuned, not game data**, and the `key` weight in
   `data/tuning.json` is deliberately untouched — it is shared with the greedy
   policies, and raising it would silently shift their baselines.
+- **Cheap depth is probably overpaid, and the constants stay unchanged until
+  the policy's own choice rate says so.** `deepest_rank` can reach 9 while the
+  Antechamber stays literally unreachable: a `straight` room drafted north is
+  always N|S, so a Tunnel spine has zero lateral connectivity by construction
+  and a column-1 corridor can never reach the Antechamber in column 2.
+  `_phi_paths` cannot see that, because it counts *global* frontier doorways
+  rather than whether a room added branching — in the traced episode
+  `distance_map()` reported the Antechamber unreachable from step 1 to
+  termination while `deepest_rank` hit 9. Measured, a Tunnel placement nets
+  **+0.109** against **+0.030–0.033** for an ordinary room: ~3.3× the reward
+  density, risk-free and gem-free, and the gap applies to a freely *chosen*
+  Tunnel too. The test is behavioural, not arithmetic — once the Tunnel is one
+  of three offered options, measure how often the policy picks it, and treat a
+  rate well above the ~33% base as the evidence that cheap depth is
+  overvalued. Tuning before that measurement is tuning against a 50k-episode
+  artifact.
 
 ## The proposed investment bonus for permanent upgrades
 

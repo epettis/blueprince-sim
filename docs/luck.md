@@ -146,6 +146,10 @@ second source of truth.
   the Item Spawns table is Cloudflare-blocked and the values are
   community-informed estimates. It is an honest stand-in for an unmodellable
   spawn-pool cap, not a published number.
+- **The Dowsing Rod bypasses the `additional_max` clamp entirely**
+  (`engine/items.py::roll_room_items`). Owner ruling, and load-bearing rather
+  than a detail: clamped, the rod's ladder collapses to roughly one item and
+  the item is pointless. It is the only draw path that ignores the cap.
 - **The extra-item *kind* weights are inferred**, not datamined: coins 40,
   key 25, gem 25, die 10 (confidence: `inferred` in `data/items.json`). The
   ladder decides *how many*; nothing published decides *which*.

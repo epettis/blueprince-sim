@@ -115,8 +115,8 @@ def test_expected_yields_formula(registry):
     p_extra is hard-coded from the wiki rather than derived from
     engine/items.py or data/items.json's item_ladder (the same dict
     expected_yields itself reads) -- deriving it from either would make this
-    test pass for any value, the anti-pattern docs/open_tasks.md's 2026-08-13
-    decisions log found here. items.json's luck.day_start is 10, which the
+    test pass for any value (docs/process.md, "Tests that stop testing").
+    items.json's luck.day_start is 10, which the
     item_ladder bands to 5-10 luck; the wiki (Luck page, "Luck effects") says:
     "5-10 Luck: The chance to get 1 item is the first line of the above that
     applies: ... If Veteran Mode is enabled, 15%." expected_yields assumes day

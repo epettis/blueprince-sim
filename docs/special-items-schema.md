@@ -203,6 +203,37 @@ The validator also prints a census on every run — item count, unimplemented
 count, and deliberately-not-modelled count. **Re-measure there rather than
 trusting a number written in a document**; the counts move as records land.
 
+### What the census does not measure
+
+**There is no text-versus-model fidelity audit on the item side at all.**
+`find_divergences` is entirely room-scoped, and item records carry no
+`meta.effect_text` field — verified across every record — so nothing compares
+what an item is published to do against what it does. The item side has only a
+registry-consistency check, an empty-`effects` census, and the hand-maintained
+`implemented` flag. **So an unimplemented count is a count of records whose
+flag says so, never of records verified complete**, and a half-implemented item
+is invisible: `morning_star` sat `implemented: true` with a correct smash and a
+missing star grant until someone read the wiki line.
+
+Two findings shape any detector built for this, and both cut against the
+obvious design. **Their counts are a snapshot of one scan — re-run it rather
+than trusting the numbers here; what does not decay is the shape of each
+argument.**
+
+- **`effects` cannot be the basis.** An AST scan over the functions that look a
+  tag up on a `SpecialItem` found **7 of 28 item tags never read as tags at
+  all** — for six the tag string merely coincides with the item's own id while
+  the behaviour lives in a per-item module keyed on `ITEM_ID`. An item can be
+  fully modelled with an inert tag or partly modelled with a live one, and the
+  array states neither. A tags-versus-registries detector would flag six fully
+  modelled items and clear the one real gap.
+- **The room audit's "text exists, zero modelling" rule ports badly**; it fires
+  only on total absence, so every partial gap passes it. The rule that does
+  work on items is the sibling comparison — *identical modelling to a sibling
+  but differing published text means the differentiating step was never
+  authored*. Across all records there are exactly three identical-`effects`
+  groups, so it yields two flags on day one and needs no triage phase.
+
 ### The prose notes are validated too
 
 `meta.notes` and the file-level `_notes` are checked against the data they
