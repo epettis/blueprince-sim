@@ -1327,12 +1327,12 @@ def main(argv: list[str] | None = None) -> int:
         tier = item.get("tier")
         if tier is not None and (not isinstance(tier, int) or tier < 1 or tier > 5):
             errors.append(f"{where}: tier must be 1-5 or null, got {tier!r}")
-        no_receive = item.get("no_receive", False)
-        if not isinstance(no_receive, bool):
-            errors.append(f"{where}: no_receive must be a bool, got {no_receive!r}")
-        elif no_receive and tier is None:
+        receive = item.get("receive", True)
+        if not isinstance(receive, bool):
+            errors.append(f"{where}: receive must be a bool, got {receive!r}")
+        elif not receive and tier is None:
             errors.append(
-                f"{where}: no_receive=true requires a tier — a give-only item with "
+                f"{where}: receive=false requires a tier — a give-only item with "
                 f"no tier is unreachable by the trade graph and therefore meaningless"
             )
         for rid in item.get("spawn_rooms", []):

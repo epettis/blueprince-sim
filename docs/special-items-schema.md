@@ -22,7 +22,7 @@ Rules about which source wins a disagreement are in
   "name": "Lock Pick Kit",
   "kind": "standard",                // standard|special_key|contraption|showroom|armory|unique
   "tier": 3,                         // 1-5 Trading Post tier; null = untradeable
-  "no_receive": false,               // true: tradeable away, never offered back
+  "receive": true,                   // false: tradeable away, never offered back; absent = true
   "unique": true,                    // at most one held (false only for microchip)
   "persistence": "day",              // day|until_used|permanent — drives carry-over
   "spawn_rooms": ["archives", ...],  // room ids where it can lie on the floor
@@ -180,7 +180,7 @@ Errors, not warnings, except where noted:
 
 - ids unique; `kind`, `persistence` and `meta.confidence` drawn from their
   valid sets; `tier` is 1–5 or null.
-- `no_receive: true` **requires a tier** — a give-only item with no tier is
+- `receive: false` **requires a tier** — a give-only item with no tier is
   unreachable by the trade graph and therefore meaningless.
 - every `spawn_rooms` / `spawn_rooms_high_luck` / `guaranteed_in` id resolves
   against `rooms.json`; `requires_item` resolves against this file and may not
