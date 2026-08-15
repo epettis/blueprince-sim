@@ -268,6 +268,16 @@ def _navigate_frontier(game: Game) -> None:
     :meth:`Game.draft_from`) minimizing steps_to_reach + lambda * optimistic
     distance from the doorway's target to the Antechamber, (3) enter the
     nearest unentered room for its pickups.
+
+    A locked frontier doorway's affordability is judged by
+    :meth:`Game._frontier_lock_affordable` -- the same predicate
+    :meth:`Game._action_in_budget` uses to decide whether the day can still
+    progress -- rather than a plain key-count comparison, so this policy
+    never treats a door as unaffordable (and falls through to the terminal
+    ``_check_termination`` call below) while the engine itself still
+    considers a Master Key, a fitting Silver/Prism Key, or a Stopwatch
+    refund enough to open it; disagreeing here would stall the policy in
+    NAVIGATE forever, since the day is not actually over.
     """
     st = game.state
     if _security_admin(game):
@@ -284,7 +294,7 @@ def _navigate_frontier(game: Game) -> None:
         if not 0 <= dist[cell] <= st.steps - 1:  # must arrive with a step to spare
             continue
         seg = game.door_state_of(cell, d)
-        if seg == locks.DOOR_LOCKED and st.keys < key_cost[cell] + game.lock_open_cost(cell, d):
+        if seg == locks.DOOR_LOCKED and not game._frontier_lock_affordable(cell, d, key_cost[cell]):
             continue
         if seg == locks.DOOR_SECURITY and not game.security_openable():
             security_blocked = True
