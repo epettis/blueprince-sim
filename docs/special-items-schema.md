@@ -107,7 +107,13 @@ a label:
   a wiki snapshot; neither carries item spawn locations or Trading Post tiers.
   Every tier claim traces to the wiki's own DataMinedBox. **Do not describe
   them as repo-datamined** — the datamine-outranks-wiki rule does not bite
-  here, and the wiki is the best available authority.
+  here, and the wiki is the best available authority. `confidence: "datamined"`
+  is therefore **an error anywhere in this file**, enforced by
+  `validate_data.py::find_datamined_item_confidence_findings` rather than left
+  to prose: nothing in the engine branches on `confidence`, so a wrong label
+  changes no behaviour and fails silently, which is exactly how it drifted onto
+  six records — four items plus the `containers` and `mail_packages` tables —
+  each citing a wiki URL as its own source.
 - **`meta.confidence` did not track accuracy when the spawn tables were last
   measured.** Against the wiki's `Locations` field, items labelled `wiki` were
   59% complete while the two labelled `datamined` — the top of the ladder —
