@@ -45,6 +45,11 @@ DATA = Path(__file__).resolve().parent.parent / "src" / "blueprince_sim" / "data
 # own header for fetch method/scope/honest-limit) -- the notes-decay checker's
 # only source for the "wiki lists N rooms" shape below.
 WIKI_LOCATIONS_TSV = Path(__file__).resolve().parent / "raw" / "wiki_item_locations.tsv"
+# The Graphviz rendering of the outside-area graph (docs/areas.md calls it
+# "co-authoritative" with areas.json). Parsed textually below -- no graphviz
+# dependency -- so the "kept in step" claim has an enforced mechanism instead
+# of just a comment.
+AREAS_DOT = Path(__file__).resolve().parent.parent / "docs" / "areas.dot"
 
 VALID_RARITIES = {"commonplace", "standard", "unusual", "rare", None}
 VALID_LAYOUTS = {"dead_end", "straight", "corner", "t", "cross"}
@@ -610,6 +615,55 @@ _NOTES_FIELD_VALUE_RE = re.compile(
     r"\b(guaranteed_in|spawn_rooms_high_luck|spawn_rooms|tier|kind)\s*=\s*"
     r"(?:\[(?P<list>[^\]]*)\]|(?P<val>[a-z0-9_]+))")
 _NOTES_WIKI_COUNT_RE = re.compile(r"\bwiki lists (\d+) rooms\b")
+
+
+_DOT_CLUSTER_NAMES = ("cluster_anchors", "cluster_surface", "cluster_underground")
+
+
+def _parse_areas_dot(text: str) -> tuple[set[str], set[tuple[str, str]]]:
+    """Textually parse ``docs/areas.dot``'s node ids and directed edges.
+
+    No graphviz dependency (this repo's engine is pure-stdlib and
+    validate_data.py must keep running with no extra install) -- just brace
+    matching and two regexes, good enough for this file's own conventions:
+
+    Node ids are collected only from statements inside the three named
+    node clusters (``_DOT_CLUSTER_NAMES``), found by counting braces from
+    each ``subgraph cluster_X {`` to its matching ``}`` (the file nests no
+    braces other than graph/subgraph blocks, so this is exact here). That
+    deliberately excludes the ``cluster_legend`` node and the top-level
+    ``node [...]``/``edge [...]`` default-attribute statements, which would
+    otherwise false-positive as node ids under a naive per-line regex.
+
+    Edges are matched anywhere in the file as ``id -> id``, anchored at the
+    start of the identifier so a ``->`` appearing inside a quoted label
+    (e.g. crate_tunnel's "ignite torches -> Tunnel floorplan") is never
+    mistaken for a graph edge.
+    """
+    node_ids: set[str] = set()
+    for cluster in _DOT_CLUSTER_NAMES:
+        m = re.search(rf"subgraph\s+{cluster}\s*\{{", text)
+        if not m:
+            continue
+        depth = 1
+        i = m.end()
+        while depth > 0 and i < len(text):
+            if text[i] == "{":
+                depth += 1
+            elif text[i] == "}":
+                depth -= 1
+            i += 1
+        block = text[m.end():i - 1]
+        for line in block.splitlines():
+            stmt = re.match(r"^\s*([A-Za-z_][A-Za-z0-9_]*)\s*\[", line)
+            if stmt and stmt.group(1) not in ("node", "edge"):
+                node_ids.add(stmt.group(1))
+    edges = {
+        (a, b) for a, b in re.findall(
+            r"^\s*([A-Za-z_][A-Za-z0-9_]*)\s*->\s*([A-Za-z_][A-Za-z0-9_]*)",
+            text, re.MULTILINE)
+    }
+    return node_ids, edges
 
 
 def _load_wiki_locations(path: Path) -> dict[str, str]:
@@ -2916,6 +2970,34 @@ def main(argv: list[str] | None = None) -> int:
         errors.append(
             f"areas: edge count is {actual_edge_count}, spec says {SPEC_EDGE_COUNT}; "
             f"update docs/areas.md if the graph has changed"
+        )
+
+    # ── docs/areas.dot must match areas.json (node set, edge set) ────────────
+    # areas.json's own meta.notes calls areas.dot "the co-authoritative source"
+    # that "must be kept in step"; this check is what holds that claim up.
+    # Note house<->antechamber is deliberately absent from areas.json, for the
+    # travel_to()-past-the-seal reason in the SPEC_NODE_COUNT comment above, so
+    # the .dot must not draw it either. Both node and edge sets are diffed in
+    # both directions: an id added to one side and never mirrored to the other
+    # is exactly as loud as the reverse, since a check that only fails one way
+    # is a liveness check rather than a necessity check.
+    dot_node_ids, dot_edges = _parse_areas_dot(AREAS_DOT.read_text(encoding="utf-8"))
+    if dot_node_ids != a_node_id_set:
+        missing = a_node_id_set - dot_node_ids
+        extra = dot_node_ids - a_node_id_set
+        errors.append(
+            f"areas.dot: node set does not match areas.json: "
+            f"missing from areas.dot {sorted(missing)}, "
+            f"unexpected in areas.dot {sorted(extra)}"
+        )
+    json_edge_pairs = set(a_edge_pairs)
+    if dot_edges != json_edge_pairs:
+        missing = json_edge_pairs - dot_edges
+        extra = dot_edges - json_edge_pairs
+        errors.append(
+            f"areas.dot: edge set does not match areas.json: "
+            f"missing from areas.dot {sorted(missing)}, "
+            f"unexpected in areas.dot {sorted(extra)}"
         )
 
     # ── special_items.json notes-decay check ──────────────────────────────────

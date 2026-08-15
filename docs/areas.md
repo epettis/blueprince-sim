@@ -55,11 +55,18 @@ both routes.
 ## Nodes
 
 **On-grid / drafted anchors** — not area nodes; shown only because outside edges
-attach to them: `house`, `garage`, `the_foundation`, `tomb`, `schoolhouse`,
-`hovel`, `toolshed`, `root_cellar`, `shelter`, `shrine`, `trading_post`.
+attach to them: `house`, `antechamber`, `garage`, `the_foundation`, `tomb`,
+`schoolhouse`, `hovel`, `toolshed`, `root_cellar`, `shelter`, `shrine`,
+`trading_post`.
 `the_foundation` is only usable as a departure anchor once it has actually
 been drafted that attempt (`GameConfig.foundation_cell >= 0`); before that,
 routes through it are unavailable the way an unplaced Garage is.
+`antechamber` (`kind: anchor`, `modelled: false`) is the rank 9 center grid
+cell; it deliberately carries **no** area edges to `house` — reaching it is a
+grid walk through a lever-opened door, not an area traversal, and an area
+edge would let `travel_to()` hop past the seal for roughly zero steps
+(`tools/validate_data.py`'s areas.dot/areas.json node-and-edge-set check
+enforces this, alongside the SPEC_NODE_COUNT/SPEC_EDGE_COUNT check).
 
 **Surface**
 
@@ -88,11 +95,12 @@ routes through it are unavailable the way an unplaced Garage is.
 | `mine_south` | **modelled, Upgrade Disk**; the mine cart is moved from here |
 | `mine_north` | |
 | `rotating_gear` / `upper_rotating_gear` | The game's **"Underground"** is `upper_rotating_gear`: a room one step off a hallway from the Underpass, not reachable from `rotating_gear`. **modelled** — holds the estate's one off-grid safe (see below) |
-| `underpass` | |
+| `underpass` | Holds a Mora Jai box (`allowance_token_underpass`, +2 allowance, granted on arrival by `special_items.py::on_area_arrival`). **`modelled: false`, so built and unreachable**: no travel action ever targets it (`env/actions.py` masks travel to `modelled` nodes only), and routing *through* it — e.g. `rotating_gear -> underpass -> upper_rotating_gear` — jumps straight to the final destination without an intermediate arrival, so it never fires the hook either (verified: `allowance` is unchanged after such a route). Same shape as the `reservoir_north`/`safehouse` Sanctum Key sources (their `special_items.json` notes say so explicitly; this row is the Underpass's missing equivalent). |
 | `inner_sanctum` | **modelled** — lever opening the Antechamber **north** door |
 | `sigil_chambers` | 8 chambers, one Sanctum Key each |
 | `precipice` | |
 | `unknown_underground` | Key of Aries clock |
+| `room_46` | **modelled** — the game's actual objective, reached only through `antechamber`'s north door |
 
 Both Upgrade Disks that were off-grid are now reachable: The Foundation's is an
 ordinary `guaranteed_in` room pickup now that the room is on the grid; the
@@ -378,7 +386,12 @@ Surfaced by building this graph:
 - **Gemstone Cavern**: 2 gems/day, passive.
 - **Sigil chambers**: each is opened by one Sanctum Key, stays open permanently,
   and grants a **permanent +2 allowance** from the Mora Jai box inside — 8
-  chambers, so +16 allowance in total.
+  chambers, so +16 allowance in total. A further **+2 allowance** sits in the
+  Underpass's own Mora Jai box (`allowance_token_underpass`, owner ruling that
+  every Mora Jai box holds one) — not counted in the +16 above, and not
+  presently collectible: `underpass` is `modelled: false`, so nothing ever
+  travels there and the grant is built but unreachable (see the `underpass`
+  row in the Underground table above).
 - **Inner Sanctum**: the lever opening the Antechamber's **north** door. See
   [`antechamber-lever-design.md`](antechamber-lever-design.md)'s B2 section.
 - **Abandoned Mine (South)**: an Upgrade Disk **sitting openly on a table**. It

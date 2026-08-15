@@ -73,6 +73,11 @@ digraph blueprince_outside {
 		tomb           [label="Tomb\n(outer room, 1 of 8)", color="#c9a227", penwidth=2.5];
 		schoolhouse    [label="Schoolhouse\n(outer room) — torch on DRAFT"];
 		hovel          [label="Hovel\n(outer room) — torch on DRAFT"];
+		toolshed       [label="Toolshed\n(outer room)"];
+		root_cellar    [label="Root Cellar\n(outer room)"];
+		shelter        [label="Shelter\n(outer room)"];
+		shrine         [label="Shrine\n(outer room)"];
+		trading_post   [label="Trading Post\n(outer room)"];
 	}
 
 	subgraph cluster_surface {
@@ -133,12 +138,22 @@ digraph blueprince_outside {
 	grounds   -> west_path [label="west gate — only once\nunlatched from inside", style=bold];
 	west_path -> grounds   [label="unlatch gate from inside\n(permanent, first time)", style=bold];
 
-	west_path -> tomb        [label="drawn as today's\nouter room (1 of 8)", style=dashed];
-	west_path -> schoolhouse [label="drawn as today's\nouter room", style=dashed];
-	west_path -> hovel       [label="drawn as today's\nouter room", style=dashed];
-	tomb        -> west_path [];
-	schoolhouse -> west_path [];
-	hovel       -> west_path [];
+	west_path -> tomb         [label="drawn as today's\nouter room (1 of 8)", style=dashed];
+	west_path -> schoolhouse  [label="drawn as today's\nouter room", style=dashed];
+	west_path -> hovel        [label="drawn as today's\nouter room", style=dashed];
+	west_path -> toolshed     [label="drawn as today's\nouter room", style=dashed];
+	west_path -> root_cellar  [label="drawn as today's\nouter room", style=dashed];
+	west_path -> shelter      [label="drawn as today's\nouter room", style=dashed];
+	west_path -> shrine       [label="drawn as today's\nouter room", style=dashed];
+	west_path -> trading_post [label="drawn as today's\nouter room", style=dashed];
+	tomb         -> west_path [];
+	schoolhouse  -> west_path [];
+	hovel        -> west_path [];
+	toolshed     -> west_path [];
+	root_cellar  -> west_path [];
+	shelter      -> west_path [];
+	shrine       -> west_path [];
+	trading_post -> west_path [];
 
 	grounds       -> private_drive [];
 	private_drive -> grounds       [];
@@ -244,9 +259,13 @@ digraph blueprince_outside {
 	// Room 46 — the day's objective. The Antechamber is walked to on the grid;
 	// its north door is sealed each morning until one of the two levers is pulled
 	// (Inner Sanctum, above, or the Throne Room on the grid).
-	house       -> antechamber [];
-	antechamber -> house       [];
-	antechamber -> room_46     [label="north door\n(sealed until a lever\nis pulled; resets daily)", style=dashed];
+	//
+	// Deliberately NO house <-> antechamber area edge: reaching the rank 9
+	// center cell is a GRID walk through a lever-opened door, not an area
+	// traversal. An area edge here would let travel_to() hop past the seal
+	// for roughly zero steps (tools/validate_data.py enforces this by node/
+	// edge-set diff against this file).
+	antechamber -> room_46 [label="north door\n(sealed until a lever\nis pulled; resets daily)", style=dashed];
 	room_46     -> antechamber [];
 
 	// ===================== LEGEND =====================
