@@ -633,6 +633,17 @@ function renderHouse(frame, targetId = "house", svgKey = "house-svg") {
       svg += `<foreignObject x="${x + 6}" y="${y + 6}" width="${fo}" height="${fo}">` +
              `<div xmlns="http://www.w3.org/1999/xhtml" class="room-label${dark ? " dark" : ""}">` +
              `${esc(room.name)}</div></foreignObject>`;
+      // Drafting and entering are distinct: a placed room is not one the
+      // player has stepped into (see GameState.entered). `frame.entered` is
+      // only present on Play tab frames (web/play.py); Runs tab replay
+      // frames have no such field and simply never show the overlay. A
+      // diagonal fade over the whole tile is the "gradient" the owner asked
+      // for (task 34) -- the category color still shows through the near
+      // corner so the room is identifiable, just visibly unvisited.
+      if (frame.entered && frame.entered[cell] === false) {
+        svg += `<rect x="${x + 4}" y="${y + 4}" width="${CELL - 8}" height="${CELL - 8}" rx="9"
+                 fill="url(#unvisited-fade)" class="room-unvisited"><title>drafted, not yet entered</title></rect>`;
+      }
     } else if (cell === 2 || cell === 42) {
       svg += `<text x="${x + CELL / 2}" y="${y + CELL / 2 + 4}" class="cell-hint"
                text-anchor="middle">${cell === 2 ? "ENTRANCE" : "ANTECHAMBER"}</text>`;
@@ -657,9 +668,16 @@ function renderHouse(frame, targetId = "house", svgKey = "house-svg") {
   houseEl.innerHTML =
     `<svg viewBox="0 0 ${2 * MARG + 5 * CELL} ${2 * MARG + 9 * CELL}"
           preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <linearGradient id="unvisited-fade" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stop-color="#0a0b0d" stop-opacity="0"/>
+          <stop offset="100%" stop-color="#0a0b0d" stop-opacity=".62"/>
+        </linearGradient>
+      </defs>
       <style>
         .cell-bg { fill: #191c21; stroke: #262a31; stroke-width: 1; }
         .room { stroke: rgba(0,0,0,.35); stroke-width: 1.5; }
+        .room-unvisited { pointer-events: none; }
         .room-label {
           display: flex; align-items: center; justify-content: center;
           width: 100%; height: 100%;
@@ -1694,6 +1712,12 @@ state.playState = null;              // last /api/play/{new,state,act,undo} resp
 state.playVisited = new Set(["house"]);  // area ids seen so far (client-side, best-effort)
 state.playDebug = false;             // debug-overlay toggle; OFF by default (observation parity)
 state.playLog = [];                  // running per-day action log (client-side only)
+// Task 27: which of the tabbed map panels is showing. Auto-followed to match
+// the player's on-grid/off-grid status on every real transition (see
+// updatePlayMapTab); a manual tab click holds until the next transition, so
+// looking at the other map never traps the player out of sync permanently.
+state.playMapTab = "house";
+state.playMapLastOffGrid = undefined;  // previous frame's off-grid status; undefined = force a sync
 
 async function playApiGet(url) {
   const r = await fetch(url);
@@ -1729,6 +1753,8 @@ async function startPlaySession() {
   $("#play-save-status").textContent = "starting…";
   state.playVisited = new Set(["house"]);
   state.playLog = [];
+  state.playMapTab = "house";
+  state.playMapLastOffGrid = undefined;
   try {
     const s = await playApiPost("/api/play/new", body);
     $("#play-status").classList.remove("hidden");
@@ -1801,9 +1827,16 @@ function renderPlayActions() {
   // Skipping those two groups here avoids showing the same actions twice as
   // both a rich card and a bare "choose #2 Parlor" button.
   const pending = s.frame.pending;
+  // Same idea while an Upgrade Disk choice is open (frame.pending_upgrade):
+  // the three CHOOSE_UPGRADE actions are already rendered readably by
+  // renderPlayUpgrade() (name + effect_text, task 30), so drop them here
+  // rather than also showing "choose upgrade #0 (parlor__ix108)" verbatim.
+  const pendingUpgrade = s.frame.pending_upgrade;
+  const upgradeRe = /^choose upgrade #\d+ \(/;
   const byGroup = {};
   for (const a of s.legal_actions || []) {
     if (pending && (a.group === "choose" || a.group === "control")) continue;
+    if (pendingUpgrade && a.group === "choose" && upgradeRe.test(a.label)) continue;
     (byGroup[a.group] = byGroup[a.group] || []).push(a);
   }
   const groups = [...PLAY_GROUP_ORDER, ...Object.keys(byGroup).filter((g) => !PLAY_GROUP_ORDER.includes(g))];
@@ -1816,12 +1849,14 @@ function renderPlayActions() {
       html += `<button class="play-action-btn" data-id="${a.id}">${esc(a.label)}</button>`;
     }
   }
-  // An empty list here has two very different meanings: mid-draft, every
-  // legal action moved into the Draft options panel above (nothing is
-  // actually wrong); with no draft open, an empty list means the day truly
-  // has nowhere left to go. The two cases must stay distinguished below.
+  // An empty list here has two very different meanings: mid-draft (or
+  // mid-upgrade-choice), every legal action moved into the panel above
+  // (nothing is actually wrong); otherwise an empty list means the day truly
+  // has nowhere left to go. The cases must stay distinguished below.
   const emptyMsg = pending
     ? '<p class="dim">all legal actions are in the Draft options panel above</p>'
+    : pendingUpgrade
+    ? '<p class="dim">all legal actions are in the Upgrade Disk panel above</p>'
     : '<p class="dim">no legal actions — day is over</p>';
   el.innerHTML = html || emptyMsg;
   for (const btn of el.querySelectorAll(".play-action-btn")) {
@@ -1891,6 +1926,47 @@ function renderPlayDraft() {
   }
 }
 
+// Find the legal CHOOSE_UPGRADE action for a given offered-variant index by
+// matching describe_action's label format ("choose upgrade #{i} (...)",
+// i 0-based -- see env/actions.py::describe_action). Same label-matching
+// trick as findChooseAction, so this keeps working if the action space is
+// ever renumbered.
+function findChooseUpgradeAction(legalActions, index) {
+  const re = new RegExp(`^choose upgrade #${index} \\(`);
+  return legalActions.find((a) => a.group === "choose" && re.test(a.label)) || null;
+}
+
+// The disk-upgrade menu (task 30): web/play.py's pending_upgrade resolves
+// each offered variant id to a readable name plus the sheet's effect_text --
+// e.g. "Parlor" / "3 Prize" vs "Parlor" / "2 Wind-up Keys" -- since the raw
+// ids (parlor__ix108 / parlor__ix109) are what the owner could not tell
+// apart. Reuses .opt's card styling rather than inventing new markup.
+function renderPlayUpgrade() {
+  const el = $("#play-upgrade");
+  const s = state.playState;
+  if (!el) return;
+  const pu = s && !s.attempt_over ? s.frame.pending_upgrade : null;
+  if (!pu) { el.innerHTML = ""; return; }
+
+  const legal = s.legal_actions || [];
+  const optsHtml = pu.options.map((o) => {
+    const action = findChooseUpgradeAction(legal, o.index);
+    const dataAttrs = action ? ` data-choose-id="${action.id}"` : "";
+    const cls = ["opt", action ? "clickable" : ""].filter(Boolean).join(" ");
+    return `<div class="${cls}"${dataAttrs}>
+      <div class="opt-body"><div class="name">${esc(o.name)}</div>
+      <div class="sub">${esc(o.effect_text || "no effect text on record")}</div></div>
+    </div>`;
+  }).join("");
+
+  el.innerHTML = `<div class="panel-head" style="margin-top:0">Upgrade Disk — choose a variant for ${esc(pu.slot_name || pu.slot)}</div>
+    <div id="play-upgrade-opts">${optsHtml}</div>`;
+
+  for (const card of el.querySelectorAll(".opt.clickable[data-choose-id]")) {
+    card.onclick = () => playAct(Number(card.dataset.chooseId));
+  }
+}
+
 function renderPlayStatus() {
   const s = state.playState;
   if (!s) return;
@@ -1932,9 +2008,38 @@ function pushPlayLog(s) {
   }
 }
 
+// Resource ids that get an icon instead of a spelled-out name in the log;
+// same glyph set the dashboard's draft-frequency badges use. Held special
+// items (task 28's "container opens" case) fall through to their name.
+const PAYOUT_ICON = { steps: "👣", gems: "💎", keys: "🔑", coins: "🪙", dice: "🎲", luck: "🍀" };
+
+// What a step paid out, diffed server-side across the whole action (see
+// web/play.py::_payout_diff) -- one reporting point regardless of whether the
+// gain came from a record's items, a grant effect, a room_hook, or a
+// container open. Costs render alongside gains (signed) rather than being
+// hidden, since a room's grant can be masked by the same move's step cost.
+function payoutHtml(payout) {
+  if (!payout || !payout.length) return "";
+  const items = payout.map((p) => {
+    const icon = PAYOUT_ICON[p.id];
+    const label = icon || ` ${esc(p.name)}`;
+    const sign = p.delta > 0 ? "+" : "";
+    const cls = p.delta > 0 ? "pos" : "neg";
+    return `<span class="log-payout-item ${cls}">${sign}${p.delta}${label}</span>`;
+  });
+  return `<span class="log-payout">${items.join(" ")}</span>`;
+}
+
 function renderPlayLog() {
+  // A dedicated row class (not the Runs tab's .log-row) so the payout badge
+  // gets its own non-shrinking flex slot instead of being swallowed by the
+  // row's ellipsis truncation on long entries (draft/travel labels are
+  // exactly the long ones, and exactly where task 28's payout matters most).
   $("#play-action-log").innerHTML = state.playLog.length
-    ? state.playLog.map((a, i) => `<div class="log-row"><span class="n">${i + 1}</span>${esc(a.text)}</div>`).join("")
+    ? state.playLog.map((a, i) =>
+        `<div class="play-log-row"><span class="n">${i + 1}</span>` +
+        `<span class="log-text">${esc(a.text)}</span>${payoutHtml(a.payout)}</div>`
+      ).join("")
     : '<div class="dim">—</div>';
 }
 
@@ -1997,13 +2102,41 @@ function renderPlayArea() {
   renderAreaLegend("replay", true, "play-area-legend");
 }
 
+// Task 27's load-bearing half: auto-switch the map tab whenever the player's
+// on-grid/off-grid status actually changes (frame.area null <-> non-null),
+// so the view follows without being told to. A manual tab click (see the
+// button handlers below) is left alone between transitions -- it only gets
+// overridden the next time a real crossing happens, which is what keeps
+// auto-follow from trapping the player on the wrong map indefinitely.
+function updatePlayMapTab(frame) {
+  const offGrid = frame.area != null;
+  if (state.playMapLastOffGrid === undefined || offGrid !== state.playMapLastOffGrid) {
+    state.playMapTab = offGrid ? "area" : "house";
+  }
+  state.playMapLastOffGrid = offGrid;
+}
+
+function renderPlayMapTabs() {
+  const onHouse = state.playMapTab !== "area";
+  $("#play-map-tab-house").classList.toggle("active", onHouse);
+  $("#play-map-tab-area").classList.toggle("active", !onHouse);
+  $("#play-house-panel").classList.toggle("hidden", !onHouse);
+  $("#play-area-panel").classList.toggle("hidden", onHouse);
+}
+
+$("#play-map-tab-house").onclick = () => { state.playMapTab = "house"; renderPlayMapTabs(); };
+$("#play-map-tab-area").onclick = () => { state.playMapTab = "area"; renderPlayMapTabs(); };
+
 function renderPlayAll() {
   renderPlayStatus();
   renderPlayResources();
   renderPlayInventory();
   renderPlayDraft();
+  renderPlayUpgrade();
   renderPlayActions();
   renderPlayLog();
+  if (state.playState) updatePlayMapTab(state.playState.frame);
+  renderPlayMapTabs();
   renderPlayHouse();
   renderPlayArea();
   renderPlayDebug();

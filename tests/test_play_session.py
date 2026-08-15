@@ -13,9 +13,16 @@ import random
 
 import pytest
 
+from blueprince_sim.engine import special_items as si
+from blueprince_sim.engine.game import Phase
 from blueprince_sim.env import actions as A
 from blueprince_sim.web import replay
-from blueprince_sim.web.play import IllegalActionError, PlaySession, action_group
+from blueprince_sim.web.play import (
+    IllegalActionError,
+    PlaySession,
+    _payout_diff,
+    action_group,
+)
 
 
 def _finish_day(session: PlaySession, rng: random.Random, max_steps: int = 600) -> None:
@@ -144,3 +151,107 @@ def test_action_group_covers_full_action_space():
     that this file forgot to teach action_group about would show up here."""
     groups = {action_group(i) for i in range(A.N_ACTIONS)}
     assert "other" not in groups
+
+
+def test_state_reports_entered_per_cell():
+    """frame['entered'] mirrors GameState.entered exactly: 45 entries, the
+    player's own starting cell already True, a freshly placed-but-unstepped
+    room False. Task 34 (distinguish visited from unvisited rooms) needs this
+    surfaced -- drafting and entering are distinct in this engine, and the UI
+    had no way to see 'entered' at all before this field existed."""
+    session = PlaySession(seed=1, n_days=1, reward="shaped", unlocks="all")
+    game = session.env.game
+    parlor = game.registry.by_id["parlor"]
+    game._place_room(parlor, 7, parlor.door_mask)  # placed, never stepped into
+
+    frame = session.state()["frame"]
+    assert len(frame["entered"]) == 45
+    assert frame["entered"][game.state.pos] is True
+    assert frame["entered"][7] is False
+
+
+def test_pending_upgrade_is_none_outside_upgrade_pending():
+    """pending_upgrade is None whenever the game is not in UPGRADE_PENDING,
+    so the client's disk-choice panel only ever renders when there is a real
+    choice open."""
+    session = PlaySession(seed=1, n_days=1, reward="shaped", unlocks="all")
+    assert session.state()["frame"]["pending_upgrade"] is None
+
+
+def test_pending_upgrade_uses_effect_text_not_raw_variant_id():
+    """pending_upgrade's options carry a readable name plus the sheet's
+    effect_text -- the owner's own example (parlor__ix108 vs parlor__ix109,
+    both named plain 'Parlor') is only distinguishable through effect_text,
+    which Room itself does not carry. Task 30 says this affects every
+    __ixNN variant, not just the Parlor pair -- this pins the general
+    lookup, not a Parlor special case."""
+    session = PlaySession(seed=1, n_days=1, reward="shaped", unlocks="all")
+    game = session.env.game
+    game.state.pending_upgrade_slot = "parlor"
+    game.state.pending_upgrade_options = ("parlor__ix108", "parlor__ix109")
+    game.phase = Phase.UPGRADE_PENDING
+
+    pu = session.state()["frame"]["pending_upgrade"]
+    assert pu["slot_name"] == "Parlor"
+    by_id = {o["id"]: o for o in pu["options"]}
+    assert by_id["parlor__ix108"]["name"] == "Parlor"
+    assert by_id["parlor__ix109"]["name"] == "Parlor"
+    # The names alone are identical -- effect_text is what must differ.
+    assert by_id["parlor__ix108"]["effect_text"] != by_id["parlor__ix109"]["effect_text"]
+    assert by_id["parlor__ix108"]["effect_text"]
+    assert by_id["parlor__ix109"]["effect_text"]
+
+
+def test_pending_upgrade_reached_through_real_insert_disk():
+    """The same pending_upgrade shape comes out of a real insert_disk() call
+    (not just a hand-set state), so the dict construction agrees with how the
+    engine actually reaches UPGRADE_PENDING."""
+    session = PlaySession(seed=0, n_days=1, reward="shaped", unlocks="all")
+    game = session.env.game
+    security = game.registry.by_id["security"]
+    game._place_room(security, 7, 14)
+    game.state.pos = 7
+    game.state.entered[7] = True
+    si.grant(game.state, game.registry, "upgrade_disk_vault_304", source="test")
+    assert game.insert_disk()
+    assert game.phase is Phase.UPGRADE_PENDING
+
+    pu = session.state()["frame"]["pending_upgrade"]
+    assert pu is not None
+    assert len(pu["options"]) == 3
+    ids = {o["id"] for o in pu["options"]}
+    assert len(ids) == 3  # three distinct variants offered
+
+
+def test_payout_diff_reports_signed_deltas_and_omits_unchanged():
+    """_payout_diff is the single reporting point behind task 28: it reports
+    every changed resource/item as a signed delta (gains AND costs, since a
+    walk's step cost nets against a room's step grant) and omits anything
+    that did not change -- regardless of which engine path (items, a grant
+    effect, a room_hook, a container open) produced the change."""
+    session = PlaySession(seed=2, n_days=1, reward="shaped", unlocks="all")
+    registry = session.env.game.registry
+    before = {"steps": 50, "gems": 0, "keys": 1, "coins": 0, "dice": 0, "luck": 0}
+    after = {"steps": 45, "gems": 2, "keys": 1, "coins": 0, "dice": 0, "luck": 0,
+             "upgrade_disk_vault_304": 1}
+    diff = _payout_diff(before, after, registry)
+    by_id = {d["id"]: d["delta"] for d in diff}
+    assert by_id == {"steps": -5, "gems": 2, "upgrade_disk_vault_304": 1}
+    assert "keys" not in by_id  # unchanged resource omitted
+
+
+def test_act_attaches_payout_matching_independent_resource_diff():
+    """act()'s recorded last_action['payout'] matches an independently
+    computed before/after resource diff -- pins that a single diffing point
+    inside act() (not per-room-type additions) is what populates the action
+    log's payout, per task 28."""
+    session = PlaySession(seed=11, n_days=1, reward="shaped", unlocks="all")
+    before = dict(session.state()["frame"]["resources"])
+    action_id = session.state()["legal_actions"][0]["id"]
+    st = session.act(action_id)
+    after = dict(st["frame"]["resources"])
+    expected = {k: after[k] - before[k] for k in before if after[k] != before[k]}
+
+    payout = st["frame"]["action"]["payout"]
+    resource_deltas = {p["id"]: p["delta"] for p in payout if p["id"] in before}
+    assert resource_deltas == expected

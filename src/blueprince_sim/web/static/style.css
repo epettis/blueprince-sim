@@ -267,6 +267,21 @@ td:first-child, th:first-child { text-align: left; }
 .log-row .n { color: var(--dim); display: inline-block; width: 38px; }
 .log-row.explore { color: var(--explore); font-weight: 700; }
 .log-row.current { background: var(--panel2); border-radius: 3px; }
+.log-payout { margin-left: 6px; }
+.log-payout-item { margin-right: 5px; font-variant-numeric: tabular-nums; }
+.log-payout-item.pos { color: var(--win); }
+.log-payout-item.neg { color: var(--explore); }
+
+/* Play tab's action log row: flex so the payout badge (task 28) keeps its
+   own space instead of being cut off by the description's own truncation --
+   see renderPlayLog(). Distinct from the Runs tab's .log-row on purpose. */
+.play-log-row { display: flex; align-items: baseline; padding: 1px 0; gap: 2px; }
+.play-log-row .n { color: var(--dim); flex: 0 0 34px; }
+.play-log-row .log-text {
+  flex: 1 1 auto; min-width: 0; overflow: hidden;
+  text-overflow: ellipsis; white-space: nowrap;
+}
+.play-log-row .log-payout { flex: 0 0 auto; white-space: nowrap; }
 
 #controls {
   grid-area: controls; display: flex; gap: 8px; align-items: center;
@@ -305,13 +320,17 @@ td:first-child, th:first-child { text-align: left; }
 }
 
 /* --------------------------------------------------------------- play */
-/* Same four-column skeleton as #view-runs (list | house | areas | detail),
-   swapping the run list for the new-session form + legal-action list. */
+/* Three-column skeleton (list | map | detail): the Runs tab keeps house and
+   areas as separate fixed-width columns, but the Play tab's map is a single
+   tabbed panel (task 27) -- the indoor grid and the outer-area graph take
+   turns owning the whole middle column instead of splitting it 240px/1fr,
+   which is what made the indoor map "very small" and the outer map "very
+   large" in the same view. */
 #view-play {
   flex: 1; display: grid; min-height: 0;
-  grid-template-columns: 260px 240px 1fr 320px;
+  grid-template-columns: 260px 1fr 320px;
   grid-template-rows: 1fr;
-  grid-template-areas: "panel house areas detail";
+  grid-template-areas: "panel map detail";
 }
 #play-panel {
   grid-area: panel; border-right: 1px solid var(--line);
@@ -364,9 +383,35 @@ td:first-child, th:first-child { text-align: left; }
   border: 1px solid var(--line); border-radius: 6px; padding: 6px 10px;
 }
 
+/* Upgrade Disk choice (task 30): readable name + effect_text per variant,
+   reusing .opt's visual language instead of the generic bare-id action
+   buttons the Choose group would otherwise show for CHOOSE_UPGRADE_BASE. */
+#play-upgrade { margin-bottom: 14px; padding-bottom: 12px; border-bottom: 1px solid var(--line); }
+#play-upgrade:empty { display: none; }
+#play-upgrade .opt { margin-bottom: 8px; }
+#play-upgrade .opt .sub { color: var(--fg); opacity: .85; white-space: normal; }
+
+/* Holds the tab bar plus whichever of #play-house-panel/#play-area-panel is
+   current (task 27) -- exactly one is visible (".hidden") at a time, toggled
+   by renderPlayMapTabs()/updatePlayMapTab() in app.js. */
+#play-map-panel {
+  grid-area: map; min-width: 0; min-height: 0; display: flex; flex-direction: column;
+  border-right: 1px solid var(--line);
+}
+.map-tab-group {
+  display: flex; align-items: center; gap: 6px;
+  padding: 6px 10px 0; flex: 0 0 auto;
+}
+.map-tab-btn {
+  background: var(--panel2); color: var(--dim); border: 1px solid var(--line);
+  border-radius: 6px 6px 0 0; padding: 4px 14px; font-size: 12px; cursor: pointer;
+}
+.map-tab-btn.active { color: var(--fg); border-color: var(--accent); background: var(--panel); }
+.map-tab-hint { font-size: 11px; margin-left: 6px; }
+
 #play-house-panel {
-  grid-area: house; min-width: 0; min-height: 0; display: flex; flex-direction: column;
-  position: relative; padding: 6px 10px 10px; border-right: 1px solid var(--line);
+  flex: 1; min-width: 0; min-height: 0; display: flex; flex-direction: column;
+  position: relative; padding: 6px 10px 10px;
 }
 #play-house { flex: 1; display: flex; justify-content: center; min-height: 0; }
 #play-house svg { height: 100%; max-width: 100%; cursor: grab; }
@@ -382,7 +427,7 @@ td:first-child, th:first-child { text-align: left; }
 }
 
 #play-area-panel {
-  grid-area: areas; min-width: 0; background: var(--panel); padding: 8px 12px 10px;
+  flex: 1; min-width: 0; background: var(--panel); padding: 8px 12px 10px;
   display: flex; flex-direction: column; min-height: 0; overflow: hidden;
 }
 #play-area-graph { flex: 1 1 auto; min-height: 0; overflow: auto; }
