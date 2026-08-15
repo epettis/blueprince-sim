@@ -26,6 +26,10 @@ class Area:
     # THROUGH by the pathfinder.  Flipping this to True is how a later PR switches an
     # area on, and it is mask-only — the action space does not change, so no retrain.
     modelled: bool
+    # True when this off-grid area has an Upgrade Disk terminal of its own (Blackbridge
+    # Grotto only). Mirrors Room.disk_reader; Game.disk_reader_here() reads this for the
+    # off-grid case the same way it reads Room.disk_reader on-grid/in an outer room.
+    disk_reader: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -104,6 +108,7 @@ def load_areas(raw: dict) -> AreaGraph:
             kind=n["kind"],
             surface=n.get("surface", None),
             modelled=n["modelled"],
+            disk_reader=bool(n.get("disk_reader", False)),
         )
 
     gates: dict[str, Gate] = {}

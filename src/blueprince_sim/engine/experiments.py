@@ -167,10 +167,10 @@ lever, not any incidental one-shot behaviour of the door state.
 ``terminal_access`` fires from :func:`on_terminal_accessed`, called from
 ``Game.insert_disk`` after a disk is actually inserted (not on a failed
 insert with no selectable slot): this is the only discrete "operate a
-terminal" action modelled, shared by every ``disk_reader`` room (Security,
-Laboratory, Office, Shelter); Blackbridge Grotto's off-grid 5th reader has no
-room record and can never fire this. ``ExperimentState.terminals_accessed``
-(room ids, per-day distinct set) is the dedup, since a player can insert
+terminal" action modelled, shared by every ``disk_reader`` terminal
+(Security, Laboratory, Office, Shelter, and the off-grid Blackbridge Grotto).
+``ExperimentState.terminals_accessed`` (room id, or area-graph node id for
+the Grotto; per-day distinct set) is the dedup, since a player can insert
 several disks at the same terminal in one day.
 
 Two of the twelve base triggers carry a ``day_gate`` availability
@@ -707,25 +707,28 @@ def on_lever_pulled(game, cell: int, direction: int) -> None:
     trigger_success(game)
 
 
-def on_terminal_accessed(game, room_id: str) -> None:
+def on_terminal_accessed(game, terminal_id: str) -> None:
     """Fire terminal_access once per distinct Upgrade Disk terminal today.
 
     Called from Game.insert_disk after a disk has actually been inserted
     (not on a failed attempt where no slot was selectable and nothing was
     consumed) -- this is the only discrete "operate a terminal" action this
-    simulator models, shared by every ``disk_reader`` room (Security,
-    Laboratory, Office, Shelter). Blackbridge Grotto's off-grid 5th disk
-    reader has no room record, so it can never fire this.
-    ``ExperimentState.terminals_accessed`` (room ids, per-day distinct set)
-    is the dedup: a player can insert several disks at the same terminal in
-    one day, so a plain counter would overcount.
+    simulator models, shared by every ``disk_reader`` terminal (Security,
+    Laboratory, Office, Shelter, and the off-grid Blackbridge Grotto).
+    ``terminal_id`` is Game._terminal_room_id_here()'s return value: a room
+    id on-grid or inside the outer room, or the area-graph node id
+    ("blackbridge_grotto") off-grid -- used only as an opaque dedup key, never
+    looked up in a registry, so either id shape works.
+    ``ExperimentState.terminals_accessed`` (per-day distinct set) is the
+    dedup: a player can insert several disks at the same terminal in one day,
+    so a plain counter would overcount.
     """
     ex = game.state.experiment
     if ex.trigger_id != "terminal_access":
         return
-    if room_id in ex.terminals_accessed:
+    if terminal_id in ex.terminals_accessed:
         return
-    ex.terminals_accessed.add(room_id)
+    ex.terminals_accessed.add(terminal_id)
     trigger_success(game)
 
 

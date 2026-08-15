@@ -112,6 +112,7 @@
    "kind": "area",
    "modelled": true,
    "surface": true,
+   "disk_reader": true,
    "meta": {"source": "docs/areas.md", "confidence": "wiki", "notes": "5th Upgrade Disk reader terminal; no room record in rooms.json"}
   },
   {
