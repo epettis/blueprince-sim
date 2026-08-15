@@ -111,8 +111,8 @@ def _category_matches(room: Room, entry: dict) -> bool:
 class DraftContext:
     """Bundles the per-draft references so helpers stay signature-light."""
 
-    __slots__ = ("state", "registry", "cfg", "rng", "placed_ids", "from_room", "from_library",
-                 "colour")
+    __slots__ = ("state", "registry", "cfg", "rng", "placed_ids", "placed_roots", "from_room",
+                 "from_library", "colour")
 
     def __init__(self, state: GameState, registry: Registry, cfg: GameConfig, rng: Rng,
                  placed_ids: set[str], from_room: Room | None,
@@ -122,6 +122,11 @@ class DraftContext:
         self.cfg = cfg
         self.rng = rng
         self.placed_ids = placed_ids
+        # Floorplan family of every placed room (upgrades.root_base_id): the
+        # one-copy rule is per floorplan, so a base and its upgrade variants
+        # collapse to one entry here. Snapshotted per deal; nothing is placed
+        # while a hand is being filled.
+        self.placed_roots = {root_base_id(registry, registry.by_id[rid]) for rid in placed_ids}
         self.from_room = from_room  # room being drafted FROM, or None (positional condition source)
         self.from_library = from_room is not None and from_room.id == "library"
         # Secret Passage colour-selective restriction; None for an ordinary hand.
@@ -136,12 +141,15 @@ def room_draftable(ctx: DraftContext, room: Room, cell: int, entry_dir: int,
     Combines the one-copy-on-the-grid rule (waived entirely while the Chamber
     of Mirrors is placed, for Tunnels dealt via the chain, and for
     aquarium__experiment once add_aquariums has fired today), the room's
-    draft conditions, and door-geometry legality. ``exclude`` holds room
-    indices already dealt into earlier slots of this hand. While
-    ``ctx.colour`` is set (a Secret Passage colour-selective draft), a room
-    also needs to carry that colour (Room.is_category) and must not itself be
-    a Secret Passage variant -- "The Secret Passage cannot itself be drawn
-    during a color-selective draft" (wiki).
+    draft conditions, and door-geometry legality. The one-copy rule keys on
+    the FLOORPLAN (``upgrades.root_base_id``), not the room id: an Upgrade
+    Disk upgrades a floorplan rather than adding one, so an upgraded Parlor
+    is barred while a base Parlor stands on the grid, and vice versa.
+    ``exclude`` holds room indices already dealt into earlier slots of this
+    hand. While ``ctx.colour`` is set (a Secret Passage colour-selective
+    draft), a room also needs to carry that colour (Room.is_category) and must
+    not itself be a Secret Passage variant -- "The Secret Passage cannot itself
+    be drawn during a color-selective draft" (wiki).
 
     Also excludes any room id the Crown of the Blueprints has filtered for
     the rest of today (``SpecialItemsState.crown_blocked_rooms``), with NO
@@ -160,19 +168,21 @@ def room_draftable(ctx: DraftContext, room: Room, cell: int, entry_dir: int,
             return False
         if not room.is_category(ctx.colour):
             return False
-    if room.id in ctx.placed_ids and "chamber_of_mirrors" not in ctx.placed_ids:
+    if (root_base_id(ctx.registry, room) in ctx.placed_roots
+            and "chamber_of_mirrors" not in ctx.placed_ids):
         # Allow a second (or third) Tunnel when it is force-dealt from a Tunnel's
-        # north exit (tunnel_chain=True).  The duplicate-id check would otherwise
+        # north exit (tunnel_chain=True).  The duplicate check would otherwise
         # block the chain once the first Tunnel is on the grid.  Allow any number
         # of aquarium__experiment copies once add_aquariums has fired: all three
         # (and every later injected copy) share this one id, so without this the
         # grid would cap at 2 total (the base Aquarium plus one experiment copy).
-        # The base Aquarium itself keeps the ordinary one-copy limit -- only the
-        # experiment-added id is named here.
+        # aquarium__experiment is its own floorplan root, so the base Aquarium
+        # keeps the ordinary one-copy limit -- only the experiment-added id is
+        # named here.
         waived = (tunnel_chain and room.id == TUNNEL_ID) or (
             room.id == AQUARIUM_EXPERIMENT_ID and ctx.state.add_aquariums_active)
         if not waived:
-            return False  # one copy of a room on the grid at a time
+            return False  # one copy of a floorplan on the grid at a time
     if not satisfies_draft_conditions(room, cell, entry_dir, ctx.state, ctx.cfg,
                                       ctx.placed_ids, ctx.from_library):
         return False
