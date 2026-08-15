@@ -337,28 +337,36 @@ day over the 0.005 default.
 
 **Win rate is a content problem before it is a learning problem.** Reaching
 Room 46 needs an Antechamber door opened, which needs a lever room drafted
-*and* entered. Over 400 `greedy_rank` days on `all_unlocks_config` (mean 8.43
-rooms placed):
+*and* entered. Over `greedy_rank` days on `all_unlocks_config()` (day-20, every
+unlock and every carry flag on), seeds 0–3999, n=4000, mean 9.57 rooms placed:
 
-| lever room | placed |
-|---|---|
-| `weight_room` | 6.8% |
-| `great_hall` | 3.3% |
-| `greenhouse` | 1.3% |
-| `secret_garden` | 0.0% |
-| `throne_room` | 0.0% |
-| **any of them** | **11.0%** |
+| lever room | placed | entered |
+|---|---|---|
+| `weight_room` | 17.6% | 17.6% |
+| `great_hall` | 9.2% | 9.2% |
+| `greenhouse` | 2.3% | 2.3% |
+| `secret_garden` | 0.23% | 0.23% |
+| `throne_room` | 0.08% | 0.08% |
+| **any of them** | **26.9%** | **26.9%** |
 
-`P(antechamber reached) = 0.000`, `P(room 46) = 0.000`. **On ~89% of days no
-lever room is placed at all, and victory is structurally unreachable before the
-policy makes a single decision.** No amount of reward shaping fixes a day where
-the win condition cannot be opened.
+`P(antechamber reached) = 0.975%`, `P(room 46) = 0.000%` on the same 4000
+seeds. **On ~73% of days no lever room is placed at all, and victory is
+structurally unreachable before the policy makes a single decision.** No amount
+of reward shaping fixes a day where the win condition cannot be opened.
+
+The two columns are identical to the episode, not by rounding: on these 4000
+seeds `greedy_rank` entered every lever room it placed. Its navigator moves
+into a freshly drafted room before anything else, so for this policy "placed"
+and "drafted *and* entered" are the same event — do not assume that of a policy
+with a different navigator.
 
 Stated so the number is not over-read: `greedy_rank` pushes north and does not
-*seek* lever rooms, so 11.0% is "how often one turns up incidentally", not "how
-often a determined player could get one". `secret_garden` reads 0.0% because
-its key must first be found and this policy never pursues items — the key
-mechanism itself works.
+*seek* lever rooms, so 26.9% is "how often one turns up incidentally", not "how
+often a determined player could get one". `secret_garden` and `throne_room` sit
+near zero rather than at it — both are reachable on this preset and each turns
+up a handful of times in 4000 seeds — because the Secret Garden's key must
+first be found and this policy never pursues items, and the Throne Room is a
+single rare card. Both mechanisms work; the policy is what does not use them.
 
 **Before tuning the reward again, check whether the objective was reachable at
 all that day.** A win-rate denominator that includes structurally unwinnable

@@ -162,25 +162,37 @@ between the two measurements. A fixed scripted policy holds it constant — and,
 usefully, needs no checkpoint, so Phase 1 can run without waiting for a retrain.
 Run the learned policy as a secondary realism check.
 
-**Pair the seeds.** The base rate is far lower than "win rate ~1.8%" once
-suggested. Under the shipped config (`door_locks=True`, `antechamber_levers=True`),
-`greedy_rank`'s P(reach Antechamber) measures **0.100%** (n=4000, seeds
-0–3999, `all_unlocks_config()`), and **P(reach Room 46) measures 0.000% for
-every scripted policy tried, across 16,000 episodes** — see
-[`greedy-strategy.md`](greedy-strategy.md)'s baselines. Comparing two
-independent rates this low needs even more enormous N than before. With
-identical seeds, seed-level difficulty cancels, most pairs give exactly zero,
-and power comes from the discordant pairs (McNemar) rather than from N
-directly — **but at a literal-zero Room-46 rate, a McNemar design over that
-outcome has no discordant pairs at all**: both arms report zero wins on every
-paired seed, so there is nothing to count. Room 46 is not a usable McNemar
-outcome until some policy reaches it at least occasionally; this is a design
-fact, not a sample-size problem.
+**Pair the seeds.** The base rate is a property of the chosen instrument, not
+of the config, and the two halves of the objective behave completely
+differently. Under the shipped config (`door_locks=True`,
+`antechamber_levers=True`) on `all_unlocks_config()` (n=4000, seeds 0–3999 —
+see [`greedy-strategy.md`](greedy-strategy.md)'s baselines):
 
-**Lead with deepest rank, not win rate.** At a sub-1% base rate the binary
-outcome is badly underpowered for the effect sizes in play, and Room 46 in
-particular is currently unmeasurable this way. Mean deepest rank is
-near-continuous and much more sensitive. Report both; headline the rank.
+- **Antechamber.** `greedy_rank`, the instrument specified above, measures
+  **0.975%** (Wilson 95% CI 0.714%–1.330%) — still under 1%, so the pairing
+  argument holds for it. But `frontier_greedy` measures **6.625%** (CI
+  5.895%–7.438%), which is not a low base rate in the same sense. Anyone
+  switching instruments must redo the power calculation rather than inherit
+  this one; the phrase "sub-1% base rate" below is about `greedy_rank`
+  specifically.
+- **Room 46.** **0.000% for every scripted policy tried, across 16,000
+  episodes.** Unchanged, and not a matter of which instrument is chosen.
+
+Comparing two independent Antechamber rates at `greedy_rank`'s level still
+needs an enormous N. With identical seeds, seed-level difficulty cancels, most
+pairs give exactly zero, and power comes from the discordant pairs (McNemar)
+rather than from N directly — **but at a literal-zero Room-46 rate, a McNemar
+design over that outcome has no discordant pairs at all**: both arms report
+zero wins on every paired seed, so there is nothing to count. Room 46 is not a
+usable McNemar outcome until some policy reaches it at least occasionally; this
+is a design fact, not a sample-size problem, and it is the half of the
+objective that no config change has yet moved off zero.
+
+**Lead with deepest rank, not win rate.** At `greedy_rank`'s sub-1% base rate
+the binary outcome is badly underpowered for the effect sizes in play, and
+Room 46 in particular is unmeasurable this way for every scripted policy. Mean
+deepest rank is near-continuous and much more sensitive. Report both; headline
+the rank.
 
 **Always run control upgrades alongside.** Measure two or three upgrades
 unrelated to the Antechamber — Storeroom keys and Boudoir dice are good

@@ -77,19 +77,42 @@ Shared by all greedy navigators, one switch-flip per decision:
 
 ## Baselines
 
-Measured with `cli.batch` on `all_unlocks_config()` (day-20, all unlocks),
-seeds 0–3999, n=4000 per policy. Under the shipped config
-(`door_locks=True`, `antechamber_levers=True`): `frontier_greedy` reaches the
-Antechamber on **0.500%** of days (Wilson 95% CI 0.324%–0.771%), `greedy_rank`
-**0.100%**, `economy` **0.125%**, `random` **0.000%** — and **P(reach Room 46)
-= 0.000% for every scripted policy**, across all 16,000 episodes. "Win rate"
-is no longer quite the right word for this number: the objective is two-tier
-(reach the Antechamber, then reach Room 46) and no scripted policy reaches the
-second tier at all in this fixture. With `antechamber_levers=False` (the
-legacy pre-lever arm), `frontier_greedy`'s Antechamber rate rises to **~20%**
-(measured 20.280%, CI 19.063%–21.555%, same seeds and n). `frontier_greedy`
-remains the strongest scripted policy under both arms. `random` exists to
-floor the comparison; it drafts and walks uniformly among legal actions.
+Measured with `cli.batch` on `all_unlocks_config()` (day-20, every unlock and
+every carry flag on, Treasure Trove held out via `banned_rooms`), seeds
+0–3999, n=4000 per policy, under the shipped config (`door_locks=True`,
+`antechamber_levers=True`):
+
+| policy | P(reach Antechamber) | Wilson 95% CI | P(reach Room 46) | mean deepest rank | mean rooms placed |
+|---|---|---|---|---|---|
+| `frontier_greedy` | **6.625%** | 5.895%–7.438% | 0.000% | 7.18 | 23.96 |
+| `greedy_rank` | **0.975%** | 0.714%–1.330% | 0.000% | 5.56 | 9.57 |
+| `economy` | **0.675%** | 0.464%–0.980% | 0.000% | 4.83 | 8.27 |
+| `random` | **0.000%** | 0.000%–0.096% | 0.000% | 3.04 | 9.16 |
+
+**P(reach Room 46) = 0.000% for every scripted policy**, across all 16,000
+episodes. "Win rate" is no longer quite the right word for this number: the
+objective is two-tier (reach the Antechamber, then reach Room 46) and no
+scripted policy reaches the second tier at all in this fixture.
+`frontier_greedy` clears the field on the first tier — about 7x `greedy_rank`
+and 10x `economy`, non-overlapping CIs — and ties them exactly, at zero, on the
+second. **`greedy_rank` and `economy` are not separated by this measurement**:
+their CIs overlap, so at n=4000 their order is not resolved and should not be
+quoted as a ranking.
+
+With `antechamber_levers=False` (the legacy pre-lever arm), same fixture,
+seeds and n, `frontier_greedy`'s Antechamber rate rises to **~22%** (measured
+21.900%, CI 20.646%–23.208%), `greedy_rank`'s to **5.100%** (CI
+4.460%–5.826%) and `economy`'s to **3.350%** (CI 2.836%–3.954%); `random`
+stays at **0.000%**, and Room 46 stays at 0.000% for all four. So the levers
+cost each scoring policy a factor of 3.3–5.2 on its Antechamber rate, and cost
+the second tier nothing it was reaching anyway. `frontier_greedy` remains the
+strongest scripted policy under both arms. `random` exists to floor the
+comparison; it drafts and walks uniformly among legal actions.
+
+Rates on this fixture are **not comparable to any rate measured on a narrower
+`all_unlocks_config()`**: the preset's job is to enable every unlock, so the
+draft pool and the reachable area graph are both part of the fixture, not a
+constant across measurements. Quote the preset with the number.
 
 ## The owner's playbook (the human strategy the policies aspire to)
 
