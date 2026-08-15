@@ -2139,6 +2139,8 @@ def main(argv: list[str] | None = None) -> int:
                             f"{where}/effect: condition "
                             f"{effect.get('condition')!r} has no priority_draws.json "
                             f"category_biases entry to activate")
+                case "ink_well_active":
+                    pass  # no extra payload: the flag it sets needs no further check
                 case "entrance_hall_trunks":
                     trunks = effect.get("trunks")
                     if not isinstance(trunks, int) or trunks <= 0:
@@ -2202,10 +2204,11 @@ def main(argv: list[str] | None = None) -> int:
                         f"{where}/effect: unknown kind {kind!r}; "
                         f"engine/constellations.py::apply_effect would ignore it")
 
-    # The two constellations outside the 0-49 table. Both are inert: the Ink
-    # Well spends stars to redraw and the Spiral grows a word per generated
-    # sky, and neither mechanic exists in the engine.
-    for special_id in ("ink_well", "spiral_of_stars"):
+    # The two constellations outside the 0-49 table. The Spiral grows a word
+    # per generated sky and that mechanic does not exist in the engine, so it
+    # stays implemented=false; the Ink Well (also outside the table) is
+    # implemented and checked by the record loop above like any other record.
+    for special_id in ("spiral_of_stars",):
         rec = next((c for c in con_recs if c.get("id") == special_id), None)
         if rec is None:
             errors.append(f"constellations: missing the {special_id!r} record")

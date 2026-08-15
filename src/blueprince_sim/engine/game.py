@@ -50,6 +50,7 @@ class RedrawKind(Enum):
     STUDY = "study"     # costs 1 gem, max 8 per draft
     FREE = "free"       # Classroom-style free redraws
     DIE = "die"         # spend 1 ivory die
+    STAR = "star"       # spend 1 permanent star (the Ink Well), no per-draft cap
 
 
 class Game:
@@ -2138,11 +2139,26 @@ class Game:
     # dealt rooms. Slot 1 is always the free forced-Closet fallback, so an
     # affordable option always exists.
 
+    def can_redraw_with_star(self) -> bool:
+        """True when the Ink Well's star-for-redraw option is legal right now:
+        DRAFTING, a pending hand, the Ink Well activated today
+        (``state.ink_well_active``), and at least 1 star. The star balance is
+        the only bound -- there is no per-draft cap, and this predicate never
+        compares the balance to 50.
+        """
+        if self.phase is not Phase.DRAFTING or self.state.pending is None:
+            return False
+        if not self.state.ink_well_active:
+            return False
+        return self.state.stars >= 1
+
     def redraw(self, kind: RedrawKind) -> None:
-        """Replace the whole pending hand via a Study, Classroom, or die redraw.
+        """Replace the whole pending hand via a Study, Classroom, die, or star
+        redraw.
 
         STUDY costs 1 gem (needs the Study placed, max 8 per draft), FREE
-        spends one of the hand's Classroom redraws, DIE spends an ivory die.
+        spends one of the hand's Classroom redraws, DIE spends an ivory die,
+        STAR spends 1 permanent star (the Ink Well) with no per-draft cap.
         Applies to outer-room drafts too: an outer hand is reshuffled from the
         fixed outer pool via :meth:`_deal_outer_options` rather than the grid
         pipeline, since it has no doorway/from-room to redraw against.
@@ -2165,18 +2181,22 @@ class Game:
         assert self.phase is Phase.DRAFTING and self.state.pending is not None
         st = self.state
         pending = st.pending
-        if kind is RedrawKind.STUDY:
-            assert st.study_placed and st.gems >= 1 and pending.study_redraws_used < 8
-            st.gems -= 1
-            pending.study_redraws_used += 1
-        elif kind is RedrawKind.FREE:
-            assert pending.redraws_left > 0
-            pending.redraws_left -= 1
-        elif kind is RedrawKind.DIE:
-            assert st.dice >= 1
-            st.dice -= 1
-            if shrine.blessing_active(self, "high_roller"):
-                st.coins += 5
+        match kind:
+            case RedrawKind.STUDY:
+                assert st.study_placed and st.gems >= 1 and pending.study_redraws_used < 8
+                st.gems -= 1
+                pending.study_redraws_used += 1
+            case RedrawKind.FREE:
+                assert pending.redraws_left > 0
+                pending.redraws_left -= 1
+            case RedrawKind.DIE:
+                assert st.dice >= 1
+                st.dice -= 1
+                if shrine.blessing_active(self, "high_roller"):
+                    st.coins += 5
+            case RedrawKind.STAR:
+                assert st.stars >= 1
+                st.stars -= 1
         self._redeal_pending(pending)
         self._check_termination()
 

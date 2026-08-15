@@ -1,9 +1,9 @@
 """The constellation data, the night-sky mechanic, the observation key, and
 what an activation does.
 
-Eleven records are live -- five pure resource grants plus the six whose effect
-lands somewhere else in the engine -- and the other two stay unimplemented
-with their action ids permanently masked. What these tests pin
+Twelve records are live -- five pure resource grants plus the seven whose
+effect lands somewhere else in the engine -- and the Spiral of Stars alone
+stays unimplemented, its action id permanently masked. What these tests pin
 is the mechanic (a true sum-partition, resolved at LIVE star count, under two
 independent per-day caps), the effect each activation actually has DOWNSTREAM
 rather than the flag it sets, and the part that cannot be changed later -- the
@@ -30,13 +30,14 @@ from blueprince_sim.engine import constellations, experiments, shops, special_it
 from blueprince_sim.engine.decks import build_decks
 from blueprince_sim.engine.draft import deal_draft
 from blueprince_sim.engine.effects.items.telescope import ITEM_ID as TELESCOPE_ID
-from blueprince_sim.engine.game import Game, Phase
+from blueprince_sim.engine.game import Game, Phase, RedrawKind
 from blueprince_sim.engine.grid import ENTRANCE_CELL, S
 from blueprince_sim.engine.model import Registry
 from blueprince_sim.engine.rng import Rng
 from blueprince_sim.engine.upgrades import root_base_id
 from blueprince_sim.env import actions as A
 from blueprince_sim.env import obs as O
+from blueprince_sim.env.multiday import _CARRYOVER_KEYS
 from blueprince_sim.rl.train import all_unlocks_config
 
 DATA = Path(__file__).resolve().parents[1] / "src" / "blueprince_sim" / "data"
@@ -205,25 +206,24 @@ def test_no_existing_action_id_shifted():
     assert A.USE_TELESCOPE_PLANETARIUM_ACTION == 441
 
 
-def test_unimplemented_constellation_ids_and_the_star_redraw_stay_masked():
-    """The two unimplemented records and REDRAW_WITH_STAR are never legal, in
-    any state reachable by play.
+def test_unimplemented_constellation_ids_stay_masked():
+    """spiral_of_stars is the one record left unimplemented, and its action id
+    is never legal, in any state reachable by play.
 
-    The eleven implemented ids are deliberately excluded: they go legal in an
-    Observatory, which is the point of the block existing. What must not happen
+    The twelve implemented ids are deliberately excluded: they go legal in an
+    Observatory (and, for the Ink Well, REDRAW_WITH_STAR goes legal once it is
+    activated), which is the point of the block existing. What must not happen
     is an id whose effect does not exist becoming pressable -- that would
     silently no-op, or crash on a missing payload. Swept over played-out days
     on both presets rather than checked at a single reset, since a block that
     only went legal deep in a day would pass a step-0 check.
 
-    This sweep doubles as the proof that everything added to the block stays
-    INERT in ordinary play: no reserved id is reachable through the mask, and
-    an activation only ever happens where a night sky was deliberately viewed.
+    This sweep doubles as the proof that the reserved id stays INERT in
+    ordinary play: it is never reachable through the mask.
     """
     reserved = [A.ACTIVATE_CONSTELLATION_BASE + INDEX[c["id"]]
                 for c in RECORDS if not c["implemented"]]
-    reserved.append(A.REDRAW_WITH_STAR_ACTION)
-    assert len(reserved) == 3
+    assert reserved == [A.ACTIVATE_CONSTELLATION_BASE + INDEX["spiral_of_stars"]]
     for cfg in (GameConfig(), all_unlocks_config()):
         for seed in range(6):
             game = Game(cfg, seed=seed)
@@ -577,27 +577,24 @@ def test_each_implemented_constellation_grants_exactly_its_published_amount():
             f"{cid} granted the wrong amount of {resource}")
 
 
-def test_the_unimplemented_constellations_refuse_to_activate():
-    """An unimplemented constellation can APPEAR in a sky -- it is part of the
-    partition -- but never activates, so its effect cannot silently no-op.
+def test_the_unimplemented_constellation_refuses_to_activate():
+    """spiral_of_stars can APPEAR in a sky -- it is part of the partition --
+    but never activates, so its effect cannot silently no-op.
 
-    Each is set up at its own star count, where it is the entire sky, which is
-    also what proves it really was present and was refused on the
-    ``implemented`` flag rather than simply absent.
-
-    The two left are the Ink Well and the Spiral of Stars, the pair sitting
-    outside the 0-49 partition table. They are named rather than counted, so
-    implementing one has to strike it off this list deliberately.
+    Set up at its own star count, where it is the entire sky, which is also
+    what proves it really was present and was refused on the ``implemented``
+    flag rather than simply absent. Named rather than counted, so
+    implementing it later has to strike it off this assertion deliberately.
     """
     unimplemented = [c for c in RECORDS if not c["implemented"]]
-    assert [c["id"] for c in unimplemented] == ["ink_well", "spiral_of_stars"]
-    for record in unimplemented:
-        cid = record["id"]
-        game = _observatory_game(stars=record["stars"])
-        sky = game.view_night_sky()
-        assert cid in sky, f"{cid} was not in the sky at {record['stars']} stars"
-        assert not game.can_activate_constellation(INDEX[cid])
-        assert not A.action_mask(game)[A.ACTIVATE_CONSTELLATION_BASE + INDEX[cid]]
+    assert [c["id"] for c in unimplemented] == ["spiral_of_stars"]
+    record = unimplemented[0]
+    cid = record["id"]
+    game = _observatory_game(stars=record["stars"])
+    sky = game.view_night_sky()
+    assert cid in sky, f"{cid} was not in the sky at {record['stars']} stars"
+    assert not game.can_activate_constellation(INDEX[cid])
+    assert not A.action_mask(game)[A.ACTIVATE_CONSTELLATION_BASE + INDEX[cid]]
 
 
 def test_the_sky_is_generated_only_by_the_explicit_view_action():
@@ -1278,3 +1275,120 @@ def test_the_sail_and_florealis_do_not_survive_the_night(registry):
     game.reset()
     assert not constellations.shop_half_price(con, game.state, "commissary")
     assert constellations.green_room_gems(con, game.state, "courtyard") == 0
+
+
+# ------------------------------------------------------------- The Ink Well
+
+
+def _drafting_game(*, seed=0) -> Game:
+    """A game in Phase.DRAFTING with a pending hand, reached via the
+    once-per-day outer draft (no grid doorway geometry needed) so the Ink
+    Well's redraw mechanic can be exercised against a real pending hand.
+    """
+    game = Game(GameConfig(west_gate_unlatched=True), seed=seed)
+    game.open_outer_draft()
+    assert game.phase is Phase.DRAFTING and game.state.pending is not None
+    return game
+
+
+def test_the_ink_well_flag_is_set_by_activation_and_not_before(registry):
+    """Viewing the sky the Ink Well appears in sets nothing; activating it
+    sets exactly ``ink_well_active``."""
+    game = _observatory_game(stars=STARS["ink_well"], registry=registry)
+    game.view_night_sky()
+    assert not game.state.ink_well_active
+    game.activate_constellation(INDEX["ink_well"])
+    assert game.state.ink_well_active
+
+
+def test_a_star_redraw_spends_one_star_and_replaces_the_hand():
+    """RedrawKind.STAR spends exactly 1 star and redeals the hand, pushing the
+    discarded one onto the rewind stack the same way every other redraw
+    source does.
+    """
+    game = _drafting_game()
+    game.state.ink_well_active = True
+    game.state.stars = 5
+    stack_before = len(game.state.pending.rewind_stack)
+    game.redraw(RedrawKind.STAR)
+    assert game.state.stars == 4
+    assert len(game.state.pending.rewind_stack) == stack_before + 1
+    assert len(game.state.pending.options) == 3
+
+
+def test_the_star_redraw_option_is_unavailable_until_the_ink_well_is_activated():
+    """REDRAW_WITH_STAR_ACTION is gated on ``ink_well_active``, not merely on
+    holding stars: masked off with the flag unset, legal once it is set."""
+    game = _drafting_game()
+    game.state.stars = 5
+    assert not game.can_redraw_with_star()
+    assert not A.action_mask(game)[A.REDRAW_WITH_STAR_ACTION]
+
+    game.state.ink_well_active = True
+    assert game.can_redraw_with_star()
+    assert A.action_mask(game)[A.REDRAW_WITH_STAR_ACTION]
+    A.apply_action(game, A.REDRAW_WITH_STAR_ACTION)
+    assert game.state.stars == 4
+
+
+def test_the_star_redraw_option_is_masked_off_at_zero_stars():
+    """An activated Ink Well still needs at least 1 star: the option is
+    refused and masked off once the balance hits 0."""
+    game = _drafting_game()
+    game.state.ink_well_active = True
+    game.state.stars = 0
+    assert not game.can_redraw_with_star()
+    assert not A.action_mask(game)[A.REDRAW_WITH_STAR_ACTION]
+
+
+def test_the_star_redraw_keeps_working_below_50_stars():
+    """The published rule: dropping below 50 stars does not disable the Ink
+    Well once it is active. Activated at exactly 50, spent down to 48, the
+    option is still legal and still spends a star each time.
+    """
+    game = _drafting_game()
+    game.state.ink_well_active = True
+    game.state.stars = 50
+    game.redraw(RedrawKind.STAR)
+    assert game.state.stars == 49
+    assert game.can_redraw_with_star(), "the option disabled itself crossing below 50"
+    assert A.action_mask(game)[A.REDRAW_WITH_STAR_ACTION]
+
+    game.redraw(RedrawKind.STAR)
+    assert game.state.stars == 48
+    assert game.can_redraw_with_star(), "the option disabled itself under 50"
+    assert A.action_mask(game)[A.REDRAW_WITH_STAR_ACTION]
+
+
+def test_redraw_kind_never_returns_star():
+    """``_redraw_kind`` -- the picker behind the plain REDRAW_ACTION -- never
+    offers ``RedrawKind.STAR``, even with the Ink Well active and stars held:
+    the star redraw is reachable only through its own dedicated action id.
+    """
+    game = _drafting_game()
+    game.state.ink_well_active = True
+    game.state.stars = 5
+    game.state.dice = 0
+    game.state.study_placed = False
+    game.state.pending.redraws_left = 0
+    assert A._redraw_kind(game) is None
+    assert not A.action_mask(game)[A.REDRAW_ACTION]
+    assert A.action_mask(game)[A.REDRAW_WITH_STAR_ACTION]
+
+
+def test_the_ink_well_does_not_survive_the_night():
+    """``ink_well_active`` is day-scoped: it clears at reset and is not
+    carried over, so the option must be re-activated from a fresh sky.
+
+    This matters more than for the other day-scoped flags. The Ink Well is the
+    only mechanic that spends a permanent, save-scoped resource, so a flag that
+    survived the night would turn an uncapped star drain on for every later day
+    without the player ever activating it again.
+    """
+    game = _drafting_game()
+    game.state.ink_well_active = True
+    game.state.stars = 50
+    game.reset()
+    assert not game.state.ink_well_active
+    assert not game.can_redraw_with_star()
+    assert "ink_well_active" not in _CARRYOVER_KEYS

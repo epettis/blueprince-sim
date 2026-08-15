@@ -13,13 +13,11 @@ Implemented:
     branch on "observatory", the same shape as Capability.COMMERCE.
 
 Not modelled:
-  - Four constellations stay inert: The Sail's shop discount, Florealis'
-    green-room flower spread, the Ink Well's star-for-redraw option and the
-    Spiral of Stars' word growth, none of which has a primitive to hang off.
-    Each names its own gap in data/constellations.json's blocked_on. The
-    other nine activate -- five pay a resource, and the Southern Cross,
-    Draxus, The Twins and Farmer's Apple write through
-    constellations.py::apply_effect.
+  - One constellation stays inert: the Spiral of Stars' word growth, which
+    has no primitive to hang off (data/constellations.json's blocked_on).
+    The other twelve activate -- five pay a resource, and the Southern
+    Cross, Draxus, The Twins, Farmer's Apple, The Sail, Florealis and the
+    Ink Well write through constellations.py::apply_effect.
 """
 
 from __future__ import annotations
