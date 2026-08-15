@@ -255,11 +255,13 @@ def test_planetarium_progress_survives_a_daychain_attempt_wrap():
 def test_telescope_gated_out_of_the_spawn_pool_below_one_star():
     """"The Telescope is only present in the item pool if the player has at
     least 1 star at start the day, and cannot spawn otherwise." Gates on
-    cfg.stars (start-of-day), the royal_scepter-style configure()/gated_out
-    idiom used throughout this codebase for spawn-pool gates."""
+    state.stars_at_day_start (the frozen start-of-day snapshot), the
+    royal_scepter-style configure()/gated_out idiom used throughout this
+    codebase for spawn-pool gates."""
     st = GameState()
     st.special.enabled = True
-    configure(st, GameConfig(stars=0))
+    st.stars_at_day_start = 0
+    configure(st, GameConfig())
     assert "telescope" in st.special.gated_out
 
 
@@ -267,8 +269,49 @@ def test_telescope_allowed_in_the_spawn_pool_at_one_star():
     """The same gate, the other side: >= 1 start-of-day star un-gates it."""
     st = GameState()
     st.special.enabled = True
-    configure(st, GameConfig(stars=1))
+    st.stars_at_day_start = 1
+    configure(st, GameConfig())
     assert "telescope" not in st.special.gated_out
+
+
+def test_mid_day_star_does_not_un_gate_the_telescope(registry, cfg):
+    """A star earned mid-day (Observatory/Starfish Aquarium/Morning Star) must
+    not un-gate the Telescope until tomorrow's start-of-day snapshot reflects
+    it: the gate reads state.stars_at_day_start (frozen at reset()), never the
+    live-growing state.stars."""
+    g = Game(cfg, seed=3, registry=registry)
+    assert "telescope" in g.state.special.gated_out
+    g.state.stars += 1  # simulate an Observatory draft's mid-day star grant
+    # configure() returns early once `configured` is set, so its mid-day call
+    # sites are no-ops; clearing the flag is what makes the gate actually run
+    # again against a diverged live/frozen pair.
+    g.state.special.configured = False
+    si.configure(g.state, g.cfg, g.registry)
+    assert "telescope" in g.state.special.gated_out
+
+
+def test_stars_at_day_start_snapshot_is_unaffected_by_mid_day_growth(registry, cfg):
+    """state.stars_at_day_start stays put while the live state.stars counter
+    grows during the day -- the frozen-vs-live split the Telescope gate
+    depends on."""
+    g = Game(cfg, seed=4, registry=registry)
+    before = g.state.stars_at_day_start
+    g.state.stars += 1  # simulate an Observatory draft's mid-day star grant
+    assert g.state.stars_at_day_start == before
+    assert g.state.stars == before + 1
+
+
+def test_carried_stars_seed_the_snapshot_and_reach_the_telescope_gate(registry, cfg):
+    """A star carried into the day via cfg.stars reaches the gate: Game.reset
+    seeds state.stars_at_day_start from it, and 1 star un-gates the Telescope.
+
+    Drives the real reset path instead of writing the snapshot by hand, which
+    is what makes it fail if the seeding step is dropped -- the gate's own
+    tests set the snapshot themselves and stay green without it.
+    """
+    g = Game(_dc_replace(cfg, stars=1), seed=5, registry=registry)
+    assert g.state.stars_at_day_start == 1, "reset must seed the snapshot from cfg.stars"
+    assert "telescope" not in g.state.special.gated_out
 
 
 def test_telescope_no_longer_guaranteed_on_first_planetarium_entry():

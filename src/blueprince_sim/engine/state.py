@@ -212,6 +212,13 @@ class GameState:
     # is the night sky: night_skies below resolves against this live value,
     # so a star earned mid-day enriches every sky viewed after it.
     stars: int = 0
+    # Frozen start-of-day star count. Seeded from cfg.stars at reset(), before
+    # special_items.configure() runs, and never reassigned for the rest of the
+    # day -- unlike ``stars`` above, which keeps growing as the Observatory/
+    # Starfish Aquarium/Morning Star and experiments.py mutate it. Read by
+    # effects/items/telescope.py::gate so a star earned mid-day cannot un-gate
+    # the Telescope until tomorrow's snapshot reflects it.
+    stars_at_day_start: int = 0
     # Night skies generated today, keyed by GRID CELL -- never by room id.
     # game.room_cells keeps only the LOWEST cell per room id (game.py's
     # _place_room: "if prev is None or cell < prev"), so with more than one

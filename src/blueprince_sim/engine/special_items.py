@@ -639,9 +639,9 @@ def configure(state, cfg, registry=None) -> None:
         axed = getattr(cfg, "axed_rooms", ())
         if len(axed) >= the_axe.max_active(registry) and the_axe.ITEM_ID not in gated:
             gated.append(the_axe.ITEM_ID)
-    # Telescope: gated out below 1 start-of-day star (cfg.stars, not the
-    # live-growing state.stars -- see effects/items/telescope.py::gate).
-    telescope.gate(cfg, gated)
+    # Telescope: gated out below 1 start-of-day star (state.stars_at_day_start,
+    # not the live-growing state.stars -- see effects/items/telescope.py::gate).
+    telescope.gate(state, gated)
     # Contraption carry-over lockout: cfg.starting_items is what a contraption
     # carried overnight (Coat Check / Moon Pendant) arrives through -- it is
     # granted into inventory AFTER this function runs (see Game.reset), so
