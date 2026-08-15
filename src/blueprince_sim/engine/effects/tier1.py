@@ -44,12 +44,19 @@ def _grant(game, resource: str, amount: int) -> None:
 def _red_negated(game, room) -> bool:
     """Shelter or Knight's Shield: negate negative effects of a red room.
 
-    Shelter decrements its counter on each negate. Knight's Shield fires once
-    per day (auto-applied, no player choice -- docs/special-items-behaviour.md).
+    Shelter decrements its counter on each negate, but only for a red room
+    that was still undrafted at the moment the Shelter itself was drafted --
+    ``game.shelter_excluded_ids`` (set once, from that moment's ``placed_ids``,
+    by effects/rooms/shelter.py) keeps an already-drafted red room from ever
+    spending a charge, no matter how much later its own penalty resolves (an
+    entry-triggered penalty like the Chapel's can fire long after its room was
+    drafted). Knight's Shield fires once per day (auto-applied, no player
+    choice -- docs/special-items-behaviour.md).
     """
     if not room.is_category("red"):
         return False
-    if game.red_negations > 0:
+    excluded = getattr(game, "shelter_excluded_ids", frozenset())
+    if game.red_negations > 0 and room.id not in excluded:
         game.red_negations -= 1
         return True
     if game.cfg.special_items and special_items.shield_negates(game):

@@ -8,7 +8,7 @@ these rooms just hands over a gem the moment the player walks in - see
 docs/doctrine.md.
 """
 
-from blueprince_sim.engine.game import Game
+from blueprince_sim.engine.game import Game, RedrawKind
 from blueprince_sim.engine.grid import E, N, S
 
 
@@ -48,3 +48,43 @@ def test_drawing_room_still_counts_as_a_drafting_room(registry, cfg):
     count_with_classroom_only = g.state.drafting_room_count
     g._place_room(registry.by_id["drawing_room"], 7, N | S)
     assert g.state.drafting_room_count == count_with_classroom_only + 1
+
+
+def test_drawing_room_grants_one_free_redraw_for_a_hand_dealt_from_its_door(registry, cfg):
+    """Opening a doorway from the Drawing Room grants +1 redraws_left on that
+    hand, independent of the Classroom's drafting_room_count grant - the
+    owner's ruling ("one free reroll per door") names the Drawing Room's own
+    doorway, not a day-scoped flag or a Classroom-style headcount."""
+    g = Game(cfg, seed=1)
+    g._place_room(registry.by_id["drawing_room"], 7, N | S)
+    g.move(N)
+    pending = g.open_door(7, N)
+    assert pending.redraws_left == 1
+
+
+def test_the_free_redraw_is_spent_by_a_redraw_of_the_same_door_and_not_replenished(registry, cfg):
+    """The free redraw is a one-shot credit on this doorway's hand: spending it
+    via RedrawKind.FREE leaves redraws_left at 0, and it does not top back up
+    on its own for a second redraw of the SAME door (per door, not per
+    redraw)."""
+    g = Game(cfg, seed=1)
+    g._place_room(registry.by_id["drawing_room"], 7, N | S)
+    g.move(N)
+    g.open_door(7, N)
+    assert g.state.pending.redraws_left == 1
+    g.redraw(RedrawKind.FREE)
+    assert g.state.pending.redraws_left == 0
+
+
+def test_a_second_doorway_from_the_drawing_room_the_same_day_grants_its_own_free_redraw(
+        registry, cfg):
+    """The grant is per door, not a once-per-day flag: a second doorway opened
+    from the same placed Drawing Room later the same day gets its own fresh
+    +1, unaffected by the first door's charge having already been spent."""
+    g = Game(cfg, seed=1)
+    g._place_room(registry.by_id["drawing_room"], 7, N | S | E)  # t-layout: 3 doors
+    g.move(N)
+    g.open_door(7, N)
+    g.choose(0)  # place whatever slot 0 dealt, freeing the doorway
+    second = g.open_door(7, E)
+    assert second.redraws_left == 1

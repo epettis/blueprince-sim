@@ -640,9 +640,15 @@ an upgrade variant that inherits the base's rule; the variant carried the
 uncapped version for a while because the base gained its cap during unrelated
 work. This is an invisible-until-the-count-gets-large shape.
 
-**`shelter`** — negates the effects of the next 3 red rooms, and grants its safe
-gem. It is an **outer** room, so the grant rides `Game.travel_to`'s `ON_ENTER`
-rather than the grid path.
+**`shelter`** — negates the effects of the next 3 red rooms **drafted after
+it**, and grants its safe gem. It is an **outer** room, so the grant rides
+`Game.travel_to`'s `ON_ENTER` rather than the grid path. Protection is scoped
+by draft order, not by when a room's own penalty happens to resolve: a red
+room already on the board when the Shelter is drafted keeps its penalty even
+if that penalty is entry-triggered and does not fire until later (owner
+ruling, `docs/open_tasks.md` #29) — `effects/rooms/shelter.py` snapshots
+`game.placed_ids` at its own `ON_PLACE` into `game.shelter_excluded_ids`,
+which `effects/tier1.py::_red_negated` checks alongside the charge counter.
 
 **`shrine`** — deposit 1–80 gold and receive one of eight blessings lasting 3–7
 days (the granting day counts as day 1); taking the offering back curses you for
