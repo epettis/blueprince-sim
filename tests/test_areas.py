@@ -81,6 +81,8 @@ def _all_open_ctx(outer_room_id: str | None = "tomb") -> GateContext:
     pump_water_lte8/rowboat_water_6/fountain_water_0/reservoir_water_13 are the
     Pump Room's four live-derived flag gates (docs/areas.md's Pump Room
     section) -- include all four too.
+    lab_visited is a real room gate (Private Drive -> Blackbridge Grotto) --
+    include "laboratory" in rooms_entered too, alongside "tomb".
     """
     return GateContext(
         held_items={
@@ -103,7 +105,7 @@ def _all_open_ctx(outer_room_id: str | None = "tomb") -> GateContext:
             "fountain_water_0",
             "reservoir_water_13",
         }),
-        rooms_entered=frozenset({"tomb"}),
+        rooms_entered=frozenset({"tomb", "laboratory"}),
         outer_room_id=outer_room_id,
     )
 
@@ -373,6 +375,41 @@ def test_room_gate_opens_with_room_entered(graph: AreaGraph) -> None:
     ctx_tomb_entered = _ctx(rooms_entered=frozenset({"tomb"}))
     dist = reachable(graph, "tomb", ctx_tomb_entered)
     assert "catacombs" in dist
+
+
+def test_lab_steam_and_power_stub_still_passes_unconditionally(graph: AreaGraph) -> None:
+    """The POWER half of Private Drive -> Blackbridge Grotto is still a stub.
+
+    lab_steam_and_power stands in for a house-wide power system that does not
+    exist in the engine; it must keep passing unconditionally regardless of
+    context (an upper bound), same as every other kind=unmodelled stub.
+    """
+    g = graph.gates["lab_steam_and_power"]
+    assert g.kind == "unmodelled"
+    assert g.stub is True
+    assert gate_open(graph, "lab_steam_and_power", _ctx()) is True
+
+
+def test_grotto_unreachable_from_private_drive_without_lab_visited(graph: AreaGraph) -> None:
+    """Blackbridge Grotto stays closed on a fresh save even though its POWER
+    conjunct (lab_steam_and_power) is a stub that always passes.
+
+    The edge requires BOTH lab_steam_and_power and lab_visited (AND semantics);
+    with the Laboratory absent from rooms_entered, lab_visited blocks the edge
+    on its own. This is the fix for open_tasks.md #25 (Grotto reachable from a
+    fresh save): the stub alone is no longer sufficient.
+    """
+    ctx_no_lab = _ctx(rooms_entered=frozenset())
+    dist = reachable(graph, "private_drive", ctx_no_lab)
+    assert "blackbridge_grotto" not in dist
+
+
+def test_grotto_reachable_from_private_drive_once_lab_visited(graph: AreaGraph) -> None:
+    """With the Laboratory entered today, lab_visited opens and the still-stub
+    lab_steam_and_power passes as always, so the edge is passable overall."""
+    ctx_lab_visited = _ctx(rooms_entered=frozenset({"laboratory"}))
+    dist = reachable(graph, "private_drive", ctx_lab_visited)
+    assert "blackbridge_grotto" in dist
 
 
 # ---------------------------------------------------------------------------

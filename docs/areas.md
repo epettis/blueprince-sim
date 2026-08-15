@@ -143,7 +143,7 @@ once satisfied, **D** = resets daily, **-** = ungated.
 | `west_path` -> `grounds` | unlatch the gate from inside (first time) | P |
 | `west_path` -> outer room | drawn as today's outer room (1 of 8) | D |
 | `grounds` <-> `private_drive` | none | - |
-| `private_drive` -> `blackbridge_grotto` | Laboratory steam/lever puzzle **+ POWER** | P |
+| `private_drive` -> `blackbridge_grotto` | Laboratory **visited today** + POWER (stub) | D |
 | `blackbridge_grotto` -> `orindian_ruins` | all 3 microchips in the pedestal | D |
 | `private_drive` <-> `campsite` | none | - |
 | `campsite` -> `apple_orchard` | padlock code 1128 | P |
@@ -257,6 +257,9 @@ argument now rests on `lab_steam_and_power` alone**: measured, closing either
 elevator pair strands nothing, because the Underpass chain is held open by the
 real `mine_south_visited` and `boiler_room_steam` flags. The four elevator stubs
 are kept for their step-cost and car-position fidelity, not for reachability.
+`lab_steam_and_power` itself is now narrowed to the POWER half only (see
+"Blackbridge Grotto gate" below) — the other half of the edge, actually
+visiting the Laboratory, is a real gate today, not a stub.
 
 > **Anything measured while these stubs are open is an UPPER BOUND** on what a
 > real player could reach. Print that caveat next to any number taken before the
@@ -272,7 +275,7 @@ rather than repeating it, so the two cannot drift.
 |---|---|---|
 | `foundation_elevator_down` | PR-foundation-elevator | The Foundation -> Basement: crank revealed AND car at the top |
 | `foundation_elevator_up` | PR-foundation-elevator | Basement -> The Foundation: keycard to SUMMON if the car is not already down |
-| `lab_steam_and_power` | PR-power-system | Private Drive -> Blackbridge Grotto: Laboratory steam/lever puzzle AND POWER |
+| `lab_steam_and_power` | PR-power-system | Private Drive -> Blackbridge Grotto: POWER, routed to the house by the Laboratory's steam/lever puzzle |
 | `cliffside_elevator_down` | PR-torches-elevator | Grounds -> Precipice: 4 torches lit AND car at the top |
 | `cliffside_elevator_up` | PR-torches-elevator | Precipice -> Grounds: only if the car was ridden down |
 
@@ -287,6 +290,57 @@ Every gate not listed in the stub table above is already live — item, flag, ro
 player solves every puzzle in a room they enter" doctrine.
 `engine/areas.py::stub_gates()` derives the stub list from the data, so the
 complement is whatever `areas.json` says it is.
+
+### Blackbridge Grotto gate (open_tasks.md #25)
+
+The owner's rule has two conjuncts: the Laboratory must be **powered AND
+visited**. The edge now carries two separate gates rather than one collapsed
+stub, so each conjunct can be judged on its own:
+
+- `lab_steam_and_power` — still `stub: true`, `kind: "unmodelled"`. POWER
+  remains completely unbuilt: nothing in the engine represents "is the house
+  powered" (the Utility Closet's `keycard_power_on`/`offline_unlocked` gate
+  Security's readers specifically and do not generalize to the house; `rooms.json`'s
+  `flags.powered` is a static room-type classification for the dormant
+  duct-draw priority mechanic, always `true` for `laboratory` regardless of
+  player action, so it cannot stand in for "was switched on"). Building POWER
+  needs new `GameState`/`GameConfig` fields and a hook fired from room entry —
+  outside this gate's own file, `engine/areas.py`, which only evaluates a
+  `GateContext` it is handed. Still an upper bound; still `retire_in:
+  "PR-power-system"`.
+- `lab_visited` — new, `kind: "room"`, `stub: false`. The Laboratory must be
+  in `GateContext.rooms_entered`, the same live per-day mechanism
+  `tomb_catacombs` already uses, generic over every room id the grid tracks
+  (`Game._gate_ctx` builds `rooms_entered` from `state.entered` for whichever
+  rooms are on the grid that day — no per-gate code needed).
+
+Both must hold (edge `requires` is AND), so a fresh save is closed even
+though POWER's own stub still passes unconditionally: `lab_visited` alone now
+blocks the edge until the Laboratory is actually entered, which is the fix
+for open_tasks.md #25 (previously the collapsed stub passed unconditionally,
+so the Grotto — and Orindian Ruins behind it — were reachable from a fresh
+save with the Laboratory never drafted).
+
+**Known gap, not yet "P".** The edge's table permanence above reads **D**,
+not the **P** an owner-described one-time unlock implies: `lab_visited` is
+checked fresh against `rooms_entered` every day, exactly like
+`tomb_catacombs`, because no state hook exists yet to latch "the Laboratory
+has ever been visited" permanently across days — building that hook is the
+same off-`engine/areas.py` work POWER itself needs (`GameState`/`GameConfig`
+plumbing plus a room-entry callback), so it rides on `PR-power-system`
+alongside POWER rather than shipping separately. Until then, reaching the
+Grotto on any given day requires the Laboratory drafted and entered that same
+day, not merely unlocked once — tighter than the owner's stated rule, but a
+real, verified improvement over a stub that never closed at all.
+
+**Consequence: Orindian Ruins is gated behind the same requirement.**
+`blackbridge_grotto -> orindian_ruins` was already reachable only through
+Blackbridge Grotto, so it now also needs the Laboratory visited that day —
+including the Throne Room's blueprint pickup, which `orindian_ruins` grants
+(`GameState.throne_room_blueprint`). This reads as intended: the owner's
+report was specifically about the Grotto being open on a fresh save, and nothing
+in the wiki or the owner's play notes suggests Orindian Ruins should be reachable
+independently of it — the Grotto is its only recorded approach.
 
 ## The Pump Room's water levels
 
