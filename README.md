@@ -156,10 +156,11 @@ data JSON (or regenerate: `python tools/ingest_sheet.py`, which rebuilds
   extra-item type distribution is an estimate — see
   [docs/luck.md](docs/luck.md).
 - Rooms whose systems are out of scope (cross-day "Tomorrow" effects,
-  dartboard/parlor puzzles, the Casino minigames) have their draft presence and
+  dartboard/parlor puzzles) have their draft presence and
   costs modeled but their effects reduced or no-op'd; see `meta.effect_text` in
   `rooms.json` for what the real room does. Shop menus, dig spots/tools and
-  Vault deposit boxes were once on this list and are now modeled.
+  Vault deposit boxes, the Pump Room's water levels and the Casino's slot
+  machine and roulette were once on this list and are now modeled.
 - Red-room rarities/layouts and a few studio-addition costs are estimates
   (their wiki table is bot-blocked); marked `inferred` in data.
 - **Upgrade Disks**: the selection tables are post-Patch-1.7 while the draft

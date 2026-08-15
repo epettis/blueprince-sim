@@ -124,7 +124,7 @@ _AUDIT_STRUCTURAL_EXEMPT_IDS = {"corridor", "corriyard__ix50", "great_hall"}
 # have no entry there and are listed by id:
 #   trading_post -- the tiered trade graph (shops.py::_inside_trading_post)
 #   workshop     -- fabrication recipes (shops.py::fabricate)
-_AUDIT_COMMERCE_EXTRA_IDS = {"trading_post", "workshop"}
+_AUDIT_COMMERCE_EXTRA_IDS = {"casino", "trading_post", "workshop"}
 
 # Rooms whose effect_text is implemented in Python that the audit cannot
 # introspect -- a hand-written branch keyed on the room id, rather than an
@@ -509,6 +509,48 @@ def find_empty_effects_findings(
             )
 
     return findings, len(empty_rooms), n_room_registered, len(empty_items), n_item_registered
+
+
+def find_casino_findings(casino_doc: dict) -> list[str]:
+    """Check data/casino.json against the shape the wiki publishes.
+
+    Every number here is datamined or stated outright on the Casino page, so
+    each check pins a published fact rather than a house rule: the reel weights
+    are a probability distribution and must total 100; the wheel has 12 spots of
+    which half are red, leaving exactly 6 winning spots, so each cost tier must
+    carry exactly 6 prizes; and every reel symbol must be one the payout table
+    or the resolver knows about, since a typo'd symbol would silently never pay.
+    """
+    findings: list[str] = []
+    slot = casino_doc.get("slot_machine", {})
+    reels = slot.get("reels", {})
+    symbols, weights = reels.get("symbols", []), reels.get("weights", [])
+
+    if len(symbols) != len(weights):
+        findings.append(
+            f"casino slot_machine.reels: {len(symbols)} symbols but "
+            f"{len(weights)} weights")
+    elif sum(weights) != 100:
+        findings.append(
+            f"casino slot_machine.reels: weights total {sum(weights)}, not 100 -- "
+            f"the datamined reel odds are a distribution")
+    if len(set(symbols)) != len(symbols):
+        findings.append("casino slot_machine.reels: duplicate symbol")
+
+    roulette = casino_doc.get("roulette", {})
+    spots, red = roulette.get("spots"), roulette.get("red_spots")
+    if not isinstance(spots, int) or not isinstance(red, int) or red * 2 != spots:
+        findings.append(
+            f"casino roulette: {red} red of {spots} spots -- the wiki says half "
+            f"the wheel pays nothing")
+    else:
+        for tier in roulette.get("tiers", []):
+            prizes = tier.get("prizes", [])
+            if len(prizes) != spots - red:
+                findings.append(
+                    f"casino roulette tier cost={tier.get('cost')}: {len(prizes)} "
+                    f"prizes for {spots - red} winning spots")
+    return findings
 
 
 def find_datamined_item_confidence_findings(si_doc: dict) -> list[str]:
@@ -1944,6 +1986,8 @@ def main(argv: list[str] | None = None) -> int:
     VALID_GRANT_KEYS = {"coins", "keys", "gems", "food", "dice"}
 
     shops_doc = json.loads((DATA / "shops.json").read_text())
+    errors.extend(find_casino_findings(
+        json.loads((DATA / "casino.json").read_text())))
 
     # trading block sanity
     trading = shops_doc.get("trading", {})

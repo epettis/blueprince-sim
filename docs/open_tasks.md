@@ -37,7 +37,7 @@ So a cross-reference in `src/`, `tests/`, `tools/`, `data/` or another doc must
 point at **the doc that owns the rule**, never at the log. `open_tasks.md` may
 be cited for exactly two things:
 
-- a **numbered open task**, cited by number — `open_tasks.md` task 8;
+- a **numbered open task**, cited by its number;
 - an **open owner question**, cited by its letter within task 23.
 
 Anything else — a mechanic, a magnitude, a ruling, a doctrine, a deliberate
@@ -67,23 +67,6 @@ per-system item rules, commerce, containers, ignition),
 [`experiments-design.md`](experiments-design.md),
 [`upgrade-disks-design.md`](upgrade-disks-design.md),
 [`greedy-strategy.md`](greedy-strategy.md), [`process.md`](process.md).
-
-## 8. Model the Casino games
-
-The Casino is a room of gambling minigames (slot machine, roulette). Two pieces:
-1. **Expected value** for the reward function, so a policy can price entering.
-2. **Outcome simulation** so those rewards actualize — seeded rolls, per-game odds
-   in data.
-
-Ties into the Broken Lever (its golden slot machine gives 5 bonus spins instead of
-3) and the Allowance Token (roulette is a repeatable source).
-
-**What already exists, so this reads as "the gambling mechanic is unmodelled"
-rather than "nothing exists":** the Casino grants a guaranteed die on first
-entry as a stand-in for the unmodelled spins (`rooms.json`'s `casino` record);
-the Broken Lever's `slot_bonus` effect is wired to it; and `shops.py`'s
-`_DISCOUNT_EXEMPT_SHOPS` already exempts the Casino from the Coupon Book's
-blanket discount.
 
 ## 15. Room-behaviour fidelity: audit every room against the wiki
 

@@ -44,13 +44,13 @@ def test_commerce_room_provides_commerce(room_id):
     """Every room in shops.json's shops table, plus trading_post, workshop,
     and casino, is registered as providing Capability.COMMERCE.
 
-    The Casino's stock table is empty (its minigames are unmodelled, per
-    docs/open_tasks.md task 8), so providing commerce is currently a no-op
-    for it -- same as the Trading Post, whose trading rides a separate
-    tiered graph rather than shops.json stock. It is still registered
-    because today's category == "shop" check already routes it through
-    shops.on_enter_shop and shops.current_shop_id (see
-    tests/rooms/test_casino.py), and this slice must not change that.
+    The Casino sells spins rather than goods: its stock is built by
+    effects/rooms/casino.py's registered builder from data/casino.json, so
+    buying an entry resolves a slot spin or a roulette tier instead of
+    handing over an item. The Trading Post is the other shape, riding a
+    separate tiered graph rather than shops.json stock. Both are registered
+    because the category == "shop" check routes them through
+    shops.on_enter_shop and shops.current_shop_id.
     """
     assert provides_capability(room_id, Capability.COMMERCE)
 

@@ -218,8 +218,10 @@ Two requirement forms exist — a single required item id, and a dict of item id
 to minimum held count — and both are checked in one shared helper that the
 action mask also calls, so **legality and effect cannot drift apart.**
 
-Machines take a Broken Lever, which is consumed. The Casino's slot bonus is
-inferred (the wiki gives bonus spins, not an expected value).
+Machines take a Broken Lever, which is consumed. The Casino's golden slot
+grants no resources of its own: fixing its lever raises the bonus-spin cap from
+3 to 5, which is the only difference the wiki gives it, and the extra rerolls
+pay out through the ordinary slot payout table.
 
 ### The Greenhouse lever and the Antechamber's south door
 
