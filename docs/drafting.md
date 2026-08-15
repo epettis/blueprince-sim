@@ -390,10 +390,38 @@ A candidate room must be placeable behind the opened doorway
   cannot-draft-from-Library, and item-gated rooms (Pool → Swimming-gated
   rooms, Secret Garden key, Room 8 key, breakfast) via
   `GameConfig.satisfied_conditions`.
-- Duplicates: a room already on the grid can't be dealt again (Chamber of
-  Mirrors lifts this). Two ids are exempt by name: a Tunnel dealt via the
-  chain, and `aquarium__experiment` once `add_aquariums` has fired — all its
-  copies share one id, so without the exemption the grid would cap at two.
+- **The Morning Room is wings-only**, on top of its breakfast gate: the west
+  or east outer column, never a corner, and never rotated. Its fixed door
+  sides (north+east on the West Wing, west+south on the East) then bar a
+  northward draft on the West Wing and a southward one on the East, leaving
+  exactly **four** legal (wing, direction) door slots — which is what the
+  wiki's "Morning Room is in four Prismatic Pools, one for each of the four
+  doors it can appear in" counts. **This is a source conflict resolved for the
+  wiki**: the datamine's Draft Conditions column carries only "Eat Bacon &
+  Eggs in Kitchen or Breakfast Nook" for the Morning Room and no wing rule,
+  even though it spells "West Wing or East Wing" out for the Terrace, Patio,
+  Veranda, Greenhouse and Secret Garden, and even concatenates two conditions
+  into that one cell for the Secret Garden. The wiki states the wing rule
+  twice — on the room's own page and in the House page's list of rooms
+  draftable only on a wing — and owner play agrees, so the sheet's cell is
+  read as carrying the unlock text at the expense of the placement rule.
+- Duplicates: a **floorplan** already on the grid can't be dealt again
+  (Chamber of Mirrors lifts this). The unit is the floorplan family
+  (`upgrades.root_base_id`), not the room id, so a base room and its upgrade
+  variants are one entry: an Upgrade Disk *upgrades* a floorplan rather than
+  adding one, and the wiki's own removal rule is "drafting any floorplan will
+  remove it from the draft pool for the rest of the day". This is what stops a
+  base Parlor placed before a mid-day `parlor__ix108` upgrade from being joined
+  by the upgraded Parlor after an attempt-3 reshuffle — `decks.py::apply_
+  upgrade` deliberately retires the base card *including copies dealt earlier
+  this cycle*, which puts the variant card back in play, so the grid check is
+  the only thing standing between one floorplan and two rooms. Every documented
+  way to get two of one floorplan is an explicit pool addition instead (Chamber
+  of Mirrors, the `add_aquariums` experiment, the Pool Hall, the duplicating
+  Hallway upgrade, the Schoolhouse, the Blessing of the Gardener). Two ids are
+  exempt by name: a Tunnel dealt via the chain, and `aquarium__experiment` once
+  `add_aquariums` has fired — all its copies share one id, so without the
+  exemption the grid would cap at two.
 - **Crown of the Blueprints**: any room id the Crown has filtered for the rest
   of today is excluded unconditionally, ahead of every other check.
 

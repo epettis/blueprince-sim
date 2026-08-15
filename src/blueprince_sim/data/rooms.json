@@ -5039,6 +5039,8 @@
    "alt_layouts": [],
    "draft_conditions": [
     "breakfast",
+    "west_or_east_wing",
+    "no_corner",
     "morning_room"
    ],
    "flags": {

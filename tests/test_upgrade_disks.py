@@ -16,7 +16,9 @@ import pytest
 from blueprince_sim.config import GameConfig
 from blueprince_sim.engine import special_items as si
 from blueprince_sim.engine.decks import apply_upgrade
+from blueprince_sim.engine.draft import DraftContext, redeal, room_draftable
 from blueprince_sim.engine.game import Game, Phase
+from blueprince_sim.engine.grid import N
 from blueprince_sim.engine.model import Registry
 from blueprince_sim.engine.upgrades import root_base_id, upgraded_slots
 from blueprince_sim.env.multiday import DayChain
@@ -681,3 +683,111 @@ def test_catacombs_unlocked_does_not_persist_across_days():
     assert g.catacombs_unlocked(), "sanity: should be True before reset"
     g.reset()  # new day
     assert not g.catacombs_unlocked(), "must not persist after reset — same-day only"
+
+
+# ---------------------------------------------------------------------------
+# One copy per FLOORPLAN: a base room and its upgrade variants are one floorplan
+# ---------------------------------------------------------------------------
+
+_PARLOR = "parlor"
+_PARLOR_VARIANT = "parlor__ix108"
+_DRAFT_CELL = 17          # rank 4, centre column: no wing/rank condition applies
+_EMPTY_CELL = 12          # rank 3, centre column: where the placed room is parked
+
+
+def _parlor_upgraded_after_placing(registry: Registry, *, place_base: bool = True,
+                                   place_variant: bool = False,
+                                   chamber: bool = False, seed: int = 0) -> Game:
+    """A day where the Parlor floorplan was upgraded AFTER a Parlor was placed.
+
+    Mirrors ``Game.choose_upgrade``'s two steps (record the variant, substitute
+    the live deck cards), then reshuffles every deck so the substituted card is
+    undealt again -- the state ``draft.py``'s own attempt-3 reshuffle reaches.
+    """
+    g = Game(GameConfig(), seed=seed, registry=registry)
+    for rid, placed in ((_PARLOR, place_base), (_PARLOR_VARIANT, place_variant)):
+        if not placed:
+            continue
+        room = registry.by_id[rid]
+        g.state.grid[_EMPTY_CELL] = room.idx
+        g.state.placed_doors[_EMPTY_CELL] = room.door_mask
+        g.placed_ids.add(room.id)
+    if chamber:
+        g.placed_ids.add("chamber_of_mirrors")
+    g.state.applied_upgrades.add(_PARLOR_VARIANT)
+    apply_upgrade(g.state, registry, _PARLOR_VARIANT, g.rng)
+    for i, deck in enumerate(g.state.decks):
+        deck.reshuffle(lambda lst, i=i: g.rng.shuffle(f"reshuffle_{i}", lst))
+    return g
+
+
+def _ctx(g: Game, registry: Registry) -> DraftContext:
+    """A DraftContext over ``g``'s live state, as ``deal_draft`` builds one."""
+    return DraftContext(g.state, registry, g.cfg, g.rng, g.placed_ids, None)
+
+
+def test_upgraded_parlor_is_undraftable_while_the_base_parlor_stands(registry: Registry) -> None:
+    """An Upgrade Disk upgrades a floorplan rather than adding one, so the
+    upgraded Parlor is not draftable while the base Parlor is on the grid.
+
+    Without this the player gets two Parlors in one day off a single
+    floorplan -- the duplication the Chamber of Mirrors is supposed to be the
+    only route to.
+    """
+    g = _parlor_upgraded_after_placing(registry)
+    variant = registry.by_id[_PARLOR_VARIANT]
+    assert any(variant.idx in d.order[d.pos:] for d in g.state.decks), (
+        "sanity: the substituted variant card must be undealt, or the assertion "
+        "below would pass for want of a card rather than by the floorplan rule")
+    assert not room_draftable(_ctx(g, registry), variant, _DRAFT_CELL, N, set())
+
+
+def test_upgraded_parlor_is_draftable_when_no_parlor_stands(registry: Registry) -> None:
+    """The same upgraded Parlor, same cell and same direction, IS draftable on a
+    grid holding no Parlor -- so the refusal above is the one-copy rule and not
+    a geometry or draft-condition failure at that doorway."""
+    g = _parlor_upgraded_after_placing(registry, place_base=False)
+    variant = registry.by_id[_PARLOR_VARIANT]
+    assert room_draftable(_ctx(g, registry), variant, _DRAFT_CELL, N, set())
+
+
+def test_base_parlor_is_undraftable_while_an_upgraded_parlor_stands(registry: Registry) -> None:
+    """The rule is symmetric: a placed variant blocks its base floorplan too.
+
+    The base can still reach a hand -- the Chamber of Mirrors returns
+    floorplans to the pool -- so the grid check has to bar it from the other
+    direction as well.
+    """
+    g = _parlor_upgraded_after_placing(registry, place_base=False, place_variant=True)
+    base = registry.by_id[_PARLOR]
+    assert not room_draftable(_ctx(g, registry), base, _DRAFT_CELL, N, set())
+
+
+def test_chamber_of_mirrors_still_lifts_the_floorplan_rule(registry: Registry) -> None:
+    """The Chamber of Mirrors waives the one-copy rule wholesale, and keying it
+    on the floorplan rather than the room id does not narrow that waiver: the
+    upgraded Parlor stays draftable beside a placed base Parlor while the
+    Chamber is on the grid."""
+    g = _parlor_upgraded_after_placing(registry, chamber=True)
+    variant = registry.by_id[_PARLOR_VARIANT]
+    assert room_draftable(_ctx(g, registry), variant, _DRAFT_CELL, N, set())
+
+
+def test_upgraded_parlor_never_dealt_into_a_hand_beside_its_base(registry: Registry) -> None:
+    """End-to-end over the real dealer: 40 redeals of one hand, on a grid
+    already holding the base Parlor, never offer the upgraded Parlor.
+
+    ``room_draftable`` is the only gate between the reshuffled variant card and
+    a player's three options, so this is the property the owner actually
+    observed being violated.
+    """
+    g = _parlor_upgraded_after_placing(registry)
+    pending = g.open_door(2, N)
+    assert pending is not None, "sanity: the entrance hall's north doorway must deal a hand"
+    seen: set[str] = set()
+    for _ in range(40):
+        seen.update(registry.rooms[o.room_idx].id for o in pending.options)
+        redeal(g.state, registry, g.cfg, g.rng, g.placed_ids, pending)
+    assert seen, "sanity: the redeals must have produced options to inspect"
+    assert _PARLOR_VARIANT not in seen
+    assert _PARLOR not in seen, "the base Parlor is on the grid and must not recur either"

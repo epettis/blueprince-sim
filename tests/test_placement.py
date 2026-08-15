@@ -170,17 +170,27 @@ def test_secret_passage_rank_restriction(registry, cfg):
         assert satisfies_draft_conditions(room, 22, N, st, cfg, set(), False)      # rank 5, interior
 
 
-def test_morning_room_direction(registry):
-    """The Morning Room is breakfast-gated, and its fixed door sides bar
-    northward drafts on the west wing and southward drafts on the east."""
+def test_morning_room_wings_only_and_direction(registry):
+    """The Morning Room is breakfast-gated and confined to the wings: never an
+    interior column, never a corner, and its fixed door sides bar northward
+    drafts on the west wing and southward drafts on the east.
+
+    The wing restriction is what leaves it exactly four legal (wing, direction)
+    door slots; without it the interior would be unrestricted and the room
+    would appear where the game never places it."""
     st = GameState()
-    morning = registry.by_id["morning_room"]  # breakfast-gated + fixed door sides
+    morning = registry.by_id["morning_room"]  # breakfast + wings-only + fixed door sides
     cfg = GameConfig(satisfied_conditions=frozenset({"breakfast"}))
-    assert satisfies_draft_conditions(morning, 22, N, st, cfg, set(), False)      # center, any dir
+    assert not satisfies_draft_conditions(morning, 22, N, st, cfg, set(), False)  # interior column
+    assert not satisfies_draft_conditions(morning, 23, S, st, cfg, set(), False)  # interior column
     assert not satisfies_draft_conditions(morning, 20, N, st, cfg, set(), False)  # west wing northward
     assert satisfies_draft_conditions(morning, 20, S, st, cfg, set(), False)      # west wing southward
+    assert satisfies_draft_conditions(morning, 20, W, st, cfg, set(), False)      # west wing westward
     assert not satisfies_draft_conditions(morning, 24, S, st, cfg, set(), False)  # east wing southward
-    assert not satisfies_draft_conditions(morning, 22, N, st, GameConfig(), set(), False)  # no breakfast
+    assert satisfies_draft_conditions(morning, 24, N, st, cfg, set(), False)      # east wing northward
+    assert not satisfies_draft_conditions(morning, 0, S, st, cfg, set(), False)   # SW corner
+    assert not satisfies_draft_conditions(morning, 44, N, st, cfg, set(), False)  # NE corner
+    assert not satisfies_draft_conditions(morning, 20, S, st, GameConfig(), set(), False)  # no breakfast
 
 
 def test_no_north_on_wing_studio_rooms(registry, cfg):
