@@ -79,7 +79,7 @@ def _chain_p_one(*, room46_reached: bool, day: int, veteran_mode: bool, chain: l
     at config time, with no notion of Veteran Mode having turned on MID-RUN
     from fast early drafts -- that sub-state is not representable in this
     sim, so the row is skipped and falls through to the next one (documented
-    in items.json's item_ladder.meta.notes and the PR-A report).
+    in items.json's item_ladder.meta.notes).
     """
     for row in chain:
         cond = row["if"]

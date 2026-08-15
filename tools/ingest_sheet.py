@@ -177,7 +177,10 @@ VARIANT_GLYPH_MAP: dict[str, list[tuple[str, str]]] = {
 # --- structured effects -----------------------------------------------------
 # Hand-authored per room id: what the engine actually simulates. Resource
 # CONTENTS go in "items" (rolled on first entry); behavioral effects go in
-# "effects". Rooms not listed get no effects (their prose is out of scope).
+# "effects". Rooms not listed here get no data-tag effects -- which does NOT mean
+# they are inert: most such rooms are modelled by a @room_hook handler or a
+# Capability registration in engine/effects/rooms/<room_id>.py, invisible to this
+# table. validate_data.py's effects=[] census reports the split.
 EFFECT_MAP: dict[str, dict] = {
     "nook": {"items": {"guaranteed": [{"item": "key", "count": 1}]}},
     "garage": {"items": {"guaranteed": [{"item": "key", "count": 3}], "dig_spots": 1}},
