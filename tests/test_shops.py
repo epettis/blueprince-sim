@@ -134,10 +134,11 @@ def test_commissary_stock_not_rerolled_on_second_entry():
 
 # ------------------------------------------------- stock-builder registry
 
-def test_all_six_stock_shops_register_a_builder():
-    """commissary/gift_shop/kitchen/locksmith/showroom/workshop each register
-    a stock builder into shops._STOCK_BUILDERS, and showroom additionally
-    registers its Trophy of Wealth overlay into shops._STOCK_OVERLAYS.
+def test_all_seven_stock_shops_register_a_builder():
+    """casino/commissary/gift_shop/kitchen/locksmith/showroom/workshop each
+    register a stock builder into shops._STOCK_BUILDERS, and showroom
+    additionally registers its Trophy of Wealth overlay into
+    shops._STOCK_OVERLAYS.
 
     Each registration happens at import time from the shop's own
     effects/rooms/<id>.py module (importing blueprince_sim.engine.shops, as
@@ -146,7 +147,8 @@ def test_all_six_stock_shops_register_a_builder():
     stopped calling register_stock_builder, would silently drop its entry
     here rather than raising anywhere else.
     """
-    for room_id in ("commissary", "gift_shop", "kitchen", "locksmith", "showroom", "workshop"):
+    for room_id in ("casino", "commissary", "gift_shop", "kitchen",
+                     "locksmith", "showroom", "workshop"):
         assert room_id in shops._STOCK_BUILDERS, f"{room_id} has no registered stock builder"
     assert "showroom" in shops._STOCK_OVERLAYS
 
@@ -988,7 +990,7 @@ def test_armory_all_4_entries_available():
 #: Shops whose daily stock is built by a registered per-shop builder rather
 #: than on_enter_shop's generic path. Measured from effects/rooms/.
 _CUSTOM_STOCK_SHOPS = frozenset({
-    "commissary", "gift_shop", "kitchen", "locksmith", "showroom", "workshop",
+    "casino", "commissary", "gift_shop", "kitchen", "locksmith", "showroom", "workshop",
 })
 
 

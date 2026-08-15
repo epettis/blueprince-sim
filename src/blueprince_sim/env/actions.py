@@ -33,7 +33,12 @@ Layout (Discrete(479)):
            with a torch or burning_glass held, and a machine room (greenhouse/casino)
            with a broken_lever held.
   235..240 buy current shop display entry 0..5 (NAVIGATE; on-grid shop or
-           inside outer shop (inside_outer_room))
+           inside outer shop (inside_outer_room)). The Casino's two games
+           (data/casino.json) are ordinary entries here, not a separate
+           action block: a slot-machine "quick spin" (0 bonus rerolls) and
+           "spin and reroll" (up to the room's own cap), plus one roulette
+           entry per cost tier (5/20/100) -- see
+           engine/effects/rooms/casino.py.
   241..248 trade offer 0..7 (inside the Trading Post; offer index matches
            trade_offers() order)
   249..256 fabricate recipe 0..7 (standing in the Workshop; recipe order

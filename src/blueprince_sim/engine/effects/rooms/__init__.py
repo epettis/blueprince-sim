@@ -24,6 +24,7 @@ from . import billiard_room  # noqa: F401  (registers room_hook handler on impor
 from . import boiler_room  # noqa: F401  (registers room_hook handlers on import)
 from . import break_room  # noqa: F401
 from . import bunk_room  # noqa: F401
+from . import casino  # noqa: F401  (registers its stock builder + a Kind-2-audit-exempting hook)
 from . import chapel  # noqa: F401  (registers the tithe-banking capability on import)
 from . import classroom  # noqa: F401
 from . import clock_tower  # noqa: F401  (registers the day-end Tomorrow-room tally on import)

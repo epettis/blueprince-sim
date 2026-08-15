@@ -4034,21 +4034,12 @@
   "casino": {
    "item": "broken_lever",
    "effect": "slot_bonus",
-   "grants": [
-    {
-     "kind": "coins",
-     "amount": 20
-    },
-    {
-     "kind": "gems",
-     "amount": 2
-    }
-   ]
+   "grants": []
   },
   "meta": {
    "source": "https://blueprince.wiki.gg",
    "confidence": "wiki",
-   "notes": "Greenhouse: antechamber_lever unlocks the south Antechamber door segment (rank-8 center to Antechamber, segment key (37,1)). The Antechamber's south door and cell-37's north door are the same segment: segment_key(42,S)==segment_key(37,N)==(37,1). The north door opens only from the Throne Room and the Sanctum lever (neither modeled). Casino: slot_bonus grants listed loot once; actual casino payout is inferred (wiki says 5 bonus spins vs 3, not specific amounts)."
+   "notes": "Greenhouse: antechamber_lever unlocks the south Antechamber door segment (rank-8 center to Antechamber, segment key (37,1)). The Antechamber's south door and cell-37's north door are the same segment: segment_key(42,S)==segment_key(37,N)==(37,1). The north door opens only from the Throne Room and the Sanctum lever (neither modeled). Casino: slot_bonus grants nothing here -- the earlier 20 coins + 2 gems payout was an invented placeholder, not a sourced value (data/casino.json's meta.notes: the wiki's Casino page, verified against its raw wikitext, states the golden slot's ONLY difference from a normal one is 5 bonus spins instead of 3, never a coin/gem grant). engine/effects/rooms/casino.py reads state.special.machines_used directly (already appended to by install_lever below, before this dispatch even runs) to apply that 3-vs-5 cap, so this record needs no grants list at all -- machines_used is the signal, not a payout."
   }
  },
  "planetarium_planets": {
