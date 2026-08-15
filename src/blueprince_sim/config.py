@@ -159,6 +159,15 @@ class GameConfig:
     # Axe/Gear Wrench/Telescope do. A plain dict, not in the
     # frozenset-coercion list, same shape as draft_counts/permanent_rarity.
     water_levels: dict[str, int] = field(default_factory=dict)
+    # Run Payroll's weekly cooldown record (engine/effects/rooms/office.py):
+    # "office_payroll" -> the day it was last used. Set by Game.run_payroll.
+    # REPLACED (not merged) from each day's own carryover value every
+    # advance() -- state.payroll_last_used already IS the full current dict,
+    # the same shape as water_levels immediately above -- and, like
+    # water_levels, NOT SAVE-scoped: DayChain.advance() resets it at the
+    # attempt wrap along with water_levels/draft_counts/foundation_cell,
+    # since nothing rules a payroll cooldown to survive past one save.
+    payroll_last_used: dict[str, int] = field(default_factory=dict)
     entrance_vase_broken: bool = False  # west vase smashed before: its microchip granted at day start
     # Weight Room wall broken before with the Power Hammer: the wall stays broken on
     # future days, so entering the Weight Room opens the south Antechamber door

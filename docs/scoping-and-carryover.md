@@ -91,7 +91,10 @@ crash:
   `axed_rooms`, `permanent_rarity`, `planetarium_planets`, `mail_cycle`,
   `water_levels` (the Pump Room's six source levels, docs/areas.md's Pump
   Room section — NOT SAVE-scoped, unlike `permanent_rarity`/`axed_rooms`,
-  since nothing rules Pump Room progress to survive past one save).
+  since nothing rules Pump Room progress to survive past one save),
+  `payroll_last_used` (Run Payroll's weekly cooldown record —
+  `engine/effects/rooms/office.py`, docs/open_tasks.md task 1 — the same NOT
+  SAVE-scoped shape as `water_levels`).
 - **Replace, then decay** — a counter that one elapsed day reduces:
   `mail_transit_days`, `shrine_blessing_days` and `shrine_curse_days` each
   decrement by 1 floored at 0. `repellent_bans` is the same shape spread over a
@@ -149,7 +152,7 @@ Everything else. `advance()` resets, at the wrap: `carried_flags`,
 `hallway_tomorrow_extra`, `clock_tower_tomorrow_keys`,
 `collected_allowance_tokens`, `collected_sanctum_keys`, `sigil_doors_open`,
 `repellent_bans`, the six one-day pulses, `applied_upgrades`, `draft_counts`,
-`foundation_cell`/`foundation_doors`, and `water_levels`.
+`foundation_cell`/`foundation_doors`, `water_levels`, and `payroll_last_used`.
 
 Note the asymmetry it produces: `allowance` resets to its base preset while
 `stars` does not, even though both are running permanent totals in the game's

@@ -396,6 +396,24 @@ EFFECT_OVERRIDE: dict[str, dict] = {
 # Validated against the sheet's own ids the same way as the other three tables
 # (validate_effect_override).
 META_OVERRIDE: dict[str, dict] = {
+    # docs/open_tasks.md task 1 (owner rulings): the Office's two terminal
+    # processes each carry an unpublished-or-ambiguous figure -- see
+    # engine/effects/rooms/office.py for the mechanics these disclose.
+    "office": {
+        "simplification": (
+            "two owner rulings, not wiki figures. Spread Gold in Estate's "
+            "coin pile is a random 3, 4, or 5 per receiving room: the wiki "
+            "publishes no figure for this spread (unlike the Tomb's flat 5 "
+            "coins), so this reuses the Office's own published floor-item "
+            "pile sizes as the game's answer. Run Payroll's weekly cooldown "
+            "resets on the coming in-game Saturday after use: the wiki's "
+            "open question box offers two readings ('the coming Saturday "
+            "or the Saturday afterwards, with no clear pattern') plus a "
+            "claimed removal 'after Day 85' -- this models only the "
+            "shorter reading, with no Day-85 special case. See "
+            "engine/effects/rooms/office.py."
+        )
+    },
     # docs/areas.md's Pump Room section (owner ruling): the macro "set source
     # to level" action reaches every level the real panel can reach, so the
     # outcome space matches and only the tank/pump interaction is left out --

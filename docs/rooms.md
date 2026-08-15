@@ -74,10 +74,11 @@ arbitrate. Check what a count counts before calling it wrong.
 ## Spread effects
 
 A spreader does not grant on entry. It parks per-cell payouts in
-`GameState.spread_pending` at **placement**, and `Game._collect_spread` pays
-each cell out when the player arrives there. Everything below shares that
-pipeline; the Tomb is the oldest member of it and the only one whose trigger is
-*other* rooms' drafts.
+`GameState.spread_pending`, and `Game._collect_spread` pays each cell out
+when the player arrives there. Everything below shares that pipeline, though
+not every spreader's *trigger* is placement: the Tomb's is *other* rooms'
+drafts, and the Office's Spread Gold in Estate (below) is a player action at
+its terminal, not a draft at all.
 
 Two invariants hold across every spreader:
 
@@ -210,6 +211,36 @@ Patio page says the redirected gems "**include the gem that would spread in the
 Patio itself**", while the Locker Room page says "any key that would be spread
 to **another room**", which read literally would leave its own self-key behind.
 Both spreaders behave the same way.
+
+### The Office's coins (docs/open_tasks.md task 1)
+
+Spread Gold in Estate is triggered by a **player action** at the Office's
+terminal (`SPREAD_GOLD_ACTION`), once per day — not by a draft — and it
+targets **every currently drafted room**, not a bucketed sample: every
+occupied cell at the moment the terminal is used gets its own pile, the
+Office's own cell included, none drafted afterward. A placed Conference Room
+still absorbs the whole batch into its own cell, the same "including the
+self-pile" shape as the Patio/Locker Room above.
+
+Pile size is a random **3, 4, or 5 coins per receiving room** — an owner
+ruling. The Office page and the Spread page both describe the effect without
+a figure, unlike the Tomb's flat 5 coins, which the wiki states outright; the
+ruling reuses the Office's own published floor-item pile sizes (3/4/5 coins)
+as the game's own answer for what an Office coin pile looks like.
+
+**Run Payroll is not part of this pipeline at all.** It puts 10 coins in
+each of the Maid's Chamber and the Servant's Quarters (two piles of 5), and
+the wiki states outright that it is not a spread effect and has no
+Conference Room interaction. It is paid out through a separate
+`GameState.payroll_pending` dict keyed by room id (not cell), so a target
+drafted *after* the terminal is used still receives its pile — draft order
+does not matter, per the wiki. Its weekly cooldown is an owner ruling: it
+resets on the coming in-game Saturday after use (`day % 7 == 0`; Day One is
+Sunday, 7 November 1993, per the wiki's Time page, so this is now a
+derivation rather than an inference — see the README's week-boundaries
+note). The wiki's own open question box offers a second reading ("the
+Saturday afterwards, with no clear pattern") and a claimed removal "after
+Day 85"; neither is modelled. See `engine/effects/rooms/office.py`.
 
 **It is not a pure redirect.** The Secret Garden's Conference Room case is a
 completely different fixed formula — **4 apples + 3 oranges**, replacing the
@@ -509,6 +540,34 @@ been removed everywhere it appeared.
 The eight Mechanical rooms, all `category: blueprint` with `mechanical` as an
 extra category: `utility_closet`, `boiler_room`, `pump_room`, `security`,
 `workshop`, `laboratory`, `electric_eel_aquarium__ix4`, `mechanarium`.
+
+**`office`** — its terminal runs two independent processes
+(docs/open_tasks.md task 1), both gated on standing at its cell
+(`Capability.OFFICE_TERMINAL`, `engine/effects/rooms/office.py`), distinct
+from the room's own `flags.disk_reader` (a third, unrelated terminal
+process, already shipped):
+
+- **Spread Gold in Estate** (once per day) IS a spread: a pile of coins into
+  every currently drafted room, including the Office itself but never a room
+  drafted afterward, via `GameState.spread_pending`/`Game._collect_spread` —
+  so a placed Conference Room redirects every pile into its own cell, the
+  same way it redirects the Patio/Locker Room/Secret Garden. Pile size is a
+  random 3, 4, or 5 coins per receiving room — an owner ruling, since the
+  wiki publishes no figure for this spread (unlike the Tomb's flat 5 coins),
+  reusing the Office's own published floor-item pile sizes as the game's own
+  answer.
+- **Run Payroll** puts 10 coins in each of the Maid's Chamber and the
+  Servant's Quarters (two piles of 5; the Servant's Spare Quarters upgrade
+  variant is not named by any source describing this process, so it does
+  not receive a pile). NOT a spread — the wiki states no Conference Room
+  interaction — so it pays out through a separate `GameState.payroll_pending`
+  dict keyed by room id, letting a target drafted *after* the terminal is
+  used still receive its pile. Its weekly cooldown resets on the coming
+  in-game Saturday after use (owner ruling: the wiki's own open question box
+  offers two readings and a claimed Day-85 removal; this models the shorter
+  "coming Saturday" reading with no Day-85 special case). Saturdays are
+  exactly `day % 7 == 0`: the wiki's Time page states Day One is Sunday, 7
+  November 1993, so this is a derivation, not an inference.
 
 **`parlor` and its variants** — the box always grants a fixed number of gems on
 first entry. [`special-items-behaviour.md`](special-items-behaviour.md) owns the

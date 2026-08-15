@@ -166,7 +166,7 @@ def test_the_action_block_has_one_id_per_record():
 # ------------------------------------------------------- the action space
 
 
-def test_action_space_width_is_479():
+def test_action_space_width_is_481():
     """The constellation block's own id range, and N_ACTIONS, agree with
     docs/rl-environment.md's width-change register.
 
@@ -179,8 +179,10 @@ def test_action_space_width_is_479():
 
     N_ACTIONS is no longer REDRAW_WITH_STAR_ACTION + 1: the Pump Room panel
     block (docs/areas.md's Pump Room section) appends 21 more ids after it
-    (458..478, a source pick plus a target-level pick), so this test only
-    pins where the constellation block itself ends, not the space's final width.
+    (458..478, a source pick plus a target-level pick), and the Office
+    terminal block (docs/open_tasks.md task 1) appends 2 more after that
+    (479 Spread Gold in Estate, 480 Run Payroll), so this test only pins
+    where the constellation block itself ends, not the space's final width.
     """
     assert A.ACTIVATE_CONSTELLATION_BASE == A.USE_TELESCOPE_PLANETARIUM_ACTION + 1
     assert A.VIEW_NIGHT_SKY_ACTION == A.ACTIVATE_CONSTELLATION_BASE + A._N_CONSTELLATIONS
@@ -188,7 +190,9 @@ def test_action_space_width_is_479():
     assert A.REDRAW_WITH_STAR_ACTION == 457
     assert A.PUMP_SOURCE_BASE == A.REDRAW_WITH_STAR_ACTION + 1
     assert A.PUMP_LEVEL_BASE == A.PUMP_SOURCE_BASE + A._N_PUMP_SOURCES
-    assert A.N_ACTIONS == A.PUMP_LEVEL_BASE + A._N_PUMP_LEVELS == 479
+    assert A.SPREAD_GOLD_ACTION == A.PUMP_LEVEL_BASE + A._N_PUMP_LEVELS == 479
+    assert A.RUN_PAYROLL_ACTION == A.SPREAD_GOLD_ACTION + 1 == 480
+    assert A.N_ACTIONS == A.RUN_PAYROLL_ACTION + 1 == 481
 
 
 def test_no_existing_action_id_shifted():

@@ -58,6 +58,7 @@ from . import mail_room  # noqa: F401
 from . import mechanarium  # noqa: F401  (no per-tag handler; seeds the diagonal-compartment count)
 from . import nook  # noqa: F401
 from . import observatory  # noqa: F401
+from . import office  # noqa: F401  (registers the office-terminal capability on import)
 from . import parlor  # noqa: F401
 from . import patio  # noqa: F401
 from . import planetarium  # noqa: F401

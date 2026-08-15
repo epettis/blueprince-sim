@@ -181,6 +181,15 @@ class DayChain:
         # axed_rooms, since nothing rules Pump Room progress to survive past
         # one save).
         self.water_levels: dict[str, int] = dict(base_cfg.water_levels)
+        # Run Payroll's weekly cooldown record (docs/open_tasks.md task 1):
+        # "office_payroll" -> the day it was last used. REPLACED (not merged)
+        # from each day's own carryover value every advance() -- state.
+        # payroll_last_used already IS the full current dict, the same shape
+        # as water_levels immediately above -- and, like water_levels, reset
+        # at the attempt wrap below (NOT SAVE-scoped like permanent_rarity/
+        # axed_rooms, since nothing rules a payroll cooldown to survive past
+        # one save).
+        self.payroll_last_used: dict[str, int] = dict(base_cfg.payroll_last_used)
         # The Foundation's permanent placement: once drafted it never moves again this
         # attempt. -1/0 = not yet drafted. Not bool-valued, so handled explicitly here
         # (and in advance()/next_config()) rather than through _CARRYOVER_KEYS.
@@ -268,6 +277,7 @@ class DayChain:
             upgrade_disks=self.applied_upgrades,
             draft_counts=dict(self.draft_counts),
             water_levels=dict(self.water_levels),
+            payroll_last_used=dict(self.payroll_last_used),
             planetarium_planets=self.planetarium_planets,
             foundation_cell=self.foundation_cell,
             foundation_doors=self.foundation_doors,
@@ -432,6 +442,13 @@ class DayChain:
         if wl_val is not None:
             self.water_levels = dict(wl_val)
 
+        # --- payroll_last_used (Run Payroll's weekly cooldown record; replace each
+        #     advance, the same water_levels shape -- state.payroll_last_used already
+        #     IS the full current dict) ---
+        plu_val = carryover.get("payroll_last_used")
+        if plu_val is not None:
+            self.payroll_last_used = dict(plu_val)
+
         # --- foundation_cell / foundation_doors (permanent placement; replace each advance) ---
         # shops.carryover() already resolves "cfg wins once set", so this is a
         # straight replace, same shape as chapel_tithes.
@@ -559,6 +576,9 @@ class DayChain:
             # Fresh attempt; the six sources go back to the base preset's levels
             # (not SAVE-scoped, unlike permanent_rarity/axed_rooms above).
             self.water_levels = dict(self.base_cfg.water_levels)
+            # Fresh attempt; the payroll cooldown record goes back to the base
+            # preset (not SAVE-scoped, unlike permanent_rarity/axed_rooms above).
+            self.payroll_last_used = dict(self.base_cfg.payroll_last_used)
             # Fresh attempt: The Foundation goes back to being undrafted, same
             # baseline as day 1 originally started from.
             self.foundation_cell = self.base_cfg.foundation_cell

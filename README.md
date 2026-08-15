@@ -141,8 +141,12 @@ data JSON (or regenerate: `python tools/ingest_sheet.py`, which rebuilds
   per-door security table, flat-chance Keycard find, and the unmodeled lock
   items and special doors are catalogued in
   [docs/locking.md](docs/locking.md).
-- **Week boundaries**: day 1-7 / 8-14 / 15+ mapping to the sheet's
-  Week 1 / Week 2 / late tables is inferred.
+- **Week boundaries**: day 1-7 / 8-14 / 15+ mapping to the sheet's Week 1 /
+  Week 2 / late tables is no longer an inference. The wiki's Time page states
+  Day One is Sunday, 7 November 1993 (the Drafting Studio calendar), so
+  in-game weeks run Sunday -> Saturday and days 1-7 / 8-14 really are week 1
+  / week 2. The same derivation (day % 7 == 0 is a Saturday) drives Run
+  Payroll's weekly cooldown -- see `engine/effects/rooms/office.py`.
 - **Orientation weights and redraws**: the unpublished North/Compass weight
   columns and the whole-hand redraw approximation are noted in
   [docs/drafting.md](docs/drafting.md). The Compass and Ornate Compass are
