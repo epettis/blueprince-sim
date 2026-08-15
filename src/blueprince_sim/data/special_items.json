@@ -143,7 +143,7 @@
     "confidence": "wiki",
     "absent_spawn_areas": [],
     "blocked_on": null,
-    "notes": "coin_interest is read by effects/items/coin_purse.py, fired through special_items.py::on_coins_granted: each coin pickup adds to state.special.coin_interest, pays bonus for every whole per, and carries the remainder, which survives losing the purse. A held Lucky Purse wins COINS_GRANTED_PRIORITY outright, so the accumulator never advances beside it -- both as the wiki describes. Not modelled: the wiki's carry-over lockout, under which a Lucky Purse brought into a later day by Coat Check or the Moon Pendant makes the Coin Purse unobtainable that day. shops.py::fabricate consumes the recipe inputs with remove(consumed=True), and state.special.removed is day-scoped -- special_items.py::configure carries no contraption-component channel -- so the Coin Purse stays in the next day's pool."
+    "notes": "coin_interest is read by effects/items/coin_purse.py, fired through special_items.py::on_coins_granted: each coin pickup adds to state.special.coin_interest, pays bonus for every whole per, and carries the remainder, which survives losing the purse. A held Lucky Purse wins COINS_GRANTED_PRIORITY outright, so the accumulator never advances beside it -- both as the wiki describes."
    }
   },
   {
@@ -215,7 +215,7 @@
     "confidence": "wiki",
     "absent_spawn_areas": [],
     "blocked_on": null,
-    "notes": "Fully built and tested: registered as ItemCapability.SHOP_DISCOUNT (amount=1) in engine/effects/items/coupon_book.py; shops.py's stock_for folds it via item_capability_sum and applies max(0, price-discount) to every stock entry AND the dynamically-appended showroom trophy; affordable is computed against the reduced price. See tests/test_shops.py::test_coupon_book_reduces_price_by_1 and ::test_coupon_book_floors_at_0. Nothing is missing; implemented was flipped to true on the strength of those two tests."
+    "notes": "Fully built and tested: registered as ItemCapability.SHOP_DISCOUNT (amount=1) in engine/effects/items/coupon_book.py; shops.py's stock_for folds it via item_capability_sum and applies max(0, price-discount) to every stock entry outside shops.py's _DISCOUNT_EXEMPT_SHOPS (the Laundry Room and the Casino) AND the dynamically-appended showroom trophy; affordable is computed against the reduced price. See tests/test_shops.py::test_coupon_book_reduces_price_by_1 and ::test_coupon_book_floors_at_0. implemented was flipped to true on the strength of those two tests."
    }
   },
   {
@@ -308,7 +308,7 @@
     "confidence": "wiki",
     "absent_spawn_areas": [],
     "blocked_on": null,
-    "notes": "Rates, denominator, pity and pity_fail live on this record's lockpick effect and are read by special_items.py::_attempt_lockpick, which prefers the Pick Sound Amplifier when both tools are held; the door kinds match too (locks.py's DOOR_SECURITY is a separate segment kind no lockpick path touches). The rate ladder is indexed by state.special.lockpick_successes (successful picks today), matching \"the chance goes down after a successful lockpick\" / \"after the first three successful lockpicks, remaining lockpicks have a 19/101 chance\". state.special.lockpick_fails is the two-sided pity counter (+1/fail, -1/success): at >= pity it auto-succeeds and resets to -1; at <= pity_fail it auto-fails and resets to 1. The wiki gates the auto-fail case on lockpicking skill <= 20 -- lockpicking skill itself has no stat here (docs/experiments-design.md, permanent_lockpicking_skill), so this sim applies it unconditionally. NOT modelled: the per-door clause resetting the counter to 0 on a door already attempted (this sim tracks global per-day counters, not per-doorway, per _attempt_lockpick's docstring); the numerator bonus from lockpicking skill and its 98/101 cap; and its statement that building the Pick Sound Amplifier keeps this Kit out of the item pool on SUBSEQUENT days -- shops.py::fabricate marks recipe inputs consumed for the current day only."
+    "notes": "Rates, denominator, pity and pity_fail live on this record's lockpick effect and are read by special_items.py::_attempt_lockpick, which prefers the Pick Sound Amplifier when both tools are held; the door kinds match too (locks.py's DOOR_SECURITY is a separate segment kind no lockpick path touches). The rate ladder is indexed by state.special.lockpick_successes (successful picks today), matching \"the chance goes down after a successful lockpick\" / \"after the first three successful lockpicks, remaining lockpicks have a 19/101 chance\". state.special.lockpick_fails is the two-sided pity counter (+1/fail, -1/success): at >= pity it auto-succeeds and resets to -1; at <= pity_fail it auto-fails and resets to 1. The wiki gates the auto-fail case on lockpicking skill <= 20 -- lockpicking skill itself has no stat here (docs/experiments-design.md, permanent_lockpicking_skill), so this sim applies it unconditionally. NOT modelled: the per-door clause resetting the counter to 0 on a door already attempted (this sim tracks global per-day counters, not per-doorway, per _attempt_lockpick's docstring); the numerator bonus from lockpicking skill and its 98/101 cap; and its statement that building the Pick Sound Amplifier keeps this Kit out of the pool on SUBSEQUENT days -- the contraption_lockout table blocks the Kit only on a day the Amplifier is CARRIED IN (cfg.starting_items), not on every day after it was built."
    }
   },
   {
@@ -352,7 +352,7 @@
     "confidence": "wiki",
     "absent_spawn_areas": [],
     "blocked_on": null,
-    "notes": "luck_bonus is read by special_items.py::luck_bonus and added to effective luck wherever items are rolled (items.py::roll_ladder_count, items.py::_dowsing_effective_luck, and special_items.py's own spawn roll). The amount is this sim's own figure: the wiki calls the bonus a small amount and publishes no number for it, so the effect is directionally right but its size is unsourced. Not modelled: the wiki's carry-over lockout, under which a Lucky Purse brought into a later day by Coat Check or the Moon Pendant makes the Lucky Rabbit's Foot unobtainable that day. shops.py::fabricate consumes the recipe inputs with remove(consumed=True), and state.special.removed is day-scoped, so the foot stays in the next day's pool."
+    "notes": "luck_bonus is read by special_items.py::luck_bonus and added to effective luck wherever items are rolled (items.py::roll_ladder_count, items.py::_dowsing_effective_luck, and special_items.py's own spawn roll). The amount is this sim's own figure: the wiki calls the bonus a small amount and publishes no number for it, so the effect is directionally right but its size is unsourced."
    }
   },
   {
@@ -397,7 +397,7 @@
     "absent_spawn_areas": [],
     "wont_implement": "puzzle-only effect; the sim has no document or lore layer and will not gain one",
     "reachability": "inert",
-    "notes": "DECIDED never to build, not blocked. Its own effect reveals hidden text in documents, and this simulator has no document or lore layer -- nothing in engine/ reads lore or document text, and the assumed-solved doctrine means a puzzle a player enters is already solved. Its COMPONENT role is built and load-bearing: metal_detector + magnifying_glass -> burning_glass is the burning glass's ONLY source, and the burning glass is one of the two ignition tools, so this item keeps spawning in its 16 rooms. The wiki's Locations line also names Classroom, Commissary, Conservatory and Toolshed, all of which exist in rooms.json, plus the high-luck-only Den and Drawing Room; both tiers now carry the wiki's full list."
+    "notes": "DECIDED never to build, not blocked. Its own effect reveals hidden text in documents, and this simulator has no document or lore layer -- nothing in engine/ reads lore or document text, and the assumed-solved doctrine means a puzzle a player enters is already solved. Its COMPONENT role is built and load-bearing: metal_detector + magnifying_glass -> burning_glass is the burning glass's ONLY source, and the burning glass is one of the two ignition tools, so this item keeps spawning in the rooms below. The wiki's Locations line also names Classroom, Commissary, Conservatory and Toolshed, all of which exist in rooms.json, plus the high-luck-only Den and Drawing Room; both tiers now carry the wiki's full list."
    }
   },
   {
@@ -444,7 +444,7 @@
     "confidence": "inferred",
     "absent_spawn_areas": [],
     "blocked_on": null,
-    "notes": "metal_detector_spawns is read by special_items.py::on_place, which rolls coins_chance and key_chance once each in the room just drafted -- luck-independent and never retroactive, both as the wiki has it. The two percentages are this sim's own; the wiki publishes no numbers for either. Three source claims are not modelled. The coin outcome always grants exactly one coin, where the wiki has the pile size depend on the room. The detection half -- the proximity beep that locates coins, keys and metallic tools, and the Powered Electromagnet suppressing it -- has no representation at all; special_items.py::grant auto-collects every spawned item, so locating one carries no decision. And the wiki's carry-over lockout is absent: a Detector Shovel or Burning Glass brought into a later day by Coat Check or the Moon Pendant should make the Metal Detector unobtainable that day while a Pick Sound Amplifier never does, but shops.py::fabricate consumes the inputs with remove(consumed=True) and state.special.removed is day-scoped, so the detector stays in the next day's pool."
+    "notes": "metal_detector_spawns is read by special_items.py::on_place, which rolls coins_chance and key_chance once each in the room just drafted -- luck-independent and never retroactive, both as the wiki has it. The two percentages are this sim's own; the wiki publishes no numbers for either. Two source claims are not modelled. The coin outcome always grants exactly one coin, where the wiki has the pile size depend on the room. The detection half -- the proximity beep that locates coins, keys and metallic tools, and the Powered Electromagnet suppressing it -- has no representation at all; special_items.py::grant auto-collects every spawned item, so locating one carries no decision."
    }
   },
   {
@@ -604,7 +604,7 @@
     "confidence": "wiki",
     "absent_spawn_areas": [],
     "blocked_on": null,
-    "notes": "The dig_tool tag routes each dig spot at the cell through the shovel table in the top-level dig section (special_items.py::dig_all, which picks the best held tool by DIG_PRIORITY), covering the turnip outcome, the trash experiment trigger, and the Kennel's unlock-the-dug-room effect (the_kennel.py::unlock_dug_room, fired for treasure digs too). All three wiki recipes are in the fabrication table. Not modelled: the wiki's carry-over lockout, under which a Jack Hammer or Detector Shovel brought into a later day by Coat Check or the Moon Pendant makes the Shovel unobtainable that day, while a Dowsing Rod never does. shops.py::fabricate consumes the recipe inputs with remove(consumed=True), and state.special.removed is day-scoped -- special_items.py::configure rebuilds gated_out from cfg each morning and carries no contraption-component channel -- so a carried contraption leaves the Shovel in the next day's pool."
+    "notes": "The dig_tool tag routes each dig spot at the cell through the shovel table in the top-level dig section (special_items.py::dig_all, which picks the best held tool by DIG_PRIORITY), covering the turnip outcome, the trash experiment trigger, and the Kennel's unlock-the-dug-room effect (the_kennel.py::unlock_dug_room, fired for treasure digs too). All three wiki recipes are in the fabrication table."
    }
   },
   {
@@ -716,7 +716,7 @@
     "confidence": "inferred",
     "absent_spawn_areas": [],
     "blocked_on": null,
-    "notes": "spawn_rooms stays empty on purpose: the wiki's sole Locations entry (Clock Tower, plus Lost & Found which is excluded as already modelled through the room's own steal pool) is already covered by guaranteed_in. Also listing clock_tower in spawn_rooms would let the room's one-per-day random special roll sometimes 'spend' itself on a Stopwatch that was going to be guaranteed anyway, silently suppressing that day's chance for Clock Tower's other pool members (battery_pack, metal_detector, shovel, treasure_map) -- following the same guaranteed-only pattern already used by key_8 and basement_key."
+    "notes": "spawn_rooms stays empty on purpose: the wiki's sole Locations entry (Clock Tower, plus Lost & Found which is excluded as already modelled through the room's own steal pool) is already covered by guaranteed_in. Also listing clock_tower in spawn_rooms would let the room's one-per-day random special roll sometimes 'spend' itself on a Stopwatch that was going to be guaranteed anyway, silently suppressing that day's chance for the Clock Tower's other pool members -- following the same guaranteed-only pattern already used by key_8 and basement_key."
    }
   },
   {
@@ -810,7 +810,7 @@
     "confidence": "wiki",
     "absent_spawn_areas": [],
     "blocked_on": null,
-    "notes": "watering_can.py::on_pickup fills the can to its capacity param and watering_can.py::apply_on_enter converts one charge into one gem on entering a green room, wired in at special_items.py::_on_pickup and special_items.py::on_enter; on_enter runs once per room, which is the wiki's once-per-Green-Room limit. Refills are not modelled. The wiki also refills the can at the Kitchen tap once the Pump Room has flooded it, and at the Trading Post still after the endgame unlock; rooms.json gives pump_room and kitchen no effects, and nothing outside watering_can.py::on_pickup ever writes state.special.water, so a held can is worth at most capacity gems for the whole day. The book-tinting ability the wiki gates behind that same still is not modelled either."
+    "notes": "watering_can.py::on_pickup fills the can to its capacity param and watering_can.py::apply_on_enter converts one charge into one gem on entering a green room, wired in at special_items.py::_on_pickup and special_items.py::on_enter; on_enter runs once per room, which is the wiki's once-per-Green-Room limit. Refills are not modelled. The wiki also refills the can at the Kitchen tap once the Pump Room has flooded it, and at the Trading Post still after the endgame unlock; the Pump Room now models a kitchen water level (data/pump_room.json, Game.set_pump_level) but no tap reads it, and nothing outside watering_can.py::on_pickup ever writes state.special.water, so a held can is worth at most capacity gems for the whole day. The book-tinting ability the wiki gates behind that same still is not modelled either."
    }
   },
   {
@@ -1342,7 +1342,7 @@
     "confidence": "wiki",
     "absent_spawn_areas": [],
     "blocked_on": null,
-    "notes": "Both inherited halves are live: dig_tool selects the detector_shovel table in special_items.py::dig_all, which prefers it over a held Shovel via DIG_PRIORITY, and metal_detector_spawns is read by special_items.py::on_place for the extra key/coin roll in the room just drafted. The table carries no turnip row, matching the wiki. Two source claims are not modelled. The on_place coin outcome always grants exactly one coin, where the wiki has the pile size depend on the room drafted. And the wiki's carry-over lockout is absent: a Detector Shovel brought into a later day by Coat Check or the Moon Pendant should make both the Shovel and the Metal Detector unobtainable that day, but shops.py::fabricate consumes the inputs with remove(consumed=True) and state.special.removed is day-scoped, so both components stay in the next day's pool."
+    "notes": "Both inherited halves are live: dig_tool selects the detector_shovel table in special_items.py::dig_all, which prefers it over a held Shovel via DIG_PRIORITY, and metal_detector_spawns is read by special_items.py::on_place for the extra key/coin roll in the room just drafted. The table carries no turnip row, matching the wiki. One source claim is not modelled: the on_place coin outcome always grants exactly one coin, where the wiki has the pile size depend on the room drafted."
    }
   },
   {
@@ -1414,7 +1414,7 @@
     "confidence": "wiki",
     "absent_spawn_areas": [],
     "blocked_on": null,
-    "notes": "Both inherited halves are live, but only one of them is in this record's effects. luck_bonus is read by special_items.py::luck_bonus; the coin doubling is registered in Python instead, as ItemCapability.COIN_MULTIPLIER plus an ItemHook.COINS_GRANTED handler in effects/items/lucky_purse.py, which sits first in COINS_GRANTED_PRIORITY and so supersedes the Coin Purse rather than stacking with it. Not modelled: the wiki's carry-over lockout, under which a Lucky Purse brought into a later day by Coat Check or the Moon Pendant makes both the Coin Purse and the Lucky Rabbit's Foot unobtainable that day. shops.py::fabricate consumes the recipe inputs with remove(consumed=True), and state.special.removed is day-scoped, so both components stay in the next day's pool."
+    "notes": "Both inherited halves are live, but only one of them is in this record's effects. luck_bonus is read by special_items.py::luck_bonus; the coin doubling is registered in Python instead, as ItemCapability.COIN_MULTIPLIER plus an ItemHook.COINS_GRANTED handler in effects/items/lucky_purse.py, which sits first in COINS_GRANTED_PRIORITY and so supersedes the Coin Purse rather than stacking with it."
    }
   },
   {
@@ -1542,7 +1542,7 @@
     "confidence": "wiki",
     "absent_spawn_areas": [],
     "blocked_on": null,
-    "notes": "Obtainable today: the Showroom sells it for 30 coins (data/shops.json), via shops.py::buy. Its Tomorrow-Rooms bias IS live -- priority_draws.json's priority_draws list carries a Tomorrow Rooms (Chronograph) entry at the datamined 40%, matching the wiki's own framing ('This is a Priority Draw (40% for all Tomorrow Rooms)'): it fires once into slot 3 only, not as a per-slot category re-deal. draft.py::_active_conditions emits condition 'chronograph' while the item is held, checked via chronograph_active_from_state, which reads ItemCapability.CHRONOGRAPH (engine/effects/items/chronograph.py) rather than a data effect tag. Its other effect, REWIND, is now also live: after a redraw by any method, PendingDraft.rewind_stack holds every hand a redeal has replaced (Game._redeal_pending pushes there, unconditionally, before clearing); Game.can_rewind/rewind pop it back into the pending options for free and re-fire ON_HAND_DEALT, per the wiki ('activating effects that rely on drawing a floorplan') -- not a state restore, just a redraw whose output is pinned to a remembered hand. Free, unlimited, and one-way (owner ruling): rewind never pushes what it leaves, so it walks strictly backward to the original three floorplans and stops there. env/actions.py REWIND_ACTION (436) drives it; env/obs.py's prev_options key exposes the stack top so a policy can see what it would restore before acting."
+    "notes": "Obtainable today: the Showroom sells it for 30 coins (data/shops.json), via shops.py::buy. Its Tomorrow-Rooms bias IS live -- priority_draws.json's priority_draws list carries a Tomorrow Rooms (Chronograph) entry at the datamined 40%, matching the wiki's own framing ('This is a Priority Draw (40% for all Tomorrow Rooms)'): it fires once into slot 3 only, not as a per-slot category re-deal. draft.py::_active_conditions emits condition 'chronograph' while the item is held, checked via chronograph_active_from_state, which reads ItemCapability.CHRONOGRAPH (engine/effects/items/chronograph.py) rather than a data effect tag. Its other effect, REWIND, is now also live: after a redraw by any method, PendingDraft.rewind_stack holds every hand a redeal has replaced (Game._redeal_pending pushes there, unconditionally, before clearing); Game.can_rewind/rewind pop it back into the pending options for free and re-fire ON_HAND_DEALT, per the wiki ('activating effects that rely on drawing a floorplan') -- not a state restore, just a redraw whose output is pinned to a remembered hand. Free, unlimited, and one-way (owner ruling): rewind never pushes what it leaves, so it walks strictly backward to the original three floorplans and stops there. env/actions.py REWIND_ACTION drives it; env/obs.py's prev_options key exposes the stack top so a policy can see what it would restore before acting."
    }
   },
   {
@@ -1625,7 +1625,7 @@
     "confidence": "wiki",
     "absent_spawn_areas": [],
     "blocked_on": null,
-    "notes": "Purchase-only reward for clearing the Showroom: once all 4 stocked entries are bought, the trophy is appended to the display (shops.py:389-399/:444-460), priced from data/shops.json's 'trophy' entry with sale-day and Coupon Book adjustments applied like any other entry. Buying it (shops.py:501-508) grants it via the normal si.grant path. trophy_room is pool: 'base' in rooms.json, so its only wiki-documented consequence is satisfied by default. Verified end to end in tests/test_shops.py (test_trophy_purchase_*): stock rolled, all 4 entries sold, trophy purchased, lands in inventory with coins deducted at the correct price."
+    "notes": "Purchase-only reward for clearing the Showroom: once all 4 stocked entries are bought, the trophy is appended to the display (effects/rooms/showroom.py::_trophy_overlay, registered via shops.register_stock_overlay), priced from data/shops.json's 'trophy' entry with sale-day and Coupon Book adjustments applied like any other entry. Buying it grants it via the normal si.grant path. trophy_room is pool: 'base' in rooms.json, so its only wiki-documented consequence is satisfied by default. Verified end to end in tests/test_shops.py (test_trophy_purchase_*): stock rolled, all 4 entries sold, trophy purchased, lands in inventory with coins deducted at the correct price."
    }
   },
   {
@@ -2302,7 +2302,7 @@
      "crate_tunnel"
     ],
     "blocked_on": null,
-    "notes": "The wiki describes three mechanically distinct File Cabinet Keys (Patio, Laundry Room, Tunnel), each opening its own drawer; only the Patio one is modeled, and it is the sole gate on upgrade_disk_archives (requires_item). Owner ruling: exactly one file_cabinet_key, obtained by digging the Patio's single dig spot (rooms.json patio.items.dig_guaranteed) -- a modeled stand-in for the wiki's actual, unmodeled mechanism (a hidden dig spot inside the Aquarium, reachable only after draining it via the Pump Room to water level <=1). The Laundry Room key (same unmodeled Aquarium-drain mechanism) and the Tunnel key (Crate Tunnel, out of scope by standing ruling) are not modeled."
+    "notes": "The wiki describes three mechanically distinct File Cabinet Keys (Patio, Laundry Room, Tunnel), each opening its own drawer; only the Patio one is modeled, and it is the sole gate on upgrade_disk_archives (requires_item). Owner ruling: exactly one file_cabinet_key, obtained by digging the Patio's single dig spot (rooms.json patio.items.dig_guaranteed) -- a modeled stand-in for the wiki's actual mechanism, whose hidden Aquarium dig spot is unmodeled (the Pump Room drain it depends on is modeled -- Game.set_pump_source/set_pump_level reach aquarium level 0). The Laundry Room key (same unmodeled Aquarium dig spot) and the Tunnel key (Crate Tunnel, out of scope by standing ruling) are not modeled."
    }
   },
   {
@@ -2417,7 +2417,7 @@
     "confidence": "wiki",
     "absent_spawn_areas": [],
     "blocked_on": null,
-    "notes": "Obtainable in-run only via the unmodeled Treasure Trove / Key of Aries puzzle; with royal_scepter_found carry-over flag it is granted at day start instead. Activation (color bias) and scepter_<color> category biases are modeled in PR2."
+    "notes": "Obtainable in-run only via the unmodeled Treasure Trove / Key of Aries puzzle; with royal_scepter_found carry-over flag it is granted at day start instead. Activation (colour bias) and the scepter_<colour> category biases are built: shops.can_activate_scepter/activate_scepter set state.shops.scepter_color, draft.py::_active_conditions emits scepter_<colour>, and priority_draws.json carries one entry per colour."
    }
   },
   {
@@ -2438,7 +2438,7 @@
     "confidence": "wiki",
     "absent_spawn_areas": [],
     "blocked_on": null,
-    "notes": "One unique disk per source so each is inherently one-time use. Granted by opening Vault box 304. Box stays open permanently (vault_key_304 stays in used_vault_keys); the disk returns daily to the open box until spent. Draw mechanism implemented (chunk 2); individual upgrade effects deferred."
+    "notes": "One unique disk per source so each is inherently one-time use. Granted by opening Vault box 304. Box stays open permanently (vault_key_304 stays in used_vault_keys); the disk returns daily to the open box until spent."
    }
   },
   {
@@ -2459,7 +2459,7 @@
     "confidence": "wiki",
     "absent_spawn_areas": [],
     "blocked_on": null,
-    "notes": "Reserve stock item in the Commissary, restocked every day: an unspent disk drops overnight and is offered again, and the player pays the 15 gold each time (the cost is the throttle, making hoarding wasteful). Once spent it leaves the reserve stock permanently via collected_disks. Draw mechanism implemented (chunk 2); individual upgrade effects deferred."
+    "notes": "Reserve stock item in the Commissary, restocked every day: an unspent disk drops overnight and is offered again, and the player pays the 15 gold each time (the cost is the throttle, making hoarding wasteful). Once spent it leaves the reserve stock permanently via collected_disks."
    }
   },
   {
@@ -2480,7 +2480,7 @@
     "confidence": "wiki",
     "absent_spawn_areas": [],
     "blocked_on": null,
-    "notes": "One unique disk per source so each is inherently one-time use. Found in the Garage car trunk. The trunk re-locks every night (unlike the Vault boxes), so Car Keys are required on every open, not just the first; the disk inside returns daily until spent. Once spent, later trunk uses draw from the later_pool. Draw mechanism implemented (chunk 2); individual upgrade effects deferred."
+    "notes": "One unique disk per source so each is inherently one-time use. Found in the Garage car trunk. The trunk re-locks every night (unlike the Vault boxes), so Car Keys are required on every open, not just the first; the disk inside returns daily until spent. Once spent, later trunk uses draw from the later_pool."
    }
   },
   {
@@ -2501,7 +2501,7 @@
     "confidence": "wiki",
     "absent_spawn_areas": [],
     "blocked_on": null,
-    "notes": "One unique disk per source so each is inherently one-time use. Granted by lighting the Trading Post dynamite chamber. Chamber stays open (trading_post in lit_targets); the disk returns daily until spent. Draw mechanism implemented (chunk 2); individual upgrade effects deferred."
+    "notes": "One unique disk per source so each is inherently one-time use. Granted by lighting the Trading Post dynamite chamber. Chamber stays open (trading_post in lit_targets); the disk returns daily until spent."
    }
   },
   {
@@ -2543,7 +2543,7 @@
     "confidence": "wiki",
     "absent_spawn_areas": [],
     "blocked_on": null,
-    "notes": "Awarded by the Lost and Found. Stays in the draw pool while unspent, so an unspent disk drops overnight and can be drawn again on a later day; once spent it leaves the pool permanently (the pool draw filters on _is_available, which reads gated_out/collected_disks). Draw mechanism implemented (chunk 2); individual upgrade effects deferred."
+    "notes": "Awarded by the Lost and Found. Stays in the draw pool while unspent, so an unspent disk drops overnight and can be drawn again on a later day; once spent it leaves the pool permanently (the pool draw filters on _is_available, which reads gated_out/collected_disks)."
    }
   },
   {
@@ -2564,7 +2564,7 @@
     "confidence": "wiki",
     "absent_spawn_areas": [],
     "blocked_on": null,
-    "notes": "One unique disk per source so each is inherently one-time use. Granted by lighting the candles in the Tomb. Candles stay lit (tomb in lit_targets); the disk returns daily until spent. Draw mechanism implemented (chunk 2); individual upgrade effects deferred."
+    "notes": "One unique disk per source so each is inherently one-time use. Granted by lighting the candles in the Tomb. Candles stay lit (tomb in lit_targets); the disk returns daily until spent."
    }
   },
   {
@@ -2587,7 +2587,7 @@
     "confidence": "wiki",
     "absent_spawn_areas": [],
     "blocked_on": null,
-    "notes": "One unique disk per source so each is inherently one-time use. Found in the Office desk on first entry (no real-game gate). Draw mechanism implemented; individual upgrade effects deferred.",
+    "notes": "One unique disk per source so each is inherently one-time use. Found in the Office desk on first entry (no real-game gate).",
     "simplification": "none - no gate in the real game"
    }
   },
@@ -2611,7 +2611,7 @@
     "confidence": "wiki",
     "absent_spawn_areas": [],
     "blocked_on": null,
-    "notes": "One unique disk per source so each is inherently one-time use. Found on the Morning Room table on first entry (no real-game gate). Draw mechanism implemented; individual upgrade effects deferred.",
+    "notes": "One unique disk per source so each is inherently one-time use. Found on the Morning Room table on first entry (no real-game gate).",
     "simplification": "none - no gate in the real game"
    }
   },
@@ -2635,7 +2635,7 @@
     "confidence": "wiki",
     "absent_spawn_areas": [],
     "blocked_on": null,
-    "notes": "One unique disk per source so each is inherently one-time use. Found on the far table in Her Ladyship's Chamber on first entry (no real-game gate). Draw mechanism implemented; individual upgrade effects deferred.",
+    "notes": "One unique disk per source so each is inherently one-time use. Found on the far table in Her Ladyship's Chamber on first entry (no real-game gate).",
     "simplification": "none - no gate in the real game"
    }
   },
@@ -2659,7 +2659,7 @@
     "confidence": "wiki",
     "absent_spawn_areas": [],
     "blocked_on": null,
-    "notes": "One unique disk per source so each is inherently one-time use. Found behind the prize door in the Great Hall. Real-game gate (prize door) is not modeled; disk granted on first entry per the sim's 'player solves every puzzle' doctrine. Draw mechanism implemented; individual upgrade effects deferred.",
+    "notes": "One unique disk per source so each is inherently one-time use. Found behind the prize door in the Great Hall. Real-game gate (prize door) is not modeled; disk granted on first entry per the sim's 'player solves every puzzle' doctrine.",
     "simplification": "prize door not modeled - disk granted on first entry instead"
    }
   },
@@ -2683,7 +2683,7 @@
     "confidence": "wiki",
     "absent_spawn_areas": [],
     "blocked_on": null,
-    "notes": "One unique disk per source so each is inherently one-time use. Found behind the ice wall in the Freezer. Real-game gate (Power Hammer breaks ice wall; wall regrows daily) is not modeled as a container/wall mechanic in the sim; disk granted on first entry per the 'player solves every puzzle' doctrine. Draw mechanism implemented; individual upgrade effects deferred.",
+    "notes": "One unique disk per source so each is inherently one-time use. Found behind the ice wall in the Freezer. Real-game gate (Power Hammer breaks ice wall; wall regrows daily) is not modeled as a container/wall mechanic in the sim; disk granted on first entry per the 'player solves every puzzle' doctrine.",
     "simplification": "ice wall / Power Hammer mechanic not modeled - disk granted on first entry instead"
    }
   },
@@ -2708,7 +2708,7 @@
     "confidence": "wiki",
     "absent_spawn_areas": [],
     "blocked_on": null,
-    "notes": "One unique disk per source so each is inherently one-time use. Found in the Archives filing cabinet; gated on holding file_cabinet_key (requires_item), the one owner-ruled key the sim models. Granted on first entry once the key is held, same as every other in-grid guaranteed_in disk. Draw mechanism implemented; individual upgrade effects deferred."
+    "notes": "One unique disk per source so each is inherently one-time use. Found in the Archives filing cabinet; gated on holding file_cabinet_key (requires_item), the one owner-ruled key the sim models. Granted on first entry once the key is held, same as every other in-grid guaranteed_in disk."
    }
   },
   {
@@ -2729,7 +2729,7 @@
     "confidence": "wiki",
     "absent_spawn_areas": [],
     "blocked_on": null,
-    "notes": "One unique disk per source so each is inherently one-time use. Found behind the Mechanarium's third diagonal compartment (mechanarium_upgrade_chain in engine/special_items.py), gated behind the diagonal-door spawn threshold (min(4, mechanical_rooms - cardinal_doors_spawned) -- see engine/effects/rooms/mechanarium.py) rather than granted on first entry. Draw mechanism implemented; individual upgrade effects deferred.",
+    "notes": "One unique disk per source so each is inherently one-time use. Found behind the Mechanarium's third diagonal compartment (mechanarium_upgrade_chain in engine/special_items.py), gated behind the diagonal-door spawn threshold (min(4, mechanical_rooms - cardinal_doors_spawned) -- see engine/effects/rooms/mechanarium.py) rather than granted on first entry.",
     "simplification": "compartments open in a fixed 1st/2nd/3rd/4th order at no cost, rather than the player's free choice of which door to open first"
    }
   },
@@ -2753,7 +2753,7 @@
     "confidence": "wiki",
     "absent_spawn_areas": [],
     "blocked_on": null,
-    "notes": "One unique disk per source so each is inherently one-time use. Found on a pile of boxes near the back of the room; disk granted on first entry per the 'player solves every puzzle' doctrine. Draw mechanism implemented; individual upgrade effects deferred. Sourcing caveat: The Foundation's own wiki page does not mention this disk - only the Upgrade_Disk article does, which is the same source the other in-grid disks are drawn from (docs/foundation-design.md).",
+    "notes": "One unique disk per source so each is inherently one-time use. Found on a pile of boxes near the back of the room; disk granted on first entry per the 'player solves every puzzle' doctrine. Sourcing caveat: The Foundation's own wiki page does not mention this disk - only the Upgrade_Disk article does, which is the same source the other in-grid disks are drawn from (docs/foundation-design.md).",
     "simplification": "none - no gate in the real game"
    }
   },
@@ -2775,7 +2775,7 @@
     "confidence": "wiki",
     "absent_spawn_areas": [],
     "blocked_on": null,
-    "notes": "Sits openly on a table in the Abandoned Mine (South), obtainable without lighting the eight candlesticks (those independently open the Mine -> Precipice stairway; mine_south is itself an ignition target in this file's ignition.targets, and lighting it sets the \"candlestick_stairway_lit\" flag gating both mine_south<->precipice edges in areas.json). mine_south is a pure area node with no rooms.json record, so guaranteed_in cannot key off it; granted instead by engine/special_items.py::on_area_arrival, called from Game.travel_to on arrival. Draw mechanism implemented; individual upgrade effects deferred."
+    "notes": "Sits openly on a table in the Abandoned Mine (South), obtainable without lighting the eight candlesticks (those independently open the Mine -> Precipice stairway; mine_south is itself an ignition target in this file's ignition.targets, and lighting it sets the \"candlestick_stairway_lit\" flag gating both mine_south<->precipice edges in areas.json). mine_south is a pure area node with no rooms.json record, so guaranteed_in cannot key off it; granted instead by engine/special_items.py::on_area_arrival, called from Game.travel_to on arrival."
    }
   }
  ],
@@ -4022,14 +4022,14 @@
    "absent_targets": [
     "crate_tunnel"
    ],
-   "notes": "Tomb: near candles grant upgrade_disk_tomb + 4 dice; far candles reveal Diary Key \u2014 both pairs modeled as one ignition event granting all three (simplification: two-step reveal collapsed to one). Diary Key is a REWARD of lighting the Tomb, not a prerequisite. Chapel: lighting the altar grants accumulated Keeper of Tithes coins (chapel_tithes counter, incremented each time the entry -1 coin penalty actually fires); the payout is resolved in engine/special_items.py light(). Trading Post fuse grants (Upgrade Disk + 40 coins) are wiki-documented; the secret room is collapsed to an immediate grant since it is not modeled. Freezer thaw is temporary/daily and not modeled. Mine South (\"area\": true): lighting the eight candlesticks inside the Abandoned Mine (South) permanently lowers the stairway to the Precipice (engine/game.py::_gate_ctx sets the \"candlestick_stairway_lit\" flag from state.special.lit_targets, gating both mine_south<->precipice edges in areas.json); it has no grants here because the Upgrade Disk sitting in the mine is a separate, ungated pickup already granted on arrival by engine/special_items.py::on_area_arrival \u2014 granting it again here would double-pay. mine_south has no rooms.json record (it is an area-graph node, not a draftable room), so it is the one target keyed by an area id instead of a room id; \"area\": true marks that. absent_targets lists rooms/areas the wiki mentions that are absent from both rooms.json and this targets table (mine_south graduated out of it once the area graph modeled the node). Apple Orchard (\"area\": true): the wiki says an ignition tool scorches the sundial's base, the layers turn, and placing three microchips in the revealed holder unlocks the Satellite Dish permanent addition; \"requires_items\" (a dict of item id -> minimum held count) extends the older count-1 requires_item to a multi-item requirement, gating engine/special_items.py can_light()/light(). Any tool in the tools list above lights it. The wiki says \"an ignition tool\" without naming one; an owner play-report named the Burning Glass, and the owner ruled to trust the wiki, so the Torch lights it too. It has no grants here: lighting it sets the permanent GameState.satellite_dish_unlocked flag directly in light() rather than through the grants list, the same shape as mine_south's candlestick_stairway_lit flag, because the reward is a config unlock, not an inventory item or resource. Not reachable in play today: the sundial demands three HELD microchips, but the engine's microchip ceiling is two (day_start/vase_smash/doorstep/doorstep_dig, see the microchip record's meta.notes) -- the third microchip always sits in the Blackbridge Grotto pedestal, counted by the three_microchips area gate's counts_flag without ever being carried, so it cannot also satisfy this held-in-hand requirement. Built correctly and left unreachable, the same deliberate state as the pre-#210 three_microchips gate before the pedestal chip was modelled; no new chip source was added to close the gap. requires_item (singular, count-1) is supported by the engine but no target uses it (the Diary Key is a reward of the Tomb, not a prerequisite); requires_items (plural) is used by apple_orchard only."
+   "notes": "Tomb: near candles grant upgrade_disk_tomb + 4 dice; far candles reveal Diary Key \u2014 both pairs modeled as one ignition event granting all three (simplification: two-step reveal collapsed to one). Diary Key is a REWARD of lighting the Tomb, not a prerequisite. Chapel: lighting the altar grants accumulated Keeper of Tithes coins (chapel_tithes counter, incremented each time the entry -1 coin penalty actually fires); the payout is resolved in engine/special_items.py light(). Trading Post fuse grants (Upgrade Disk + 40 coins) are wiki-documented; the secret room is collapsed to an immediate grant since it is not modeled. Freezer thaw is temporary/daily and not modeled. Mine South (\"area\": true): lighting the eight candlesticks inside the Abandoned Mine (South) permanently lowers the stairway to the Precipice (engine/game.py::_gate_ctx sets the \"candlestick_stairway_lit\" flag from state.special.lit_targets, gating both mine_south<->precipice edges in areas.json); it has no grants here because the Upgrade Disk sitting in the mine is a separate, ungated pickup already granted on arrival by engine/special_items.py::on_area_arrival \u2014 granting it again here would double-pay. mine_south has no rooms.json record (it is an area-graph node, not a draftable room), so it is the one target keyed by an area id instead of a room id; \"area\": true marks that. absent_targets lists rooms/areas the wiki mentions that are absent from both rooms.json and this targets table (mine_south graduated out of it once the area graph modeled the node). Apple Orchard (\"area\": true): the wiki says an ignition tool scorches the sundial's base, the layers turn, and placing three microchips in the revealed holder unlocks the Satellite Dish permanent addition; \"requires_items\" (a dict of item id -> minimum held count) extends the older count-1 requires_item to a multi-item requirement, gating engine/special_items.py can_light()/light(). Any tool in the tools list above lights it. The wiki says \"an ignition tool\" without naming one; an owner play-report named the Burning Glass, and the owner ruled to trust the wiki, so the Torch lights it too. It has no grants here: lighting it sets the permanent GameState.satellite_dish_unlocked flag directly in light() rather than through the grants list, the same shape as mine_south's candlestick_stairway_lit flag, because the reward is a config unlock, not an inventory item or resource. Reachable in play: the sundial's three HELD microchips are the vase chip, the West Path chip and the Blackbridge Grotto pedestal chip (shops.py::take_grotto_chip), which is carried rather than counted in place -- see the microchip record's meta.notes. requires_item (singular, count-1) is supported by the engine but no target uses it (the Diary Key is a reward of the Tomb, not a prerequisite); requires_items (plural) is used by apple_orchard only."
   }
  },
  "machines": {
   "greenhouse": {
    "item": "broken_lever",
    "effect": "antechamber_lever",
-   "notes": "Installing the lever unlocks the Antechamber's south doorway segment (between rank-8 center cell 37 and Antechamber cell 42) for free, enabling walk-through without a key. The north door opens only from the Throne Room and the Sanctum lever (neither modeled)."
+   "notes": "Installing the lever unlocks the Antechamber's south doorway segment (between rank-8 center cell 37 and Antechamber cell 42) for free, enabling walk-through without a key. The north door is opened by entering the Throne Room (effects/rooms/throne_room.py::pull_north_lever, gated on GameConfig.antechamber_levers) or by the Inner Sanctum's own lever; both route through Game._open_north_door."
   },
   "casino": {
    "item": "broken_lever",
@@ -4039,7 +4039,7 @@
   "meta": {
    "source": "https://blueprince.wiki.gg",
    "confidence": "wiki",
-   "notes": "Greenhouse: antechamber_lever unlocks the south Antechamber door segment (rank-8 center to Antechamber, segment key (37,1)). The Antechamber's south door and cell-37's north door are the same segment: segment_key(42,S)==segment_key(37,N)==(37,1). The north door opens only from the Throne Room and the Sanctum lever (neither modeled). Casino: slot_bonus grants nothing here -- the earlier 20 coins + 2 gems payout was an invented placeholder, not a sourced value (data/casino.json's meta.notes: the wiki's Casino page, verified against its raw wikitext, states the golden slot's ONLY difference from a normal one is 5 bonus spins instead of 3, never a coin/gem grant). engine/effects/rooms/casino.py reads state.special.machines_used directly (already appended to by install_lever below, before this dispatch even runs) to apply that 3-vs-5 cap, so this record needs no grants list at all -- machines_used is the signal, not a payout."
+   "notes": "Greenhouse: antechamber_lever unlocks the south Antechamber door segment (rank-8 center to Antechamber, segment key (37,1)). The Antechamber's south door and cell-37's north door are the same segment: segment_key(42,S)==segment_key(37,N)==(37,1). The north door is opened by entering the Throne Room (effects/rooms/throne_room.py::pull_north_lever, gated on GameConfig.antechamber_levers) or by the Inner Sanctum's own lever; both route through Game._open_north_door. Casino: slot_bonus grants nothing here -- the earlier 20 coins + 2 gems payout was an invented placeholder, not a sourced value (data/casino.json's meta.notes: the wiki's Casino page, verified against its raw wikitext, states the golden slot's ONLY difference from a normal one is 5 bonus spins instead of 3, never a coin/gem grant). engine/effects/rooms/casino.py reads state.special.machines_used directly (already appended to by install_lever below, before this dispatch even runs) to apply that 3-vs-5 cap, so this record needs no grants list at all -- machines_used is the signal, not a payout."
   }
  },
  "planetarium_planets": {
