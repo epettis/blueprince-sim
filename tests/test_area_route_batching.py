@@ -156,7 +156,11 @@ def test_area_route_costs_matches_oracle_under_random_masked_play():
     test_antechamber_levers.py's masked-random-play regression, but checking
     route-cost agreement instead of absence of engine assertions."""
     checked = 0
-    for seed in range(8):
+    # Under all_unlocks_config() the outdoor and underground area routes are all
+    # open, so random play spends its step budget travelling and episodes run
+    # ~20 steps -- well under the 60-step cap, which means only the seed count
+    # governs how many states this sweep visits.
+    for seed in range(24):
         env = BluePrinceEnv(cfg=all_unlocks_config())
         env.reset(seed=seed)
         rng = random.Random(seed)

@@ -3,8 +3,10 @@
 from pathlib import Path
 
 from blueprince_sim.engine.model import Registry
+from blueprince_sim.env.multiday import _CARRYOVER_KEYS
 from blueprince_sim.rl.train import (
     all_studio_additions,
+    all_unlocks_config,
     _STUDIO_ADDITION_EXCLUSIONS,
     resolve_eval_checkpoint,
 )
@@ -40,4 +42,23 @@ def test_studio_additions_all_accounted_for():
         f"studio_addition rooms not in all_studio_additions() or exclusion set: {unaccounted!r}. "
         "Implement the room's behaviour, or add it to "
         "_STUDIO_ADDITION_EXCLUSIONS (if unimplemented) with a reason comment."
+    )
+
+
+def test_all_unlocks_config_sets_every_carryover_key():
+    """all_unlocks_config() enables every unlock regardless of its GameConfig
+    default: no member of env/multiday.py::_CARRYOVER_KEYS (the permanent,
+    earned-in-play carry flags) may be left False.
+
+    This pins the agreement between the two modules rather than a literal
+    flag list, so a flag added to _CARRYOVER_KEYS and forgotten in
+    all_unlocks_config() fails here immediately instead of silently shipping
+    an incomplete training baseline.
+    """
+    cfg = all_unlocks_config()
+    unset = sorted(k for k in _CARRYOVER_KEYS if not getattr(cfg, k))
+    assert not unset, (
+        f"all_unlocks_config() leaves these _CARRYOVER_KEYS flags False: {unset!r}. "
+        "Set each explicitly True in all_unlocks_config() with a comment "
+        "naming what it unlocks."
     )

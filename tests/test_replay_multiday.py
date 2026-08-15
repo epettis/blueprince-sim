@@ -17,6 +17,7 @@ from __future__ import annotations
 import dataclasses
 import random
 
+from blueprince_sim.env import actions as A
 from blueprince_sim.env.blueprince_env import BluePrinceEnv, _day_config_diff
 from blueprince_sim.env.multiday import DayChain
 from blueprince_sim.rl.train import all_unlocks_config
@@ -26,8 +27,24 @@ from blueprince_sim.web import replay
 # ---------------------------------------------------------------------------
 # helpers
 
+#: Door-opening actions (each cell x direction) and the three draft slots the
+#: opened door then offers. Opening is what deals a draft hand, so a run that
+#: never opens a door never drafts at all.
+_OPEN_DOOR_ACTIONS = range(A.OPEN_BASE, A.CHOOSE_BASE)
+_DRAFT_SLOT_ACTIONS = range(A.CHOOSE_BASE, A.CHOOSE_BASE + 3)
+
+
 def _play_day_with_chain(chain: DayChain, seed: int) -> tuple[dict, dict]:
-    """Play one day of a DayChain with masked-random actions; return (record, live_outcome).
+    """Play one day of a DayChain; return (record, live_outcome).
+
+    Action choice is seeded-random within a fixed priority: take an offered
+    draft slot, else open a door, else anything legal. Under
+    all_unlocks_config() every outdoor and underground area route is open, so
+    an unprioritised random walker spends the whole step budget travelling
+    between areas and can finish a day having placed nothing but the Entrance
+    Hall. Preferring to open and draft makes every day build a house and grow
+    ``chain.draft_counts`` by construction rather than by luck of the seed, and
+    gives the grid comparison below a real house to compare.
 
     Simulates what EpisodeRecorder does: captures seed, actions, and day_config.
     ``live_outcome`` additionally carries the final grid so a replay can be
@@ -42,7 +59,10 @@ def _play_day_with_chain(chain: DayChain, seed: int) -> tuple[dict, dict]:
     done = False
     while not done:
         legal = [i for i, ok in enumerate(env.action_masks()) if ok]
-        action = rng.choice(legal)
+        preferred = ([i for i in legal if i in _DRAFT_SLOT_ACTIONS]
+                     or [i for i in legal if i in _OPEN_DOOR_ACTIONS]
+                     or legal)
+        action = rng.choice(preferred)
         actions.append(action)
         _, _, term, trunc, info = env.step(action)
         done = term or trunc
@@ -274,7 +294,8 @@ def test_day_config_diff_carries_draft_counts_across_days():
     non-trivial counts. draft_counts gates upgrade-disk offers and the
     Treasure Trove pile, so a dropped diff means those replay wrong from
     day 2 on. We drive a deterministic 3-day chain (fixed seeds throughout,
-    masked-random but seeded action choice) and compare against
+    seeded action choice that always takes an offered draft, so the chain
+    accumulates counts by construction) and compare against
     chain.draft_counts itself -- the true live value, not a value derived
     from the diff under test -- so the assertion cannot pass vacuously.
     Exact equality only, no random-rollout-derived bound.
