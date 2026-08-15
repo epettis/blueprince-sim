@@ -41,15 +41,18 @@ call site through the shared effects/tier1.py::_grant path. A record carrying
 env/multiday.py's ``_CARRYOVER_KEYS``, and the permanent star count remains
 the only thing a night sky leaves behind.
 
-Two of the kinds WRITE when the constellation fires; the other three are READ
-where they are spent, and each read-side kind has its own reader below.
+Three of the kinds WRITE when the constellation fires; the other three are
+READ where they are spent, and each read-side kind has its own reader below.
 
 ``draft_bias`` sets a day-scoped ``GameState`` flag whose category bias -- and
 whose published magnitude -- already lives in data/priority_draws.json.
 ``entrance_hall_trunks`` spawns containers through the counter it shares with
 the ``entrance_hall_trunk`` experiment effect, and obeys that effect's
 published cap through the single check on
-``SpecialItemsState.add_entrance_hall_trunks``.
+``SpecialItemsState.add_entrance_hall_trunks``. ``ink_well_active`` sets the
+day-scoped ``GameState`` flag :meth:`~engine.game.Game.can_redraw_with_star`
+reads, which is what puts the Ink Well's star-for-redraw option into
+env/actions.py's action mask.
 
 The read-side three write nothing at all, and none of them needs a
 ``GameState`` field. :func:`food_step_bonus` counts today's activations at the
@@ -86,6 +89,7 @@ SPIRAL_ID = "spiral_of_stars"
 # appears in the dispatch and a fourth kind is a data edit plus one ``case``.
 EFFECT_DRAFT_BIAS = "draft_bias"  # sets the day-scoped flag a category bias reads
 EFFECT_ENTRANCE_HALL_TRUNKS = "entrance_hall_trunks"  # spawns trunks in the Entrance Hall
+EFFECT_INK_WELL_ACTIVE = "ink_well_active"  # sets the day-scoped flag Game.can_redraw_with_star reads
 EFFECT_FOOD_STEP_BONUS = "food_step_bonus"  # raises one items.json dish's base step value
 EFFECT_SHOP_HALF_PRICE = "shop_half_price"  # halves prices at the shop ids it names
 EFFECT_GREEN_ROOM_GEMS = "green_room_gems"  # parks gems in each newly drafted Green Room
@@ -366,6 +370,8 @@ def apply_effect(game, record: Constellation) -> None:
         state.special.add_entrance_hall_trunks(
             experiments.entrance_hall_trunk_cap(game.registry),
             record.effect["trunks"])
+    elif record.effect_kind == EFFECT_INK_WELL_ACTIVE:
+        state.ink_well_active = True
     # The three read-side kinds deliberately write nothing here; each is
     # resolved by its own reader below, at the site that spends it.
     #

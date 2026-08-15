@@ -207,10 +207,11 @@ class GameState:
     # the Observatory and Starfish Aquarium (both +1 per draft, effects/rooms/
     # observatory.py and aquarium.py). Reported by carryover() and replaced
     # wholesale into cfg.stars by DayChain each advance() -- the same shape as
-    # allowance. Never itself spent by any live mechanic; the one published
-    # sink, the Ink Well's star-redraw, is not modelled yet. What stars DO buy
-    # is the night sky: night_skies below resolves against this live value,
-    # so a star earned mid-day enriches every sky viewed after it.
+    # allowance. Spent 1 at a time by the Ink Well's star-redraw
+    # (Game.redraw(RedrawKind.STAR), gated on ink_well_active below). What
+    # stars also buy is the night sky: night_skies below resolves against
+    # this live value, so a star earned mid-day enriches every sky viewed
+    # after it.
     stars: int = 0
     # Frozen start-of-day star count. Seeded from cfg.stars at reset(), before
     # special_items.configure() runs, and never reassigned for the rest of the
@@ -302,6 +303,13 @@ class GameState:
     # cloister_of_draxus__ix36's own, unrelated, deterministic "only Dead Ends draftable from
     # this room" rule.
     draxus_active: bool = False
+    # Ink Well constellation active today: enables Game.can_redraw_with_star /
+    # redraw(RedrawKind.STAR) -- 1 star per drafting-phase redraw, no per-draft
+    # cap beyond the star balance. Set by activating the constellation from a
+    # night sky (constellations.py::apply_effect). Day-scoped like
+    # southern_cross_active/draxus_active: a fresh GameState clears it, and
+    # nothing carries it over.
+    ink_well_active: bool = False
     drafting_room_count: int = 0  # grants that many free redraws when drafting from the Classroom
     study_placed: bool = False  # Study: pay 1 gem to redraw (max 8 per hand)
     library_placed: bool = False  # Library in the house (obs flag; Library draws key off position)

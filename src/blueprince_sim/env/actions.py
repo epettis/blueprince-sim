@@ -176,10 +176,10 @@ Layout (Discrete(457)):
            Mora always last) and grants its permanent payload; does not
            consume the Telescope.
   442..456 the constellation block, appended at the end so no earlier id
-           shifts. RESERVED IN FULL: no night sky is generated anywhere in
-           the engine, so every id here is masked False unconditionally
-           (docs/rl-environment.md licenses a reserved id only as a recorded
-           owner ruling, which this is):
+           shifts. Each id has its own predicate, so none is masked False
+           unconditionally except the one record still reserved
+           (spiral_of_stars -- docs/rl-environment.md licenses that reserved
+           slot as a recorded owner ruling):
              442..454 activate one constellation, one id per
                      data/constellations.json record in file order (ascending
                      star value: north_star, the_twins, the_slice,
@@ -197,7 +197,8 @@ Layout (Discrete(457)):
                      of the look is the decision.
              456     redraw the dealt hand for 1 star (The Ink Well). Its own
                      id, never a source folded into REDRAW_ACTION -- see the
-                     constant's comment.
+                     constant's comment. Legal once the Ink Well has been
+                     activated (Game.can_redraw_with_star).
 """
 
 from __future__ import annotations
@@ -893,9 +894,7 @@ def action_mask(game: Game, prev_action: int | None = None) -> list[bool]:
     for i in range(_N_CONSTELLATIONS):
         mask[ACTIVATE_CONSTELLATION_BASE + i] = game.can_activate_constellation(i)
     mask[VIEW_NIGHT_SKY_ACTION] = game.can_view_night_sky()
-    # Still reserved: spending a star to redraw the hand (The Ink Well) has no
-    # engine path, and the constellation offering it is implemented: false.
-    mask[REDRAW_WITH_STAR_ACTION] = False
+    mask[REDRAW_WITH_STAR_ACTION] = game.can_redraw_with_star()
     return mask
 
 
@@ -1028,6 +1027,8 @@ def apply_action(game: Game, action: int) -> None:
         game.activate_constellation(action - ACTIVATE_CONSTELLATION_BASE)
     elif action == VIEW_NIGHT_SKY_ACTION:
         game.view_night_sky()
+    elif action == REDRAW_WITH_STAR_ACTION:
+        game.redraw(RedrawKind.STAR)
     else:
         raise ValueError(f"unimplemented action {action}")
 
@@ -1208,4 +1209,6 @@ def describe_action(game: Game, action: int) -> str:
         return f"activate constellation: {record.name}"
     if action == VIEW_NIGHT_SKY_ACTION:
         return "view the night sky"
+    if action == REDRAW_WITH_STAR_ACTION:
+        return "redraw the hand for 1 star (Ink Well)"
     return f"action {action}"
