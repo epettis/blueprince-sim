@@ -605,6 +605,20 @@ class GameState:
     # fruit does not survive the night.
     spread_pending: dict[int, list[tuple[str, int]]] = field(default_factory=dict)
 
+    # Run Payroll's parked coin piles (effects/rooms/office.py), the same
+    # "waiting for arrival" shape as spread_pending immediately above, but
+    # keyed by ROOM ID instead of cell -- the target (Maid's Chamber/
+    # Servant's Quarters) may not be drafted yet when the terminal is used,
+    # so there is no cell to park at. Drained in full on the player's next
+    # arrival at a cell whose room id matches a key here (Game.
+    # _collect_payroll_pending), the same "arrival, not first entry" timing
+    # as _collect_spread -- but deliberately NOT spread_pending itself: the
+    # wiki states Run Payroll is not a spread and has no Conference Room
+    # interaction, so it must never be redirected the way spread_pending
+    # entries are. Per-day only: a fresh GameState clears it every day, same
+    # as spread_pending (an un-collected pile does not survive the night).
+    payroll_pending: dict[str, list[tuple[str, int]]] = field(default_factory=dict)
+
     # Mail Room order/delivery cycle: "empty" (no order outstanding) or
     # "awaiting" (an order has been placed and the next Mail Room draft
     # delivers it). Seeded each day from GameConfig.mail_cycle by
@@ -734,6 +748,16 @@ class GameState:
     # instead of returning to NAVIGATE. Same shape as pending_wrench_room_id:
     # None outside PUMP_LEVEL_PENDING.
     pending_pump_source: str | None = None
+
+    # --- Run Payroll cooldown (engine/effects/rooms/office.py) ---
+    # Fixed cooldown-key ("office_payroll", office.PAYROLL_COOLDOWN_KEY) -> the
+    # day it was last used. Seeded from cfg.payroll_last_used at Game.reset;
+    # changed only by office.run_payroll. A plain dict, not in the
+    # frozenset-coercion list, the same non-bool carry-over shape as
+    # water_levels above (REPLACED, not merged, each advance() -- NOT
+    # SAVE-scoped: a payroll cooldown has no more reason to survive an
+    # attempt wrap than the Pump Room's levels do).
+    payroll_last_used: dict[str, int] = field(default_factory=dict)
 
     def deck(self, rarity_idx: int, is_gem: bool) -> DeckState:
         return self.decks[rarity_idx * 2 + (1 if is_gem else 0)]

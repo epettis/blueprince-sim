@@ -358,6 +358,7 @@ class SpecialItemsState:
     # per-DAY count, matching "in a day".
     draft_luck_uses: dict[str, int] = field(default_factory=dict)
     garage_car_opened: bool = False  # Car Keys garage car trunk used today (once per day)
+    office_spread_gold_used: bool = False  # Spread Gold in Estate used today (once per day; effects/rooms/office.py)
     # Vault Key ids whose deposit box was opened today (at most once per key per day).
     vault_boxes_opened: list[str] = field(default_factory=list)
     # ids lit this day (ignition mechanic): room ids for on-grid targets (chapel,

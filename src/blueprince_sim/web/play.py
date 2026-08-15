@@ -135,8 +135,10 @@ def action_group(action_id: int) -> str:
         return "control"
     if A.PUMP_SOURCE_BASE <= action_id < A.PUMP_LEVEL_BASE:
         return "control"
-    if A.PUMP_LEVEL_BASE <= action_id < A.N_ACTIONS:
+    if A.PUMP_LEVEL_BASE <= action_id < A.SPREAD_GOLD_ACTION:
         return "choose"
+    if action_id in (A.SPREAD_GOLD_ACTION, A.RUN_PAYROLL_ACTION):
+        return "use"
     return "other"
 
 

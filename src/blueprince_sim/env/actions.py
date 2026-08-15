@@ -212,6 +212,23 @@ Layout (Discrete(479)):
            wide). The macro action sets the level directly (docs/areas.md's
            Pump Room section: the "set source to level" owner ruling) -- no
            tank/pump puzzle to solve.
+  479      Spread Gold in Estate (NAVIGATE; standing at the Office terminal,
+           once per day): a random 3/4/5-coin pile into every currently
+           drafted room, including the Office itself but never a room
+           drafted afterward -- a spread (GameState.spread_pending,
+           Game._collect_spread), so a placed Conference Room redirects
+           every pile into its own cell, the same way it redirects the
+           Patio/Locker Room/Secret Garden (docs/rooms.md; owner
+           ruling on the pile size, unpublished by the wiki).
+  480      Run Payroll (NAVIGATE; standing at the Office terminal, weekly
+           cooldown elapsed): 5-coin piles for the Maid's Chamber and the
+           Servant's Quarters (10 coins total, both figures published). NOT
+           a spread -- no Conference Room interaction (wiki, explicit) --
+           paid out instead through GameState.payroll_pending, keyed by room
+           id so a target drafted after the terminal is used still receives
+           its pile (see effects/rooms/office.py). Cooldown resets the
+           coming in-game Saturday after use (owner ruling; day % 7 == 0,
+           Day One is Sunday).
 """
 
 from __future__ import annotations
@@ -476,8 +493,22 @@ _N_PUMP_SOURCES = 6  # width pinned as a constant (like _N_AXE_TARGETS) so
 PUMP_LEVEL_BASE = PUMP_SOURCE_BASE + _N_PUMP_SOURCES  # 464
 _N_PUMP_LEVELS = 15  # levels 0..14
 
-# N_ACTIONS = first slot after the Pump Room's level-pick block.
-N_ACTIONS = PUMP_LEVEL_BASE + _N_PUMP_LEVELS  # 479
+# 479: Spread Gold in Estate (NAVIGATE; standing at the Office terminal, once
+# per day), appended at the end so no earlier id shifts. A spread -- see
+# Game.spread_gold/effects/rooms/office.py -- so it is redirected the same
+# way the Patio/Locker Room/Secret Garden are when a Conference Room is
+# already placed (docs/rooms.md).
+SPREAD_GOLD_ACTION = PUMP_LEVEL_BASE + _N_PUMP_LEVELS  # 479
+
+# 480: Run Payroll (NAVIGATE; standing at the Office terminal, weekly
+# cooldown elapsed), appended at the end so no earlier id shifts. NOT a
+# spread -- see Game.run_payroll/effects/rooms/office.py -- paid out through
+# GameState.payroll_pending instead of spread_pending, with no Conference
+# Room interaction (docs/rooms.md).
+RUN_PAYROLL_ACTION = SPREAD_GOLD_ACTION + 1  # 480
+
+# N_ACTIONS = first slot after Run Payroll.
+N_ACTIONS = RUN_PAYROLL_ACTION + 1  # 481
 
 DIR_INDEX = {d: i for i, d in enumerate(DIRS)}
 
@@ -758,6 +789,15 @@ def action_mask(game: Game, prev_action: int | None = None) -> list[bool]:
         # resolves both cases. Putting it in either branch strands the other.
         if game.can_insert_disk():
             mask[INSERT_DISK_ACTION] = True
+
+        # The Office's other terminal process (disk_reader is a third,
+        # separate one, masked just above): both gate on standing at the
+        # Office's own cell, which is always on-grid, so no off-grid case to
+        # resolve here.
+        if game.can_spread_gold():
+            mask[SPREAD_GOLD_ACTION] = True
+        if game.can_run_payroll():
+            mask[RUN_PAYROLL_ACTION] = True
 
         # Also outside the split: most ignition targets (chapel, tomb,
         # trading_post) sit on the grid, but mine_south is an off-grid area
@@ -1165,8 +1205,12 @@ def apply_action(game: Game, action: int) -> None:
     elif PUMP_SOURCE_BASE <= action < PUMP_LEVEL_BASE:
         source_ids = _build_pump_source_ids(game.registry)
         game.set_pump_source(source_ids[action - PUMP_SOURCE_BASE])
-    elif PUMP_LEVEL_BASE <= action < N_ACTIONS:
+    elif PUMP_LEVEL_BASE <= action < SPREAD_GOLD_ACTION:
         game.set_pump_level(action - PUMP_LEVEL_BASE)
+    elif action == SPREAD_GOLD_ACTION:
+        game.spread_gold()
+    elif action == RUN_PAYROLL_ACTION:
+        game.run_payroll()
     else:
         raise ValueError(f"unimplemented action {action}")
 
@@ -1352,8 +1396,12 @@ def describe_action(game: Game, action: int) -> str:
     if PUMP_SOURCE_BASE <= action < PUMP_LEVEL_BASE:
         source_id = _build_pump_source_ids(game.registry)[action - PUMP_SOURCE_BASE]
         return f"Pump Room: select source {source_id}"
-    if PUMP_LEVEL_BASE <= action < N_ACTIONS:
+    if PUMP_LEVEL_BASE <= action < SPREAD_GOLD_ACTION:
         level = action - PUMP_LEVEL_BASE
         source_id = game.state.pending_pump_source or "?"
         return f"Pump Room: set {source_id} to level {level}"
+    if action == SPREAD_GOLD_ACTION:
+        return "Office: Spread Gold in Estate"
+    if action == RUN_PAYROLL_ACTION:
+        return "Office: Run Payroll"
     return f"action {action}"

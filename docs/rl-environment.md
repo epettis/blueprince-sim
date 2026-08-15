@@ -39,11 +39,24 @@ never wrong.
 
 | width | value | where |
 |---|---|---|
-| `N_ACTIONS` | **479** | `env/actions.py` |
+| `N_ACTIONS` | **481** | `env/actions.py` |
 | `len(DayChain._CARRYOVER_KEYS)` | **19** | `env/multiday.py`, drives the `carryover` obs Box |
 
-**Last change: `N_ACTIONS` 458 → 479, the Pump Room panel (docs/areas.md's
-Pump Room section).** A factored two-step menu — pick a water source (6 ids,
+**Last change: `N_ACTIONS` 479 → 481, the Office's second terminal process
+([`rooms.md`](rooms.md), "The Office's coins").** Two ids, appended after the Pump Room panel
+block: 479 Spread Gold in Estate, 480 Run Payroll — both gated on standing at
+the Office's cell (`Capability.OFFICE_TERMINAL`, `engine/effects/rooms/office.py`),
+the same shape as `SECURITY_LEVEL`/`PUMP_PANEL`. Spread Gold in Estate IS a
+spread (`GameState.spread_pending`/`Game._collect_spread`), redirected by a
+placed Conference Room the same way the Patio/Locker Room/Secret Garden are;
+Run Payroll is explicitly NOT a spread (the wiki states no Conference Room
+interaction), so it pays out through a separate `GameState.payroll_pending`
+dict keyed by room id instead. `_CARRYOVER_KEYS` stays at 19 — the weekly
+payroll cooldown (`GameConfig.payroll_last_used`) rides the same non-bool
+carry-over shape as `water_levels` (NOT SAVE-scoped), not a bool flag.
+
+Previously: `N_ACTIONS` 458 → 479, the Pump Room panel (docs/areas.md's
+Pump Room section). A factored two-step menu — pick a water source (6 ids,
 `PUMP_SOURCE_BASE`), then pick its target level 0..14 (15 ids,
 `PUMP_LEVEL_BASE`, `Phase.PUMP_LEVEL_PENDING`) — rather than a flat
 source-by-level enumeration (53 ids), the same multi-phase-menu idiom as

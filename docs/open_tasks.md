@@ -68,47 +68,6 @@ per-system item rules, commerce, containers, ignition),
 [`upgrade-disks-design.md`](upgrade-disks-design.md),
 [`greedy-strategy.md`](greedy-strategy.md), [`process.md`](process.md).
 
-## 1. Resource spreading through the house — the Office row
-
-Patio, Secret Garden, Locker Room, Conference Room and Tomb all spread
-resources into other rooms on draft, and all five are live and tested
-(`effects/rooms/patio.py`, `secret_garden.py`, `locker_room.py`; the Tomb's
-`coins_per_deadend` in `engine/effects/tier1.py`); the Conference Room's
-redirect for each is its own branch inside the spreader that feeds it, not a
-shared generic one, matching each spreader's own formula. The
-arrival-not-first-entry payout constraint is satisfied at `game.py:2705`
-(`_collect_spread` runs before the `entered[cell]` early return).
-
-**Only the Office row remains.** *"Spread Gold in Estate"* is a
-player-triggered, once-per-day terminal action, gated behind walking to the
-Office and operating its terminal — the same terminal concept as the shipped
-`disk_reader` flag — not an on-draft effect like the other five. Do not
-conflate it with the Office *safe* (+1 gem), which is already shipped.
-
-Scope: a new `effects/rooms/office.py` (~60 lines, reusing `spread_pending`
-and `Game._collect_spread`, no new primitive) plus a once-per-day flag
-gating the terminal action. **It needs a new action id, so it is a retrain
-trigger.**
-
-**The amount is unpublished, and that is a checked fact rather than a
-missing lookup.** The Office page says only that *"piles of coins will be
-spread throughout all currently drafted rooms"*, and the Spread page lists
-the effect without a figure — unlike the Tomb, whose 5 coins it states
-outright. Two pages, no number. Whatever lands here is an owner ruling, not
-a citation.
-
-**The Office's OTHER terminal process is separate, fully sourced, and also
-unmodelled.** *"Run Payroll"* puts 10 coins in **both** the Maid's Chamber
-and the Servant's Quarters, as two piles of 5 each, and the wiki is explicit
-that it is **not** a spread effect and has **no** Conference Room
-interaction — so it must not be built on the `spread_pending` path this
-entry describes. Its amounts need no ruling; its **cooldown does**. The wiki
-carries an open question box on exactly that: it *"seems to reset on
-Saturdays"*, may last one or two Saturdays *"with no clear pattern"*, and
-*"after Day 85, the cooldown seems to be removed entirely"*. A week-scale
-cooldown also needs the week boundary, which the README lists among the
-broader modelling simplifications.
-
 ## 8. Model the Casino games
 
 The Casino is a room of gambling minigames (slot machine, roulette). Two pieces:

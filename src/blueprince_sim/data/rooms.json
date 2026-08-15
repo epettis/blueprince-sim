@@ -2063,6 +2063,7 @@
     "directory_number": "24",
     "internal_index": 105,
     "effect_text": "Opportunity to earn and spread \u00f0\u00b0",
+    "simplification": "two owner rulings, not wiki figures. Spread Gold in Estate's coin pile is a random 3, 4, or 5 per receiving room: the wiki publishes no figure for this spread (unlike the Tomb's flat 5 coins), so this reuses the Office's own published floor-item pile sizes as the game's answer. Run Payroll's weekly cooldown resets on the coming in-game Saturday after use: the wiki's open question box offers two readings ('the coming Saturday or the Saturday afterwards, with no clear pattern') plus a claimed removal 'after Day 85' -- this models only the shorter reading, with no Day-85 special case. See engine/effects/rooms/office.py.",
     "glyph_resolution": [
      {
       "icon": "coins",

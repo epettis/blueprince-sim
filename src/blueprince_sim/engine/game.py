@@ -16,7 +16,7 @@ from .effects import Capability, Hook
 from .effects.items import (basement_key, crown_of_the_blueprints, gear_wrench, keycard,
                             master_key, paper_crown, power_hammer, prism_key, running_shoes,
                             silver_key, telescope, the_axe)
-from .effects.rooms import dovecote, foyer, mail_room, pump_room, shrine
+from .effects.rooms import dovecote, foyer, mail_room, office, pump_room, shrine
 from .effects.tier1 import _grant
 from .grid import (ADJACENT, DIRS, E, ENTRANCE_CELL, N, N_CELLS, OPPOSITE, W,
                    neighbor, rank_of, rotate_mask)
@@ -110,6 +110,7 @@ class Game:
         st.axed_rooms = tuple(cfg.axed_rooms)
         st.permanent_rarity = dict(cfg.permanent_rarity)
         st.water_levels = dict(cfg.water_levels)
+        st.payroll_last_used = dict(cfg.payroll_last_used)
         st.planetarium_planets = tuple(cfg.planetarium_planets)
         # Seeds today's dynamic_rarity bucket bookkeeping with every
         # Gear-Wrench-set override, right after build_decks (which already
@@ -650,6 +651,47 @@ class Game:
         assert self.can_set_security_level(), "must stand in Security"
         self.state.security_level = level
 
+    # ------------------------------------------------------- Office terminal
+    # docs/rooms.md (owner rulings): the Office runs two
+    # independent terminal processes, both gated on standing at the same
+    # ``Capability.OFFICE_TERMINAL`` cell -- see effects/rooms/office.py.
+
+    def can_spread_gold(self) -> bool:
+        """Standing at the Office terminal, on the grid, mid-day, not yet used today."""
+        return (self.phase is Phase.NAVIGATE and not self.off_grid
+                and self.state.pos == self._capability_cell(Capability.OFFICE_TERMINAL) >= 0
+                and not self.state.special.office_spread_gold_used)
+
+    def spread_gold(self) -> None:
+        """Spread Gold in Estate: a random 3/4/5-coin pile into every currently
+        drafted room (including the Office), once per day -- see office.spread_gold."""
+        assert self.can_spread_gold(), "must stand in the Office, once per day"
+        office.spread_gold(self)
+
+    def can_run_payroll(self) -> bool:
+        """Standing at the Office terminal, on the grid, mid-day, weekly cooldown elapsed."""
+        return (self.phase is Phase.NAVIGATE and not self.off_grid
+                and self.state.pos == self._capability_cell(Capability.OFFICE_TERMINAL) >= 0
+                and office.payroll_available(self.state.payroll_last_used, self.cfg.day))
+
+    def run_payroll(self) -> None:
+        """Run Payroll: 5-coin piles for the Maid's Chamber and Servant's
+        Quarters, paid on arrival whenever each is drafted and entered --
+        see office.run_payroll. NOT a spread (no Conference Room redirect)."""
+        assert self.can_run_payroll(), "must stand in the Office, cooldown must have elapsed"
+        office.run_payroll(self)
+
+    def _payroll_carryover(self) -> dict:
+        """Cross-day carry for Run Payroll's weekly cooldown record.
+
+        Reports the FULL current dict every day (state.payroll_last_used is
+        seeded from cfg.payroll_last_used at reset() and only ever changed
+        by office.run_payroll), the same "state already IS the accumulated
+        total" shape as _pump_carryover's water_levels -- also NOT
+        SAVE-scoped, so DayChain.advance() resets it at the attempt wrap.
+        """
+        return {"payroll_last_used": dict(self.state.payroll_last_used)}
+
     # --------------------------------------------------------- pump room panel
     # docs/areas.md's Pump Room section (owner ruling): the macro "set source
     # to level" action -- the player picks a source, then a target level, in
@@ -1147,6 +1189,7 @@ class Game:
         result.update(self._axe_carryover())
         result.update(self._wrench_carryover())
         result.update(self._pump_carryover())
+        result.update(self._payroll_carryover())
         return result
 
     def _wrench_carryover(self) -> dict:
@@ -2831,6 +2874,26 @@ class Game:
             else:
                 grant_item(self, what, count)
 
+    def _collect_payroll_pending(self, cell: int) -> None:
+        """Grant every resource GameState.payroll_pending owes THIS CELL's room id.
+
+        Run Payroll's own arrival-not-first-entry payout -- deliberately
+        separate from _collect_spread/spread_pending immediately above (see
+        effects/rooms/office.py's module docstring for why Run Payroll must
+        never touch spread_pending or the Conference Room). Keyed by room id
+        rather than cell, so a target drafted AFTER the terminal was used
+        still pays out here once it is entered. Fires on every arrival, the
+        same "not gated on first entry" timing as _collect_spread.
+        """
+        idx = self.state.grid[cell]
+        if idx < 0:
+            return
+        entries = self.state.payroll_pending.pop(self.registry.rooms[idx].id, None)
+        if not entries:
+            return
+        for what, count in entries:
+            grant_item(self, what, count)
+
     def _enter(self, cell: int) -> None:
         """First-entry bookkeeping for ``cell``; no-op if already entered.
 
@@ -2843,6 +2906,7 @@ class Game:
             st.antechamber_reached = True  # milestone: first arrival at rank 9 center
         # Parked resources pay out on every arrival, not just first entry.
         self._collect_spread(cell)
+        self._collect_payroll_pending(cell)
         if rank_of(cell) >= 8:
             # Same Day Delivery's trigger; idempotent after the first Rank 8 arrival.
             mail_room.reach_rank8(self)

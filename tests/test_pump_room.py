@@ -24,6 +24,7 @@ from blueprince_sim.env.actions import (
     N_ACTIONS,
     PUMP_LEVEL_BASE,
     PUMP_SOURCE_BASE,
+    SPREAD_GOLD_ACTION,
     _build_pump_source_ids,
     action_mask,
     apply_action,
@@ -362,11 +363,13 @@ def test_action_layer_selects_a_source_then_a_level(registry):
 
 
 def test_pump_level_pending_never_dead_ends(registry):
-    """Every id in the PUMP_LEVEL_BASE block agrees with N_ACTIONS's own end
-    (no reserved-but-unmasked tail), and at least one level is always legal
-    in PUMP_LEVEL_PENDING -- the source's current level is always in its own
-    range, so this phase can never mask every id False."""
-    assert PUMP_LEVEL_BASE + 15 == N_ACTIONS
+    """Every id in the PUMP_LEVEL_BASE block agrees with the Office terminal
+    block's own start (no reserved-but-unmasked tail -- SPREAD_GOLD_ACTION is
+    N_ACTIONS's own end minus 2 now that the Office terminal block appended
+    two more ids after the Pump Room panel), and at least one level is always
+    legal in PUMP_LEVEL_PENDING -- the source's current level is always in
+    its own range, so this phase can never mask every id False."""
+    assert PUMP_LEVEL_BASE + 15 == SPREAD_GOLD_ACTION
     g = Game(GameConfig(), seed=0, registry=registry)
     _stand_at_pump_room(g, registry)
     g.set_pump_source("aquarium")
