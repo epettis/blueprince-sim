@@ -32,8 +32,10 @@ from . import cloister  # noqa: F401
 from . import coat_check  # noqa: F401
 from . import commerce  # noqa: F401  (registers commerce capability on import)
 from . import commissary  # noqa: F401  (registers its stock builder on import)
+from . import conference_room  # noqa: F401  (registers dig-spots capability on import)
 from . import conservatory  # noqa: F401
 from . import darkroom  # noqa: F401
+from . import dining_room  # noqa: F401  (registers dining-room capability on import)
 from . import dovecote  # noqa: F401  (no handler; imported for the predicate helper)
 from . import drawing_room  # noqa: F401
 from . import entrance_hall  # noqa: F401  (registers container-kinds overlay + vase capability)
@@ -51,6 +53,7 @@ from . import kitchen  # noqa: F401  (registers its stock builder on import)
 from . import laboratory  # noqa: F401  (registers the experiment-terminal capability on import)
 from . import locker_room  # noqa: F401
 from . import locksmith  # noqa: F401  (registers its stock builder on import)
+from . import lost_and_found  # noqa: F401  (registers lost-and-found capability on import)
 from . import mail_room  # noqa: F401
 from . import mechanarium  # noqa: F401  (no per-tag handler; seeds the diagonal-compartment count)
 from . import nook  # noqa: F401
@@ -77,6 +80,7 @@ from . import tomb  # noqa: F401
 from . import trading_post  # noqa: F401  (registers the trade-menu capability on import)
 from . import treasure_trove  # noqa: F401
 from . import utility_closet  # noqa: F401  (registers the breaker-box capability on import)
+from . import vault  # noqa: F401  (registers vault capability on import)
 from . import vestibule  # noqa: F401
 from . import weight_room  # noqa: F401
 from . import workshop  # noqa: F401  (registers fabrication capability + stock builder)

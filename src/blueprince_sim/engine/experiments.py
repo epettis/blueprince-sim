@@ -569,13 +569,22 @@ def _room_has_fireplace(room, cell: int) -> bool:
     ``Room.has_fireplace`` flag; the Dining Room's fireplace instead depends
     on the cell it lands on -- centre columns or Rank 9 have one, the wings
     and Rank 1 have windows instead (per the packet trigger's own
-    ``meta.notes``). Duplicates ``effects/rooms/cloister.py``'s
-    ``_dining_room_has_fireplace`` rather than importing it: this module ->
-    ``effects.rooms.cloister`` would import the ``effects.rooms`` package,
-    which imports ``effects.rooms.drawing_room``, which itself imports this
-    module (``from ... import experiments``) -- a cycle.
+    ``meta.notes``). Dining-Room-ness itself is read via
+    ``Capability.DINING_ROOM`` (registered by ``effects/rooms/dining_room.py``,
+    matched on the room's own id or its ``variant_of`` so an upgrade variant
+    still qualifies), imported locally: this module -> ``.effects`` would
+    import the ``effects.rooms`` package, which imports
+    ``effects.rooms.drawing_room``, which itself imports this module (``from
+    ... import experiments``) -- a cycle. Duplicates
+    ``effects/rooms/cloister.py``'s ``_dining_room_has_fireplace`` rather than
+    importing it, for the same reason.
     """
-    if room.id == "dining_room" or room.variant_of == "dining_room":
+    from .effects import Capability, provides_capability
+
+    is_dining_room = provides_capability(room.id, Capability.DINING_ROOM) or (
+        room.variant_of is not None
+        and provides_capability(room.variant_of, Capability.DINING_ROOM))
+    if is_dining_room:
         return (is_center_column(cell) and rank_of(cell) != 1) or rank_of(cell) == 9
     return room.has_fireplace
 
@@ -924,9 +933,17 @@ def _apply_spread_dig_spots(game, effect: ExperimentEffect) -> None:
     "first five on the table, the rest on the floor" placement flavour (wiki)
     has no mechanical consequence at this engine's per-cell granularity and
     is not modelled.
+
+    The Conference Room's cell is resolved via ``Game._capability_cell``
+    (``Capability.DIG_SPOTS``, registered by
+    ``effects/rooms/conference_room.py``) rather than a direct
+    ``game.room_cells["conference_room"]`` lookup, imported locally for the
+    same cycle reason as :func:`_room_has_fireplace`.
     """
-    conference_cell = game.room_cells.get("conference_room")
-    if conference_cell is None:
+    from .effects import Capability
+
+    conference_cell = game._capability_cell(Capability.DIG_SPOTS)
+    if conference_cell < 0:
         return  # Grounds branch unbuilt; see the module docstring
     st = game.state
     cap = effect.magnitude.get("conference_room_spot_cap", 50)

@@ -21,15 +21,19 @@ logger = logging.getLogger("blueprince_sim.effects")
 class Capability(Enum):
     BREAKER_BOX = "breaker_box"  # room's breaker box gates keycard power/darkroom lights (Utility Closet)
     COMMERCE = "commerce"  # room can be bought from, traded with, or fabricated at
+    DIG_SPOTS = "dig_spots"  # room's cell receives the Spread Dig Spots experiment effect's dirt (Conference Room; see experiments._apply_spread_dig_spots)
+    DINING_ROOM = "dining_room"  # room is the Dining Room, or an upgrade variant of it (Main Course, fireplace rank rule; see special_items._maybe_serve_main_course, experiments._room_has_fireplace)
     EXPERIMENT_TERMINAL = "experiment_terminal"  # room's Experimental Setup menu is open (Laboratory)
     FABRICATION = "fabrication"  # room's fabricate menu is open (Workshop; see shops.py)
     LEVER = "lever"  # room pulls an Antechamber lever on first entry
+    LOST_AND_FOUND = "lost_and_found"  # room's on_enter triggers the Lost & Found steal-and-draw (see special_items.lost_and_found_on_enter)
     NIGHT_SKY = "night_sky"  # room's telescope can view a night sky (Game.can_view_night_sky)
     SECURITY_LEVEL = "security_level"  # room's security-level terminal is open (Security)
     TELESCOPE_REVEAL = "telescope_reveal"  # room's Telescope planet-reveal menu is open (Planetarium)
     TITHE = "tithe"  # a negative coins grant here is banked (Keeper of Tithes; see tier1.grant)
     TRADE = "trade"  # room's interior trade menu is open (Trading Post; see shops.py)
     VASE = "vase"  # room's vase can be smashed for a microchip (Entrance Hall; see shops.py)
+    VAULT = "vault"  # room's deposit boxes can be opened (see special_items.can_open_vault_box)
 
 
 _CAPABILITY_REGISTRY: set[tuple[str, Capability]] = set()

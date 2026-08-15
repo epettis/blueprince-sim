@@ -6281,7 +6281,7 @@
    "meta": {
     "source": "wiki",
     "confidence": "wiki",
-    "effect_text": "Whenever you enter this room, lose one random special inventory item. Contains 2 rare items. APPROXIMATION: item loss has no effect tag in the sim (no special-item inventory); no effect modeled. PLACEMENT NOTE: wiki restricts horizontal drafting at rank 1 only; no_horizontal_end_rank also blocks rank 9 horizontal outside corners (slight over-restriction).",
+    "effect_text": "Whenever you enter this room, lose one random special inventory item; the room grants item draws from its own pool in return (count varies 2-4 per the wiki's ladder mechanic). Contains 2 rare items. Modeled in engine/special_items.py's on_enter dispatcher (lost_and_found_on_enter, gated on Capability.LOST_AND_FOUND), not the effects tag array, since it must run after this room's own guaranteed-item grant. PLACEMENT NOTE: wiki restricts horizontal drafting at rank 1 only; no_horizontal_end_rank also blocks rank 9 horizontal outside corners (slight over-restriction).",
     "rarity_confidence": "wiki"
    }
   },
