@@ -206,8 +206,8 @@ def test_garage_gate_passes_when_a_corner_drafted_greenhouse_fills_a_dead_end_sl
     real Dead End (Closet) in slot 1, "both slots are Dead Ends" is false, so
     the gate passes (does not block the Forced Draw attempt)."""
     greenhouse = registry.by_id["greenhouse"]
-    corner_mask = 3  # S|E -- one of the Greenhouse's draftable corner rotations
-    assert corner_mask in greenhouse.rotations, "setup: corner rotation must be legal"
+    corner_mask = 3  # S|E -- one of the Greenhouse's gated corner rotations
+    assert corner_mask in greenhouse.gated_rotations, "setup: corner rotation must be a real shape"
     closet = registry.by_id["closet"]
     assert closet.layout == "dead_end", "setup: Closet must be a Dead End"
     options = [

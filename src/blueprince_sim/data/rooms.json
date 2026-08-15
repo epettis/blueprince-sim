@@ -4993,6 +4993,7 @@
    "alt_layouts": [
     "corner"
    ],
+   "alt_layouts_gate": "greenhouse_wall_broken",
    "draft_conditions": [
     "west_or_east_wing",
     "no_corner"

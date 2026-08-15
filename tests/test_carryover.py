@@ -417,6 +417,7 @@ def test_carryover_all_false_defaults():
         "royal_scepter_found",
         "west_gate_unlatched",
         "weight_room_wall_broken",
+        "greenhouse_wall_broken",
     }
     assert bool_keys <= set(report.keys())
     assert all(not report[k] for k in bool_keys), f"expected all False, got {report}"
@@ -489,6 +490,7 @@ def test_carryover_shape_is_complete():
         "royal_scepter_found",
         "west_gate_unlatched",
         "weight_room_wall_broken",
+        "greenhouse_wall_broken",
         "room46_reached",
         "room8_solved",
         "mine_south_visited",

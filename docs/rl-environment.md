@@ -40,30 +40,16 @@ never wrong.
 | width | value | where |
 |---|---|---|
 | `N_ACTIONS` | **458** | `env/actions.py` |
-| `len(DayChain._CARRYOVER_KEYS)` | **17** | `env/multiday.py`, drives the `carryover` obs Box |
+| `len(DayChain._CARRYOVER_KEYS)` | **18** | `env/multiday.py`, drives the `carryover` obs Box |
 
-**Last change: 457 → 458, the Axe block widening from 48 to 49 targets, landed
-in the same PR as `_CARRYOVER_KEYS` 16 → 17.** Conservatory reachability (see
-[`scoping-and-carryover.md`](scoping-and-carryover.md)) gave the Conservatory
-a real rarity and a nonzero gem cost, which made it the 49th floorplan family
-`_build_axe_target_ids` derives from the registry — every room with a rarity
-and `gem_cost > 0`. `_N_AXE_TARGETS` was pinned at 48 and nothing checked the
-two agreed: the mask-building loop that walks `_build_axe_target_ids`'
-result has no bounds check, so the 49th family silently wrote past the
-reserved `AXE_TARGET_BASE..LOCK_MENU_BASE` block and corrupted
-`LOCK_USE_KEY_ACTION`'s mask bit, marking "use a key at a lock" legal outside
-any lock menu. `_N_AXE_TARGETS` is now 49, and `_build_axe_target_ids` (and
-its `_build_area_node_ids`/`_build_lock_special_key_order` siblings) each
-assert their own length against their pinned constant on every call, so a
-future desync fails loudly instead of corrupting a mask bit. Every id from
-`LOCK_MENU_BASE` onward shifted by one; `test_no_existing_action_id_shifted`
-in `tests/test_constellations.py` pins the new values.
-
-Both width changes are retrain triggers on their own terms and landed
-together deliberately — batching space-affecting changes before one
-deliberate restart is this repo's standing discipline, and the
-`_CARRYOVER_KEYS` resize already forced a retrain regardless, so growing the
-action space by one in the same batch cost nothing extra.
+**Last change: `_CARRYOVER_KEYS` 17 → 18, `greenhouse_wall_broken`.** Owner
+ruling: the Greenhouse's corner-layout rotations (`Room.gated_rotations`,
+`engine/model.py`) are draftable only once a Power Hammer has broken its
+wall, a fact that carries across days the same way `weight_room_wall_broken`
+does — see [`scoping-and-carryover.md`](scoping-and-carryover.md).
+`N_ACTIONS` is unaffected: this is an observation-only change, unlike the
+prior width change (457 → 458), which landed batched with a `_CARRYOVER_KEYS`
+resize of its own (`git log -S "_N_AXE_TARGETS = 49"` has that history).
 
 The constellation build itself (442 → 457, superseded by the above) landed at
 once, inert: 13 activation ids, one per `data/constellations.json` record in

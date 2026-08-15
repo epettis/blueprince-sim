@@ -34,8 +34,10 @@ from blueprince_sim.engine.effects import (
     validate_item_registry,
     validate_room_registry,
 )
+from blueprince_sim.config import GameConfig
 from blueprince_sim.engine.effects.tier1 import RESOURCES as TIER1_RESOURCES
 from blueprince_sim.engine.model import Registry
+from blueprince_sim.engine.shops import ShopsState
 from blueprince_sim.engine.state import GameState
 
 DATA = Path(__file__).resolve().parent.parent / "src" / "blueprince_sim" / "data"
@@ -979,6 +981,14 @@ def main(argv: list[str] | None = None) -> int:
         for alt in r.get("alt_layouts", []):
             if alt not in VALID_LAYOUTS:
                 errors.append(f"{where}: bad alt layout {alt}")
+        gate = r.get("alt_layouts_gate")
+        if gate is not None:
+            if not r.get("alt_layouts"):
+                errors.append(f"{where}: alt_layouts_gate set but alt_layouts is empty")
+            if not hasattr(GameConfig, gate):
+                errors.append(f"{where}: alt_layouts_gate {gate!r} is not a GameConfig field")
+            if not hasattr(ShopsState, gate):
+                errors.append(f"{where}: alt_layouts_gate {gate!r} is not a ShopsState field")
         if r["category"] not in VALID_CATEGORIES:
             errors.append(f"{where}: bad category {r['category']}")
         for extra_cat in r.get("extra_categories", []):

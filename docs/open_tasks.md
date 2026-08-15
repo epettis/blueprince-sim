@@ -175,65 +175,6 @@ the other stub retirements in this file, it adds to the action space and
 therefore **belongs bundled with a retrain**, the same reasoning that governed
 the area graph's sequencing.
 
-## 12. The Greenhouse's Power Hammer wall changes its layout
-
-**This is a live inconsistency today, not deferred work — the diagnosis below
-corrects an earlier, wrong premise.** `model.py:137` already folds
-`alt_layouts` into `Room.rotations` at load time, so the Greenhouse's corner
-(L-shape) layout is offered **unconditionally at draft time**, with no Power
-Hammer involved at all — there is no missing "switch" to build, the corner
-shape is already reachable on day one.
-
-What is still wrong: `Room.layout` itself — a separate, frozen field, not the
-per-draft rotation choice — stays `"dead_end"` regardless of which rotation
-was actually drafted. So a two-door Greenhouse (the corner layout, which is
-not a dead end) still pays the Tomb's Dead End bounty, because
-`effects/rooms/tomb.py:13-15`'s `spread_coins_for_dead_ends` reads
-`ctx_room.layout == "dead_end"` at draft time regardless of shape. **Measured:
-coins 5 -> 10** for a two-door Greenhouse that should not have counted. The
-same frozen field is read the same wrong way by Cloister of Draxus
-(`effects/rooms/cloister.py:163`, `grant_dice_for_dead_ends`) and the Garage's
-dead-end gate (`draft.py:350`).
-
-**Three references in the prior version of this entry did not exist and are
-deleted here:** `Game._enter_lever_room` — the real Weight Room code is
-`effects/rooms/weight_room.py::pull_south_lever`; a `dead_end` reference in
-`effects/tier1.py` — the real reference is `effects/rooms/tomb.py:13-15`
-above; and a claim that day termination (`game.py:3049`) is layout-driven —
-it is not, it computes termination from placed door masks
-(`frontier_doorways()` / `_antechamber_reachable()`), not from `room.layout`.
-
-**The Weight Room is NOT this mechanism, and must not be folded into it.** Its
-Power Hammer wall reveals *"a lever for the south Antechamber door as well as
-two documents"* (`https://blueprince.wiki.gg/wiki/Weight_Room`), and the space
-*"will always be accessible on future days"*. The room's own doors are
-unchanged — it has no `alt_layouts` entry, and the wiki says nothing about its
-shape. `pull_south_lever` already models it correctly, as a permanent lever
-unlock (`weight_room_wall_broken`) that opens the Antechamber's south segment.
-Nothing about the Weight Room needs to change.
-
-**These are two separate pieces of work and only one of them needs a ruling.**
-
-**(a) The Dead End miscredit — a bug, no flag and no ruling.** Nothing about
-the wall break is involved: the fix is to stop asking the frozen `Room.layout`
-field and start asking the orientation actually drafted. A room is a Dead End
-when its placed door mask has exactly one bit set, and `_place_room` already
-has that orientation in scope — `effects.fire` simply does not pass it through
-to `ON_DRAFT_ROOM` handlers, which is the whole of the plumbing. An effective
-layout accessor keyed on `(room, orientation)` then serves all three readers
-(`tomb.py`, `cloister.py:163`, `draft.py:350`). **The Greenhouse is the only
-room in the table with an `alt_layouts` entry**, so this cannot regress any
-other room's Dead End accounting. **No observation or action change, so no
-retrain.**
-
-**(b) Gating the corner layout behind the wall break — needs an owner
-ruling.** This one wants a `greenhouse_wall_broken` carry-over flag and does
-move the observation space. It also **removes something the agent can do
-today**: any Greenhouse can be drafted as a two-door corner from day one, and
-whether that freedom is the bug or the deliberate simplification is the
-owner's call, not an implementation detail. Note (a) is correct and worth
-landing whichever way (b) is ruled.
-
 ## 15. Room-behaviour fidelity: audit every room against the wiki
 
 The divergence detector (`tools/validate_data.py::find_divergences`) and the

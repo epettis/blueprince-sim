@@ -32,23 +32,24 @@ question about any new cross-day fact is which one it belongs in.
 
 ### 1. `DayChain._CARRYOVER_KEYS` — bool fields, attempt-scoped
 
-`env/multiday.py:30`. A `frozenset` of **17** names, every one of them a `bool`
+`env/multiday.py:30`. A `frozenset` of **18** names, every one of them a `bool`
 field on `GameConfig`:
 
     lunch_box_unlocked        cursed_effigy_unlocked    entrance_vase_broken
     outer_chip_dug            royal_scepter_found       west_gate_unlatched
     mine_south_visited        sealed_entrance_broken    weight_room_wall_broken
-    room46_reached            room8_solved              boiler_room_steam
-    treasure_trove_blackprint orchard_unlocked          throne_room_blueprint
-    satellite_dish_unlocked   conservatory_floorplan_found
+    greenhouse_wall_broken    room46_reached            room8_solved
+    boiler_room_steam         treasure_trove_blackprint orchard_unlocked
+    throne_room_blueprint     satellite_dish_unlocked   conservatory_floorplan_found
 
-`conservatory_floorplan_found` is the most recent addition (16 → 17): set on
-campsite arrival while holding a shovel (`special_items.py::on_area_arrival`),
-same shape as `treasure_trove_blackprint`/`throne_room_blueprint` — a
-`GameConfig` flag `decks.py::eligible_pool` reads to add a room to the draft
-pool from the following day. **This channel does still grow**: it is bool-only
-and attempt-scoped forever, but its *length* is not frozen — see the
-properties below.
+`greenhouse_wall_broken` is the most recent addition (17 → 18): set on
+entering the Greenhouse while holding a Power Hammer
+(`effects/rooms/greenhouse.py::break_wall`), same shape as
+`weight_room_wall_broken` — a `GameConfig`/`ShopsState` flag pair
+`engine/placement.py::legal_orientations` reads (via `Room.alt_layouts_gate`)
+to admit the Greenhouse's corner rotations. **This channel does still grow**:
+it is bool-only and attempt-scoped forever, but its *length* is not frozen —
+see the properties below.
 
 Merge rule: **only `True` merges**, so a flag can never un-discover something
 already found. Cleared wholesale at the wrap (`self.carried_flags = {}`).
@@ -112,7 +113,7 @@ An item's own record carries its persistence:
 
 It carries `permanent` and `until_used` self-persisters plus the Coat Check and
 Moon Pendant carries. This is the channel that makes an *item* survive the
-night, and it is the one most often missed when someone proposes a 17th
+night, and it is the one most often missed when someone proposes a 19th
 `_CARRYOVER_KEYS` member to make something "permanent" — an item that is
 already `persistence: "permanent"` needs no flag at all.
 

@@ -128,6 +128,10 @@ class ShopsState:
     chip_dug: bool = False  # West Path chip dug today (discovery)
     # Power Hammer wall broken today (discovery; permanent across days)
     weight_room_wall_broken: bool = False
+    # Greenhouse's Power Hammer wall broken today (discovery; permanent across
+    # days, same shape as weight_room_wall_broken -- read by
+    # engine/placement.py::legal_orientations via Room.alt_layouts_gate).
+    greenhouse_wall_broken: bool = False
     gift_unlocks: list[str] = field(default_factory=list)  # one-time Gift Shop buys today
     # Repellent bans added this day: room_id -> days remaining (always 7 when first added).
     # Merged into DayChain.repellent_bans on advance(); DayChain enforces the 3-ban cap
@@ -1100,6 +1104,9 @@ def carryover(game) -> dict:
         "outer_chip_dug": cfg.outer_chip_dug or state.shops.chip_dug,
         "weight_room_wall_broken": (
             cfg.weight_room_wall_broken or state.shops.weight_room_wall_broken
+        ),
+        "greenhouse_wall_broken": (
+            cfg.greenhouse_wall_broken or state.shops.greenhouse_wall_broken
         ),
         "royal_scepter_found": cfg.royal_scepter_found,
         # west_gate_unlatched: earned the first time the player reaches west_path, which on

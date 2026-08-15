@@ -92,6 +92,43 @@ def test_flag_override_reproduces_committed_flags(room_id, rooms_by_id):
         assert committed_flags.get(flag) == value, f"{room_id}: {flag}"
 
 
+def test_alt_layouts_gate_ids_all_exist_in_rooms_json(rooms_by_id):
+    """Every ALT_LAYOUTS_GATE key names a record present in rooms.json - the typo guard."""
+    missing = sorted(set(ingest_sheet.ALT_LAYOUTS_GATE) - set(rooms_by_id))
+    assert not missing, f"ALT_LAYOUTS_GATE has id(s) absent from rooms.json: {missing}"
+
+
+@pytest.mark.parametrize("room_id", sorted(ingest_sheet.ALT_LAYOUTS_GATE))
+def test_alt_layouts_gate_reproduces_committed_field(room_id, rooms_by_id):
+    """The committed record's alt_layouts_gate matches the ingest table.
+
+    alt_layouts_gate is a TOP-LEVEL field, unlike the effects/flags/
+    extra_categories the sibling guards cover, and nothing else in this suite
+    reads one. Without this, adding such a field to rooms.json without
+    mirroring it here passes every test and is silently dropped by the next
+    re-ingest -- the failure mode is a room quietly losing its gate, not a
+    crash.
+    """
+    committed = rooms_by_id[room_id].get("alt_layouts_gate")
+    assert committed == ingest_sheet.ALT_LAYOUTS_GATE[room_id], (
+        f"{room_id}: rooms.json says {committed!r}, ingest table says "
+        f"{ingest_sheet.ALT_LAYOUTS_GATE[room_id]!r}")
+
+
+def test_no_room_carries_an_unmirrored_alt_layouts_gate(rooms_by_id):
+    """No rooms.json record has an alt_layouts_gate the ingest table omits.
+
+    The reverse direction of the guard above: rooms.json is generated, so a
+    gate present there but absent from ALT_LAYOUTS_GATE survives only until
+    someone regenerates the file.
+    """
+    unmirrored = sorted(
+        rid for rid, rec in rooms_by_id.items()
+        if rec.get("alt_layouts_gate") and rid not in ingest_sheet.ALT_LAYOUTS_GATE)
+    assert not unmirrored, (
+        f"alt_layouts_gate in rooms.json but not in ingest ALT_LAYOUTS_GATE: {unmirrored}")
+
+
 def test_category_override_ids_all_exist_in_rooms_json(rooms_by_id):
     """Every CATEGORY_OVERRIDE key names a record present in rooms.json - the typo guard."""
     missing = sorted(set(ingest_sheet.CATEGORY_OVERRIDE) - set(rooms_by_id))

@@ -71,6 +71,15 @@ class Room:
     layout: str  # shape key into LAYOUT_MASKS (dead_end|straight|corner|t|cross)
     door_mask: int  # canonical orientation
     rotations: tuple[int, ...]  # distinct legal door masks
+    # alt_layouts rotations withheld from ``rotations`` until ``alt_layouts_gate``'s
+    # named flag is set (placement.py::legal_orientations); empty for every room
+    # but the Greenhouse, whose printed card is a Dead End with a corner passage
+    # behind its Power Hammer wall break (owner ruling).
+    gated_rotations: tuple[int, ...]
+    # GameConfig/ShopsState bool field name gating ``gated_rotations`` into legal
+    # play, or None when this room has no gate -- in which case alt_layouts folds
+    # into ``rotations`` unconditionally, same as before this field existed.
+    alt_layouts_gate: str | None
     draft_conditions: tuple[str, ...]  # placement gate tags, ALL must hold (placement.py)
     no_library_draft: bool  # never dealt when drafting through the Library's doorway
     powered: bool  # powered-room flag; the duct-adjacency category bias targets these
@@ -147,18 +156,30 @@ def _parse_effects(raw: list[dict]) -> tuple[Effect, ...]:
 def _parse_room(idx: int, raw: dict) -> Room:
     """Build one frozen Room from its rooms.json record.
 
-    Rotations are enumerated here: all quarter-turns of the layout (plus any
-    alt_layouts) deduplicated into distinct door masks, unless the record sets
-    ``rotatable: false`` (then only the canonical mask is legal).
+    Rotations are enumerated here: all quarter-turns of the layout deduplicated
+    into distinct door masks, unless the record sets ``rotatable: false`` (then
+    only the canonical mask is legal). ``alt_layouts`` normally folds into that
+    same set unconditionally; a record naming ``alt_layouts_gate`` instead keeps
+    its alt_layouts rotations out of ``rotations`` and into ``gated_rotations``,
+    for placement.py::legal_orientations to add back in only once that flag is
+    set (the Greenhouse's Power Hammer wall break -- every other room has no
+    ``alt_layouts_gate`` and behaves exactly as before this field existed).
     """
     layout = raw["layout"]
     mask = LAYOUT_MASKS[layout]
-    all_layouts = [layout, *raw.get("alt_layouts", [])]
+    alt_layouts_gate = raw.get("alt_layouts_gate")
+    alt_layouts = raw.get("alt_layouts", [])
+    base_layouts = [layout] if alt_layouts_gate else [layout, *alt_layouts]
+    gated_layouts = alt_layouts if alt_layouts_gate else []
     if raw.get("rotatable", True):
         rotations = tuple(sorted(
-            {rotate_mask(LAYOUT_MASKS[lay], k) for lay in all_layouts for k in range(4)}))
+            {rotate_mask(LAYOUT_MASKS[lay], k) for lay in base_layouts for k in range(4)}))
+        gated_rotations = tuple(sorted(
+            {rotate_mask(LAYOUT_MASKS[lay], k) for lay in gated_layouts for k in range(4)}
+            - set(rotations)))
     else:
         rotations = (mask,)
+        gated_rotations = ()
     gem = raw.get("gem_cost", 0)
     if isinstance(gem, dict):
         gem_base, gem_dyn = gem.get("base", 0), gem.get("dynamic")
@@ -178,6 +199,8 @@ def _parse_room(idx: int, raw: dict) -> Room:
         layout=layout,
         door_mask=mask,
         rotations=rotations,
+        gated_rotations=gated_rotations,
+        alt_layouts_gate=alt_layouts_gate,
         draft_conditions=tuple(raw.get("draft_conditions", [])),
         no_library_draft=bool(raw.get("flags", {}).get("no_library_draft", False)),
         powered=bool(raw.get("flags", {}).get("powered", False)),

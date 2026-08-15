@@ -265,8 +265,9 @@ def test_action_group_buckets_the_constellation_block():
 
 #: Shape, bounds and dtype of every observation key as of the width commit,
 #: for the fixed registry sizes passed below. The constellation key was this
-#: file's own addition; "carryover" has since grown again, 16 -> 17, for the
-#: Conservatory's conservatory_floorplan_found flag (env/multiday.py's
+#: file's own addition; "carryover" has since grown twice more: 16 -> 17 for
+#: the Conservatory's conservatory_floorplan_found flag, then 17 -> 18 for the
+#: Greenhouse's greenhouse_wall_broken flag (env/multiday.py's
 #: _CARRYOVER_KEYS) -- every other row must stay exactly as it is, because a
 #: bound change is a retrain trigger on the same terms as a shape change
 #: (docs/rl-environment.md). "axed_rooms" stays 48 here because this call
@@ -275,7 +276,7 @@ def test_action_group_buckets_the_constellation_block():
 _EXPECTED_SPACE = {
     "allowance": ((1,), 0, 9999, "int16"),
     "axed_rooms": ((48,), 0, 1, "uint8"),
-    "carryover": ((17,), 0, 999, "int16"),
+    "carryover": ((18,), 0, 999, "int16"),
     "constellations": ((15,), 0, 99, "int16"),
     "day": ((2,), 0, 9999, "int16"),
     "disks_held": ("Discrete", 17, "int64"),

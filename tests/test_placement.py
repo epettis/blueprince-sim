@@ -407,3 +407,36 @@ def test_experiment_aquarium_placement(registry, cfg):
     base = registry.by_id["aquarium"]
     assert satisfies_draft_conditions(base, 1, S, st, cfg, set(), False)
     assert satisfies_draft_conditions(base, 41, N, st, cfg, set(), False)
+
+
+def test_greenhouse_corner_gated_behind_wall_break(registry, cfg):
+    """Before greenhouse_wall_broken, the Greenhouse's corner (two-door)
+    orientation is never legal; once the flag is set on either cfg or
+    state.shops, it is -- the owner ruling gating Room.gated_rotations
+    behind Room.alt_layouts_gate (docs/scoping-and-carryover.md)."""
+    st = GameState()
+    greenhouse = registry.by_id["greenhouse"]
+    # Cell 0, entered heading south (back door must face south): a corner
+    # orientation (N|E) is geometrically legal there once unlocked.
+    before = legal_orientations(greenhouse, 0, S, st, cfg)
+    assert before == [N]
+    assert all(mask in (N, E, S, W) for mask in before), (
+        "no two-door corner mask before the wall breaks")
+
+    cfg_broken = GameConfig(greenhouse_wall_broken=True)
+    after_cfg = legal_orientations(greenhouse, 0, S, st, cfg_broken)
+    assert after_cfg == [N, N | E]
+
+    st_broken = GameState()
+    st_broken.shops.greenhouse_wall_broken = True
+    after_state = legal_orientations(greenhouse, 0, S, st_broken, cfg)
+    assert after_state == [N, N | E]
+
+
+def test_only_greenhouse_carries_a_gated_rotation(registry):
+    """Every room but the Greenhouse has an empty gated_rotations and no
+    alt_layouts_gate, so legal_orientations' gating branch can never fire for
+    them -- the regression guard for the other 169 rooms sharing
+    model.py::_parse_room's shared rotation fold."""
+    gated = [r.id for r in registry.rooms if r.alt_layouts_gate or r.gated_rotations]
+    assert gated == ["greenhouse"]
