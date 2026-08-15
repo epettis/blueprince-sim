@@ -91,7 +91,7 @@ once-per-day terminal action ("Spread Gold in Estate"), gated behind walking to 
 Office and operating its terminal — the same terminal concept as the shipped
 `disk_reader` flag. That makes it an **action-space change**, so per this file's own
 standing rule it belongs bundled with a retrain, not with the on-draft spreaders. Do
-not conflate it with the Office *safe* (+1 gem), which is task 3 and already shipped.
+not conflate it with the Office *safe* (+1 gem), which is already shipped.
 
 **Correction 2 — the Conference Room is not a pure redirect.** The wiki: *"Spread
 effects do not necessarily spread the same number of items to the Conference Room as
@@ -208,7 +208,7 @@ Wiki research (https://blueprince.wiki.gg/wiki/Upgrade_Disk):
    implementing; it is authoritative and covers the selection tables, the
    same-day application, and the action/observation cost.
 2. **Terminals**: Security, Laboratory, Office, Shelter, Blackbridge Grotto (the
-   last is outside the grid — gate it behind task 4). Insert requires standing in a
+   last is outside the grid, reached through the area graph). Insert requires standing in a
    terminal room holding a disk; the disk is consumed.
 3. **Persistence**: an upgrade takes effect immediately, lasts the rest of the
    200-day attempt, and **resets on chain wrap**, consistent with every other
@@ -220,70 +220,6 @@ Wiki research (https://blueprince.wiki.gg/wiki/Upgrade_Disk):
 4. Supply cap: 16 disks exist in the real game, one per upgrade slot. Once every
    slot is filled the game keeps offering rooms, at a flat 1/15, so an upgrade
    already applied can be swapped for a different variant of the same room.
-
-## 3. Room safes — permanent +1 gem
-
-The sim assumes the player solves every puzzle in a room they enter. Several rooms
-contain a safe holding gems daily, so those rooms should simply grant **+1 gem** on
-entry, every day: **Drawing Room, Shelter, Boudoir, Study, Office, Underground**.
-
-Implementation is small: add a `grant` effect (`resource: gems, amount: 1`) to each
-room's record in `data/rooms.json` AND the matching `tools/ingest_sheet.py` override
-so a re-ingest preserves it. Verify each room id exists. **The "Underground" is not
-a room record**: it is the area node `upper_rotating_gear`, one step off a hallway
-from the Underpass ([`areas.md`](areas.md)), so it needs a different channel from
-the other five. Worth confirming whether the safe gem is truly daily and
-per-room-instance.
-
-## 4. Connectivity graph for the outside areas
-
-**The graph is specified and owner-reviewed: [`areas.md`](areas.md), with the
-Graphviz source in [`areas.dot`](areas.dot).** 38 nodes, 75 directed edges, one
-step per edge, plus the stateful mechanisms it implies — two position-tracked
-elevators, four persistent torches, Pump Room water level, Rotating Gear
-position. `data/areas.json`, the per-area travel action set and the observation
-change are all delivered; the stateful mechanisms are not (see the stub-gate
-decision below).
-
-**No longer a prerequisite for measuring upgrades.** It was scheduled ahead of the
-retrain on the strength of a projected 42x lift to Cloister of Orinda's offer rate
-from unlocking the Catacombs. That projection came from synthetic contexts and did
-not survive measurement: under real play the realized lift is **1.11x (z = 1.06,
-not significant)** and the always-unlocked ceiling is **1.91x**. The Catacombs gate
-also turned out to need only the Tomb, not this graph.
-
-What task 4 still uniquely supplies: **Blackbridge Grotto**, the fifth disk-reader
-terminal and the one modelled terminal with no room record; and the currently
-inert `microchip`, `sanctum_key` and `key_of_aries` items. (The two off-grid
-Upgrade Disks it used to list, The Foundation and the Abandoned Mine, are no
-longer unique to this task — the Sanctum-route PR reached both.) It also
-changes the action space, so it is still worth bundling with a retrain rather
-than paying for two.
-
-See [`upgrade-value-measurement.md`](upgrade-value-measurement.md) for the measured
-numbers and why Cloister's Unusual rarity — not the gate — is the real bottleneck.
-
-### Implementation plan (2026-07-27)
-
-`outer_loc` was read at 40+ sites across `game.py`, `env/actions.py`, `env/obs.py`,
-`engine/shops.py`, `engine/special_items.py` and `cli/play.py`, and doubled as a
-phase flag for the action masker — so it could not be widened in place. Task 4
-was delivered as two PRs, each independently green:
-
-1. **The graph as data plus a pure library.** `src/blueprince_sim/data/areas.json`
-   (nodes, directed edges, gates as declarative string tags in the
-   `draft_conditions` idiom) plus `engine/areas.py` (frozen dataclasses, gate
-   evaluation, BFS pathfinding at 1 step per edge) and `validate_data.py`
-   referential checks. Nothing calls it, so there is zero behaviour change.
-2. **Engine adoption and the env layer, together.** `GameState.area` replaces
-   `outer_loc`; BFS derives the route costs, so the three `GameConfig` outer step
-   costs are deleted rather than kept as a second source of truth; per-area
-   travel actions replace `RETURN_EH_ACTION` / `RETURN_GARAGE_ACTION` /
-   `ENTER_OUTER_ACTION`; and `player_area` joins the observation so position
-   stops being a single grid-only `Discrete(45)` field.
-
-Several currently-inert items unblock with this: microchips, Power Hammer wall
-breaks, the Sanctum keys.
 
 ## 6. Remove "puzzle only" items
 
@@ -313,11 +249,10 @@ decisive test is `basement_key`: holding it is the literal difference between
 
 ## 7. Ignition candles in the Abandoned Mine
 
-Blocked on task 4 (outside-area movement graph). Eight candlesticks stand in the
+**Unblocked — the area graph has landed.** Eight candlesticks stand in the
 Abandoned Mine's circular room; lighting them all with an ignition tool (Torch or
 Burning Glass) permanently sinks the floor into a stairway down to **the
-Precipice**. So it is a graph edge, not just a reward — add it when the area graph
-lands, as a permanent `abandoned_mine -> precipice` edge.
+Precipice**. So it is a graph edge, not just a reward — add it as a permanent `abandoned_mine -> precipice` edge.
 
 The Mine is also what connects the Reservoir's north and south halves, which is
 the likely source of the earlier belief that the candles linked the Reservoir to
@@ -361,7 +296,7 @@ Because the sim assumes the player solves every puzzle in a room they enter,
 several rooms should carry a standing **+2 allowance**: the **Cloister**, the
 **Trading Post**, and the **Closed Exhibit**. Verify against the wiki whether this
 is allowance (the daily gold packet) or a one-time grant, then encode it the same
-way task 3's safes are.
+way the room safes are ([`rooms.md`](rooms.md)).
 
 ## 11. Model the Pump Room's water levels
 
@@ -422,7 +357,7 @@ currently passable). See `areas.md` for the full edge-table writeup.
 action with no equivalent today — this is not a pure data/gate change like
 the other stub retirements in this file, it adds to the action space and
 therefore **belongs bundled with a retrain**, the same reasoning that governed
-task 4's sequencing.
+the area graph's sequencing.
 
 ## 12. The Greenhouse's Power Hammer wall changes its layout
 
@@ -986,7 +921,7 @@ around 1,800 LOC.
   (`special_item_values`, `PATHS_ONE_PENALTY`/`PATHS_ZERO_PENALTY`, scepter bias)
   are deliberate knobs awaiting real run data.
 - **Inner Sanctum**: the 8 Sanctum Keys have sources and persist, but the area
-  behind the 8 doors is unmodeled. Overlaps heavily with task 4.
+  behind the 8 doors is unmodeled.
 
 ## 23. OPEN OWNER QUESTIONS
 

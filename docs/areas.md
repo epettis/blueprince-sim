@@ -1,7 +1,7 @@
 # Outside-area connectivity graph
 
 Status: **owner-reviewed; implemented.** This is the specification for
-`open_tasks.md` task 4. [`areas.dot`](areas.dot) is the same graph in Graphviz
+the off-grid area graph. [`areas.dot`](areas.dot) is the same graph in Graphviz
 form; the two must be kept in step.
 
 The graph ships as `src/blueprince_sim/data/areas.json`, parsed by
@@ -31,7 +31,7 @@ dot -Tpng -Gdpi=150 docs/areas.dot -o /tmp/areas.png    # or -Tsvg
 - **One "travel to area" action per node** (~36 actions), masked to reachable
   destinations. The engine pathfinds and charges the cost, mirroring how
   `MOVE_TO_BASE` already works for grid cells. This is the action-space change
-  that makes task 4 worth bundling with a retrain.
+  that the per-area travel actions delivered.
 
 ### The 1-step rule reproduces the existing constants
 
@@ -83,7 +83,7 @@ routes through it are unavailable the way an unplaced Garage is.
 | `catacombs` | |
 | `mine_south` | **modelled, Upgrade Disk**; the mine cart is moved from here |
 | `mine_north` | |
-| `rotating_gear` / `upper_rotating_gear` | The game's **"Underground"** is `upper_rotating_gear`: a room one step off a hallway from the Underpass, not reachable from `rotating_gear` |
+| `rotating_gear` / `upper_rotating_gear` | The game's **"Underground"** is `upper_rotating_gear`: a room one step off a hallway from the Underpass, not reachable from `rotating_gear`. **modelled** — holds the estate's one off-grid safe (see below) |
 | `underpass` | |
 | `inner_sanctum` | **modelled** — lever opening the Antechamber **north** door |
 | `sigil_chambers` | 8 chambers, one Sanctum Key each |
@@ -96,6 +96,24 @@ Abandoned Mine's is a bespoke arrival grant (`special_items.py::on_area_arrival`
 called from `Game.travel_to` on arrival at `mine_south`, since it is a pure area
 node with no `rooms.json` record for `guaranteed_in` to key off). See
 `open_tasks.md` task 2.
+
+### The Upper Rotating Gear safe pays out on two different clocks
+
+Arriving there grants **both** halves of the estate's one off-grid safe, and they
+are scoped differently — folding them together would be wrong in one direction or
+the other:
+
+- **+1 gem, every day.** A safe's gem respawns
+  ([`rooms.md`](rooms.md)), so this fires once per day, guarded by
+  `GameState.upper_rotating_gear_gem_granted` — a per-day flag deliberately kept
+  out of `_CARRYOVER_KEYS` so a fresh `GameState` clears it each morning.
+- **The Treasure Trove floorplan, once ever.** `treasure_trove_blackprint` is a
+  permanent carry-over flag adding the room to the draft pool from the following
+  day (`decks.py::eligible_pool`).
+
+The wiki files this safe under The Underpass ("the gate in the upper Rotating
+Gear"); the sim puts both grants on `upper_rotating_gear`, the node the player
+actually arrives at.
 
 ## Edges
 
@@ -222,7 +240,7 @@ nodes**: Blackbridge Grotto (POWER), Orindian Ruins (behind the Grotto), the
 Safehouse (Reservoir level) and the Well (Fountain level), and Underpass /
 Inner Sanctum / Sigil Chambers / Upper Rotating Gear (Rotating Gear position).
 That would delete
-Blackbridge Grotto, the one thing task 4 uniquely supplies. An unreachable node
+Blackbridge Grotto, the one modelled terminal with no room record. An unreachable node
 measures exactly zero, which is a worse and more misleading failure than a
 slightly-too-generous world.
 

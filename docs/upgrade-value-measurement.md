@@ -241,7 +241,7 @@ metric worth plotting over training.
 
 ## Sequencing
 
-1. **Outside-area graph (task 4)** — see the argument below.
+1. **Outside-area graph** — landed; see the argument below.
 2. **Phase 1 harness with `greedy_rank`** — no retrain needed.
 3. **Retrain on merged main** — required regardless, since PR #33 changed the
    action space to `Discrete(279)` and the phase observation to `Discrete(4)`,
@@ -251,20 +251,19 @@ metric worth plotting over training.
 6. Antechamber locks (task 9), retrain, re-run Phase 1, compare
    difference-in-differences.
 
-### Why task 4 still matters
+### Why the area graph had to come first
 
 - It supplies **Blackbridge Grotto**, the fifth disk-reader terminal, currently
   the one modelled terminal with no room record.
-- It almost certainly changes the action or observation space, so bundling it
-  with the upgrade retrain costs **one** retrain instead of two.
-- The pre-lock and post-lock measurements must differ **only** by locks. Task 4
-  is therefore safe before the baseline and unsafe between the two measurements.
-  Before is the only cheap window.
+- It changed the action and observation spaces, so bundling it with the upgrade
+  retrain cost **one** retrain instead of two.
+- The pre-lock and post-lock measurements must differ **only** by locks, so it
+  was safe before the baseline and unsafe between the two measurements. Before
+  was the only cheap window, and it took it.
 
-The consequence for step 2: a Phase 1 run made before task 4 lands is a **harness
-shakedown, not a bankable baseline**, because task 4 changes the world the
-baseline describes. Run it to debug the pipeline; re-run it afterwards for the
-number that counts.
+That precondition on step 2 is now met. **A different one replaces it**: the
+Conservatory batch moved both spaces again (`N_ACTIONS` to 458, `_CARRYOVER_KEYS`
+to 17), so a baseline is bankable only on a checkpoint trained after that batch.
 
 ### What the Catacombs gate actually needs
 
@@ -272,13 +271,13 @@ The Catacombs unlock does **not** require the area graph. Access is gated on
 drafting and entering the **Tomb**, which is already one of the eight modelled
 outer rooms, and the sim already assumes the player solves any puzzle in a room
 they enter. `catacombs_unlocked` is therefore a same-day check on the Tomb
-(`flags.unlocks_catacombs`), landed ahead of task 4.
+(`flags.unlocks_catacombs`), landed ahead of the area graph.
 
 Likewise, seven of the nine unmodelled Upgrade Disks sit in rooms that already
 deal — Office, Morning Room, Her Ladyship's Chamber, Great Hall, Freezer,
 Archives, Mechanarium. Only **The Foundation** (record exists, `pool=none`) and
 the **Abandoned Mine** (no record) are genuinely off-grid. Both levers named
-above are reachable without task 4.
+above never needed the area graph.
 
 **The Catacombs gate was measured and does not deliver.** It was landed on the
 strength of a projected 42x lift computed from synthetic contexts. Under real

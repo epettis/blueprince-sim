@@ -371,6 +371,20 @@ in its own right. Room effects are **not** inherited through `variant_of`, so
 without the repeat, upgrading the Boudoir would silently delete its safe. A safe
 is a fixture of the room and survives every upgrade.
 
+### Safes grant their gem every day
+
+A safe's gem **respawns**: the wiki's Safes page states that safes "remain open
+permanently once they are first opened, and the gem respawns, making opening a
+safe a permanent upgrade to a room". Under the assumed-solved doctrine that is a
+plain per-entry `grant` of 1 gem, not a one-time pickup — which is why the
+Boudoir, Drawing Room, Office, Study and Shelter each carry one. The one off-grid
+safe is at Upper Rotating Gear; [`areas.md`](areas.md) owns it.
+
+**Two published safes deliberately grant nothing, and their absence is not an
+oversight**: the Drafting Studio's safe "does not contain a gem", and the Apple
+Orchard's contains neither gem nor red letter. The Study's safe additionally
+holds the Closed Exhibit floorplan, which is not modelled.
+
 **`bunk_room`** — counts as 2 Bedrooms (`counts_as_bedrooms`). *The true
 behaviour is unpublished: the wiki carries its own open-question box saying it
 "is not consistent from effect to effect", counting as one Bedroom for some and
