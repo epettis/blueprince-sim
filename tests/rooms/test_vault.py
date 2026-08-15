@@ -7,6 +7,7 @@ from __future__ import annotations
 
 from blueprince_sim.config import GameConfig
 from blueprince_sim.engine import special_items as si
+from blueprince_sim.engine.effects import Capability, provides_capability
 from blueprince_sim.engine.game import Game
 from blueprince_sim.engine.model import Registry
 from blueprince_sim.engine.rng import Rng
@@ -361,3 +362,21 @@ def test_vault_single_exact_entry_leaves_luck_penalty_at_zero():
         "the exact 40-coin grant must log as ONE entry, not per pile"
     )
     assert g.state.luck_penalty == 0, "a guaranteed exact grant must never touch the Luck Penalty"
+
+
+# ------------------------------------------------- Capability registration
+
+def test_vault_provides_vault_capability():
+    """The Vault registers Capability.VAULT (effects/rooms/vault.py) -- the
+    fact can_open_vault_box's deposit-box gate reads instead of comparing
+    room.id directly. A room silently losing this registration would make
+    every vault-box test above fail with "no key id returned"/"nothing
+    granted" rather than a clean, named assertion, so this pins the
+    registration itself."""
+    assert provides_capability("vault", Capability.VAULT)
+
+
+def test_ordinary_room_does_not_provide_vault_capability():
+    """A room with no deposit-box role (the Corridor) does not provide
+    Capability.VAULT -- the registry is opt-in, not a default."""
+    assert not provides_capability("corridor", Capability.VAULT)

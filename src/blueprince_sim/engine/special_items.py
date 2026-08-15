@@ -26,12 +26,14 @@ from pathlib import Path
 
 from . import constellations, experiments
 from .effects import (
+    Capability,
     ItemCapability,
     ItemHook,
     container_kinds_for,
     fire_item_chain,
     fold_item_chain,
     item_capability_any,
+    provides_capability,
 )
 from .effects.items import (
     battery_pack,
@@ -916,7 +918,7 @@ def on_enter(game, room, cell: int) -> None:
     # per its own ladder-based rule -- see lost_and_found_on_enter). Fires
     # after the guaranteed-items loop above, so this room's own guaranteed
     # Allowance Token is already in inventory and can itself be the steal target.
-    if room.id == "lost_and_found":
+    if provides_capability(room.id, Capability.LOST_AND_FOUND):
         lost_and_found_on_enter(game)
 
     # Sleeping Mask: grant steps when entering a bedroom (including Bunk Room x2)
@@ -946,7 +948,13 @@ def _maybe_serve_main_course(game) -> None:
     if room_idx < 0:
         return
     room = registry.rooms[room_idx]
-    if room.id != "dining_room" and room.variant_of != "dining_room":
+    # Capability.DINING_ROOM (registered by effects/rooms/dining_room.py),
+    # matched on the room's own id or its variant_of so an upgrade variant
+    # still qualifies.
+    is_dining_room = provides_capability(room.id, Capability.DINING_ROOM) or (
+        room.variant_of is not None
+        and provides_capability(room.variant_of, Capability.DINING_ROOM))
+    if not is_dining_room:
         return
     if not any(entered and rank_of(c) >= 8 for c, entered in enumerate(state.entered)):
         return
@@ -2427,7 +2435,7 @@ def can_open_vault_box(game) -> str | None:
     if state.grid[state.pos] < 0:
         return None
     room = registry.rooms[state.grid[state.pos]]
-    if room.id != "vault":
+    if not provides_capability(room.id, Capability.VAULT):
         return None
     vault_boxes = registry.special.containers.get("vault_boxes", {})
     boxes = vault_boxes.get("boxes", {})

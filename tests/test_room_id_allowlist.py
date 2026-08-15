@@ -140,6 +140,17 @@ ROOM_ARCHITECTURE: dict[str, set[str]] = {
         # collide with real room ids only because those categories also
         # name an undecorated base room.
         "bedroom", "hallway",
+        # AQUARIUM_BASE_ID/AQUARIUM_EXPERIMENT_ID: add_aquariums's own fixed
+        # targets, not a carve-out bolted onto a room-agnostic mechanism --
+        # apply_effect's `match effect_id:` dispatch never branches on a
+        # room id, only on the effect's own id, and hands off to
+        # _apply_add_aquariums, whose entire content is injecting Aquarium
+        # copies and moving them to the Commonplace bucket (the wiki's own
+        # description of this one effect). Mirrors draft.py's
+        # ROOM_ARCHITECTURE entry, which already treats
+        # "aquarium__experiment" as this effect's own published taxonomy
+        # rule rather than room-specific debt.
+        "aquarium", "aquarium__experiment",
     },
     "game.py": {
         # Fixture lookups in reset(): the day always starts in the Entrance
@@ -215,6 +226,16 @@ ROOM_ARCHITECTURE: dict[str, set[str]] = {
         # ("showroom exhibit" items), not a room id -- collides with the
         # real Showroom room's id the same way the category names do.
         "showroom",
+        # lost_and_found: the on_enter steal-trigger branch itself moved to
+        # Capability.LOST_AND_FOUND (see ROOM_DEBT's former entry for this
+        # module), but this module's own RNG substream label
+        # (rng.choice("lost_and_found", ...)), data-section key
+        # (item_rules["count_transforms"]["rooms"]["lost_and_found"]), and
+        # guaranteed_by_room lookup all remain -- none of those are a
+        # room.id comparison, just this room's own id used as a dict/RNG
+        # key the same way every other room's id is, so they are not a
+        # behaviour branch to convert.
+        "lost_and_found",
     },
     "state.py": {
         # is_category("bedroom"): plus_one_per_bedroom dynamic gem cost.
@@ -270,27 +291,30 @@ ROOM_DEBT: dict[str, set[str]] = {
         # does not risk.
         "throne_room",
     },
-    "experiments.py": {
-        # add_aquariums (apply_effect's own `match effect_id:` case body,
-        # shared/polymorphic across all 20 experiment effects): injects
-        # aquarium__experiment copies and moves both ids to the Commonplace
-        # bucket -- a room-specific carve-out inside that shared dispatcher,
-        # the same shape as shops.py's on_enter_shop dispatch below.
-        "aquarium", "aquarium__experiment",
-        # spread_dig_spots's own case body: "with a Conference Room on the
-        # estate, each firing adds dig spots to its cell" -- room_cells.get
-        # gate inside the same shared apply_effect dispatcher.
-        "conference_room",
-        # _room_has_fireplace: a generic per-room predicate (six of seven
-        # fireplace rooms read straight off the static Room.has_fireplace
-        # flag) with one hardcoded Dining Room exception, the same
-        # generic-predicate-plus-carve-out shape as Chapel's former tithe
-        # check -- duplicated (not imported, to avoid a cycle -- see this
-        # function's own docstring) in effects/rooms/cloister.py's
-        # _dining_room_has_fireplace, which is out of this scanner's
-        # business since effects/rooms/ is excluded by construction.
-        "dining_room",
-    },
+    "experiments.py": set(
+        # aquarium/aquarium__experiment moved to ROOM_ARCHITECTURE above:
+        # add_aquariums's whole job, per the wiki, is injecting copies of
+        # these two specific rooms and moving them to the Commonplace
+        # bucket -- unlike a generic mechanism with one room carved out
+        # (Chapel's former tithe check, the Conference Room cell lookup
+        # below), apply_effect's `match effect_id:` dispatch never branches
+        # on a room id at all; it dispatches on the effect's own id and
+        # hands off to _apply_add_aquariums, whose entire content IS the
+        # Aquarium the same way draft.py's own AQUARIUM_EXPERIMENT_ID names
+        # this effect's guaranteed-copy taxonomy rule (see draft.py's
+        # ROOM_ARCHITECTURE entry, which already treats
+        # "aquarium__experiment" this way).
+        # conference_room moved off this list: spread_dig_spots's cell
+        # lookup now reads Game._capability_cell(Capability.DIG_SPOTS)
+        # (registered by effects/rooms/conference_room.py) instead of
+        # game.room_cells.get("conference_room") directly.
+        # dining_room moved off this list: _room_has_fireplace now reads
+        # Capability.DINING_ROOM (registered by
+        # effects/rooms/dining_room.py, matched on the room's own id or its
+        # variant_of) instead of comparing room.id/variant_of to a literal
+        # -- one registration that also clears special_items.py's own
+        # "dining_room" entry below.
+    ),
     "game.py": {
         # _place_room's carve-out (room.id == "the_foundation"): records the
         # cell/orientation for next-day carryover inside the otherwise
@@ -326,25 +350,29 @@ ROOM_DEBT: dict[str, set[str]] = {
         # directly -- see ROOM_ARCHITECTURE above for this module's one
         # remaining "entrance_hall" use.
     ),
-    "special_items.py": {
-        # _maybe_serve_main_course's room.id != "dining_room" gate: the Main
-        # Course mechanic is Dining-Room-specific, hardcoded inside on_enter
-        # rather than expressed as a room_hook.
-        "dining_room",
-        # Lost & Found's room.id == "lost_and_found" steal trigger inside
-        # the same shared on_enter dispatcher.
-        "lost_and_found",
-        # can_deposit_to_vault-family's room.id != "vault" gate: the deposit-
-        # box mechanic is Vault-specific, hardcoded rather than registered.
-        "vault",
-    },
+    "special_items.py": set(
+        # dining_room moved off this list: _maybe_serve_main_course now reads
+        # Capability.DINING_ROOM (registered by effects/rooms/dining_room.py)
+        # instead of comparing room.id/variant_of to a literal -- the same
+        # registration that clears experiments.py's own "dining_room" entry
+        # above.
+        # lost_and_found moved off this list: the on_enter steal trigger now
+        # reads Capability.LOST_AND_FOUND (registered by
+        # effects/rooms/lost_and_found.py) instead of comparing room.id
+        # directly.
+        # vault moved off this list: can_open_vault_box's gate now reads
+        # Capability.VAULT (registered by effects/rooms/vault.py) instead of
+        # comparing room.id directly.
+    ),
 }
 
-#: ROOM_DEBT's total entry count, measured 2026-08-15 (after moving game.py's
-#: clock_tower/laboratory/planetarium/security/utility_closet debt to
-#: Hook.ON_DAY_END_ALL / dedicated Capability facts, and reclassifying
-#: room_46 to ROOM_ARCHITECTURE as an area-graph node id -- see game.py's
-#: entries above).
+#: ROOM_DEBT's total entry count, measured 2026-08-15 (after moving
+#: experiments.py's conference_room/dining_room and special_items.py's
+#: dining_room/lost_and_found/vault debt to Capability facts -- DIG_SPOTS,
+#: DINING_ROOM, LOST_AND_FOUND, VAULT, each registered by that room's own
+#: effects/rooms/<id>.py module -- and reclassifying experiments.py's
+#: aquarium/aquarium__experiment to ROOM_ARCHITECTURE as add_aquariums's own
+#: fixed targets rather than a carve-out; see those entries above).
 #: test_room_id_debt_matches_the_cap fails in BOTH directions: above means a
 #: new debt entry landed and nobody paid it down; below means a conversion
 #: already shrank ROOM_DEBT and nobody lowered this constant to match, which
@@ -352,7 +380,7 @@ ROOM_DEBT: dict[str, set[str]] = {
 #: module docstring for why this mirrors #332's original bidirectional
 #: ROOM_ID_ALLOWLIST_CAP rather than test_item_id_allowlist.py's
 #: upper-bound-only ITEM_DEBT_CAP.
-ROOM_ID_DEBT_CAP = 10
+ROOM_ID_DEBT_CAP = 3
 
 
 def _combined_allowlist() -> dict[str, set[str]]:

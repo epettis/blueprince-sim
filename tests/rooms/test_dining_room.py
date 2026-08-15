@@ -1,10 +1,15 @@
 """Dining Room: the rank-8-gated Main Course.
 
 See tests/rooms/test_kitchen.py for the Kitchen's per-dish menu.
+See tests/test_experiments.py's fireplace_draft section for the Dining
+Room's cell-dependent fireplace rule (base id, non-upgraded).
 """
 
+import dataclasses
+
 from blueprince_sim.config import GameConfig
-from blueprince_sim.engine import special_items as si
+from blueprince_sim.engine import experiments, special_items as si
+from blueprince_sim.engine.effects import Capability, provides_capability
 from blueprince_sim.engine.game import Game
 
 
@@ -196,3 +201,39 @@ def test_main_course_deterministic_same_seed():
         _enter_dining(g1)
         _enter_dining(g2)
         assert g1.state.steps == g2.state.steps, f"day {day}: non-deterministic"
+
+
+# ------------------------------------------------- Capability registration
+
+def test_dining_room_provides_dining_room_capability():
+    """The Dining Room registers Capability.DINING_ROOM (effects/rooms/
+    dining_room.py) -- the fact both _maybe_serve_main_course above and
+    experiments._room_has_fireplace read instead of comparing
+    room.id/variant_of to a literal. A room silently losing this
+    registration would make every Main Course test above fail with "no
+    steps granted" rather than a clean, named assertion, so this pins the
+    registration itself."""
+    assert provides_capability("dining_room", Capability.DINING_ROOM)
+
+
+def test_ordinary_room_does_not_provide_dining_room_capability():
+    """A room with no Dining-Room role (the Corridor) does not provide
+    Capability.DINING_ROOM -- the registry is opt-in, not a default."""
+    assert not provides_capability("corridor", Capability.DINING_ROOM)
+
+
+def test_room_has_fireplace_matches_a_dining_room_upgrade_variant(registry):
+    """_room_has_fireplace's Dining Room branch matches via variant_of, not
+    only an exact id match -- no upgraded Dining Room exists in today's
+    rooms.json, so this constructs one (dataclasses.replace of the base
+    Dining Room record with a synthetic id and variant_of="dining_room") to
+    exercise that half of the check deterministically, without hunting for
+    real upgrade data.
+    """
+    base = registry.by_id["dining_room"]
+    variant = dataclasses.replace(base, id="dining_room__ix_test", variant_of="dining_room")
+    # Rank 5, column 1 (centre) -- fireplace-qualifying, per
+    # tests/test_experiments.py's
+    # test_fireplace_draft_dining_room_fires_in_a_center_column.
+    cell = 21
+    assert experiments._room_has_fireplace(variant, cell)
