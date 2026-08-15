@@ -202,17 +202,19 @@ sound: the per-day horizon cannot see cross-day value (see
 needed. Three measurements argue against this particular shape.
 
 **1. +0.5 does not sit below the win — it dwarfs it.** The premise assumes wins
-are common. They are not, and the gap has only widened since this argument was
-first written. Under the shipped config (`door_locks=True`,
-`antechamber_levers=True`), `greedy_rank`'s `P(reach Antechamber) = 0.100%`
+are common. They are not. Under the shipped config (`door_locks=True`,
+`antechamber_levers=True`), `greedy_rank`'s `P(reach Antechamber) = 0.975%`
 (n=4000, seeds 0–3999, `all_unlocks_config()` — see
 [`greedy-strategy.md`](greedy-strategy.md)'s baselines), so the entire expected
-return from playing for the objective is **≈ 0.001**. A guaranteed `+0.5` is
-roughly **500x** that. This argument was first written against the pre-lock
+return from playing for the objective is **≈ 0.0098**. A guaranteed `+0.5` is
+roughly **51x** that. This argument was first written against the pre-lock
 measurement — `greedy_rank`'s `P(reach Antechamber) = 3.405%` over 20,000
-paired episodes on the same config, before Antechamber locks shipped — where
-`+0.5` was already ≈**15x** the ≈0.034 expected return; the shipped, locked
-config only strengthens the conclusion, a fortiori. It is not a thumb on the
+paired episodes, taken before Antechamber locks shipped and under the pre-#364
+`all_unlocks_config()`, so it is a separate fixture and not seed-comparable
+with the number above — where `+0.5` was already ≈**15x** the ≈0.034 expected
+return. The conclusion does not turn on the exact multiplier: at 51x the bonus
+is still worth more than fifty attempts at the objective, so anything within an
+order of magnitude of either measurement supports it. It is not a thumb on the
 scale; it replaces the objective. The rational policy becomes "collect disks,
 ignore the Antechamber", which is the opposite of the intent — the owner's
 rule is *invest so you win more later*, not *stop winning*.

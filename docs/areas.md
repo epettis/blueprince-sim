@@ -486,7 +486,8 @@ modelled, and a random policy spent **80% of its steps** wandering them; off-gri
 99.8% of the legal mask was travel. Gating on `modelled` cut that to 30%.
 
 **The Sanctum route's four nodes move that number, and it is worth watching.**
-Measured over 300 seeds of uniform-random masked play under `all_unlocks_config()`:
+Measured over 300 seeds of uniform-random masked play under the **pre-#364**
+`all_unlocks_config()`, whose underground carry flags were still unset:
 off-grid step share rose from **29.93%** (the pre-Sanctum 12-node `modelled`
 set) to **41.88%** with the four new nodes added, and the travel-action share of
 all actions taken rose from 43.90% to 54.03%. The driver was `mine_south`: it sat
@@ -503,27 +504,47 @@ directions require `candlestick_stairway_lit`, so the off-grid share is lower
 than 41.88% by an unmeasured amount. The numbers are kept because they are
 what justified the `modelled` flag, and that decision still stands.
 
-**The off-grid step share is a standing debt, not a settled number.** Adding the
-Orchard and campsite took it from 35.67% to **69.28%** (300 seeds,
-uniform-random masked play) and that was accepted deliberately — the tax does
-not matter while too few victory paths exist for training to be worthwhile, and
-optimising a training cost before the game is winnable is optimising the wrong
-thing. **Re-measure it, and revisit which nodes stay `modelled`, before any
-training run is started.** Until then the usual discipline — a node goes
+**The off-grid step share is a standing debt, not a settled number.** The tax
+does not matter while too few victory paths exist for training to be worthwhile,
+and optimising a training cost before the game is winnable is optimising the
+wrong thing. **Re-measure it, and revisit which nodes stay `modelled`, before
+any training run is started.** Until then the usual discipline — a node goes
 `modelled: true` only if it holds something worth walking to — is suspended, not
 repealed.
 
-**Apple Orchard/Campsite moved the number sharply, 2026-08-08.** Re-measured
-with the same method (300 seeds, uniform-random masked play, `all_unlocks_config()`,
-one flat action chosen uniformly from the legal mask each step, single-day
-episodes) directly before and after flipping only `campsite`/`apple_orchard` to
-`modelled: true` (all other data unchanged from whatever the tree held at
-measurement time — this is a same-tree A/B, not a comparison against the stale
-29.93/41.88 figures above, which predate the candlestick fix): off-grid step
-share (steps paid by an action taken while already off-grid, over all steps
-paid by any action) rose from **35.67%** to **69.28%**, and the travel-action
-share of all actions taken rose from **42.62%** to **64.10%** — a far sharper
-move than the Sanctum route's ~12-point rise. The driver is structural rather
+**Where it stands on the shipped training baseline.** Measured over 300 seeds
+of uniform-random masked play under `all_unlocks_config()` as it ships (day-20,
+every unlock and every carry flag on, one flat action chosen uniformly from the
+legal mask each step, single-day episodes): off-grid step share (steps paid by
+an action taken while already off-grid, over all steps paid by any action) is
+**85.67%** (17,649 of 20,601 steps) and the travel-action share of all actions
+taken is **82.61%** (4,475 of 5,417). Both are stable in n — at seeds 0–3999
+they read 86.11% and 81.96%. This is a **single absolute reading, not an A/B**:
+it says where the tax sits today, not what any one node costs. The
+underground carry flags (`reservoir_13_reached`, `sealed_entrance_broken`,
+`boiler_room_steam`, `mine_south_visited`) are all on in this preset, so the
+whole underground is open to the walker from step 1 and is part of what is
+being counted.
+
+**Both per-node A/B pairs in this section — the Sanctum route's and the Apple
+Orchard/Campsite one — are keyed to a superseded fixture.** Each measured a
+data flip against the config as it then stood, so their *deltas* are not
+additive with, or comparable to, the absolute reading above; and neither arm of
+either pair can be reproduced without reverting `areas.json`. **Each pair needs
+re-measuring against the shipped preset before it is used to argue about any
+single node's cost.**
+
+**Apple Orchard/Campsite moved the number sharply, 2026-08-08.** Measured
+with the same method (300 seeds, uniform-random masked play, the **pre-#364**
+`all_unlocks_config()`, one flat action chosen uniformly from the legal mask
+each step, single-day episodes) directly before and after flipping only
+`campsite`/`apple_orchard` to `modelled: true` (all other data unchanged from
+whatever the tree held at measurement time — this is a same-tree A/B, not a
+comparison against the 29.93/41.88 figures above, which predate the candlestick
+fix): off-grid step share rose from **35.67%** to **69.28%**, and the
+travel-action share of all actions taken rose from **42.62%** to **64.10%** — a
+far sharper move than the Sanctum route's ~12-point rise. The driver is
+structural rather
 than a stub-gate artefact this time: from `campsite`, the only two legal travel
 destinations are `apple_orchard` and `house`; from `apple_orchard`, the only two
 are `campsite` and `house`. A uniform-random walker that lands on either node
