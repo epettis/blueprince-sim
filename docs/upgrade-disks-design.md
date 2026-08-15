@@ -311,10 +311,15 @@ Security, Laboratory, Office and Shelter carry `flags.disk_reader: true`
 `drafted_outer_room.disk_reader` for Shelter, which has `pool: outer` and
 sits off the 5x9 grid, or via the grid room at the player's cell otherwise.
 
-**Blackbridge Grotto is the one remaining gap.** It has no `rooms.json`
-record at all — it exists only as an area-graph node — and
-`disk_reader_here()` has no branch for that case, so standing there never
-reads as a terminal.
+**Blackbridge Grotto is the fifth terminal.** It has no `rooms.json` record
+at all — it exists only as an area-graph node — so it carries the same
+`disk_reader` flag on its `areas.json` node instead (`Area.disk_reader`,
+mirroring `Room.disk_reader`). `disk_reader_here()`'s off-grid branch reads
+it the same way the on-grid/outer-room branches read the room flag.
+`Game._terminal_room_id_here()` returns the area node id
+(`"blackbridge_grotto"`) as the `experiments.on_terminal_accessed` dedup key
+in this case — the function only ever uses the value as an opaque set
+member, never a registry lookup, so an area id works exactly like a room id.
 
 ## Resolved calls
 

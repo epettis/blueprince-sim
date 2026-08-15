@@ -106,6 +106,81 @@ def test_disk_reader_in_outer_room(registry: Registry) -> None:
     assert g.disk_reader_here()
 
 
+def test_all_four_grid_and_outer_room_terminals_still_read_as_disk_readers(
+    registry: Registry,
+) -> None:
+    """Regression guard: Security, Laboratory, Office (on-grid) and Shelter
+    (outer room) all still read as disk-reader locations after the Grotto's
+    off-grid branch was added to disk_reader_here() -- the new branch must
+    not have disturbed the on-grid/outer-room checks it sits alongside."""
+    for room_id in ("security", "laboratory", "office"):
+        g = Game(GameConfig(special_items=True), seed=0)
+        room = registry.by_id[room_id]
+        g._place_room(room, 7, room.rotations[0])
+        g.state.pos = 7
+        g.state.entered[7] = True
+        assert g.disk_reader_here(), f"{room_id} must still read as a disk reader"
+
+    g = Game(GameConfig(west_gate_unlatched=True, special_items=True), seed=0)
+    g.placed_ids.add("shelter")
+    g.state.area = "shelter"
+    assert g.disk_reader_here(), "shelter must still read as a disk reader"
+
+
+# ---------------------------------------------------------------------------
+# Blackbridge Grotto -- the 5th, off-grid terminal (areas.json's Area.disk_reader)
+# ---------------------------------------------------------------------------
+
+def test_disk_reader_here_true_at_blackbridge_grotto() -> None:
+    """disk_reader_here is True when the player stands off-grid at the
+    Blackbridge Grotto area node -- the 5th Upgrade Disk terminal, which has
+    no rooms.json record and so is recognised through Area.disk_reader
+    instead of Room.disk_reader."""
+    g = Game(GameConfig(special_items=True), seed=0)
+    g.state.area = "blackbridge_grotto"
+    assert g.off_grid
+    assert not g.inside_outer_room
+    assert g.disk_reader_here()
+
+
+def test_disk_reader_here_false_at_a_different_off_grid_area() -> None:
+    """disk_reader_here is False at an off-grid area node that is NOT the
+    Grotto -- pins that the off-grid branch keys on Area.disk_reader rather
+    than on being off-grid at all (which would wrongly offer a terminal
+    everywhere off the 5x9 grid)."""
+    g = Game(GameConfig(special_items=True), seed=0)
+    g.state.area = "private_drive"
+    assert g.off_grid
+    assert not g.disk_reader_here()
+
+
+def test_can_insert_disk_true_at_blackbridge_grotto() -> None:
+    """can_insert_disk is True off-grid at the Grotto while holding a disk,
+    mirroring test_can_insert_disk_true's on-grid Security case."""
+    g = Game(GameConfig(special_items=True), seed=0)
+    g.state.area = "blackbridge_grotto"
+    _grant_disk(g)
+    assert g.phase is Phase.NAVIGATE
+    assert g.can_insert_disk()
+
+
+def test_insert_disk_and_choose_upgrade_completes_at_blackbridge_grotto() -> None:
+    """The full terminal flow -- insert a held disk, receive three options,
+    choose one -- completes off-grid at the Grotto exactly as it does at
+    Security: the disk is consumed and the chosen variant is applied."""
+    g = Game(GameConfig(special_items=True), seed=5)
+    g.state.area = "blackbridge_grotto"
+    _grant_disk(g)
+    assert g.insert_disk() is True
+    assert g.phase is Phase.UPGRADE_PENDING
+    options = list(g.state.pending_upgrade_options)
+    assert len(options) == 3
+    assert g.held_disk_ids() == [], "the inserted disk must be consumed immediately"
+    g.choose_upgrade(1)
+    assert g.phase is Phase.NAVIGATE
+    assert options[1] in g.state.applied_upgrades
+
+
 # ---------------------------------------------------------------------------
 # insert_disk / choose_upgrade — basic flow
 # ---------------------------------------------------------------------------

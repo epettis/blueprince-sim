@@ -2322,6 +2322,23 @@ def test_terminal_access_fires_again_for_a_different_terminal():
     assert g.state.experiment.terminals_accessed == {"security", "laboratory"}
 
 
+def test_terminal_access_fires_again_for_blackbridge_grotto():
+    """Inserting at Security, then off-grid at the Blackbridge Grotto, fires
+    terminal_access a second time and dedups on the area-graph node id
+    ("blackbridge_grotto") -- a distinct key from any room id, so the Grotto
+    terminal is never conflated with an on-grid one."""
+    g = _game_with_two_terminals()
+    _configure(g, "terminal_access", "permanent_allowance")
+    _grant_disk(g, "upgrade_disk_vault_304")
+    _grant_disk(g, "upgrade_disk_commissary")
+    assert g.insert_disk() is True
+    g.choose_upgrade(0)
+    g.state.area = "blackbridge_grotto"
+    assert g.insert_disk() is True
+    assert g.state.experiment.success_count == 2
+    assert g.state.experiment.terminals_accessed == {"security", "blackbridge_grotto"}
+
+
 def test_terminal_access_does_not_fire_for_a_different_configured_trigger():
     """Inserting a disk while an unrelated trigger is configured must not fire
     terminal_access."""

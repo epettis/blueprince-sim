@@ -2784,11 +2784,21 @@ class Game:
 
         Checks the grid room at the player's cell, or the outer room when inside it
         (inside_outer_room is True), since Shelter is an outer room with a terminal.
+        Off-grid and not inside the outer room, checks the current area-graph node's
+        own disk_reader flag -- Blackbridge Grotto is the 5th terminal and has no
+        rooms.json record, so it carries the flag on its areas.json node instead.
         """
         if self.inside_outer_room:
             outer_room = self.drafted_outer_room
             return outer_room is not None and outer_room.disk_reader
         st = self.state
+        # Off-grid (and not inside the outer room): st.pos still holds the on-grid
+        # cell the player departed from, so the area check must run BEFORE the grid
+        # check below, or an off-grid stand at a non-reader area would wrongly read
+        # off whatever room sits at that stale cell instead of the area's own flag.
+        if st.area is not None:
+            area = self.registry.area_graph.nodes.get(st.area)
+            return area is not None and area.disk_reader
         if 0 <= st.pos < len(st.grid) and st.grid[st.pos] >= 0:
             return self.registry.rooms[st.grid[st.pos]].disk_reader
         return False
@@ -2800,17 +2810,24 @@ class Game:
         )
 
     def _terminal_room_id_here(self) -> str | None:
-        """Room id of the Upgrade Disk terminal at the player's current location.
+        """Id of the Upgrade Disk terminal at the player's current location.
 
-        Mirrors :meth:`disk_reader_here`'s own outer-room/grid split, for
-        experiments.on_terminal_accessed's per-terminal dedup key. None only
-        where disk_reader_here() would be False, which insert_disk already
-        rules out via can_insert_disk().
+        Mirrors :meth:`disk_reader_here`'s own outer-room/grid/off-grid split, for
+        experiments.on_terminal_accessed's per-terminal dedup key. A room id
+        on-grid or inside the outer room; the area-graph node id off-grid
+        (Blackbridge Grotto's "blackbridge_grotto", which has no room id at
+        all). None only where disk_reader_here() would be False, which
+        insert_disk already rules out via can_insert_disk().
         """
         if self.inside_outer_room:
             outer_room = self.drafted_outer_room
             return outer_room.id if outer_room is not None else None
         st = self.state
+        # Same off-grid-before-grid ordering as disk_reader_here(), and for the
+        # same reason: st.pos still names the departure cell while off-grid.
+        if st.area is not None:
+            area = self.registry.area_graph.nodes.get(st.area)
+            return area.id if area is not None and area.disk_reader else None
         if 0 <= st.pos < len(st.grid) and st.grid[st.pos] >= 0:
             return self.registry.rooms[st.grid[st.pos]].id
         return None

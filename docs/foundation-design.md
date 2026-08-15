@@ -184,9 +184,9 @@ opened in the same day."* (`Basement_Key`).
 
 ### Both remaining Upgrade Disks land
 
-`open_tasks.md` task 2 recorded 14 of the real game's 16 disks as modelled, with
-The Foundation and the Abandoned Mine off-grid and unreachable. Both are now
-reachable, so the supply is complete at **16 of 16**:
+Fourteen of the real game's 16 disks were once modelled, with The Foundation
+and the Abandoned Mine off-grid and unreachable. Both are now reachable, so the
+supply is complete at **16 of 16**:
 
 - **The Foundation** — an ordinary `guaranteed_in` room pickup, now that the room
   is on the grid, exactly like the seven existing in-grid disks.

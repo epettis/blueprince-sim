@@ -2371,7 +2371,9 @@ def main(argv: list[str] | None = None) -> int:
 
     # ── Upgrade Disk terminals ────────────────────────────────────────────────
     # The rooms whose terminal accepts an Upgrade Disk (docs/upgrade-disks-design.md).
-    # Blackbridge Grotto is a fifth in the real game but has no record yet.
+    # Blackbridge Grotto is a fifth in the real game but has no rooms.json record --
+    # it carries the equivalent disk_reader flag on its areas.json node instead;
+    # see the areas.json section below for that check.
     # Mirrored in tools/ingest_sheet.py's DISK_READER_IDS; this check is what
     # catches the two drifting apart, or the flag being dropped from a record.
     DISK_READER_ROOMS = {"security", "laboratory", "office", "shelter"}
@@ -2670,6 +2672,24 @@ def main(argv: list[str] | None = None) -> int:
         if n.get("kind") == "anchor" and n["id"] != "house":
             if n["id"] not in by_id:
                 errors.append(f"{where}: anchor id {n['id']!r} not in rooms.json")
+        # disk_reader: optional, defaults False (engine/areas.py::load_areas); a
+        # mistyped value (non-bool) would silently read as truthy/falsy downstream.
+        if "disk_reader" in n and not isinstance(n["disk_reader"], bool):
+            errors.append(f"{where}: 'disk_reader' must be boolean when present")
+
+    # Blackbridge Grotto is areas.json's equivalent of DISK_READER_ROOMS above --
+    # the 5th Upgrade Disk terminal, carried as a node flag since it has no
+    # rooms.json record. Exactly one node may carry it; this is what catches the
+    # flag drifting off the node, or landing on an unintended second one.
+    DISK_READER_AREAS = {"blackbridge_grotto"}
+    actual_area_readers = {n["id"] for n in a_nodes if n.get("disk_reader")}
+    if actual_area_readers != DISK_READER_AREAS:
+        missing = DISK_READER_AREAS - actual_area_readers
+        extra = actual_area_readers - DISK_READER_AREAS
+        errors.append(
+            f"areas: disk_reader flag mismatch: missing {sorted(missing)}, "
+            f"unexpected {sorted(extra)}"
+        )
 
     # Gate uniqueness and schema
     a_gate_ids = [g["id"] for g in a_gates]

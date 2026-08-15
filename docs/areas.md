@@ -95,7 +95,7 @@ ordinary `guaranteed_in` room pickup now that the room is on the grid; the
 Abandoned Mine's is a bespoke arrival grant (`special_items.py::on_area_arrival`,
 called from `Game.travel_to` on arrival at `mine_south`, since it is a pure area
 node with no `rooms.json` record for `guaranteed_in` to key off). See
-`open_tasks.md` task 2.
+[`upgrade-disks-design.md`](upgrade-disks-design.md) for the disk supply.
 
 ### The Upper Rotating Gear safe pays out on two different clocks
 

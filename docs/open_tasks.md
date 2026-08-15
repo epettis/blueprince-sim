@@ -91,29 +91,6 @@ gating the terminal action. **It needs a new action id, so it is a retrain
 trigger.** The gold amount needs an owner ruling — the wiki figure for it is
 recorded nowhere in this repo.
 
-## 2. Upgrade Disk functionality — the Blackbridge Grotto terminal
-
-Insert, three-option selection, same-day application, permanent carry-over,
-the 16-disk supply cap and the Commissary fix all ship and are verified
-working end to end. The mechanism itself is authoritative in
-[`upgrade-disks-design.md`](upgrade-disks-design.md); per-source collection
-and respawn behaviour is authoritative per-item in `special_items.json`.
-
-**Only gap: Blackbridge Grotto is not a terminal.** `Game.disk_reader_here()`
-has no off-grid branch for it — it is a pure area-graph node with no
-`rooms.json` record, unlike Security, Laboratory, Office and Shelter, which
-all carry `flags.disk_reader: true`. Scope: ~20 lines in `game.py` plus a
-flag on the area's `areas.json` node; no action- or observation-space
-change, so no retrain — the precedent is `LIGHT_ACTION`'s own off-grid fix.
-**Needs an architecture call on how to mark the node**: a literal
-`state.area == "blackbridge_grotto"` check would violate the
-no-branch-on-room-id invariant ([`architecture.md`](architecture.md)).
-
-**Correction to a stale count**: the sim's fixed room pickups via
-`guaranteed_in` are **seven, not eight** — `upgrade_disk_mechanarium` has
-`guaranteed_in: []` and arrives instead through the Mechanarium's diagonal
-compartment chain, not a plain room pickup.
-
 ## 8. Model the Casino games
 
 The Casino is a room of gambling minigames (slot machine, roulette). Two pieces:
