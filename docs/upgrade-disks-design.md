@@ -5,8 +5,9 @@ Status: **implemented** 2026-07-26 — tables in
 `engine/upgrades.py`, deck substitution in `decks.apply_upgrade`, the player-facing
 API on `Game` (`can_insert_disk` / `insert_disk` / `choose_upgrade`).
 The individual upgrade *effects* are still unwritten — that is the next task.
-Authoritative for the draw mechanism; `docs/open_tasks.md` §2 covers the
-surrounding task (disk sources, terminal rooms, supply).
+Authoritative for the draw mechanism;
+[`upgrade-value-measurement.md`](upgrade-value-measurement.md) covers whether an
+upgrade is worth anything.
 
 Scope of this document: **how inserting a disk picks which room gets upgraded,
 and how the chosen upgrade takes effect.** Writing the individual upgrade

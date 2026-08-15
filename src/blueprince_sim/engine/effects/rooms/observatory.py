@@ -6,7 +6,7 @@ Implemented:
     before. Fires on ON_PLACE (draft), not on entry. Uncapped: no published
     cap exists, so capping it would be an invention. This is a known
     self-amplifying loop (draft Observatory -> +1 star -> richer sky -> more
-    resources -> more drafts), recorded in docs/open_tasks.md.
+    resources -> more drafts), recorded in docs/rooms.md.
   - Capability.NIGHT_SKY -- registers that this room's telescope can view a
     night sky, which is what Game.can_view_night_sky asks. Registered as a
     capability rather than tested by room id so no engine module has to

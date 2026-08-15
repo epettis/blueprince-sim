@@ -545,6 +545,18 @@ The eight Mechanical rooms, all `category: blueprint` with `mechanical` as an
 extra category: `utility_closet`, `boiler_room`, `pump_room`, `security`,
 `workshop`, `laboratory`, `electric_eel_aquarium__ix4`, `mechanarium`.
 
+**`observatory`** — **+1 permanent star every time it is drafted**, uncapped,
+fired on `ON_PLACE` rather than on entry, so a draft pays even if the player never
+walks in. No published cap exists, so capping it would be an invention. **This is a
+known self-amplifying loop and it is left open on purpose because it is faithful**:
+draft Observatory → +1 star → a richer night sky → more resources → more drafts,
+with up to four Observatories reachable in a day through the Chamber of Mirrors.
+Stars are save-scoped and buy constellations, so the loop compounds across an
+attempt rather than resetting nightly — the same shape as the Vestibule's farmable
+reroll below, but with a permanent currency rather than a per-entry one. Whether it
+dominates a trained policy is an open question; the point is that it is known
+before the retrain, not discovered after it.
+
 **`office`** — its terminal runs two independent processes
 (see "The Office's coins" above), both gated on standing at its cell
 (`Capability.OFFICE_TERMINAL`, `engine/effects/rooms/office.py`), distinct
