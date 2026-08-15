@@ -335,8 +335,9 @@ def test_masked_rollout_never_revisits_pointlessly():
     Re-enterable cells are shops with buyable stock, the Workshop with fabrication
     options, a Dining Room with the rank-8 gate open and course unserved,
     cells with openable containers, Vault cells with matching keys,
-    ignition target cells with a tool held, and machine rooms
-    with a broken_lever held (PR3/PR4 move-to re-entry extensions).
+    ignition target cells with a tool held, machine rooms
+    with a broken_lever held, and the Garage cell with an openable car trunk
+    and the Car Keys held (PR3/PR4 move-to re-entry extensions).
     Pointless revisits remain illegal.
     """
     env = make_env()
@@ -366,7 +367,8 @@ def test_masked_rollout_never_revisits_pointlessly():
                             or A._cell_has_openable_container(game, cell)
                             or A._cell_has_vault_box(game, cell)
                             or A._cell_has_ignition_target(game, cell)
-                            or A._cell_has_machine(game, cell)), (
+                            or A._cell_has_machine(game, cell)
+                            or A._cell_has_openable_car_trunk(game, cell)), (
                         f"entered cell {cell} is walkable but not a control room "
                         f"or re-enterable special room"
                     )

@@ -100,6 +100,30 @@ def test_travel_to_garage_suppressed_once_drained(registry):
     assert not mask[A.TRAVEL_BASE + garage_idx], "drained garage must not be a travel target"
 
 
+def test_travel_to_garage_offered_when_car_trunk_still_openable(registry):
+    """Task 31: TRAVEL[garage] stays offered once entered when the Car Keys
+    are held and today's car trunk is unopened -- the anchor-travel path
+    exercises the same ``_cell_worth_entering`` gate MOVE_TO does, and the
+    Garage has no generic container of its own (special_items.json's
+    containers.rooms has no "garage" entry), so the trunk is the only
+    re-entry reason available here.
+    """
+    g = Game(GameConfig(door_locks=False, starting_items=frozenset({"car_keys"})),
+             seed=9, registry=registry)
+    garage = _garage(registry)
+    g._place_room(garage, 1, E | W)
+    garage_cell = g._garage_cell()
+    g.state.entered[garage_cell] = True
+
+    mask = A.action_mask(g)
+    node_ids = A._build_area_node_ids(g.registry)
+    garage_idx = node_ids.index("garage")
+    assert mask[A.TRAVEL_BASE + garage_idx], (
+        "an entered Garage with an unspent car trunk and Car Keys in hand "
+        "must stay a legal travel target"
+    )
+
+
 def test_non_anchor_destination_unaffected(registry):
     """A non-anchor area destination (west_path) is never gated on
     _cell_worth_entering -- it has no grid cell of its own, so the filter

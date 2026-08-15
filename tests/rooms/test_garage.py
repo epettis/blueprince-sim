@@ -19,11 +19,16 @@ from blueprince_sim.config import GameConfig
 from blueprince_sim.engine import special_items as si
 from blueprince_sim.engine.draft import DraftContext, _garage_dead_end_gate
 from blueprince_sim.engine.game import Game
-from blueprince_sim.engine.grid import N, S
+from blueprince_sim.engine.grid import E, N, S, W
 from blueprince_sim.engine.model import Registry
 from blueprince_sim.engine.rng import Rng
 from blueprince_sim.engine.state import DraftOption, GameState
-from blueprince_sim.env.actions import OPEN_CAR_TRUNK_ACTION, action_mask
+from blueprince_sim.env.actions import (
+    MOVE_TO_BASE,
+    OPEN_CAR_TRUNK_ACTION,
+    _cell_worth_entering,
+    action_mask,
+)
 
 GARAGE_ID = "garage"
 
@@ -424,3 +429,55 @@ def test_garage_disk_is_not_marked_collected_by_opening_alone():
     assert "upgrade_disk_garage" not in chain.next_config().collected_disks, (
         "opening the trunk must not retire the disk; only spending it does"
     )
+
+
+def test_move_to_garage_offered_when_car_trunk_still_openable():
+    """Task 31: an already-entered, otherwise-drained Garage stays a legal
+    MOVE_TO target while the Car Keys are held and today's trunk is unopened.
+
+    Reproduces the owner's report ("I can't move to the Garage when carrying
+    the Car Keys because I have already visited the Garage and taken its
+    items"): the Garage has no generic container of its own
+    (data/special_items.json's containers.rooms has no "garage" entry), so
+    once it is entered the car trunk is the ONLY reason left to walk back --
+    and before the fix, _cell_worth_entering never checked it.
+    """
+    g = Game(GameConfig(door_locks=False, starting_items=frozenset({"car_keys"})),
+             seed=9)
+    garage = next(r for r in g.registry.rooms if r.id.startswith(GARAGE_ID))
+    g._place_room(garage, 1, E | W)  # cell 1, east door connects to EH cell 2
+    garage_cell = g._garage_cell()
+    g.state.entered[garage_cell] = True
+    assert g.state.pos == 2, "setup: player starts in the Entrance Hall"
+    assert g.distance_map()[garage_cell] == 1, "setup: Garage must be reachable"
+
+    assert _cell_worth_entering(g, garage_cell), (
+        "an entered Garage with an unspent car trunk and Car Keys in hand "
+        "must still be worth walking back into"
+    )
+    mask = action_mask(g)
+    assert mask[MOVE_TO_BASE + garage_cell], (
+        "MOVE_TO the Garage must stay legal while the car trunk is openable"
+    )
+
+
+def test_move_to_garage_suppressed_once_trunk_opened_today():
+    """The car-trunk re-entry reason is itself once-per-day: once
+    ``garage_car_opened`` is set, an entered, containerless Garage stops
+    being a legal MOVE_TO target again even with the Car Keys still held --
+    proving the new predicate actually reads the once-per-day guard rather
+    than just "Car Keys held in the Garage"."""
+    g = Game(GameConfig(door_locks=False, starting_items=frozenset({"car_keys"})),
+             seed=9)
+    garage = next(r for r in g.registry.rooms if r.id.startswith(GARAGE_ID))
+    g._place_room(garage, 1, E | W)
+    garage_cell = g._garage_cell()
+    g.state.entered[garage_cell] = True
+    g.state.special.garage_car_opened = True  # trunk already opened today
+
+    assert not _cell_worth_entering(g, garage_cell), (
+        "a Garage whose trunk was already opened today must not be worth "
+        "walking back into on Car Keys alone"
+    )
+    mask = action_mask(g)
+    assert not mask[MOVE_TO_BASE + garage_cell]

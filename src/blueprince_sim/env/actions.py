@@ -30,8 +30,9 @@ Layout (Discrete(479)):
            Room whose main course is still pending once rank 8 is reached,
            a cell still holding a container the player can open, a Vault cell
            with an openable deposit box, an ignition target (chapel/tomb/trading_post)
-           with a torch or burning_glass held, and a machine room (greenhouse/casino)
-           with a broken_lever held.
+           with a torch or burning_glass held, a machine room (greenhouse/casino)
+           with a broken_lever held, and the Garage cell with an openable car
+           trunk and the Car Keys held.
   235..240 buy current shop display entry 0..5 (NAVIGATE; on-grid shop or
            inside outer shop (inside_outer_room)). The Casino's two games
            (data/casino.json) are ordinary entries here, not a separate
@@ -654,6 +655,32 @@ def _cell_has_vault_box(game: Game, cell: int) -> bool:
 
 
 
+def _cell_has_openable_car_trunk(game: Game, cell: int) -> bool:
+    """True when ``cell`` holds the Garage (or a Garage variant) and its car
+    trunk can still be opened.
+
+    Position-independent counterpart to ``special_items.can_open_car_trunk``
+    (which reads ``game.state.pos`` and so can only answer for the player's
+    current cell): enables walk-to re-entry so the agent can return to the
+    Garage after picking up the Car Keys elsewhere, the same shape as
+    ``_cell_has_vault_box`` above. Membership in ``game._garage_ids`` (every
+    room id starting with "garage") matches ``can_open_car_trunk``'s own
+    variant check, not a literal "garage" id comparison.
+    """
+    st = game.state
+    if not st.special.enabled:
+        return False
+    if st.grid[cell] < 0:
+        return False
+    room = game.registry.rooms[st.grid[cell]]
+    garage_ids = getattr(game, "_garage_ids", ())
+    if room.id not in garage_ids:
+        return False
+    if not _si.has(st, "car_keys"):
+        return False
+    return not st.special.garage_car_opened
+
+
 def _cell_has_ignition_target(game: Game, cell: int) -> bool:
     """True when ``cell`` holds an unlit ignition target and the player holds a tool.
 
@@ -734,7 +761,8 @@ def _cell_worth_entering(game: Game, cell: int) -> bool:
     re-entry extensions: a buyable shop/Workshop, a Dining Room with a
     pending main course, an openable container, an openable vault deposit
     box, an unlit ignition target with a tool in hand, a machine room with a
-    broken_lever in hand, or the Planetarium with a usable Telescope.
+    broken_lever in hand, an openable Garage car trunk with the Car Keys in
+    hand, or the Planetarium with a usable Telescope.
 
     Self-contained: computes the control-room cells itself so callers (the
     MOVE_TO loop and the travel-to-grid-anchor filter) need not thread any
@@ -756,6 +784,7 @@ def _cell_worth_entering(game: Game, cell: int) -> bool:
             or _cell_has_vault_box(game, cell)
             or _cell_has_ignition_target(game, cell)
             or _cell_has_machine(game, cell)
+            or _cell_has_openable_car_trunk(game, cell)
             or _cell_has_telescope_planetarium_use(game, cell))
 
 
