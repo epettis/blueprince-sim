@@ -1,6 +1,6 @@
 """Conservatory reachability: the Found Floorplan gate.
 
-Owner rulings (docs/open_tasks.md, 2026-08-14 "OWNER RULINGS x4"): the
+Owner rulings, stated in docs/rooms.md and docs/drafting.md: the
 Conservatory is `rarity: "unusual"`, `gem_cost: 1`, `pool: "found_floorplan"`
 (a dedicated pool value, not a reuse of `studio_addition`), and carries
 `counts_as_drafting_room`. Its floorplan is found via a held-shovel condition
