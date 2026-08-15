@@ -15,11 +15,10 @@ an entry on one of the two allowlists below, and the comment on that entry
 records the judgement call.
 
 Mirrors ``tests/test_item_id_allowlist.py`` in shape: the allowlist is split
-into two dicts of ``module filename -> {room ids}``, matching the grain
-docs/open_tasks.md's own "measured starting point" table uses. Per-line
-tracking would be more precise but brittle to line-shuffling refactors that
-don't change which ids a module names; per-module-id is the coarsest grain
-that still answers "did this module stop naming this room".
+into two dicts of ``module filename -> {room ids}``. Per-line tracking would
+be more precise but brittle to line-shuffling refactors that don't change
+which ids a module names; per-module-id is the coarsest grain that still
+answers "did this module stop naming this room".
 
 - ``ROOM_ARCHITECTURE`` holds ids that are not really per-room behaviour
   branches at all: a category name that happens to collide with a real

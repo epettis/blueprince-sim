@@ -40,12 +40,12 @@ from .dashboard import emit
 # Studio-addition rooms whose special behaviour is NOT yet modelled in the engine;
 # excluded from training so the agent never sees rooms that do nothing meaningful.
 # Promote a room from this set once its behaviour is implemented.
-# Each entry carries the open-task reference that blocked it.
+# Each entry documents the reason its behaviour is unmodelled.
 _STUDIO_ADDITION_EXCLUSIONS: frozenset[str] = frozenset({
-    # Treasure Trove: black-box reward mechanic unmodelled (open task: Treasure Trove black box).
+    # Treasure Trove: black-box reward mechanic unmodelled.
     "treasure_trove",
     # Closed Exhibit: security puzzle (Paper Crown pickup simplified to guaranteed) — excluded
-    # because the intended locked-puzzle behaviour is unmodelled (open task: Closed Exhibit puzzle).
+    # because the intended locked-puzzle behaviour is unmodelled.
     "closed_exhibit",
     # NOTE: casino is intentionally NOT excluded here, even though its
     # slot-machine games are unmodelled -- a standing deliberate inconsistency.

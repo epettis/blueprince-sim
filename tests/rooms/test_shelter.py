@@ -5,7 +5,7 @@ test_boudoir.py for the other gem-safe rooms.
 
 The sim assumes every puzzle in an entered room gets solved, so the safe in
 this room just hands over a gem the moment the player walks in - see
-docs/open_tasks.md task 3. That doctrine is why the Shelter is included
+docs/doctrine.md. That doctrine is why the Shelter is included
 despite its real-time time-lock (owner decision): solving the
 lock is assumed, so it pays out.
 """
