@@ -1,9 +1,9 @@
 """The constellation data, the night-sky mechanic, the observation key, and
 what an activation does.
 
-Nine records are live -- five pure resource grants plus the four whose effect
-is written somewhere else in the engine -- and the other four stay
-unimplemented with their action ids permanently masked. What these tests pin
+Eleven records are live -- five pure resource grants plus the six whose effect
+lands somewhere else in the engine -- and the other two stay unimplemented
+with their action ids permanently masked. What these tests pin
 is the mechanic (a true sum-partition, resolved at LIVE star count, under two
 independent per-day caps), the effect each activation actually has DOWNSTREAM
 rather than the flag it sets, and the part that cannot be changed later -- the
@@ -18,6 +18,7 @@ the failure the partition is worth testing for.
 from __future__ import annotations
 
 import json
+import math
 from dataclasses import replace
 from pathlib import Path
 
@@ -25,7 +26,7 @@ import numpy as np
 import pytest
 
 from blueprince_sim.config import GameConfig
-from blueprince_sim.engine import constellations, experiments, special_items
+from blueprince_sim.engine import constellations, experiments, shops, special_items
 from blueprince_sim.engine.decks import build_decks
 from blueprince_sim.engine.draft import deal_draft
 from blueprince_sim.engine.effects.items.telescope import ITEM_ID as TELESCOPE_ID
@@ -33,6 +34,7 @@ from blueprince_sim.engine.game import Game, Phase
 from blueprince_sim.engine.grid import ENTRANCE_CELL, S
 from blueprince_sim.engine.model import Registry
 from blueprince_sim.engine.rng import Rng
+from blueprince_sim.engine.upgrades import root_base_id
 from blueprince_sim.env import actions as A
 from blueprince_sim.env import obs as O
 from blueprince_sim.rl.train import all_unlocks_config
@@ -204,20 +206,24 @@ def test_no_existing_action_id_shifted():
 
 
 def test_unimplemented_constellation_ids_and_the_star_redraw_stay_masked():
-    """The four unimplemented records and REDRAW_WITH_STAR are never legal, in
+    """The two unimplemented records and REDRAW_WITH_STAR are never legal, in
     any state reachable by play.
 
-    The nine implemented ids are deliberately excluded: they go legal in an
+    The eleven implemented ids are deliberately excluded: they go legal in an
     Observatory, which is the point of the block existing. What must not happen
     is an id whose effect does not exist becoming pressable -- that would
     silently no-op, or crash on a missing payload. Swept over played-out days
     on both presets rather than checked at a single reset, since a block that
     only went legal deep in a day would pass a step-0 check.
+
+    This sweep doubles as the proof that everything added to the block stays
+    INERT in ordinary play: no reserved id is reachable through the mask, and
+    an activation only ever happens where a night sky was deliberately viewed.
     """
     reserved = [A.ACTIVATE_CONSTELLATION_BASE + INDEX[c["id"]]
                 for c in RECORDS if not c["implemented"]]
     reserved.append(A.REDRAW_WITH_STAR_ACTION)
-    assert len(reserved) == 5
+    assert len(reserved) == 3
     for cfg in (GameConfig(), all_unlocks_config()):
         for seed in range(6):
             game = Game(cfg, seed=seed)
@@ -571,16 +577,20 @@ def test_each_implemented_constellation_grants_exactly_its_published_amount():
             f"{cid} granted the wrong amount of {resource}")
 
 
-def test_the_four_unimplemented_constellations_refuse_to_activate():
+def test_the_unimplemented_constellations_refuse_to_activate():
     """An unimplemented constellation can APPEAR in a sky -- it is part of the
     partition -- but never activates, so its effect cannot silently no-op.
 
     Each is set up at its own star count, where it is the entire sky, which is
     also what proves it really was present and was refused on the
     ``implemented`` flag rather than simply absent.
+
+    The two left are the Ink Well and the Spiral of Stars, the pair sitting
+    outside the 0-49 partition table. They are named rather than counted, so
+    implementing one has to strike it off this list deliberately.
     """
     unimplemented = [c for c in RECORDS if not c["implemented"]]
-    assert len(unimplemented) == 4
+    assert [c["id"] for c in unimplemented] == ["ink_well", "spiral_of_stars"]
     for record in unimplemented:
         cid = record["id"]
         game = _observatory_game(stars=record["stars"])
@@ -930,3 +940,341 @@ def test_a_non_stacking_record_neither_re_applies_nor_re_multiplies(registry):
     assert stacking == 2 * _apple_effect()["steps"]
     assert constellations.food_step_bonus(
         non_stacking, apples.state, _apple_effect()["food_id"]) == _apple_effect()["steps"]
+
+
+# ------------------------------------------------------------------ The Sail
+
+
+def _sail_effect() -> dict:
+    """The Sail's own effect block: the shop ids its sale covers."""
+    return next(c for c in RECORDS if c["id"] == "the_sail")["effect"]
+
+
+#: A cell to stand a shop in, away from the Observatory at cell 1. Nothing
+#: about the sale is positional, so any occupied non-Observatory cell does.
+_SHOP_CELL = 7
+
+
+def _shop_prices(registry, shop_id, *, activate, day=1, seed=0, items=()) -> list:
+    """Roll ``shop_id``'s stock and return its displayed (id, price) pairs.
+
+    Both arms share a seed, so the two stock rolls are identical and the only
+    difference between them is whether The Sail was activated -- through a real
+    night sky and a real activation, never by writing a flag.
+    """
+    game = _observatory_game(stars=STARS["the_sail"], seed=seed, registry=registry,
+                             items=items)
+    game.state.day = day
+    game.view_night_sky()
+    if activate:
+        game.activate_constellation(INDEX["the_sail"])
+    room = game.registry.by_id[shop_id]
+    game.state.grid[_SHOP_CELL] = room.idx
+    game.state.placed_doors[_SHOP_CELL] = room.door_mask
+    game.state.entered[_SHOP_CELL] = True
+    game.state.pos = _SHOP_CELL
+    shops.on_enter_shop(game, room)
+    return [(e["id"], e["price"]) for e in shops.stock_display(game, shop_id)]
+
+
+@pytest.mark.parametrize("shop_id", ["commissary", "locksmith", "kitchen"])
+def test_the_sail_halves_every_price_at_a_shop_it_names(registry, shop_id):
+    """Activating The Sail actually halves what each entry costs, rounding up,
+    at every shop its record lists -- the price a purchase would spend, not a
+    flag set beside it.
+
+    Measured against the same seed unactivated, so the stock is the same items
+    in the same order and the only thing that moved is the price. Rounding is
+    asserted as a ceil rather than as fixed numbers, since the stock roll is
+    seeded and the entries may change; what must not drift is the rule.
+    """
+    off = _shop_prices(registry, shop_id, activate=False)
+    on = _shop_prices(registry, shop_id, activate=True)
+    assert off and [i for i, _ in off] == [i for i, _ in on]
+    for (item, before), (_, after) in zip(off, on):
+        assert after == math.ceil(before / 2), (
+            f"{shop_id}/{item}: {before} became {after}, not {math.ceil(before / 2)}")
+        assert after < before, f"{shop_id}/{item}: the price did not move at all"
+
+
+def test_every_shop_the_sail_names_is_a_real_shop_and_goes_on_sale(registry):
+    """All four listed shops are put on sale by one activation, and none of
+    them is an id that no longer names a shop.
+
+    The Bookshop is why this sits next to the price test above: it is a real
+    shop the sale really covers, but its stock is deliberately empty (lore
+    books are out of scope), so a price measurement cannot see it. Without
+    this, the Bookshop could silently fall out of the allowlist unnoticed.
+    """
+    game = _observatory_game(stars=STARS["the_sail"], registry=registry)
+    game.view_night_sky()
+    game.activate_constellation(INDEX["the_sail"])
+    con = registry.constellations
+    for shop_id in _sail_effect()["shops"]:
+        assert shop_id in registry.shop_rules.shops, f"{shop_id} is not a shop"
+        assert constellations.shop_half_price(con, game.state, shop_id), (
+            f"{shop_id} is listed by the record but was not put on sale")
+
+
+def test_the_sail_leaves_every_shop_it_does_not_name_alone(registry):
+    """A shop outside the record's list charges exactly what it charged before
+    -- "no Shops other than the four listed Shops benefit from the sale".
+
+    A discount wired as "every shop" instead of "these shops" would halve the
+    Showroom and the Armory too, and fail here rather than pass silently
+    against the four that are supposed to move.
+    """
+    named = set(_sail_effect()["shops"])
+    others = [s for s in registry.shop_rules.shops if s not in named]
+    assert others, "no control shop left to compare against"
+    for shop_id in others:
+        off = _shop_prices(registry, shop_id, activate=False)
+        on = _shop_prices(registry, shop_id, activate=True)
+        assert off == on, f"{shop_id} is not on the list but its prices moved"
+
+
+def test_the_sail_does_not_stack(registry):
+    """A second Sail activation at a second Observatory charges the same prices
+    as the first -- "no additional effect if it is activated multiple times".
+
+    A sale implemented as a repeatable reduction rather than a yes/no would
+    quarter these prices instead of halving them.
+    """
+    once = _shop_prices(registry, "commissary", activate=True)
+
+    game = _observatory_game(cells=(1, 6), stars=STARS["the_sail"], registry=registry)
+    for cell in (1, 6):
+        game.state.pos = cell
+        game.view_night_sky()
+        game.activate_constellation(INDEX["the_sail"])
+    assert constellations.activation_count(game.state, "the_sail") == 2
+    room = registry.by_id["commissary"]
+    game.state.grid[_SHOP_CELL] = room.idx
+    game.state.placed_doors[_SHOP_CELL] = room.door_mask
+    game.state.entered[_SHOP_CELL] = True
+    game.state.pos = _SHOP_CELL
+    shops.on_enter_shop(game, room)
+    twice = [(e["id"], e["price"]) for e in shops.stock_display(game, "commissary")]
+    assert twice == once
+
+
+def test_the_sail_and_the_commissary_own_sale_halve_the_price_once(registry):
+    """On Days 20-21 the Commissary is already half price, and activating The
+    Sail on top of it changes nothing -- the wiki calls the two effects
+    identical, so overlapping them cannot quarter a price.
+
+    The day-1 arm is what makes this a test of the overlap rather than of the
+    calendar: it shows the Sail alone reaches the same prices the sale day
+    reaches, so both paths lead to exactly one halving.
+    """
+    sale_day = registry.shop_rules.sale["days"][0]
+    day_only = _shop_prices(registry, "commissary", activate=False, day=sale_day)
+    both = _shop_prices(registry, "commissary", activate=True, day=sale_day)
+    sail_only = _shop_prices(registry, "commissary", activate=True, day=1)
+    full = _shop_prices(registry, "commissary", activate=False, day=1)
+    assert day_only == both == sail_only
+    assert full != sail_only, "nothing was discounted in any arm"
+
+
+def test_a_sail_priced_banana_is_free_with_a_coupon_book(registry):
+    """The wiki's published worked example: Kitchen bananas cost 1 coin on
+    sale, and "with a Coupon Book, they can be purchased free of charge".
+
+    This pins the ORDER of the two reductions, which no other test can see.
+    Halving first gives ceil(2 / 2) - 1 = 0; applying the Coupon Book first
+    would give ceil((2 - 1) / 2) = 1, and the banana would never be free.
+    """
+    priced = dict(_shop_prices(registry, "kitchen", activate=True,
+                               items=("coupon_book",)))
+    assert priced["banana"] == 0, (
+        f"a banana cost {priced['banana']} under the Sail plus a Coupon Book, not "
+        f"0 -- 1 means the Coupon Book was applied before the halving, not after")
+
+
+# ----------------------------------------------------------------- Florealis
+
+
+def _florealis_effect() -> dict:
+    """Florealis's own effect block: the default gem count, and the per-room
+    overrides keyed by root base room id."""
+    return next(c for c in RECORDS if c["id"] == "florealis")["effect"]
+
+
+def _green_room_ids(registry) -> list:
+    """Every room the engine counts as Green -- the same ``green`` category
+    membership the Patio's own gem spread reads."""
+    return [r.id for r in registry.rooms if r.is_category("green")]
+
+
+#: The cell each test drafts its room under test into. Interior, so no room's
+#: door geometry can make the placement itself the thing being measured.
+_GREEN_CELL = 12
+
+
+def _gems_from_drafting(registry, room_id, *, activate, cells=(1,)) -> int:
+    """Gems the player actually holds after drafting ``room_id`` and walking in.
+
+    Returns the DELTA against the identical un-activated game, so a Green Room
+    that pays gems of its own on entry -- which the wiki says is independent of
+    Florealis -- cancels out, leaving only Florealis's contribution. Placement
+    goes through Game._place_room, the real draft site, and the gems are read
+    after a real arrival, so they travel the whole spread_pending ->
+    _collect_spread path instead of being read back out of the parking spot.
+    """
+    def run(activated: bool) -> int:
+        game = _observatory_game(cells=cells, stars=STARS["florealis"],
+                                 registry=registry)
+        if activated:
+            for observatory_cell in cells:
+                game.state.pos = observatory_cell
+                game.view_night_sky()
+                game.activate_constellation(INDEX["florealis"])
+        room = registry.by_id[room_id]
+        before = game.state.gems
+        game._place_room(room, _GREEN_CELL, room.door_mask)
+        game.state.pos = _GREEN_CELL
+        game._enter(_GREEN_CELL)
+        return game.state.gems - before
+
+    return run(True) - run(False) if activate else run(False)
+
+
+def test_florealis_puts_gems_in_the_players_hands_from_a_newly_drafted_green_room(
+        registry):
+    """Drafting a Green Room under an active Florealis and walking into it
+    actually raises the player's gem count.
+
+    The whole path is exercised -- parked at the draft, collected on arrival --
+    because a flag reaching neither would look identical to this one when seen
+    from the activation site.
+    """
+    assert _gems_from_drafting(registry, "terrace", activate=True) > 0
+
+
+@pytest.mark.parametrize("room_id", ["terrace", "patio", "veranda", "greenhouse",
+                                     "courtyard", "cloister", "courtyard__ix48",
+                                     "cloister_of_rynna__ix29", "corriyard__ix50"])
+def test_florealis_pays_each_green_room_its_published_count(registry, room_id):
+    """The Courtyard and the Cloister bloom two gem flowers and every other
+    Green Room one, and an upgraded Courtyard or Cloister of X inherits its
+    base's two.
+
+    The amounts come from the record, so what this asserts is the LOOKUP: that
+    the per-room override is keyed by root base id and that the default catches
+    everything else. A lookup keyed by the placed room's own id would pay the
+    upgrades one gem apiece and fail here.
+    """
+    effect = _florealis_effect()
+    expected = effect["gems_by_room"].get(
+        root_base_id(registry, registry.by_id[room_id]), effect["gems"])
+    assert _gems_from_drafting(registry, room_id, activate=True) == expected
+
+
+def test_florealis_pays_nothing_for_a_room_that_is_not_green(registry):
+    """A non-Green room drafted under an active Florealis grows no gem
+    flowers: the effect is scoped by the room's category, not by the fact that
+    a draft happened."""
+    assert _gems_from_drafting(registry, "kitchen", activate=True) == 0
+
+
+def test_florealis_leaves_green_rooms_already_on_the_estate_alone(registry):
+    """A Green Room standing before the activation gains nothing from it --
+    "Green Rooms already on the estate before this constellation is activated
+    are not affected".
+
+    This is the difference between the draft being the trigger and the
+    activation being the trigger, and it is the only test that can tell them
+    apart: an implementation that swept the grid when the constellation fired
+    would pay this room and still pass everything else here.
+    """
+    game = _observatory_game(stars=STARS["florealis"], registry=registry)
+    terrace = registry.by_id["terrace"]
+    game._place_room(terrace, _GREEN_CELL, terrace.door_mask)
+    game.view_night_sky()
+    game.activate_constellation(INDEX["florealis"])
+    assert _GREEN_CELL not in game.state.spread_pending
+
+    before = game.state.gems
+    game.state.pos = _GREEN_CELL
+    game._enter(_GREEN_CELL)
+    assert game.state.gems == before
+
+
+def test_florealis_pays_once_however_many_observatories_activated_it(registry):
+    """Two Observatories, two activations, and a drafted Green Room still
+    blooms exactly what one activation gives it.
+
+    The multi-cell case is the one an activation-time sweep or a broadcast hook
+    gets wrong: ON_DRAFT_ROOM fires once per placed room, so a payout hung
+    there would pay once per Observatory on the estate. Paying at the draft
+    instead makes the count independent of how the day was played.
+    """
+    one = _gems_from_drafting(registry, "courtyard", activate=True, cells=(1,))
+    two = _gems_from_drafting(registry, "courtyard", activate=True, cells=(1, 6))
+    assert one == two == _florealis_effect()["gems_by_room"]["courtyard"]
+
+
+def test_florealis_blooms_every_green_room_and_nothing_in_between(registry):
+    """Under one activation every Green Room the engine knows blooms when
+    drafted, and always by the record's default or its own override -- never
+    zero, never something in between.
+
+    Swept across the whole category rather than a sample, so a Green Room added
+    later cannot quietly bloom nothing.
+    """
+    effect = _florealis_effect()
+    game = _observatory_game(stars=STARS["florealis"], registry=registry)
+    game.view_night_sky()
+    game.activate_constellation(INDEX["florealis"])
+    con = registry.constellations
+    for room_id in _green_room_ids(registry):
+        root = root_base_id(registry, registry.by_id[room_id])
+        expected = effect["gems_by_room"].get(root, effect["gems"])
+        assert expected > 0, room_id
+        assert constellations.green_room_gems(con, game.state, root) == expected, room_id
+
+
+def test_neither_new_effect_is_active_before_its_constellation_is(registry):
+    """Viewing a night sky changes no price and blooms no Green Room; the
+    activation is what does both.
+
+    Pairs with the measurements above the way the draft-bias pair does: those
+    show each effect reaches its consumption site, this shows nothing else on
+    the path switches it on early.
+    """
+    con = registry.constellations
+    game = _observatory_game(stars=STARS["the_sail"], registry=registry)
+    game.view_night_sky()
+    assert not constellations.shop_half_price(con, game.state, "commissary")
+    game.activate_constellation(INDEX["the_sail"])
+    assert constellations.shop_half_price(con, game.state, "commissary")
+
+    bloom = _observatory_game(stars=STARS["florealis"], registry=registry)
+    bloom.view_night_sky()
+    assert constellations.green_room_gems(con, bloom.state, "courtyard") == 0
+    bloom.activate_constellation(INDEX["florealis"])
+    assert constellations.green_room_gems(con, bloom.state, "courtyard") > 0
+
+
+def test_the_sail_and_florealis_do_not_survive_the_night(registry):
+    """Both new effects are day-scoped: a new day restores full prices and
+    stops Green Rooms blooming.
+
+    Neither needs a GameState field, so what is really pinned here is that the
+    activations they read live on the night skies, which a fresh GameState
+    clears -- nothing new reaches env/multiday.py's _CARRYOVER_KEYS.
+    """
+    con = registry.constellations
+    game = _observatory_game(cells=(1, 6), stars=STARS["the_sail"], registry=registry)
+    game.view_night_sky()
+    game.activate_constellation(INDEX["the_sail"])
+    game.state.pos = 6
+    game.state.stars = STARS["florealis"]
+    game.view_night_sky()
+    game.activate_constellation(INDEX["florealis"])
+    assert constellations.shop_half_price(con, game.state, "commissary")
+    assert constellations.green_room_gems(con, game.state, "courtyard") > 0
+
+    game.reset()
+    assert not constellations.shop_half_price(con, game.state, "commissary")
+    assert constellations.green_room_gems(con, game.state, "courtyard") == 0

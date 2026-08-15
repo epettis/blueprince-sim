@@ -22,7 +22,9 @@ from pathlib import Path
 
 # NOTE: engine.items must stay a deferred import (items -> state -> shops
 # would cycle at module load); special_items imports only model, so it's safe.
-from . import special_items as si
+# constellations is safe for the same reason: it imports only experiments,
+# which reaches no further than grid and model.
+from . import constellations, special_items as si
 from .effects import Capability, ItemCapability, item_capability_sum, provides_capability
 from .effects.items import (car_keys, keycard, lunch_box, repellent, royal_scepter,
                             silver_key, stopwatch)
@@ -39,7 +41,11 @@ SCEPTER_COLORS = ("blueprint", "green", "red", "bedroom", "hallway", "shop")
 # including at the roulette table." The Chapel needs no entry here: its tithe
 # penalty (effects/tier1.py) never registers Capability.COMMERCE, so
 # current_shop_id() can never resolve to "chapel" and stock_display() never
-# runs for it at all.
+# runs for it at all. Nor does the half-price sale need an entry: it is an
+# allowlist of shop ids (shops.json's "sale" block, and The Sail's own record
+# in constellations.json), so a shop is included only by being named. This set
+# exists because the Coupon Book is the opposite shape -- it reduces every
+# price and has to be held back.
 _DISCOUNT_EXEMPT_SHOPS = frozenset({"laundry_room", "casino"})
 
 
@@ -396,7 +402,15 @@ def stock_display(game, shop_id: str) -> list:
         return []
 
     sale = game.registry.shop_rules.sale
-    is_sale = state.day in sale.get("days", []) and shop_id in sale.get("shops", [])
+    # Two independent sources of the SAME half-price rule, so this is one
+    # boolean and one ceil below, never two reductions. shops.json's block is
+    # the Commissary's own Days 20-21 sale; The Sail constellation covers its
+    # four listed shops on any day it is activated, and the wiki calls the two
+    # effects identical -- a Commissary under both is still just half price.
+    is_sale = (
+        (state.day in sale.get("days", []) and shop_id in sale.get("shops", []))
+        or constellations.shop_half_price(game.registry.constellations, state, shop_id)
+    )
     discount = (
         0 if shop_id in _DISCOUNT_EXEMPT_SHOPS
         else item_capability_sum(state, game.registry, ItemCapability.SHOP_DISCOUNT, "amount")

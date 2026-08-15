@@ -2593,6 +2593,7 @@ class Game:
             # and rooms_placed are updated.
             experiments.on_room_drafted(self, room, cell, entry_dir, gem_cost, archived)
             shrine.on_room_drafted(self, room)
+            self._park_florealis_gems(room, cell)
         effects.fire(self, room, Hook.ON_PLACE)
         if self.state.foyer_placed:
             # Covers a Hallway placed AFTER the Foyer: its own fresh segments
@@ -2613,6 +2614,35 @@ class Game:
             if idx >= 0 and other_cell != cell:
                 effects.fire(self, self.registry.rooms[idx], Hook.ON_DRAFT_ROOM,
                              context_room=room)
+
+    def _park_florealis_gems(self, room: Room, cell: int) -> None:
+        """Park a newly drafted Green Room's gem flowers in its own cell.
+
+        Called from the draft branch of :meth:`_place_room`, which is where the
+        mechanic's trigger actually is: an active Florealis blooms "all newly
+        drafted Green Rooms" and leaves every Green Room already on the estate
+        alone, so there is nothing to do when the constellation is activated
+        and everything to do at each later draft.
+
+        That siting is also the whole of the idempotency. This runs once per
+        drafted room because a cell is drafted once, so no per-cell record is
+        needed and the number of Observatories on the estate cannot multiply
+        the payout -- an activation-time sweep, or a broadcast hook like
+        ON_DRAFT_ROOM (which fires once per placed room, not once per draft),
+        would each have needed a guard to avoid paying N times.
+
+        The gems land in ``spread_pending`` rather than in the player's hands:
+        a drafted room is not entered, and its contents wait there until the
+        player walks in (:meth:`_collect_spread`). No Conference Room redirect
+        applies -- these are the room's own contents, not a spread reaching out
+        to other cells, and nothing published says otherwise.
+        """
+        if not room.is_category("green"):
+            return
+        gems = constellations.green_room_gems(
+            self.registry.constellations, self.state, root_base_id(self.registry, room))
+        if gems:
+            self.state.spread_pending.setdefault(cell, []).append(("gem", gems))
 
     def _collect_spread(self, cell: int) -> None:
         """Grant every resource parked in ``cell`` by GameState.spread_pending.
