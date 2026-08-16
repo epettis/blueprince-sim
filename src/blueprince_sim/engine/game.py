@@ -2173,7 +2173,8 @@ class Game:
         return pending
 
     def _choose_outer(self, opt) -> None:
-        """Resolve choosing an outer-room option: place it off-grid, fire ON_PLACE.
+        """Resolve choosing an outer-room option: place it off-grid, fire the
+        Shrine's draft-time effects, then ON_PLACE.
 
         The player stays at the doorstep; the room's ON_ENTER effects and item
         rolls wait for :meth:`enter_outer_room`.
@@ -2185,6 +2186,23 @@ class Game:
         room's item roll (see the ON_ENTER branch above this method). So
         marking ``-1`` in ``state.dowsing_marked_cells`` here is read back by
         that exact existing check -- no new plumbing, and no width change.
+
+        :func:`shrine.on_room_drafted` fires here for the same reason it fires
+        in :meth:`_place_room`: a Shrine blessing or curse keyed on *drafting*
+        a room of some category reads only the room's own categories, never the
+        grid, so an outer draft satisfies it exactly as a grid draft does. The
+        wiki's West Path page says as much for the Outer Room door -- "[d]rafting
+        effects not related to the draft pool ... still usually work when
+        drafting on the grounds" (see :meth:`_deal_outer_options`, which leans on
+        the same sentence for the Dowsing Rod). Of the four checks inside, only
+        two can reach an outer room: the Blessing of the High Roller's die on
+        the Trading Post, and the curse's per-category loss on the Trading Post,
+        Hovel and Root Cellar. No outer room is Red or Mechanical, so the
+        General and Tinkerer checks are unreachable from here.
+
+        :func:`experiments.on_room_drafted` deliberately does NOT fire here --
+        the placement-site experiment triggers are grid-sited (see its own
+        docstring).
         """
         st = self.state
         pending = st.pending
@@ -2197,6 +2215,7 @@ class Game:
         del self.doorway_drafts[(-1, 0)]
         st.pending = None
         self.phase = Phase.NAVIGATE
+        shrine.on_room_drafted(self, room)
         effects.fire(self, room, Hook.ON_PLACE)
         # Player stays at the doorstep (area == "west_path"); ON_ENTER fires when they enter.
         self._check_termination()

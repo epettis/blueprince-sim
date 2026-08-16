@@ -270,12 +270,17 @@ def _maybe_general_bonus(game) -> None:
 
 
 def on_room_drafted(game, room) -> None:
-    """Fire every draft-time Shrine effect for a freshly-placed on-grid room.
+    """Fire every draft-time Shrine effect for a freshly-drafted room.
 
-    Called from Game._place_room, once per real on-grid draft (never the
-    day-start Entrance Hall/Antechamber/Foundation placements). The four
-    checks are independent, not a match/case: a multicoloured room, or a room
-    that is simultaneously Shop and Mechanical, can fire more than one.
+    Called once per real draft from both draft sites: Game._place_room for a
+    grid draft (never the day-start Entrance Hall/Antechamber/Foundation
+    placements, which are not drafts) and Game._choose_outer for the
+    once-per-day outer draft. Every check below reads only the drafted room's
+    own categories, never the grid, so both sites are equally valid -- see
+    Game._choose_outer for the wiki sentence that covers the outer one.
+
+    The four checks are independent, not a match/case: a multicoloured room, or
+    a room that is simultaneously Shop and Mechanical, can fire more than one.
     """
     if curse_active(game):
         _apply_curse_loss(game, room)

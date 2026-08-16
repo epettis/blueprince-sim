@@ -5,7 +5,7 @@ delivered set -- each needs its own design pass. Two sources so far: a review of
 the special-items PR stack, and a recorded session of real play through the
 Training Observatory. That first session's twelve findings have shipped,
 leaving the remainders in tasks 37-41; a second session produced tasks
-43-48.
+44-48.
 
 **Play findings outrank the wiki**, per [`doctrine.md`](doctrine.md) -- but where
 one contradicts a published rule, surface the conflict rather than silently
@@ -156,17 +156,6 @@ No silent spin: the NAVIGATE branch always falls through to `input()` and
 being the *only* purposeful action left needs the grid simultaneously
 exhausted. It is still a menu the engine believes exists and the CLI does not
 offer.
-
-## 43. The Blessing of the High Roller granted no dice for a Trading Post draft
-
-> "I did not receive dice when drafting the Trading Post with the Blessing of the
-> High Roller."
-
-`data/shrine.json`'s `high_roller` record is one of the six live blessings.
-Establish by execution whether the grant fires on **draft** or on **entry**, and
-whether the Trading Post is eligible at all — it is an outer-pool room, and
-outer-pool rooms do not receive `ON_DRAFT_ROOM` broadcasts, which is the same
-structural gap that made the Shelter miscount (see task 39).
 
 ## 44. There is no "Call it a day" action
 
