@@ -364,6 +364,17 @@ td:first-child, th:first-child { text-align: left; }
 }
 .play-action-btn:hover { border-color: var(--accent); background: #262b33; }
 
+/* A shop's stock entry the action mask left unlegalized (sold out,
+   unaffordable, or an item requirement not held) -- shown so the row stays
+   visible instead of vanishing, but plainly not a button: dimmed, no pointer
+   cursor, no hover state. See app.js::shopStockRowHtml. */
+.shop-row-unaffordable {
+  display: flex; justify-content: space-between; align-items: baseline; gap: 8px;
+  cursor: default; opacity: .45;
+}
+.shop-row-unaffordable:hover { border-color: var(--line); background: var(--panel2); }
+.shop-row-price { flex: 0 0 auto; white-space: nowrap; color: var(--dim); font-size: 11px; }
+
 /* Draft options: rich cards (see optionCardHtml) plus the redraw/rotate
    controls, all grouped together so the whole draft decision -- which room,
    which orientation, whether to redraw or rotate first -- reads as one unit

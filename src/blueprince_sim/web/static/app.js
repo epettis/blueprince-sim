@@ -1811,6 +1811,20 @@ const PLAY_GROUP_LABELS = {
 };
 const PLAY_GROUP_ORDER = ["draft", "choose", "move", "travel", "buy", "trade", "fabricate", "use", "control"];
 
+// One shop-stock row (frame.shop_stock, from web/play.py::_shop_stock_view)
+// for an entry the action mask did NOT legalize -- sold out, unaffordable, or
+// blocked (a required held item missing). Rendered dim and unclickable
+// rather than omitted, so a shop keeps showing what it carries even when the
+// player cannot yet buy it (the owner: "I may eventually have the money and
+// want to return"). Entries the mask DID legalize are skipped here; those
+// already render as ordinary clickable buttons from legal_actions.
+function shopStockRowHtml(entry) {
+  const reason = entry.sold_out ? "sold out" : entry.blocked ? "locked" : "can't afford";
+  return `<div class="play-action-btn shop-row-unaffordable" title="${esc(reason)}">` +
+    `<span class="log-text">${esc(entry.id)}</span>` +
+    `<span class="shop-row-price">${entry.price}g · ${esc(reason)}</span></div>`;
+}
+
 function renderPlayActions() {
   const el = $("#play-actions");
   const s = state.playState;
@@ -1840,13 +1854,21 @@ function renderPlayActions() {
     (byGroup[a.group] = byGroup[a.group] || []).push(a);
   }
   const groups = [...PLAY_GROUP_ORDER, ...Object.keys(byGroup).filter((g) => !PLAY_GROUP_ORDER.includes(g))];
+  // Stock rows the mask left unlegalized (sold out / unaffordable / locked)
+  // for the shop the player currently stands in, if any -- see
+  // web/play.py::_shop_stock_view. Only ever populated in the "buy" group.
+  const unaffordableStock = (s.frame.shop_stock || []).filter((e) => e.action_id == null);
   let html = "";
   for (const g of groups) {
     const acts = byGroup[g];
-    if (!acts || !acts.length) continue;
+    const extraRows = g === "buy" ? unaffordableStock : [];
+    if ((!acts || !acts.length) && !extraRows.length) continue;
     html += `<div class="play-group-head">${esc(PLAY_GROUP_LABELS[g] || g)}</div>`;
-    for (const a of acts) {
+    for (const a of acts || []) {
       html += `<button class="play-action-btn" data-id="${a.id}">${esc(a.label)}</button>`;
+    }
+    for (const entry of extraRows) {
+      html += shopStockRowHtml(entry);
     }
   }
   // An empty list here has two very different meanings: mid-draft (or
@@ -1859,7 +1881,9 @@ function renderPlayActions() {
     ? '<p class="dim">all legal actions are in the Upgrade Disk panel above</p>'
     : '<p class="dim">no legal actions — day is over</p>';
   el.innerHTML = html || emptyMsg;
-  for (const btn of el.querySelectorAll(".play-action-btn")) {
+  // [data-id] excludes shop-row-unaffordable rows (see shopStockRowHtml),
+  // which share the .play-action-btn layout but carry no action to wire up.
+  for (const btn of el.querySelectorAll(".play-action-btn[data-id]")) {
     btn.onclick = () => playAct(Number(btn.dataset.id));
   }
 }
@@ -2035,11 +2059,16 @@ function renderPlayLog() {
   // gets its own non-shrinking flex slot instead of being swallowed by the
   // row's ellipsis truncation on long entries (draft/travel labels are
   // exactly the long ones, and exactly where the payout matters most).
+  //
+  // Rendered newest-first so the most recent action and its payout are
+  // visible without scrolling; the "n" label keeps each row's chronological
+  // action number (state.playLog stays oldest-first internally) so reversal
+  // never reorders the numbering itself.
   $("#play-action-log").innerHTML = state.playLog.length
     ? state.playLog.map((a, i) =>
         `<div class="play-log-row"><span class="n">${i + 1}</span>` +
         `<span class="log-text">${esc(a.text)}</span>${payoutHtml(a.payout)}</div>`
-      ).join("")
+      ).reverse().join("")
     : '<div class="dim">—</div>';
 }
 
