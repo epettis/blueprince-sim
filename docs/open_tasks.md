@@ -170,6 +170,21 @@ assume the chain will progress on its own. Whether to shape toward the first
 unlock, seed the chain part-way, or accept a long flat start is the open
 question, and it should be settled before committing a long run.
 
+**The first unlock is one action deep, which makes shaping the cheapest
+option.** A fresh save offers three travel targets, and one of them earns a
+flag outright: travelling to `apple_orchard` sets `orchard_unlocked` in
+**40 of 40** fresh saves. It costs a single action on day 1, never fails, and
+pays +20 starting steps on every later day, so it compounds. No scripted
+policy takes it, because none of them travels.
+
+**The carryover machinery is ruled out as a cause.** All 19 keys appear in
+`Game.carryover()`'s output and each carries when its state term is set. Two
+apparent defects -- `reservoir_13_reached` missing from the builder, and
+`royal_scepter_found` having no state term -- were both misreadings, the second
+because that flag defaults to True in `GameConfig`. Only 4 of the 19 gate an
+area edge (`west_gate_unlatched`, `mine_south_visited`,
+`sealed_entrance_broken`, `boiler_room_steam`); the rest gate pools and items.
+
 **What remains on this task is the reward calibration itself.** The fixture
 explains why touring beat drafting; it does not calibrate
 `special_item_values`, `PATHS_ONE_PENALTY`/`PATHS_ZERO_PENALTY` or the scepter
