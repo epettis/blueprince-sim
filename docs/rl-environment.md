@@ -85,7 +85,13 @@ needing a new pending handler.
 
 **This one is an observation change too**: a new `remodel` key,
 `Box(0, 999, shape=(6,), int16)` — `[room index + 1, current rarity index + 1]`
-per row — taking the flattened observation width from **1084 to 1090**. It
+per row — taking the flattened observation width from **1084 to 1090**, and a
+second change took it to **1180**: `wrench_rarity` was replaced by
+`permanent_rarity`, widened from the Gear Wrench's 8 Mechanical Rooms to the
+**98-room union of both writers of that one slot**, since the board writes it
+too and the wrench alone left most of the board's writes unobservable. The
+union rather than the board's pool, because `pump_room` and the Electric Eel
+Aquarium are wrench-settable and never board-offered. It
 earns that width because *which* floorplan a row offers is the whole decision
 and no existing key carries it (`permanent_rarity` says what a room's rarity is,
 while the board can offer any room in the day's draft pool). The twelve action

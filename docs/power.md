@@ -199,7 +199,7 @@ Python rather than in a room record.
 
 ## Observation and action spaces
 
-Untouched by the power system. `N_ACTIONS` is 493 and the observation is 1090
+Untouched by the power system. `N_ACTIONS` is 493 and the observation is 1180
 wide; neither moves when power moves.
 
 Power state is not in the observation, on purpose and consistently with
