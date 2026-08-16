@@ -22,32 +22,23 @@ def eligible_pool(registry: Registry, cfg: GameConfig) -> list[Room]:
     variant id appears in cfg.upgrade_disks, the variant joins the pool and
     its base room is removed.
 
-    The Treasure Trove (``pool == "studio_addition"``) has a second, narrower
-    door into the pool besides ``cfg.studio_additions``: ``cfg.treasure_trove_
-    blackprint``, set once the player has picked up its blackprint at Upper
-    Rotating Gear (game.py::travel_to / special_items.py::on_area_arrival).
-    This mirrors the general "GameConfig flag gates pool membership" pattern
-    rather than mutating cfg.studio_additions, because the Treasure Trove's
-    black-box/Key-of-Aries reward mechanics remain unmodelled (see
-    rl/train.py::_STUDIO_ADDITION_EXCLUSIONS) -- only its basic draftability is.
+    Two pools hold rooms that are absent from a fresh save's deck and must be
+    unlocked one room at a time, and each is gated by its own id set because
+    they are different game mechanics:
 
-    The Throne Room (also ``pool == "studio_addition"``) has the same second
-    door: ``cfg.throne_room_blueprint``, set once the player has picked up its
-    blueprint at Orindian Ruins. Unlike Treasure Trove, the Throne Room's own
-    behaviour (its north Antechamber lever, its Mora Jai +2 allowance box) IS
-    modelled and it is already included in ``rl/train.py::all_studio_
-    additions()``, so this flag adds no new content under ``all_unlocks_
-    config`` -- it only matters under ``fresh_save_config``, which passes no
-    ``studio_additions``. The dedicated flag exists anyway because the pool
-    gate is inherently per-room, the same shape as Treasure Trove's.
+    - ``studio_addition`` (8 rooms), gated by ``cfg.studio_additions``: the
+      floorplans the Drafting Studio's drawing board offers three at a time,
+      one of which is permanently added to the pool.
+    - ``found_floorplan`` (8 rooms), gated by ``cfg.found_floorplans``: each
+      is hidden somewhere on the estate and must be found individually.
 
-    The Conservatory (``pool == "found_floorplan"``, a value of its own --
-    NOT a reuse of ``studio_addition``) has one door: ``cfg.conservatory_
-    floorplan_found``, set once the player has arrived at the campsite
-    holding a shovel (special_items.py::on_area_arrival). Gated the same way
-    as Treasure Trove/Throne Room -- a GameConfig flag, checked per-room --
-    but on its own pool value rather than ``studio_addition`` membership,
-    since the room is not one of the studio-addition rooms.
+    Three found floorplans are discovered somewhere the engine models, so they
+    have a SECOND door: a dedicated GameConfig bool
+    (config.py::FOUND_FLOORPLAN_FLAGS). ``cfg.unlocked_found_floorplans()``
+    unions the two doors into one id set, so the gate here stays per room --
+    ``cfg.conservatory_floorplan_found`` says a shovel was swung at the
+    campsite, which is evidence about the Conservatory alone and must not admit
+    the other seven.
     """
     replaced: set[str] = set()
     chosen_variants: list[Room] = []
@@ -57,6 +48,7 @@ def eligible_pool(registry: Registry, cfg: GameConfig) -> list[Room]:
             if room.variant_of:
                 replaced.add(room.variant_of)
 
+    found_floorplans = cfg.unlocked_found_floorplans()
     out = []
     for room in registry.rooms:
         if room.rarity is None or room.id in replaced:
@@ -68,11 +60,7 @@ def eligible_pool(registry: Registry, cfg: GameConfig) -> list[Room]:
             out.append(room)
         elif room.pool == "studio_addition" and room.id in cfg.studio_additions:
             out.append(room)
-        elif room.id == "treasure_trove" and cfg.treasure_trove_blackprint:
-            out.append(room)
-        elif room.id == "throne_room" and cfg.throne_room_blueprint:
-            out.append(room)
-        elif room.pool == "found_floorplan" and cfg.conservatory_floorplan_found:
+        elif room.pool == "found_floorplan" and room.id in found_floorplans:
             out.append(room)
         # "outer": drafted at the dedicated outer location, not in decks
         # "pool_temp": injected by The Pool's effect during the day

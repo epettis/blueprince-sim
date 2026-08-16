@@ -158,7 +158,7 @@ def test_tunnel_south_draft_is_normal(registry, cfg):
     tunnel_idx = registry.by_id["tunnel"].idx
     assert all(o.room_idx != tunnel_idx for o in pending.options), (
         "south-door draft must not produce a Tunnel (chain keys on north only, "
-        "and the Tunnel's studio_addition pool isn't enabled by the default cfg)"
+        "and the Tunnel's found_floorplan pool isn't enabled by the default cfg)"
     )
     assert all(not o.forced for o in pending.options)
 

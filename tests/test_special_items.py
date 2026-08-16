@@ -268,7 +268,7 @@ def test_lost_and_found_steals_one_item():
     separately from gifts (gifts may add items back to the pool).
     """
     reg = _registry()
-    cfg = GameConfig(studio_additions=frozenset({"lost_and_found"}), royal_scepter_found=False)
+    cfg = GameConfig(found_floorplans=frozenset({"lost_and_found"}), royal_scepter_found=False)
     g = Game(cfg, seed=42)
     # Inject two items directly so we have something to steal
     si.grant(g.state, reg, "shovel", source="test")
@@ -299,7 +299,7 @@ def test_lost_and_found_ladder_transform_floors_at_two():
     room, stashed on state.special.count_transform_raw by
     engine/items.py's _apply_count_transform ("deferred_ladder" kind).
     """
-    cfg = GameConfig(studio_additions=frozenset({"lost_and_found"}))
+    cfg = GameConfig(found_floorplans=frozenset({"lost_and_found"}))
     g = Game(cfg, seed=7)
     g.state.special.count_transform_raw["lost_and_found"] = 0
     assert _gift_count(g) == 2
@@ -309,7 +309,7 @@ def test_lost_and_found_ladder_transform_at_raw_one():
     """Wiki: "One item is added to the result, and the item count then
     clamped to be in 2-4." Raw 1 -> 1+1=2, already inside [2, 4]: 2 items.
     """
-    cfg = GameConfig(studio_additions=frozenset({"lost_and_found"}))
+    cfg = GameConfig(found_floorplans=frozenset({"lost_and_found"}))
     g = Game(cfg, seed=8)
     g.state.special.count_transform_raw["lost_and_found"] = 1
     assert _gift_count(g) == 2
@@ -319,7 +319,7 @@ def test_lost_and_found_ladder_transform_at_raw_three():
     """Wiki: "One item is added to the result, and the item count then
     clamped to be in 2-4." Raw 3 -> 3+1=4, at the ceiling: 4 items.
     """
-    cfg = GameConfig(studio_additions=frozenset({"lost_and_found"}))
+    cfg = GameConfig(found_floorplans=frozenset({"lost_and_found"}))
     g = Game(cfg, seed=9)
     g.state.special.count_transform_raw["lost_and_found"] = 3
     assert _gift_count(g) == 4
@@ -331,7 +331,7 @@ def test_lost_and_found_ladder_transform_ceilings_at_four():
     items (the ladder's high-luck fixed bands can roll a raw count above 3,
     e.g. 29+ luck's deterministic 4-item band).
     """
-    cfg = GameConfig(studio_additions=frozenset({"lost_and_found"}))
+    cfg = GameConfig(found_floorplans=frozenset({"lost_and_found"}))
     g = Game(cfg, seed=10)
     g.state.special.count_transform_raw["lost_and_found"] = 5
     assert _gift_count(g) == 4
@@ -343,7 +343,7 @@ def test_lost_and_found_missing_stash_defaults_to_raw_zero():
     -- the hook must default to raw=0 rather than crash or misbehave, still
     landing on the wiki's floor of 2 items (0+1=1, clamped up to 2).
     """
-    cfg = GameConfig(studio_additions=frozenset({"lost_and_found"}))
+    cfg = GameConfig(found_floorplans=frozenset({"lost_and_found"}))
     g = Game(cfg, seed=11)
     assert "lost_and_found" not in g.state.special.count_transform_raw
     assert _gift_count(g) == 2
@@ -361,7 +361,7 @@ def test_lost_and_found_guaranteed_item_carve_out_ignores_the_ladder():
     rolled -- a poisoned/absurd stashed raw (99) must be ignored entirely.
     """
     reg = _registry()
-    cfg = GameConfig(studio_additions=frozenset({"lost_and_found"}))
+    cfg = GameConfig(found_floorplans=frozenset({"lost_and_found"}))
     g = Game(cfg, seed=12)
     si.grant(g.state, reg, "allowance_token_lost_and_found", source="test")
     assert "allowance_token_lost_and_found" in g.state.special.spawned_today
@@ -374,7 +374,7 @@ def test_lost_and_found_no_guaranteed_item_uses_the_ladder_branch():
     this room's guaranteed_by_room list), the ladder branch applies: a
     stashed raw of 99 clamps to the wiki's ceiling of 4, not 3.
     """
-    cfg = GameConfig(studio_additions=frozenset({"lost_and_found"}))
+    cfg = GameConfig(found_floorplans=frozenset({"lost_and_found"}))
     g = Game(cfg, seed=13)
     g.state.special.count_transform_raw["lost_and_found"] = 99
     assert _gift_count(g) == 4
@@ -390,7 +390,7 @@ def test_lost_and_found_suppress_luck_floors_at_two_not_zero():
     a hand-set stash, to prove the floor is genuinely reachable through the
     live pipeline.
     """
-    cfg = GameConfig(studio_additions=frozenset({"lost_and_found"}))
+    cfg = GameConfig(found_floorplans=frozenset({"lost_and_found"}))
     g = Game(cfg, seed=14)
     suppress_luck(g)
     room = g.registry.by_id["lost_and_found"]
@@ -408,7 +408,7 @@ def test_lost_and_found_steals_keycard():
     is explicit so the scepter is not in inventory and the keycard is the only
     steal candidate (the default flipped to True; False disables the grant).
     """
-    cfg = GameConfig(studio_additions=frozenset({"lost_and_found"}),
+    cfg = GameConfig(found_floorplans=frozenset({"lost_and_found"}),
                      royal_scepter_found=False)
     g = Game(cfg, seed=3)
     g.state.has_keycard = True

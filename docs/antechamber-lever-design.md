@@ -188,7 +188,7 @@ The north door has two levers, and neither is on the grid:
   north door of the Antechamber."* It does **not** require the 8 Sanctum Keys —
   those open the sigil chambers, which are side content. Reaching `inner_sanctum` is
   sufficient.
-- **Throne Room** — the backup. A `studio_addition` room, so it needs that unlock;
+- **Throne Room** — the backup. A `found_floorplan` room, so it needs that unlock;
   the wiki notes it cannot be used on day one because the room enters the pool a day
   late.
 

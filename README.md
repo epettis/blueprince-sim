@@ -88,7 +88,8 @@ functions in [docs/rewards.md](docs/rewards.md).
 | `orchard_unlocked` | +20 starting steps (50 -> 70) |
 | `mine_unlocked` | +2 gems at day start (Gemstone Cavern) |
 | `west_gate_unlatched` | Grounds<->West Path shortcut open (earned in-run; not outer-draft gate) |
-| `studio_additions` | set of Drafting Studio rooms added to the pool (incl. `solarium`, `classroom`) |
+| `studio_additions` | set of the 8 Drafting Studio rooms added to the pool (incl. `solarium`, `classroom`) |
+| `found_floorplans` | set of the 8 Found Floorplans discovered on the estate (incl. `tunnel`, `planetarium`) |
 | `upgrade_disks` | upgrade-variant room ids that replace their base room |
 | `veteran_mode`, `day`, `room46_reached` | stage selection + gem deck-size gates |
 | `satisfied_conditions` | item-gated rooms: `breakfast`, `secret_garden_key`, `knight_chess_piece`, `room8_key` |
