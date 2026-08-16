@@ -660,6 +660,17 @@ the eight are live** — Dancer, High Roller, Gardener, Tinkerer, General, Berry
 Picker; Chef (needs Dining Room dish tracking) and Monk (needs grounds drafting)
 stay inert.
 
+The draft-time half of a blessing or curse fires on **every** room you draft,
+the once-per-day **outer** draft on the grounds included: those checks read only
+the drafted room's own categories, never the grid, and the wiki's West Path page
+says drafting effects unrelated to the draft pool still work when drafting on
+the grounds. So the High Roller's die lands on a Trading Post drafted at the
+Outer Room door, and the curse takes its per-category coin/gem/step from a
+Trading Post, Root Cellar or Hovel drafted there. `Game._choose_outer` and
+`Game._place_room` both call `shrine.on_room_drafted` for this. The General and
+Tinkerer checks are unreachable from the outer pool, none of whose eight rooms
+is Red or Mechanical.
+
 The action space is **8 blessings × 5 durations = 40 actions** with the coin
 cost derived, rather than 80 raw donation amounts: nothing is lost, since the
 wiki notes there is little reason to offer an even number of coins except to

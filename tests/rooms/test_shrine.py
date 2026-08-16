@@ -402,6 +402,85 @@ def test_high_roller_grants_a_die_per_shop_drafted():
     assert g.state.dice == before + 1
 
 
+def _outer_hand(g: Game, room_id: str) -> None:
+    """Put the game into DRAFTING on a one-option outer hand offering ``room_id``.
+
+    Built rather than dealt so the scenario never depends on which three of the
+    eight outer rooms a seed happens to shuffle up. Reproduces exactly what
+    Game.open_outer_draft leaves behind for Game.choose to consume: from_cell
+    and target_cell both -1 (the sentinel that routes choose to _choose_outer),
+    and the hand registered under the (-1, 0) doorway key _choose_outer deletes.
+    """
+    room = g.registry.by_id[room_id]
+    pending = PendingDraft(from_cell=-1, direction=0, target_cell=-1)
+    pending.options.append(
+        DraftOption(room_idx=room.idx, orientation=room.door_mask, gem_cost=0, slot=0))
+    g.doorway_drafts[(-1, 0)] = pending
+    g.state.pending = pending
+    g.phase = Phase.DRAFTING
+
+
+def test_high_roller_grants_a_die_for_a_shop_drafted_at_the_outer_door():
+    """Blessing of the High Roller pays on the once-per-day outer draft too.
+
+    The Trading Post is a Shop in the outer pool, so it is only ever reachable
+    through Game._choose_outer, never through the grid's Game._place_room. The
+    blessing's trigger is "each time you draft a Shop" and reads nothing but the
+    room's own categories, so the off-grid draft site must grant the die exactly
+    as the grid site does -- the owner reported drafting the Trading Post under
+    this blessing and receiving nothing.
+    """
+    g = Game(GameConfig(shrine_blessing_id="high_roller", shrine_blessing_days=3), seed=1)
+    assert g.registry.by_id["trading_post"].is_category("shop"), (
+        "setup: the Trading Post must be a Shop for this blessing to apply"
+    )
+    _outer_hand(g, "trading_post")
+    before = g.state.dice
+    g.choose(0)
+    assert g.state.outer_room_drafted, "setup: the outer draft must have resolved"
+    assert g.state.dice == before + 1
+
+
+def test_high_roller_ignores_a_non_shop_drafted_at_the_outer_door():
+    """The outer draft site is not a blanket die grant: the Root Cellar is a
+    Green outer room, not a Shop, so the same blessing pays nothing for it.
+    Pairs with the Trading Post case above to pin that the category check, not
+    the draft site, is what decides."""
+    g = Game(GameConfig(shrine_blessing_id="high_roller", shrine_blessing_days=3), seed=1)
+    assert not g.registry.by_id["root_cellar"].is_category("shop"), (
+        "setup: the Root Cellar must not be a Shop"
+    )
+    _outer_hand(g, "root_cellar")
+    before = g.state.dice
+    g.choose(0)
+    assert g.state.dice == before
+
+
+def test_shrine_curse_takes_its_category_loss_from_an_outer_draft():
+    """The curse is the same draft-time hook as the blessing, so it must reach
+    the outer draft symmetrically: drafting the Trading Post (a Shop) while
+    cursed costs the published 1 coin. Without this, the outer door would be a
+    free way to dodge the curse entirely."""
+    g = Game(GameConfig(shrine_curse_days=2), seed=1)
+    g.state.coins = 10
+    _outer_hand(g, "trading_post")
+    g.choose(0)
+    assert g.state.coins == 9
+
+
+def test_outer_draft_does_not_fire_the_grid_only_shrine_blessings():
+    """No room in the outer pool is Red or Mechanical, so the General and
+    Tinkerer blessings can never be triggered by an outer draft. This pins the
+    blast radius of firing the Shrine's draft hook off-grid: exactly the High
+    Roller and the curse, nothing else."""
+    reg = Registry.load()
+    outer = [r for r in reg.rooms if r.pool == "outer"]
+    assert len(outer) == 8, "setup: the outer pool is the fixed 8 rooms"
+    for room in outer:
+        assert not room.is_category("red"), room.id
+        assert not room.is_category("mechanical"), room.id
+
+
 def test_high_roller_grants_five_coins_per_die_roll():
     """Blessing of the High Roller: rolling a die (a die-source redraw)
     grants 5 extra coins, on top of the ordinary redraw."""
