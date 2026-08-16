@@ -2264,6 +2264,10 @@ class Game:
         :func:`experiments.on_room_drafted` deliberately does NOT fire here --
         the placement-site experiment triggers are grid-sited (see its own
         docstring).
+
+        ``draft_counts`` DOES count an outer draft: it is a draft, so the
+        cumulative attempt-wide tally includes it, incremented below exactly as
+        :meth:`_place_room` increments it.
         """
         st = self.state
         pending = st.pending
@@ -2271,6 +2275,13 @@ class Game:
         st.outer_room_drafted = True
         self.placed_ids.add(room.id)
         self.drafted_rooms.append(room.name)
+        # An outer draft is a draft for counting purposes, so ``draft_counts``
+        # is incremented here exactly as :meth:`_place_room` does it, and for
+        # the same reason ahead of ON_PLACE below: a room whose own hook reads
+        # the count must already see this draft in it (see
+        # effects/rooms/treasure_trove.py).
+        root_id = root_base_id(self.registry, room)
+        st.draft_counts[root_id] = st.draft_counts.get(root_id, 0) + 1
         if pending is not None and pending.dowsed_slot == opt.slot:
             st.dowsing_marked_cells.add(-1)
         del self.doorway_drafts[(-1, 0)]

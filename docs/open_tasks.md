@@ -159,32 +159,6 @@ explains why touring beat drafting; it does not calibrate
 bias. Those still need statistics from a run that actually plays the game, so
 this task stays open behind the next one.
 
-## 49. An outer draft does not increment `draft_counts`
-
-Measured, not inferred: drafting an outer room through
-`Game.open_outer_draft` -> `choose` appends to `drafted_rooms` but leaves
-`state.draft_counts` **completely unchanged** -- verified across four seeds
-and four different outer rooms (Trading Post, Root Cellar x2, Hovel). The
-increment lives in `Game._place_room`, which `_choose_outer` does not route
-through.
-
-**Nothing is broken today, and that is the whole risk.** The only consumer is
-`effects/rooms/treasure_trove.py`, which reads its own root id, and the
-Treasure Trove is an interior `studio_addition` room never dealt as an outer
-draft -- so the gap is unobservable. Its module docstring nonetheless states
-the count is "cumulative attempt-wide" and "incremented in
-`Game._place_room`", which reads as covering every draft.
-
-So this is a latent trap rather than a live bug: the first effect keyed on
-`draft_counts` for a room that *can* appear in the outer pool will silently
-undercount.
-
-**OWNER RULING: an outer draft counts as a draft.** The increment must reach
-`draft_counts` on the off-grid path too, and the rule belongs as a comment on
-`_choose_outer`'s existing list of what does and does not fire off-grid
-(`experiments.on_room_drafted` does not; `shrine.on_room_drafted` does), not
-only here.
-
 ## 48. A Secret Passage on the east wing offered two yellow rooms, not three
 
 > "I was only able to draft *two* yellow rooms instead of *three* from a Secret
