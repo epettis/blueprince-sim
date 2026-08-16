@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 from collections import deque
+from collections.abc import Callable, Iterator
 from enum import Enum
+from functools import partial
 from heapq import heappop, heappush
 
 from ..config import GameConfig
@@ -32,6 +34,11 @@ from .upgrades import (SelectionContext, offer_variants, root_base_id,
 from .state import DraftOption, GameState, PendingDraft, resolve_gem_cost
 
 ANTECHAMBER_CELL = 42  # rank 9, center column
+
+#: Shop display entries an agent can actually reach: env/actions.py's BUY_BASE
+#: block is six ids wide, while the Commissary stocks thirteen rows. Anything
+#: past this is unbuyable, so Game._in_place_actions must not count it.
+BUYABLE_DISPLAY_WIDTH = 6
 
 
 class Phase(Enum):
@@ -152,6 +159,10 @@ class Game:
         self.free_categories: set[str] = set()
         self.bedroom_bonus = 0
         self.red_negations = 0
+        # Room ids already drafted when the Shelter was drafted; its negation
+        # charges never spend on one of them (effects/tier1.py::_red_negated).
+        # Empty until effects/rooms/shelter.py fills it.
+        self.shelter_excluded_ids: frozenset[str] = frozenset()
         self.hovel_placed = False
         self.rotunda_placed = False  # Rotunda: free floorplan rotation while placed
         self.doorway_drafts: dict[tuple[int, int], PendingDraft] = {}
@@ -3268,21 +3279,31 @@ class Game:
         player reaches the Antechamber — Room 46 is the objective.
 
         Running out of steps ends the day outright. Otherwise the day ends only
-        when NOTHING purposeful remains (:meth:`_action_in_budget` on the grid,
-        :meth:`_outer_action_in_budget` off it) — having no frontier doorway
-        left is a reason, not a trigger: it only picks the recorded reason.
-        "dead_end" means the day stopped with no frontier doorway anywhere and
-        no path into the Antechamber; "out_of_steps" covers every other stop,
-        including steps remaining with nothing useful left to spend them on.
+        when NOTHING purposeful remains — anything that costs a walk
+        (:meth:`_action_in_budget` on the grid, :meth:`_outer_action_in_budget`
+        off it) and anything that costs nothing at all
+        (:meth:`_in_place_action_available`, which covers the free locker under
+        the player's feet that has no doorway to reach it by). Having no
+        frontier doorway left is a reason, not a trigger: it only picks the
+        recorded reason. "dead_end" means the day stopped with no frontier
+        doorway anywhere and no path into the Antechamber; "out_of_steps"
+        covers every other stop, including steps remaining with nothing useful
+        left to spend them on.
         """
         st = self.state
         if st.steps <= 0:
             self._terminate("out_of_steps")
-        elif self.off_grid:
+            return
+        if self._in_place_action_available():
+            # Free work at the player's feet: no walk needed, so no budget to
+            # weigh it against, and the day is plainly not over.
+            return
+        if self.off_grid:
             # Off-grid: check if any outer-area action is affordable
             if not self._outer_action_in_budget():
                 self._terminate("out_of_steps")
-        elif not self._action_in_budget():
+            return
+        if not self._action_in_budget():
             if not self.frontier_doorways() and not self._antechamber_reachable():
                 # No undrafted doors anywhere and no path to walk into the
                 # Antechamber: the house itself has nothing left to offer.
@@ -3367,6 +3388,117 @@ class Game:
         return any(self._special_key_held(key_id)
                    and self._special_key_fits(key_id, cell, direction)
                    for key_id in ("silver_key", "prism_key"))
+
+    def _in_place_actions(self) -> Iterator[tuple[str, Callable[[], object]]]:
+        """Yield ``(id, do)`` for every zero-step action legal where the player
+        stands, one entry per distinct thing that can be done right now.
+
+        "In place" means it costs no step and needs no walk: opening the locker
+        at your feet, buying from the shop you are standing in, looking at a
+        night sky. :meth:`_check_termination` treats any of these as work still
+        to do, so the day keeps running while one is legal; the scripted
+        policies in cli/policies.py execute them by iterating this same
+        generator, which is what keeps the engine from holding a day open for
+        an action no policy knows how to take.
+
+        **Every entry strictly consumes something** -- a container, an item, a
+        charge, a once-per-day flag, coins -- so the set can only shrink and no
+        day can be held open forever. That bound is the whole safety argument,
+        and it is why the following are deliberately absent:
+
+        - **Reversible switches** (keycard power, Darkroom lights, the security
+          level, the Pump Room panel). Flipping one back restores its
+          predicate, so a day whose only remaining action is a light switch
+          would never end.
+        - **The Shrine offering**, which :meth:`take_back_shrine_offering`
+          undoes.
+        - **Inserting an Upgrade Disk**: :meth:`insert_disk` consumes nothing
+          when no slot is selectable, so ``can_insert_disk`` can answer True
+          forever.
+        - **Trades**: :meth:`trade_offers` is not a query -- its first call
+          inside the Trading Post rolls the day's whole trade graph off the
+          "trade_graph" substream and stores it on the state. This generator
+          runs after every action, so asking would roll that graph at an
+          arbitrary early moment and publish it through ``env/obs.py`` before
+          the player ever reached the post.
+        - **The Royal Scepter**, which only biases later drafts -- and this
+          runs when the question is whether any draft is left at all -- and
+          **the Axe**, whose 3 uses are save-scoped, so tomorrow serves it
+          just as well as the last free moment of today.
+        - **The Repellent**, which has no id in the env action space at all.
+
+        A shop entry counts only when its resolved price is above 0: the
+        Locksmith's key rows carry no purchase limit, so a free one would stay
+        buyable forever. Only the first ``BUYABLE_DISPLAY_WIDTH`` entries are
+        offered, matching the width of ``env/actions.py``'s ``BUY_BASE`` block
+        -- the engine must not hold a day open for a Commissary row no agent
+        has an action id for.
+        """
+        if self.phase is not Phase.NAVIGATE:
+            return
+        if not self.off_grid:
+            # These resolve against ``state.pos``, which still holds the last
+            # grid cell while the player is off the grid, so they may only be
+            # asked on it -- the same split env/actions.py's mask draws.
+            if self.can_open_container():
+                yield "open_container", self.open_container
+            if self.can_open_car_trunk():
+                yield "open_car_trunk", self.open_car_trunk
+            if self.can_open_vault_box():
+                yield "open_vault_box", self.open_vault_box
+            if self.can_install_lever():
+                yield "install_lever", self.install_lever
+            if self.can_smash_vase():
+                yield "smash_vase", self.smash_vase
+            if self.can_spread_gold():
+                yield "spread_gold", self.spread_gold
+            if self.can_run_payroll():
+                yield "run_payroll", self.run_payroll
+        # Position-independent: each predicate below resolves the on-grid and
+        # off-grid cases itself, exactly as env/actions.py masks them outside
+        # its own position split.
+        if self._night_sky_cell() >= 0:
+            if self.can_view_night_sky():
+                yield "view_night_sky", self.view_night_sky
+            for i in range(len(self.registry.constellations.records)):
+                if self.can_activate_constellation(i):
+                    yield "activate_constellation", partial(self.activate_constellation, i)
+        if self.can_use_telescope_planetarium():
+            yield "use_telescope_planetarium", self.use_telescope_planetarium
+        if self.can_take_grotto_chip():
+            yield "take_grotto_chip", self.take_grotto_chip
+        if self.can_light():
+            yield "light", self.light
+        for realm in special_items.SIGIL_REALMS:
+            if self.can_open_sigil_door(realm):
+                yield "open_sigil_door", partial(self.open_sigil_door, realm)
+        stock = self.shop_stock()
+        if stock is not None:
+            for i, entry in enumerate(stock[:BUYABLE_DISPLAY_WIDTH]):
+                if (entry["price"] > 0 and not entry["sold_out"]
+                        and entry["affordable"] and not entry["blocked"]):
+                    yield "buy", partial(self.buy, i)
+        if shops._inside_workshop(self):
+            for output_id in self.fabricate_options():
+                yield "fabricate", partial(self.fabricate, output_id)
+        # Last: start_setup leaves NAVIGATE for EXPERIMENT_PENDING, which ends
+        # any run through this generator.
+        if self.can_start_setup():
+            yield "start_setup", self.start_setup
+
+    def _in_place_action_available(self) -> bool:
+        """True if a zero-step action is legal where the player stands.
+
+        The free counterpart to :meth:`_action_in_budget`: costing no step,
+        these are never in or out of the step budget, so they are asked
+        separately. See :meth:`_in_place_actions` for the set, what bounds it,
+        and what is excluded.
+
+        Must stay pure (no RNG, no state mutation), the same contract
+        :meth:`_frontier_lock_affordable` carries and for the same reason:
+        :meth:`_check_termination` runs it after every state-changing action.
+        """
+        return next(self._in_place_actions(), None) is not None
 
     def _action_in_budget(self) -> bool:
         """True if any purposeful action still fits in the step budget.
