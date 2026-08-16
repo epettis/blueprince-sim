@@ -13,14 +13,13 @@ The route from Blackbridge Grotto to Orindian Ruins is gated by
 ``three_microchips``: 2 held microchips plus the Grotto's own in-place chip
 (the ``grotto_chip_in_place`` counts_flag) satisfy it -- see
 tests/test_areas.py for the gate's own dedicated coverage. The route from
-Private Drive to Blackbridge Grotto crosses two gates (docs/areas.md's
-"Blackbridge Grotto gate"): ``lab_steam_and_power``, a ``stub: true`` gate
-standing in for the unmodelled power system (passes unconditionally, a known
-upper bound, not something this file's tests attempt to tighten), AND
-``lab_visited``, a real ``kind=flag`` gate requiring the Laboratory entered at
-least once, on this or any earlier day. Every test below that crosses this
-route enters the Laboratory directly via ``_enter_laboratory`` (deterministic
-setup, not a draft) before travelling.
+Private Drive to Blackbridge Grotto crosses two real ``kind=flag`` gates
+(docs/areas.md's "Blackbridge Grotto gate"): ``lab_steam_and_power``, requiring
+a Laboratory powered at least once (docs/power.md), AND ``lab_visited``,
+requiring the Laboratory entered at least once -- either on this or any earlier
+day. Every test below that crosses this route powers and enters the Laboratory
+directly via ``_power_and_enter_laboratory`` (deterministic setup, not a draft)
+before travelling.
 """
 
 from __future__ import annotations
@@ -34,18 +33,22 @@ from blueprince_sim.env import actions as A
 from blueprince_sim.env.multiday import DayChain
 
 
-def _enter_laboratory(g: Game) -> None:
-    """Place and enter the Laboratory directly, satisfying the ``lab_visited``
-    gate on private_drive -> blackbridge_grotto without going through a draft.
+def _power_and_enter_laboratory(g: Game) -> None:
+    """Place, power and enter the Laboratory directly, satisfying both gates on
+    private_drive -> blackbridge_grotto without going through a draft.
 
-    Cell 12 (rank 3, center column) is free in every test below: none place
-    anything else there, and it is clear of ENTRANCE_CELL/ANTECHAMBER_CELL.
+    Cells 12 and 17 (rank 3 and rank 4, center column) are free in every test
+    below: none place anything else there, and both are clear of
+    ENTRANCE_CELL/ANTECHAMBER_CELL. The two N|S masks form a door pair across
+    cell 12's north side, which is what carries power from the Boiler Room into
+    the Laboratory (engine/power.py).
 
-    ``_enter`` rather than ``_place_room(entered=True)``: the latch is the
+    ``_enter`` rather than ``_place_room(entered=True)``: the visit latch is the
     room's own ON_ENTER hook (effects/rooms/laboratory.py), and only ``_enter``
     fires room hooks.
     """
     g._place_room(g.registry.by_id["laboratory"], 12, N | S)
+    g._place_room(g.registry.by_id["boiler_room"], 17, N | S)
     g._enter(12)
 
 
@@ -62,13 +65,14 @@ def test_orindian_ruins_is_offered_as_a_travel_destination_with_two_chips(regist
     the route (house -> grounds -> private_drive -> blackbridge_grotto ->
     orindian_ruins, 4 steps) was always reachable -- the gate opens but is
     never offered is exactly the bug this test pins shut. Reachability itself
-    needs the Laboratory entered at least once too (the lab_visited gate,
-    docs/areas.md), so the setup enters it directly.
+    needs the Laboratory powered and entered at least once too (the
+    lab_steam_and_power and lab_visited gates, docs/areas.md), so the setup
+    does both directly.
     """
     g = Game(GameConfig(), seed=1, registry=registry)
     g.state.steps = 50
     g.state.inventory["microchip"] = 2
-    _enter_laboratory(g)
+    _power_and_enter_laboratory(g)
 
     assert g.area_route_cost("orindian_ruins") == (4, "house")
 
@@ -88,7 +92,7 @@ def test_orindian_ruins_not_offered_without_two_held_chips(registry):
     """
     g = Game(GameConfig(), seed=1, registry=registry)
     g.state.steps = 50
-    _enter_laboratory(g)
+    _power_and_enter_laboratory(g)
 
     node_ids = A._build_area_node_ids(g.registry)
     mask = A.action_mask(g)
@@ -113,7 +117,7 @@ def test_arriving_at_orindian_ruins_sets_state_not_config(registry):
     g = Game(cfg, seed=1, registry=registry)
     g.state.steps = 50
     g.state.inventory["microchip"] = 2
-    _enter_laboratory(g)
+    _power_and_enter_laboratory(g)
 
     g.travel_to("orindian_ruins")
 
@@ -133,7 +137,7 @@ def test_carryover_reports_throne_room_blueprint_after_arrival(registry):
     g = Game(GameConfig(), seed=1, registry=registry)
     g.state.steps = 50
     g.state.inventory["microchip"] = 2
-    _enter_laboratory(g)
+    _power_and_enter_laboratory(g)
     g.travel_to("orindian_ruins")
 
     report = carryover(g)
@@ -152,7 +156,7 @@ def test_throne_room_blueprint_admits_throne_room_to_the_pool_the_following_day(
     g = Game(chain.next_config(), seed=1, registry=registry)
     g.state.steps = 50
     g.state.inventory["microchip"] = 2
-    _enter_laboratory(g)
+    _power_and_enter_laboratory(g)
     g.travel_to("orindian_ruins")
     chain.advance(carryover(g))
 

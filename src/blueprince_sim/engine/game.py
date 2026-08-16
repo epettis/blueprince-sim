@@ -29,6 +29,7 @@ from .locks import (DOOR_LOCKED, DOOR_OPEN, DOOR_SEALED, DOOR_SECURITY, SECURITY
 from .locks import security_openable as _security_openable
 from .model import RARITIES, Registry, Room
 from .placement import legal_orientations
+from .power import powered_cells
 from .rng import Rng
 from .upgrades import (SelectionContext, offer_variants, root_base_id,
                        select_slot, upgraded_slots)
@@ -265,6 +266,39 @@ class Game:
             maps = {}
             self._map_cache = (fp, maps)
         return maps
+
+    def powered_map(self) -> list[bool]:
+        """Per-cell steam-power state: True where the room at that cell is powered.
+
+        A room is powered if it is a power source, or if door pairs join it to
+        one through rooms that all carry power (:mod:`engine.power`, which owns
+        the rule and the source list; ``docs/power.md`` owns the room lists).
+
+        Cached in :meth:`_maps`, whose fingerprint already covers the grid and
+        the door masks -- the only two things power reads. Treat the returned
+        list as read-only.
+        """
+        maps = self._maps()
+        cached = maps.get("powered")
+        if cached is None:
+            st = self.state
+            cached = powered_cells(st.grid, st.placed_doors, self.registry.rooms)
+            maps["powered"] = cached
+        return cached
+
+    def cell_powered(self, cell: int) -> bool:
+        """True when the room standing at ``cell`` is currently powered."""
+        return self.powered_map()[cell]
+
+    def room_powered(self, room: Room) -> bool:
+        """True when ANY placed copy of ``room`` is currently powered.
+
+        Scans the grid rather than reading :attr:`room_cells`, which records
+        only the lowest cell of a room drafted more than once.
+        """
+        powered = self.powered_map()
+        return any(placed == room.idx and powered[cell]
+                   for cell, placed in enumerate(self.state.grid))
 
     def _nav_bfs(self) -> tuple[list[int], list[int], dict]:
         """Shortest walks from the player, spending at most ``st.keys`` keys.
@@ -1757,8 +1791,13 @@ class Game:
               boiler_room_steam.  Owner rule: the Grotto is unlocked by powering AND
               visiting the Laboratory, a one-time unlock.  Gates Private Drive ->
               Blackbridge Grotto together with "lab_steam_and_power", the POWER
-              conjunct, which is still an unmodelled stub passing unconditionally
-              (docs/areas.md's "Blackbridge Grotto gate").
+              conjunct below.
+          "lab_steam_and_power" -- carried in from cfg, OR earned today the moment a
+              placed Laboratory becomes powered (effects/rooms/laboratory.py's
+              ON_DRAFT_ROOM hook sets st.lab_powered).  Same OR-from-cfg-or-state
+              permanent shape as lab_visited, and the other conjunct of the same
+              one-time Grotto unlock: latched rather than re-derived live, so a later
+              day with no Laboratory on the grid still passes it (docs/power.md).
           "grotto_chip_in_place" -- the Blackbridge Grotto pedestal's own microchip has
               NOT been taken out today (st.grotto_chip_taken is False).  Day-scoped only,
               unlike the flags above: it defaults set on every reset() rather than being
@@ -1794,6 +1833,8 @@ class Game:
             flags.add("boiler_room_steam")
         if self.cfg.lab_visited or st.lab_visited:
             flags.add("lab_visited")
+        if self.cfg.lab_powered or st.lab_powered:
+            flags.add("lab_steam_and_power")
         if (self.cfg.sealed_entrance_broken or st.sealed_entrance_broken
                 or (self.cfg.special_items and power_hammer.held(st))):
             flags.add("sealed_entrance_broken")

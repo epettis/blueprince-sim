@@ -5531,7 +5531,7 @@
    "draft_conditions": [],
    "flags": {
     "no_library_draft": false,
-    "powered": false,
+    "powered": true,
     "duct": false,
     "disk_reader": false,
     "no_locker_keys": true
@@ -5565,7 +5565,7 @@
    "draft_conditions": [],
    "flags": {
     "no_library_draft": false,
-    "powered": false,
+    "powered": true,
     "duct": false,
     "disk_reader": false
    },
@@ -5594,7 +5594,7 @@
    "draft_conditions": [],
    "flags": {
     "no_library_draft": false,
-    "powered": false,
+    "powered": true,
     "duct": false,
     "disk_reader": false,
     "has_fireplace": true,

@@ -133,10 +133,15 @@ class DayChain:
         # each day's own carryover value every advance(), so it can never be
         # un-discovered. SAVE-scoped, like stars/main_course_bonus above, per
         # the owner's rule that the Grotto is unlocked once for the entire
-        # save. The only bool among the save-scoped carve-outs: it is a named
-        # attribute here rather than a _CARRYOVER_KEYS entry precisely because
-        # that set is cleared wholesale at the wrap.
+        # save. One of the two bools among the save-scoped carve-outs: it is a
+        # named attribute here rather than a _CARRYOVER_KEYS entry precisely
+        # because that set is cleared wholesale at the wrap.
         self.lab_visited: bool = base_cfg.lab_visited
+        # A Laboratory powered at least once: opens the "lab_steam_and_power"
+        # gate, the POWER conjunct of that same edge (docs/power.md). Identical
+        # OR-merged, SAVE-scoped shape to lab_visited above, and save-scoped for
+        # the same reason -- the two together are the one-time Grotto unlock.
+        self.lab_powered: bool = base_cfg.lab_powered
         # Mail Room order/delivery cycle: REPLACED (not merged) from each
         # day's own carryover value every advance(), the same shape as
         # allowance/chapel_tithes -- state.mail_cycle already IS the day's
@@ -281,6 +286,7 @@ class DayChain:
             main_course_bonus=self.main_course_bonus,
             letters_delivered=self.letters_delivered,
             lab_visited=self.lab_visited,
+            lab_powered=self.lab_powered,
             mail_cycle=self.mail_cycle,
             mail_transit_days=self.mail_transit_days,
             hallway_tomorrow_extra=self.hallway_tomorrow_extra,
@@ -398,6 +404,9 @@ class DayChain:
         # running-total semantics to replace, and OR is the same "only True
         # merges" discipline the _CARRYOVER_KEYS flags use.
         self.lab_visited = self.lab_visited or bool(carryover.get("lab_visited"))
+
+        # --- lab_powered (a Laboratory powered; OR-merge, same as lab_visited) ---
+        self.lab_powered = self.lab_powered or bool(carryover.get("lab_powered"))
 
         # --- planetarium_planets (Telescope-in-Planetarium's permanent record;
         #     replace each advance, the same axed_rooms/permanent_rarity shape --
@@ -566,9 +575,9 @@ class DayChain:
             self.collected_disks = frozenset()  # fresh attempt; disks back in the house
             self.chapel_tithes = 0            # fresh attempt; tithe bank reset
             self.allowance = self.base_cfg.allowance  # fresh attempt; back to the base preset
-            # stars, main_course_bonus, letters_delivered, lab_visited, the
-            # five shrine_* fields, axed_rooms, permanent_rarity, and
-            # planetarium_planets are deliberately absent here: all are
+            # stars, main_course_bonus, letters_delivered, lab_visited,
+            # lab_powered, the five shrine_* fields, axed_rooms,
+            # permanent_rarity, and planetarium_planets are absent here: all are
             # save-scoped and carry through the wrap into the next attempt,
             # unlike every other value reset above.
             self.mail_cycle = self.base_cfg.mail_cycle  # fresh attempt; back to the base preset

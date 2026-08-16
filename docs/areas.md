@@ -146,7 +146,7 @@ once satisfied, **D** = resets daily, **-** = ungated.
 | `west_path` -> `grounds` | unlatch the gate from inside (first time) | P |
 | `west_path` -> outer room | drawn as today's outer room (1 of 8) | D |
 | `grounds` <-> `private_drive` | none | - |
-| `private_drive` -> `blackbridge_grotto` | Laboratory **visited once ever** + POWER (stub) | P |
+| `private_drive` -> `blackbridge_grotto` | Laboratory **powered once ever** + **visited once ever** | P |
 | `blackbridge_grotto` -> `orindian_ruins` | all 3 microchips in the pedestal | D |
 | `private_drive` <-> `campsite` | none | - |
 | `campsite` -> `apple_orchard` | padlock code 1128 | P |
@@ -252,17 +252,17 @@ PR1 ships graph traversal only. The mechanisms above are not modelled, so the
 edges that depend on them are gated by **stubs that pass unconditionally**
 (owner decision, 2026-07-27).
 
-The alternative — closing them — was rejected because it strands Blackbridge
-Grotto (POWER) and Orindian Ruins (behind the Grotto), deleting the one modelled
-terminal with no room record. An unreachable node measures exactly zero, which is
-a worse and more misleading failure than a slightly-too-generous world. **That
-argument now rests on `lab_steam_and_power` alone**: measured, closing either
-elevator pair strands nothing, because the Underpass chain is held open by the
-real `mine_south_visited` and `boiler_room_steam` flags. The four elevator stubs
-are kept for their step-cost and car-position fidelity, not for reachability.
-`lab_steam_and_power` itself is now narrowed to the POWER half only (see
-"Blackbridge Grotto gate" below) — the other half of the edge, actually
-visiting the Laboratory, is a real gate today, not a stub.
+The alternative — closing them — was rejected because it would have stranded
+Blackbridge Grotto (POWER) and Orindian Ruins (behind the Grotto), deleting the
+one modelled terminal with no room record. An unreachable node measures exactly
+zero, which is a worse and more misleading failure than a slightly-too-generous
+world. **The four elevator stubs are all that argument now covers**, and it no
+longer applies to any of them: measured, closing either elevator pair strands
+nothing, because the Underpass chain is held open by the real
+`mine_south_visited` and `boiler_room_steam` flags. They are kept for their
+step-cost and car-position fidelity, not for reachability. The Grotto's own
+gates are both real (see "Blackbridge Grotto gate" below), so the Grotto and
+Orindian Ruins are no longer reachable on a stub at all.
 
 > **Anything measured while these stubs are open is an UPPER BOUND** on what a
 > real player could reach. Print that caveat next to any number taken before the
@@ -278,7 +278,6 @@ rather than repeating it, so the two cannot drift.
 |---|---|---|
 | `foundation_elevator_down` | PR-foundation-elevator | The Foundation -> Basement: crank revealed AND car at the top |
 | `foundation_elevator_up` | PR-foundation-elevator | Basement -> The Foundation: keycard to SUMMON if the car is not already down |
-| `lab_steam_and_power` | PR-power-system | Private Drive -> Blackbridge Grotto: POWER, routed to the house by the Laboratory's steam/lever puzzle |
 | `cliffside_elevator_down` | PR-torches-elevator | Grounds -> Precipice: 4 torches lit AND car at the top |
 | `cliffside_elevator_up` | PR-torches-elevator | Precipice -> Grounds: only if the car was ridden down |
 
@@ -297,20 +296,21 @@ complement is whatever `areas.json` says it is.
 ### Blackbridge Grotto gate
 
 The owner's rule has two conjuncts: the Laboratory must be **powered AND
-visited**. The edge now carries two separate gates rather than one collapsed
-stub, so each conjunct can be judged on its own:
+visited**. The edge carries two separate gates rather than one collapsed stub,
+so each conjunct is judged on its own. Both are real:
 
-- `lab_steam_and_power` — still `stub: true`, `kind: "unmodelled"`. POWER
-  remains completely unbuilt: nothing in the engine represents "is the house
-  powered" (the Utility Closet's `keycard_power_on`/`offline_unlocked` gate
-  Security's readers specifically and do not generalize to the house; `rooms.json`'s
-  `flags.powered` is a static room-type classification for the dormant
-  duct-draw priority mechanic, always `true` for `laboratory` regardless of
-  player action, so it cannot stand in for "was switched on"). Building POWER
-  needs new `GameState`/`GameConfig` fields and a hook fired from room entry —
-  outside this gate's own file, `engine/areas.py`, which only evaluates a
-  `GateContext` it is handed. Still an upper bound; still `retire_in:
-  "PR-power-system"`.
+- `lab_steam_and_power` — `kind: "flag"`, `stub: false`, `permanence:
+  "permanent"`. A Laboratory has been powered at least once, on this day or any
+  prior day. [`power.md`](power.md) owns the mechanic: `engine/power.py`
+  propagates power over the door graph from the Boiler Room and the Electric
+  Eel Aquarium; `effects/rooms/laboratory.py`'s `ON_DRAFT_ROOM` hook records
+  the first moment a placed Laboratory is powered on `state.lab_powered`;
+  `shops.py::carryover` ORs that with `cfg.lab_powered`; and the named
+  `DayChain.lab_powered` attribute carries the result. Same save-scoped shape
+  as `lab_visited` below, and for the same reason.
+
+  Note the engine's own `keycard_power_on`/`offline_unlocked` are unrelated:
+  they gate Security's card readers specifically and do not generalize.
 - `lab_visited` — `kind: "flag"`, `stub: false`, `permanence: "permanent"`.
   The Laboratory has been entered at least once, on this day or any prior day.
   `effects/rooms/laboratory.py`'s `ON_ENTER` hook sets `state.lab_visited`;
@@ -324,8 +324,9 @@ stub, so each conjunct can be judged on its own:
   and enter the Laboratory for that to happen."* `lab_visited` is therefore
   left out of the `DayChain` wrap block and survives into the next attempt —
   unlike `boiler_room_steam`, whose otherwise-identical shape is a
-  `_CARRYOVER_KEYS` bool and so resets with each attempt. It is the only bool
-  among the save-scoped carve-outs (docs/scoping-and-carryover.md).
+  `_CARRYOVER_KEYS` bool and so resets with each attempt. It and `lab_powered`
+  are the only two bools among the save-scoped carve-outs
+  (docs/scoping-and-carryover.md).
 
   **Why a flag gate and not `kind: "room"` with `permanence: "permanent"`.**
   `permanence` is descriptive metadata; the behaviour lives in
@@ -337,22 +338,14 @@ stub, so each conjunct can be judged on its own:
   `tomb_catacombs`, which really is daily, permanent too. A one-time unlock is
   what the `"flag"` arm is for.
 
-Both must hold (edge `requires` is AND), so a fresh save is closed even
-though POWER's own stub still passes unconditionally: `lab_visited` alone
-blocks the edge until the Laboratory has been entered, which is what keeps
-the Grotto — and Orindian Ruins behind it — out of reach on a save where the
-Laboratory has never been drafted.
-
-**Still an upper bound, because POWER is unbuilt** (`open_tasks.md` 37). The
-permanence half of that task is now closed — the edge's table permanence above
-reads **P**, matching the owner's one-time unlock — but `lab_steam_and_power`
-still passes unconditionally, so the Grotto opens on the Laboratory visit
-alone rather than on power plus a visit.
+Both must hold (edge `requires` is AND), and neither passes on its own, so a
+fresh save is closed on both counts. **No number taken through this edge is an
+upper bound any more** — it is the reachability a player really has.
 
 **Consequence: Orindian Ruins is gated behind the same requirement.**
-`blackbridge_grotto -> orindian_ruins` was already reachable only through
-Blackbridge Grotto, so it now also needs the Laboratory visited at least once —
-including the Throne Room's blueprint pickup, which `orindian_ruins` grants
+`blackbridge_grotto -> orindian_ruins` is reachable only through Blackbridge
+Grotto, so it needs the Laboratory powered and visited too — including the
+Throne Room's blueprint pickup, which `orindian_ruins` grants
 (`GameState.throne_room_blueprint`). This reads as intended: the owner's
 report was specifically about the Grotto being open on a fresh save, and nothing
 in the wiki or the owner's play notes suggests Orindian Ruins should be reachable

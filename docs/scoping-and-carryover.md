@@ -69,7 +69,8 @@ once:
   attempt — no exceptions, and no per-key carve-out exists inside it. A bool
   that must survive the wrap goes in channel 2 instead, as its own named
   `DayChain` attribute left out of the wrap block: `lab_visited` is the
-  template, and the only bool shaped that way today.
+  template, and `lab_powered` follows it -- the only two bools shaped that way
+  today.
 - **Its length is an observation width.** `env/obs.py` derives the `carryover`
   vector's length from `len(DayChain._CARRYOVER_KEYS)` and encodes the keys in
   `sorted()` order. The sort is load-bearing: Python randomises string hashing
@@ -83,9 +84,9 @@ once:
 Anything that channel 1 cannot hold is a named attribute on `DayChain`,
 threaded into `next_config()` and handled by its own block in `advance()`.
 That is everything non-bool, plus any bool that must be save-scoped
-(`lab_visited`), since channel 1's clear is all-or-nothing. Five merge
-disciplines, and choosing the wrong one is a silent balance error rather than a
-crash:
+(`lab_visited`, `lab_powered`), since channel 1's clear is all-or-nothing.
+Five merge disciplines, and choosing the wrong one is a silent balance error
+rather than a crash:
 
 - **Union-merge** — accumulates forever within the attempt, never shrinks:
   `used_vault_keys`, `lit_targets`, `collected_disks`,
@@ -109,8 +110,8 @@ crash:
   oldest-first eviction.
 - **OR-merge** — a bool that can never be un-discovered, the same "only `True`
   merges" rule channel 1 uses, applied to a single named attribute:
-  `lab_visited`. Used instead of *replace* because a bool has no running total
-  for today's value to already be.
+  `lab_visited` and `lab_powered`. Used instead of *replace* because a bool
+  has no running total for today's value to already be.
 - **One-day pulse** — unconditional replace, **never** an OR-merge:
   `sauna_bonus`, `morning_room_bonus`, `break_room_keycard`, `frozen_coins`,
   `frozen_gems`, `no_contact_due`. Each reports only whether *today* earned the
@@ -149,10 +150,11 @@ they survive into the next attempt:
 - `axed_rooms` — The Axe's ordered record of permanently-axed floorplan roots.
 - `permanent_rarity` — the Gear Wrench's room-id → rarity-index map.
 - `planetarium_planets` — the Telescope-in-Planetarium's unlocked planets.
-- `lab_visited` — the Laboratory visit that unlocks Blackbridge Grotto. The
-  **only bool** here, and the reason channel 2 now holds one: the owner ruled
-  the Grotto unlocks "once for the entire save", and channel 1 cannot express
-  that (docs/areas.md's "Blackbridge Grotto gate").
+- `lab_visited` — the Laboratory visit that is half of the Blackbridge Grotto
+  unlock, and `lab_powered` — the Laboratory *powering* that is the other half
+  (docs/power.md). The **only two bools** here, and the reason channel 2 holds
+  any: the owner ruled the Grotto unlocks "once for the entire save", and
+  channel 1 cannot express that (docs/areas.md's "Blackbridge Grotto gate").
 
 Each field above has its own save-scoping test somewhere in the suite (e.g.
 `tests/test_carryover.py::test_shrine_state_is_save_scoped_across_a_daychain_attempt_wrap`,

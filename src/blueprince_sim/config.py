@@ -39,10 +39,15 @@ class GameConfig:
     # "lab_visited" gate: Private Drive -> Blackbridge Grotto. SAVE-scoped, so it
     # survives the DayChain attempt wrap: carried by the named DayChain.lab_visited
     # attribute, NOT by _CARRYOVER_KEYS, which the wrap clears wholesale
-    # (docs/scoping-and-carryover.md). The edge's other conjunct, POWER
-    # ("lab_steam_and_power"), is a separate gate and is still an unmodelled stub
-    # (docs/areas.md's Blackbridge Grotto gate).
+    # (docs/scoping-and-carryover.md). The edge's other conjunct, POWER, is the
+    # separate "lab_steam_and_power" gate below.
     lab_visited: bool = False
+    # A Laboratory has been powered at least once (any prior day), opening the
+    # "lab_steam_and_power" gate: the POWER conjunct of the same Private Drive ->
+    # Blackbridge Grotto edge (docs/power.md). SAVE-scoped in exactly the way
+    # lab_visited is, and for the same reason -- the owner ruled the Grotto
+    # unlock is one-time for the entire save.
+    lab_powered: bool = False
     # The Treasure Trove blackprint has been picked up at Upper Rotating Gear
     # (any prior day), permanently adding the Treasure Trove to the draft pool
     # (decks.py::eligible_pool) from the following day onward.

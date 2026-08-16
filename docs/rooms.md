@@ -20,6 +20,8 @@ about one room are cited, never restated:
   [`scoping-and-carryover.md`](scoping-and-carryover.md);
 - the outside-area graph a room may anchor, and what those nodes hold —
   [`areas.md`](areas.md);
+- which rooms carry steam power and how it spreads between them —
+  [`power.md`](power.md);
 - items found in rooms, containers, ignition, commerce —
   [`special-items-behaviour.md`](special-items-behaviour.md);
 - assumed-solved puzzles, trophies, source precedence, and the rule that a

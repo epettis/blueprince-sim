@@ -37,6 +37,7 @@ from blueprince_sim.engine.effects import (
 from blueprince_sim.config import GameConfig
 from blueprince_sim.engine.effects.tier1 import RESOURCES as TIER1_RESOURCES
 from blueprince_sim.engine.model import Registry
+from blueprince_sim.engine.power import power_source_ids
 from blueprince_sim.engine.shops import ShopsState
 from blueprince_sim.engine.state import GameState
 
@@ -2522,6 +2523,36 @@ def main(argv: list[str] | None = None) -> int:
         errors.append(
             f"disk_reader flag mismatch: missing {sorted(missing)}, unexpected {sorted(extra)}"
         )
+
+    # ── Steam power ───────────────────────────────────────────────────────────
+    # flags.powered is the membership set of the power network: every room that
+    # generates, conducts or consumes steam power (docs/power.md owns the list
+    # and its wiki citations; engine/power.py propagates over it). Pinning the
+    # whole set is what catches a room silently joining or leaving the network,
+    # which would change what the Laboratory can be powered from.
+    POWERED_ROOMS = {
+        # sources
+        "boiler_room", "electric_eel_aquarium__ix4",
+        # connectors (conduct only)
+        "passageway", "archives", "darkroom", "weight_room", "locker_room", "security",
+        # powerable (act when powered)
+        "laboratory", "garage", "laundry_room", "pump_room", "furnace",
+    }
+    actual_powered = {r["id"] for r in rooms if r.get("flags", {}).get("powered")}
+    if actual_powered != POWERED_ROOMS:
+        missing = POWERED_ROOMS - actual_powered
+        extra = actual_powered - POWERED_ROOMS
+        errors.append(
+            f"powered flag mismatch: missing {sorted(missing)}, unexpected {sorted(extra)}"
+        )
+    # Every room registering Capability.POWER_SOURCE must also carry
+    # flags.powered -- engine/power.py seeds its BFS at the sources but only
+    # ever walks carriers, so a source without the flag would light nothing at
+    # all. (That the id is a real room is already covered by
+    # validate_capability_registry.)
+    for rid in sorted(power_source_ids()):
+        if rid in by_id and not by_id[rid].get("flags", {}).get("powered"):
+            errors.append(f"power: source {rid!r} does not carry flags.powered")
 
     # ── unlocks_catacombs flag ────────────────────────────────────────────────
     # Only the Tomb carries this flag; it must be a boolean when present.
