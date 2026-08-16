@@ -146,11 +146,29 @@ third `default_config()` -- fresh save **is** the default.
 `all_unlocks_config()` remains correct as a spec and stays available as an
 explicit preset; it simply stops being what training starts from.
 
-The reason the fixture carries this much weight is that it is only the
-*starting* state: `DayChain` carries earned flags forward, so a 1000-day chain
-from a fresh save still reaches the late game -- but only by playing into it.
+The fixture is only the *starting* state: `DayChain` carries earned flags
+forward, so a chain can in principle reach the late game by playing into it.
 Measured, the default now starts with **1 of 19 carry flags and 3 legal travel
 targets** instead of 19 and 9.
+
+**But no policy we have ever plays into it, and that is measured.** Over a
+250-day fresh-save chain, `frontier_greedy` reaches rank 9 and averages 6.54 --
+it drafts well -- and earns **0 of the 19 carry flags, on every day**. Over 60
+fresh-save days each, `greedy_rank`, `economy` and `random` also earn **none**.
+
+The carryover plumbing is not the problem: all 19 keys appear in
+`Game.carryover()`'s output, so anything earned would be carried. Nothing is
+ever earned. The unlocks need specific rooms drafted *and* deliberate off-grid
+routing (reaching `west_path`, `mine_south`, the Orchard), and drafting-led
+policies never go there.
+
+**So a fresh-save run has an exploration problem, not just a calibration one.**
+A 1000-day chain from a fresh save currently replays day 1 a thousand times.
+The fixture ruling stands -- `all_unlocks_config()` is degenerate for the
+opposite reason, handing the whole map over for free -- but the retune cannot
+assume the chain will progress on its own. Whether to shape toward the first
+unlock, seed the chain part-way, or accept a long flat start is the open
+question, and it should be settled before committing a long run.
 
 **What remains on this task is the reward calibration itself.** The fixture
 explains why touring beat drafting; it does not calibrate
