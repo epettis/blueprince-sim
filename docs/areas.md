@@ -528,6 +528,24 @@ third source would be making up a game rule, and no ruling exists for one.
   `west_path` and opening the draft while standing there are deliberately
   separate, which is the same drafting-is-not-moving split the grid already uses.
 
+### `OUTER_DRAFT_ACTION` is legal on the grid AND off it
+
+Its mask entry gates on `Game.outer_draft_available()` alone, with no position
+guard of its own, because the action is a walk-and-draft macro:
+`Game.open_outer_draft` walks from wherever the player stands. That makes the
+doorstep the action's *cheapest* starting point — the walk is a 0-step no-op at
+`west_path` — rather than an excluded one. Being refused the draft while
+standing on the doorstep is the shape of bug this rule exists to prevent.
+
+The mask is not the only surface. `Game._outer_action_in_budget`, the off-grid
+half of the day-end purposefulness test, counts the outer draft too, exactly as
+its on-grid twin `_action_in_budget` does; without it, arriving at the doorstep
+with a step or two left ends the day on top of a free room. **Engine and mask
+must agree in both directions** — a mask bit the engine rejects trips
+`open_outer_draft`'s assert, and an engine "yes" the mask hides is an action the
+day-end budget keeps counting but the player can never take. The
+random-masked-play sweep in `tests/test_game.py` pins that agreement.
+
 ### `modelled`: which areas are offered as destinations
 
 Every node carries a required boolean `modelled`. Only modelled nodes are offered

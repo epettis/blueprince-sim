@@ -618,6 +618,129 @@ def test_action_mask_off_grid():
     assert mask[A.TRAVEL_BASE + outer_idx], "travel to outer room should be legal from doorstep"
 
 
+def test_action_mask_offers_the_outer_draft_at_the_doorstep():
+    """Standing at west_path with today's outer room still undrafted, the action
+    mask must offer OUTER_DRAFT_ACTION, and taking it must open the hand.
+
+    The doorstep is exactly where the outer room is drafted from, so hiding the
+    action there strands the player: the only way back to a state that offers it
+    would be a round trip onto the grid and out again. ``open_outer_draft``'s
+    walk is a 0-step no-op when the player is already at west_path, so the
+    action is not just legal there, it is free.
+    """
+    cfg = GameConfig(west_gate_unlatched=True)
+    g = Game(cfg, seed=9)
+    g.state.steps = 10
+    g.travel_to("west_path")
+    assert g.off_grid and g.state.area == "west_path"
+    assert g.phase is Phase.NAVIGATE and not g.state.outer_room_drafted
+
+    assert A.action_mask(g)[A.OUTER_DRAFT_ACTION]
+    steps_before = g.state.steps
+    A.apply_action(g, A.OUTER_DRAFT_ACTION)
+    assert g.phase is Phase.DRAFTING
+    assert g.state.area == "west_path"
+    assert g.state.steps == steps_before
+    assert len(g.state.pending.options) == 3
+
+
+def test_action_mask_offers_the_outer_draft_from_an_inner_off_grid_node():
+    """From an off-grid node that is not the doorstep, the mask still offers the
+    outer draft and taking it walks to west_path, paying the route cost.
+
+    OUTER_DRAFT_ACTION is a walk-and-draft macro, the same off the grid as on
+    it, so its mask entry gates on affordability (``outer_draft_available``)
+    rather than on the player's node -- otherwise the engine would keep counting
+    an action the mask refuses to hand over.
+    """
+    cfg = GameConfig(west_gate_unlatched=True)
+    g = Game(cfg, seed=9)
+    g.state.steps = 10
+    g.travel_to("grounds")
+    assert g.off_grid and g.state.area == "grounds"
+    cost, _ = g.area_route_cost("west_path")
+    assert cost > 0, "setup: grounds must be a real walk short of the doorstep"
+
+    assert A.action_mask(g)[A.OUTER_DRAFT_ACTION]
+    steps_before = g.state.steps
+    A.apply_action(g, A.OUTER_DRAFT_ACTION)
+    assert g.phase is Phase.DRAFTING
+    assert g.state.area == "west_path"
+    assert g.state.steps == steps_before - cost
+
+
+def test_off_grid_day_survives_while_the_outer_draft_is_still_free():
+    """At the doorstep with too few steps to travel anywhere, the day must NOT
+    end while today's outer draft is still open: it is free from there and it
+    places a room.
+
+    ``_outer_action_in_budget`` is the off-grid half of the purposefulness test
+    that ``_check_termination`` runs after every action; it must count the outer
+    draft for the same reason its on-grid twin ``_action_in_budget`` does.
+    Drafting it flips ``outer_room_drafted``, after which nothing purposeful is
+    left in the budget and the day does end.
+    """
+    cfg = GameConfig(west_gate_unlatched=True)
+    g = Game(cfg, seed=9)
+    g.state.steps = 10
+    g.travel_to("west_path")
+    cheapest = min(cost for node, (cost, _) in g.area_route_costs().items()
+                   if node != "west_path")
+    g.state.steps = cheapest  # not strictly affordable: no travel is purposeful
+    assert not any(A.action_mask(g)[A.TRAVEL_BASE:A.OPEN_SIGIL_DOOR_BASE])
+    assert g.outer_draft_available()
+
+    g._check_termination()
+    assert g.phase is Phase.NAVIGATE, "the free outer draft must keep the day alive"
+
+    A.apply_action(g, A.OUTER_DRAFT_ACTION)
+    g.choose(0)
+    assert g.state.outer_room_drafted
+    assert g.phase is Phase.TERMINAL, "with the draft spent, nothing purposeful is left"
+
+
+def test_outer_draft_mask_and_engine_agree_under_random_masked_play():
+    """Across hundreds of NAVIGATE states from uniform-random legal play, the
+    OUTER_DRAFT_ACTION mask bit equals ``outer_draft_available()`` exactly.
+
+    Both directions matter and each is a real bug: a mask bit the engine rejects
+    trips ``open_outer_draft``'s assert, and an engine "yes" the mask hides is
+    the owner's report -- an action the day-end budget keeps counting but the
+    player can never take. The sweep must actually visit the doorstep off-grid,
+    which the guards below pin.
+    """
+    from blueprince_sim.env.blueprince_env import BluePrinceEnv
+
+    off_grid_states = 0
+    doorstep_states = 0
+    offered_off_grid = 0
+    for seed in range(24):
+        env = BluePrinceEnv(cfg=GameConfig(west_gate_unlatched=True, day=20))
+        env.reset(seed=seed)
+        rng = random.Random(seed)
+        for _ in range(80):
+            game = env.game
+            mask = env.action_masks()
+            legal = [i for i, ok in enumerate(mask) if ok]
+            if not legal:
+                break
+            if game.phase is Phase.NAVIGATE:
+                assert bool(mask[A.OUTER_DRAFT_ACTION]) == game.outer_draft_available(), (
+                    f"seed={seed} area={game.state.area} steps={game.state.steps}"
+                )
+                if game.off_grid:
+                    off_grid_states += 1
+                    offered_off_grid += int(mask[A.OUTER_DRAFT_ACTION])
+                    if game.state.area == "west_path":
+                        doorstep_states += 1
+            _, _, terminated, truncated, _ = env.step(rng.choice(legal))
+            if terminated or truncated:
+                break
+    assert off_grid_states >= 100, "setup: the sweep barely left the grid"
+    assert doorstep_states >= 10, "setup: the sweep never stood at the doorstep"
+    assert offered_off_grid >= 10, "setup: the draft was never offered off-grid"
+
+
 def test_travel_via_garage_from_outer_fires_entry(registry):
     """Returning to garage that was never entered fires its ON_ENTER effects."""
     cfg = GameConfig(west_gate_unlatched=True)

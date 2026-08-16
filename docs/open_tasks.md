@@ -5,7 +5,7 @@ delivered set -- each needs its own design pass. Two sources so far: a review of
 the special-items PR stack, and a recorded session of real play through the
 Training Observatory. That first session's twelve findings have shipped,
 leaving the remainders in tasks 37-41; a second session produced tasks
-42-48.
+43-48.
 
 **Play findings outrank the wiki**, per [`doctrine.md`](doctrine.md) -- but where
 one contradicts a published rule, surface the conflict rather than silently
@@ -156,27 +156,6 @@ No silent spin: the NAVIGATE branch always falls through to `input()` and
 being the *only* purposeful action left needs the grid simultaneously
 exhausted. It is still a menu the engine believes exists and the CLI does not
 offer.
-
-## 42. REGRESSION SUSPECT: the outer room cannot be drafted from the West Path
-
-> "I can no longer draft the outer room from the West Path. I can only draft it
-> from inside the house."
-
-**"No longer" makes this a regression signal, and it is the reason this task
-sits first.** Three changes landed the same day this was played, any of which
-could reach the West Path outer draft:
-
-- gating Blackbridge Grotto behind `lab_visited`, which added a second gate to a
-  `private_drive` edge;
-- teaching `Game._outer_action_in_budget` to skip `modelled: false` nodes so it
-  agrees with the travel mask;
-- flipping `antechamber.modelled` to `true`.
-
-**Bisect before designing anything.** `outer_draft_available()` and
-`Game.open_outer_draft` are the entry points; `west_path` reachability and the
-`garage_door_breaker` route are the likely surfaces. Establish first whether the
-West Path route is now unreachable, or reachable but no longer offering the
-draft — they are different bugs.
 
 ## 43. The Blessing of the High Roller granted no dice for a Trading Post draft
 
