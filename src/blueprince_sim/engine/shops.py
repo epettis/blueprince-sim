@@ -1142,6 +1142,11 @@ def carryover(game) -> dict:
         # west_gate_unlatched. Permanently opens the "boiler_room_steam" gate
         # (Underpass -> Upper Rotating Gear, docs/areas.md).
         "boiler_room_steam": cfg.boiler_room_steam or state.boiler_room_steam,
+        # lab_visited: earned the first time the player enters the Laboratory.
+        # ORed from state so the config is never mutated, same shape as
+        # boiler_room_steam. Permanently opens the "lab_visited" gate
+        # (Private Drive -> Blackbridge Grotto, docs/areas.md).
+        "lab_visited": cfg.lab_visited or state.lab_visited,
         # treasure_trove_blackprint: earned the first time the player arrives at
         # Upper Rotating Gear and picks up the blackprint. ORed from state so the
         # config is never mutated, same shape as west_gate_unlatched. Permanently

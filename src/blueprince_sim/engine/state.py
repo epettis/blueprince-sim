@@ -405,6 +405,14 @@ class GameState:
     # carries the result, permanently opening the "boiler_room_steam" gate
     # (Underpass -> Upper Rotating Gear, docs/areas.md).
     boiler_room_steam: bool = False
+    # Set the first time the player enters the Laboratory today. Same shape as
+    # boiler_room_steam: an IN-RUN discovery recorded on STATE, never written
+    # back to GameConfig. carryover() ORs this with cfg.lab_visited, opening the
+    # "lab_visited" gate (Private Drive -> Blackbridge Grotto, docs/areas.md).
+    # Unlike boiler_room_steam, DayChain carries the result on its own named
+    # lab_visited attribute rather than in _CARRYOVER_KEYS, so the unlock is
+    # SAVE-scoped and survives the attempt wrap.
+    lab_visited: bool = False
     # True once today's single gem from arriving at Upper Rotating Gear has been
     # granted. Per-day only -- deliberately NOT carried over (a fresh GameState
     # resets it every day, unlike the permanent flags above).

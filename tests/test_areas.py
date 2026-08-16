@@ -81,8 +81,8 @@ def _all_open_ctx(outer_room_id: str | None = "tomb") -> GateContext:
     pump_water_lte8/rowboat_water_6/fountain_water_0/reservoir_water_13 are the
     Pump Room's four live-derived flag gates (docs/areas.md's Pump Room
     section) -- include all four too.
-    lab_visited is a real room gate (Private Drive -> Blackbridge Grotto) --
-    include "laboratory" in rooms_entered too, alongside "tomb".
+    lab_visited is a real permanent flag gate (Private Drive -> Blackbridge
+    Grotto) -- include it in flags too.
     """
     return GateContext(
         held_items={
@@ -104,8 +104,9 @@ def _all_open_ctx(outer_room_id: str | None = "tomb") -> GateContext:
             "rowboat_water_6",
             "fountain_water_0",
             "reservoir_water_13",
+            "lab_visited",
         }),
-        rooms_entered=frozenset({"tomb", "laboratory"}),
+        rooms_entered=frozenset({"tomb"}),
         outer_room_id=outer_room_id,
     )
 
@@ -395,21 +396,44 @@ def test_grotto_unreachable_from_private_drive_without_lab_visited(graph: AreaGr
     conjunct (lab_steam_and_power) is a stub that always passes.
 
     The edge requires BOTH lab_steam_and_power and lab_visited (AND semantics);
-    with the Laboratory absent from rooms_entered, lab_visited blocks the edge
-    on its own, so the stub alone is not enough to open the route (see
-    docs/areas.md's "Blackbridge Grotto gate").
+    with the lab_visited flag unset, that gate blocks the edge on its own, so
+    the stub alone is not enough to open the route (see docs/areas.md's
+    "Blackbridge Grotto gate").
     """
-    ctx_no_lab = _ctx(rooms_entered=frozenset())
+    ctx_no_lab = _ctx(flags=frozenset())
     dist = reachable(graph, "private_drive", ctx_no_lab)
     assert "blackbridge_grotto" not in dist
 
 
 def test_grotto_reachable_from_private_drive_once_lab_visited(graph: AreaGraph) -> None:
-    """With the Laboratory entered today, lab_visited opens and the still-stub
+    """With the lab_visited flag set, that gate opens and the still-stub
     lab_steam_and_power passes as always, so the edge is passable overall."""
-    ctx_lab_visited = _ctx(rooms_entered=frozenset({"laboratory"}))
+    ctx_lab_visited = _ctx(flags=frozenset({"lab_visited"}))
     dist = reachable(graph, "private_drive", ctx_lab_visited)
     assert "blackbridge_grotto" in dist
+
+
+def test_lab_visited_is_a_permanent_flag_gate_not_a_daily_room_gate(
+    graph: AreaGraph,
+) -> None:
+    """lab_visited is kind="flag" with permanence="permanent", and entering the
+    Laboratory *today* does not open it by itself.
+
+    The owner's rule is a one-time unlock, and areas.py::gate_open's "room" arm
+    is day-scoped by construction (it only ever tests rooms_entered, which
+    Game._gate_ctx rebuilds from state.entered every morning). Pinning the kind
+    here is what stops the gate quietly regressing to the daily mechanism
+    tomb_catacombs correctly uses; pinning the rooms_entered miss is what proves
+    the two channels really are distinct.
+    """
+    gate = graph.gates["lab_visited"]
+    assert gate.kind == "flag"
+    assert gate.permanence == "permanent"
+    assert gate.stub is False
+
+    ctx_entered_today_only = _ctx(rooms_entered=frozenset({"laboratory"}))
+    assert gate_open(graph, "lab_visited", ctx_entered_today_only) is False
+    assert gate_open(graph, "lab_visited", _ctx(flags=frozenset({"lab_visited"}))) is True
 
 
 # ---------------------------------------------------------------------------

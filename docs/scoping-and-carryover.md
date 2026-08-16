@@ -50,7 +50,9 @@ field on `GameConfig`:
 `reservoir_north<->reservoir_south` rowboat crossing even after the level
 later moves away — same OR-forever shape as `west_gate_unlatched`. **This
 channel does still grow**: it is bool-only and attempt-scoped forever, but
-its *length* is not frozen — see the properties below.
+its *length* is not frozen — see the properties below. Growing it is not
+free, though: `all_unlocks_config()` in `rl/train.py` must set every key here
+`True`, pinned by `test_all_unlocks_config_sets_every_carryover_key`.
 
 Merge rule: **only `True` merges**, so a flag can never un-discover something
 already found. Cleared wholesale at the wrap (`self.carried_flags = {}`).
@@ -62,10 +64,12 @@ once:
   running counter, a per-room rarity map, an ordered history — none of them
   fit, and "grow `_CARRYOVER_KEYS`" is never the answer for them. They go in
   channel 2.
-- **It is attempt-scoped, not save-scoped.** There is **no save-scoped bool
-  channel in this codebase at all**; adding one would be a new mechanism, not
-  an extra key. A bool that must survive the wrap is modelled as a save-scoped
-  *set* instead (`sigil_doors_open` is the template).
+- **It is attempt-scoped, not save-scoped.** `carried_flags` is cleared
+  wholesale at the wrap, so *every* member of this set resets with a fresh
+  attempt — no exceptions, and no per-key carve-out exists inside it. A bool
+  that must survive the wrap goes in channel 2 instead, as its own named
+  `DayChain` attribute left out of the wrap block: `lab_visited` is the
+  template, and the only bool shaped that way today.
 - **Its length is an observation width.** `env/obs.py` derives the `carryover`
   vector's length from `len(DayChain._CARRYOVER_KEYS)` and encodes the keys in
   `sorted()` order. The sort is load-bearing: Python randomises string hashing
@@ -76,8 +80,10 @@ once:
 
 ### 2. The explicit non-bool fields
 
-Anything that is not a bool is a named attribute on `DayChain`, threaded into
-`next_config()` and handled by its own block in `advance()`. Four merge
+Anything that channel 1 cannot hold is a named attribute on `DayChain`,
+threaded into `next_config()` and handled by its own block in `advance()`.
+That is everything non-bool, plus any bool that must be save-scoped
+(`lab_visited`), since channel 1's clear is all-or-nothing. Five merge
 disciplines, and choosing the wrong one is a silent balance error rather than a
 crash:
 
@@ -101,6 +107,10 @@ crash:
   decrement by 1 floored at 0. `repellent_bans` is the same shape spread over a
   dict of per-room counters: decrement, drop at zero, cap at 3 active with
   oldest-first eviction.
+- **OR-merge** — a bool that can never be un-discovered, the same "only `True`
+  merges" rule channel 1 uses, applied to a single named attribute:
+  `lab_visited`. Used instead of *replace* because a bool has no running total
+  for today's value to already be.
 - **One-day pulse** — unconditional replace, **never** an OR-merge:
   `sauna_bonus`, `morning_room_bonus`, `break_room_keycard`, `frozen_coins`,
   `frozen_gems`, `no_contact_due`. Each reports only whether *today* earned the
@@ -139,16 +149,24 @@ they survive into the next attempt:
 - `axed_rooms` — The Axe's ordered record of permanently-axed floorplan roots.
 - `permanent_rarity` — the Gear Wrench's room-id → rarity-index map.
 - `planetarium_planets` — the Telescope-in-Planetarium's unlocked planets.
+- `lab_visited` — the Laboratory visit that unlocks Blackbridge Grotto. The
+  **only bool** here, and the reason channel 2 now holds one: the owner ruled
+  the Grotto unlocks "once for the entire save", and channel 1 cannot express
+  that (docs/areas.md's "Blackbridge Grotto gate").
 
 Each field above has its own save-scoping test somewhere in the suite (e.g.
 `tests/test_carryover.py::test_shrine_state_is_save_scoped_across_a_daychain_attempt_wrap`,
 plus per-field tests in `tests/test_the_axe.py`, `tests/test_gear_wrench.py`,
-`tests/test_constellations.py` and `tests/rooms/test_planetarium.py`), so a
-carve-out is a claim about the *game*, not a convenience, and each one above
-was ruled individually. **No test pins the carve-out list itself as a set**,
-so a new field added to this list is caught by nothing — the per-field
-coverage above proves each existing entry belongs, not that the list is
-closed to undiscussed additions.
+`tests/test_constellations.py`, `tests/rooms/test_planetarium.py` and
+`tests/test_lab_permanence.py`), so a carve-out is a claim about the *game*,
+not a convenience, and each one above was ruled individually.
+
+The list itself is pinned as a set by
+`tests/test_carryover.py::test_the_save_scoped_carve_out_set_is_exactly_this`,
+which drives a real wrap and asserts both directions: every field above
+survives it, and a representative attempt-scoped field next to each does not.
+Adding a field here is therefore a deliberate edit to that test, not something
+that slips in unnoticed.
 
 ## What the attempt wrap clears
 
@@ -209,7 +227,9 @@ would pay +20 steps on every remaining day of a 200-day attempt.
   `persistence: "permanent"` is permanent within the attempt only. The visible
   consequence is the Basement Key: on day 1 of a new attempt the basement doors
   re-lock until the agent walks back to the Antechamber. Closing it would need
-  a save-scoped **set** (`basement_doors_open`, built like `sigil_doors_open`),
+  a save-scoped **set** (`basement_doors_open`) with `sigil_doors_open`'s
+  union-merge mechanics but carved out of the wrap the way `lab_visited` is
+  (`sigil_doors_open` itself is attempt-scoped and resets to its base preset),
   not a bool — the ruling was "open *a* basement door", singular, and there are
   three. Not built: the divergence window is a few days at the start of each
   attempt.

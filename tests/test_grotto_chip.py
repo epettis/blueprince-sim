@@ -9,10 +9,11 @@ are held (test_areas.py pins the gate-logic truth table directly; this file
 proves the same row through real gameplay), the Apple Orchard sundial
 becoming lightable for the first time, and the next-day respawn.
 
-Reaching the Grotto at all needs the Laboratory entered too (the lab_visited
-gate, alongside the still-stub lab_steam_and_power -- see docs/areas.md's
-"Blackbridge Grotto gate"); every setup below enters it directly via
-``_enter_laboratory``.
+Reaching the Grotto at all needs the Laboratory entered at least once (the
+lab_visited gate, alongside the still-stub lab_steam_and_power -- see
+docs/areas.md's "Blackbridge Grotto gate"); every setup below enters it
+directly via ``_enter_laboratory``, except the next-day test, which relies on
+the carried unlock instead.
 """
 
 from __future__ import annotations
@@ -30,8 +31,13 @@ def _enter_laboratory(g: Game) -> None:
     gate on private_drive -> blackbridge_grotto without going through a draft.
 
     Cell 12 (rank 3, center column) is free in every test below.
+
+    ``_enter`` rather than ``_place_room(entered=True)``: the latch is the
+    room's own ON_ENTER hook (effects/rooms/laboratory.py), and only ``_enter``
+    fires room hooks.
     """
-    g._place_room(g.registry.by_id["laboratory"], 12, N | S, entered=True)
+    g._place_room(g.registry.by_id["laboratory"], 12, N | S)
+    g._enter(12)
 
 
 def _at_grotto_with_two_chips(registry) -> Game:
@@ -149,8 +155,9 @@ def test_grotto_chip_respawns_the_next_day_through_a_daychain(registry):
     day's Game starts with the flag False and the action legal again at the
     Grotto, even though today's carryover() report does not mention it.
 
-    lab_visited is ALSO day-scoped (open_tasks.md 37): tomorrow's fresh Game
-    needs its own Laboratory entry to reach the Grotto again, same as today's.
+    lab_visited, by contrast, IS carried: tomorrow's Game reaches the Grotto
+    with no Laboratory entry of its own, which is what makes the chip's
+    respawn observable on a day where nothing was re-unlocked.
     """
     cfg = GameConfig()
     chain = DayChain(cfg)
@@ -170,9 +177,10 @@ def test_grotto_chip_respawns_the_next_day_through_a_daychain(registry):
     next_cfg = chain.next_config()
     assert not hasattr(next_cfg, "grotto_chip_taken")
 
+    assert next_cfg.lab_visited is True
+
     tomorrow = Game(next_cfg, seed=2, registry=registry)
     assert tomorrow.state.grotto_chip_taken is False
     tomorrow.state.steps = 50
-    _enter_laboratory(tomorrow)
     tomorrow.travel_to("blackbridge_grotto")
     assert tomorrow.can_take_grotto_chip(), "the pedestal chip must be back in place the next day"

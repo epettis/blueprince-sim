@@ -10,7 +10,10 @@ The RL environment stays a single-day Gymnasium env — one episode == one day.
 ``DayChain`` is the glue between episodes: on terminal step, the env calls
 ``advance(game.carryover())``, which merges any newly-discovered flags into the
 chain's running state and increments the day counter.  After day *n_days* the
-chain wraps: day resets to 1 and all carried flags are cleared (fresh attempt).
+chain wraps: day resets to 1 and the attempt-scoped state is cleared (fresh
+attempt).  A named set of save-scoped fields is deliberately exempt from that
+clear and carries into the next attempt; see the wrap block in ``advance()``
+and docs/scoping-and-carryover.md's "The save-scoped carve-outs".
 
 This module is intentionally engine-agnostic — it only imports ``GameConfig``
 and uses ``dataclasses.replace``.  The env layer is responsible for creating a
@@ -60,7 +63,8 @@ class DayChain:
       construction (day/carry-over flags are overridden per episode; all other
       fields stay from this base).
     - ``n_days``: total days in one attempt (default 200); after this many days
-      the chain wraps to day 1 with a clean carry-over slate.
+      the chain wraps to day 1, clearing every attempt-scoped value and keeping
+      only the save-scoped carve-outs named in the wrap block.
     - ``current_day``: 1-based in-game day counter (1 … n_days).
     - ``carried_flags``: ``dict[str, bool]`` of carry-over discoveries
       accumulated so far in this attempt; only True flags are stored (absent
@@ -124,6 +128,15 @@ class DayChain:
         # state.experiment.letters_delivered already IS the accumulated figure
         # by day end. SAVE-scoped, like stars and main_course_bonus above.
         self.letters_delivered: int = base_cfg.letters_delivered
+        # Laboratory entered at least once: opens the "lab_visited" gate on
+        # private_drive -> blackbridge_grotto (docs/areas.md). OR-merged from
+        # each day's own carryover value every advance(), so it can never be
+        # un-discovered. SAVE-scoped, like stars/main_course_bonus above, per
+        # the owner's rule that the Grotto is unlocked once for the entire
+        # save. The only bool among the save-scoped carve-outs: it is a named
+        # attribute here rather than a _CARRYOVER_KEYS entry precisely because
+        # that set is cleared wholesale at the wrap.
+        self.lab_visited: bool = base_cfg.lab_visited
         # Mail Room order/delivery cycle: REPLACED (not merged) from each
         # day's own carryover value every advance(), the same shape as
         # allowance/chapel_tithes -- state.mail_cycle already IS the day's
@@ -267,6 +280,7 @@ class DayChain:
             stars=self.stars,
             main_course_bonus=self.main_course_bonus,
             letters_delivered=self.letters_delivered,
+            lab_visited=self.lab_visited,
             mail_cycle=self.mail_cycle,
             mail_transit_days=self.mail_transit_days,
             hallway_tomorrow_extra=self.hallway_tomorrow_extra,
@@ -378,6 +392,12 @@ class DayChain:
         mcb_val = carryover.get("main_course_bonus")
         if mcb_val is not None:
             self.main_course_bonus = mcb_val
+
+        # --- lab_visited (Laboratory entered; OR-merge, never un-discovered) ---
+        # OR rather than the replace used by the totals above: a bool has no
+        # running-total semantics to replace, and OR is the same "only True
+        # merges" discipline the _CARRYOVER_KEYS flags use.
+        self.lab_visited = self.lab_visited or bool(carryover.get("lab_visited"))
 
         # --- planetarium_planets (Telescope-in-Planetarium's permanent record;
         #     replace each advance, the same axed_rooms/permanent_rarity shape --
@@ -546,11 +566,11 @@ class DayChain:
             self.collected_disks = frozenset()  # fresh attempt; disks back in the house
             self.chapel_tithes = 0            # fresh attempt; tithe bank reset
             self.allowance = self.base_cfg.allowance  # fresh attempt; back to the base preset
-            # stars, main_course_bonus, letters_delivered, the five shrine_*
-            # fields, axed_rooms, permanent_rarity, and planetarium_planets
-            # are deliberately absent here: all are save-scoped and carry
-            # through the wrap into the next attempt, unlike every other
-            # value reset above.
+            # stars, main_course_bonus, letters_delivered, lab_visited, the
+            # five shrine_* fields, axed_rooms, permanent_rarity, and
+            # planetarium_planets are deliberately absent here: all are
+            # save-scoped and carry through the wrap into the next attempt,
+            # unlike every other value reset above.
             self.mail_cycle = self.base_cfg.mail_cycle  # fresh attempt; back to the base preset
             self.mail_transit_days = self.base_cfg.mail_transit_days  # fresh attempt; back to base
             self.hallway_tomorrow_extra = self.base_cfg.hallway_tomorrow_extra  # fresh attempt

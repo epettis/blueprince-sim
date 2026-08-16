@@ -496,6 +496,7 @@ def test_carryover_shape_is_complete():
         "mine_south_visited",
         "sealed_entrance_broken",
         "boiler_room_steam",
+        "lab_visited",
         "treasure_trove_blackprint",
         "orchard_unlocked",
         "throne_room_blueprint",
@@ -634,3 +635,66 @@ def test_shrine_state_is_save_scoped_across_a_daychain_attempt_wrap():
     assert chain.current_day == 1, "n_days=1 must have wrapped back to day 1"
     assert chain.next_config().shrine_blessing_id == "gardener"
     assert chain.next_config().shrine_blessing_days == 5
+
+
+#: Every save-scoped carve-out, mapped to the value one day reports and the
+#: value that must still be readable on the next config AFTER an attempt wrap.
+#: The two differ only for the shrine day-counters, which decay by the one day
+#: the wrap itself represents. docs/scoping-and-carryover.md owns the list.
+_SAVE_SCOPED: dict[str, tuple[object, object]] = {
+    "stars": (4, 4),
+    "main_course_bonus": (15, 15),
+    "letters_delivered": (3, 3),
+    "shrine_blessing_id": ("gardener", "gardener"),
+    "shrine_blessing_days": (6, 5),
+    "shrine_curse_days": (4, 3),
+    "shrine_offered_coins": (17, 17),
+    "shrine_monk_room": (9, 9),
+    "axed_rooms": (("bookshop",), ("bookshop",)),
+    "permanent_rarity": ({"utility_closet": 3}, {"utility_closet": 3}),
+    "planetarium_planets": (("mars",), ("mars",)),
+    "lab_visited": (True, True),
+}
+
+#: Attempt-scoped counterparts, one per shape above, with the value the wrap
+#: must reset them to. Present so the test cannot pass against a wrap block
+#: that stopped clearing anything at all.
+_ATTEMPT_SCOPED: dict[str, tuple[object, object]] = {
+    "allowance": (30, 0),                       # int, next to stars
+    "chapel_tithes": (12, 0),                   # int
+    "mail_cycle": ("awaiting", "empty"),        # str, next to shrine_blessing_id
+    "mail_transit_days": (5, 0),                # decaying int, next to shrine_*_days
+    "boiler_room_steam": (True, False),         # _CARRYOVER_KEYS bool, next to lab_visited
+    "lit_targets": (["mine_south"], frozenset()),   # union-merged set
+    "draft_counts": ({"bookshop": 2}, {}),      # dict, next to permanent_rarity
+    "water_levels": ({"fountain": 3}, {}),      # dict
+}
+
+
+def test_the_save_scoped_carve_out_set_is_exactly_this():
+    """The save-scoped carve-outs are exactly the twelve fields listed in
+    docs/scoping-and-carryover.md, and everything beside them still resets.
+
+    Each carve-out already has its own per-field test, but nothing pinned the
+    LIST, so a thirteenth field could be left out of the wrap block and no test
+    would notice. Both directions are asserted from one real wrap: survivors
+    survive, and a representative attempt-scoped field of each shape (int, str,
+    decaying int, _CARRYOVER_KEYS bool, set, dict) is cleared -- the second
+    half is what stops this passing against a wrap block that no longer runs.
+
+    Adding a save-scoped field is a deliberate edit to _SAVE_SCOPED above,
+    which is the point.
+    """
+    reported = {k: v[0] for k, v in _SAVE_SCOPED.items()}
+    reported.update({k: v[0] for k, v in _ATTEMPT_SCOPED.items()})
+
+    chain = DayChain(GameConfig(), n_days=1)
+    chain.advance(reported)  # day 1 of 1 -> wraps immediately
+    assert chain.current_day == 1, "n_days=1 must have wrapped back to day 1"
+    cfg = chain.next_config()
+
+    survived = {k: getattr(cfg, k) for k in _SAVE_SCOPED}
+    assert survived == {k: v[1] for k, v in _SAVE_SCOPED.items()}
+
+    cleared = {k: getattr(cfg, k) for k in _ATTEMPT_SCOPED}
+    assert cleared == {k: v[1] for k, v in _ATTEMPT_SCOPED.items()}

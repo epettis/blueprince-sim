@@ -162,10 +162,11 @@ _AUDIT_PYTHON_EXEMPT_IDS = {
     # generically by engine/special_items.py, so the guard points at the table
     # itself: deleting the entry is what should trip it.
     "hallway__ix75": "data/special_items.json",
-    # The Experimental Setup terminal is a hand-written room-id check
-    # (Game.at_laboratory_terminal), not an effects tag or room_hook -- the
-    # Laboratory itself carries no per-experiment data, only the disk_reader flag.
-    "laboratory": "engine/game.py",
+    # laboratory moved off this list: entering it now latches the Blackbridge
+    # Grotto unlock through a real room_hook (effects/rooms/laboratory.py,
+    # Hook.ON_ENTER), which find_divergences' registered_room_ids channel
+    # already sees -- the hand-written-branch exemption this list is for no
+    # longer applies.
     # The steal must be able to draw the room's own guaranteed Allowance
     # Token, granted earlier in the same on_enter call, so it stays ordered
     # against that grant rather than moving to an earlier-firing room_hook.

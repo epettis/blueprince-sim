@@ -339,12 +339,11 @@
   },
   {
    "id": "lab_visited",
-   "kind": "room",
+   "kind": "flag",
    "modelled": false,
-   "permanence": "daily",
+   "permanence": "permanent",
    "stub": false,
-   "detail": "Private Drive -> Blackbridge Grotto: the Laboratory must be entered today (GateContext.rooms_entered), the same live per-day shape as tomb_catacombs. Daily rather than a permanent once-ever unlock because no state hook exists yet to latch a first-ever visit permanently across days -- that would ride on the same power-system work as lab_steam_and_power (see docs/areas.md's 'Blackbridge Grotto gate' section).",
-   "room_id": "laboratory",
+   "detail": "Private Drive -> Blackbridge Grotto: the Laboratory has been entered at least once, on this or any prior day. Owner ruling: 'You only need to unlock the Blackbridge Grotto once for the entire save. However, you need to power and enter the Laboratory for that to happen.' A one-time unlock, so this is a flag gate rather than a kind=room gate (kind=room checks GateContext.rooms_entered, which is rebuilt every day, and is what tomb_catacombs wants). The engine sets this flag in game.py::_gate_ctx from state.lab_visited (set on Laboratory entry, effects/rooms/laboratory.py) OR the carried-over cfg.lab_visited (shops.py::carryover). SAVE-scoped: carried on the named DayChain.lab_visited attribute and left out of the attempt wrap, NOT in _CARRYOVER_KEYS, which the wrap clears -- so unlike boiler_room_steam it survives into the next attempt (docs/scoping-and-carryover.md). The edge's other conjunct, POWER, is the separate 'lab_steam_and_power' gate on the same edge -- it is still a stub.",
    "meta": {"source": "docs/areas.md", "confidence": "wiki"}
   },
   {
