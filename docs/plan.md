@@ -115,7 +115,7 @@ delete again.
 ## Maintenance sharp edges
 
 - `N_ACTIONS` is pinned as a literal in exactly one place
-  (`tests/test_constellations.py::test_action_space_width_is_481`); every
+  (`tests/test_constellations.py::test_action_space_width_is_493`); every
   other test file that references it does so relationally (against `len(mask)`,
   action-id arithmetic, etc.), not against a literal. Any action-space change
   updates [`docs/rl-environment.md`](rl-environment.md)'s width-change
