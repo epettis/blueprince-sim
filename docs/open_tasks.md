@@ -1,10 +1,14 @@
 # Open tasks
 
 Work the project owner has identified and that is NOT in `docs/plan.md`'s
-delivered set -- each needs its own design pass. Two sources so far: a review of
-the special-items PR stack, and a recorded session of real play through the
-Training Observatory. That first session's findings have shipped; a second
-session produced tasks 44-48, of which 48 remains.
+delivered set -- each needs its own design pass. Sources so far: a review of the
+special-items PR stack, recorded sessions of real play through the Training
+Observatory, and the measurement work behind the RL training runs.
+
+**The numbered sections below are the live list.** A task is deleted the day its
+work lands, so what is present is exactly what remains. This header deliberately
+carries no count and no task-number range: either would rot on the next merge
+that closes a task, and has.
 
 **Play findings outrank the wiki**, per [`doctrine.md`](doctrine.md) -- but where
 one contradicts a published rule, surface the conflict rather than silently
