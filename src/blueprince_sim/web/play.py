@@ -28,7 +28,7 @@ import time
 from pathlib import Path
 
 from ..config import GameConfig
-from ..engine.game import Game, Phase
+from ..engine.game import CALLED_IT_A_DAY, Game, Phase
 from ..engine.grid import DIR_NAMES, N_CELLS
 from ..engine.locks import DOOR_LOCKED, DOOR_OPEN, DOOR_SEALED, DOOR_SECURITY
 from ..engine.shops import stock_for
@@ -57,6 +57,15 @@ class IllegalActionError(ValueError):
     def __init__(self, action_id: int) -> None:
         super().__init__(f"action {action_id} is not legal in the current state")
         self.action_id = action_id
+
+
+class DayNotEndableError(ValueError):
+    """Raised by :meth:`PlaySession.call_it_a_day` when the day cannot be ended now.
+
+    Separate from :class:`IllegalActionError` because "call it a day" is not an
+    action: it has no id in ``env/actions.py`` and never appears in a mask, so
+    there is no id for the HTTP layer to report back.
+    """
 
 
 def action_group(action_id: int) -> str:
@@ -362,6 +371,12 @@ class PlaySession:
                 "days_remaining": max(self.n_days - day + 1, 0),
                 "day_over": self.env.game.phase is Phase.TERMINAL,
                 "attempt_over": self.attempt_over,
+                # Whether "call it a day" would be accepted right now, so the
+                # button can grey out instead of earning a 400. Not derivable
+                # from `legal_actions`: ending the day by hand is not an action
+                # and never appears in the mask.
+                "can_end_day": (not self.attempt_over
+                                and self.env.game.can_call_it_a_day()),
                 "reward": self.day_reward,
                 "n_actions_today": len(self.actions),
                 "completed_days": len(self.day_records),
@@ -407,6 +422,47 @@ class PlaySession:
             if terminated or truncated:
                 self._close_day(info, attempt_final=terminated)
             return self.state()
+
+    def call_it_a_day(self) -> dict:
+        """End today at the player's request and close its record.
+
+        The one mutation on this class that does not go through
+        ``env.step()``, because there is deliberately no action id to step
+        with (see ``Game.call_it_a_day``). The day still lands in
+        ``day_records`` as an ordinary demo: every action in it was chosen
+        from a live mask, so it replays and trains exactly like any other --
+        it simply stops before the engine would have stopped it, which
+        ``rl.behavioral_cloning.replay_demo`` handles natively (it only
+        objects to a replay ending EARLY, never late).
+
+        ``day_reward`` is left where it stands rather than being topped up
+        with a terminal reward: a reward is the value of an action, and no
+        action was taken here.
+        """
+        with self.lock:
+            if self.attempt_over or not self.env.game.can_call_it_a_day():
+                raise DayNotEndableError(
+                    "the day cannot be ended right now; finish the pending "
+                    "choice first")
+            info, attempt_final = self._end_day_by_player()
+            self._close_day(info, attempt_final=attempt_final)
+            return self.state()
+
+    def _end_day_by_player(self) -> tuple[dict, bool]:
+        """Terminate today through the engine and advance the day chain.
+
+        Caller holds the lock. Returns ``(info, attempt_final)``, replaying by
+        hand the bookkeeping ``BluePrinceEnv.step`` does at a day end, in the
+        same order: read whether this is the attempt's final day BEFORE
+        ``advance()`` (which increments ``current_day`` and wraps it at an
+        attempt boundary), then advance the chain with the day's carry-over,
+        then build the info dict off the advanced chain.
+        """
+        chain = self.env.day_chain
+        attempt_final = chain.current_day >= chain.n_days
+        self.env.game.call_it_a_day()
+        chain.advance(self.env.game.carryover())
+        return self.env._info(), attempt_final
 
     def _close_day(self, info: dict, attempt_final: bool) -> None:
         """Append the just-finished day as an EpisodeRecorder-shaped record.
@@ -501,6 +557,13 @@ class PlaySession:
         (unchanged) plus the truncated current-day list reproduces the
         identical state, and is far simpler than trying to snapshot engine
         state directly.
+
+        A day the player called early is the one record whose actions do not
+        end it -- the last one was an ordinary move, and ``env.step`` therefore
+        never ran the day-chain advance. Its recorded ``reason`` is what says
+        so, and re-running :meth:`_end_day_by_player` restores the day index
+        and carry-over the live session had; without it every later day would
+        rebuild against a stale chain.
         """
         self.chain = DayChain(self.cfg, n_days=self.n_days)
         self.env = BluePrinceEnv(cfg=self.cfg, day_chain=self.chain)
@@ -508,6 +571,8 @@ class PlaySession:
         for rec in self.day_records:
             for a in rec["actions"]:
                 self.env.step(a)
+            if rec.get("reason") == CALLED_IT_A_DAY:
+                self._end_day_by_player()
             _, info = self.env.reset()
         self._episode_seed = info["episode_seed"]
         self.day_reward = 0.0

@@ -14,10 +14,12 @@ import random
 import pytest
 
 from blueprince_sim.engine import shops, special_items as si
-from blueprince_sim.engine.game import Phase
+from blueprince_sim.engine.game import CALLED_IT_A_DAY, Phase
 from blueprince_sim.env import actions as A
+from blueprince_sim.rl import behavioral_cloning as bc
 from blueprince_sim.web import replay
 from blueprince_sim.web.play import (
+    DayNotEndableError,
     IllegalActionError,
     PlaySession,
     _payout_diff,
@@ -319,3 +321,139 @@ def test_shop_stock_view_action_id_matches_the_legal_buy_action():
     for entry in stock:
         assert entry["action_id"] == A.BUY_BASE + entry["index"]
         assert entry["action_id"] in legal_ids
+
+
+# ---------------------------------------------------- task 44: call it a day
+
+def _draft_one_room(session: PlaySession) -> None:
+    """Draft and place one room, leaving the session back in NAVIGATE.
+
+    A day mid-draft cannot be ended (that is its own test below), so a
+    scenario that wants a started-but-unfinished day has to close the hand it
+    opens rather than stop at the draft action.
+    """
+    draft = next(a for a in session.state()["legal_actions"] if a["group"] == "draft")
+    session.act(draft["id"])
+    choose = next(a for a in session.state()["legal_actions"] if a["group"] == "choose")
+    session.act(choose["id"])
+    assert session.env.game.phase is Phase.NAVIGATE
+
+
+def test_calling_it_a_day_ends_a_day_the_mask_still_has_work_in():
+    """The mutation proof at the session level: a session one room into a
+    fresh day still has legal actions and is not over, and call_it_a_day()
+    ends it anyway -- through PlaySession, which otherwise only ever mutates
+    via env.step()."""
+    session = PlaySession(seed=1234, n_days=1, reward="shaped", unlocks="all")
+    _draft_one_room(session)
+    before = session.state()
+    assert before["legal_actions"], "setup: the mask must still offer work"
+    assert not before["day_over"]
+
+    after = session.call_it_a_day()
+
+    assert after["day_over"]
+    assert after["attempt_over"]
+    assert session.day_records[0]["reason"] == CALLED_IT_A_DAY
+
+
+def test_a_hand_ended_day_is_still_a_usable_demonstration():
+    """The recorded actions were every one of them chosen off a live mask, so
+    the day trains like any other; it just stops before the engine would have.
+    replay_demo only refuses a replay that ends EARLY, so a record ending late
+    must yield one (obs, action, mask) triple per recorded action."""
+    session = PlaySession(seed=4321, n_days=1, reward="shaped", unlocks="all")
+    rng = random.Random(11)
+    for _ in range(5):
+        session.act(rng.choice([a["id"] for a in session.state()["legal_actions"]]))
+    session.call_it_a_day()
+
+    record = session.day_records[0]
+    assert len(record["actions"]) == 5
+    assert len(bc.replay_demo(record)) == 5
+
+
+def test_a_hand_ended_day_still_advances_the_chain():
+    """Ending the day outside env.step() means the day-chain advance env.step
+    would have run has to be done by hand. If it were skipped, tomorrow would
+    replay today's day index and lose today's carry-over."""
+    session = PlaySession(seed=77, n_days=3, reward="shaped", unlocks="all")
+    assert session.state()["day"] == 1
+
+    after = session.call_it_a_day()
+
+    assert not after["attempt_over"], "day 1 of 3 is not the attempt's last"
+    assert after["day"] == 2
+    assert session.chain.current_day == 2
+
+
+def test_the_last_day_called_by_hand_ends_the_attempt():
+    """The attempt-final verdict has to be read BEFORE advance() wraps
+    current_day back to 1, exactly as env.step reads it. Reading it after
+    would report the final day as mid-attempt and reopen a finished attempt."""
+    session = PlaySession(seed=78, n_days=1, reward="shaped", unlocks="all")
+
+    after = session.call_it_a_day()
+
+    assert after["attempt_over"]
+    assert session.attempt_over
+
+
+def test_undo_after_a_hand_ended_day_rebuilds_the_same_chain():
+    """undo() rebuilds the whole session by replaying records, and a hand-ended
+    day's actions do NOT end it on replay -- so the rebuild must re-run the
+    hand end itself. Without that the rebuilt chain sits a day behind and every
+    later day is generated under the wrong config."""
+    session = PlaySession(seed=90, n_days=3, reward="shaped", unlocks="all")
+    session.call_it_a_day()
+    session.act(session.state()["legal_actions"][0]["id"])
+    day_before = session.state()["day"]
+
+    result = session.undo()
+
+    assert result["undone"] is True
+    assert result["day"] == day_before == 2
+    assert session.chain.current_day == 2
+    assert len(session.day_records) == 1
+
+
+def test_calling_it_a_day_is_refused_mid_draft():
+    """A dealt draft hand is a decision already in flight ("you must choose one
+    -- no backing out"), so the request is refused rather than left to strand
+    the pending record. Refusing is also what keeps the button's disabled state
+    honest instead of decorative."""
+    session = PlaySession(seed=1234, n_days=1, reward="shaped", unlocks="all")
+    draft = next(a for a in session.state()["legal_actions"] if a["group"] == "draft")
+    session.act(draft["id"])
+    assert session.env.game.phase is Phase.DRAFTING, "setup: a hand must be dealt"
+
+    assert session.state()["can_end_day"] is False
+    with pytest.raises(DayNotEndableError):
+        session.call_it_a_day()
+
+    assert session.env.game.phase is Phase.DRAFTING
+
+
+def test_calling_it_a_day_is_refused_once_the_attempt_is_over():
+    """A finished attempt has no live Game to end. Without this guard the call
+    would append a second record for a day that was already closed."""
+    session = PlaySession(seed=1234, n_days=1, reward="shaped", unlocks="all")
+    session.call_it_a_day()
+    assert session.attempt_over
+
+    with pytest.raises(DayNotEndableError):
+        session.call_it_a_day()
+
+    assert len(session.day_records) == 1
+
+
+def test_can_end_day_tracks_what_the_call_would_actually_do():
+    """The flag drives whether the Play tab's button is clickable, so it has to
+    agree with the method rather than approximate it: true exactly when
+    call_it_a_day() would be accepted."""
+    session = PlaySession(seed=555, n_days=1, reward="shaped", unlocks="all")
+    assert session.state()["can_end_day"] is True
+
+    session.call_it_a_day()
+
+    assert session.state()["can_end_day"] is False

@@ -702,6 +702,8 @@ class Handler(BaseHTTPRequestHandler):
                     self._play_new(body)
                 case "/api/play/act":
                     self._play_act(body)
+                case "/api/play/end-day":
+                    self._play_end_day()
                 case "/api/play/undo":
                     self._play_undo()
                 case "/api/play/save":
@@ -767,6 +769,23 @@ class Handler(BaseHTTPRequestHandler):
         try:
             state = self.play_session.act(action)
         except _play.IllegalActionError as e:
+            self._send_json_error(400, str(e))
+            return
+        self._send_json(state)
+
+    def _play_end_day(self) -> None:
+        """POST /api/play/end-day: the player's "call it a day".
+
+        Takes no body: there is no action id to send, since ending the day by
+        hand is not an action (see ``web/play.py::PlaySession.call_it_a_day``).
+        400 when a pending choice makes the day un-endable right now.
+        """
+        if self.play_session is None:
+            self._send_json_error(400, "no active play session")
+            return
+        try:
+            state = self.play_session.call_it_a_day()
+        except _play.DayNotEndableError as e:
             self._send_json_error(400, str(e))
             return
         self._send_json(state)

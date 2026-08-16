@@ -19,12 +19,15 @@ from __future__ import annotations
 
 import random
 
+import pytest
+
 from blueprince_sim.cli.policies import frontier_greedy
 from blueprince_sim.config import GameConfig
 from blueprince_sim.engine import shops as _shops
 from blueprince_sim.engine import special_items as _si
-from blueprince_sim.engine.game import Game, Phase
+from blueprince_sim.engine.game import CALLED_IT_A_DAY, Game, Phase
 from blueprince_sim.engine.grid import E, ENTRANCE_CELL, N, S, W
+from blueprince_sim.env import actions as A
 
 #: North of the Entrance Hall (rank 2, centre column). The Sauna's own door
 #: mask is S alone -- a dead end -- so placing it here consumes the Entrance
@@ -517,3 +520,117 @@ def test_no_episode_ends_with_free_work_left_on_the_table():
 
     assert episodes_with_free_work > 0, "the sweep never produced an in-place action"
     assert episodes_checked >= 5, "the sweep never reached the assertion it exists for"
+
+
+# ----------------------------------- the player ending the day on purpose
+
+def test_the_engine_refuses_to_end_a_day_that_still_has_work_in_it():
+    """The control half of the mutation proof below: in the very scenario the
+    "call it a day" tests use, ``_check_termination`` -- the only route to
+    TERMINAL before this feature -- looks at the three unentered rooms and
+    correctly keeps the day running. Anything that ends this day is therefore
+    the player, not the engine changing its mind."""
+    game = _sealed_house(_plain_cfg())
+    game.state.steps = 10
+
+    game._check_termination()
+
+    assert game.phase is Phase.NAVIGATE
+    assert game.termination_reason == ""
+    assert game.can_call_it_a_day()
+
+
+def test_calling_it_a_day_ends_a_day_the_engine_would_have_kept_running():
+    """The point of the whole feature: the player stops a day with purposeful
+    work still on the board. Same house as the test above, which the engine
+    refuses to end, ended anyway on the player's say-so."""
+    game = _sealed_house(_plain_cfg())
+    game.state.steps = 10
+
+    game.call_it_a_day()
+
+    assert game.phase is Phase.TERMINAL
+    assert game.termination_reason == CALLED_IT_A_DAY
+
+
+def test_the_hand_ended_reason_is_distinct_from_every_engine_reason():
+    """A day the player stopped is not out of steps and not a dead end, and
+    reason shares are read as a breakdown of *why* days end (``cli/batch.py``
+    counts them). Folding a quit into "out_of_steps" would silently inflate
+    the one number the step-budget work is measured by."""
+    game = _sealed_house(_plain_cfg())
+    game.state.steps = 10
+
+    game.call_it_a_day()
+
+    assert game.termination_reason not in ("out_of_steps", "dead_end", "decision_limit")
+
+
+def test_calling_it_a_day_still_fires_the_day_end_hooks():
+    """``_terminate`` is the single fire site for ON_DAY_END/ON_DAY_END_ALL,
+    so routing through it is what keeps a hand-ended day paying out. Proven on
+    the Sauna's tomorrow bonus: the player walks into the Sauna and stops right
+    there, and tomorrow still starts on 50 + 20 Orchard + 20 Sauna = 90."""
+    game = _sealed_house(_plain_cfg(orchard_unlocked=True))
+    game.state.steps = 10
+    game.move_to(NORTH_CELL)
+    assert game.phase is Phase.NAVIGATE, "setup: the day must still be running"
+
+    game.call_it_a_day()
+
+    assert game.phase is Phase.TERMINAL
+    assert game.carryover()["sauna_bonus"] is True
+    tomorrow = Game(_plain_cfg(orchard_unlocked=True, sauna_bonus=True), seed=4)
+    assert tomorrow.state.steps == 90
+
+
+def test_the_day_cannot_be_called_out_from_under_a_pending_choice():
+    """Every non-NAVIGATE phase is a decision already dealt and awaiting an
+    answer. Ending the day underneath a dealt draft hand would strand the
+    pending record every later reader (the frame, the action mask) hangs off,
+    so the affordance is refused rather than left to corrupt the state."""
+    game = _sealed_house(_plain_cfg())
+    game.state.steps = 10
+    game.phase = Phase.DRAFTING
+
+    assert not game.can_call_it_a_day()
+    with pytest.raises(AssertionError):
+        game.call_it_a_day()
+
+    assert game.phase is Phase.DRAFTING
+
+
+def test_a_day_already_over_cannot_be_ended_again():
+    """A second "call it a day" after the day is over must not re-fire
+    ON_DAY_END (a Tomorrow Room would pay twice) or overwrite the reason the
+    engine recorded for why the day actually ended."""
+    game = _sealed_house(_plain_cfg())
+    game.state.steps = 0
+    game._check_termination()
+    assert game.termination_reason == "out_of_steps", "setup: engine ended this day"
+
+    assert not game.can_call_it_a_day()
+    with pytest.raises(AssertionError):
+        game.call_it_a_day()
+
+    assert game.termination_reason == "out_of_steps"
+
+
+def test_calling_it_a_day_adds_no_action_id_and_no_observation_field():
+    """The binding constraint on this feature: it is a player affordance, not
+    an agent capability. An id in the mask would be dead weight a policy has
+    to learn to ignore -- and worse, an id it could learn to press -- so the
+    action space and observation space must be untouched by it."""
+    game = _sealed_house(_plain_cfg())
+    game.state.steps = 10
+    before = A.action_mask(game, None)
+
+    assert not hasattr(A, "CALL_IT_A_DAY_ACTION")
+    assert len(before) == A.N_ACTIONS
+
+    game.call_it_a_day()
+
+    assert game.phase is Phase.TERMINAL
+    assert len(A.action_mask(game, None)) == A.N_ACTIONS, (
+        "ending the day by hand must not change the width of the action space"
+    )

@@ -63,6 +63,22 @@ def _in_place_label(game: Game, action_id: str, do) -> str:
     return action_id
 
 
+def _confirmed_call_it_a_day(game: Game) -> bool:
+    """Ask before ending the day by hand; True only on an explicit yes.
+
+    ``Game.call_it_a_day`` is irreversible and the keystroke that reaches it
+    sits one letter away from the movement keys, so a bare 'c' must not be
+    enough on its own. Anything other than ``y``/``yes`` -- including an empty
+    line -- leaves the day running, which is why the prompt reads ``[y/N]``.
+    """
+    answer = input("really end the day? [y/N] ").strip().lower()
+    if answer not in ("y", "yes"):
+        print("  day continues")
+        return False
+    game.call_it_a_day()
+    return True
+
+
 def play(cfg: GameConfig, seed: int) -> None:
     """Run the interactive REPL for one day, printing the grid and prompting each decision.
 
@@ -72,8 +88,14 @@ def play(cfg: GameConfig, seed: int) -> None:
     :meth:`Game._in_place_actions` counts as work left with no walk needed),
     outer-area actions, and the security switches; EXPERIMENT_PENDING (entered
     by starting a Laboratory setup) offers the trigger then the effect;
-    DRAFTING offers the option slots plus redraw/rotate. ``q`` at any prompt
-    abandons the day. Returns after printing the end-of-day summary (win or
+    DRAFTING offers the option slots plus redraw/rotate.
+
+    ``c`` at either NAVIGATE prompt (on the grid or off it) calls it a day: it
+    ends the day through :meth:`Game.call_it_a_day` even with work left, after
+    the ``[y/N]`` confirmation :func:`_confirmed_call_it_a_day` puts in front
+    of it, and the loop then falls through to the end-of-day summary. ``q`` at
+    any prompt walks away from the REPL instead, leaving the day unfinished and
+    printing nothing. Returns after printing the end-of-day summary (win or
     termination reason).
     """
     game = Game(cfg, seed=seed)
@@ -106,9 +128,13 @@ def play(cfg: GameConfig, seed: int) -> None:
                 for i, (node_id, cost) in enumerate(reachable_opts):
                     dest_node = graph.nodes[node_id]
                     print(f"  [{i + 1}] {dest_node.name} ({cost} step(s))")
+                print("  [c] call it a day (end the day here)")
                 cmd = input("outer> ").strip().lower()
                 if cmd == "q":
                     return
+                if cmd == "c":
+                    _confirmed_call_it_a_day(game)
+                    continue
                 try:
                     choice = int(cmd) - 1
                     if 0 <= choice < len(reachable_opts):
@@ -183,6 +209,7 @@ def play(cfg: GameConfig, seed: int) -> None:
             if game.can_set_security_level():
                 print(f"  [v <low|normal|high>] security terminal "
                       f"(level now {st.security_level})")
+            print("  [c] call it a day (end the day here)")
             frontier = game.frontier_doorways()
             afar = [fd for fd in frontier if fd[0] != st.pos]
             if afar:
@@ -191,6 +218,9 @@ def play(cfg: GameConfig, seed: int) -> None:
             cmd = input("move/draft> ").strip().lower()
             if cmd == "q":
                 return
+            if cmd == "c":
+                _confirmed_call_it_a_day(game)
+                continue
             if cmd.startswith("x") and cmd[1:].isdigit():
                 idx = int(cmd[1:]) - 1
                 if 0 <= idx < len(in_place):
@@ -255,7 +285,7 @@ def play(cfg: GameConfig, seed: int) -> None:
                 cell, d = doors[int(cmd) - 1]
             except (ValueError, IndexError):
                 print("  ? enter a doorway number, a move letter (n/e/s/w), "
-                      "'g/d <cell>', 'x <n>', '46', 'o', 'p', 'v', or 'q'")
+                      "'g/d <cell>', 'x <n>', '46', 'o', 'p', 'v', 'c', or 'q'")
                 continue
             if game.doorway_passable(cell, d):
                 game.open_door(cell, d)

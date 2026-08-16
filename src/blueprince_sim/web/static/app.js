@@ -1718,6 +1718,11 @@ state.playLog = [];                  // running per-day action log (client-side 
 // looking at the other map never traps the player out of sync permanently.
 state.playMapTab = "house";
 state.playMapLastOffGrid = undefined;  // previous frame's off-grid status; undefined = force a sync
+// "Call it a day" is armed: the button has been clicked once and the NEXT
+// click POSTs. Cleared by applyPlayState, so any other action the player takes
+// disarms it -- an arm that outlived the state it was aimed at would be a
+// confirmation of nothing.
+state.playEndDayArmed = false;
 
 async function playApiGet(url) {
   const r = await fetch(url);
@@ -1738,6 +1743,7 @@ async function playApiPost(url, body) {
 function applyPlayState(s) {
   state.playState = s;
   if (s.frame && s.frame.area) state.playVisited.add(s.frame.area);
+  state.playEndDayArmed = false;
   pushPlayLog(s);
   renderPlayAll();
 }
@@ -1785,6 +1791,53 @@ async function playUndo() {
   }
 }
 $("#play-undo-btn").onclick = playUndo;
+
+// "Call it a day" ends the day even with work left and cannot be undone (a
+// closed day's Game is gone -- see PlaySession.undo), so the first click only
+// arms the button and the second one POSTs. A confirmation the player cannot
+// misclick past is the point; a single button that fired immediately would be
+// indistinguishable from a slip of the mouse.
+async function playEndDay() {
+  if (!state.playEndDayArmed) {
+    state.playEndDayArmed = true;
+    $("#play-save-status").textContent =
+      "this ends the day now and cannot be undone — click again to confirm";
+    renderPlayEndDay();
+    return;
+  }
+  state.playEndDayArmed = false;
+  try {
+    const s = await playApiPost("/api/play/end-day", {});
+    $("#play-save-status").textContent = "";
+    applyPlayState(s);
+  } catch (err) {
+    $("#play-save-status").textContent = `end day failed: ${err.message}`;
+    renderPlayEndDay();
+  }
+}
+$("#play-end-day-btn").onclick = playEndDay;
+
+function cancelPlayEndDay() {
+  state.playEndDayArmed = false;
+  $("#play-save-status").textContent = "";
+  renderPlayEndDay();
+}
+$("#play-end-day-cancel-btn").onclick = cancelPlayEndDay;
+
+// Reflects both halves of the two-click confirm: whether the server would even
+// accept an end-day right now (`can_end_day`, which is false mid-draft and
+// once the attempt is over) and whether the button is currently armed.
+function renderPlayEndDay() {
+  const s = state.playState;
+  const btn = $("#play-end-day-btn");
+  const cancel = $("#play-end-day-cancel-btn");
+  const enabled = !!(s && s.can_end_day);
+  if (!enabled) state.playEndDayArmed = false;
+  btn.disabled = !enabled;
+  btn.textContent = state.playEndDayArmed ? "Confirm: end the day" : "Call it a day";
+  btn.classList.toggle("armed", state.playEndDayArmed);
+  cancel.classList.toggle("hidden", !state.playEndDayArmed);
+}
 
 async function playSave() {
   try {
@@ -2163,6 +2216,7 @@ function renderPlayAll() {
   renderPlayDraft();
   renderPlayUpgrade();
   renderPlayActions();
+  renderPlayEndDay();
   renderPlayLog();
   if (state.playState) updatePlayMapTab(state.playState.frame);
   renderPlayMapTabs();

@@ -35,6 +35,14 @@ from .state import DraftOption, GameState, PendingDraft, resolve_gem_cost
 
 ANTECHAMBER_CELL = 42  # rank 9, center column
 
+#: ``termination_reason`` recorded when the player stops the day by hand
+#: (Game.call_it_a_day) rather than the engine stopping it. A named constant
+#: because web/play.py reads it back off a saved day record to tell a
+#: player-ended day from an engine-ended one when it rebuilds a session; the
+#: engine's own reasons ("out_of_steps", "dead_end") are nothing but reported
+#: strings and stay literals.
+CALLED_IT_A_DAY = "called_it_a_day"
+
 #: Shop display entries an agent can actually reach: env/actions.py's BUY_BASE
 #: block is six ids wide, while the Commissary stocks thirteen rows. Anything
 #: past this is unbuyable, so Game._in_place_actions must not count it.
@@ -3293,12 +3301,45 @@ class Game:
         st = self.state
         st.experiment.paused = not st.experiment.paused
 
+    def can_call_it_a_day(self) -> bool:
+        """True when the player may stop the day on the spot.
+
+        NAVIGATE only. Every other non-terminal phase is a decision already in
+        flight that the player is mid-way through answering -- a dealt draft
+        hand ("you must choose one - no backing out"), an Upgrade Disk menu, an
+        experiment trigger/effect, a locked doorway, a Gear Wrench rarity, a
+        Pump Room level -- and ending the day underneath one would strand the
+        pending record it hangs off.
+        """
+        return self.phase is Phase.NAVIGATE
+
+    def call_it_a_day(self) -> None:
+        """End the day because the player said so, whatever work is left.
+
+        A player-facing affordance, not an agent one: it has no id in
+        :mod:`env.actions` and no field in :mod:`env.obs`, so a policy can
+        neither see nor take it.
+
+        Deliberately does NOT go through :meth:`_check_termination`, whose
+        whole job is to refuse while purposeful work remains; asking it would
+        make stopping early impossible, which is the one thing this method is
+        for. It calls :meth:`_terminate` directly instead, so ``ON_DAY_END``
+        and ``ON_DAY_END_ALL`` fire for a hand-ended day exactly as they do for
+        every other day end -- a player who stops standing in a Tomorrow Room
+        still gets tomorrow's grant.
+        """
+        assert self.can_call_it_a_day(), "can only call it a day while navigating"
+        self._terminate(CALLED_IT_A_DAY)
+
     def _terminate(self, reason: str) -> None:
         """End the day; this is the sole place Phase.TERMINAL is set.
 
-        Every day-ending route in this module runs through here (called only
-        from _check_termination), so it is the single fire site for
-        ON_DAY_END and ON_DAY_END_ALL.
+        Every day-ending route runs through here, so it is the single fire site
+        for ON_DAY_END and ON_DAY_END_ALL. Three callers reach it:
+        :meth:`_check_termination` (the engine deciding the day is over),
+        :meth:`call_it_a_day` (the player deciding it is), and
+        ``env/blueprince_env.py``'s step (a post-step state whose action mask
+        is entirely False).
         """
         self.phase = Phase.TERMINAL
         self.termination_reason = reason
