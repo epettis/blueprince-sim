@@ -137,9 +137,15 @@ from the legal set -- but POWER cannot, so the Grotto stays open. Building
 POWER would close the agent's favourite action.
 
 So calibration should not start from the constants. **The order is: settle the
-training fixture, then build POWER, then retune.** Changing the fixture
-invalidates the current run, so it is a retrain decision and held on the
-owner's say-so.
+training fixture, then build POWER, then retune.**
+
+**OWNER RULING: stop the run and switch the fixture.** `runs/postplay-v1` was
+stopped at ~1.85M episodes; its checkpoints remain on disk. The next run needs
+a training fixture that does not hand over the whole area graph on the first
+decision -- `all_unlocks_config()` stays correct as a spec and stops being the
+training baseline. **The replacement fixture is not yet chosen**, and choosing
+it is the remaining work on this task: `fresh_save_config()` is one candidate,
+a `default_config()` between the two extremes is the other.
 
 ## 37. The Laboratory unlock is day-scoped, and POWER is unmodelled
 
@@ -153,14 +159,46 @@ which reads as a **one-time** unlock. Latching a first-ever visit across days
 needs a `GameState`/`GameConfig` field plus a room-entry hook, both outside
 `engine/areas.py`, which only evaluates the `GateContext` it is handed.
 
-`lab_steam_and_power`, the POWER conjunct, is still `stub: true` and
-`kind: "unmodelled"`, passing unconditionally: **nothing in the engine
-represents whether the house is powered.** Building that is the same
-off-`engine/areas.py` plumbing, so both halves ride `PR-power-system`
-together. [`areas.md`](areas.md) owns the gate's current shape and records
-this as its known gap.
+**OWNER RULING on POWER, which reframes the whole task:**
 
-## 38. Should a wing exclude its corners? Owner ruling needed
+> "The **house** isn't powered. A **room** is powered. A room is powered if it
+> shares a doorway with another powered room. Power sources include the Boiler
+> Room and the Electric Eel Aquarium."
+
+So POWER is not a global boolean at all -- it is **connectivity over the placed
+grid's doorways**, seeded at the source rooms. `lab_steam_and_power` becomes
+"the Laboratory is a powered room", which is reachable state rather than an
+unmodelled stub.
+
+**The room set, researched at the owner's request** (blueprince.wiki.gg/wiki/
+Steam_power, which states the rule in almost the owner's words: *"Any powerable
+or connector room that shares a doorway with a powered room becomes powered
+itself... This power may come from a power source itself, or another powered
+room"*):
+
+| category | rooms |
+|---|---|
+| sources | Boiler Room, Electric Eel Aquarium, Guest Bedroom (when it mimics the Electric Eel) |
+| connectors (pass through only) | Passageway, Archives, Darkroom, Weight Room, **Locker Room**, **Security** |
+| powerable (act when powered) | Laboratory, Garage, Laundry Room, **Pump Room**, **Furnace** |
+
+**The answer to the owner's "are there any more?" is yes**: Locker Room and
+Security are connectors not in the owner's list, Pump Room and Furnace are
+powerable rooms, and the Guest Bedroom is a conditional source.
+
+**Two conflicts to keep visible.** `rooms.json`'s existing `flags.powered` is
+true for ten rooms but **omits `darkroom`, `weight_room` and `furnace`**, so it
+is not the same set; and [`areas.md`](areas.md) records it as a static
+duct-draw classification that "cannot stand in for 'was switched on'".
+Separately, the wiki says the Boiler Room routes power through **one door at a
+time** and must be switched on daily, which is stricter than the owner's
+"shares a doorway" rule -- **the owner's rule governs**, and this is recorded
+rather than smoothed over.
+
+The powered *effects* of the Garage, Pump Room, Laundry Room and Furnace are
+deliberately out of scope for the power build itself and remain separate work.
+
+## 38. A wing excludes its corners (RULED, unbuilt)
 
 `west_or_east_wing` is carried by six rooms, and only three of them also carry
 `no_corner`: the Morning Room, the Greenhouse, and the Secret Garden, whose
@@ -169,12 +207,16 @@ the Patio and the Veranda can therefore be drawn onto a corner tile today**,
 while the wiki says a wing never includes the corners and names the Patio
 specifically -- *"rooms like the Patio can never be drawn on Rank 1"*.
 
-The clean fix is to make `west_or_east_wing` corner-excluding in
-`placement.py::satisfies_draft_conditions` rather than tagging three rooms
-individually, which narrows three rooms' legal tiles at once and changes the
-draft distribution. **That is an owner ruling, not an implementation
-detail** -- it turns a data question into a semantics change on a shared tag,
-and nothing should move until the ruling exists.
+**OWNER RULING: wings exclude corners.** So `west_or_east_wing` becomes
+corner-excluding in `placement.py::satisfies_draft_conditions` rather than
+tagging three rooms individually -- the tag now means what the wiki says it
+means, and the Terrace, Patio and Veranda lose their corner tiles.
+
+Two things to check when building it, neither settled by the ruling. The three
+rooms that carry `no_corner` today become redundant, so decide whether the tag
+is removed from them or kept as harmless belt-and-braces. And this narrows the
+legal tiles of three rooms at once, so **the scripted-policy baselines will
+move**: report the new numbers rather than treating movement as a regression.
 
 ## 49. An outer draft does not increment `draft_counts`
 
@@ -194,12 +236,13 @@ the count is "cumulative attempt-wide" and "incremented in
 
 So this is a latent trap rather than a live bug: the first effect keyed on
 `draft_counts` for a room that *can* appear in the outer pool will silently
-undercount. **The ruling needed is whether an outer draft is a draft for
-counting purposes** -- `_choose_outer` already documents a deliberate list of
-what does and does not fire off-grid (`experiments.on_room_drafted` does not;
-`shrine.on_room_drafted` does), so this belongs on that list either way.
-Whichever way it goes, the answer should land as a comment where the rule
-lives, not only here.
+undercount.
+
+**OWNER RULING: an outer draft counts as a draft.** The increment must reach
+`draft_counts` on the off-grid path too, and the rule belongs as a comment on
+`_choose_outer`'s existing list of what does and does not fire off-grid
+(`experiments.on_room_drafted` does not; `shrine.on_room_drafted` does), not
+only here.
 
 ## 48. A Secret Passage on the east wing offered two yellow rooms, not three
 
