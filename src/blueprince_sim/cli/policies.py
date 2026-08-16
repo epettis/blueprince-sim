@@ -76,46 +76,121 @@ def _security_detour(game: Game) -> bool:
     return True
 
 
+#: Ceiling on one call to :func:`_exhaust_in_place`. Every in-place action
+#: strictly consumes something (``Game._in_place_actions``), so the loop is
+#: already bounded by the day's containers, charges and once-per-day flags;
+#: this only turns a future non-consuming entry into a loud failure instead of
+#: a hang. The widest legitimate run is far below it: 13 constellations plus 6
+#: shop rows plus 8 fabrication recipes plus the one-shots.
+_IN_PLACE_CAP = 128
+
+
+def _exhaust_in_place(game: Game) -> bool:
+    """Take every zero-step action at the player's feet; True if any was taken.
+
+    The engine keeps the day alive for as long as ``Game._in_place_actions``
+    yields anything (``Game._check_termination``), so a policy that never took
+    one would sit in NAVIGATE forever with a free locker underfoot. Iterating
+    the engine's own generator rather than a parallel list here is what keeps
+    the two sets identical: whatever the engine counts as work left, a policy
+    can do.
+
+    Runs to exhaustion within a single decision rather than one action per
+    decision. ``cli/batch.py``'s stall detector watches phase, steps, rooms
+    placed, position and door version — none of which a free pickup has to
+    move — so a decision that opened one of two lockers would read as a stall
+    and end the episode on ``decision_limit``. Emptying the cell in one
+    decision leaves the forced ``_check_termination`` nothing to find.
+
+    Stops early if an action left NAVIGATE (only ``start_setup`` does, parking
+    in EXPERIMENT_PENDING for the trigger/effect picks).
+    """
+    took = False
+    for _ in range(_IN_PLACE_CAP):
+        # Rebuilt each time: acting invalidates the generator's own view.
+        entry = next(game._in_place_actions(), None)
+        if entry is None:
+            return took
+        entry[1]()
+        took = True
+        if game.phase is not Phase.NAVIGATE:
+            return True
+    raise AssertionError(
+        "in-place actions did not run out: one of them consumes nothing "
+        "(see Game._in_place_actions)")
+
+
+def _experiment_pending(game: Game, rnd: random.Random) -> bool:
+    """EXPERIMENT_PENDING decision (the Laboratory terminal was just operated):
+    pick a uniform random trigger and effect. True if a decision was taken, so
+    callers can return immediately -- shared by every policy below, same shape
+    as _colour_pending, since none of them has an opinion on which experiment
+    to run.
+
+    Both picks happen in this one decision: choosing only the trigger leaves
+    every field cli/batch.py's stall detector watches untouched, which would
+    read as a stall and force a termination check mid-setup.
+    """
+    if game.phase is not Phase.EXPERIMENT_PENDING:
+        return False
+    if game.state.experiment.trigger_id is None:
+        game.choose_experiment_trigger(rnd.randrange(3))
+    if game.phase is Phase.EXPERIMENT_PENDING and game.state.experiment.effect_id is None:
+        game.choose_experiment_effect(rnd.randrange(3))
+    return True
+
+
 def _navigate_north(game: Game) -> None:
     """One NAVIGATE decision that pushes toward the Antechamber.
 
     Priority: (1) step into the Antechamber to win, (2) move into a freshly
     drafted room we haven't entered (deepest first), (3) draft a doorway of the
     current room (north first), (4) otherwise walk toward the deepest neighbor.
+
+    Free in-place actions (:func:`_exhaust_in_place`) are the last resort
+    before conceding the day, and the decision then restarts from the top: a
+    container can pay out the very key that puts a locked doorway back in
+    reach, and conceding on a state the engine no longer considers finished
+    would strand the policy.
     """
-    st = game.state
-    pos = st.pos
+    while True:
+        st = game.state
+        pos = st.pos
 
-    if _security_admin(game):
-        return
-
-    moves = game.adjacent_moves()
-    for d in moves:
-        if neighbor(pos, d) == ANTECHAMBER_CELL:
-            game.move(d)
+        if _security_admin(game):
             return
 
-    unentered = [d for d in moves if not st.entered[neighbor(pos, d)]]
-    if unentered:
-        unentered.sort(key=lambda d: -rank_of(neighbor(pos, d)))
-        game.move(unentered[0])
-        return
+        moves = game.adjacent_moves()
+        for d in moves:
+            if neighbor(pos, d) == ANTECHAMBER_CELL:
+                game.move(d)
+                return
 
-    doors = [cd for cd in game.open_doorways() if game.doorway_passable(*cd)]
-    if doors:
-        doors.sort(key=lambda cd: cd[1] != N)  # north door first
-        game.open_door(*doors[0])
-        return
+        unentered = [d for d in moves if not st.entered[neighbor(pos, d)]]
+        if unentered:
+            unentered.sort(key=lambda d: -rank_of(neighbor(pos, d)))
+            game.move(unentered[0])
+            return
 
-    if moves:  # everything adjacent already entered: walk toward deeper rooms
-        moves.sort(key=lambda d: -rank_of(neighbor(pos, d)))
-        game.move(moves[0])
-        return
+        doors = [cd for cd in game.open_doorways() if game.doorway_passable(*cd)]
+        if doors:
+            doors.sort(key=lambda cd: cd[1] != N)  # north door first
+            game.open_door(*doors[0])
+            return
 
-    if _security_detour(game):
-        return
+        if moves:  # everything adjacent already entered: walk toward deeper rooms
+            moves.sort(key=lambda d: -rank_of(neighbor(pos, d)))
+            game.move(moves[0])
+            return
 
-    game._check_termination()
+        if _security_detour(game):
+            return
+
+        if not _exhaust_in_place(game):
+            game._check_termination()
+            return
+        if game.phase is not Phase.NAVIGATE:
+            return  # start_setup parked us in EXPERIMENT_PENDING
 
 
 def _forced_slot(game: Game) -> int:
@@ -209,6 +284,8 @@ def random_policy(game: Game, rnd: random.Random) -> None:
         return
     if _wrench_pending(game, rnd):
         return
+    if _experiment_pending(game, rnd):
+        return
     if game.phase is Phase.DRAFTING:
         opts = _affordable(game)
         # No decline: opening a door commits you to taking a room.
@@ -218,7 +295,11 @@ def random_policy(game: Game, rnd: random.Random) -> None:
     choices += [("draft", d) for cell, d in game.open_doorways()
                 if game.doorway_passable(cell, d)]
     if not choices:
-        game._check_termination()
+        # Walled in: a free pickup cannot create a move or a doorway, so take
+        # whatever is underfoot and still ask whether the day is over.
+        _exhaust_in_place(game)
+        if game.phase is Phase.NAVIGATE:
+            game._check_termination()
         return
     kind, d = rnd.choice(choices)
     if kind == "move":
@@ -280,44 +361,56 @@ def _navigate_frontier(game: Game) -> None:
     considers a Master Key, a fitting Silver/Prism Key, or a Stopwatch
     refund enough to open it; disagreeing here would stall the policy in
     NAVIGATE forever, since the day is not actually over.
+
+    Free in-place actions (:func:`_exhaust_in_place`) are the last resort
+    before conceding the day, and the decision then restarts from the top: a
+    container can pay out the very key that makes a locked doorway affordable,
+    and conceding on a state the engine no longer considers finished would
+    strand the policy exactly the same way.
     """
-    st = game.state
-    if _security_admin(game):
-        return
-    dist = game.distance_map()
-    if 0 < dist[ANTECHAMBER_CELL] <= st.steps:
-        game.move_to(ANTECHAMBER_CELL)
-        return
-    opt_dist = game.optimistic_distances()
-    key_cost = game.key_cost_map()
-    best, best_key = None, None
-    security_blocked = False
-    for cell, d in game.frontier_doorways():
-        if not 0 <= dist[cell] <= st.steps - 1:  # must arrive with a step to spare
-            continue
-        seg = game.door_state_of(cell, d)
-        if seg == locks.DOOR_LOCKED and not game._frontier_lock_affordable(cell, d, key_cost[cell]):
-            continue
-        if seg == locks.DOOR_SECURITY and not game.security_openable():
-            security_blocked = True
-            continue
-        target = neighbor(cell, d)
-        h = opt_dist[target] if opt_dist[target] >= 0 else 99  # walled off: last resort
-        key = (dist[cell] + _FRONTIER_LAMBDA * h, h, cell, d)
-        if best_key is None or key < best_key:
-            best, best_key = (cell, d), key
-    if best is not None:
-        game.draft_from(*best)
-        return
-    if security_blocked and _security_detour(game):
-        return
-    unentered = [c for c in range(len(dist))
-                 if 0 < dist[c] <= st.steps and not st.entered[c]]
-    if unentered:
-        unentered.sort(key=lambda c: (dist[c], c))
-        game.move_to(unentered[0])
-        return
-    game._check_termination()
+    while True:
+        st = game.state
+        if _security_admin(game):
+            return
+        dist = game.distance_map()
+        if 0 < dist[ANTECHAMBER_CELL] <= st.steps:
+            game.move_to(ANTECHAMBER_CELL)
+            return
+        opt_dist = game.optimistic_distances()
+        key_cost = game.key_cost_map()
+        best, best_key = None, None
+        security_blocked = False
+        for cell, d in game.frontier_doorways():
+            if not 0 <= dist[cell] <= st.steps - 1:  # must arrive with a step to spare
+                continue
+            seg = game.door_state_of(cell, d)
+            if (seg == locks.DOOR_LOCKED
+                    and not game._frontier_lock_affordable(cell, d, key_cost[cell])):
+                continue
+            if seg == locks.DOOR_SECURITY and not game.security_openable():
+                security_blocked = True
+                continue
+            target = neighbor(cell, d)
+            h = opt_dist[target] if opt_dist[target] >= 0 else 99  # walled off: last resort
+            key = (dist[cell] + _FRONTIER_LAMBDA * h, h, cell, d)
+            if best_key is None or key < best_key:
+                best, best_key = (cell, d), key
+        if best is not None:
+            game.draft_from(*best)
+            return
+        if security_blocked and _security_detour(game):
+            return
+        unentered = [c for c in range(len(dist))
+                     if 0 < dist[c] <= st.steps and not st.entered[c]]
+        if unentered:
+            unentered.sort(key=lambda c: (dist[c], c))
+            game.move_to(unentered[0])
+            return
+        if not _exhaust_in_place(game):
+            game._check_termination()
+            return
+        if game.phase is not Phase.NAVIGATE:
+            return  # start_setup parked us in EXPERIMENT_PENDING
 
 
 def frontier_greedy(game: Game, rnd: random.Random) -> None:
@@ -327,6 +420,8 @@ def frontier_greedy(game: Game, rnd: random.Random) -> None:
     if _lock_pending_greedy(game, rnd):
         return
     if _wrench_pending(game, rnd):
+        return
+    if _experiment_pending(game, rnd):
         return
     if game.phase is Phase.NAVIGATE:
         _navigate_frontier(game)
@@ -342,6 +437,8 @@ def greedy_rank(game: Game, rnd: random.Random) -> None:
         return
     if _wrench_pending(game, rnd):
         return
+    if _experiment_pending(game, rnd):
+        return
     if game.phase is Phase.NAVIGATE:
         _navigate_north(game)
     else:
@@ -355,6 +452,8 @@ def economy(game: Game, rnd: random.Random) -> None:
     if _lock_pending_greedy(game, rnd):
         return
     if _wrench_pending(game, rnd):
+        return
+    if _experiment_pending(game, rnd):
         return
     if game.phase is Phase.NAVIGATE:
         _navigate_north(game)

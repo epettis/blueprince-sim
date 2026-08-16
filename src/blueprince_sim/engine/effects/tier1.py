@@ -55,8 +55,7 @@ def _red_negated(game, room) -> bool:
     """
     if not room.is_category("red"):
         return False
-    excluded = getattr(game, "shelter_excluded_ids", frozenset())
-    if game.red_negations > 0 and room.id not in excluded:
+    if game.red_negations > 0 and room.id not in game.shelter_excluded_ids:
         game.red_negations -= 1
         return True
     if game.cfg.special_items and special_items.shield_negates(game):
