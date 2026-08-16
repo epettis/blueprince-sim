@@ -182,10 +182,10 @@ Layout (Discrete(479)):
            Mora always last) and grants its permanent payload; does not
            consume the Telescope.
   443..457 the constellation block, appended at the end so no earlier id
-           shifts. Each id has its own predicate, so none is masked False
-           unconditionally except the one record still reserved
-           (spiral_of_stars -- docs/rl-environment.md licenses that reserved
-           slot as a recorded owner ruling):
+           shifts. Each id has its own predicate and none is masked False
+           unconditionally; the block reserved its thirteenth slot while
+           spiral_of_stars was still inert, so that record landing changed no
+           id and no width:
              443..455 activate one constellation, one id per
                      data/constellations.json record in file order (ascending
                      star value: north_star, the_twins, the_slice,
@@ -1103,10 +1103,11 @@ def action_mask(game: Game, prev_action: int | None = None) -> list[bool]:
     # declared id at exactly one masking site (docs/rl-environment.md's rule on
     # reserved versus dead ids).
     #
-    # The eight unimplemented constellations come back False from
+    # Every constellation is implemented, so every id in this block is live.
+    # An unimplemented record would come back False from
     # can_activate_constellation's own ``implemented`` test, so this loop needs
-    # no skip list: data/constellations.json stays the single source for which
-    # ids are live, and flipping a record's ``implemented`` is all it takes.
+    # no skip list either way: data/constellations.json stays the single source
+    # for which ids are live.
     for i in range(_N_CONSTELLATIONS):
         mask[ACTIVATE_CONSTELLATION_BASE + i] = game.can_activate_constellation(i)
     mask[VIEW_NIGHT_SKY_ACTION] = game.can_view_night_sky()

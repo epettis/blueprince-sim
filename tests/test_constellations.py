@@ -1,13 +1,14 @@
 """The constellation data, the night-sky mechanic, the observation key, and
 what an activation does.
 
-Twelve records are live -- five pure resource grants plus the seven whose
-effect lands somewhere else in the engine -- and the Spiral of Stars alone
-stays unimplemented, its action id permanently masked. What these tests pin
-is the mechanic (a true sum-partition, resolved at LIVE star count, under two
-independent per-day caps), the effect each activation actually has DOWNSTREAM
-rather than the flag it sets, and the part that cannot be changed later -- the
-action-space width and the observation-space shape.
+All thirteen records are live: five pure resource grants, seven whose effect
+lands somewhere else in the engine, and the Spiral of Stars, whose payout is
+indexed by a permanent word count that grows whenever a sky containing it is
+generated. What these tests pin is the mechanic (a true sum-partition,
+resolved at LIVE star count, under two independent per-day caps), the effect
+each activation actually has DOWNSTREAM rather than the flag it sets, and the
+part that cannot be changed later -- the action-space width and the
+observation-space shape.
 
 Every expected sky here is read out of the ``appearances`` table directly,
 never by calling the generator: a test that asked the generator what it
@@ -37,7 +38,7 @@ from blueprince_sim.engine.rng import Rng
 from blueprince_sim.engine.upgrades import root_base_id
 from blueprince_sim.env import actions as A
 from blueprince_sim.env import obs as O
-from blueprince_sim.env.multiday import _CARRYOVER_KEYS
+from blueprince_sim.env.multiday import _CARRYOVER_KEYS, DayChain
 from blueprince_sim.rl.train import all_unlocks_config
 
 DATA = Path(__file__).resolve().parents[1] / "src" / "blueprince_sim" / "data"
@@ -65,7 +66,7 @@ def registry() -> Registry:
 
 
 def _observatory_game(*, cells=(1,), stars=0, telescope=False, seed=0,
-                      items=(), registry=None) -> Game:
+                      items=(), registry=None, spiral_words=0, day=None) -> Game:
     """A game standing in an Observatory at ``cells[0]`` with ``stars`` stars.
 
     Rooms are written onto the grid rather than drafted so the Observatory's
@@ -73,8 +74,17 @@ def _observatory_game(*, cells=(1,), stars=0, telescope=False, seed=0,
     test that is about the star count. ``items`` are placed straight into the
     inventory for the same reason: what is being tested is what a held item
     does to an activation's payout, not how it was found.
+
+    ``spiral_words`` and ``day`` go through ``GameConfig`` rather than being
+    written onto the state afterwards, so the Spiral tests exercise the same
+    reset-seeding path a carried-over word count actually arrives by.
     """
-    cfg = GameConfig(special_items=True) if telescope or items else GameConfig()
+    kwargs = {"spiral_words": spiral_words}
+    if telescope or items:
+        kwargs["special_items"] = True
+    if day is not None:
+        kwargs["day"] = day
+    cfg = GameConfig(**kwargs)
     game = Game(cfg, seed=seed, registry=registry)
     room = game.registry.by_id["observatory"]
     for cell in cells:
@@ -229,24 +239,22 @@ def test_no_existing_action_id_shifted():
     assert A.USE_TELESCOPE_PLANETARIUM_ACTION == 442
 
 
-def test_unimplemented_constellation_ids_stay_masked():
-    """spiral_of_stars is the one record left unimplemented, and its action id
-    is never legal, in any state reachable by play.
+def test_no_constellation_id_is_masked_by_an_unimplemented_record():
+    """Every record is implemented, so no id in the constellation block can be
+    pressed into a missing payload -- and none is dead either.
 
-    The twelve implemented ids are deliberately excluded: they go legal in an
-    Observatory (and, for the Ink Well, REDRAW_WITH_STAR goes legal once it is
-    activated), which is the point of the block existing. What must not happen
-    is an id whose effect does not exist becoming pressable -- that would
-    silently no-op, or crash on a missing payload. Swept over played-out days
-    on both presets rather than checked at a single reset, since a block that
-    only went legal deep in a day would pass a step-0 check.
-
-    This sweep doubles as the proof that the reserved id stays INERT in
-    ordinary play: it is never reachable through the mask.
+    The sweep is kept from when spiral_of_stars was the one reserved slot: it
+    walks played-out days on both presets and asserts that no id belonging to
+    an unimplemented record ever goes legal. That set is empty today, which is
+    the property being pinned -- if a record were ever flipped back to
+    unimplemented, this recomputes the reserved list from the data and starts
+    guarding it again without being edited.
     """
     reserved = [A.ACTIVATE_CONSTELLATION_BASE + INDEX[c["id"]]
                 for c in RECORDS if not c["implemented"]]
-    assert reserved == [A.ACTIVATE_CONSTELLATION_BASE + INDEX["spiral_of_stars"]]
+    assert reserved == [], (
+        "every constellation record is implemented; an unimplemented one would "
+        "need its action id proven inert here")
     for cfg in (GameConfig(), all_unlocks_config()):
         for seed in range(6):
             game = Game(cfg, seed=seed)
@@ -615,24 +623,26 @@ def test_each_implemented_constellation_grants_exactly_its_published_amount():
             f"{cid} granted the wrong amount of {resource}")
 
 
-def test_the_unimplemented_constellation_refuses_to_activate():
-    """spiral_of_stars can APPEAR in a sky -- it is part of the partition --
-    but never activates, so its effect cannot silently no-op.
+def test_every_constellation_activates():
+    """No record can be flipped implemented without a payload the engine reads,
+    so no activation is a silent no-op.
 
-    Set up at its own star count, where it is the entire sky, which is also
-    what proves it really was present and was refused on the ``implemented``
-    flag rather than simply absent. Named rather than counted, so
-    implementing it later has to strike it off this assertion deliberately.
+    Each constellation is set up at its own star count, where it is the entire
+    sky -- which is also what proves it was really present and really
+    activated rather than simply absent. Counted from the data, so a
+    thirteenth record added later is covered without editing this.
     """
-    unimplemented = [c for c in RECORDS if not c["implemented"]]
-    assert [c["id"] for c in unimplemented] == ["spiral_of_stars"]
-    record = unimplemented[0]
-    cid = record["id"]
-    game = _observatory_game(stars=record["stars"])
-    sky = game.view_night_sky()
-    assert cid in sky, f"{cid} was not in the sky at {record['stars']} stars"
-    assert not game.can_activate_constellation(INDEX[cid])
-    assert not A.action_mask(game)[A.ACTIVATE_CONSTELLATION_BASE + INDEX[cid]]
+    for record in RECORDS:
+        cid = record["id"]
+        assert record["implemented"], f"{cid} is not implemented"
+        assert ("grant" in record) != ("effect" in record), (
+            f"{cid} must carry exactly one payload")
+        game = _observatory_game(stars=record["stars"])
+        sky = game.view_night_sky()
+        assert cid in sky, f"{cid} was not in the sky at {record['stars']} stars"
+        assert game.can_activate_constellation(INDEX[cid]), f"{cid} would not activate"
+        assert A.action_mask(game)[A.ACTIVATE_CONSTELLATION_BASE + INDEX[cid]], (
+            f"{cid}'s action id stayed masked")
 
 
 def test_the_sky_is_generated_only_by_the_explicit_view_action():
@@ -1430,3 +1440,294 @@ def test_the_ink_well_does_not_survive_the_night():
     assert not game.state.ink_well_active
     assert not game.can_redraw_with_star()
     assert "ink_well_active" not in _CARRYOVER_KEYS
+
+
+# ------------------------------------------------- the Spiral of Stars' words
+
+SPIRAL = next(c for c in RECORDS if c["id"] == "spiral_of_stars")
+SPIRAL_EFFECT = SPIRAL["effect"]
+SPIRAL_TIERS = SPIRAL_EFFECT["tiers"]
+SPIRAL_CAP = SPIRAL_EFFECT["word_cap"]
+SPIRAL_STARS = SPIRAL["stars"]
+
+
+def test_a_word_is_added_when_a_spiral_sky_is_generated_not_when_activated():
+    """The Spiral's word arrives on GENERATION, which is the mechanic's whole
+    surprise: its own flavour text says the word is added on activation, and
+    the wiki says outright that it is not.
+
+    Driven as two separate games from the same setup so the two triggers are
+    isolated: one views and walks away, the other views and activates. Both
+    must land on the same word count, which is what proves activation
+    contributes nothing to growth.
+    """
+    viewed_only = _observatory_game(stars=SPIRAL_STARS)
+    assert "spiral_of_stars" in viewed_only.view_night_sky()
+    assert viewed_only.state.spiral_words == 1
+
+    activated = _observatory_game(stars=SPIRAL_STARS)
+    activated.view_night_sky()
+    activated.activate_constellation(INDEX["spiral_of_stars"])
+    assert activated.state.spiral_words == 1, (
+        "activating must not add a second word on top of the generation")
+
+
+def test_a_sky_without_the_spiral_adds_no_word():
+    """Growth is keyed to the Spiral being IN the sky, not to looking at a sky.
+
+    Generated one star below the Spiral's own count, where the partition
+    cannot contain it -- the negative case that stops "any night sky adds a
+    word" from passing.
+    """
+    game = _observatory_game(stars=SPIRAL_STARS - 1)
+    assert "spiral_of_stars" not in game.view_night_sky()
+    assert game.state.spiral_words == 0
+
+
+def test_word_growth_stops_at_the_published_cap():
+    """Words stop at word_cap: "no new words are added" past it.
+
+    Seeded one word below the cap so a single generation reaches it and the
+    next cannot exceed it -- the boundary, not an arbitrary interior point.
+    Two Observatories are used because each cell offers its own telescope once.
+    """
+    game = _observatory_game(cells=(1, 2), stars=SPIRAL_STARS, spiral_words=SPIRAL_CAP - 1)
+    game.view_night_sky()
+    assert game.state.spiral_words == SPIRAL_CAP
+    game.state.pos = 2
+    game.view_night_sky()
+    assert game.state.spiral_words == SPIRAL_CAP, "growth must clamp at the cap"
+
+
+def test_the_word_count_is_save_scoped_across_an_attempt_wrap():
+    """The words "never reset", so spiral_words survives the DayChain attempt
+    wrap the way stars does rather than resetting with a fresh attempt.
+
+    Driven through a real one-day chain that wraps immediately, so this tests
+    the wrap block itself and not a restatement of the carve-out list.
+    """
+    chain = DayChain(GameConfig(), n_days=1)
+    chain.advance({"spiral_words": 12})
+    assert chain.current_day == 1, "n_days=1 must have wrapped back to day 1"
+    assert chain.next_config().spiral_words == 12
+
+
+def test_the_word_count_survives_the_star_total_falling_back_below_the_spiral():
+    """Losing the stars that revealed the Spiral does not cost the words:
+    they persist "even if the spiral temporarily vanishes from the night sky
+    due to falling below 100 stars".
+
+    The star drop is applied between two generations, so the second sky
+    genuinely no longer contains the Spiral while the count from the first
+    still stands.
+    """
+    game = _observatory_game(cells=(1, 2), stars=SPIRAL_STARS)
+    assert "spiral_of_stars" in game.view_night_sky()
+    assert game.state.spiral_words == 1
+    game.state.stars = SPIRAL_STARS - 1
+    game.state.pos = 2
+    assert "spiral_of_stars" not in game.view_night_sky()
+    assert game.state.spiral_words == 1, "the word must not be lost with the stars"
+
+
+def test_the_spiral_tier_table_is_the_published_one():
+    """spiral_tier returns the last tier the word count has reached, so each
+    tier owns the whole span up to the next one's min_words.
+
+    Checked at every boundary in the table rather than at sampled points: the
+    failure this guards against is an off-by-one at a min_words edge, which a
+    midpoint check cannot see. The tiers themselves are read from the data, so
+    this pins the LOOKUP, not the numbers.
+    """
+    record = constellations.load_constellations(DATA).by_id["spiral_of_stars"]
+    for i, tier in enumerate(SPIRAL_TIERS):
+        low = tier["min_words"]
+        assert constellations.spiral_tier(record, low) == tier, (
+            f"word {low} must land on its own tier")
+        if i + 1 < len(SPIRAL_TIERS):
+            assert constellations.spiral_tier(record, SPIRAL_TIERS[i + 1]["min_words"] - 1) == tier, (
+                f"the word before tier {i + 1} must still be tier {i}")
+        else:
+            assert constellations.spiral_tier(record, SPIRAL_CAP) == tier
+
+
+def _spiral_activation(*, words, steps=100, day=20, stars=None, rank=1, seed=0):
+    """An Observatory game with a Spiral sky already generated and activated.
+
+    ``words`` is seeded one BELOW the target, because generating the sky adds
+    the word that the activation then pays out -- setting the target directly
+    would test a word count one higher than the tier under test. Steps, day and
+    deepest rank are set explicitly rather than played into, so each payout
+    test states the inputs its expected number is computed from.
+    """
+    game = _observatory_game(
+        stars=SPIRAL_STARS if stars is None else stars,
+        spiral_words=words - 1, day=day, seed=seed)
+    game.state.steps = steps
+    game.deepest_rank = rank
+    assert "spiral_of_stars" in game.view_night_sky()
+    assert game.state.spiral_words == words
+    game.activate_constellation(INDEX["spiral_of_stars"])
+    return game
+
+
+def test_the_spiral_pays_nothing_below_its_first_paying_tier():
+    """Words 1-3 are "no effect": the constellation is activatable and costs
+    nothing, but moves no resource.
+
+    The guard against a table whose first tier accidentally pays out -- which
+    a test that only checked the paying tiers would never catch.
+    """
+    game = _spiral_activation(words=3, steps=100)
+    assert (game.state.keys, game.state.gems, game.state.coins) == (0, 0, 0)
+    assert game.state.steps == 100
+    assert game.state.stars == SPIRAL_STARS
+
+
+def test_the_spiral_scales_keys_and_gems_by_the_deepest_rank_entered_today():
+    """From word 11 the keys and gems are the maximum rank reached today, not a
+    flat amount -- "ranks must be physically entered for them to be considered
+    reached", which is the engine's deepest_rank.
+
+    Two ranks are checked from the same tier so the result is proven to TRACK
+    the rank rather than coincide with one value of it.
+    """
+    for rank in (3, 7):
+        game = _spiral_activation(words=11, rank=rank)
+        assert game.state.keys == rank, f"rank {rank} must pay {rank} keys"
+        assert game.state.gems == rank, f"rank {rank} must pay {rank} gems"
+
+
+def test_the_spiral_pays_flat_amounts_at_word_ten():
+    """Word 10 is the one flat 10-keys-and-10-gems tier, and it is replaced by
+    the per-rank amounts at word 11.
+
+    Pinned at rank 1 so a per-rank regression would show as 1 rather than 10 --
+    the two clauses are indistinguishable at rank 10.
+    """
+    game = _spiral_activation(words=10, rank=1)
+    assert (game.state.keys, game.state.gems) == (10, 10)
+
+
+def test_the_spiral_scales_coins_by_the_day_number():
+    """From word 26 the coin payout is the current day, replacing word 23's
+    flat single coin.
+
+    Two days are checked so the payout is proven to track the day rather than
+    match one value of it, and both are away from the flat 1 that would pass
+    for day 1.
+    """
+    for day in (4, 31):
+        game = _spiral_activation(words=26, day=day)
+        assert game.state.coins == day, f"day {day} must pay {day} coins"
+
+
+def test_the_spiral_step_loss_scales_with_rank_and_precedes_the_item_gates():
+    """The per-rank step loss (word 19+) resolves BEFORE the step-gated
+    clauses, which is what "less than forty steps after accounting for previous
+    step losses" pins.
+
+    Set up at 48 steps and rank 3: the -9 loss lands exactly on 39, so the
+    item gate passes only if the loss was applied first. An engine that
+    checked the gate against the pre-loss 48 would grant nothing, and the
+    item assertion below is what separates the two orders.
+    """
+    game = _spiral_activation(words=43, steps=48, rank=3)
+    assert game.state.steps == 39, "48 - 3*3 must be 39 before the gate is read"
+    granted = [i for i in SPIRAL_EFFECT["special_item_pool"]
+               if special_items.has(game.state, i)]
+    assert len(granted) == 1, (
+        f"the special item gate reads the step count AFTER the loss; got {granted}")
+
+
+def test_the_spiral_item_gates_refuse_above_their_step_ceiling():
+    """The step gates are ceilings, so a player one step above one gets nothing
+    from it -- the negative half of the ordering test above.
+
+    One step over the boundary rather than far above it, since an off-by-one
+    is the realistic failure.
+    """
+    ceiling = next(t for t in SPIRAL_TIERS if t["min_words"] == 43)["special_item_max_steps"]
+    game = _spiral_activation(words=43, steps=ceiling + 1, rank=0)
+    granted = [i for i in SPIRAL_EFFECT["special_item_pool"]
+               if special_items.has(game.state, i)]
+    assert granted == [], f"{ceiling + 1} steps is above the ceiling; got {granted}"
+
+
+def test_the_spiral_sets_steps_after_the_gates_it_would_otherwise_close():
+    """``set_steps`` (word 63+) resolves AFTER the step-gated clauses, which is
+    what lets one activation both collect the gated items and end at 40 steps.
+
+    If it ran first, 40 steps would close the 39-step item gates and the
+    19-step Antechamber gate -- so asserting the item WAS granted alongside the
+    final 40 is what pins the order rather than just the value.
+    """
+    tier = next(t for t in SPIRAL_TIERS if t["min_words"] == 63)
+    game = _spiral_activation(words=63, steps=10, rank=0)
+    assert game.state.steps == tier["set_steps"]
+    granted = [i for i in SPIRAL_EFFECT["special_item_pool"]
+               if special_items.has(game.state, i)]
+    assert len(granted) == 1, "the item gate must have been read before set_steps"
+
+
+def test_the_spiral_sets_luck_absolutely():
+    """``set_luck`` (word 69+) is an absolute set that overrides any changes,
+    not a bonus added to the day's accumulated luck.
+
+    Seeded from a luck value well away from the target so a ``+=`` regression
+    lands somewhere the assertion can see.
+    """
+    tier = next(t for t in SPIRAL_TIERS if t["min_words"] == 69)
+    game = _observatory_game(stars=SPIRAL_STARS, spiral_words=68)
+    game.state.luck = 40
+    game.state.steps = 100
+    game.view_night_sky()
+    game.activate_constellation(INDEX["spiral_of_stars"])
+    assert game.state.luck == tier["set_luck"]
+
+
+def test_the_spiral_loses_two_stars_from_word_thirty_two():
+    """The star loss is a real deduction from the permanent total, applied
+    through the same clamped grant path every other resource uses.
+
+    Asserted against the count the sky was generated at, so a payout that
+    silently skipped the deduction reads as unchanged rather than as zero.
+    """
+    game = _spiral_activation(words=32, rank=0)
+    assert game.state.stars == SPIRAL_STARS - 2
+
+
+def test_the_spiral_ends_the_day_at_the_two_tiers_that_say_so():
+    """The day ends at words 88 and 100 and NOT at 89-99, where the clause is
+    removed again before word 100 restores it.
+
+    All three are checked from one test because the property is the gap: a
+    table that simply kept ends_day from 88 onward would pass either boundary
+    checked alone.
+    """
+    assert _spiral_activation(words=88).phase is Phase.TERMINAL
+    assert _spiral_activation(words=89).phase is not Phase.TERMINAL
+    assert _spiral_activation(words=100).phase is Phase.TERMINAL
+
+
+def test_the_spiral_opens_the_antechamber_under_its_step_ceiling():
+    """Word 57+ unseals every sealed Antechamber segment when the step count is
+    at or under the gate -- all four, not the single door the experiment effect
+    opens.
+
+    The preset is asserted to start with sealed segments, so an engine that
+    unsealed nothing cannot pass by having nothing to unseal.
+    """
+    from blueprince_sim.engine.locks import DOOR_SEALED, segment_key
+
+    tier = next(t for t in SPIRAL_TIERS if t["min_words"] == 57)
+    game = _observatory_game(stars=SPIRAL_STARS, spiral_words=56)
+    game.state.steps = tier["antechamber_max_steps"]
+    sealed_before = [s for s in experiments.ANTECHAMBER_SEGMENTS
+                     if game.state.door_state.get(segment_key(*s)) == DOOR_SEALED]
+    assert sealed_before, "the preset must start with sealed segments to mean anything"
+    game.view_night_sky()
+    game.activate_constellation(INDEX["spiral_of_stars"])
+    still_sealed = [s for s in experiments.ANTECHAMBER_SEGMENTS
+                    if game.state.door_state.get(segment_key(*s)) == DOOR_SEALED]
+    assert still_sealed == [], f"every segment must be unsealed; {still_sealed} remain"

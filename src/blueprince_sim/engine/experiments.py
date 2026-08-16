@@ -212,6 +212,22 @@ AQUARIUM_EXPERIMENT_ID = "aquarium__experiment"
 # calls its effect "identical to triggering this effect twice".
 ENTRANCE_HALL_TRUNK_EFFECT_ID = "entrance_hall_trunk"
 
+# The Antechamber's four sealable segments as (cell, direction), in the order
+# every programmatic unsealer walks them. Copied from Game.__init__'s own
+# antechamber_levers sealing loop; the cells are literals here because
+# importing ANTECHAMBER_CELL from game.py would cycle (see the module
+# docstring). The order resolves the wiki's unweighted "west/east/south appear
+# to be preferred over north" by reusing the one ordering already in the
+# codebase rather than inventing a second one, and it matters only to
+# _apply_unseal_antechamber_door, which stops after the first still-sealed
+# segment; unseal_all_antechamber_doors opens them all and is order-blind.
+ANTECHAMBER_SEGMENTS = (
+    (41, E),  # West door: Antechamber's west face (Secret Garden lever)
+    (37, N),  # South door: Antechamber's south face (Weight Room lever)
+    (43, W),  # East door: Antechamber's east face (Great Hall lever)
+    (42, N),  # North door: off-grid door to Room 46 (Inner Sanctum/Throne Room lever)
+)
+
 
 @dataclass(frozen=True, slots=True)
 class ExperimentTrigger:
@@ -976,17 +992,11 @@ def _apply_unseal_antechamber_door(game) -> None:
     reward to this one. Only ``_open_segment`` -- the shared low-level
     mechanism both paths bottom out in -- is reused.
 
-    The (cell, direction) segments and their order are copied verbatim from
-    Game.__init__'s own antechamber_levers sealing loop (west (41, E), south
-    (37, N), east (43, W), north (ANTECHAMBER_CELL, N) -- ANTECHAMBER_CELL is
-    42, hardcoded here since importing it from game.py would cycle, per the
-    module docstring). "First still-sealed in that order" reproduces the
-    wiki's unweighted "west/east/south appear to be preferred over north"
-    without inventing the unpublished per-door weights (magnitude.weighting
-    stays null; see this id's own meta.notes) -- the order among west/south/
-    east itself is not stated by the wiki either, so this resolves that half
-    of the ambiguity by reusing the one ordering already in the codebase
-    rather than inventing a second one.
+    The segments and their order come from :data:`ANTECHAMBER_SEGMENTS`.
+    "First still-sealed in that order" reproduces the wiki's unweighted
+    "west/east/south appear to be preferred over north" without inventing the
+    unpublished per-door weights (magnitude.weighting stays null; see this
+    id's own meta.notes).
 
     If every segment is already unsealed (including when antechamber_levers
     is off, so none was ever sealed), this is a no-op -- "has no effect once
@@ -999,16 +1009,34 @@ def _apply_unseal_antechamber_door(game) -> None:
     from .locks import DOOR_SEALED, segment_key
 
     st = game.state
-    segments = (
-        (41, E),  # West door: Antechamber's west face (Secret Garden lever)
-        (37, N),  # South door: Antechamber's south face (Weight Room lever)
-        (43, W),  # East door: Antechamber's east face (Great Hall lever)
-        (42, N),  # North door: off-grid door to Room 46 (Inner Sanctum/Throne Room lever)
-    )
-    for cell, direction in segments:
+    for cell, direction in ANTECHAMBER_SEGMENTS:
         if st.door_state.get(segment_key(cell, direction)) == DOOR_SEALED:
             game._open_segment(cell, direction)
             return
+
+
+def unseal_all_antechamber_doors(game) -> int:
+    """Unseal every still-sealed Antechamber segment; return how many opened.
+
+    The all-at-once counterpart to :func:`_apply_unseal_antechamber_door`,
+    which stops after one. Both walk :data:`ANTECHAMBER_SEGMENTS` and bottom
+    out in the same ``Game._open_segment`` every lever room calls, and both
+    skip ``on_lever_pulled`` for the same reason: these unseal doors
+    programmatically, so crediting a lever-pull trigger or the env reward's
+    north_door_opened flag would misattribute them.
+
+    A no-op returning 0 when nothing is sealed, including when
+    ``antechamber_levers`` is off and no segment was ever sealed.
+    """
+    from .locks import DOOR_SEALED, segment_key
+
+    st = game.state
+    opened = 0
+    for cell, direction in ANTECHAMBER_SEGMENTS:
+        if st.door_state.get(segment_key(cell, direction)) == DOOR_SEALED:
+            game._open_segment(cell, direction)
+            opened += 1
+    return opened
 
 
 def _apply_random_item_then_zero_keys(game, effect: ExperimentEffect) -> None:

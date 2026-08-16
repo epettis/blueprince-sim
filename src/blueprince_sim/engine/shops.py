@@ -1240,6 +1240,10 @@ def carryover(game) -> dict:
         # wholesale next day -- the same shape as allowance, not an OR-merge,
         # since state.stars already IS the accumulated value.
         "stars": state.stars,
+        # Spiral of Stars word count: running permanent total, replaced
+        # wholesale next day -- the same shape as stars above, since
+        # state.spiral_words already IS the accumulated value.
+        "spiral_words": state.spiral_words,
         # Main Course bonus (Cloister of Joya): running permanent total
         # (yesterday's total plus 5 per Kitchen/Pantry/Furnace drafted from it
         # today). Replaces cfg.main_course_bonus wholesale next day -- the

@@ -509,7 +509,7 @@ def test_carryover_shape_is_complete():
         "lit_targets", "collected_disks", "chapel_tithes",
         "upgrade_disks", "draft_counts",
         "foundation_cell", "foundation_doors",
-        "allowance", "stars", "main_course_bonus", "planetarium_planets",
+        "allowance", "stars", "spiral_words", "main_course_bonus", "planetarium_planets",
         "letters_delivered",
         "collected_allowance_tokens", "mail_cycle", "mail_transit_days",
         "hallway_tomorrow_extra",
@@ -644,6 +644,7 @@ def test_shrine_state_is_save_scoped_across_a_daychain_attempt_wrap():
 #: the wrap itself represents. docs/scoping-and-carryover.md owns the list.
 _SAVE_SCOPED: dict[str, tuple[object, object]] = {
     "stars": (4, 4),
+    "spiral_words": (7, 7),
     "main_course_bonus": (15, 15),
     "letters_delivered": (3, 3),
     "shrine_blessing_id": ("gardener", "gardener"),

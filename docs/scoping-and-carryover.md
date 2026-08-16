@@ -95,7 +95,7 @@ rather than a crash:
   save-scoped — see the carve-outs below).
 - **Replace** — today's value already *is* the running total, because the
   `GameState` field was seeded from the config at `reset()` and only ever
-  grown: `allowance`, `stars`, `main_course_bonus`, `letters_delivered`,
+  grown: `allowance`, `stars`, `spiral_words`, `main_course_bonus`, `letters_delivered`,
   `chapel_tithes`, `draft_counts`, `foundation_cell`/`foundation_doors`,
   `axed_rooms`, `permanent_rarity`, `planetarium_planets`, `mail_cycle`,
   `water_levels` (the Pump Room's six source levels, docs/areas.md's Pump
@@ -144,6 +144,11 @@ These are the `DayChain` fields deliberately **absent** from the wrap block, so
 they survive into the next attempt:
 
 - `stars` — accumulate across the whole save toward a reroll trade.
+- `spiral_words` — the Spiral of Stars' word count, grown by one whenever a
+  generated night sky contains it and capped at that record's own `word_cap`.
+  The wiki is explicit that it survives everything: the words "never reset,
+  even if the spiral temporarily vanishes from the night sky due to falling
+  below 100 stars". Same int/replace shape as `stars`, one field above it.
 - `main_course_bonus` — the Cloister of Joya's permanent Dining Room bonus.
 - `letters_delivered` — experiment letters delivered to the Mail Room.
 - `shrine_blessing_id`, `shrine_blessing_days`, `shrine_curse_days`,

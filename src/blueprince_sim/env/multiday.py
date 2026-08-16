@@ -117,6 +117,13 @@ class DayChain:
         # SAVE-scoped: survives the attempt wrap below, so stars accumulate
         # across the whole save rather than resetting with a fresh attempt.
         self.stars: int = base_cfg.stars
+        # Spiral of Stars word count: running permanent total, replaced (not
+        # merged) from each day's own carryover value every advance() --
+        # state.spiral_words already IS the accumulated figure by day end, the
+        # same shape as stars. SAVE-scoped, like stars above, and for a
+        # published reason: the Spiral's words never reset, not even when it
+        # drops out of the sky because the star total fell back below 100.
+        self.spiral_words: int = base_cfg.spiral_words
         # Cloister of Joya's Main Course bonus: running permanent total,
         # replaced (not merged) from each day's own carryover value every
         # advance() -- state.main_course_bonus already IS the accumulated
@@ -290,6 +297,7 @@ class DayChain:
             chapel_tithes=self.chapel_tithes,
             allowance=self.allowance,
             stars=self.stars,
+            spiral_words=self.spiral_words,
             main_course_bonus=self.main_course_bonus,
             letters_delivered=self.letters_delivered,
             lab_visited=self.lab_visited,
@@ -397,6 +405,11 @@ class DayChain:
         star_val = carryover.get("stars")
         if star_val is not None:
             self.stars = star_val
+
+        # --- spiral_words (running permanent total; replace each advance) ---
+        spiral_val = carryover.get("spiral_words")
+        if spiral_val is not None:
+            self.spiral_words = spiral_val
 
         # --- main_course_bonus (running permanent total; replace each advance) ---
         letters_val = carryover.get("letters_delivered")
@@ -590,11 +603,11 @@ class DayChain:
             self.collected_disks = frozenset()  # fresh attempt; disks back in the house
             self.chapel_tithes = 0            # fresh attempt; tithe bank reset
             self.allowance = self.base_cfg.allowance  # fresh attempt; back to the base preset
-            # stars, main_course_bonus, letters_delivered, lab_visited,
-            # lab_powered, basement_doors_open, the five shrine_* fields,
-            # axed_rooms, permanent_rarity, and planetarium_planets are absent
-            # here: all are save-scoped and carry through the wrap into the next
-            # attempt, unlike every other value reset above.
+            # stars, spiral_words, main_course_bonus, letters_delivered,
+            # lab_visited, lab_powered, basement_doors_open, the five shrine_*
+            # fields, axed_rooms, permanent_rarity, and planetarium_planets are
+            # absent here: all are save-scoped and carry through the wrap into
+            # the next attempt, unlike every other value reset above.
             self.mail_cycle = self.base_cfg.mail_cycle  # fresh attempt; back to the base preset
             self.mail_transit_days = self.base_cfg.mail_transit_days  # fresh attempt; back to base
             self.hallway_tomorrow_extra = self.base_cfg.hallway_tomorrow_extra  # fresh attempt
