@@ -73,18 +73,23 @@ write, and three primitives implement it:
   — a repeat call consumes no RNG — and it preserves dealt-ness by landing
   already-dealt copies just before the destination cursor. Leaving a dealt copy
   behind in the source deck would let it be re-dealt after attempt 3's full
-  reshuffle. Used by the Gear Wrench, the Battery Pack, the Conservatory's
-  re-roll and the `add_aquariums` experiment.
+  reshuffle. Used by the Gear Wrench, the Conservatory's drawing board, the
+  Battery Pack and the `add_aquariums` experiment.
 
 Every path that touches a deck bucket — `inject_rooms`,
 `inject_rooms_undealt`, `apply_upgrade` — looks the room up through
-`state.dynamic_rarity` before falling back to its static rarity, so a
-wrenched or re-rolled room is never split across two buckets.
+`state.dynamic_rarity` before falling back to its static rarity, so an
+overridden room is never split across two buckets.
 
-The Gear Wrench's choice is save-scoped rather than day-scoped: it lands in
-`cfg.permanent_rarity`, `build_decks` reads it for the day-start bucket, and
+**Two mechanics make an override permanent, and they share one slot.** The Gear
+Wrench (on drafting a Mechanical Room) and the Conservatory's drawing board
+(three offered floorplans, [`rooms.md`](rooms.md)) both write through
+`Game._write_permanent_rarity`, which lands the choice in
+`cfg.permanent_rarity`; `build_decks` reads it for the day-start bucket, and
 `Game.reset` seeds `state.dynamic_rarity` from the same dict so both agree from
-the first deal onward.
+the first deal onward. One shared slot is what lets a remodel reset a
+wrench-set rarity, as the wiki says it does. The Battery Pack's override is
+day-scoped and never lands there.
 
 **Deck-size gates** suppress rarities that have run low
 (`weights.json::deck_size_gates`): free decks need ≥ 3 cards; gem decks need
@@ -626,11 +631,10 @@ a concealed card's identity far more than any in-game tell does.
 
 ## Other draft-time modifiers
 
-- **Conservatory**: on draft, re-rolls the rarity of 3 random undealt deck
-  cards, uniformly over the four rarities (the real re-roll distribution is
-  unpublished; uniform is inferred). Each move goes through
-  `set_dynamic_rarity`, so a later same-day Gear Wrench pick on the same room
-  finds the card where it actually is.
+- **Conservatory**: drafting it stocks a drawing board with three floorplans
+  drawn uniformly at random with replacement; clicking a row sets that room's
+  rarity permanently, through the same slot the Gear Wrench writes. Owned by
+  [`rooms.md`](rooms.md).
 - **Hovel**: gem costs can be paid with steps at 3 steps : 1 gem.
 - **Terrace**: green rooms cost no gems.
 - **Dowsing Rod**: settles on one dealt option every deal and every redraw,
@@ -740,10 +744,10 @@ was made three times in one session about `test_draft_stats.py` alone.
   `DraftOption.forced` being False, so a category-bias substitution still counts
   as normal; and the forced draw is checked **before** the priority draws
   because no source specifies precedence between the two systems.
-- **The Conservatory's re-roll never touches the permanent rarity record.** The
-  wiki says the Conservatory writes the same permanent slot the Gear Wrench
-  does and can reset a wrench-set rarity; here it is a random day-scoped re-roll
-  of three undealt cards. Known and deliberately unfixed.
+- **How often the Conservatory's drawing board answers is unsourced.** One
+  click per offered floorplan, re-stocked on each Conservatory draft, is an
+  assumption carried as `conservatory.CLICKS_PER_FLOORPLAN` —
+  [`rooms.md`](rooms.md) states the reasoning and what the wiki does say.
 - **Per-option orientation choice is not a mechanic.** An option arrives with a
   rolled orientation; rotation is a separate hand-level effect (Ornate Compass /
   Rotunda / Dovecote). The three action ids that once claimed otherwise were

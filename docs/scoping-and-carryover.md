@@ -154,7 +154,9 @@ they survive into the next attempt:
 - `shrine_blessing_id`, `shrine_blessing_days`, `shrine_curse_days`,
   `shrine_offered_coins`, `shrine_monk_room` — the five Shrine fields.
 - `axed_rooms` — The Axe's ordered record of permanently-axed floorplan roots.
-- `permanent_rarity` — the Gear Wrench's room-id → rarity-index map.
+- `permanent_rarity` — the room-id → rarity-index map the Gear Wrench and the
+  Conservatory's drawing board share ([`rooms.md`](rooms.md)); one slot, two
+  writers, both through `Game._write_permanent_rarity`.
 - `planetarium_planets` — the Telescope-in-Planetarium's unlocked planets.
 - `lab_visited` — the Laboratory visit that is half of the Blackbridge Grotto
   unlock, and `lab_powered` — the Laboratory *powering* that is the other half

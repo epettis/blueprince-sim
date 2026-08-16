@@ -7,7 +7,8 @@ from gymnasium import spaces
 
 from ..engine import constellations as _constellations
 from ..engine.draft import COLOUR_CATEGORIES
-from ..engine.effects.rooms import shrine
+from ..engine.effects.rooms import conservatory, shrine
+from ..engine.effects.rooms.conservatory import BOARD_OFFERS
 from ..engine.game import ANTECHAMBER_CELL, Game, Phase
 from ..engine.grid import DIRS, OPPOSITE, neighbor
 from ..engine.locks import DOOR_LOCKED, DOOR_SEALED, DOOR_SECURITY, SECURITY_LEVELS
@@ -327,6 +328,22 @@ def observation_space(n_rooms: int, n_items: int, n_recipes: int,
         # as axed_rooms/wrench_rarity/planetarium_planets. Bound 14 is the
         # Reservoir's own max, the widest of the six.
         "water_levels": spaces.Box(0, 14, shape=(_N_PUMP_SOURCES,), dtype=np.uint8),
+        # remodel: the Conservatory's drawing board, two columns per row in
+        # REMODEL_BASE's own row-major order and flattened -- [room index + 1,
+        # rarity index + 1] per row. Column 0 is 0 only when no board is
+        # stocked (no Conservatory drafted today); column 1 is the floorplan's
+        # CURRENT rarity index + 1, and 0 once the row has been clicked out.
+        # So (0, 0) = no board, (r+1, 0) = a spent row, (r+1, q+1) = a live row
+        # showing what clicking it would change. Additive, never a shape change
+        # to an existing key.
+        #
+        # WHICH floorplan a row offers is the whole decision -- three rooms
+        # drawn uniformly at random out of ~90 -- and no existing key carries
+        # it: "wrench_rarity" covers Mechanical Rooms only, while the board can
+        # offer any room in the day's draft pool. Without this the twelve
+        # REMODEL_BASE ids would be unreadable, an agent picking a rarity for a
+        # room it cannot see.
+        "remodel": spaces.Box(0, 999, shape=(BOARD_OFFERS * 2,), dtype=np.int16),
     })
 
 
@@ -806,6 +823,19 @@ def encode(game: Game, day_chain: DayChain | None = None) -> dict:
         [game.water_level(sid) for sid in _build_pump_source_ids(registry)], dtype=np.uint8
     )
 
+    # remodel: [room index + 1, current rarity index + 1] per drawing-board
+    # row, in REMODEL_BASE's row-major order. The rarity column reads
+    # state.dynamic_rarity (falling back to the room's natal rarity), which is
+    # the bucket the room's cards actually sit in right now, so a row already
+    # remodelled earlier today shows its NEW rarity rather than its natal one.
+    # A clicked-out row zeroes that column, matching the action mask.
+    remodel_obs = np.zeros(BOARD_OFFERS * 2, dtype=np.int16)
+    for _i, _room_id in enumerate(st.remodel_offers[:BOARD_OFFERS]):
+        _room = registry.by_id[_room_id]
+        remodel_obs[_i * 2] = _room.idx + 1
+        if conservatory.slot_available(st, _i):
+            remodel_obs[_i * 2 + 1] = st.dynamic_rarity.get(_room_id, _room.rarity_idx) + 1
+
     return {
         "grid_room": grid_room,
         "grid_doors": grid_doors,
@@ -853,4 +883,5 @@ def encode(game: Game, day_chain: DayChain | None = None) -> dict:
         "planetarium_planets": planetarium_planets_obs,
         "constellations": constellations_obs,
         "water_levels": water_levels_obs,
+        "remodel": remodel_obs,
     }

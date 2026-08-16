@@ -69,21 +69,40 @@ never wrong.
 
 | width | value | where |
 |---|---|---|
-| `N_ACTIONS` | **481** | `env/actions.py` |
+| `N_ACTIONS` | **493** | `env/actions.py` |
 | `len(DayChain._CARRYOVER_KEYS)` | **19** | `env/multiday.py`, drives the `carryover` obs Box |
 
-**Last change: `N_ACTIONS` 479 → 481, the Office's second terminal process
-([`rooms.md`](rooms.md), "The Office's coins").** Two ids, appended after the Pump Room panel
-block: 479 Spread Gold in Estate, 480 Run Payroll — both gated on standing at
-the Office's cell (`Capability.OFFICE_TERMINAL`, `engine/effects/rooms/office.py`),
-the same shape as `SECURITY_LEVEL`/`PUMP_PANEL`. Spread Gold in Estate IS a
-spread (`GameState.spread_pending`/`Game._collect_spread`), redirected by a
-placed Conference Room the same way the Patio/Locker Room/Secret Garden are;
-Run Payroll is explicitly NOT a spread (the wiki states no Conference Room
-interaction), so it pays out through a separate `GameState.payroll_pending`
-dict keyed by room id instead. `_CARRYOVER_KEYS` stays at 19 — the weekly
-payroll cooldown (`GameConfig.payroll_last_used`) rides the same non-bool
-carry-over shape as `water_levels` (NOT SAVE-scoped), not a bool flag.
+**Last change: `N_ACTIONS` 481 → 493 AND a new observation key, the
+Conservatory's drawing board ([`rooms.md`](rooms.md), the `conservatory`
+entry).** Twelve ids appended after the Office block, 481..492: one per (board
+row, rarity level) pair in row-major order, gated on standing at the board's
+cell (`Capability.DRAWING_BOARD`, `engine/effects/rooms/conservatory.py`), the
+same shape as `OFFICE_TERMINAL`/`PUMP_PANEL`. Row-major rather than a 3-id row
+pick feeding the existing 4-id `WRENCH_RARITY_BASE` menu, so a whole click
+resolves as one atomic action with no new `Phase` — the same collapse the Pump
+Room panel's own docstring documents, and what keeps `cli/policies.py` from
+needing a new pending handler.
+
+**This one is an observation change too**: a new `remodel` key,
+`Box(0, 999, shape=(6,), int16)` — `[room index + 1, current rarity index + 1]`
+per row — taking the flattened observation width from **1084 to 1090**. It
+earns that width because *which* floorplan a row offers is the whole decision
+and no existing key carries it (`wrench_rarity` covers Mechanical Rooms only,
+while the board can offer any room in the day's draft pool). The twelve action
+ids already force a retrain, so the key costs no second one.
+`_CARRYOVER_KEYS` stays at 19: a click writes `permanent_rarity`, the Gear
+Wrench's existing SAVE-scoped dict, and the board itself is day-scoped
+(`GameState.remodel_offers`/`remodel_clicks`).
+
+Previously: `N_ACTIONS` 479 → 481, the Office's second terminal process
+([`rooms.md`](rooms.md), "The Office's coins"). Two ids appended after the Pump
+Room panel block: 479 Spread Gold in Estate, 480 Run Payroll, both gated on
+standing at the Office's cell (`Capability.OFFICE_TERMINAL`). Spread Gold in
+Estate IS a spread (`GameState.spread_pending`/`Game._collect_spread`),
+redirected by a placed Conference Room the same way the Patio/Locker
+Room/Secret Garden are; Run Payroll is explicitly NOT a spread (the wiki states
+no Conference Room interaction), so it pays out through a separate
+`GameState.payroll_pending` dict keyed by room id instead.
 
 Previously: `N_ACTIONS` 458 → 479, the Pump Room panel (docs/areas.md's
 Pump Room section). A factored two-step menu — pick a water source (6 ids,

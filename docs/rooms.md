@@ -10,8 +10,8 @@ This document is authoritative for a room's own behaviour. Rules that are not
 about one room are cited, never restated:
 
 - how a hand is dealt, what a room's rarity and layout mean for placement,
-  concealment, redraws, the Mechanarium's derived door mask, and the
-  Conservatory's re-roll of undealt cards — [`drafting.md`](drafting.md);
+  concealment, redraws, the Mechanarium's derived door mask, and how a rarity
+  override moves a room's cards between decks — [`drafting.md`](drafting.md);
 - how many items a room yields, the luck ladder, `never_roll_rooms` and the
   per-room count transforms — [`luck.md`](luck.md);
 - lock chances, the unlock menu and the security-door system —
@@ -500,17 +500,69 @@ since the wiki never says "across the save".
 **`conference_room`** — see "Spread effects" above; it has no effect of its own.
 
 **`conservatory`** — a Green Room (it was wrongly `blueprint`, a plain data
-error). Drafting it re-rolls the rarity of 3 random undealt deck cards,
-uniformly over the four rarities, each move routed through `set_dynamic_rarity`
-so a later same-day Gear Wrench pick finds the card where it actually is.
-[`drafting.md`](drafting.md) owns the standing divergence that this re-roll
-never writes the permanent rarity record the wiki says it shares with the Gear
-Wrench. Reachable only through its **Found Floorplan**: arriving at the
+error). Reachable only through its **Found Floorplan**: arriving at the
 campsite while holding a shovel permanently sets
 `state.conservatory_floorplan_found`, and `decks.py::eligible_pool` adds the
 room to the pool from the *following* day, since `build_decks` runs at day
 start. It is `rarity: unusual`, `gem_cost: 1` — so it deals from the **gem**
 decks — `corner_only`, and it counts as a Drafting Room.
+
+Its content is the **drawing board** (`engine/effects/rooms/conservatory.py`,
+`Capability.DRAWING_BOARD`). Drafting the room stocks the board with three
+floorplans; standing in the room, each row may be clicked once to set that
+room's rarity to any of the four levels (`Game.can_remodel`/`remodel`, action
+ids `REMODEL_BASE`). Five rules govern it, four of them owner rulings from
+play, which outrank the wiki and the datamine:
+
+- **The three offers are drawn uniformly at random WITH replacement**, so the
+  same room can occupy two rows. This settles what the datamine left open — it
+  says only *"the table presents three random rooms that passed the filters"*,
+  with no rarity term and no with/without-replacement statement — and it also
+  reads the datamine's "bugged entries that appear like one of the other
+  entries already present" as a plain non-de-duplicated draw rather than a
+  special case.
+- **The rarity change is ALL THREE, not any one**: each row is clicked
+  independently, so a player may set one, two or all three.
+- **A no-op click counts as a use.** Picking a floorplan's own current rarity
+  spends the row exactly as any other pick does. It leaves no
+  `permanent_rarity` entry behind, the same idempotent pop
+  `Game.set_wrench_rarity` performs, because the room's rarity genuinely is its
+  natal one.
+- **A modified room stays eligible**, so the offer pool never shrinks. This
+  *contradicts the datamine*, which drops from future offers any room whose
+  rarity has been changed by any method (and says a Room Directory reset does
+  not un-drop it). Owner play governs; the conflict is recorded, not smoothed
+  over.
+- **Frequency is unsourced**, and is the one assumption here:
+  `conservatory.CLICKS_PER_FLOORPLAN = 1`, with the board re-stocked on every
+  Conservatory draft. The wiki's own effect text ("re-rolls the rarity of 3
+  rooms in your pool **each time you draft it**") is the closest thing to a
+  source. Because a floorplan is drafted at most once a day, once-per-draft and
+  once-per-day coincide today. Any finite value bounds the day: the board
+  offers at most `BOARD_OFFERS * CLICKS_PER_FLOORPLAN` clicks between
+  stockings, each strictly incrementing `GameState.remodel_clicks`.
+
+A click writes the **same permanent slot the Gear Wrench writes** — one shared
+`Game._write_permanent_rarity`, so a remodel can reset a wrench-set rarity and
+vice versa, exactly as the wiki requires. The wiki's rider that a room whose
+rarity is ever set has its **Dynamic Rarity permanently ignored afterwards**
+costs nothing here for the same reason it costs nothing for the wrench: this
+sim does not model Dynamic Rarity at all ([`drafting.md`](drafting.md)).
+
+The offer pool is `decks.eligible_pool` (which already enforces the datamined
+"Studio Additions must have been added" / "Found Floorplans must have been
+found" clauses, plus Repellent bans and Upgrade-Disk substitution) minus
+`data/conservatory.json`'s two lists: `always_excluded` (Freezer, Pump Room,
+Dovecote, and the Conservatory itself) and `draft_gated` (the Gift Shop, until
+drafted once). **That list is deliberately incomplete**: the datamine implies
+16 unchangeable rooms and no source in this repo names the other twelve, so the
+sim's pool runs ~90 where the game's runs ~85. Disclosed in the data file, not
+silently absorbed.
+
+The board is deliberately **absent from `Game._in_place_actions`**, for the
+Royal Scepter's reason: a click grants nothing and opens nothing, so it must
+never be what holds a day open. It is bounded anyway, so including it would
+have been safe — see that method's docstring.
 
 **`funeral_parlor__ix110`** — the prize box holds one gem per Red Room in the
 house, counted at the moment the box is opened (this room's own first entry),
@@ -841,14 +893,10 @@ observable effect.
 
 ## Deliberate divergences
 
-- **The Conservatory's re-roll never writes the permanent rarity record.**
-  [`drafting.md`](drafting.md) owns that divergence. What this room's own
-  history adds is a general shape: the re-roll moved cards between rarity
-  decks without writing `state.dynamic_rarity`, so a later
-  `set_dynamic_rarity` looked in the wrong bucket and silently dropped the
-  move, corrupting the Gear Wrench in 14.3% of 300 seeds — and it went
-  unnoticed because the room was unreachable at the time. **Dead code can
-  still be a hazard: unreachable is not the same as harmless.**
+- **The Conservatory's offer pool is wider than the game's**, ~90 rooms against
+  the datamine's implied ~85, because no source in this repo names twelve of
+  the sixteen rooms whose rarity cannot be changed. See the `conservatory`
+  entry above and `data/conservatory.json`.
 - **The Mail Room's Dynamic Rarity effect is not modelled.** A waiting package
   sets the Mail Room to Commonplace for the day, which makes the delivered room
   far easier to draw again — a real strategic effect, not flavour. **Any

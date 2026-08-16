@@ -23,6 +23,7 @@ class Capability(Enum):
     COMMERCE = "commerce"  # room can be bought from, traded with, or fabricated at
     DIG_SPOTS = "dig_spots"  # room's cell receives the Spread Dig Spots experiment effect's dirt (Conference Room; see experiments._apply_spread_dig_spots)
     DINING_ROOM = "dining_room"  # room is the Dining Room, or an upgrade variant of it (Main Course, fireplace rank rule; see special_items._maybe_serve_main_course, experiments._room_has_fireplace)
+    DRAWING_BOARD = "drawing_board"  # room's remodel drawing board is open (Conservatory; see Game.can_remodel)
     EXPERIMENT_TERMINAL = "experiment_terminal"  # room's Experimental Setup menu is open (Laboratory)
     FABRICATION = "fabrication"  # room's fabricate menu is open (Workshop; see shops.py)
     LEVER = "lever"  # room pulls an Antechamber lever on first entry
