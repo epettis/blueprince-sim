@@ -4,14 +4,15 @@ Implements the datamined procedure: once per round (see _resolve_free_gem),
 roll whether Slot 2/3 (this engine's 0-indexed slots 1/2) are Free or Gem
 Draws -- Slot 1 (engine slot 0) is always free. Then, for each of the 3
 option slots: (1) roll a rarity from the weight table (rank x slot x stage x
-Solarium), (2) deal a room of that rarity solitaire-style from ONLY the deck
-class (free or gem) the round's Free/Gem Draw decision picked for that slot,
-subject to the doorway's filters -- a Free Draw and a Gem Draw never share a
-deal. Four attempts per slot: full rules -> ignore priority filters ->
-reshuffle decks -> forced Closet. Priority draws (an additional per-floorplan
-acceptance filter that only applies on attempt 1 -- see _priority_draw) can
-force specific rooms into ANY slot; the separate Forced Draw mechanism
-(_forced_draw_garage) is Slot-3-only.
+Solarium), (2) deal a room of that rarity solitaire-style from the deck
+class(es) _deal_classes opens for that slot -- on an ordinary hand ONLY the
+one (free or gem) the round's Free/Gem Draw decision picked, so a Free Draw
+and a Gem Draw never share a deal -- subject to the doorway's filters. Four
+attempts per slot: full rules -> ignore priority filters -> reshuffle decks ->
+forced Closet. Priority draws (an additional per-floorplan acceptance filter
+that only applies on attempt 1 -- see _priority_draw) can force specific rooms
+into ANY slot; the separate Forced Draw mechanism (_forced_draw_garage) is
+Slot-3-only.
 
 The Mechanarium's cardinal door mask is derived in this module (see
 _mechanarium_orientation) from the number of placed Mechanical rooms rather
@@ -27,14 +28,23 @@ dealt with ``DraftContext.colour`` set restricts every slot to that one
 category (Room.is_category), threaded through the single ``room_draftable``
 gate so it composes for free with the priority draws, forced draws, and
 category bias that already call it -- none of those need their own colour
-guard. A thin colour's pool draw (the ordinary rank/rarity attempts 1-3)
-falls back to the wiki's published default triple (priority_draws.json's
-colour_defaults); for a colour-locked slot this default triple IS the final
-fallback, standing in for the universal forced-Closet attempt 4, since
-Closet's category is never one of the five selectable colours and the wiki
-states the colour invariant with no exhaustion exception. Reserve copies --
-the wiki's other thin-pool fallback, tried between the pool and the default
-triple -- are deliberately not modelled (see docs/drafting.md's
+guard. Its pool draw (the ordinary rank/rarity attempts 1-3) also ignores the
+Free/Gem split and reads BOTH deck classes, free first -- owner ruling, see
+_deal_classes; that split is a Normal Draws mechanic, and normal drawing "does
+not normally occur when ... drafting [from a] Secret Passage". Only slot 0's
+rarity gate still consults the free deck alone (decks.py::rarity_deck_ok),
+since it gates which rarity is rollable rather than which deck is dealt from.
+Reading both classes is what makes a thin colour dealable at all: every shop
+room but the condition-locked Armory is gem-side, so a colour-locked Free Draw
+restricted to the free decks finds nothing at any rarity.
+
+What the pool draw cannot fill falls back to the wiki's published default
+triple (priority_draws.json's colour_defaults); for a colour-locked slot this
+default triple IS the final fallback, standing in for the universal
+forced-Closet attempt 4, since Closet's category is never one of the five
+selectable colours and the wiki states the colour invariant with no exhaustion
+exception. Reserve copies -- the wiki's other thin-pool fallback, tried between
+the pool and the default triple -- are not modelled (see docs/drafting.md's
 colour-selective drafting section), so a default is still filtered through
 room_draftable and can lose to the one-copy-per-grid rule like any other
 candidate; if every default is unavailable too, the slot is left unfilled
@@ -191,26 +201,47 @@ def room_draftable(ctx: DraftContext, room: Room, cell: int, entry_dir: int,
     return True
 
 
+def _deal_classes(ctx: DraftContext, is_gem: bool) -> tuple[bool, ...]:
+    """The Free/Gem deck classes a deal searches for this slot, in search order.
+
+    An ordinary draw searches exactly one class: the round's already-rolled
+    Free/Gem Draw decision for the slot (``is_gem``; see
+    :func:`_resolve_free_gem`, and always False for slot 0). "Free Draws only
+    use the four decks made out of free rooms, while Gem Draws only use the
+    four decks made out of gem rooms" (blueprince.wiki.gg/wiki/Drafting/
+    Advanced) -- the two are never combined for a single ordinary draw.
+
+    A colour-selective draft (``ctx.colour`` set) searches BOTH classes, free
+    deck first, and ignores ``is_gem`` entirely -- owner ruling. The Free/Gem
+    split is a Normal Draws mechanic, and "Normal drawing does not normally
+    occur when ... drafting [from a] Secret Passage" (same page), the identical
+    citation that keeps the forced-Closet attempt out of a colour-locked slot.
+    This overrides the "Free Draws only use ..." sentence above for colour
+    drafts; see docs/drafting.md, which records the conflict.
+
+    The classes are decks to search, not prices: a gem room dealt into a Free
+    Draw slot still carries its gem cost through ``_make_option``.
+    """
+    if ctx.colour is not None:
+        return (False, True)
+    return (is_gem,)
+
+
 def _deal_from_rarity(ctx: DraftContext, rarity_idx: int, slot: int, cell: int,
                       entry_dir: int, exclude: set[int], is_gem: bool) -> Room | None:
-    """Deal the next eligible room of a rarity from the round's Free/Gem-classified
-    deck (solitaire semantics).
-
-    ``is_gem`` is this round's already-rolled Free/Gem Draw decision for
-    ``slot`` (see :func:`_resolve_free_gem`; always False for slot 0, which the
-    wiki pins as always-free). A Free Draw searches ONLY the free deck of
-    ``rarity_idx``, a Gem Draw ONLY the gem deck -- the two are never combined
-    for a single draw (blueprince.wiki.gg/wiki/Drafting/Advanced: "Free Draws
-    only use the four decks made out of free rooms, while Gem Draws only use
-    the four decks made out of gem rooms").
+    """Deal the next eligible room of a rarity, solitaire-style, from the deck
+    class(es) :func:`_deal_classes` opens for this slot.
     """
     rooms = ctx.registry.rooms
 
     def pred(card: int) -> bool:
         return room_draftable(ctx, rooms[card], cell, entry_dir, exclude)
 
-    card = ctx.state.deck(rarity_idx, is_gem).deal_next(pred)
-    return rooms[card] if card is not None else None
+    for deck_is_gem in _deal_classes(ctx, is_gem):
+        card = ctx.state.deck(rarity_idx, deck_is_gem).deal_next(pred)
+        if card is not None:
+            return rooms[card]
+    return None
 
 
 def _apply_membership_moves(ctx: DraftContext, label: str, entry_rooms: list[str]) -> list[str]:
@@ -261,8 +292,11 @@ def _priority_draw(ctx: DraftContext, cell: int, entry_dir: int,
     ``is_gem`` is this round's Free/Gem Draw decision for the slot being dealt (see
     :func:`_resolve_free_gem`): the priority filter is an additional filter applied
     within whichever Free/Gem group the round is already working in, so a candidate
-    is only eligible when its own class (``not room.is_free``) matches ``is_gem`` --
-    the same convention ``_deal_from_rarity`` uses via ``ctx.state.deck``.
+    is only eligible when its own class (``not room.is_free``) is one
+    :func:`_deal_classes` opens -- the same one-class-per-ordinary-draw,
+    both-classes-per-colour-draft convention ``_deal_from_rarity`` deals under.
+    A candidate outside those classes is skipped before its acceptance roll, so
+    it consumes no RNG.
 
     Each floorplan named by an active entry gets its OWN independent acceptance
     roll at the entry's chance -- "each floorplan has a chance to get accepted"
@@ -298,6 +332,7 @@ def _priority_draw(ctx: DraftContext, cell: int, entry_dir: int,
     """
     rooms = ctx.registry.rooms
     pool_ids = {rooms[c].id for d in ctx.state.decks for c in d.order}
+    classes = _deal_classes(ctx, is_gem)
     active: set[str] | None = None
     for entry in ctx.registry.priority["priority_draws"]:
         condition = entry.get("condition")
@@ -320,7 +355,7 @@ def _priority_draw(ctx: DraftContext, cell: int, entry_dir: int,
                     ctx.registry.by_id[rid].pool == "base"):
                 continue
             room = ctx.registry.by_id.get(rid)
-            if room is None or room.rarity is None or room.is_free == is_gem:
+            if room is None or room.rarity is None or (not room.is_free) not in classes:
                 continue
             if ctx.rng.chance(f"priority_{entry['label']}_{rid}", chance):
                 accepted.add(rid)
@@ -332,9 +367,10 @@ def _priority_draw(ctx: DraftContext, cell: int, entry_dir: int,
             return r.id in _accepted and room_draftable(ctx, r, cell, entry_dir, exclude)
 
         for rarity_idx in range(4):
-            card = ctx.state.deck(rarity_idx, is_gem).deal_next(pred)
-            if card is not None:
-                return rooms[card]
+            for deck_is_gem in classes:
+                card = ctx.state.deck(rarity_idx, deck_is_gem).deal_next(pred)
+                if card is not None:
+                    return rooms[card]
     return None
 
 
@@ -453,20 +489,20 @@ def _active_conditions(ctx: DraftContext) -> set[str]:
 def _deal_biased(ctx: DraftContext, slot: int, cell: int,
                  entry_dir: int, exclude: set[int],
                  pred, is_gem: bool) -> Room | None:
-    """Deal the first card passing ``pred`` from the round's Free/Gem-classified
-    decks across all four rarities.
+    """Deal the first card passing ``pred`` across all four rarities, from the
+    deck class(es) :func:`_deal_classes` opens for this slot.
 
-    ``is_gem`` is the same once-per-round decision ``_deal_from_rarity`` uses
-    (see :func:`_resolve_free_gem`); callers pass False for slot 0, which is
-    always free-only. Like ``_deal_from_rarity``, only ONE of the free/gem
-    classes is ever searched -- the Silver Key cross/t bias and every
-    category bias are still ordinary draws for Free/Gem Draw purposes.
+    The Silver Key cross/t bias and every category bias are ordinary draws for
+    Free/Gem Draw purposes, so on an ordinary hand only ONE class is searched,
+    exactly as in ``_deal_from_rarity``.
     """
     rooms = ctx.registry.rooms
+    classes = _deal_classes(ctx, is_gem)
     for rarity_idx in range(4):
-        card = ctx.state.deck(rarity_idx, is_gem).deal_next(pred)
-        if card is not None:
-            return rooms[card]
+        for deck_is_gem in classes:
+            card = ctx.state.deck(rarity_idx, deck_is_gem).deal_next(pred)
+            if card is not None:
+                return rooms[card]
     return None
 
 
@@ -693,8 +729,9 @@ def draw_slot(ctx: DraftContext, slot: int, cell: int, entry_dir: int,
     (only meaningful, and only passed, at ``slot == 2``); it feeds the Garage
     Forced Draw's Dead-End gate. ``is_gem`` is this round's Free/Gem Draw
     decision for ``slot`` (see :func:`_resolve_free_gem`; callers pass False
-    for slot 0, always-free by the wiki's own rule) -- attempts 1-3 below only
-    ever deal from the matching free-or-gem deck class, never both.
+    for slot 0, always-free by the wiki's own rule) -- attempts 1-3 below deal
+    from whichever deck class(es) :func:`_deal_classes` opens for it, which on
+    an ordinary hand is the matching one and never both.
     """
     state, registry, cfg, rng = ctx.state, ctx.registry, ctx.cfg, ctx.rng
     rank = rank_of(cell)
@@ -732,12 +769,13 @@ def draw_slot(ctx: DraftContext, slot: int, cell: int, entry_dir: int,
             room = _apply_category_bias(ctx, room, slot, cell, entry_dir, exclude, is_gem)
             return _make_option(ctx, room, slot, cell, entry_dir)
 
-    # Colour-selective draft (Secret Passage): the pool is thin, so fall back
-    # to the published default triple -- see _deal_colour_default. This is
-    # the wiki's own fallback ladder for a colour-selective draft (draft pool
-    # -> reserve copies [not modelled, see this module's docstring] ->
-    # default triple); "During a color-selective draft, only floorplans of
-    # that color can be drawn" is stated with no exhaustion exception
+    # Colour-selective draft (Secret Passage): the pool draw above read both
+    # deck classes (_deal_classes) and still came up empty, so fall back to the
+    # published default triple -- see _deal_colour_default. This is the wiki's
+    # own fallback ladder for a colour-selective draft (draft pool -> reserve
+    # copies [not modelled, see this module's docstring] -> default triple);
+    # "During a color-selective draft, only floorplans of that color can be
+    # drawn" is stated with no exhaustion exception
     # (blueprince.wiki.gg/wiki/Drafting_effects#Color-selective_drafting), so
     # the universal forced-Closet attempt below -- which belongs to
     # *ordinary* drafting only (Drafting/Advanced#Normal Draws: "Normal
@@ -749,12 +787,12 @@ def draw_slot(ctx: DraftContext, slot: int, cell: int, entry_dir: int,
         if room is not None:
             return _make_option(ctx, room, slot, cell, entry_dir, forced_draw=True)
         # Every default is also unavailable here (all three already placed or
-        # geometrically illegal at this doorway). This branch is reachable
-        # ONLY because the wiki's reserve-copies tier -- which sits between
-        # the pool and the default triple and would almost certainly have
-        # supplied something on-colour before exhaustion -- is not modelled
-        # (see this module's docstring); it is a modelling artifact, not a
-        # game rule. The slot is left unfilled, the same already-precedented
+        # geometrically illegal at this doorway) on top of a pool that had no
+        # legal room of the rolled rarity in either deck class. The unmodelled
+        # reserve-copies tier -- which sits between the pool and the default
+        # triple and ignores the one-copy-per-grid rule -- would still have
+        # supplied something on-colour, so this branch remains wider than the
+        # real game's. The slot is left unfilled, the same already-precedented
         # outcome as the ordinary forced-Closet-already-excluded edge case
         # below (see _fill_options' Reading Nook docstring); the caller
         # (Game.open_door/choose_colour) falls back to NAVIGATE when the

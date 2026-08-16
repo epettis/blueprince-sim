@@ -2,9 +2,11 @@
 
 Wiki (blueprince.wiki.gg/wiki/Secret_Passage, /wiki/Drafting_effects): pulling
 a book restricts the whole hand dealt from the revealed door to one of five
-colours (Bedroom, Hallway, Green Room, Shop, Red Room); a thin colour falls
-back to the published default triple. See docs/drafting.md for the exact
-scope (filter + defaults, no reserve copies).
+colours (Bedroom, Hallway, Green Room, Shop, Red Room). The pool draw reads
+both the free and the gem decks for such a hand (owner ruling; see
+docs/drafting.md, which records the wiki line it overrides), and what it cannot
+fill falls back to the published default triple. Reserve copies stay out of
+scope.
 """
 
 from __future__ import annotations
@@ -14,24 +16,30 @@ import random
 import pytest
 
 from blueprince_sim.engine.draft import (COLOUR_CATEGORIES, DraftContext,
-                                         room_draftable)
+                                         _priority_draw, room_draftable)
 from blueprince_sim.engine.game import Game, Phase
 from blueprince_sim.engine.grid import DIRS, N, S
 from blueprince_sim.engine.locks import DOOR_LOCKED
 from blueprince_sim.engine.rng import Rng
-from blueprince_sim.engine.state import GameState
+from blueprince_sim.engine.state import GameState, resolve_gem_cost
 from blueprince_sim.env import actions as A
 from blueprince_sim.env.blueprince_env import BluePrinceEnv
 
 SECRET_PASSAGE_CELL = 7  # rank 2, col 2: interior, doorway north targets cell 12 (empty)
 
 
-def _place_secret_passage(g: Game, room_id: str = "secret_passage",
-                          cell: int = SECRET_PASSAGE_CELL) -> None:
-    """Place ``room_id`` (straight layout) at ``cell`` oriented N|S and stand there."""
+def _stand_in_room(g: Game, room_id: str, cell: int = SECRET_PASSAGE_CELL) -> None:
+    """Place ``room_id`` at ``cell`` oriented N|S and stand there, so its north
+    doorway drafts into the empty cell beyond."""
     room = g.registry.by_id[room_id]
     g._place_room(room, cell, N | S)
     g.state.pos = cell
+
+
+def _place_secret_passage(g: Game, room_id: str = "secret_passage",
+                          cell: int = SECRET_PASSAGE_CELL) -> None:
+    """Place ``room_id`` (straight layout) at ``cell`` oriented N|S and stand there."""
+    _stand_in_room(g, room_id, cell)
 
 
 @pytest.mark.parametrize("colour", COLOUR_CATEGORIES)
@@ -264,26 +272,223 @@ def test_redraw_keeps_the_hand_on_colour(cfg):
         assert g.registry.rooms[opt.room_idx].is_category("red")
 
 
-# ------------------------------------------------------- the free first option
+# ------------------------------------------------- ignoring the Free/Gem split
 
 #: The green defaults (priority_draws.json::colour_defaults), parked on the grid
-#: by _only_a_gem_green_is_dealable so the fallback ladder's last rung is closed.
+#: by the deck rigs below so the colour fallback ladder's last rung is closed.
+#: Named again here rather than read from the registry so a data change that
+#: moved a default would fail loudly instead of silently opening the ladder.
 GREEN_DEFAULTS = ("courtyard", "aquarium", "cloister")
 
 
-def _only_a_gem_green_is_dealable(g: Game, monkeypatch) -> None:
-    """Rig the decks so a green hand can only fill its Gem-Draw slot.
+def _rig_one_free_and_one_gem_green(g: Game, monkeypatch) -> None:
+    """Rig a single rarity's two decks with one free and one gem green room.
 
-    Empties every free deck, so a Free Draw slot has nothing to deal and slot
-    0 -- whose deck-size gate looks at the free deck alone (decks.py::
-    rarity_deck_ok) -- cannot even roll a rarity; parks the three green
-    defaults on the grid, so ``_deal_colour_default`` is closed too. The
-    Solarium's gem deck is the only one left passing its size gate, padded to
-    that gate with off-colour rooms the colour filter drops, so the rarity
-    roll can only land there. Pins the round's Free/Gem decision to "slot 2 is
-    a Gem Draw" (a published outcome of weights.json::free_gem_draws -- every
-    round of 3+, and most rank rolls -- but a rolled one, so it is fixed here
-    rather than hunted for in a seed).
+    The free deck of the Solarium's rarity is filled to its size gate with Root
+    Cellar cards (the Root Cellar is a free green dead end); that same rarity's
+    gem deck gets the Solarium (a gem green dead end) first, padded to the gem
+    size gate with off-colour rooms. Every other deck is emptied, so this is
+    the only rarity either deck-size gate lets any slot roll, and the rarity
+    roll is therefore not a coin toss.
+
+    The identical Root Cellar cards are what make the deal informative: slot 0
+    deals the first, and the hand's own ``exclude`` set then blocks the rest,
+    so the free side is dry from slot 1 onward while the free deck still
+    passes its size gate (which counts dealt cards). Whether slot 1 deals the
+    Solarium is then exactly the question of whether the deal may read the gem
+    deck at all.
+
+    Pins the round's Free/Gem decision to all-Free (a published outcome of
+    weights.json::free_gem_draws, but a rolled one, so it is fixed here rather
+    than hunted for in a seed) so no slot is a Gem Draw by the ordinary rule,
+    and parks the green defaults on the grid so a colour hand cannot reach the
+    default triple instead.
+    """
+    solarium = g.registry.by_id["solarium"]
+    root_cellar = g.registry.by_id["root_cellar"]
+    padding = [g.registry.by_id[rid].idx for rid in ("kitchen", "locksmith", "chapel")]
+    rarity_idx = solarium.rarity_idx
+    gem_gate = g.registry.weights["deck_size_gates"]["gem"][rarity_idx]
+    free_gate = g.registry.weights["deck_size_gates"]["free"][rarity_idx]
+    for r in range(4):
+        for is_gem in (False, True):
+            deck = g.state.deck(r, is_gem)
+            deck.order = []
+            deck.pos = 0
+    g.state.deck(rarity_idx, False).order = [root_cellar.idx] * free_gate
+    g.state.deck(rarity_idx, True).order = [solarium.idx] + (padding * gem_gate)[:gem_gate - 1]
+    g.placed_ids |= set(GREEN_DEFAULTS)
+    g.state.gems = 0
+    monkeypatch.setattr("blueprince_sim.engine.draft._resolve_free_gem",
+                        lambda ctx, rank, round_num: (False, False))
+
+
+def test_a_colour_selective_slot_deals_from_the_gem_deck_on_a_free_draw(cfg, monkeypatch):
+    """A colour-selective draft ignores the Free/Gem split: attempts 1-3 read
+    both deck classes (owner ruling). Every slot here is a Free Draw by the
+    published rule, and the free side is dry after slot 0 -- so the Solarium
+    reaching slot 1 can only mean the gem deck was searched.
+
+    This is the whole fix for a thin colour. Every shop floorplan except the
+    condition-locked Armory is gem-side, so a shop-colour Free Draw searching
+    only the free decks finds nothing and the hand falls to the default triple,
+    dealing one room short for every default already on the grid."""
+    g = Game(cfg, seed=1)
+    _place_secret_passage(g)
+    _rig_one_free_and_one_gem_green(g, monkeypatch)
+    g.open_door(SECRET_PASSAGE_CELL, N)
+    pending = g.choose_colour("green")
+    assert pending is not None
+
+    dealt = [(o.slot, g.registry.rooms[o.room_idx].id) for o in pending.options]
+    assert dealt == [(0, "root_cellar"), (1, "solarium")], (
+        "slot 0 must take the free green room and slot 1 the gem one")
+
+
+def test_a_gem_room_dealt_into_a_colour_free_draw_slot_still_costs_gems(cfg, monkeypatch):
+    """Ignoring the Free/Gem split changes which DECK a slot reads, never what
+    the option costs. The Solarium dealt into a Free Draw slot 1 carries its
+    ordinary resolved gem cost, so opening the gem decks to a thin colour does
+    not quietly hand the player free gem rooms.
+
+    Slot 0's own zero cost is the pre-existing always-free-slot rule, not a
+    side effect of this: it is also the hand's first presented option, which
+    the Secret Passage waiver zeroes anyway."""
+    g = Game(cfg, seed=1)
+    _place_secret_passage(g)
+    _rig_one_free_and_one_gem_green(g, monkeypatch)
+    g.open_door(SECRET_PASSAGE_CELL, N)
+    pending = g.choose_colour("green")
+
+    gem_option = next(o for o in pending.options if o.slot == 1)
+    solarium = g.registry.rooms[gem_option.room_idx]
+    assert not solarium.is_free, "a free room would price at 0 anyway and test nothing"
+    expected = resolve_gem_cost(solarium, g.state, g.registry.rooms)
+    assert expected > 0
+    assert gem_option.gem_cost == expected and not gem_option.cost_waived
+    assert g._effective_cost(solarium, gem_option) == expected
+    assert not g.affordable(solarium, gem_option), "0 gems must not buy a gem room"
+
+
+def test_an_ordinary_free_draw_still_never_reads_the_gem_deck(cfg, monkeypatch):
+    """The split survives untouched for ordinary drafting: *"Free Draws only
+    use the four decks made out of free rooms, while Gem Draws only use the
+    four decks made out of gem rooms."* Same rig, same all-Free round, but no
+    colour -- so once the free side is dry the slots fall through to the
+    forced-Closet attempt rather than reaching the Solarium sitting in the gem
+    deck. Without this, widening the colour path would be free to widen every
+    path and nothing would notice."""
+    g = Game(cfg, seed=1)
+    _stand_in_room(g, "hallway")
+    _rig_one_free_and_one_gem_green(g, monkeypatch)
+    g.open_door(SECRET_PASSAGE_CELL, N)
+    assert g.phase is Phase.DRAFTING, "an ordinary doorway must not ask for a colour"
+
+    dealt = [g.registry.rooms[o.room_idx].id for o in g.state.pending.options]
+    assert "solarium" not in dealt, "an ordinary Free Draw must not reach the gem deck"
+    assert dealt[0] == "root_cellar", "slot 0 must still deal the free deck's first legal card"
+
+
+@pytest.mark.parametrize("colour,expected", [
+    ("green", [(0, "solarium"), (1, "root_cellar")]),
+    (None, [(0, "root_cellar"), (1, "closet")]),
+])
+def test_a_category_bias_redeal_follows_the_same_free_gem_rule(cfg, monkeypatch,
+                                                               colour, expected):
+    """A category bias re-deals the slot it just filled, so it must open the
+    same deck classes the original draw did -- both during a colour-selective
+    draft, one otherwise. A bias that could only re-deal the free side would be
+    silently inert for exactly the thin colours the ruling exists to fix.
+
+    The bias entry is reduced to one certain rule naming only the Solarium, so
+    the substitution is visible in the dealt hand rather than statistical: the
+    colour hand's slot 0 must swap its free Root Cellar for the gem-deck
+    Solarium, while the ordinary hand keeps the Root Cellar and never sees it.
+
+    The ordinary hand's lone Closet is attempt 4: its free side is dry from slot
+    1 on and the gem side is closed to a Free Draw, which is the same fact
+    stated from the other side. Slot 2 then finds the Closet already excluded by
+    slot 1 and comes up empty, the pre-existing forced-Closet edge case."""
+    g = Game(cfg, seed=1)
+    _stand_in_room(g, "secret_passage" if colour else "hallway")
+    _rig_one_free_and_one_gem_green(g, monkeypatch)
+    g.state.furnace_placed = True  # activates the condition tag below
+    monkeypatch.setitem(g.registry.priority, "category_biases",
+                        [{"label": "solarium_only", "chance": 1.0,
+                          "condition": "furnace_or_king", "rooms": ["solarium"]}])
+
+    g.open_door(SECRET_PASSAGE_CELL, N)
+    pending = g.choose_colour(colour) if colour else g.state.pending
+    assert [(o.slot, g.registry.rooms[o.room_idx].id) for o in pending.options] == expected
+
+
+def _only_commissary_is_a_priority_candidate(g: Game, monkeypatch) -> None:
+    """Reduce the priority-draw table to one certain entry naming the Commissary.
+
+    The Commissary is a gem shop room, so it is off-class for a Free Draw. The
+    published entry that names it (``commissary_observatory``) rolls at 13%; the
+    chance is replaced with certainty here so the acceptance roll stops being
+    the thing under test, and the table is reduced to that one entry so no other
+    entry can deal first. The Commissary's own card is the only one left in any
+    deck, so a hit can only come from the priority path.
+    """
+    commissary = g.registry.by_id["commissary"]
+    for rarity_idx in range(4):
+        for is_gem in (False, True):
+            deck = g.state.deck(rarity_idx, is_gem)
+            deck.order = []
+            deck.pos = 0
+    g.state.deck(commissary.rarity_idx, True).order = [commissary.idx]
+    monkeypatch.setitem(g.registry.priority, "priority_draws",
+                        [{"label": "commissary_only", "chance": 1.0,
+                          "rooms": ["commissary"]}])
+
+
+@pytest.mark.parametrize("colour,expected", [("shop", "commissary"), (None, None)])
+def test_a_priority_draw_follows_the_same_free_gem_rule_as_the_pool(cfg, monkeypatch,
+                                                                    colour, expected):
+    """A priority draw is an extra filter applied inside attempt 1, so it must
+    open exactly the deck classes the surrounding deal opens -- both classes
+    during a colour-selective draft, one during an ordinary one. Otherwise the
+    fix would be half-applied: a shop-colour hand could deal the gem-side
+    Commissary from the rarity pool but never from the 13% entry that exists to
+    make it likelier.
+
+    Parametrised over both readings of the same slot so the ordinary case is
+    pinned by the same construction: the Commissary is gem-side and this is a
+    Free Draw, so an ordinary draft must refuse it."""
+    g = Game(cfg, seed=1)
+    _place_secret_passage(g)
+    _only_commissary_is_a_priority_candidate(g, monkeypatch)
+    from_room = g.registry.by_id["secret_passage"]
+    ctx = DraftContext(g.state, g.registry, cfg, Rng(1), g.placed_ids, from_room,
+                       colour=colour)
+
+    room = _priority_draw(ctx, 12, N, set(), is_gem=False)
+    assert (room.id if room is not None else None) == expected
+
+
+# ------------------------------------------------------- the free first option
+
+
+def _only_a_gem_green_is_dealable(g: Game, monkeypatch) -> None:
+    """Rig the decks so a green hand can only fill one slot, and not slot 0.
+
+    Empties every deck, then puts the Solarium (a gem green room) back alone
+    into its rarity's gem deck, padded to that rarity's gem size gate with
+    off-colour rooms the colour filter drops. Parks the three green defaults on
+    the grid, so ``_deal_colour_default`` is closed too.
+
+    Slot 0 cannot reach the Solarium even though a colour-selective draft reads
+    both deck classes (draft.py::_deal_classes): slot 0's rarity gate looks at
+    the FREE deck alone (decks.py::rarity_deck_ok) and every free deck is now
+    empty, so slot 0 cannot roll a rarity at all. Slot 1 gates on free-or-gem,
+    can only roll the Solarium's rarity, and deals it; slot 2 then finds it
+    already excluded by this hand. Pins the round's Free/Gem decision to
+    all-Free -- a published outcome of weights.json::free_gem_draws, but a
+    rolled one, so it is fixed here rather than hunted for in a seed -- which
+    also makes the dealt Solarium proof that the colour draft ignored the
+    split rather than luck of the roll.
     """
     solarium = g.registry.by_id["solarium"]
     padding = [g.registry.by_id[rid].idx for rid in ("kitchen", "locksmith", "chapel")]
@@ -298,16 +503,16 @@ def _only_a_gem_green_is_dealable(g: Game, monkeypatch) -> None:
     g.placed_ids |= set(GREEN_DEFAULTS)
     g.state.gems = 0
     monkeypatch.setattr("blueprince_sim.engine.draft._resolve_free_gem",
-                        lambda ctx, rank, round_num: (False, True))
+                        lambda ctx, rank, round_num: (False, False))
 
 
 def test_the_secret_passage_grants_its_first_option_free_from_a_later_slot(cfg, monkeypatch):
     """"The Secret Passage will grant the first option with zero cost, even if
     it would ordinarily cost gems" (owner ruling): the waiver follows the first
     option the hand actually presents, not the literal slot index 0. A
-    colour-selective hand's slots fail independently, so slots 0 and 1 can come
-    up unfilled while the Gem-Draw slot 2 deals a gem room -- and that room is
-    then granted free even with no gems in hand. Pins the deal's shape too, so
+    colour-selective hand's slots fail independently, so slot 0 can come up
+    unfilled while a later slot deals a gem room -- and that room is then
+    granted free even with no gems in hand. Pins the deal's shape too, so
     the test cannot pass without the later-slot case actually arising."""
     g = Game(cfg, seed=1)
     _place_secret_passage(g)
@@ -316,8 +521,8 @@ def test_the_secret_passage_grants_its_first_option_free_from_a_later_slot(cfg, 
     pending = g.choose_colour("green")
     assert pending is not None and g.phase is Phase.DRAFTING
 
-    assert [o.slot for o in pending.options] == [2], (
-        "the branch under test needs slots 0 and 1 unfilled and slot 2 dealt")
+    assert [o.slot for o in pending.options] == [1], (
+        "the branch under test needs slot 0 unfilled and a later slot dealt")
     first = pending.options[0]
     room = g.registry.rooms[first.room_idx]
     assert not room.is_free, "a free room would price at 0 anyway and test nothing"
@@ -340,8 +545,8 @@ def test_a_drafting_hand_always_offers_an_affordable_option(cfg, monkeypatch):
     assert g.phase is Phase.DRAFTING
     assert any(g.affordable(g.registry.rooms[o.room_idx], o) for o in g.state.pending.options)
     mask = A.action_mask(g)
-    assert mask[A.CHOOSE_BASE + 2], "the hand's only option must be choosable"
-    g.choose(2)  # must not raise: the waiver is what makes this payable
+    assert mask[A.CHOOSE_BASE + 1], "the hand's only option must be choosable"
+    g.choose(1)  # must not raise: the waiver is what makes this payable
     assert g.state.gems == 0, "a waived cost must not be charged"
 
 
@@ -364,7 +569,7 @@ def test_a_redraw_re_waives_the_new_hands_first_option(cfg, monkeypatch):
     g.state.pending.redraws_left = 1
     _only_a_gem_green_is_dealable(g, monkeypatch)
     g.redraw(RedrawKind.FREE)
-    assert [o.slot for o in g.state.pending.options] == [2], (
+    assert [o.slot for o in g.state.pending.options] == [1], (
         "the redealt hand must be the later-slot-only one, or nothing is being tested")
     assert g.state.pending.options[0].cost_waived
     assert sum(A.action_mask(g)) > 0
