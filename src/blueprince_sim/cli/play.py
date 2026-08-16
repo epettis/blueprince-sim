@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from functools import partial
+
 from ..config import GameConfig
 from ..engine import locks
 from ..engine.game import Game, Phase, RedrawKind
@@ -11,13 +13,68 @@ from .render import render_grid, render_options, render_status
 _DIR_KEYS = {"n": N, "e": E, "s": S, "w": W}
 
 
+def _in_place_label(game: Game, action_id: str, do) -> str:
+    """Readable menu text for one ``Game._in_place_actions()`` entry.
+
+    ``do`` is either a bound ``Game`` method or a ``functools.partial`` around
+    one; the partial's first positional arg is whichever index/id the action
+    needs to disambiguate (which constellation, which shop row, which
+    fabrication output, which sigil realm) -- pulled out here rather than
+    re-derived, so a label can never name the wrong option.
+    """
+    arg = do.args[0] if isinstance(do, partial) and do.args else None
+    if action_id == "open_container":
+        return "open a container here"
+    if action_id == "open_car_trunk":
+        return "open the Garage car trunk"
+    if action_id == "open_vault_box":
+        return "open the matching Vault deposit box"
+    if action_id == "install_lever":
+        return "install the Broken Lever here"
+    if action_id == "smash_vase":
+        return "smash the Entrance Hall vase"
+    if action_id == "spread_gold":
+        return "Office terminal: Spread Gold"
+    if action_id == "run_payroll":
+        return "Office terminal: Run Payroll"
+    if action_id == "view_night_sky":
+        return "look at the night sky"
+    if action_id == "activate_constellation":
+        record = game.registry.constellations.records[arg]
+        return f"activate the {record.name} constellation ({record.stars} star(s))"
+    if action_id == "use_telescope_planetarium":
+        return "use the Telescope in the Planetarium"
+    if action_id == "take_grotto_chip":
+        return "take the Grotto pedestal microchip"
+    if action_id == "light":
+        return "light the ignition target here"
+    if action_id == "open_sigil_door":
+        return f"open the {arg} sigil door with a Sanctum Key"
+    if action_id == "buy":
+        stock = game.shop_stock() or []
+        if 0 <= arg < len(stock):
+            entry = stock[arg]
+            return f"buy {entry['id']} ({entry['price']} coin(s))"
+        return "buy"
+    if action_id == "fabricate":
+        return f"fabricate {arg} at the Workshop bench"
+    if action_id == "start_setup":
+        return "operate the Laboratory terminal (Experimental Setup)"
+    return action_id
+
+
 def play(cfg: GameConfig, seed: int) -> None:
     """Run the interactive REPL for one day, printing the grid and prompting each decision.
 
     NAVIGATE offers moves, doorway drafts (numbered), far drafts (``d <cell> <dir>``),
-    walks (``g <cell>``), outer-area actions, and the security switches; DRAFTING
-    offers the option slots plus redraw/rotate. ``q`` at any prompt abandons the
-    day. Returns after printing the end-of-day summary (win or termination reason).
+    walks (``g <cell>``), in-place actions (``x <n>`` -- containers, shops, the
+    Office/Workshop/Sanctum/night-sky/Laboratory terminals, anything
+    :meth:`Game._in_place_actions` counts as work left with no walk needed),
+    outer-area actions, and the security switches; EXPERIMENT_PENDING (entered
+    by starting a Laboratory setup) offers the trigger then the effect;
+    DRAFTING offers the option slots plus redraw/rotate. ``q`` at any prompt
+    abandons the day. Returns after printing the end-of-day summary (win or
+    termination reason).
     """
     game = Game(cfg, seed=seed)
     print(f"Blue Prince drafting simulator - seed {seed}. "
@@ -63,9 +120,22 @@ def play(cfg: GameConfig, seed: int) -> None:
                 continue
             doors = game.open_doorways()
             moves = game.adjacent_moves()
-            if not doors and not moves:
+            in_place = list(game._in_place_actions())
+            if not doors and not moves and not in_place:
+                # Nothing to draft, walk into, or act on right where the
+                # player stands. _check_termination is authoritative on
+                # whether the day is actually over: a frontier doorway or an
+                # unentered room elsewhere in the house can still be
+                # purposeful even with nothing local, and the "Elsewhere"/
+                # 'g'/'d' walk options below already cover that case. Only
+                # skip straight back to the top (ending the day, since the
+                # while-loop condition then sees TERMINAL) when the engine
+                # agrees nothing is left anywhere; otherwise fall through so
+                # those walk options actually get shown instead of looping
+                # on this same empty check forever.
                 game._check_termination()
-                continue
+                if game.phase is Phase.TERMINAL:
+                    continue
             here = game.registry.rooms[st.grid[st.pos]].name
             print(f"You are in the {here} (rank {rank_of(st.pos)}).")
             if doors:
@@ -87,6 +157,10 @@ def play(cfg: GameConfig, seed: int) -> None:
                     tag = "" if st.entered[nb] else "  (not yet entered)"
                     print(f"  [{DIR_NAMES[d].lower()}] go {DIR_NAMES[d]} into "
                           f"the {room.name}{tag}")
+            if in_place:
+                print("Other actions:")
+                for i, (action_id, do) in enumerate(in_place):
+                    print(f"  [x{i + 1}] {_in_place_label(game, action_id, do)}")
             if game.outer_draft_available():
                 print("  [o] outer-room draft (West Path)")
             if game.can_toggle_keycard_power():
@@ -103,6 +177,13 @@ def play(cfg: GameConfig, seed: int) -> None:
             cmd = input("move/draft> ").strip().lower()
             if cmd == "q":
                 return
+            if cmd.startswith("x") and cmd[1:].isdigit():
+                idx = int(cmd[1:]) - 1
+                if 0 <= idx < len(in_place):
+                    in_place[idx][1]()
+                else:
+                    print("  ? invalid choice")
+                continue
             if cmd == "o" and game.outer_draft_available():
                 result = game.open_outer_draft()
                 if result is None:
@@ -157,7 +238,7 @@ def play(cfg: GameConfig, seed: int) -> None:
                 cell, d = doors[int(cmd) - 1]
             except (ValueError, IndexError):
                 print("  ? enter a doorway number, a move letter (n/e/s/w), "
-                      "'g/d <cell>', 'o', 'p', 'v', or 'q'")
+                      "'g/d <cell>', 'x <n>', 'o', 'p', 'v', or 'q'")
                 continue
             if game.doorway_passable(cell, d):
                 game.open_door(cell, d)
@@ -165,6 +246,37 @@ def play(cfg: GameConfig, seed: int) -> None:
                 print("  ? that door is locked and you have no key")
             else:
                 print("  ? that security door is sealed")
+        elif game.phase is Phase.EXPERIMENT_PENDING:
+            # Reached only by the 'x <n>' start_setup action above. Picking
+            # the trigger and the effect are two separate decisions;
+            # _maybe_finish_experiment_setup returns to NAVIGATE once both
+            # are chosen.
+            ex = game.state.experiment
+            reg = game.registry.experiments
+            if ex.trigger_id is None:
+                label = "trigger"
+                offered = ex.offered_triggers
+                choose = game.choose_experiment_trigger
+                texts = [reg.trigger_by_id[tid].text for tid in offered]
+            else:
+                label = "effect"
+                offered = ex.offered_effects
+                choose = game.choose_experiment_effect
+                texts = [reg.effect_by_id[eid].text for eid in offered]
+            print(f"Experimental Setup - pick a {label}:")
+            for i, text in enumerate(texts):
+                print(f"  [{i + 1}] {text}")
+            cmd = input(f"{label}> ").strip().lower()
+            if cmd == "q":
+                return
+            try:
+                choice = int(cmd) - 1
+                if 0 <= choice < len(offered):
+                    choose(choice)
+                else:
+                    print("  ? invalid choice")
+            except ValueError:
+                print("  ? enter a number or 'q'")
         else:
             print("Draft options (glyph shows door directions; "
                   "you must choose one - no backing out):")
