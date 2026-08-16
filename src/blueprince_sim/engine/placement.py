@@ -93,8 +93,13 @@ def satisfies_draft_conditions(room: Room, cell: int, entry_dir: int, state: Gam
             case "west_or_east_wing":
                 # Outdoor green rooms (Terrace, Patio, Veranda, Greenhouse,
                 # Secret Garden) sit against the west or east outer wall (a
-                # wing is one edge column).
+                # wing is one edge column), and a wing excludes its corners --
+                # the wiki puts it as "rooms like the Patio can never be drawn
+                # on Rank 1". The corner exclusion is part of what the tag
+                # means, so a room carrying it needs no separate "no_corner".
                 if not (is_west_wing(cell) or is_east_wing(cell)):
+                    return False
+                if is_corner(cell):
                     return False
             case "not_on_wing":
                 # Hallway: only the three interior columns, mutually exclusive

@@ -3,9 +3,9 @@
 from blueprince_sim.config import GameConfig
 from blueprince_sim.engine import special_items
 from blueprince_sim.engine.game import Game
-from blueprince_sim.engine.grid import (E, N, S, W, is_center_column, is_corner,
-                                        is_east_wing, is_west_wing, neighbor, rank_of,
-                                        rotate_mask)
+from blueprince_sim.engine.grid import (E, N, RANKS, S, W, WIDTH, is_center_column,
+                                        is_corner, is_east_wing, is_west_wing,
+                                        neighbor, rank_of, rotate_mask)
 from blueprince_sim.engine.placement import (FOUNDATION_BANNED_CELL, legal_orientations,
                                              satisfies_draft_conditions)
 from blueprince_sim.engine.state import GameState
@@ -450,3 +450,35 @@ def test_only_greenhouse_carries_a_gated_rotation(registry):
     model.py::_parse_room's shared rotation fold."""
     gated = [r.id for r in registry.rooms if r.alt_layouts_gate or r.gated_rotations]
     assert gated == ["greenhouse"]
+
+
+def test_a_wing_excludes_its_corners(registry, cfg):
+    """The west_or_east_wing tag means the edge column minus its two corner
+    tiles, so the three rooms carrying it without a separate no_corner -- the
+    Terrace, the Patio and the Veranda -- cannot be drawn onto a corner. The
+    wiki states it as "rooms like the Patio can never be drawn on Rank 1".
+    Non-corner wing cells must stay legal, or the tag would exclude the wing
+    it is meant to select."""
+    st = GameState()
+    corners = [c for c in range(WIDTH * RANKS) if is_corner(c)]
+    assert corners == [0, 4, 40, 44], "grid geometry changed; update this test"
+    for room_id in ("terrace", "patio", "veranda"):
+        room = registry.by_id[room_id]
+        for cell in corners:
+            assert not satisfies_draft_conditions(room, cell, N, st, cfg, set(), False), \
+                f"{room_id} must not be draftable onto corner {cell}"
+        # Rank 2 on each wing: still on the edge column, not a corner.
+        assert satisfies_draft_conditions(room, 5, N, st, cfg, set(), False)
+        assert satisfies_draft_conditions(room, 9, N, st, cfg, set(), False)
+
+
+def test_the_wing_corner_rule_lives_on_the_tag_not_the_room(registry):
+    """The corner exclusion belongs to west_or_east_wing itself, so no room
+    needs to pair the two tags to get it. The Greenhouse and Morning Room
+    still carry no_corner and are unaffected; the tag remains load-bearing for
+    the Wing Halls, which select a wing through the separate west_wing and
+    east_wing tags and so are not covered by the west_or_east_wing rule."""
+    for room_id in ("west_wing_hall", "east_wing_hall"):
+        conds = registry.by_id[room_id].draft_conditions
+        assert "no_corner" in conds
+        assert "west_or_east_wing" not in conds
