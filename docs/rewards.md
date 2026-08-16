@@ -14,12 +14,18 @@ terminal-step test):
 | Milestone | Reward | Why |
 |---|---|---|
 | Antechamber, first arrival of the day | `+0.25` | prerequisite; where the day has to end up anyway |
-| Antechamber north door opened | `+0.50` | the thing standing between the estate and Room 46 |
+| North door open **and** Antechamber reached | `+0.50` | the thing standing between the estate and Room 46 |
 | Room 46, first arrival of the day | `+1.00` | the win |
 
 The ordering tracks a real dependency chain, not merely a numeric one: the
 Sanctum route runs Antechamber → Sanctum → back to the Antechamber → Room 46,
 and `0.25 < 0.5 < 1.0` pays each step of it in order.
+
+All three are computed in one place, `rewards.py::_milestones`, which `sparse`,
+`shaped` and `phased` all call — the objective signal is the one part of the
+reward that must not vary between modes, and
+`test_sanctum_route.py::test_every_reward_mode_pays_the_same_milestone_total`
+pins them against each other.
 
 **The north-door reward is for the door opening, not for standing in the
 Sanctum**, and **both levers pay it** — the Inner Sanctum's main lever and the
@@ -31,6 +37,36 @@ drift, and is **never** derived from the north segment's own door state: with
 state-derived reward would pay `+0.5` for free on every day of the pre-lever
 baseline that config exists to reproduce. A dedicated test in
 `test_sanctum_route.py` guards it.
+
+### The milestone is ordered behind the Antechamber
+
+`rewards.py::_north_door_credited` requires **both** `north_door_opened` and
+`antechamber_reached` before the `+0.5` is paid; whichever lands second earns
+it, so the day's total does not depend on the order. An open north door that
+nobody can walk to accomplishes nothing:
+
+- `antechamber → room_46` is the **only** edge into Room 46
+  (`data/areas.json`), so the door leads somewhere only for a player who can
+  stand in the Antechamber.
+- The segment is **re-sealed at every day start** under `antechamber_levers`
+  (`Game.reset`), so a lever pulled on a day the Antechamber is never reached
+  leaves nothing behind for tomorrow either.
+
+Ungated, the Inner Sanctum lever was reachable **entirely off-grid**: one
+`travel` hop to `inner_sanctum` from the area graph paid `+0.492` net on
+**40 of 40** seeds under `all_unlocks_config()`, at deepest rank 1 with zero
+rooms drafted. That made "leave the house and walk to the Sanctum" the single
+highest-value action available to a policy that never plays the game, and it
+repeated every day of an attempt. Measured over 60 seeds on
+`all_unlocks_config()`, gating it moves a pure-travel trajectory's day return
+from `+0.518` to `+0.018` while leaving `frontier_greedy` (`+0.694`) and
+`greedy_rank` (`+0.521`) unchanged to four decimal places — including
+`frontier_greedy`'s own milestone term, since every north-door credit it
+earned was already paired with an Antechamber arrival.
+
+The gate also resolves the "Throne Room is priced above the Antechamber"
+inversion recorded under *Deliberate divergences*: drafting and entering the
+Throne Room now pays `+0.5` only on a day the rank-9 grind also succeeded.
 
 ## `sparse`
 
@@ -159,12 +195,15 @@ reasoning about the horizon from it gives the wrong answer.)
 - **The per-day reward ceiling is 1.75, up from 1.25.** The shaping constants
   were *not* rescaled when the north-door tier was added. If a retrain shows
   the dense terms drowned out, this is the first place to look.
-- **The Throne Room is priced above the Antechamber.** Drafting and entering
-  one grid room pays `+0.5` while the whole rank-9 grind pays `+0.25`. That is
-  the honest consequence of pricing the door rather than the walk, but it is an
-  incentive inversion: it cannot repeat *within* a day, and nothing stops it
-  repeating across the days of an attempt. Watch `P(north door opened)` against
-  `P(reach Room 46)`; a wide gap is the signature.
+- **The north door is priced above the Antechamber, but no longer reachable
+  without it.** Opening the door pays `+0.5` while the whole rank-9 grind pays
+  `+0.25` — the honest consequence of pricing the door rather than the walk.
+  What made that an incentive inversion was that either lever could be reached
+  without the Antechamber; ordering the milestone behind
+  `antechamber_reached` (see *The milestone is ordered behind the Antechamber*)
+  means the `+0.5` is now only ever collected on top of the `+0.25`. Watch
+  `P(north door opened)` against `P(reach Room 46)`; a wide gap is still the
+  signature of the remaining half — a policy that opens the door and stops.
 - **Time pressure was recalibrated on principle, not on proof.** Moving from a
   flat per-decision charge to a per-game-step one is a correction — a travel
   hop consuming 4–8 steps had cost the same as a 1-step move while
@@ -191,6 +230,22 @@ reasoning about the horizon from it gives the wrong answer.)
   rate well above the ~33% base as the evidence that cheap depth is
   overvalued. Tuning before that measurement is tuning against a 50k-episode
   artifact.
+
+  **That behavioural test cannot be run on the training fixture.** The Tunnel
+  is `pool: found_floorplan`, and of the eight rooms in that pool only three
+  (Conservatory, Throne Room, Treasure Trove) have a modelled way to be found;
+  the Tunnel has no unlock flag at all, so it enters the deck only when a
+  config names it in `found_floorplans` directly. Measured: `frontier_greedy`
+  over 40 `fresh_save_config()` days was offered a Tunnel in **0 of 785** dealt
+  hands, and a 150-day fresh chain unlocks **no** found floorplan on any day.
+  Under `all_unlocks_config()`, which lists all of them, the same policy saw
+  one in 37 of 943 hands and placed 25. So the Tunnel — and with it the
+  self-chaining `tunnel_chain` waiver in `engine/draft.py`, which is real and
+  does deal a second Tunnel from a placed Tunnel's north doorway — is a
+  property of that preset, not of a fresh save. The cheap-depth concern itself
+  survives without it: `corridor` (base pool, gem-free, commonplace, `straight`)
+  is the fresh-save floorplan with the same zero-lateral-connectivity shape,
+  minus the self-chain.
 
 ## The proposed investment bonus for permanent upgrades
 
