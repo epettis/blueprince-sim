@@ -152,8 +152,14 @@ def all_unlocks_config(reward: str = "shaped") -> GameConfig:
     flag enabled, regardless of GameConfig default; no upgrade disks applied.
 
     day=20: late-game weight tables (week2 stage, gem gates active at day>=16).
-    This is the training baseline; results are NOT comparable to fresh_save_config
-    because the day index changes the rarity tables and step/gem bonuses.
+
+    Training starts from ``fresh_save_config`` instead, because setting every
+    carry flag opens the whole area graph on the first decision of day 1, and
+    touring it pays better than drafting. This preset remains the fixture the
+    scripted baselines and most measured tables are quoted against; quote it
+    alongside any number taken under it, since results here are NOT comparable
+    to ``fresh_save_config`` -- the day index changes the rarity tables and the
+    step/gem bonuses.
     """
     return GameConfig(
         day=20,                        # late-game weight tables

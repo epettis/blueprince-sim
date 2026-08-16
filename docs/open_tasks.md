@@ -129,15 +129,14 @@ for the training baseline instead of a `default_config()`"*. Empirically, it
 should not be: `all_unlocks_config()` is correct as a spec (it must enable
 every unlock) but it is a degenerate training fixture.
 
-**It also raises the stakes on task 37.** `blackbridge_grotto` is the single
-most-taken action in the policy, and its edge only passes because
-`lab_steam_and_power` is a `stub: true` gate that passes unconditionally. The
-`lab_visited` conjunct is real and does bite -- clearing it removes the Grotto
-from the legal set -- but POWER cannot, so the Grotto stays open. Building
-POWER would close the agent's favourite action.
+**The single most-taken action in that policy was travel to
+`blackbridge_grotto`**, whose edge passed on a POWER conjunct that stood in for
+an unbuilt mechanism. Both of its conjuncts are now real and independently
+load-bearing ([`power.md`](power.md)), so that action is gated.
 
-So calibration should not start from the constants. **The order is: settle the
-training fixture, then build POWER, then retune.**
+So calibration does not start from the constants. The fixture is settled and
+POWER is built; **what is left is the retune, and it needs statistics from a
+run that actually plays the game.**
 
 **OWNER RULING: stop the run and train from a fresh save.** `runs/postplay-v1`
 was stopped at ~1.85M episodes; its checkpoints remain on disk. *"The training
