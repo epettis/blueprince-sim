@@ -253,38 +253,18 @@ The single home for questions that need an owner ruling before the work they
 block can start. A question is added as a lettered item, and cited from
 elsewhere by that letter.
 
-**(a) Should reserve copies be modelled?** They are the fix for task 48's short
-colour hands, and researched in [`drafting.md`](drafting.md). The cost is that a
-reserve *"may be duplicates of rooms in the estate"* -- so building it relaxes
-the one-copy-per-grid rule for one draw tier and moves the draft distribution.
-
-**(b) Should the Garage's West Path door want POWER?** It is gated today on
-`garage_door_breaker` (the Utility Closet breaker), not on the Garage being a
-powered room, though the Garage is a powerable room and the wiki gives it a
-powered behaviour. Switching it would move reachability on a route the greedy
-policies use heavily.
-
-**(c) Should the Boiler Room's daily switch and single-door routing be
-modelled?** The owner's power rule is "shares a doorway", implemented as all
-doors always on; the wiki has the Boiler Room switched on each day and routing
-to one door at a time. Recorded in [`power.md`](power.md). Modelling it needs a
-per-day activation act and a chosen-door state, i.e. an action-space change.
-
-Answered questions are **deleted from this section, not annotated** -- a
-question left in a questions list reads as open whatever note sits under it.
-When one turns out to be answered, delete it here and record the answer in the
-doc that owns the rule. **Do not restate the count in prose elsewhere**: this
-header has already been wrong once, because a question was removed and the
-count above it was not.
+**(b) Should the Garage's West Path door want POWER?** **RULED, unbuilt.**
+*"The Garage door needs power. It can get this power by having the breaker
+turned on in the Utility Closet (assumed on entry) or by connecting it to any
+powered room."* A disjunction: the existing `garage_door_breaker` route stays
+and being a powered room is added beside it.
 
 ## Decisions log
 
 Every entry here is held for one reason only: **it specifies work that is not
 built yet.** Each one leaves the log the day its work lands.
 
-- **The Conservatory's remodel** — the drawing board that re-rolls three rooms'
-  rarities. Its *reachability* has shipped, so only the remodel's rules wait
-  here.
+- **The Conservatory's 15% forced draw** — its reachability and its drawing board have both shipped.
 - **The Mail Room's Dynamic Rarity** package, unblocked by `set_dynamic_rarity`.
 
 Everything each entry says about *shipped* behaviour is already stated in the
@@ -312,18 +292,3 @@ doc that owns it; when the remaining work lands, the entry goes.
   Its own small PR, after the groundwork. Note the wiki publishes a ~25-room
   Dynamic Rarity table, none of it modelled; this re-opens the Mail Room
   specifically, not the table.
-
-- **2026-08-11, the jack hammer's unsourced vault keys are resolved by what
-  they unlock.** Owner, on the four vault keys our dig table carries that the
-  datamine does not list: *"Research the items blocked by the keys. Drop any
-  keys that only block puzzles or story items. Model those that block items we
-  do model, like gems."*
-
-  So this is not a keep-all or delete-all call. Each of `vault_key_304`,
-  `vault_key_149`, `vault_key_233` and `vault_key_370` is judged on its own
-  vault's contents: a vault holding modelled resources justifies keeping its
-  key in the table; a vault holding only puzzle or story content does not.
-
-  Act on this cold as: this needs a research pass over what each vault
-  contains before the full table reconciliation runs, and the outcome must be
-  written into `dig.meta.note` so the next reader does not re-open it.
