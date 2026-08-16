@@ -202,14 +202,9 @@ elsewhere by that letter.
 Every entry here is held for one reason only: **it specifies work that is not
 built yet.** Each one leaves the log the day its work lands.
 
-- **The Conservatory's 15% forced draw** — its reachability and its drawing board have both shipped.
 
 Everything each entry says about *shipped* behaviour is already stated in the
 doc that owns it; when the remaining work lands, the entry goes.
-
-- **The Conservatory's 15% forced draw.** Its Found Floorplan gate and its
-  remodel have both shipped; the forced-draw entry has not, and
-  [`drafting.md`](drafting.md) records that gap.
 
 - **The retrain is owed, and is held on the owner's explicit say-so alone.**
   `baseline-ep8275991` was trained against rules the sim no longer implements —

@@ -1315,17 +1315,34 @@ def main(argv: list[str] | None = None) -> int:
     errors.extend(move_errors)
     warnings.extend(move_warnings)
 
-    for rid in priority["forced_draw_precedence"]["order"]:
+    precedence = priority["forced_draw_precedence"]["order"]
+    for rid in precedence:
         if rid not in by_id:
             warnings.append(f"forced-draw precedence references unknown room {rid}")
+    if len(set(precedence)) != len(precedence):
+        errors.append("forced_draw_precedence.order repeats a room")
     for entry in priority.get("forced_draws", []):
         if entry["room"] not in by_id:
             errors.append(f"forced draw references unknown room {entry['room']}")
+        # draft.py::_forced_draw walks the precedence order and looks each id up
+        # in forced_draws, so an entry the order never names can never fire.
+        if entry["room"] not in precedence:
+            errors.append(f"forced draw {entry['room']}: absent from "
+                          "forced_draw_precedence.order, so it can never fire")
         for key in ("chance", "chance_with_west_gate"):
             if key in entry and not 0 <= entry[key] <= 1:
                 errors.append(f"forced draw {entry['room']}/{key} out of range: {entry[key]}")
         if "chance_with_west_gate" in entry and entry["chance_with_west_gate"] < entry["chance"]:
             errors.append(f"forced draw {entry['room']}: chance_with_west_gate below base chance")
+        # The optional per-entry rules draft.py reads. A mistyped value would
+        # silently read as "rule absent" (or, for gate_day, crash the compare).
+        for key in ("once_per_day", "dead_end_gate"):
+            if key in entry and not isinstance(entry[key], bool):
+                errors.append(f"forced draw {entry['room']}/{key} must be a bool: {entry[key]!r}")
+        gate_day = entry.get("gate_day")
+        if gate_day is not None and not (isinstance(gate_day, int)
+                                         and not isinstance(gate_day, bool) and gate_day >= 1):
+            errors.append(f"forced draw {entry['room']}/gate_day must be a day >= 1: {gate_day!r}")
 
     # items.json: food.fruit_weights must only name real dishes, with
     # positive weights -- a typo'd fruit id would otherwise silently fall

@@ -276,31 +276,68 @@ drafted. This model does not distinguish that case — see the
 ### Forced draws
 
 `forced_draws` is a different mechanic: it pushes one specific room into
-**slot 2** (the wiki's Slot 3) ahead of the priority draws. Only the Garage's
-is implemented:
+**slot 2** (the wiki's Slot 3) ahead of the priority draws.
 
-- **90%**, or **92.5%** with the West Gate unlatched.
-- Gated on **Veteran Mode or day ≥ 3**.
-- Blocked when slots 0 and 1 are *both* Dead Ends *and* slot 1 was placed by a
-  normal roll-based draw.
-- **Once per day**: the roll retries at each eligible doorway until it succeeds,
-  and a success permanently disables it for the day even when the resulting
-  placement then fails because the Garage already occupies an earlier slot of
-  the same hand.
+Two of `forced_draw_precedence`'s four entries are implemented. Both are
+subject to the same two universal prerequisites, which are all the Conservatory
+has: the room must still be **in today's draft pool**, and its own draft
+conditions and door geometry must hold **at this doorway**.
+
+| entry | chance | extra conditions |
+|---|---|---|
+| Conservatory | **15%** | none — corner-only geometry is the whole gate |
+| Garage | **90%**, or **92.5%** with the West Gate unlatched | Veteran Mode or day ≥ 3; blocked when slots 0 and 1 are *both* Dead Ends *and* slot 1 was placed by a normal roll-based draw; **once per day** |
+
+The Conservatory's row is the wiki's own wording: *"This is a Forced Draw, with
+a 15% chance of occurring; there are no additional conditions."* Its
+`pool == "found_floorplan"` gate therefore does all the work of keeping it out
+of early runs — the pool check is what stops the Forced Draw smuggling the
+room in before its floorplan is found.
+
+**Only the `once_per_day` entries retire on success.** The wiki names the
+Garage and the Utility Closet, and only them: *"Once the roll succeeds, even if
+this causes it to end up failing, they will no longer be available for Forced
+Draws (allowing lower priority rooms to appear too)."* A retired entry stops
+*blocking* as well as rolling. The record is `GameState.
+forced_draws_succeeded_today`, a **set of room ids**, so one entry retiring can
+never silence another. The Conservatory never enters it — it has no
+once-per-day rule and can fire at every corner of the same day.
+
+**A roll is spent per doorway, not per hand.** *"If the chance to appear fails,
+it does not try again on redraws, but can try again if drafting again in a new
+location. It can also try again if it didn't get a chance on the first
+draw."* `GameState.forced_draws_rolled_today` holds the (room, cell, direction)
+triples already rolled today; an entry blocked before its roll is not recorded,
+so it does get its retry on the redraw. Without this the Conservatory's 15%
+would compound with every Study or Classroom redraw taken at a corner.
 
 Measured over 5000 episodes at every doorway where the Garage is legal, adding
-it moved Garage placement from **17.61% → 53.59%** under `greedy_rank` and
-**39.06% → 78.31%** under `random`. Its *placement* rule was already correct
-(West Wing, ranks 4–8, entered north or west — five legal tiles); the
-divergence was frequency, not geometry.
+the Garage's entry moved Garage placement from **17.61% → 53.59%** under
+`greedy_rank` and **39.06% → 78.31%** under `random`. Its *placement* rule was
+already correct (West Wing, ranks 4–8, entered north or west — five legal
+tiles); the divergence was frequency, not geometry.
+
+Adding the Conservatory's entry moved a full day's **P(a Conservatory is
+placed)** from **1.00% → 5.00%** under `frontier_greedy` and **0.00% → 0.33%**
+under `greedy_rank` (n=300, seeds 0–299, `all_unlocks_config`). The effect is
+small because the room is corner-only: 4 of 45 cells, most days reaching one at
+most. At a single corner doorway the offer rate is the published rate outright,
+measured **598/4000 = 14.95%**.
 
 **Forced-draw blocking is positional, not literal.** A forced draw blocks later
-entries in `forced_draw_precedence` only where its own conditions actually
-hold, not merely by being in the pool. The literal reading would have erased
-the Garage's measured gain the moment a Conservatory floorplan was found;
-Conservatory (corners `{0, 4, 40, 44}`) and Garage (West Wing
-`{15, 20, 25, 30, 35}`) are provably non-interacting, and the Morning Room's
-documented wings-only exception suggests the game works this way.
+entries in `forced_draw_precedence` only where its own room is actually
+available at the doorway being drawn, not merely by being in the pool — which
+is what the wiki's *"in the draft pool **at the location being drawn**"* says.
+The literal reading erases the Garage's measured gain the moment a Conservatory
+floorplan is found: mutating the check that way drops the Garage's offer rate
+at its own doorway from 508/600 to 1/600. Conservatory (corners
+`{0, 4, 40, 44}`) and Garage (West Wing `{15, 20, 25, 30, 35}`) are provably
+non-interacting — with the Conservatory in the pool the Garage's rate is
+byte-identical — and the Morning Room's documented wings-only exception
+suggests the game works this way.
+
+The Morning Room and Utility Closet slices remain unbuilt: neither has a
+`forced_draws` record, so neither rolls and neither blocks.
 
 ### Guaranteed draws
 
