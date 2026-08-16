@@ -75,13 +75,19 @@ def test_lights_on_disables_concealment_for_a_later_doorway(registry, cfg):
 def test_switch_already_off_at_first_entry_means_the_fuse_never_blows(registry, cfg):
     """If the switch was already off before the Darkroom is ever entered, no
     fuse blows -- distinguishable from a genuine blow because no Shelter/
-    Knight's Shield charge is ever consulted or spent for it."""
+    Knight's Shield charge is ever consulted or released for it. The Darkroom
+    still claims a charge at its draft, as every red room drafted after the
+    Shelter does; the claim it keeps unreleased is what says the negation path
+    was never consulted."""
     g = Game(cfg, seed=3)
     g.red_negations = 3
     g.state.darkroom_lights_on = False  # pre-emptively flipped off
     _enter_darkroom(g)
     assert not g.state.darkroom_lights_on
-    assert g.red_negations == 3, "nothing to blow, so no Shelter charge was spent"
+    assert g.red_negations == 2, "the draft claimed one charge for the Darkroom"
+    assert "darkroom" in g.shelter_protected_ids, (
+        "nothing to blow, so that claim was never consulted or released"
+    )
 
 
 def test_off_then_on_before_first_entry_still_blows_the_fuse(registry, cfg):
@@ -110,9 +116,12 @@ def test_off_then_on_before_first_entry_still_blows_the_fuse(registry, cfg):
 def test_shelter_keeps_the_lights_on_and_spends_one_charge(registry, cfg):
     """Shelter (or Knight's Shield) can also keep the Darkroom lit on first
     entry, spending one charge -- same _red_negated mechanism as every other
-    red-room penalty, consulted only because the switch was actually on."""
+    red-room penalty, consulted only because the switch was actually on. The
+    charge is claimed at the Darkroom's draft and released here, at the entry
+    that would otherwise blow the fuse."""
     g = Game(cfg, seed=3)
     g.red_negations = 1
     _enter_darkroom(g)
     assert g.state.darkroom_lights_on
     assert g.red_negations == 0
+    assert "darkroom" not in g.shelter_protected_ids, "the claim was released"

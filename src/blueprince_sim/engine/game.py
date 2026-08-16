@@ -18,7 +18,8 @@ from .effects import Capability, Hook
 from .effects.items import (basement_key, crown_of_the_blueprints, gear_wrench, keycard,
                             master_key, paper_crown, power_hammer, prism_key, running_shoes,
                             silver_key, telescope, the_axe)
-from .effects.rooms import dovecote, foyer, mail_room, office, pump_room, shrine, tomb
+from .effects.rooms import (
+    dovecote, foyer, mail_room, office, pump_room, shelter, shrine, tomb)
 from .effects.tier1 import _grant
 from .grid import (ADJACENT, DIRS, E, ENTRANCE_CELL, N, N_CELLS, OPPOSITE, W,
                    neighbor, rank_of, rotate_mask)
@@ -166,11 +167,17 @@ class Game:
         self.room_cells: dict[str, int] = {}
         self.free_categories: set[str] = set()
         self.bedroom_bonus = 0
+        # Shelter charges not yet claimed by a drafted red room. Granted by
+        # effects/rooms/shelter.py's ON_PLACE hook and spent by its
+        # on_room_drafted; total protection still standing is this plus
+        # len(shelter_protected_ids).
         self.red_negations = 0
-        # Room ids already drafted when the Shelter was drafted; its negation
-        # charges never spend on one of them (effects/tier1.py::_red_negated).
-        # Empty until effects/rooms/shelter.py fills it.
-        self.shelter_excluded_ids: frozenset[str] = frozenset()
+        # Red rooms each holding one Shelter charge, claimed when they were
+        # drafted and released when effects/tier1.py::_red_negated negates one
+        # of their penalties. Both live here rather than on GameState because
+        # a Shelter claim is scoped to the day that drafted it: reset() blanks
+        # them, and neither rides the attempt wrap or any carryover channel.
+        self.shelter_protected_ids: set[str] = set()
         self.hovel_placed = False
         self.rotunda_placed = False  # Rotunda: free floorplan rotation while placed
         self.doorway_drafts: dict[tuple[int, int], PendingDraft] = {}
@@ -2875,6 +2882,12 @@ class Game:
             # and rooms_placed are updated.
             experiments.on_room_drafted(self, room, cell, entry_dir, gem_cost, archived)
             shrine.on_room_drafted(self, room)
+            # A drafted red room claims one Shelter charge here, before the
+            # ON_PLACE fire below, so a placement-time red penalty (Maid's
+            # Chamber, Weight Room) finds its own claim already standing. The
+            # ON_DRAFT_ROOM broadcast further down would be too late for those
+            # two. No outer room is red, so _choose_outer needs no twin call.
+            shelter.on_room_drafted(self, room)
             self._park_florealis_gems(room, cell)
         effects.fire(self, room, Hook.ON_PLACE)
         if self.state.foyer_placed:

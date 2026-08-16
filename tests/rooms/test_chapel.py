@@ -80,8 +80,8 @@ def test_light_chapel_zero_tithes_grants_zero_coins():
 def _game_with_chapel_at_cell(cell: int = 5, starting_coins: int = 5) -> Game:
     """Return a Game with the Chapel placed at *cell* and the player standing there.
 
-    Uses a real Game (not _fake_game) so that tier1.grant has access to game.red_negations
-    and the full effect dispatch infrastructure.
+    Uses a real Game (not _fake_game) so that tier1.grant has access to
+    game.shelter_protected_ids and the full effect dispatch infrastructure.
     """
     cfg = GameConfig(special_items=True)
     g = Game(cfg, seed=0)
