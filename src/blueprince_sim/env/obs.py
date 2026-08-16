@@ -19,7 +19,7 @@ from ..engine.upgrades import all_slot_ids, upgraded_slots
 from .actions import (
     _build_area_node_ids,
     _build_axe_target_ids,
-    _build_mechanical_room_ids,
+    _build_permanent_rarity_room_ids,
     _build_pump_source_ids,
     _N_CONSTELLATIONS,
     _N_PUMP_SOURCES,
@@ -80,7 +80,7 @@ def observation_space(n_rooms: int, n_items: int, n_recipes: int,
                       n_carryover: int = len(DayChain._CARRYOVER_KEYS),
                       n_slots: int = 16,
                       n_axe_targets: int = 48,
-                      n_mechanical_rooms: int = 8,
+                      n_permanent_rarity_rooms: int = 98,
                       n_planetarium_planets: int = 5) -> spaces.Dict:
     """Dict observation space over the 9x5 (rank-major) grid; see :func:`encode`.
 
@@ -96,7 +96,7 @@ def observation_space(n_rooms: int, n_items: int, n_recipes: int,
     ``n_axe_targets`` is the number of Axe-axeable floorplan families
     (``len(actions._build_axe_target_ids(registry))``, 48 today), the same
     registry-derived-but-defaulted convention as ``n_slots``.
-    ``n_mechanical_rooms`` is the number of Mechanical Room ids
+    ``n_permanent_rarity_rooms`` is the number of room ids
     (``len(actions._build_mechanical_room_ids(registry))``, 8 today), the
     same convention.
     ``n_planetarium_planets`` is the number of Telescope-in-Planetarium
@@ -278,12 +278,19 @@ def observation_space(n_rooms: int, n_items: int, n_recipes: int,
         # never a shape change to an existing key (options[].gem_cost already
         # reads 0 for an axed room via _effective_cost/resolve_gem_cost).
         "axed_rooms": spaces.Box(0, 1, shape=(n_axe_targets,), dtype=np.uint8),
-        # wrench_rarity: per Mechanical Room (actions._build_mechanical_room_ids
-        # order), the Gear Wrench's permanently-set rarity index+1, or 0 when
-        # untouched (still its own natal rarity). An additive Dict key, never
-        # a shape change to an existing one -- same rationale as axed_rooms:
-        # a permanent, cross-day, per-room investment V(s) needs to see.
-        "wrench_rarity": spaces.Box(0, 4, shape=(n_mechanical_rooms,), dtype=np.uint8),
+        # permanent_rarity: per room in
+        # actions._build_permanent_rarity_room_ids order, the permanently-set
+        # rarity index+1, or 0 when untouched (still its own natal rarity). A
+        # permanent, cross-day, per-room investment V(s) needs to see, the same
+        # rationale as axed_rooms.
+        #
+        # The index is the union of the two writers of that one slot: the Gear
+        # Wrench's Mechanical Rooms and the Conservatory drawing board's pool.
+        # Indexing on either alone leaves the other's writes invisible -- the
+        # board reaches rooms the wrench never touches, and the wrench reaches
+        # pump_room and the Electric Eel Aquarium, which the board never offers.
+        "permanent_rarity": spaces.Box(0, 4, shape=(n_permanent_rarity_rooms,),
+                                      dtype=np.uint8),
         # dowsing: [dowsed_slot+1 (0 = no Dowsing Rod pick live right now --
         # not held, special items off, or no dealt hand), dowsing_penalty
         # (state.dowsing_penalty, clamped to the space bound)]. Additive: an
@@ -325,7 +332,7 @@ def observation_space(n_rooms: int, n_items: int, n_recipes: int,
         # never-touched source to its data-file "initial" value, so this is
         # never a sentinel-vs-real ambiguity the way item_state's +1 shift is.
         # A permanent, cross-day investment V(s) needs to see, same rationale
-        # as axed_rooms/wrench_rarity/planetarium_planets. Bound 14 is the
+        # as axed_rooms/permanent_rarity/planetarium_planets. Bound 14 is the
         # Reservoir's own max, the widest of the six.
         "water_levels": spaces.Box(0, 14, shape=(_N_PUMP_SOURCES,), dtype=np.uint8),
         # remodel: the Conservatory's drawing board, two columns per row in
@@ -339,8 +346,8 @@ def observation_space(n_rooms: int, n_items: int, n_recipes: int,
         #
         # WHICH floorplan a row offers is the whole decision -- three rooms
         # drawn uniformly at random out of ~90 -- and no existing key carries
-        # it: "wrench_rarity" covers Mechanical Rooms only, while the board can
-        # offer any room in the day's draft pool. Without this the twelve
+        # it: "permanent_rarity" says what a room's rarity IS, not which three
+        # rooms are on offer today. Without this the twelve
         # REMODEL_BASE ids would be unreadable, an agent picking a rarity for a
         # room it cannot see.
         "remodel": spaces.Box(0, 999, shape=(BOARD_OFFERS * 2,), dtype=np.int16),
@@ -771,13 +778,14 @@ def encode(game: Game, day_chain: DayChain | None = None) -> dict:
         [1 if t in _axed else 0 for t in _axe_target_ids], dtype=np.uint8
     )
 
-    # wrench_rarity: Gear Wrench's permanent per-room override, in
-    # _build_mechanical_room_ids order. state.permanent_rarity is already
-    # the full current record (seeded from cfg at reset, only ever changed
-    # by Game.set_wrench_rarity), the same read shape as axed_rooms above.
-    _mech_room_ids = _build_mechanical_room_ids(registry)
-    wrench_rarity_obs = np.array(
-        [st.permanent_rarity.get(rid, -1) + 1 for rid in _mech_room_ids], dtype=np.uint8
+    # permanent_rarity: the shared permanent per-room rarity override, in
+    # _build_permanent_rarity_room_ids order. state.permanent_rarity is already
+    # the full current record (seeded from cfg at reset, written by
+    # Game._write_permanent_rarity for both the wrench and the drawing board),
+    # the same read shape as axed_rooms above.
+    _rarity_room_ids = _build_permanent_rarity_room_ids(registry)
+    permanent_rarity_obs = np.array(
+        [st.permanent_rarity.get(rid, -1) + 1 for rid in _rarity_room_ids], dtype=np.uint8
     )
 
     # dowsing: [dowsed_slot+1, dowsing_penalty]. dowsed_slot is only
@@ -878,7 +886,7 @@ def encode(game: Game, day_chain: DayChain | None = None) -> dict:
         "mail": mail_obs,
         "shrine": shrine_obs,
         "axed_rooms": axed_rooms_obs,
-        "wrench_rarity": wrench_rarity_obs,
+        "permanent_rarity": permanent_rarity_obs,
         "dowsing": dowsing_obs,
         "planetarium_planets": planetarium_planets_obs,
         "constellations": constellations_obs,

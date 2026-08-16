@@ -55,7 +55,7 @@ def _space(game: Game):
         len(game.registry.area_graph.nodes),
         n_slots=len(all_slot_ids(game.registry)),
         n_axe_targets=len(A._build_axe_target_ids(game.registry)),
-        n_mechanical_rooms=len(A._build_mechanical_room_ids(game.registry)),
+        n_permanent_rarity_rooms=len(A._build_permanent_rarity_room_ids(game.registry)),
         n_planetarium_planets=len(game.registry.special.planetarium_planets),
     )
 

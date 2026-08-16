@@ -25,6 +25,7 @@ from blueprince_sim.engine.model import RARITIES
 from blueprince_sim.engine.state import DraftOption, PendingDraft
 from blueprince_sim.env import obs as O
 from blueprince_sim.env.actions import (WRENCH_RARITY_BASE, _build_mechanical_room_ids,
+                                        _build_permanent_rarity_room_ids,
                                         action_mask, apply_action, describe_action)
 from blueprince_sim.env.multiday import DayChain
 
@@ -286,27 +287,34 @@ def test_describe_action_wrench_names_the_rarity():
 
 
 def test_wrench_rarity_observation_flips_to_the_chosen_level():
-    """The wrench_rarity observation entry for utility_closet's index reads
-    (rarity_idx + 1) after wrenching it, and every other entry stays 0."""
+    """The permanent_rarity observation entry for utility_closet's index
+    reads (rarity_idx + 1) after wrenching it, and every other entry stays 0.
+    The wrench writes the same slot the Conservatory's drawing board does, so
+    the observation is indexed on the union of both writers' rooms."""
     g = _game()
-    room_ids = _build_mechanical_room_ids(g.registry)
+    room_ids = _build_permanent_rarity_room_ids(g.registry)
     obs_before = O.encode(g)
-    assert obs_before["wrench_rarity"].sum() == 0
+    assert obs_before["permanent_rarity"].sum() == 0
 
     _draft_room(g, "utility_closet")
     g.set_wrench_rarity(3)
     obs_after = O.encode(g)
     i = room_ids.index("utility_closet")
-    assert obs_after["wrench_rarity"][i] == 4  # rare = index 3, encoded +1
-    assert obs_after["wrench_rarity"].sum() == 4
+    assert obs_after["permanent_rarity"][i] == 4  # rare = index 3, encoded +1
+    assert obs_after["permanent_rarity"].sum() == 4
 
 
-def test_wrench_rarity_observation_width_matches_mechanical_room_count(registry):
-    """The observation vector's width is exactly the number of Mechanical
-    Room ids (8 today), matching _build_mechanical_room_ids."""
+def test_permanent_rarity_observation_covers_both_writers(registry):
+    """The observation width is the union of the two mechanisms that write the
+    permanent rarity slot, not either alone: every Mechanical Room the Gear
+    Wrench can target, and every pool room the Conservatory's board can offer.
+    Indexing on the Mechanical Rooms alone would leave the board's writes
+    invisible for most of the rooms it can reach."""
     g = Game(GameConfig(special_items=True), seed=0, registry=registry)
     obs = O.encode(g)
-    assert len(obs["wrench_rarity"]) == len(_build_mechanical_room_ids(registry)) == 8
+    ids = _build_permanent_rarity_room_ids(registry)
+    assert len(obs["permanent_rarity"]) == len(ids) == 98
+    assert set(_build_mechanical_room_ids(registry)) <= set(ids)
 
 
 # ------------------------------------------------------------- scripted policies

@@ -349,7 +349,7 @@ _EXPECTED_SPACE = {
     "upgrade_options": ((3,), -1, 999, "int16"),
     "upgrade_slots": ((16,), 0, 1, "uint8"),
     "water_levels": ((6,), 0, 14, "uint8"),
-    "wrench_rarity": ((8,), 0, 4, "uint8"),
+    "permanent_rarity": ((98,), 0, 4, "uint8"),
 }
 
 
