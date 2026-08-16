@@ -348,10 +348,11 @@ def test_outer_draft_cost_includes_walk():
 
 
 def test_garage_route_unavailable_without_breaker(registry):
-    """Garage route to west_path is only taken when the breaker is on; without it only EH works.
+    """Garage route to west_path needs power; with neither route supplying it only EH works.
 
-    With the breaker off the garage_door_breaker flag is absent, so the graph cannot
-    route garage->west_path. The cheapest affordable route must be the EH route (cost 2).
+    The breaker is off and no power source stands on the grid, so neither route to
+    the garage_door_powered flag holds and the graph cannot route garage->west_path.
+    The cheapest affordable route must be the EH route (cost 2).
     """
     cfg = GameConfig(west_gate_unlatched=True)
     g = Game(cfg, seed=9)

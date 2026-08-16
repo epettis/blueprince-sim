@@ -301,12 +301,12 @@
  ],
  "gates": [
   {
-   "id": "garage_door_breaker",
+   "id": "garage_door_powered",
    "kind": "flag",
    "modelled": false,
    "permanence": "daily",
    "stub": false,
-   "detail": "Garage door opens when the breaker is on: the Utility Closet has been placed on the grid AND the player has entered it at least once today. The engine sets the 'garage_door_breaker' flag in GateContext when both conditions hold.",
+   "detail": "The Garage door needs power, and it has two independent ways to get it: the breaker is on (the Utility Closet has been placed on the grid AND the player has entered it at least once today), OR a placed Garage is itself a powered room (engine/power.py: a door-pair chain of power-carrying rooms joins it to a power source). The engine sets the 'garage_door_powered' flag in GateContext when EITHER holds.",
    "meta": {"source": "docs/areas.md", "confidence": "wiki"}
   },
   {
@@ -599,8 +599,8 @@
  "edges": [
   {"from": "house", "to": "grounds", "requires": [], "meta": {"source": "docs/areas.md", "confidence": "wiki"}},
   {"from": "grounds", "to": "house", "requires": [], "meta": {"source": "docs/areas.md", "confidence": "wiki"}},
-  {"from": "garage", "to": "west_path", "requires": ["garage_door_breaker"], "meta": {"source": "docs/areas.md", "confidence": "wiki"}},
-  {"from": "west_path", "to": "garage", "requires": ["garage_door_breaker"], "meta": {"source": "docs/areas.md", "confidence": "wiki"}},
+  {"from": "garage", "to": "west_path", "requires": ["garage_door_powered"], "meta": {"source": "docs/areas.md", "confidence": "wiki"}},
+  {"from": "west_path", "to": "garage", "requires": ["garage_door_powered"], "meta": {"source": "docs/areas.md", "confidence": "wiki"}},
   {"from": "grounds", "to": "west_path", "requires": ["west_gate_unlatched"], "meta": {"source": "docs/areas.md", "confidence": "wiki"}},
   {"from": "west_path", "to": "grounds", "requires": ["west_gate_unlatched"], "meta": {"source": "docs/areas.md", "confidence": "wiki", "notes": "Unlatching from the inside is the act that sets west_gate_unlatched for the first time."}},
   {"from": "west_path", "to": "tomb", "requires": ["outer_room_drawn"], "meta": {"source": "docs/areas.md", "confidence": "wiki"}},

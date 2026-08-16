@@ -21,6 +21,7 @@ from blueprince_sim.config import GameConfig
 from blueprince_sim.engine.game import Game
 from blueprince_sim.engine.grid import E, N, S, W
 from blueprince_sim.engine.locks import DOOR_LOCKED, DOOR_SEALED, segment_key
+from blueprince_sim.engine.placement import legal_orientations, satisfies_draft_conditions
 from blueprince_sim.engine.power import power_source_ids
 
 SOUTH_CELL = 7    # rank 2, centre column
@@ -313,3 +314,133 @@ def test_room_powered_reports_true_when_any_copy_is_powered(registry):
     assert g.cell_powered(SOUTH_CELL) is False
     assert g.cell_powered(NORTH_CELL) is True
     assert g.room_powered(g.registry.by_id["archives"]) is True
+
+
+# ------------------------------------------------- the Garage's West Path door
+
+GARAGE_CELL = 1       # rank 1, col 1: directly west of the Entrance Hall at cell 2
+GARAGE_WEST = 0       # rank 1, col 0: directly west of GARAGE_CELL
+
+
+def _garage_door_game(registry, *, source: bool, breaker: bool,
+                      source_faces_garage: bool = True) -> Game:
+    """A Garage beside the Entrance Hall, with each of the door's two power
+    routes switched on or off independently.
+
+    ``source`` puts a Boiler Room -- the only power anywhere on this grid -- west
+    of the Garage; ``source_faces_garage`` controls whether it carries the east
+    door that completes the pair, so "a source is on the grid" and "the Garage is
+    connected to it" can be told apart. ``breaker`` places the Utility Closet far
+    from both and marks its cell entered, which is the whole of Game._breaker_on.
+    Building both switches explicitly is what lets each route be proved on its
+    own; a scenario that happened to satisfy both would prove neither.
+    """
+    g = _game(registry)
+    g.state.steps = 50  # keep the doorstep affordable, so only the gate can close it
+    _place(g, "garage", GARAGE_CELL, E | W)  # E joins the Entrance Hall, W the source
+    if source:
+        _place(g, "boiler_room", GARAGE_WEST, E if source_faces_garage else W)
+    if breaker:
+        _place(g, "utility_closet", MID_CELL, N | S)
+        g.state.entered[g._utility_closet_cell()] = True
+    return g
+
+
+def test_garage_door_opens_on_the_breaker_with_no_power_on_the_grid(registry):
+    """Breaker on and not one powered cell anywhere: the garage door still opens.
+
+    The first of the ruling's two routes, proved with the second one impossible
+    rather than merely absent -- no power source is placed at all, so a change
+    that quietly made power a requirement would fail here.
+    """
+    g = _garage_door_game(registry, source=False, breaker=True)
+
+    assert g._breaker_on() is True
+    assert g._garage_powered() is False
+    assert any(g.powered_map()) is False, "setup: this grid must carry no power"
+    assert "garage_door_powered" in g._gate_ctx().flags
+    assert g.area_route_cost("west_path") is not None
+
+
+def test_garage_door_opens_on_power_with_the_breaker_off(registry):
+    """A Boiler Room next door opens the garage door with no Utility Closet placed.
+
+    The second of the ruling's two routes -- "or by connecting it to any powered
+    room" -- proved with the breaker route impossible rather than merely off: the
+    Utility Closet is not on the grid, so nothing could enter it.
+    """
+    g = _garage_door_game(registry, source=True, breaker=False)
+
+    assert g._breaker_on() is False
+    assert g._utility_closet_cell() == -1, "setup: no breaker box on this grid"
+    assert g._garage_powered() is True
+    assert "garage_door_powered" in g._gate_ctx().flags
+    assert g.area_route_cost("west_path") is not None
+
+
+def test_garage_door_stays_shut_when_neither_route_supplies_power(registry):
+    """With no breaker and no power the door is shut and west_path is unreachable.
+
+    The gate has to still be able to say no, or the two tests above would pass on
+    a flag that was simply always set.
+    """
+    g = _garage_door_game(registry, source=False, breaker=False)
+
+    assert g._breaker_on() is False
+    assert g._garage_powered() is False
+    assert "garage_door_powered" not in g._gate_ctx().flags
+    assert g.area_route_cost("west_path") is None
+
+
+def test_garage_door_power_route_needs_a_real_door_pair(registry):
+    """A Boiler Room beside the Garage with its door facing the other way leaves
+    the door shut.
+
+    The power route is the door-graph connectivity of engine/power.py, not "a
+    source exists somewhere": the same two rooms in the same two cells decide the
+    gate differently depending only on the door masks.
+    """
+    g = _garage_door_game(registry, source=True, breaker=False,
+                          source_faces_garage=False)
+
+    assert g.cell_powered(GARAGE_WEST) is True, "the source is still a source"
+    assert g._garage_powered() is False
+    assert "garage_door_powered" not in g._gate_ctx().flags
+    assert g.area_route_cost("west_path") is None
+
+
+GARAGE_LEGAL_CELL = 20   # rank 5, col 0: one of the Garage's five legal tiles
+GARAGE_FEED_CELL = 15    # rank 4, col 0: directly south of it
+
+
+def test_the_power_route_is_reachable_at_a_legally_drafted_garage(registry):
+    """A Boiler Room and a Garage in cells and orientations placement.py itself
+    calls legal light the garage door.
+
+    The tests above place rooms wherever the geometry reads most clearly, which
+    would not catch the power route being impossible to actually draft: the
+    Garage is confined to five West Wing tiles on ranks 4-8, entered heading
+    north or west, and its dead-end floorplan has exactly one door -- so the
+    only room that can ever feed it power is the one it was drafted from. This
+    builds the pair through the drafter's own predicates, so the grid it asserts
+    on is one a player could really reach.
+    """
+    g = _game(registry)
+    garage = g.registry.by_id["garage"]
+    boiler = g.registry.by_id["boiler_room"]
+    st, cfg, placed = g.state, g.cfg, set(g.room_cells)
+
+    assert satisfies_draft_conditions(garage, GARAGE_LEGAL_CELL, N, st, cfg, placed, False)
+    garage_masks = legal_orientations(garage, GARAGE_LEGAL_CELL, N, st, cfg)
+    assert garage_masks == [S], "the Garage's one door must face back the way it was drafted"
+
+    assert satisfies_draft_conditions(boiler, GARAGE_FEED_CELL, S, st, cfg, placed, False)
+    boiler_mask = next(m for m in legal_orientations(boiler, GARAGE_FEED_CELL, S, st, cfg)
+                       if m & N)
+
+    _place(g, "boiler_room", GARAGE_FEED_CELL, boiler_mask)
+    _place(g, "garage", GARAGE_LEGAL_CELL, garage_masks[0])
+
+    assert g._breaker_on() is False
+    assert g._garage_powered() is True
+    assert "garage_door_powered" in g._gate_ctx().flags

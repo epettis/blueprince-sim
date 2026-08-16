@@ -70,7 +70,8 @@ def _all_open_ctx(outer_room_id: str | None = "tomb") -> GateContext:
 
     outer_room_id controls which outer-room anchor is reachable from west_path;
     defaults to "tomb" so the existing 1-step distance tests remain valid.
-    garage_door_breaker is now a real flag gate (not a stub) so it must be included.
+    garage_door_powered is a real flag gate on garage <-> west_path, so it must be
+    included.
     sealed_entrance_broken is a real flag gate — include it too.
     antechamber_north_door_open is a flag gate set when the north door lever is pulled.
     boiler_room_steam is a real flag gate (not a stub) gating Underpass ->
@@ -95,7 +96,7 @@ def _all_open_ctx(outer_room_id: str | None = "tomb") -> GateContext:
         flags=frozenset({
             "west_gate_unlatched",
             "mine_south_visited",
-            "garage_door_breaker",
+            "garage_door_powered",
             "sealed_entrance_broken",
             "antechamber_north_door_open",
             "boiler_room_steam",
@@ -163,11 +164,13 @@ def test_1step_rule_garage_to_doorstep() -> None:
 
 
 def test_garage_route_not_taken_when_breaker_off() -> None:
-    """With the breaker off the Garage route is closed, so the pricier house route is used.
+    """With the breaker off and no power reaching the Garage, its route is closed,
+    so the pricier house route is used.
 
-    The garage_door_breaker gate is real, so the only way out is back through the
-    Entrance Hall: 1 step to walk there plus 2 area hops, versus 1 step via the
-    Garage. Pins that the gate actually costs the player something.
+    The garage_door_powered gate is real and neither of its two routes holds here
+    (no Utility Closet entry, no power source on the grid), so the only way out is
+    back through the Entrance Hall: 1 step to walk there plus 2 area hops, versus
+    1 step via the Garage. Pins that the gate actually costs the player something.
     """
     g = _game_standing_in_garage(breaker_on=False)
     g.open_outer_draft()
@@ -334,7 +337,6 @@ def test_unmodelled_stub_gate_always_passes(graph: AreaGraph) -> None:
 
     Uses foundation_elevator_down (kind=unmodelled, stub=True) as the canonical example.
     This is the mechanism that keeps deferred-mechanism nodes reachable.
-    (garage_door_breaker was retired as a stub in PR2 — it is now a real flag gate.)
     """
     ctx_empty = _ctx()
     g = graph.gates["foundation_elevator_down"]
@@ -450,22 +452,21 @@ def test_west_gate_not_traversable_without_unlatch_flag(graph: AreaGraph) -> Non
     areas.md: 'The first-ever West Path visit MUST come through the Garage,
     because the west gate only unlatches from the inside.' With the flag unset,
     the Grounds -> West Path edge is blocked. The Garage -> West Path route requires
-    the garage_door_breaker flag (real gate since PR2), so both routes are blocked
-    when neither flag is set.
+    the garage_door_powered flag, so both routes are blocked when neither flag is set.
     """
     ctx_no_flag = _ctx()  # no flags, no items
     # From grounds: west_path unreachable (west_gate_unlatched blocks)
     dist = reachable(graph, "grounds", ctx_no_flag)
     assert "west_path" not in dist
 
-    # From garage: west_path also unreachable without garage_door_breaker flag
+    # From garage: west_path also unreachable without garage_door_powered flag
     dist_garage = reachable(graph, "garage", ctx_no_flag)
     assert "west_path" not in dist_garage
 
-    # With garage_door_breaker flag set, garage -> west_path becomes traversable
-    ctx_breaker = _ctx(flags=frozenset({"garage_door_breaker"}))
-    dist_breaker = reachable(graph, "garage", ctx_breaker)
-    assert "west_path" in dist_breaker
+    # With garage_door_powered flag set, garage -> west_path becomes traversable
+    ctx_powered = _ctx(flags=frozenset({"garage_door_powered"}))
+    dist_powered = reachable(graph, "garage", ctx_powered)
+    assert "west_path" in dist_powered
 
 
 # ---------------------------------------------------------------------------
@@ -739,28 +740,29 @@ def test_outer_room_return_always_passable(
 
 
 # ---------------------------------------------------------------------------
-# G: garage_door_breaker — now a real flag gate (Task 3)
+# G: garage_door_powered — a real flag gate
 # ---------------------------------------------------------------------------
 
 
-def test_garage_to_west_path_blocked_without_breaker_flag(graph: AreaGraph) -> None:
-    """garage->west_path is blocked when the garage_door_breaker flag is not set.
+def test_garage_to_west_path_blocked_without_powered_flag(graph: AreaGraph) -> None:
+    """garage->west_path is blocked when the garage_door_powered flag is not set.
 
-    garage_door_breaker is now a real flag gate (not a stub), so the Utility Closet
-    must have been placed and entered for the garage route to be open.
+    garage_door_powered is a real flag gate, not a stub, so the door stays shut
+    until Game._gate_ctx finds power for it by one of its two routes.
     """
     ctx = _ctx()  # no flags
     dist = reachable(graph, "garage", ctx)
     assert "west_path" not in dist
 
 
-def test_garage_to_west_path_open_with_breaker_flag(graph: AreaGraph) -> None:
-    """garage->west_path is open in 1 step when the garage_door_breaker flag is set.
+def test_garage_to_west_path_open_with_powered_flag(graph: AreaGraph) -> None:
+    """garage->west_path is open in 1 step when the garage_door_powered flag is set.
 
-    Once the breaker is on (Utility Closet placed and entered), the garage door
-    opens and the Garage becomes a 1-step route to the West Path doorstep.
+    Once the door has power, the Garage is a 1-step route to the West Path
+    doorstep. The graph sees one flag; which of the two routes supplied it is
+    Game._gate_ctx's business, pinned in tests/test_power.py.
     """
-    ctx = _ctx(flags=frozenset({"garage_door_breaker"}))
+    ctx = _ctx(flags=frozenset({"garage_door_powered"}))
     dist = reachable(graph, "garage", ctx)
     assert "west_path" in dist
     assert dist["west_path"] == 1
@@ -788,7 +790,7 @@ def test_reservoir_crossing_gate_closed_by_default_open_once_set(graph: AreaGrap
         held_items={"microchip": 3, "power_hammer": 1, "torch": 1,
                     "basement_key": 1, "sanctum_key_room_46": 1},
         flags=frozenset({
-            "west_gate_unlatched", "mine_south_visited", "garage_door_breaker",
+            "west_gate_unlatched", "mine_south_visited", "garage_door_powered",
             "sealed_entrance_broken", "antechamber_north_door_open",
             "boiler_room_steam", "grotto_chip_in_place", "pump_water_lte8",
             "rowboat_water_6", "fountain_water_0",

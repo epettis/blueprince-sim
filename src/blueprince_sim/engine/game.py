@@ -1779,13 +1779,37 @@ class Game:
         cell = self._utility_closet_cell()
         return cell >= 0 and self.state.entered[cell]
 
+    def _garage_powered(self) -> bool:
+        """True when a placed Garage is a powered room right now.
+
+        A different notion from :meth:`_breaker_on`, which is "the breaker room
+        has been entered": this is door-graph connectivity to a power source
+        (:meth:`room_powered`, ``engine/power.py``). Every Garage floorplan
+        carries ``flags.powered``, so any of them can be the one that is lit;
+        the door the power comes through is the Garage's own doorway, exactly
+        the one the West Path door hangs off.
+        """
+        return any(self.room_powered(self.registry.by_id[rid])
+                   for rid in self._garage_ids)
+
     def _gate_ctx(self) -> GateContext:
         """Build the GateContext for area-graph traversal from current game state.
 
         Flags:
           "west_gate_unlatched" -- carried in from cfg, OR earned today the moment the
               player first reaches west_path (via the Garage route on a fresh save).
-          "garage_door_breaker" -- Utility Closet placed and entered today (breaker on).
+          "garage_door_powered" -- the Garage door has power, by EITHER of two
+              independent routes (owner ruling: "The Garage door needs power. It can
+              get this power by having the breaker turned on in the Utility Closet
+              (assumed on entry) or by connecting it to any powered room").  Route one
+              is :meth:`_breaker_on` -- the Utility Closet is placed and has been
+              entered today.  Route two is :meth:`_garage_powered` -- a placed Garage
+              is itself a powered room, i.e. door pairs join it through power-carrying
+              rooms to a power source (docs/power.md).  The two are different notions
+              and neither implies the other, so the OR lives here rather than as a
+              second gate on the edge: ``AreaEdge.requires`` is a conjunction, so two
+              gates would mean AND.  Day-scoped both ways, since the entered mask and
+              the grid both reset each day.
           "mine_south_visited" -- carried in from cfg, OR earned today the moment the
               player reaches mine_south.  Permanently opens reservoir_north -> mine_north
               and rotating_gear -> underpass (the mine-cart simplification, docs/areas.md).
@@ -1880,8 +1904,8 @@ class Game:
             flags.add("sealed_entrance_broken")
         if "mine_south" in st.special.lit_targets or "mine_south" in self.cfg.lit_targets:
             flags.add("candlestick_stairway_lit")
-        if self._breaker_on():
-            flags.add("garage_door_breaker")
+        if self._breaker_on() or self._garage_powered():
+            flags.add("garage_door_powered")
         if not st.grotto_chip_taken:
             flags.add("grotto_chip_in_place")
         if self.water_level("fountain") <= 8:

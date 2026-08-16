@@ -132,8 +132,8 @@ digraph blueprince_outside {
 
 	// First-ever West Path visit MUST come via the Garage: the gate unlatches
 	// only from the inside (owner-confirmed).
-	garage    -> west_path [label="garage door\n(breaker on)", style=dashed];
-	west_path -> garage    [label="garage door\n(breaker on)", style=dashed];
+	garage    -> west_path [label="garage door\n(breaker on OR Garage powered)", style=dashed];
+	west_path -> garage    [label="garage door\n(breaker on OR Garage powered)", style=dashed];
 
 	grounds   -> west_path [label="west gate — only once\nunlatched from inside", style=bold];
 	west_path -> grounds   [label="unlatch gate from inside\n(permanent, first time)", style=bold];
