@@ -593,7 +593,7 @@ any training run is started.** Until then the usual discipline — a node goes
 `modelled: true` only if it holds something worth walking to — is suspended, not
 repealed.
 
-**Where it stands on the shipped training baseline.** Measured over 300 seeds
+**Where it stands under `all_unlocks_config()`.** Measured over 300 seeds
 of uniform-random masked play under `all_unlocks_config()` as it ships (day-20,
 every unlock and every carry flag on, one flat action chosen uniformly from the
 legal mask each step, single-day episodes): off-grid step share (steps paid by
