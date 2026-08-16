@@ -182,6 +182,18 @@ so they over-represent exactly what they select on: mean deepest rank 7.94
 against 2.84 for random records, and a bug present in 74% of the former and
 0.7% of the latter. Use the random population as the behavioural baseline.
 
+**A probe that reimplements the rule under test measures the copy, not the
+code.** A reward decomposer hard-coded the milestone formula so it could score
+whole episodes from their endpoints. It was float-exact against the real reward
+path when written -- and after the milestone rule changed, it reported the
+before and after numbers as **identical to four decimal places**, because the
+stale copy was doing the arithmetic. A verification pass that agrees with the
+code today is not the guard; importing the function is. Where a probe genuinely
+must restate a rule (to telescope a sum, to invert a calculation), it should
+read every term it can from the module and fail loudly on the ones it cannot.
+This is the *false negative* twin of the harness bugs above: those made a
+working engine look broken, this made a real change look like a no-op.
+
 **A scripted, policy-free probe beats a trained checkpoint for answering
 questions about the model.** One such probe measured 6,153 real grid crossings
 in minutes, validated a fix at population scale, and retired a rebalancing
