@@ -74,8 +74,9 @@ def test_outer_draft_unavailable_without_breaker(registry):
     """On a fresh-save config with the breaker OFF, west_path is unreachable
     and the outer draft is NOT available.
 
-    west_gate_unlatched=False and no garage_door_breaker flag: neither route
-    to west_path is open. outer_draft_available() must return False.
+    west_gate_unlatched=False, and no garage_door_powered flag because the Utility
+    Closet is unentered and no power source stands on the grid: neither route to
+    west_path is open. outer_draft_available() must return False.
     """
     from blueprince_sim.engine.grid import E, W, N, S
 
@@ -88,6 +89,7 @@ def test_outer_draft_unavailable_without_breaker(registry):
     g._place_room(garage, 1, E | W)
     g._place_room(uc, 7, N | S)
     assert not g._breaker_on(), "breaker must be off"
+    assert not g._garage_powered(), "the Garage must have no power of its own either"
 
     assert g.area_route_cost("west_path") is None, (
         "west_path must be unreachable without breaker or gate"

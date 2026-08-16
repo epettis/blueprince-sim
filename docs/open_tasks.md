@@ -253,12 +253,6 @@ The single home for questions that need an owner ruling before the work they
 block can start. A question is added as a lettered item, and cited from
 elsewhere by that letter.
 
-**(b) Should the Garage's West Path door want POWER?** **RULED, unbuilt.**
-*"The Garage door needs power. It can get this power by having the breaker
-turned on in the Utility Closet (assumed on entry) or by connecting it to any
-powered room."* A disjunction: the existing `garage_door_breaker` route stays
-and being a powered room is added beside it.
-
 ## Decisions log
 
 Every entry here is held for one reason only: **it specifies work that is not

@@ -159,20 +159,33 @@ would mean latching the *conjunction*, which reads worse against the gate's own
 stated meaning; the two-gates-judged-separately shape is what `areas.md`
 already specifies. Worth an owner ruling if it ever matters.
 
+## The Garage's West Path door
+
+The first powerable room whose effect is wired to this system. Owner ruling:
+*"The Garage door needs power. It can get this power by having the breaker
+turned on in the Utility Closet (assumed on entry) or by connecting it to any
+powered room."*
+
+A **disjunction**, not a replacement: the `garage_door_powered` gate on both
+`garage <-> west_path` edges passes when the Utility Closet breaker is on
+(`Game._breaker_on`) **or** when a placed Garage is a powered room here
+(`Game._garage_powered`, i.e. `room_powered` over every Garage floorplan). The
+two are different notions — one is "the breaker room has been entered", the
+other is door-graph connectivity to a source — and neither implies the other.
+[`areas.md`](areas.md)'s "The Garage door" owns the gate and explains why the OR
+has to live in `Game._gate_ctx` rather than in `areas.json`.
+
+The Garage carries `flags.powered`, so it is a member of the network like any
+other powerable room; nothing about the propagation rule is special-cased for
+it. Its `dead_end` floorplan has a single doorway, so the door that carries the
+power in is the same one the West Path hangs off.
+
 ## What is deliberately not built
 
-The **effects** of the powerable rooms. A powered Garage opening the West Path
-door, a powered Pump Room's Tank 1 transfers, a powered Laundry Room's three
-exchange services, a powered Furnace forging a key on entry — none of these are
-wired to `cell_powered`. Powering is the mechanic; the payoffs are per-room
-work, each with its own design questions.
-
-Note that the Garage's West Path door is already gated by something else
-entirely: `garage_door_breaker`, the Utility Closet breaker flag
-(docs/areas.md). That gate is untouched here. Whether the real door wants
-*power* rather than *the breaker* is a separate question, and answering it by
-swapping the gate would change reachability on a route the greedy policies use
-heavily.
+The **effects** of the other powerable rooms. A powered Pump Room's Tank 1
+transfers, a powered Laundry Room's three exchange services, a powered Furnace
+forging a key on entry — none of these are wired to `cell_powered`. Powering is
+the mechanic; the payoffs are per-room work, each with its own design questions.
 
 ## The generator is broken
 
@@ -186,11 +199,13 @@ Python rather than in a room record.
 
 ## Observation and action spaces
 
-Unchanged. `N_ACTIONS` stays 481 and the observation stays 971 wide.
+Untouched by the power system. `N_ACTIONS` is 493 and the observation is 1090
+wide; neither moves when power moves.
 
 Power state is not in the observation, on purpose and consistently with
 `lab_visited`, which is not observable either. It is a deterministic function of
-`grid_room` and `grid_doors`, which the agent already sees, and the only thing
-it currently gates — travel to Blackbridge Grotto — is surfaced through the
-action mask, which is where reachability has always been expressed. Adding a
-field would be a retrain trigger for information the agent can already act on.
+`grid_room` and `grid_doors`, which the agent already sees, and what it gates —
+travel to Blackbridge Grotto, and the Garage's West Path door — is surfaced
+through the action mask, which is where reachability has always been expressed.
+Adding a field would be a retrain trigger for information the agent can already
+act on.

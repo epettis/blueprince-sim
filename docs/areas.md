@@ -141,7 +141,7 @@ once satisfied, **D** = resets daily, **-** = ungated.
 | From -> To | Gate | |
 |---|---|---|
 | `house` <-> `grounds` | none | - |
-| `garage` <-> `west_path` | garage door, breaker on | D |
+| `garage` <-> `west_path` | garage door: breaker on **OR** the Garage is a powered room | D |
 | `grounds` -> `west_path` | west gate, only once unlatched from inside | P |
 | `west_path` -> `grounds` | unlatch the gate from inside (first time) | P |
 | `west_path` -> outer room | drawn as today's outer room (1 of 8) | D |
@@ -395,6 +395,42 @@ Throne Room's blueprint pickup, which `orindian_ruins` grants
 report was specifically about the Grotto being open on a fresh save, and nothing
 in the wiki or the owner's play notes suggests Orindian Ruins should be reachable
 independently of it — the Grotto is its only recorded approach.
+
+### The Garage door
+
+Owner ruling: *"The Garage door needs power. It can get this power by having the
+breaker turned on in the Utility Closet (assumed on entry) or by connecting it to
+any powered room."*
+
+That is a **disjunction**, and it is the mirror image of the Grotto gate above.
+`garage_door_powered` is one `kind: "flag"` gate on both `garage <-> west_path`
+edges, and `Game._gate_ctx` sets it when **either** route holds:
+
+- **The breaker.** `Game._breaker_on()` — the room providing
+  `Capability.BREAKER_BOX` (the Utility Closet) is on the grid and its cell is
+  marked entered. "Assumed on entry" is exactly this: entering the room is the
+  whole act, there is no separate flip.
+- **The Garage is powered.** `Game._garage_powered()` — a placed Garage is a
+  powered room in [`power.md`](power.md)'s sense: a chain of door pairs through
+  power-carrying rooms joins it to a power source. Nothing about the Utility
+  Closet is involved.
+
+Neither notion implies the other, so both are checked live, every traversal, and
+both are day-scoped — the `entered` mask and the grid each reset overnight.
+
+**Why the OR lives in `_gate_ctx` and not in the data.** `AreaEdge.requires` is a
+conjunction (`engine/areas.py`: *"gate tag ids (ALL must hold — AND semantics)"*),
+so putting a second gate on the edge would demand the breaker **and** the power,
+the opposite of the ruling. `gate_open`'s `"flag"` arm is a bare
+`gate_id in ctx.flags` lookup with no combinator of its own, so the only place a
+disjunction can be expressed is inside the flag's own computation. The Grotto's
+`lab_visited` + `lab_steam_and_power` pair is what an AND looks like in this
+graph; a single flag with an OR inside is what an OR looks like.
+
+**The gate is named for the outcome, not for one of its routes.** It is
+`garage_door_powered` — what the ruling says the door needs — because a gate id
+naming the breaker would be false half the time it passes. Same convention as
+`sealed_entrance_broken`, which is likewise satisfied by more than one mechanism.
 
 ## The Pump Room's water levels
 
@@ -699,8 +735,9 @@ of "useful" areas.
 
 **The west gate is `GameConfig.west_gate_unlatched`**. It controls only the
 `grounds <-> west_path` shortcut. It does **not** gate outer-room drafting: on
-a fresh save, the Garage + breaker route (`garage -> west_path`) is available
-from day 1 without any unlock. The gate unlatches the first time the player
+a fresh save, the powered-Garage-door route (`garage -> west_path`, see "The
+Garage door" above) is available from day 1 without any unlock, by either the
+breaker or the Garage's own power. The gate unlatches the first time the player
 arrives at `west_path` (necessarily via the Garage on a fresh save). That is
 recorded on `GameState`, **never written back to the config** — one `GameConfig`
 is shared by every episode of a training worker, so mutating it would leak the
