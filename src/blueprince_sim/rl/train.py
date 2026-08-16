@@ -260,15 +260,23 @@ def fresh_save_config(reward: str = "shaped") -> GameConfig:
     )
 
 
-def make_single_env(reward: str, seed: int, multi_day: int = 0, unlocks: str = "all"):
+def make_single_env(reward: str, seed: int, multi_day: int = 0, unlocks: str = "none"):
     """Module-level factory (picklable for SubprocVecEnv spawn).
 
     When ``multi_day`` > 0, each worker builds its own ``DayChain`` of that
     many days and passes it to BluePrinceEnv; chains are per-worker so episodes
     in different envs advance independently.
 
-    ``unlocks`` selects the config preset: "all" uses all_unlocks_config (the
-    day=20 training baseline), "none" uses fresh_save_config (day=1, nothing earned).
+    ``unlocks`` selects the config preset: "none" uses fresh_save_config (day=1,
+    nothing earned), "all" uses all_unlocks_config (every unlock and carry flag
+    set).
+
+    **The default is a fresh save**, because the fixture is only the starting
+    state of the chain: ``DayChain`` carries earned flags forward, so a run that
+    starts fresh still reaches the late game -- but only by playing into it.
+    Starting from all_unlocks hands over all 19 carry flags on day 1, which
+    opens the whole area graph before a single room is drafted and makes
+    touring it pay better than drafting (docs/open_tasks.md task 24).
     """
     from sb3_contrib.common.wrappers import ActionMasker
     from stable_baselines3.common.monitor import Monitor
@@ -315,7 +323,7 @@ class EpisodeRecorder:
 
     def __init__(self, path: Path, n_envs: int, reward: str, sample_rate: float,
                  top_every: int, episodes_done: int, seed: int = 0,
-                 unlocks: str = "all") -> None:
+                 unlocks: str = "none") -> None:
         self.path = path
         self.reward = reward
         # Which config preset the DayChain was built from. day_config is a DIFF
@@ -846,13 +854,12 @@ def evaluate(ckpt_dir: Path, episodes: int, reward: str, seed: int,
     return 0
 
 
-def main(argv: list[str] | None = None) -> int:
-    """blueprince-train entry point: parse flags, then evaluate or train.
+def build_parser() -> argparse.ArgumentParser:
+    """The blueprince-train argument parser.
 
-    Training builds the vec env, creates a MaskablePPO with the mixed
-    exploration policy (or resumes it from ``latest.zip``), and runs
-    ``model.learn`` until a stop signal or the optional timestep cap; a
-    final checkpoint is always saved on the way out.
+    Split out of :func:`main` so the flag defaults can be asserted without
+    running a training job -- ``--unlocks`` in particular, which decides the
+    fixture every run starts from.
     """
     parser = argparse.ArgumentParser(
         prog="blueprince-train",
@@ -869,11 +876,11 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--n-steps", type=int, default=512,
                         help="PPO rollout length per env (progress at risk on stop)")
     parser.add_argument("--reward", choices=["shaped", "sparse", "phased"], default="shaped")
-    parser.add_argument("--unlocks", choices=["all", "none"], default="all",
-                        help="config preset: 'all' = all_unlocks_config (day=20 baseline, "
-                             "default); 'none' = fresh_save_config (day=1, nothing earned). "
-                             "Results from 'none' are NOT comparable to 'all' — the rarity "
-                             "tables and step/gem bonuses differ.")
+    parser.add_argument("--unlocks", choices=["all", "none"], default="none",
+                        help="config preset: 'none' = fresh_save_config (day=1, nothing "
+                             "earned; default); 'all' = all_unlocks_config (every unlock and "
+                             "carry flag set). Results from 'none' are NOT comparable to "
+                             "'all' — the rarity tables and step/gem bonuses differ.")
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--resume", choices=["auto", "never"], default="auto",
                         help="auto: continue from latest.zip if present")
@@ -979,6 +986,18 @@ def main(argv: list[str] | None = None) -> int:
                         help="Adam learning rate for pretraining (default 1e-3, "
                              "higher than PPO's 3e-4 since BC is plain supervised "
                              "cross-entropy, not a clipped policy-gradient update)")
+    return parser
+
+
+def main(argv: list[str] | None = None) -> int:
+    """blueprince-train entry point: parse flags, then evaluate or train.
+
+    Training builds the vec env, creates a MaskablePPO with the mixed
+    exploration policy (or resumes it from ``latest.zip``), and runs
+    ``model.learn`` until a stop signal or the optional timestep cap; a
+    final checkpoint is always saved on the way out.
+    """
+    parser = build_parser()
     args = parser.parse_args(argv)
 
     if args.evaluate:
