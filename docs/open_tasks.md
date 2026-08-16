@@ -130,6 +130,31 @@ draft distribution. **That is an owner ruling, not an implementation
 detail** -- it turns a data question into a semantics change on a shared tag,
 and nothing should move until the ruling exists.
 
+## 49. An outer draft does not increment `draft_counts`
+
+Measured, not inferred: drafting an outer room through
+`Game.open_outer_draft` -> `choose` appends to `drafted_rooms` but leaves
+`state.draft_counts` **completely unchanged** -- verified across four seeds
+and four different outer rooms (Trading Post, Root Cellar x2, Hovel). The
+increment lives in `Game._place_room`, which `_choose_outer` does not route
+through.
+
+**Nothing is broken today, and that is the whole risk.** The only consumer is
+`effects/rooms/treasure_trove.py`, which reads its own root id, and the
+Treasure Trove is an interior `studio_addition` room never dealt as an outer
+draft -- so the gap is unobservable. Its module docstring nonetheless states
+the count is "cumulative attempt-wide" and "incremented in
+`Game._place_room`", which reads as covering every draft.
+
+So this is a latent trap rather than a live bug: the first effect keyed on
+`draft_counts` for a room that *can* appear in the outer pool will silently
+undercount. **The ruling needed is whether an outer draft is a draft for
+counting purposes** -- `_choose_outer` already documents a deliberate list of
+what does and does not fire off-grid (`experiments.on_room_drafted` does not;
+`shrine.on_room_drafted` does), so this belongs on that list either way.
+Whichever way it goes, the answer should land as a comment where the rule
+lives, not only here.
+
 ## 48. A Secret Passage on the east wing offered two yellow rooms, not three
 
 > "I was only able to draft *two* yellow rooms instead of *three* from a Secret
