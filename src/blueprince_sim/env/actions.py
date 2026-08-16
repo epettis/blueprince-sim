@@ -335,13 +335,34 @@ def _build_mechanical_room_ids(registry: Registry) -> tuple[str, ...]:
 
     Obs-only (no action id is indexed by this -- WRENCH_RARITY_BASE offers a
     fixed 4-rarity menu, never a per-room choice): env/obs.py's own
-    "wrench_rarity" key uses this order so it cannot drift from rooms.json.
+    obs indexes the shared permanent-rarity slot on a wider union instead
+    (see :func:`_build_permanent_rarity_room_ids`); this stays the Mechanical
+    Room list itself.
     Kept alongside _build_axe_target_ids/_build_area_node_ids for the same
     reason those are: a single, sorted-for-determinism, registry-derived
     source shared by every caller (obs.py and blueprince_env.py's
     observation_space() width).
     """
     return tuple(sorted(r.id for r in registry.rooms if r.is_category("mechanical")))
+
+
+def _build_permanent_rarity_room_ids(registry: Registry) -> tuple[str, ...]:
+    """Sorted tuple of every room whose permanent rarity slot can be written.
+
+    Two mechanisms share that slot through ``Game._write_permanent_rarity``: the
+    Gear Wrench, which targets Mechanical Rooms, and the Conservatory's drawing
+    board, which can offer any room of a draftable pool. Indexing on the union
+    keeps both fully covered -- the wrench reaches ``pump_room`` and the
+    Electric Eel Aquarium, which the board never offers, and the board reaches
+    rooms the wrench never touches.
+
+    Registry-derived, so it cannot drift from rooms.json and does not vary with
+    a GameConfig. Obs-only, like :func:`_build_mechanical_room_ids`.
+    """
+    mechanical = {r.id for r in registry.rooms if r.is_category("mechanical")}
+    board = {r.id for r in registry.rooms
+             if r.pool in ("base", "studio_addition", "found_floorplan")}
+    return tuple(sorted(mechanical | board))
 
 
 # ---------------------------------------------------------------------------

@@ -1,11 +1,18 @@
 {
-  "remodel": {
-    "always_excluded": ["conservatory", "dovecote", "freezer", "pump_room"],
-    "draft_gated": ["gift_shop"]
-  },
-  "meta": {
-    "source": "wiki (Conservatory page DataMinedBox: the drawing board 'presents three random rooms that passed the filters')",
-    "confidence": "inferred",
-    "notes": "The datamined offer filter chain, minus the parts engine/effects/rooms/conservatory.py already gets for free from decks.eligible_pool (Studio Additions must have been added, Found Floorplans must have been found, Repellent bans, Upgrade-Disk variant substitution). always_excluded holds the ids the chain drops unconditionally -- Freezer, Pump Room and Dovecote per the DataMinedBox, plus the Conservatory itself, whose own rarity data/rooms.json records as unchangeable by the Conservatory or the Gear Wrench. draft_gated holds ids the chain drops until the room has been drafted at least once (GameState.draft_counts): the Gift Shop. DELIBERATELY INCOMPLETE: the datamine's own count implies 16 unchangeable rooms and no source in this repo names the other 12, so the sim's offer pool is wider than the game's by those rooms -- a disclosed divergence, not a claim the list is complete. The chain's 'already had its rarity changed' exclusion is ABSENT on purpose: an owner ruling from play reverses it (a modified room can be modified again on a future day), so the offer pool never shrinks -- see docs/rooms.md's Conservatory section."
-  }
+ "remodel": {
+  "always_excluded": [
+   "conservatory",
+   "dovecote",
+   "freezer",
+   "pump_room"
+  ],
+  "draft_gated": [
+   "gift_shop"
+  ]
+ },
+ "meta": {
+  "source": "wiki (Conservatory page DataMinedBox: the drawing board 'presents three random rooms that passed the filters')",
+  "confidence": "inferred",
+  "notes": "The datamined offer filter chain, minus the parts engine/effects/rooms/conservatory.py already gets for free from decks.eligible_pool (Studio Additions must have been added, Found Floorplans must have been found, Repellent bans, Upgrade-Disk variant substitution). always_excluded holds the ids the chain drops unconditionally -- Freezer, Pump Room and Dovecote per the DataMinedBox, plus the Conservatory itself, whose own rarity data/rooms.json records as unchangeable by the Conservatory or the Gear Wrench. draft_gated holds ids the chain drops until the room has been drafted at least once (GameState.draft_counts): the Gift Shop. DELIBERATELY INCOMPLETE: the datamine's own count implies 16 unchangeable rooms and no source in this repo names the other 12, so the sim's offer pool is wider than the game's by those rooms -- a disclosed divergence, not a claim the list is complete. The chain's 'already had its rarity changed' exclusion is ABSENT on purpose: an owner ruling from play reverses it (a modified room can be modified again on a future day), so the offer pool never shrinks -- see docs/rooms.md's Conservatory section. OWNER RULING on the room count: exclude the ones we know cannot be changed and assume the rest can. The datamine implies about 85 changeable rooms against this pool's 90, because it names 16 unchangeable rooms and no source available here names 12 of them. Rather than hold the mechanic for data we do not have, the four named exclusions stand and every other pool room is treated as changeable. Revisit only if conflicting information turns up."
+ }
 }

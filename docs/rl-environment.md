@@ -87,7 +87,7 @@ needing a new pending handler.
 `Box(0, 999, shape=(6,), int16)` — `[room index + 1, current rarity index + 1]`
 per row — taking the flattened observation width from **1084 to 1090**. It
 earns that width because *which* floorplan a row offers is the whole decision
-and no existing key carries it (`wrench_rarity` covers Mechanical Rooms only,
+and no existing key carries it (`permanent_rarity` says what a room's rarity is,
 while the board can offer any room in the day's draft pool). The twelve action
 ids already force a retrain, so the key costs no second one.
 `_CARRYOVER_KEYS` stays at 19: a click writes `permanent_rarity`, the Gear

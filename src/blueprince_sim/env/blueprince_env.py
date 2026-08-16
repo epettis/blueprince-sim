@@ -92,7 +92,8 @@ class BluePrinceEnv(gymnasium.Env):
             n_carryover=len(DayChain._CARRYOVER_KEYS),
             n_slots=len(all_slot_ids(self.game.registry)),
             n_axe_targets=len(A._build_axe_target_ids(self.game.registry)),
-            n_mechanical_rooms=len(A._build_mechanical_room_ids(self.game.registry)),
+            n_permanent_rarity_rooms=len(
+                A._build_permanent_rarity_room_ids(self.game.registry)),
             n_planetarium_planets=len(self.game.registry.special.planetarium_planets),
         )
         self._env_steps = 0
