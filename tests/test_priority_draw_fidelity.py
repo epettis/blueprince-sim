@@ -3,7 +3,7 @@ them (blueprince.wiki.gg/wiki/Drafting/Advanced).
 
 1. Priority Draws are an additional attempt-1-only filter applied to EVERY slot
    ("Filters > Priority Draws"), not a Slot-3-only mechanism -- only the Garage's
-   own Forced Draw (draft.py's _forced_draw_garage, "Special Draws > Forced Draws")
+   own Forced Draw (draft.py's _forced_draw, "Special Draws > Forced Draws")
    is Slot-3-only. The two were previously conflated: draw_slot only ever called
    _priority_draw when slot == 2.
 2. A dealt priority-draw card is actually removed from its deck ("the floorplan
@@ -97,8 +97,8 @@ def test_priority_draw_reaches_slot_0_and_slot_1_not_just_slot_2(registry, monke
         )
 
 
-def test_forced_draw_garage_stays_slot_3_only(registry):
-    """The OTHER half of ruling 1: _forced_draw_garage must stay gated to
+def test_forced_draw_stays_slot_3_only(registry):
+    """The OTHER half of ruling 1: _forced_draw must stay gated to
     slot == 2 -- draw_slot only calls it when ``slot == 2`` -- unlike
     _priority_draw, which this PR deliberately un-gates from that same check."""
     import inspect
@@ -106,7 +106,7 @@ def test_forced_draw_garage_stays_slot_3_only(registry):
     from blueprince_sim.engine import draft as draft_mod
 
     source = inspect.getsource(draft_mod.draw_slot)
-    forced_call = source.index("_forced_draw_garage(")
+    forced_call = source.index("_forced_draw(")
     priority_call = source.index("_priority_draw(")
     guard = "if slot == 2:"
     # The nearest preceding "if slot == 2:" to the Forced Draw call must be
@@ -114,7 +114,7 @@ def test_forced_draw_garage_stays_slot_3_only(registry):
     # still wrapped by the slot-2 gate.
     guard_pos = source.rindex(guard, 0, forced_call)
     assert guard_pos < forced_call < priority_call, (
-        "_forced_draw_garage is no longer gated to slot == 2 in draw_slot"
+        "_forced_draw is no longer gated to slot == 2 in draw_slot"
     )
     assert guard not in source[forced_call:priority_call], (
         "an 'if slot == 2:' gate reappeared between the two calls -- "

@@ -1,6 +1,6 @@
 {
  "schema_version": 1,
- "comment": "Three mechanisms. 'priority_draws': an additional acceptance filter applied during attempt 1 of EVERY slot (not just slot 3). Each floorplan named by an active entry gets its own independent roll at the entry's chance; accepted rooms are then dealt through the ordinary per-rarity deck machinery, so a hit leaves its deck. Targeted either by an explicit 'rooms' list (a named set) or by a 'category' selector resolved at draw time to every room carrying that category (draft.py::_priority_draw). 'forced_draws': a DIFFERENT mechanic (wiki.gg/Drafting/Advanced) -- once per day, the first time a doorway is opened where a listed room's own draft conditions + a gate are met, roll a very-high chance to push that specific room into slot 3; on success it is unavailable for the rest of the day even if the placement itself then fails (e.g. the room already occupies an earlier slot of the same hand). 'category_biases': conditional biases that force a category re-deal with the given chance while their condition holds, on every slot it is rolled for (King's Chess Piece variants, constellations, room auras). Chances are fractions.",
+ "comment": "Three mechanisms. 'priority_draws': an additional acceptance filter applied during attempt 1 of EVERY slot (not just slot 3). Each floorplan named by an active entry gets its own independent roll at the entry's chance; accepted rooms are then dealt through the ordinary per-rarity deck machinery, so a hit leaves its deck. Targeted either by an explicit 'rooms' list (a named set) or by a 'category' selector resolved at draw time to every room carrying that category (draft.py::_priority_draw). 'forced_draws': a DIFFERENT mechanic (wiki.gg/Drafting/Advanced) -- at a doorway where a listed room is still in today's draft pool and its own draft conditions are met, roll that entry's chance to push the room into slot 3. 'forced_draw_precedence' picks which entry rolls: the first entry in that order whose room is available AT THIS DOORWAY takes the roll and blocks every later entry, whether its own roll (or its 'gate_day'/'dead_end_gate') then succeeds or not. A roll that has already happened at a doorway is not repeated on redraws of that same hand, only at a new doorway. An entry with 'once_per_day' (Garage, Utility Closet) additionally retires for the rest of the day the moment its roll succeeds, even if the resulting placement then fails because the room already occupies an earlier slot of the same hand -- and a retired entry stops blocking, so lower-priority rooms get their chance. 'category_biases': conditional biases that force a category re-deal with the given chance while their condition holds, on every slot it is rolled for (King's Chess Piece variants, constellations, room auras). Chances are fractions.",
  "priority_draws": [
   {
    "rooms": [
@@ -98,15 +98,27 @@
  ],
  "forced_draws": [
   {
+   "room": "conservatory",
+   "label": "conservatory",
+   "chance": 0.15,
+   "meta": {
+    "confidence": "datamined",
+    "source": "blueprince.wiki.gg/wiki/Conservatory DataSpoiler: 'This is a Forced Draw, with a 15% chance of occurring; there are no additional conditions.' Prose on the same page: 'The Conservatory ... has an increased chance to appear automatically in Slot 3 on the first draw in each corner as long as it is still in the draft pool.'",
+    "notes": "No 'gate_day', no 'dead_end_gate' and no 'once_per_day', all deliberately: the wiki states 'there are no additional conditions', and Drafting/Advanced names only the Garage and the Utility Closet in both the once-per-day clause and the Dead-End clause. The only prerequisites are the two draft.py already applies to every forced draw -- the room is in today's pool (its Found Floorplan has been found, decks.py::eligible_pool's found_floorplan pool gated on cfg.conservatory_floorplan_found) and its own draft conditions hold at the doorway (rooms.json draft_conditions 'corner_only', i.e. cells 0/4/40/44). Being first in forced_draw_precedence it blocks the Garage wherever it is available, but the two sets of cells are disjoint (Garage: West Wing ranks 4-8, cells 15/20/25/30/35), so they never actually interact -- see docs/drafting.md."
+   }
+  },
+  {
    "room": "garage",
    "label": "garage",
    "chance": 0.9,
    "chance_with_west_gate": 0.925,
    "gate_day": 3,
+   "dead_end_gate": true,
+   "once_per_day": true,
    "meta": {
     "confidence": "datamined",
-    "source": "blueprince.wiki.gg/wiki/Garage datamined box: 'the chance of the roll succeeding is 90%. If the West Gate permanent addition has been unlocked, the chance is increased to 92.5%.' Gate: 'Veteran Mode is active, or Day 3 has been reached.'",
-    "notes": "Only the Garage slice of forced_draw_precedence is implemented (owner decision); the conservatory/morning_room/utility_closet forced draws themselves remain unbuilt, even though two of their three prerequisites are already live: Found Floorplan (decks.py::eligible_pool's found_floorplan pool, gated on cfg.conservatory_floorplan_found) and Bacon & Eggs (effects/rooms/nook.py sets the breakfast draft-condition and injects the room) are both built; only Garage-drafted-first (utility_closet) is unconfirmed. The Garage's passive 3% Priority Draw (wiki: 'Veteran Mode enabled or Day 5 reached') is a DIFFERENT mechanic from this Forced Draw and is modelled separately, as the garage_classroom priority_draws entry; its day gate is not applied there (see that entry's own meta.notes). Do not conflate the two gates: this Forced Draw's is Day 3-or-Veteran, the passive draw's is Day 5-or-Veteran."
+    "source": "blueprince.wiki.gg/wiki/Garage datamined box: 'the chance of the roll succeeding is 90%. If the West Gate permanent addition has been unlocked, the chance is increased to 92.5%.' Gate: 'Veteran Mode is active, or Day 3 has been reached.' once_per_day and dead_end_gate from wiki.gg/Drafting/Advanced, which names the Garage and the Utility Closet for both.",
+    "notes": "The morning_room and utility_closet slices of forced_draw_precedence remain unbuilt (no entry here), so neither rolls and neither blocks; the Morning Room's own prerequisite, Bacon & Eggs, is live (effects/rooms/nook.py sets the breakfast draft-condition and injects the room), and only the Utility Closet's Garage-drafted-first condition is unconfirmed. The Garage's passive 3% Priority Draw (wiki: 'Veteran Mode enabled or Day 5 reached') is a DIFFERENT mechanic from this Forced Draw and is modelled separately, as the garage_classroom priority_draws entry; its day gate is not applied there (see that entry's own meta.notes). Do not conflate the two gates: this Forced Draw's is Day 3-or-Veteran, the passive draw's is Day 5-or-Veteran."
    }
   }
  ],
@@ -119,7 +131,8 @@
   ],
   "meta": {
    "confidence": "wiki",
-   "source": "wiki.gg Drafting/Advanced: only one forced draw fires; this precedence decides which"
+   "source": "wiki.gg Drafting/Advanced: 'Only one room can try to perform a Forced Draw; if multiple would conflict, the priority order is Conservatory, Garage, Morning Room, Utility Closet.' Blocking clause: 'The room must still be in the draft pool at the location being drawn for it to block later entries in the list from being tried. This includes if the conditions for it to try rolling its appearance does not apply.'",
+   "notes": "Read positionally, not literally: an entry blocks later entries only where its own room is actually available at the doorway being drawn, which is what 'in the draft pool AT THE LOCATION' says. An id listed here with no forced_draws record is unbuilt -- it neither rolls nor blocks."
   }
  },
  "category_biases": [

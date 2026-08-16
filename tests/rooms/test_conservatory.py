@@ -1,4 +1,4 @@
-"""Conservatory drawing board (the remodel): stocking, clicking, and its bounds.
+"""Conservatory drawing board (the remodel) and its 15% Forced Draw.
 
 Drafting the Conservatory stocks a three-row drawing board
 (``conservatory.stock_drawing_board``, ``Hook.ON_PLACE``); standing in the
@@ -6,9 +6,15 @@ room, each row may be clicked ``CLICKS_PER_FLOORPLAN`` times to set that
 floorplan's rarity permanently (``Game.can_remodel``/``Game.remodel``), writing
 the same ``state.permanent_rarity`` slot the Gear Wrench writes.
 
+The Forced Draw section at the bottom covers data/priority_draws.json's
+``forced_draws`` conservatory entry (blueprince.wiki.gg/wiki/Conservatory; see
+draft.py's ``_forced_draw``). Reachability -- the Found Floorplan gate that
+puts the room in the pool at all -- lives in
+tests/test_conservatory_reachability.py.
+
 Every scenario here is built deterministically -- the Conservatory is placed
-directly at a chosen cell and the board's rows are read off the state -- rather
-than by hunting a seed that happens to draft it.
+directly at a chosen cell, or a corridor is hand-placed to make the doorway
+under test exist -- rather than by hunting a seed that happens to draft it.
 """
 
 from __future__ import annotations
@@ -16,14 +22,19 @@ from __future__ import annotations
 from collections import Counter
 
 import pytest
+from scipy import stats
 
 from blueprince_sim.config import GameConfig
 from blueprince_sim.engine.decks import build_decks, eligible_pool
+from blueprince_sim.engine.draft import deal_draft, redeal
 from blueprince_sim.engine.effects.rooms import conservatory as C
 from blueprince_sim.engine.game import Game, Phase
-from blueprince_sim.engine.grid import N, S
+from blueprince_sim.engine.grid import E, N, S, W
 from blueprince_sim.engine.model import RARITIES
+from blueprince_sim.engine.rng import Rng
 from blueprince_sim.rl.train import all_unlocks_config
+
+GARAGE_ID = "garage"
 
 # Draft setup: player at entrance (cell 2), open north door to cell 7 (rank 2).
 DRAFT_FROM = 2
@@ -88,8 +99,6 @@ def test_the_three_offers_are_uniform_with_replacement():
     A per-room uniformity test alone would pass for a without-replacement draw
     too, so the repeat rate is the half that actually separates the two models.
     """
-    from scipy import stats
-
     game = _board_game()
     pool = C.remodel_pool(game)
     n = len(pool)
@@ -348,3 +357,241 @@ def test_build_decks_is_the_only_reader_of_the_permanent_record():
     cfg.permanent_rarity = {room.id: 3}
     decks = build_decks(registry, cfg, Game(cfg, seed=2).rng)
     assert decks[3 * 2 + (0 if room.is_free else 1)].order.count(room.idx) == room.deck_copies
+
+
+# ---------------------------------------------------------------------------
+# Forced Draw
+# ---------------------------------------------------------------------------
+
+# The Conservatory is corner-only (rooms.json draft_conditions "corner_only"),
+# so cells 0/4/40/44 are the only ones it can ever be dealt at. Cell 0 is
+# reached from cell 1 heading west and cell 4 from cell 3 heading east; the
+# corner layout's rotations supply the door facing back at either doorway, so
+# geometry never rules the room out and only the mechanic is under test.
+CORNER_SRC_A, CORNER_DIR_A, CORNER_CELL_A = 1, W, 0
+CORNER_SRC_B, CORNER_DIR_B, CORNER_CELL_B = 3, E, 4
+# Rank-2 centre column heading north: never a corner, so the mechanic must not
+# fire -- and must not even roll -- there.
+OFF_CORNER_SRC = 7
+# The doorway the Garage's own Forced Draw always covers (West Wing, rank 4->5,
+# entered north), borrowed from tests/rooms/test_garage.py.
+GARAGE_SRC = 15
+FORCED_DRAW_STREAM = "forced_draw_conservatory"
+FORCED_CHANCE = 0.15
+FORCED_N = 2000  # ~0.8pp standard error on a 15% rate
+# Arms whose own assertion is an exact equality need no statistical power of
+# their own, so they run a cheaper sample.
+FORCED_N_SMALL = 600
+FORCED_ALPHA = 0.001  # two-sided binomial; deliberately loose, the arms are huge
+
+
+def _forced_cfg(**kw) -> GameConfig:
+    """Config for the Forced Draw doorways below: locks off so every open_door
+    actually deals, steps to spare, and (unless a test says otherwise) the
+    Conservatory's Found Floorplan already in hand so the room is in the pool."""
+    kw.setdefault("conservatory_floorplan_found", True)
+    kw.setdefault("day", 20)
+    return GameConfig(door_locks=False, starting_steps=50, **kw)
+
+
+def _deal_at(cfg: GameConfig, seed: int, src: int, direction: int):
+    """Deal one real hand at ``(src, direction)`` through Game.open_door.
+
+    The source cell gets a hand-placed corridor carrying the doorway's own
+    axis, mirroring tests/rooms/test_garage.py -- the doorway exists because
+    the test put it there, never because a seed happened to draft it.
+    """
+    game = Game(cfg, seed=seed)
+    corridor = game.registry.by_id["corridor"]
+    game._place_room(corridor, src, (N | S) if direction in (N, S) else (E | W))
+    game.state.pos = src
+    return game, game.open_door(src, direction)
+
+
+def _forced_hits(cfg: GameConfig, src: int, direction: int, n: int = FORCED_N,
+                 room_id: str = C.CONSERVATORY_ID, seed0: int = 0) -> int:
+    """Hands out of ``n`` whose slot 2 holds ``room_id`` as a forced option.
+
+    Filtering on ``forced and slot == 2`` measures the Forced Draw itself
+    rather than the ordinary deal, which can also surface the room once it is
+    in the pool.
+    """
+    idx = Game(cfg, seed=0).registry.by_id[room_id].idx
+    hits = 0
+    for seed in range(seed0, seed0 + n):
+        _game, pending = _deal_at(cfg, seed, src, direction)
+        hits += any(o.room_idx == idx and o.forced and o.slot == 2 for o in pending.options)
+    return hits
+
+
+def _assert_published_rate(hits: int, n: int = FORCED_N) -> None:
+    """Fail unless ``hits``/``n`` is consistent with the published 15%."""
+    p = stats.binomtest(hits, n, FORCED_CHANCE).pvalue
+    assert p > FORCED_ALPHA, (
+        f"offer rate {hits}/{n} = {hits / n:.4f} is inconsistent with the "
+        f"published {FORCED_CHANCE:.0%} (two-sided binomial p={p:.2g})")
+
+
+def test_forced_draw_offer_rate_matches_the_published_15_percent():
+    """A corner doorway offers the Conservatory in slot 3 at the wiki's rate:
+    "This is a Forced Draw, with a 15% chance of occurring; there are no
+    additional conditions." Pinned by a two-sided binomial test rather than a
+    hand-picked band, so substituting any other published forced-draw constant
+    (the Garage's 90% / 92.5%) or dropping the roll fails outright."""
+    _assert_published_rate(_forced_hits(_forced_cfg(), CORNER_SRC_A, CORNER_DIR_A))
+
+
+def test_forced_draw_fires_at_every_corner_not_just_one():
+    """The second corner doorway rolls at the same published rate as the first:
+    the mechanic keys off the room's own ``corner_only`` draft condition, so it
+    must not end up pinned to whichever cell the first test happened to use."""
+    _assert_published_rate(
+        _forced_hits(_forced_cfg(), CORNER_SRC_B, CORNER_DIR_B, seed0=10_000_000))
+
+
+def test_forced_draw_never_fires_off_a_corner():
+    """Off a doorway where the Conservatory's own draft conditions fail, the
+    Forced Draw must not fire -- and must consume no randomness, so a doorway
+    where the room was never a candidate cannot perturb any other draw's RNG
+    stream (the contract the Garage's Forced Draw and the Foundation's rank-3
+    roll already hold to)."""
+    cfg = _forced_cfg()
+    assert _forced_hits(cfg, OFF_CORNER_SRC, N, n=200) == 0
+    for seed in range(50):
+        game, _pending = _deal_at(cfg, seed, OFF_CORNER_SRC, N)
+        assert FORCED_DRAW_STREAM not in game.rng._streams, (
+            "a non-corner doorway must not consume the forced-draw RNG stream")
+
+
+def test_forced_draw_needs_the_found_floorplan():
+    """Forced Draws "still require the room to be present in the draft pool":
+    without ``conservatory_floorplan_found`` the room is in no deck
+    (decks.py::eligible_pool), so the mechanic must neither fire nor roll.
+    Otherwise the Forced Draw would smuggle an unearned room onto the grid,
+    routing around the entire Found Floorplan gate."""
+    cfg = GameConfig(door_locks=False, starting_steps=50, day=20)
+    assert cfg.conservatory_floorplan_found is False, "setup: floorplan must be unfound"
+    assert _forced_hits(cfg, CORNER_SRC_A, CORNER_DIR_A, n=500) == 0
+    for seed in range(50):
+        game, _pending = _deal_at(cfg, seed, CORNER_SRC_A, CORNER_DIR_A)
+        assert FORCED_DRAW_STREAM not in game.rng._streams, (
+            "a room outside today's pool must not consume the forced-draw RNG stream")
+
+
+def test_forced_draw_has_no_day_or_veteran_gate():
+    """"There are no additional conditions": unlike the Garage's Forced Draw,
+    which needs Veteran Mode or day 3, the Conservatory's day-2 rate with
+    Veteran Mode off equals its late-game rate. Both arms run the same seeds
+    through the same labelled substream, so a day gate shows up as a collapse
+    to zero rather than as noise."""
+    early = _forced_hits(_forced_cfg(day=2, veteran_mode=False), CORNER_SRC_A,
+                         CORNER_DIR_A, n=FORCED_N_SMALL)
+    late = _forced_hits(_forced_cfg(day=20), CORNER_SRC_A, CORNER_DIR_A, n=FORCED_N_SMALL)
+    assert early == late, f"day 2 ({early}) and day 20 ({late}) must roll identically"
+    _assert_published_rate(early, FORCED_N_SMALL)
+
+
+def test_forced_draw_is_not_once_per_day():
+    """Drafting/Advanced names only the Garage and the Utility Closet in "only
+    appear as a Forced Draw once per day", so a Conservatory success must never
+    retire the entry: its id stays out of ``forced_draws_succeeded_today`` even
+    on the hands where the draw actually fired."""
+    cfg = _forced_cfg()
+    idx = Game(cfg, seed=0).registry.by_id[C.CONSERVATORY_ID].idx
+    fired = 0
+    for seed in range(200):
+        game, pending = _deal_at(cfg, seed, CORNER_SRC_A, CORNER_DIR_A)
+        fired += any(o.room_idx == idx and o.forced and o.slot == 2 for o in pending.options)
+        assert C.CONSERVATORY_ID not in game.state.forced_draws_succeeded_today
+    assert fired > 0, "setup: the sampled seeds must contain at least one success"
+
+
+def test_a_second_corner_the_same_day_rolls_again(monkeypatch):
+    """"[It] can try again if drafting again in a new location": with the roll
+    pinned to succeed, one game deals BOTH corner doorways on the same day and
+    both hands carry the forced Conservatory -- the mechanic is spent per
+    doorway, not per day."""
+    real_chance = Rng.chance
+    monkeypatch.setattr(Rng, "chance", lambda self, label, p: (
+        True if label == FORCED_DRAW_STREAM else real_chance(self, label, p)))
+    cfg = _forced_cfg()
+    game = Game(cfg, seed=0)
+    idx = game.registry.by_id[C.CONSERVATORY_ID].idx
+
+    def forced_slot2(pending) -> bool:
+        return any(o.room_idx == idx and o.forced and o.slot == 2 for o in pending.options)
+
+    first = deal_draft(game.state, game.registry, cfg, game.rng, game.placed_ids,
+                       CORNER_SRC_A, CORNER_DIR_A, CORNER_CELL_A)
+    second = deal_draft(game.state, game.registry, cfg, game.rng, game.placed_ids,
+                        CORNER_SRC_B, CORNER_DIR_B, CORNER_CELL_B)
+    assert forced_slot2(first) and forced_slot2(second), (
+        "both corners of the same day must force-draw the Conservatory")
+
+
+def test_forced_draw_does_not_re_roll_on_a_redraw():
+    """"If the chance to appear fails, it does not try again on redraws": the
+    doorway, not the hand, is what a roll is spent against, so redealing the
+    same hand leaves the forced-draw substream exactly where it was. Without
+    this the published 15% would compound with every Study/Classroom redraw
+    taken at a corner."""
+    cfg = _forced_cfg()
+    game = Game(cfg, seed=0)
+    pending = deal_draft(game.state, game.registry, cfg, game.rng, game.placed_ids,
+                         CORNER_SRC_A, CORNER_DIR_A, CORNER_CELL_A)
+    assert (C.CONSERVATORY_ID, CORNER_CELL_A, CORNER_DIR_A) \
+        in game.state.forced_draws_rolled_today, (
+        "setup: the initial deal must have spent this doorway's roll")
+    before = game.rng.stream(FORCED_DRAW_STREAM).getstate()
+    redeal(game.state, game.registry, cfg, game.rng, game.placed_ids, pending)
+    assert game.rng.stream(FORCED_DRAW_STREAM).getstate() == before, (
+        "a redraw of the same doorway must not spend a second forced-draw roll")
+
+
+def test_a_retired_garage_forced_draw_does_not_suppress_the_conservatory():
+    """The once-per-day record is keyed per room id rather than held in one
+    shared flag, so a day on which the Garage's Forced Draw already succeeded
+    leaves the Conservatory's corner rate untouched. A shared flag would zero
+    this arm outright."""
+    cfg = _forced_cfg()
+    idx = Game(cfg, seed=0).registry.by_id[C.CONSERVATORY_ID].idx
+    hits = 0
+    for seed in range(FORCED_N):
+        game = Game(cfg, seed=seed)
+        game.state.forced_draws_succeeded_today.add(GARAGE_ID)
+        game._place_room(game.registry.by_id["corridor"], CORNER_SRC_A, E | W)
+        game.state.pos = CORNER_SRC_A
+        pending = game.open_door(CORNER_SRC_A, CORNER_DIR_A)
+        hits += any(o.room_idx == idx and o.forced and o.slot == 2 for o in pending.options)
+    _assert_published_rate(hits)
+
+
+def test_the_conservatory_does_not_suppress_the_garage():
+    """The Conservatory outranks the Garage in ``forced_draw_precedence``, but
+    blocking is positional -- an entry blocks only where it is itself available
+    at the doorway being drawn. Its corners {0, 4, 40, 44} never meet the
+    Garage's West Wing ranks 4-8 {15, 20, 25, 30, 35}, so putting the
+    Conservatory in the pool must leave the Garage's own forced-draw rate
+    byte-identical, not merely close."""
+    with_conservatory = _forced_hits(_forced_cfg(day=5, veteran_mode=False),
+                                     GARAGE_SRC, N, n=FORCED_N_SMALL, room_id=GARAGE_ID)
+    without = _forced_hits(
+        GameConfig(door_locks=False, starting_steps=50, day=5, veteran_mode=False),
+        GARAGE_SRC, N, n=FORCED_N_SMALL, room_id=GARAGE_ID)
+    assert with_conservatory == without > 0, (
+        "the Conservatory changed the Garage's forced-draw rate: "
+        f"{with_conservatory} vs {without}")
+
+
+def test_forced_draw_is_deterministic_for_a_given_seed():
+    """Same seed, same corner doorway -> an identical dealt hand: the engine's
+    seeded-replay invariant, which the new labelled substream must not break."""
+    cfg = _forced_cfg()
+
+    def snapshot(seed: int):
+        _game, pending = _deal_at(cfg, seed, CORNER_SRC_A, CORNER_DIR_A)
+        return [(o.room_idx, o.orientation, o.gem_cost, o.slot, o.forced, o.hidden)
+                for o in pending.options]
+
+    for seed in (1, 2, 3, 42):
+        assert snapshot(seed) == snapshot(seed), f"seed {seed} was not deterministic"

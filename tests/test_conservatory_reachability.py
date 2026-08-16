@@ -10,10 +10,9 @@ DayChain._CARRYOVER_KEYS -- and decks.py::eligible_pool reads the carried
 GameConfig flag to add the room to the draft pool from the FOLLOWING day
 onward (`build_decks` runs at day start, before same-day discoveries land).
 
-This file pins reachability only: the remodel mechanic itself -- the drawing
-board that offers three rooms and sets their rarity -- lives in
-tests/rooms/test_conservatory.py, and the Conservatory's 15% forced draw is a
-separate, still-unbuilt entry (docs/drafting.md).
+This file pins reachability only. The remodel mechanic itself -- the drawing
+board that offers three rooms and sets their rarity -- and the room's 15%
+Forced Draw both live in tests/rooms/test_conservatory.py.
 """
 
 from __future__ import annotations

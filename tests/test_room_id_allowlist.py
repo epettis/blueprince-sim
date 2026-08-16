@@ -113,9 +113,6 @@ ROOM_ARCHITECTURE: dict[str, set[str]] = {
         # Same-hand dedup exemption so a Tunnel chain / Aquarium experiment
         # copy can be dealt more than once -- part of the same taxonomy.
         "chamber_of_mirrors",
-        # Garage forced-draw roll (dead-end gate + priority_draws entry) --
-        # the taxonomy's own Forced Draw mechanism.
-        "garage",
         # Schoolhouse-placed category-bias condition tag: emitted into
         # _active_conditions' generic vocabulary (alongside non-room tags
         # like "furnace_or_king"), read by data-driven category_biases

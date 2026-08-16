@@ -1,8 +1,8 @@
 """Tests for the Garage's Forced Draw and its car trunk.
 
 The Forced Draw tests cover data/priority_draws.json "forced_draws"
-(blueprince.wiki.gg/wiki/Garage). See draft.py's ``_forced_draw_garage`` /
-``_garage_dead_end_gate``. Distinct from the pre-existing ``_priority_draw``
+(blueprince.wiki.gg/wiki/Garage). See draft.py's ``_forced_draw`` /
+``_forced_draw_dead_end_gate``. Distinct from the pre-existing ``_priority_draw``
 mechanism (patio group / commissary-observatory / classroom), which this does
 not touch.
 
@@ -17,7 +17,7 @@ from scipy import stats
 
 from blueprince_sim.config import GameConfig
 from blueprince_sim.engine import special_items as si
-from blueprince_sim.engine.draft import DraftContext, _garage_dead_end_gate
+from blueprince_sim.engine.draft import DraftContext, _forced_draw_dead_end_gate
 from blueprince_sim.engine.game import Game
 from blueprince_sim.engine.grid import E, N, S, W
 from blueprince_sim.engine.model import Registry
@@ -163,7 +163,8 @@ def test_forced_draw_fires_at_most_once_per_day(registry: Registry):
     cfg = _base_cfg(day=5, veteran_mode=False)
     garage_idx = registry.by_id[GARAGE_ID].idx
     game = Game(cfg, seed=7, registry=registry)
-    game.state.garage_forced_draw_succeeded = True  # simulate an earlier success today
+    # An earlier success today, recorded per room id (never a shared flag).
+    game.state.forced_draws_succeeded_today.add(GARAGE_ID)
     _place_corridor(game, SRC_B)
     pending = _open_from(game, SRC_B, N)
     assert not any(o.room_idx == garage_idx and o.forced for o in pending.options), (
@@ -188,11 +189,11 @@ def test_forced_draw_is_deterministic_for_a_given_seed(registry: Registry):
 
 
 # ---------------------------------------------------------------------------
-# _garage_dead_end_gate
+# _forced_draw_dead_end_gate
 # ---------------------------------------------------------------------------
 
 def _gate_ctx(registry: Registry) -> DraftContext:
-    """Minimal DraftContext for _garage_dead_end_gate, which only reads
+    """Minimal DraftContext for _forced_draw_dead_end_gate, which only reads
     ``ctx.registry.rooms`` -- mirrors test_mechanarium.py's own ``_ctx``."""
     return DraftContext(GameState(), registry, GameConfig(), Rng(0), set(), None)
 
@@ -219,7 +220,7 @@ def test_garage_gate_passes_when_a_corner_drafted_greenhouse_fills_a_dead_end_sl
         _option(registry, "greenhouse", corner_mask, slot=0),
         _option(registry, "closet", closet.door_mask, slot=1),
     ]
-    assert _garage_dead_end_gate(_gate_ctx(registry), options) is True
+    assert _forced_draw_dead_end_gate(_gate_ctx(registry), options) is True
 
 
 def test_garage_gate_blocks_when_a_dead_end_drafted_greenhouse_fills_a_dead_end_slot(
@@ -235,7 +236,7 @@ def test_garage_gate_blocks_when_a_dead_end_drafted_greenhouse_fills_a_dead_end_
         _option(registry, "greenhouse", greenhouse.door_mask, slot=0),
         _option(registry, "closet", closet.door_mask, slot=1),
     ]
-    assert _garage_dead_end_gate(_gate_ctx(registry), options) is False
+    assert _forced_draw_dead_end_gate(_gate_ctx(registry), options) is False
 
 
 def test_garage_gate_passes_when_slot_1_dead_end_was_forced(registry: Registry):
@@ -247,7 +248,7 @@ def test_garage_gate_passes_when_slot_1_dead_end_was_forced(registry: Registry):
         _option(registry, "closet", closet.door_mask, slot=0),
         _option(registry, "closet", closet.door_mask, slot=1, forced=True),
     ]
-    assert _garage_dead_end_gate(_gate_ctx(registry), options) is True
+    assert _forced_draw_dead_end_gate(_gate_ctx(registry), options) is True
 
 
 def test_garage_gate_passes_when_a_lone_mechanarium_fills_a_dead_end_slot(registry: Registry):
@@ -263,7 +264,7 @@ def test_garage_gate_passes_when_a_lone_mechanarium_fills_a_dead_end_slot(regist
         _option(registry, "mechanarium", N, slot=0),  # single-door mask, as if lone-drafted
         _option(registry, "closet", closet.door_mask, slot=1),
     ]
-    assert _garage_dead_end_gate(_gate_ctx(registry), options) is True
+    assert _forced_draw_dead_end_gate(_gate_ctx(registry), options) is True
 
 
 # ---------------------------------------------------------------------------

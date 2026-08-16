@@ -284,7 +284,7 @@ class GameState:
     # draft, not a new draft (see PendingDraft.round_num). Read by
     # draft.py::_resolve_free_gem for the wiki's Free/Gem Draws "first N
     # drafts" rules (Drafting/Advanced). Per-day only: a fresh GameState
-    # resets it to 0 every day like garage_forced_draw_succeeded below.
+    # resets it to 0 every day like forced_draws_succeeded_today below.
     drafts_today: int = 0
 
     # decks: index = rarity_idx * 2 + (0 free | 1 gem)
@@ -570,13 +570,24 @@ class GameState:
     foundation_cell: int = -1     # cell it was placed at today, if drafted today; -1 = not yet
     foundation_doors: int = 0     # its door mask as drafted today; 0 = not yet drafted
 
-    # --- Garage Forced Draw (data/priority_draws.json "forced_draws"; see draft.py) ---
-    # True once today's Garage forced-draw roll has succeeded (wiki: "Once the roll
-    # succeeds ... they will no longer be available for Forced Draws" today), whether
-    # or not the Garage actually ended up placed in slot 3 (it can "succeed but fail"
-    # when the Garage already occupies an earlier slot of the same hand). Per-day only:
-    # a fresh GameState resets it every day like schoolhouse_placed/greenhouse_placed.
-    garage_forced_draw_succeeded: bool = False
+    # --- Forced Draws (data/priority_draws.json "forced_draws"; see draft.py) ---
+    # Room ids whose forced-draw roll has already succeeded today, and whose entry
+    # carries "once_per_day" (the Garage and the Utility Closet -- wiki: "Once the
+    # roll succeeds ... they will no longer be available for Forced Draws" today).
+    # An id lands here whether or not the room actually ended up placed in slot 3:
+    # the roll can "succeed but fail" when the room already occupies an earlier slot
+    # of the same hand. Keyed per room so one entry retiring never silences another.
+    # Per-day only: a fresh GameState resets it every day like schoolhouse_placed.
+    forced_draws_succeeded_today: set[str] = field(default_factory=set)
+    # (room id, target cell, entry direction) triples whose forced-draw chance has
+    # already been rolled today -- wiki: "If the chance to appear fails, it does not
+    # try again on redraws, but can try again if drafting again in a new location."
+    # A redraw re-fills the SAME doorway's hand (draft.py::redeal), so the doorway,
+    # not the hand, is what a roll is spent against. An entry that never got as far
+    # as its roll (blocked by a gate, or by a higher-precedence entry) is not
+    # recorded, which is the same clause's "It can also try again if it didn't get a
+    # chance on the first draw". Per-day only, like forced_draws_succeeded_today.
+    forced_draws_rolled_today: set[tuple[str, int, int]] = field(default_factory=set)
 
     # Grid cells holding a Bedroom-category room owed one guaranteed extra item on
     # its own first entry, because it was drafted from a placed Cloister of Mila
