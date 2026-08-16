@@ -1,9 +1,11 @@
-"""Mail Room: the order-and-deliver cycle and its package contents roller."""
+"""Mail Room: the order-and-deliver cycle, its package contents roller, and
+the Dynamic Rarity a waiting package sets."""
 
 from __future__ import annotations
 
 from blueprince_sim.config import GameConfig
 from blueprince_sim.engine import special_items as si
+from blueprince_sim.engine.decks import RARITIES
 from blueprince_sim.engine.game import Game
 from blueprince_sim.env.multiday import DayChain
 from luck_utils import suppress_luck
@@ -459,3 +461,124 @@ def test_freight_no_specials_available_yields_four_keys_and_four_gems():
         si.grant(g.state, g.registry, iid, source="test")
     grants = si.roll_freight_package(g.state, g.registry, g.rng)
     assert grants == [{"kind": "keys", "amount": 4}, {"kind": "gems", "amount": 4}]
+
+
+# --------------------------------------------------------------- Dynamic Rarity
+
+COMMONPLACE = RARITIES.index("commonplace")
+UNUSUAL = RARITIES.index("unusual")
+RARE = RARITIES.index("rare")
+
+
+def _card_buckets(g: Game, room_id: str) -> list[int]:
+    """Rarity indices of every live deck currently holding a card of ``room_id``.
+
+    A card's effective rarity IS the deck it occupies (decks.py deals from a
+    rarity index and never reads a card's own rarity), so this -- not
+    ``Room.rarity_idx`` -- is what the Mail Room's Dynamic Rarity has to move.
+    """
+    idx = g.registry.by_id[room_id].idx
+    return [i // 2 for i, d in enumerate(g.state.decks) if idx in d.order]
+
+
+def test_waiting_package_makes_the_mail_room_commonplace_at_day_start():
+    """Wiki: "If a package is delivered and waiting in the Mail Room, the Mail
+    Room's Dynamic Rarity is set to Commonplace for the day." A carried
+    ``awaiting`` cycle is that waiting package, so the room's card must start
+    the day in the commonplace deck rather than its displayed unusual one."""
+    g = _game(GameConfig(special_items=True, mail_cycle="awaiting"))
+    assert _card_buckets(g, "mail_room") == [COMMONPLACE]
+    assert g.state.dynamic_rarity["mail_room"] == COMMONPLACE
+
+
+def test_empty_and_transit_cycles_leave_the_displayed_rarity_alone():
+    """Only a waiting package qualifies. ``empty`` has no package at all and
+    ``transit`` has one that has not arrived yet (Freight's two-day transit),
+    so both must leave the card in the Mail Room's displayed unusual deck and
+    record no override."""
+    for cycle in ("empty", "transit"):
+        g = _game(GameConfig(special_items=True, mail_cycle=cycle))
+        assert _card_buckets(g, "mail_room") == [UNUSUAL], cycle
+        assert "mail_room" not in g.state.dynamic_rarity, cycle
+
+
+def test_placing_todays_order_does_not_make_the_room_commonplace_today():
+    """The package arrives "the day after drafting this room", so the draft
+    that places the order leaves nothing waiting today. The cycle flips to
+    ``awaiting`` for tomorrow while today's card stays unusual -- the override
+    is a whole-day state decided at day start, not a midday card move."""
+    g = _game(GameConfig(special_items=True, mail_cycle="empty"))
+    _place_mail_room(g)
+    assert g.state.mail_cycle == "awaiting"
+    assert _card_buckets(g, "mail_room") == [UNUSUAL]
+    assert "mail_room" not in g.state.dynamic_rarity
+
+
+def test_a_permanently_set_rarity_beats_the_waiting_package():
+    """Wiki: a rarity ever set by the Conservatory or Gear Wrench makes that
+    room's Dynamic Rarity "permanently ignored". A Mail Room carrying a
+    permanent_rarity entry must therefore start a waiting-package day in the
+    permanent bucket, with no commonplace move and no override recorded."""
+    g = _game(GameConfig(special_items=True, mail_cycle="awaiting",
+                         permanent_rarity={"mail_room": RARE}))
+    assert _card_buckets(g, "mail_room") == [RARE]
+    assert g.state.dynamic_rarity["mail_room"] == RARE
+
+
+def test_the_deck_resident_upgrade_variant_is_the_card_that_moves():
+    """An applied Upgrade Disk replaces the base floorplan in the day's decks,
+    and the mail cycle is one slot shared across all four ids -- so the waiting
+    package must move whichever Mail Room card is actually dealable, leaving no
+    override recorded against the id that has no cards."""
+    for variant_id in ("mail_room__ix89", "mail_room__ix90", "mail_room__ix91"):
+        g = _game(GameConfig(special_items=True, mail_cycle="awaiting",
+                             upgrade_disks=frozenset({variant_id})))
+        assert _card_buckets(g, variant_id) == [COMMONPLACE], variant_id
+        assert _card_buckets(g, "mail_room") == [], variant_id
+        assert g.state.dynamic_rarity == {variant_id: COMMONPLACE}, variant_id
+
+
+def test_the_override_arrives_and_clears_across_a_real_day_chain():
+    """End to end through the carryover the engine actually uses: the day that
+    orders is unusual, the next day (package waiting) is commonplace, and the
+    day after collection is unusual again -- the override tracks the cycle
+    rather than sticking once applied."""
+    chain = DayChain(GameConfig(special_items=True), n_days=4)
+
+    g1 = _game(chain.next_config(), seed=1)
+    assert _card_buckets(g1, "mail_room") == [UNUSUAL]
+    _place_mail_room(g1)  # order placed
+    chain.advance(g1.carryover())
+
+    g2 = _game(chain.next_config(), seed=2)
+    assert _card_buckets(g2, "mail_room") == [COMMONPLACE], "package waiting"
+    _place_mail_room(g2)  # delivered; cycle back to empty
+    g2._enter(CELL)
+    chain.advance(g2.carryover())
+
+    g3 = _game(chain.next_config(), seed=3)
+    assert _card_buckets(g3, "mail_room") == [UNUSUAL], "collected: nothing waiting"
+    assert "mail_room" not in g3.state.dynamic_rarity
+
+
+def test_freights_transit_delays_the_override_until_the_package_lands():
+    """Freight Shipping orders into a two-day transit, and only the day-start
+    promotion out of transit counts as delivered -- so the override must be
+    absent while the package is in transit and present on the day it lands."""
+    cfg = GameConfig(special_items=True, upgrade_disks=frozenset({"mail_room__ix91"}))
+    chain = DayChain(cfg, n_days=5)
+
+    g1 = _game(chain.next_config(), seed=1)
+    _place_freight(g1)
+    assert g1.state.mail_cycle == "transit"
+    chain.advance(g1.carryover())
+
+    for day_seed in (2, 3):
+        g = _game(chain.next_config(), seed=day_seed)
+        assert g.state.mail_cycle == "transit", day_seed
+        assert _card_buckets(g, "mail_room__ix91") == [UNUSUAL], day_seed
+        chain.advance(g.carryover())
+
+    g4 = _game(chain.next_config(), seed=4)
+    assert g4.state.mail_cycle == "awaiting", "transit spent: the package has landed"
+    assert _card_buckets(g4, "mail_room__ix91") == [COMMONPLACE]
