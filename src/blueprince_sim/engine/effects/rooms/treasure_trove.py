@@ -8,11 +8,12 @@ draft is worth, NOT what the room earns over the attempt: the first 32
 drafts alone total 5 * (1+2+...+32) = 2640 coins.
 
 ``state.draft_counts`` tracks cumulative attempt-wide draft counts keyed by
-root base room id, carried across days by DayChain and incremented in
-``Game._place_room`` immediately BEFORE the ON_PLACE hook fires -- so the
-count read here already includes this draft. Reusing it means the payout is
-a pure function of that count, so it cannot double-count however many times
-the room is later entered or re-entered.
+root base room id, carried across days by DayChain and incremented on both
+draft paths -- ``Game._place_room`` for a grid draft and
+``Game._choose_outer`` for an outer one -- immediately BEFORE the ON_PLACE
+hook fires, so the count read here already includes this draft. Reusing it
+means the payout is a pure function of that count, so it cannot double-count
+however many times the room is later entered or re-entered.
 """
 
 from __future__ import annotations

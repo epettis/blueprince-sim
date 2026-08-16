@@ -192,3 +192,57 @@ def test_server_merges_partial_buckets(tmp_path):
     assert bucket["seeds_with"] == {"Garage": 93, "Den": 10}
     assert len(ds["eval"]) == 1
     assert ds["eval"][0]["drafts"] == {"Den": 7}
+
+
+def test_an_outer_draft_counts_toward_draft_counts():
+    """An outer draft is a draft, so it increments ``state.draft_counts``
+    like a grid draft does. The increment lives in ``Game._place_room``,
+    which the off-grid path does not route through, so the two paths have to
+    agree explicitly -- and nothing observed the gap, because the only
+    consumer (the Treasure Trove) is an interior room never dealt outside."""
+    from blueprince_sim.engine.game import Game
+
+    # Seed 4's outer-room hand deals the Hovel into slot 0, asserted below so
+    # a deck change fails the setup rather than the property.
+    game = Game(GameConfig(west_gate_unlatched=True), seed=4)
+    pending = game.open_outer_draft()
+    opt = next(o for o in pending.options if o.slot == 0)
+    room = game.registry.rooms[opt.room_idx]
+    assert room.id == "hovel", "setup: seed must deal the Hovel into slot 0"
+    assert game.state.draft_counts.get("hovel", 0) == 0
+
+    game.choose(0)
+
+    assert game.state.draft_counts.get("hovel") == 1
+
+
+def test_the_outer_draft_count_lands_before_the_room_reacts():
+    """``_choose_outer`` increments ahead of ON_PLACE, matching
+    ``_place_room``'s ordering: a room whose own hook reads the tally must
+    already see its own draft in it, which is what the Treasure Trove's
+    payout depends on. Asserted through the hook rather than by reading the
+    source, so reordering the two lines fails here."""
+    from blueprince_sim.engine import effects
+    from blueprince_sim.engine.effects import Hook
+    from blueprince_sim.engine.game import Game
+
+    game = Game(GameConfig(west_gate_unlatched=True), seed=4)
+    pending = game.open_outer_draft()
+    opt = next(o for o in pending.options if o.slot == 0)
+    assert game.registry.rooms[opt.room_idx].id == "hovel", "setup: seed must deal the Hovel"
+
+    seen = []
+    real_fire = effects.fire
+
+    def spy(g, room, hook, *args, **kwargs):
+        if hook is Hook.ON_PLACE and room.id == "hovel":
+            seen.append(g.state.draft_counts.get("hovel", 0))
+        return real_fire(g, room, hook, *args, **kwargs)
+
+    effects.fire = spy
+    try:
+        game.choose(0)
+    finally:
+        effects.fire = real_fire
+
+    assert seen == [1], f"ON_PLACE must see its own draft counted, saw {seen}"
