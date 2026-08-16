@@ -61,12 +61,15 @@ attach to them: `house`, `antechamber`, `garage`, `the_foundation`, `tomb`,
 `the_foundation` is only usable as a departure anchor once it has actually
 been drafted that attempt (`GameConfig.foundation_cell >= 0`); before that,
 routes through it are unavailable the way an unplaced Garage is.
-`antechamber` (`kind: anchor`, `modelled: false`) is the rank 9 center grid
-cell; it deliberately carries **no** area edges to `house` — reaching it is a
-grid walk through a lever-opened door, not an area traversal, and an area
-edge would let `travel_to()` hop past the seal for roughly zero steps
+`antechamber` (`kind: anchor`, `modelled: true`) is the rank 9 center grid
+cell; it deliberately carries **no** area edges to `house` — reaching it from
+the grid is a walk through a lever-opened door, not an area traversal, and an
+area edge would let `travel_to()` hop past the seal for roughly zero steps
 (`tools/validate_data.py`'s areas.dot/areas.json node-and-edge-set check
-enforces this, alongside the SPEC_NODE_COUNT/SPEC_EDGE_COUNT check).
+enforces this, alongside the SPEC_NODE_COUNT/SPEC_EDGE_COUNT check). Its only
+area-graph edge is the return leg from `room_46`, so `modelled: true` only
+ever advertises the Antechamber as a travel destination from Room 46 itself
+— it does not open any new route from `house`.
 
 **Surface**
 
@@ -100,7 +103,7 @@ enforces this, alongside the SPEC_NODE_COUNT/SPEC_EDGE_COUNT check).
 | `sigil_chambers` | 8 chambers, one Sanctum Key each |
 | `precipice` | |
 | `unknown_underground` | Key of Aries clock |
-| `room_46` | **modelled** — the game's actual objective, reached only through `antechamber`'s north door |
+| `room_46` | **modelled** — the game's actual objective, reached only through `antechamber`'s north door. Its only edge back is to `antechamber` (also `modelled`, see above), so once the room's one-time arrival grants (Crown of the Blueprints, Sanctum Key) are collected, travelling back to the Antechamber is still an offered, purposeful action, and the day continues. |
 
 Both Upgrade Disks that were off-grid are now reachable: The Foundation's is an
 ordinary `guaranteed_in` room pickup now that the room is on the grid; the

@@ -213,6 +213,49 @@ def test_a_door_that_is_out_of_reach_records_out_of_steps_not_dead_end():
     assert game.termination_reason == "out_of_steps"
 
 
+# ------------------------------- off grid: engine and mask must agree on
+# ------------------------------- which reachable nodes are purposeful
+
+def test_travelling_to_an_unmodelled_node_does_not_keep_the_day_alive():
+    """Off grid, a reachable node with no contents (areas.json's
+    ``modelled: false``) is a pure step sink, not a purposeful destination --
+    env/actions.py's travel mask never offers it, so _check_termination must
+    not treat it as a reason to keep the day open either. Parked at the Inner
+    Sanctum with only the (unmodelled) Underpass in budget, the day must end,
+    matching the all-False mask a real agent would face here."""
+    game = Game(GameConfig(), seed=1)
+    game.state.area = "inner_sanctum"
+    game.state.pos = -1
+    game.state.steps = 2  # strictly affords underpass (cost 1) only
+    costs = game.area_route_costs()
+    assert costs["underpass"][0] == 1, "setup: underpass must be the sole reachable node in budget"
+    assert not game.registry.area_graph.nodes["underpass"].modelled, "setup: underpass must be unmodelled"
+
+    game._check_termination()
+
+    assert game.phase is Phase.TERMINAL
+    assert game.termination_reason == "out_of_steps"
+
+
+def test_travelling_to_a_modelled_node_still_keeps_the_day_alive():
+    """The anti-vacuity direction: from the same Inner Sanctum position, once
+    the step budget also reaches a modelled node (the Basement, cost 5, the
+    only modelled destination among those in range), the day must stay open
+    -- the modelled gate must not blanket-suppress every off-grid node."""
+    game = Game(GameConfig(), seed=1)
+    game.state.area = "inner_sanctum"
+    game.state.pos = -1
+    game.state.steps = 6  # strictly affords underpass/rotating_gear/mine_north/
+    # reservoir_north (all unmodelled) and the Basement (cost 5, modelled)
+    costs = game.area_route_costs()
+    assert costs["basement"][0] == 5, "setup: basement must be reachable at cost 5"
+    assert game.registry.area_graph.nodes["basement"].modelled, "setup: basement must be modelled"
+
+    game._check_termination()
+
+    assert game.phase is not Phase.TERMINAL
+
+
 # ----------------------------------- the bound on what counts as purposeful
 
 def test_a_reversible_switch_does_not_keep_the_day_alive():

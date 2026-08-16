@@ -3318,13 +3318,21 @@ class Game:
 
         Checks whether the player can travel to any reachable destination with
         at least one step to spare on arrival (strict: steps > cost), using the
-        same affordability contract as the travel action mask.
+        same affordability contract as the travel action mask -- including its
+        ``modelled`` gate: an unmodelled node has no contents to collect, so
+        travelling there is a pure step sink and does not count as purposeful,
+        even though the pathfinder still routes through it en route to
+        somewhere else (:mod:`env.actions`'s travel mask skips these nodes for
+        the same reason).
         """
         st = self.state
         costs = self.area_route_costs()
+        nodes = self.registry.area_graph.nodes
         for node_id, result in costs.items():
             if node_id == st.area:
                 continue  # no self-travel
+            if not nodes[node_id].modelled:
+                continue  # pure step sink, not a purposeful destination
             if st.steps > result[0]:
                 return True
         return False
