@@ -101,7 +101,7 @@ def test_travel_to_garage_suppressed_once_drained(registry):
 
 
 def test_travel_to_garage_offered_when_car_trunk_still_openable(registry):
-    """Task 31: TRAVEL[garage] stays offered once entered when the Car Keys
+    """TRAVEL[garage] stays offered once entered when the Car Keys
     are held and today's car trunk is unopened -- the anchor-travel path
     exercises the same ``_cell_worth_entering`` gate MOVE_TO does, and the
     Garage has no generic container of its own (special_items.json's

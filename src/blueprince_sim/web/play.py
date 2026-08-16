@@ -187,13 +187,12 @@ def _room_effect_text_by_id(data_dir: Path) -> dict[str, str]:
 def _pending_upgrade_dict(game: Game) -> dict | None:
     """JSON view of the live Upgrade Disk choice, or None outside UPGRADE_PENDING.
 
-    ``game.state.pending_upgrade_options`` holds three raw variant ids -- the
-    disk menu's own bare-id display the owner flagged as unreadable (open
-    task 30, not specific to the Parlor). ``effect_text`` (see
-    ``_room_effect_text_by_id``) is what actually distinguishes same-named
-    variants; ``slot_name`` is the base room the disk is upgrading, resolved
-    through the slot table since a slot id is not always the room id it
-    upgrades.
+    ``game.state.pending_upgrade_options`` holds three raw variant ids, which
+    are unreadable on their own for every ``__ixNN`` variant, not just the
+    Parlor pair. ``effect_text`` (see ``_room_effect_text_by_id``) is what
+    actually distinguishes same-named variants; ``slot_name`` is the base
+    room the disk is upgrading, resolved through the slot table since a slot
+    id is not always the room id it upgrades.
     """
     if game.phase is not Phase.UPGRADE_PENDING:
         return None
@@ -223,7 +222,7 @@ _RESOURCE_KEYS = ("steps", "gems", "keys", "coins", "dice", "luck")
 def _resource_snapshot(game: Game) -> dict[str, int]:
     """steps/gems/keys/coins/dice/luck plus every held special item, by id.
 
-    One reporting point for task 28: whatever paid a room out -- a record's
+    One reporting point for room payouts: whatever paid a room out -- a record's
     ``items``, a ``grant`` effect tag, a ``room_hook`` handler, or a container
     open -- lands on ``GameState`` one way or another, so diffing this
     snapshot before/after a step surfaces every source without a separate

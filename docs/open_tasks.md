@@ -3,7 +3,8 @@
 Work the project owner has identified and that is NOT in `docs/plan.md`'s
 delivered set -- each needs its own design pass. Two sources so far: a review of
 the special-items PR stack, and a recorded session of real play through the
-Training Observatory (tasks 25-36).
+Training Observatory, whose twelve findings have shipped and left the
+remainders in tasks 37-41.
 
 **Play findings outrank the wiki**, per [`doctrine.md`](doctrine.md) -- but where
 one contradicts a published rule, surface the conflict rather than silently
@@ -80,139 +81,80 @@ All shaping constants (`special_item_values`, `PATHS_ONE_PENALTY` /
 multi-day run data behind them. Calibrating them needs training statistics
 from actual attempts, which do not exist yet.
 
-## Owner play findings, one recorded seed
+## 37. The Laboratory unlock is day-scoped, and POWER is unmodelled
 
-Twelve items the owner raised after playing a seed through the Training
-Observatory. The recorded profile is `runs/postfix-v2/demos.jsonl`, which is the
-reproduction artifact for every item below that names a specific in-game moment.
+> "You need to unlock it by powering and visiting the Laboratory first."
 
-**These are owner observations from play, so they outrank the wiki** — but where
-one contradicts a published rule, surface the conflict rather than silently
-picking a side. Three are explicitly research-first and say so.
+The Grotto edge carries the owner's two conjuncts as two gates, and neither is
+finished. `lab_visited` is real and live, but it is checked fresh against
+`GateContext.rooms_entered` every day, so reaching the Grotto needs the
+Laboratory drafted and entered *that day* -- tighter than the owner's wording,
+which reads as a **one-time** unlock. Latching a first-ever visit across days
+needs a `GameState`/`GameConfig` field plus a room-entry hook, both outside
+`engine/areas.py`, which only evaluates the `GateContext` it is handed.
 
-They divide into engine fidelity (25, 26, 29, 31, 32, 33, 35, 36) and
-Observatory UX (27, 28, 30, 34). Nothing here has been verified against the
-engine yet; each entry records what the owner saw, not a diagnosis.
+`lab_steam_and_power`, the POWER conjunct, is still `stub: true` and
+`kind: "unmodelled"`, passing unconditionally: **nothing in the engine
+represents whether the house is powered.** Building that is the same
+off-`engine/areas.py` plumbing, so both halves ride `PR-power-system`
+together. [`areas.md`](areas.md) owns the gate's current shape and records
+this as its known gap.
 
-## 25. Blackbridge Grotto is reachable from a fresh save
+## 38. Should a wing exclude its corners? Owner ruling needed
 
-> "Blackbridge Grotto should not be accessible from a fresh save. You need to
-> unlock it by powering and visiting the Laboratory first."
+`west_or_east_wing` is carried by six rooms, and only three of them also carry
+`no_corner`: the Morning Room, the Greenhouse, and the Secret Garden, whose
+`rank_gte_3`/`rank_lte_8` bounds exclude ranks 1 and 9 anyway. **The Terrace,
+the Patio and the Veranda can therefore be drawn onto a corner tile today**,
+while the wiki says a wing never includes the corners and names the Patio
+specifically -- *"rooms like the Patio can never be drawn on Rank 1"*.
 
-The Grotto is the one modelled area node holding a disk terminal, and
-`areas.json`'s `lab_steam_and_power` gate is the stub that
-[`areas.md`](areas.md) records as the only stub still stranding anything when
-closed. That gate passing unconditionally is the likely reason the Grotto is
-reachable early; the fix is a real gate keyed to powering *and* visiting the
-Laboratory, not merely holding an ignition tool.
+The clean fix is to make `west_or_east_wing` corner-excluding in
+`placement.py::satisfies_draft_conditions` rather than tagging three rooms
+individually, which narrows three rooms' legal tiles at once and changes the
+draft distribution. **That is an owner ruling, not an implementation
+detail** -- it turns a data question into a semantics change on a shared tag,
+and nothing should move until the ruling exists.
 
-## 26. Research the Morning Room's placement
+## 39. The Shelter's three charges are not strictly draft-ordered
 
-> "I believe the Morning Room can only be placed against an outer wall.
-> Research the Morning Room's placement."
+"The Shelter protects against the next three red rooms that I draft" is exact
+on its forward-looking half: `effects/rooms/shelter.py` snapshots
+`game.placed_ids` at its own `ON_PLACE`, so an already-drafted red room keeps
+its penalty. Among rooms drafted **after** the Shelter, though, the three
+charges are still spent in penalty-resolution order rather than draft order.
 
-Research first. If it holds, this is a `draft_conditions` tag on the room
-record — `not_on_wing` and friends already exist in
-`placement.py::satisfies_draft_conditions`, and "wing" and "outer wall" are the
-same thing in this engine. Note the Morning Room already carries a documented
-wings-only exception in the forced-draw precedence order, which is evidence for
-the owner's reading and the first place to look.
+The two only diverge when more than three red rooms are drafted after the
+Shelter before the earliest of them is entered, and today only the Maid's
+Chamber has a placement-time penalty, so the window is narrow. Closing it
+needs per-draft notification plumbing: the Shelter is an outer-pool room and
+never receives `ON_DRAFT_ROOM`, so it cannot currently count drafts as they
+happen. [`rooms.md`](rooms.md) owns the shipped scoping rule.
 
-## 27. One map, tabbed, instead of two panels
+## 40. Scripted policies never take the outer draft
 
-> "The UX isn't very good. The indoor map is very small and the outer map is
-> very large. I recommend having a single interface that shows one or the other
-> with a tabbed view to switch between them. The view switches automatically
-> when moving between them but can be manually switched back, if desired."
+`cli/policies.py::_navigate_frontier` never calls `Game.open_outer_draft`,
+though `Game._action_in_budget` has always counted the outer draft as a reason
+the day is not over. The two disagreeing is the pre-existing `decision_limit`
+rate -- roughly 40% of `frontier_greedy` episodes.
 
-The auto-switch-on-transition-with-manual-override is the load-bearing half:
-the view must follow the player without trapping them.
+**A naive fallback makes it worse.** `open_outer_draft` travels off-grid, and
+`_navigate_frontier` has no off-grid handling at all: a measured trial dropped
+mean rooms placed from 24.1 to 18.1. This needs real off-grid navigation in
+the policy, not another branch at the bottom of the frontier loop.
 
-## 28. The action log should say what each room paid out
+## 41. Room 46 has no on-grid CLI travel verb
 
-> "The action log should show what was picked up in every room because it's
-> hard to tell what resources I received when passing through a room."
+`Game._action_in_budget` counts area travel toward the off-grid `room_46` node
+as a purposeful action while the player is on the grid, but `cli/play.py`
+only prints its "Travel to:" menu inside the `game.off_grid` branch. On-grid,
+there is no verb that takes it.
 
-Room payouts land through several paths (`items` on the record, `grant` effect
-tags, `room_hook` handlers, container opens), so this needs a single reporting
-point rather than a per-site addition.
-
-## 29. The Shelter protects the next three red rooms DRAFTED
-
-> "The Shelter protects against the next three red rooms that I draft. It has
-> no effect on rooms I have already drafted."
-
-Both halves are the specification: it is forward-looking, counted in **drafts**
-rather than entries, and already-placed red rooms are untouched.
-
-## 30. Upgrade variants need a readable name, not an id
-
-> "The upgrade disks need to give a better room description than the
-> identifier. I can't tell apart the parlor__ix108 and parlor__ix109 rooms."
-
-The variant records carry an `effect_text` that distinguishes them; the disk
-menu is showing the raw id instead. Affects every `__ixNN` variant, not only the
-Parlor pair.
-
-## 31. Car Keys cannot be used once the Garage has been looted
-
-> "I can't move to the Garage when carrying the Car Keys because I have already
-> visited the Garage and taken its items."
-
-Travel to the Garage appears to be gated on the room still having something to
-give, rather than on holding the Car Keys. Carrying the keys should permit the
-move regardless of whether its items are spent.
-
-## 32. Research: an upgraded Parlor dealt the same day as the base Parlor
-
-> "The upgraded Parlor landed in my drafting pool on the same day that I had
-> already placed the original Parlor. Research if this is possible without
-> using the Chamber of Mirrors."
-
-Research first. `decks.py::eligible_pool` is documented to have upgrade variants
-**replace** their base room rather than join it, and `draft.py::room_draftable`
-enforces one copy on the grid with a deliberate waiver for the Laboratory's
-`add_aquariums`. If a variant and its base can both be dealt in one day outside
-those paths, one of those two rules is not holding.
-
-## 33. The Sauna's +20 steps did not arrive, and the room could not be entered
-
-> "The Sauna did not give me an extra +20 steps the following day. I have
-> already opened the Apple Orchard, so I should have 90 steps to begin. The
-> game did not allow me to enter the room because it was the last frontier
-> door, so I could not enter it to activate the effect."
-
-Two failures in one report, and they may share a cause with task 36. The
-expected total is stated: 50 base + 20 Orchard + 20 Sauna = **90**. Establish
-first whether the bonus is unmodelled, or modelled but never triggered because
-entry was refused.
-
-## 34. Distinguish visited from unvisited rooms
-
-> "The UI should clearly identify rooms that I have visited before and rooms I
-> have not. I'm imagining a gradient color on rooms I haven't entered yet."
-
-Drafting and entering are distinct in this engine — a placed room is not an
-entered one — so this is showing state the engine already tracks.
-
-## 35. The Drawing Room grants one free reroll per door
-
-> "The Drawing Room grants one free reroll per door."
-
-Per **door**, not per draft and not per day. [`drafting.md`](drafting.md) owns
-the redraw sources and is where the rule belongs once confirmed against the
-current implementation.
-
-## 36. Do not end the day while productive actions remain
-
-> "Do not end the day if I have productive and valid actions to perform. The
-> game ended before I could use the Coat Check because I had no more frontier
-> doors."
-
-Running out of frontier doors is being treated as the end of the day, but
-inventory and terminal actions can still be productive at that point. Likely
-related to task 33's second half, where entry was refused at the last frontier
-door.
+No silent spin: the NAVIGATE branch always falls through to `input()` and
+`'q'` always works, and no reproduction was constructible -- travel to Room 46
+being the *only* purposeful action left needs the grid simultaneously
+exhausted. It is still a menu the engine believes exists and the CLI does not
+offer.
 
 ## 23. OPEN OWNER QUESTIONS
 

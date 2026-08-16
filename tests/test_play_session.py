@@ -156,9 +156,9 @@ def test_action_group_covers_full_action_space():
 def test_state_reports_entered_per_cell():
     """frame['entered'] mirrors GameState.entered exactly: 45 entries, the
     player's own starting cell already True, a freshly placed-but-unstepped
-    room False. Task 34 (distinguish visited from unvisited rooms) needs this
-    surfaced -- drafting and entering are distinct in this engine, and the UI
-    had no way to see 'entered' at all before this field existed."""
+    room False. The Play tab shades unvisited rooms off this field, which
+    drafting alone cannot supply: drafting and entering are distinct in this
+    engine, so a placed room is not an entered one."""
     session = PlaySession(seed=1, n_days=1, reward="shaped", unlocks="all")
     game = session.env.game
     parlor = game.registry.by_id["parlor"]
@@ -182,7 +182,7 @@ def test_pending_upgrade_uses_effect_text_not_raw_variant_id():
     """pending_upgrade's options carry a readable name plus the sheet's
     effect_text -- the owner's own example (parlor__ix108 vs parlor__ix109,
     both named plain 'Parlor') is only distinguishable through effect_text,
-    which Room itself does not carry. Task 30 says this affects every
+    which Room itself does not carry. The bare ids are unreadable for every
     __ixNN variant, not just the Parlor pair -- this pins the general
     lookup, not a Parlor special case."""
     session = PlaySession(seed=1, n_days=1, reward="shaped", unlocks="all")
@@ -224,7 +224,7 @@ def test_pending_upgrade_reached_through_real_insert_disk():
 
 
 def test_payout_diff_reports_signed_deltas_and_omits_unchanged():
-    """_payout_diff is the single reporting point behind task 28: it reports
+    """_payout_diff is the action log's single payout reporting point: it reports
     every changed resource/item as a signed delta (gains AND costs, since a
     walk's step cost nets against a room's step grant) and omits anything
     that did not change -- regardless of which engine path (items, a grant
@@ -244,7 +244,7 @@ def test_act_attaches_payout_matching_independent_resource_diff():
     """act()'s recorded last_action['payout'] matches an independently
     computed before/after resource diff -- pins that a single diffing point
     inside act() (not per-room-type additions) is what populates the action
-    log's payout, per task 28."""
+    log's payout."""
     session = PlaySession(seed=11, n_days=1, reward="shaped", unlocks="all")
     before = dict(session.state()["frame"]["resources"])
     action_id = session.state()["legal_actions"][0]["id"]

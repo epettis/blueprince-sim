@@ -637,9 +637,9 @@ function renderHouse(frame, targetId = "house", svgKey = "house-svg") {
       // player has stepped into (see GameState.entered). `frame.entered` is
       // only present on Play tab frames (web/play.py); Runs tab replay
       // frames have no such field and simply never show the overlay. A
-      // diagonal fade over the whole tile is the "gradient" the owner asked
-      // for (task 34) -- the category color still shows through the near
-      // corner so the room is identifiable, just visibly unvisited.
+      // diagonal fade over the whole tile marks an unvisited room -- the
+      // category color still shows through the near corner so the room is
+      // identifiable, just visibly unvisited.
       if (frame.entered && frame.entered[cell] === false) {
         svg += `<rect x="${x + 4}" y="${y + 4}" width="${CELL - 8}" height="${CELL - 8}" rx="9"
                  fill="url(#unvisited-fade)" class="room-unvisited"><title>drafted, not yet entered</title></rect>`;
@@ -1712,7 +1712,7 @@ state.playState = null;              // last /api/play/{new,state,act,undo} resp
 state.playVisited = new Set(["house"]);  // area ids seen so far (client-side, best-effort)
 state.playDebug = false;             // debug-overlay toggle; OFF by default (observation parity)
 state.playLog = [];                  // running per-day action log (client-side only)
-// Task 27: which of the tabbed map panels is showing. Auto-followed to match
+// Which of the tabbed map panels is showing. Auto-followed to match
 // the player's on-grid/off-grid status on every real transition (see
 // updatePlayMapTab); a manual tab click holds until the next transition, so
 // looking at the other map never traps the player out of sync permanently.
@@ -1829,7 +1829,7 @@ function renderPlayActions() {
   const pending = s.frame.pending;
   // Same idea while an Upgrade Disk choice is open (frame.pending_upgrade):
   // the three CHOOSE_UPGRADE actions are already rendered readably by
-  // renderPlayUpgrade() (name + effect_text, task 30), so drop them here
+  // renderPlayUpgrade() (name + effect_text), so drop them here
   // rather than also showing "choose upgrade #0 (parlor__ix108)" verbatim.
   const pendingUpgrade = s.frame.pending_upgrade;
   const upgradeRe = /^choose upgrade #\d+ \(/;
@@ -1936,11 +1936,11 @@ function findChooseUpgradeAction(legalActions, index) {
   return legalActions.find((a) => a.group === "choose" && re.test(a.label)) || null;
 }
 
-// The disk-upgrade menu (task 30): web/play.py's pending_upgrade resolves
+// The disk-upgrade menu: web/play.py's pending_upgrade resolves
 // each offered variant id to a readable name plus the sheet's effect_text --
 // e.g. "Parlor" / "3 Prize" vs "Parlor" / "2 Wind-up Keys" -- since the raw
-// ids (parlor__ix108 / parlor__ix109) are what the owner could not tell
-// apart. Reuses .opt's card styling rather than inventing new markup.
+// ids (parlor__ix108 / parlor__ix109) are indistinguishable on their own.
+// Reuses .opt's card styling rather than inventing new markup.
 function renderPlayUpgrade() {
   const el = $("#play-upgrade");
   const s = state.playState;
@@ -2010,7 +2010,7 @@ function pushPlayLog(s) {
 
 // Resource ids that get an icon instead of a spelled-out name in the log;
 // same glyph set the dashboard's draft-frequency badges use. Held special
-// items (task 28's "container opens" case) fall through to their name.
+// items (the "container opens" case) fall through to their name.
 const PAYOUT_ICON = { steps: "👣", gems: "💎", keys: "🔑", coins: "🪙", dice: "🎲", luck: "🍀" };
 
 // What a step paid out, diffed server-side across the whole action (see
@@ -2034,7 +2034,7 @@ function renderPlayLog() {
   // A dedicated row class (not the Runs tab's .log-row) so the payout badge
   // gets its own non-shrinking flex slot instead of being swallowed by the
   // row's ellipsis truncation on long entries (draft/travel labels are
-  // exactly the long ones, and exactly where task 28's payout matters most).
+  // exactly the long ones, and exactly where the payout matters most).
   $("#play-action-log").innerHTML = state.playLog.length
     ? state.playLog.map((a, i) =>
         `<div class="play-log-row"><span class="n">${i + 1}</span>` +
@@ -2102,7 +2102,7 @@ function renderPlayArea() {
   renderAreaLegend("replay", true, "play-area-legend");
 }
 
-// Task 27's load-bearing half: auto-switch the map tab whenever the player's
+// The map tabs' load-bearing half: auto-switch whenever the player's
 // on-grid/off-grid status actually changes (frame.area null <-> non-null),
 // so the view follows without being told to. A manual tab click (see the
 // button handlers below) is left alone between transitions -- it only gets

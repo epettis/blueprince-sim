@@ -396,8 +396,8 @@ def test_grotto_unreachable_from_private_drive_without_lab_visited(graph: AreaGr
 
     The edge requires BOTH lab_steam_and_power and lab_visited (AND semantics);
     with the Laboratory absent from rooms_entered, lab_visited blocks the edge
-    on its own. This is the fix for open_tasks.md #25 (Grotto reachable from a
-    fresh save): the stub alone is no longer sufficient.
+    on its own, so the stub alone is not enough to open the route (see
+    docs/areas.md's "Blackbridge Grotto gate").
     """
     ctx_no_lab = _ctx(rooms_entered=frozenset())
     dist = reachable(graph, "private_drive", ctx_no_lab)

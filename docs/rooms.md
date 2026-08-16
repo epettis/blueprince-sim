@@ -645,10 +645,12 @@ it**, and grants its safe gem. It is an **outer** room, so the grant rides
 `Game.travel_to`'s `ON_ENTER` rather than the grid path. Protection is scoped
 by draft order, not by when a room's own penalty happens to resolve: a red
 room already on the board when the Shelter is drafted keeps its penalty even
-if that penalty is entry-triggered and does not fire until later (owner
-ruling, `docs/open_tasks.md` #29) — `effects/rooms/shelter.py` snapshots
-`game.placed_ids` at its own `ON_PLACE` into `game.shelter_excluded_ids`,
-which `effects/tier1.py::_red_negated` checks alongside the charge counter.
+if that penalty is entry-triggered and does not fire until later —
+`effects/rooms/shelter.py` snapshots `game.placed_ids` at its own `ON_PLACE`
+into `game.shelter_excluded_ids`, which `effects/tier1.py::_red_negated`
+checks alongside the charge counter. Among rooms drafted *after* the Shelter
+the three charges are spent in penalty-resolution order rather than draft
+order (`open_tasks.md` 39 covers what making that exact would take).
 
 **`shrine`** — deposit 1–80 gold and receive one of eight blessings lasting 3–7
 days (the granting day counts as day 1); taking the offering back curses you for

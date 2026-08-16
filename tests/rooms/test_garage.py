@@ -432,15 +432,13 @@ def test_garage_disk_is_not_marked_collected_by_opening_alone():
 
 
 def test_move_to_garage_offered_when_car_trunk_still_openable():
-    """Task 31: an already-entered, otherwise-drained Garage stays a legal
-    MOVE_TO target while the Car Keys are held and today's trunk is unopened.
+    """An already-entered, otherwise-drained Garage stays a legal MOVE_TO
+    target while the Car Keys are held and today's trunk is unopened.
 
-    Reproduces the owner's report ("I can't move to the Garage when carrying
-    the Car Keys because I have already visited the Garage and taken its
-    items"): the Garage has no generic container of its own
+    The Garage has no generic container of its own
     (data/special_items.json's containers.rooms has no "garage" entry), so
-    once it is entered the car trunk is the ONLY reason left to walk back --
-    and before the fix, _cell_worth_entering never checked it.
+    once it is entered the car trunk is the ONLY reason left to walk back,
+    and _cell_worth_entering has to check it for the move to stay offered.
     """
     g = Game(GameConfig(door_locks=False, starting_items=frozenset({"car_keys"})),
              seed=9)
