@@ -93,6 +93,7 @@ EFFECT_INK_WELL_ACTIVE = "ink_well_active"  # sets the day-scoped flag Game.can_
 EFFECT_FOOD_STEP_BONUS = "food_step_bonus"  # raises one items.json dish's base step value
 EFFECT_SHOP_HALF_PRICE = "shop_half_price"  # halves prices at the shop ids it names
 EFFECT_GREEN_ROOM_GEMS = "green_room_gems"  # parks gems in each newly drafted Green Room
+EFFECT_SPIRAL_WORDS = "spiral_words"  # pays the Spiral's word-count-indexed tier table
 
 
 @dataclass(frozen=True)
@@ -308,6 +309,14 @@ def generate_sky(registry: ConstellationsRegistry, state, cell: int, source: str
         shown = ()
     sky = NightSky(source=source, stars=state.stars, constellation_ids=shown)
     state.night_skies.setdefault(cell, []).append(sky)
+    # The Spiral's word arrives HERE, on generation, and deliberately not in
+    # apply_effect: a player who views a Spiral sky and never activates it has
+    # still banked the word. It is also outside every ``stacks`` and
+    # ``implemented`` guard, because growth is a property of the sky rather
+    # than of the activation the guards govern.
+    if SPIRAL_ID in shown:
+        cap = registry.by_id[SPIRAL_ID].effect.get("word_cap", 0)
+        state.spiral_words = min(state.spiral_words + 1, cap)
     return sky
 
 
@@ -372,6 +381,8 @@ def apply_effect(game, record: Constellation) -> None:
             record.effect["trunks"])
     elif record.effect_kind == EFFECT_INK_WELL_ACTIVE:
         state.ink_well_active = True
+    elif record.effect_kind == EFFECT_SPIRAL_WORDS:
+        _apply_spiral(game, record)
     # The three read-side kinds deliberately write nothing here; each is
     # resolved by its own reader below, at the site that spends it.
     #
@@ -390,6 +401,114 @@ def apply_effect(game, record: Constellation) -> None:
     # drafted. Writing here would be the wrong trigger outright -- the mechanic
     # skips "Green Rooms already on the estate", so there is nothing to pay at
     # activation time and everything to pay at each later draft.
+
+
+def spiral_tier(record: Constellation, words: int) -> dict:
+    """The Spiral's complete published effect at ``words`` words; {} below the first.
+
+    Each ``tiers`` entry states the WHOLE effect at its ``min_words`` rather
+    than a delta, because later words modify earlier clauses as often as they
+    add to them -- so the answer is simply the last entry this word count has
+    reached, never an accumulation across entries. The list is ascending by
+    ``min_words`` (tools/validate_data.py enforces it), which is what lets
+    this stop at the first entry the count has not reached.
+    """
+    tier: dict = {}
+    for entry in record.effect.get("tiers", ()):
+        if words < entry["min_words"]:
+            break
+        tier = entry
+    return tier
+
+
+def _spiral_item(game, tier: dict, gate_key: str, pool_key: str, record: Constellation) -> None:
+    """Grant one random item from ``record.effect[pool_key]`` if the tier's gate passes.
+
+    The gate is a step CEILING read from the tier ("if the player has 39 Steps
+    or fewer"), absent on every tier below the word count that introduces it.
+    Both item clauses are gated on the step count as it stands when they
+    resolve, which is why :func:`_apply_spiral` applies the tier's step loss
+    before calling this and its ``set_steps`` after.
+
+    The pool lives in the data, never here: naming an item id in an engine
+    module is what tests/test_item_id_allowlist.py forbids. Items already held
+    are dropped from the draw rather than rolled and wasted, so a player
+    holding most of the pool still gets something; an exhausted pool grants
+    nothing. The roll is uniform over what remains -- the wiki publishes the
+    pools but no per-item weights, so weighting them would be invention.
+
+    special_items.py is imported locally: at module scope
+    special_items -> state -> constellations would cycle.
+    """
+    from . import special_items
+
+    ceiling = tier.get(gate_key)
+    if ceiling is None or game.state.steps > ceiling:
+        return
+    pool = tuple(
+        item_id for item_id in record.effect.get(pool_key, ())
+        if not special_items.has(game.state, item_id)
+    )
+    if not pool:
+        return
+    idx = game.rng.roll_weighted(pool_key, (1.0,) * len(pool))
+    special_items.grant(game.state, game.registry, pool[idx])
+
+
+def _apply_spiral(game, record: Constellation) -> None:
+    """Pay out one activation of the Spiral of Stars at today's word count.
+
+    Reads ``state.spiral_words`` -- grown by :func:`generate_sky`, not here --
+    picks that word count's tier, and applies it. Every number comes from the
+    tier; this function contributes only the ORDER, which the wiki's own
+    conditions pin and which is not the order the tier keys are written in:
+
+    1. keys and gems, flat or scaled by the maximum rank entered today
+    2. the step loss, flat or scaled by that same rank
+    3. coins, flat or equal to the current day number
+    4. the star loss
+    5. the special item, then the Showroom item, then the Antechamber doors --
+       all three gated on the step count AFTER step 2, per "less than forty
+       steps after accounting for previous step losses"
+    6. ``set_steps``, which is what lifts a player who just passed those
+       gates at 39 steps back to 40
+    7. ``set_luck``, an absolute set that overrides the day's accumulated luck
+    8. the day end, last, because everything above still pays out first
+
+    Resource deltas route through the shared effects/tier1.py::_grant path, so
+    the Spiral spends the same vocabulary and the same clamping as every room
+    effect. It is imported locally: at module scope effects -> special_items ->
+    state -> constellations would cycle.
+
+    Not modelled, and the one place this table diverges from the game: the four
+    "you can no longer gain Steps/Gems/Keys/Gold today" clauses words 76-87 add
+    and keep. They need a gain-blocking chokepoint the engine has no equivalent
+    of, so a Spiral at 76+ words is strictly more generous here. See this
+    record's own meta.notes.
+    """
+    from .effects.tier1 import _grant
+
+    state = game.state
+    tier = spiral_tier(record, state.spiral_words)
+    if not tier:
+        return
+    rank = game.deepest_rank
+    _grant(game, "keys", tier.get("keys", 0) + tier.get("keys_per_rank", 0) * rank)
+    _grant(game, "gems", tier.get("gems", 0) + tier.get("gems_per_rank", 0) * rank)
+    _grant(game, "steps", tier.get("steps", 0) + tier.get("steps_per_rank", 0) * rank)
+    _grant(game, "coins", tier.get("coins", 0) + tier.get("coins_per_day", 0) * game.cfg.day)
+    _grant(game, "stars", tier.get("stars", 0))
+    _spiral_item(game, tier, "special_item_max_steps", "special_item_pool", record)
+    _spiral_item(game, tier, "showroom_item_max_steps", "showroom_item_pool", record)
+    ceiling = tier.get("antechamber_max_steps")
+    if ceiling is not None and state.steps <= ceiling:
+        experiments.unseal_all_antechamber_doors(game)
+    if "set_steps" in tier:
+        state.steps = tier["set_steps"]
+    if "set_luck" in tier:
+        state.luck = tier["set_luck"]
+    if tier.get("ends_day"):
+        game._terminate("spiral_of_stars")
 
 
 def food_step_bonus(registry: ConstellationsRegistry, state, food_id: str) -> int:

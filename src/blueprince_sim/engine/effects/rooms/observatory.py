@@ -12,12 +12,17 @@ Implemented:
     capability rather than tested by room id so no engine module has to
     branch on "observatory", the same shape as Capability.COMMERCE.
 
+All thirteen constellations activate: five pay a resource, and the Southern
+Cross, Draxus, The Twins, Farmer's Apple, The Sail, Florealis, the Ink Well
+and the Spiral of Stars write through constellations.py::apply_effect. The
+Spiral's payout is indexed by a permanent word count grown at sky GENERATION
+(constellations.py::generate_sky, GameConfig.spiral_words).
+
 Not modelled:
-  - One constellation stays inert: the Spiral of Stars' word growth, which
-    has no primitive to hang off (data/constellations.json's blocked_on).
-    The other twelve activate -- five pay a resource, and the Southern
-    Cross, Draxus, The Twins, Farmer's Apple, The Sail, Florealis and the
-    Ink Well write through constellations.py::apply_effect.
+  - The Spiral's four "you can no longer gain Steps/Gems/Keys/Gold today"
+    clauses, words 76-87. They need a gain-blocking chokepoint the engine
+    has no equivalent of; see that record's meta.notes in
+    data/constellations.json.
 """
 
 from __future__ import annotations

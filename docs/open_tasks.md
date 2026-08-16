@@ -285,7 +285,6 @@ built yet.** Each one leaves the log the day its work lands.
 - **The Conservatory's remodel** — the drawing board that re-rolls three rooms'
   rarities. Its *reachability* has shipped, so only the remodel's rules wait
   here.
-- **The Spiral of Stars** — the one constellation of thirteen still inert.
 - **The Mail Room's Dynamic Rarity** package, unblocked by `set_dynamic_rarity`.
 - **The jack hammer's four unsourced vault keys**, which need a research pass
   before the table is rebuilt (cited from
@@ -366,15 +365,6 @@ doc that owns it; when the remaining work lands, the entry goes.
   **Still unbuilt alongside the remodel: the Conservatory's 15% forced draw.**
   Its Found Floorplan gate has shipped; the forced-draw entry has not, and
   [`drafting.md`](drafting.md) records that gap.
-
-- **The Spiral of Stars — OWNER RULING: land it.** *"Just land the spiral of
-  stars."* Twelve of the thirteen constellations are
-  `implemented: true`; the Spiral is the exception, carrying
-  `blocked_on: spiral_word_growth_not_modeled`. Its word growth is the only
-  permanent, save-scoped quantity in the constellation system and has no
-  primitive to hang off. [`rl-environment.md`](rl-environment.md) owns the
-  action-width register; the reserved, permanently-masked slot for this build
-  already exists, so landing it costs zero width and no extra retrain.
 
 - **The retrain is owed, and is held on the owner's explicit say-so alone.**
   `baseline-ep8275991` was trained against rules the sim no longer implements —

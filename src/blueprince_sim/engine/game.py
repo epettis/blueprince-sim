@@ -114,6 +114,7 @@ class Game:
         st.allowance = cfg.allowance
         st.stars = cfg.stars
         st.stars_at_day_start = cfg.stars
+        st.spiral_words = cfg.spiral_words
         st.experiment.letters_delivered = cfg.letters_delivered
         st.has_keycard = cfg.break_room_keycard
         st.day = cfg.day
@@ -1086,8 +1087,9 @@ class Game:
         ``index`` is a position in data/constellations.json record order, the
         same order ACTIVATE_CONSTELLATION_BASE indexes by. Needs NAVIGATE, a
         sky at the player's cell showing that constellation un-activated, and
-        an ``implemented`` record -- the eight unimplemented ones can appear
-        in a sky (they are part of the partition) but never activate.
+        an ``implemented`` record -- every record is implemented today, but the
+        test stays, so an unimplemented one could appear in a sky (it would
+        still be part of the partition) without ever activating.
         """
         if self.phase is not Phase.NAVIGATE:
             return False

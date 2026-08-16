@@ -1033,6 +1033,94 @@ def _assert_deferred_exemptions_live(
             )
 
 
+# The Spiral of Stars' tier keys, split by how engine/constellations.py::
+# _apply_spiral consumes each one. Listed here rather than inferred so a typo
+# in the data is an error instead of a clause that silently never pays: every
+# key in the table is looked up with .get(), so a misspelt one reads as absent.
+_SPIRAL_INT_KEYS = frozenset({
+    "keys", "gems", "keys_per_rank", "gems_per_rank", "steps", "steps_per_rank",
+    "coins", "coins_per_day", "stars", "special_item_max_steps",
+    "showroom_item_max_steps", "antechamber_max_steps", "set_steps", "set_luck",
+})
+_SPIRAL_BOOL_KEYS = frozenset({"ends_day"})
+
+
+def _check_spiral_words(
+    errors: list[str], where: str, effect: dict, item_ids: list[str]
+) -> None:
+    """Check the Spiral of Stars' word-growth payload against the engine that reads it.
+
+    Four things can drift and each one fails silently rather than loudly, which
+    is why they are checked here:
+
+    - ``word_cap`` is what generate_sky clamps growth to; absent, growth would
+      clamp to 0 and the constellation would never leave its first tier.
+    - ``tiers`` must be ascending by ``min_words`` and start at 0, because
+      spiral_tier stops at the first entry the word count has not reached --
+      an out-of-order entry would make every later tier unreachable, and a
+      table not starting at 0 would leave a low word count with no tier.
+    - Every tier key must be one _apply_spiral actually consumes. A misspelt
+      key is read with .get() and so pays nothing at all.
+    - Both item pools must name real special_items.json records, since
+      engine/constellations.py grants them by id and an unknown id would grant
+      nothing while still consuming the roll.
+    """
+    cap = effect.get("word_cap")
+    if not isinstance(cap, int) or cap <= 0:
+        errors.append(f"{where}/effect: word_cap must be a positive int, got {cap!r}")
+    tiers = effect.get("tiers")
+    if not isinstance(tiers, list) or not tiers:
+        errors.append(f"{where}/effect: tiers must be a non-empty list, got {tiers!r}")
+        return
+    prev = None
+    for i, tier in enumerate(tiers):
+        at = f"{where}/effect/tiers[{i}]"
+        if not isinstance(tier, dict):
+            errors.append(f"{at}: must be an object, got {tier!r}")
+            continue
+        low = tier.get("min_words")
+        if not isinstance(low, int) or low < 0:
+            errors.append(f"{at}: min_words must be a non-negative int, got {low!r}")
+            continue
+        if prev is None and low != 0:
+            errors.append(
+                f"{at}: the first tier must start at min_words 0, got {low}; "
+                f"engine/constellations.py::spiral_tier would have no tier below it")
+        if prev is not None and low <= prev:
+            errors.append(
+                f"{at}: min_words must be strictly ascending, got {low} after {prev}; "
+                f"engine/constellations.py::spiral_tier stops at the first tier not "
+                f"reached, so an out-of-order entry hides every tier after it")
+        if isinstance(cap, int) and low > cap:
+            errors.append(
+                f"{at}: min_words {low} is above word_cap {cap}, so this tier is "
+                f"unreachable")
+        prev = low
+        for key, value in tier.items():
+            if key == "min_words":
+                continue
+            if key in _SPIRAL_INT_KEYS:
+                if not isinstance(value, int) or isinstance(value, bool):
+                    errors.append(f"{at}: {key} must be an int, got {value!r}")
+            elif key in _SPIRAL_BOOL_KEYS:
+                if not isinstance(value, bool):
+                    errors.append(f"{at}: {key} must be a bool, got {value!r}")
+            else:
+                errors.append(
+                    f"{at}: unknown tier key {key!r}; engine/constellations.py::"
+                    f"_apply_spiral reads it with .get() and would pay nothing")
+    for pool_key in ("special_item_pool", "showroom_item_pool"):
+        pool = effect.get(pool_key)
+        if not isinstance(pool, list) or not pool:
+            errors.append(f"{where}/effect: {pool_key} must be a non-empty list, got {pool!r}")
+            continue
+        unknown = [i for i in pool if i not in item_ids]
+        if unknown:
+            errors.append(
+                f"{where}/effect/{pool_key}: names {unknown}, which have no "
+                f"special_items.json record to grant")
+
+
 def main(argv: list[str] | None = None) -> int:
     """Check every data/*.json file and print a report; return 1 if any error, else 0.
 
@@ -2444,21 +2532,22 @@ def main(argv: list[str] | None = None) -> int:
                             errors.append(
                                 f"{where}/effect: gems_by_room[{room_id!r}] must be a "
                                 f"positive int, got {amount!r}")
+                case "spiral_words":
+                    _check_spiral_words(errors, where, effect, si_ids)
                 case _:
                     errors.append(
                         f"{where}/effect: unknown kind {kind!r}; "
                         f"engine/constellations.py::apply_effect would ignore it")
 
-    # The two constellations outside the 0-49 table. The Spiral grows a word
-    # per generated sky and that mechanic does not exist in the engine, so it
-    # stays implemented=false; the Ink Well (also outside the table) is
-    # implemented and checked by the record loop above like any other record.
-    for special_id in ("spiral_of_stars",):
-        rec = next((c for c in con_recs if c.get("id") == special_id), None)
-        if rec is None:
+    # Both constellations outside the 0-49 table -- the Ink Well (50) and the
+    # Spiral of Stars (100) -- are implemented and checked by the record loop
+    # above like any other record. What still needs pinning here is that the
+    # Spiral EXISTS under that id, because engine/constellations.py reaches it
+    # by id (SPIRAL_ID) from two places that have no record to fall back on:
+    # sky_at's above-49 bands, and generate_sky's word growth.
+    for special_id in ("ink_well", "spiral_of_stars"):
+        if not any(c.get("id") == special_id for c in con_recs):
             errors.append(f"constellations: missing the {special_id!r} record")
-        elif rec.get("implemented", False):
-            errors.append(f"constellations/{special_id}: must carry implemented=false")
 
     expected_counts = {str(n) for n in range(50)}
     if set(con_table) != expected_counts:

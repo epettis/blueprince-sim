@@ -272,6 +272,14 @@ class GameConfig:
     # (Game.reset).  Never spent itself.  Carried by DayChain as a running
     # total, replaced wholesale each advance() the same way as allowance.
     stars: int = 0
+    # Words permanently added to the Spiral of Stars, capped at that record's
+    # own effect.word_cap (100).  Grown by one every time a generated night sky
+    # contains the Spiral -- on GENERATION, never on activation -- and carried
+    # into every future day (Game.reset).  Carried by DayChain as a running
+    # total, replaced wholesale each advance() the same way as stars, and
+    # SAVE-scoped like it: the words never reset, not even when the Spiral
+    # itself drops out of the sky because the star total fell below 100.
+    spiral_words: int = 0
     # Cloister of Joya's permanent Main Course bonus: +5 per Kitchen/Pantry/
     # Furnace drafted from it, added to every one of the five main-course
     # dishes and added to future days (Game.reset). Never spent itself.

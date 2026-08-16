@@ -226,6 +226,18 @@ class GameState:
     # effects/items/telescope.py::gate so a star earned mid-day cannot un-gate
     # the Telescope until tomorrow's snapshot reflects it.
     stars_at_day_start: int = 0
+    # Words permanently added to the Spiral of Stars. Seeded from
+    # cfg.spiral_words at reset(); grown in-run by constellations.generate_sky,
+    # which adds one every time a sky it builds contains the Spiral. Reported
+    # by carryover() and replaced wholesale into cfg.spiral_words by DayChain
+    # each advance() -- the same shape as stars, and SAVE-scoped like it.
+    #
+    # It counts GENERATIONS, not activations: the Spiral's own wording suggests
+    # a word arrives when it is activated, but a word arrives whenever a night
+    # sky containing it is generated, whether or not the player activates it.
+    # constellations.spiral_tier reads this to pick which tier of the record's
+    # published effect table one activation pays out.
+    spiral_words: int = 0
     # Night skies generated today, keyed by GRID CELL -- never by room id.
     # game.room_cells keeps only the LOWEST cell per room id (game.py's
     # _place_room: "if prev is None or cell < prev"), so with more than one

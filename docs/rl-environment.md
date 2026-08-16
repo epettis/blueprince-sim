@@ -104,13 +104,21 @@ same non-bool carry-over shape as `permanent_rarity`/`draft_counts`
 
 The constellation build itself (442 → 457, superseded by the above) landed at
 once, inert: 13 activation ids, one per `data/constellations.json` record in
-that file's ascending-star order — which includes a permanently masked slot
-for the Spiral of Stars, so that build later lands at zero width and zero
-extra retrain — plus one id to view the night sky and one dedicated id for
-the Ink Well's star-redraw. That ruling is satisfied and closed: no PR in
-that build may move an id inside it; activating a constellation is a
+that file's ascending-star order — which included a permanently masked slot
+for the Spiral of Stars — plus one id to view the night sky and one dedicated
+id for the Ink Well's star-redraw. That ruling is satisfied and closed: no PR
+in that build may move an id inside it; activating a constellation is a
 masking-site and encoder change only. It does not freeze ids outside the
 block, including earlier ones like the Axe range above.
+
+**That reservation paid out exactly as designed.** The Spiral of Stars has
+since landed and the id it was holding — `ACTIVATE_CONSTELLATION_BASE + 12` —
+simply went live: `N_ACTIONS` stayed at **481** and the observation stayed at
+**971** across 46 keys, so it cost zero width and no retrain. Its permanent
+word count rides `GameConfig.spiral_words` on the carry-over side rather than
+the observation side ([`scoping-and-carryover.md`](scoping-and-carryover.md)),
+which is why nothing in the encoder moved either. This is the worked example
+for the rule below: reserving against a *known* future field works.
 
 The Ink Well's separate id is the load-bearing part of that change, and the
 reason generalises: every other redraw source spends a hand- or day-scoped
@@ -201,10 +209,12 @@ only covered once its name is added. Add it in the same PR that declares the
 id, or the guard silently does not apply to the one id most likely to be dead.
 
 A *deliberately* reserved id — one masked False on purpose to hold a slot for a
-build that has already been committed to, like the Spiral of Stars slot above —
-is the one legitimate exception, and it is legitimate only because it is an
-owner ruling recorded here. It still has a masking site; the site just always
-writes False.
+build that has already been committed to — is the one legitimate exception, and
+it is legitimate only because it is an owner ruling recorded here. It still has
+a masking site; the site just always writes False. No id is reserved today: the
+Spiral of Stars slot was the last one, and it has since gone live (see the
+width register above). Anything currently masked False in every state is
+therefore dead, not reserved.
 
 **Reserving against a *known* future field works; reserving against an
 *unanalysed* one does not.** An observation slot sized to absorb a named,

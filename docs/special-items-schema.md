@@ -276,8 +276,12 @@ prose notes in this file have repeatedly outlived the condition they describe.
   the *extra* direction — a guaranteed find is a stronger channel than a roll,
   but it names a mechanic the wiki's `Locations` field generally does not list
   at all, so comparing it in that direction would be a category error.
-- **The Spiral and the Dartboard are unmodelled sources.** The Spiral appears
-  as a wiki location for eleven items — for `basement_key` it is the *only*
-  one — and the Dartboard is the likely origin of a `keycard` spawn entry that
-  was never on the wiki's list. Both are excluded as mechanic tokens rather
-  than modelled.
+- **The Dartboard is an unmodelled source; the Spiral is not a *spawn* source.**
+  The Dartboard is the likely origin of a `keycard` spawn entry that was never
+  on the wiki's list, and is excluded as a mechanic token rather than modelled.
+  The Spiral appears as a wiki location for eleven items — for `basement_key`
+  it is the *only* one — and those grants are modelled, but they belong to the
+  Spiral of Stars constellation's word-tier payout (`data/constellations.json`,
+  its `special_item_pool`) rather than to any room's spawn table. It stays
+  excluded as a mechanic token for exactly that reason: those items arrive
+  through an activation, never off a floor.
