@@ -491,6 +491,37 @@ parking in DRAFTING with nothing to choose. That branch is reachable only
 because reserve copies are unmodelled: it is a modelling artifact, not a game
 rule.
 
+### Reserve copies, researched but unbuilt
+
+The tier that would close that artifact, from
+blueprince.wiki.gg/wiki/Drafting_effects:
+
+- **When.** *"If there are not enough floorplans of that color, or if there is
+  no Special Floorplan for the first slot, then the draft may draw upon reserve
+  copies of floorplans."* Exactly the thin-colour case.
+- **Where.** After the pool draw, before the default triple -- the position this
+  file already assumes.
+- **What they relax.** *"These reserve copies may ignore the unique drafting
+  restrictions of those floorplans, though they still obey basic shape placement
+  rules, and may be duplicates of rooms in the estate."* So a reserve is **not**
+  filtered by the one-copy-per-grid rule, which is precisely why it can fill a
+  slot the defaults cannot.
+- **Persistence.** *"These reserve floorplans are drawn separately from the draft
+  pool and will not be drawn again if they are discarded by redrawing
+  floorplans."*
+- **Which rooms.** The page names the Morning Room, Solarium, Dormitory and
+  Casino, and adds that *"some relatively early-game additions are available for
+  reserve floorplans, even if they are not currently in the draft pool"*.
+
+**Two things the source does not settle**, and both change the build: whether a
+room's reserve is limited in number per day or per attempt, and whether that
+four-room list is exhaustive or illustrative -- the phrasing that follows it
+reads as open-ended. Note the Casino is a shop and the Solarium is green, the
+two colours measured as worst affected (`open_tasks.md` 48).
+
+Building this **relaxes the one-copy-per-grid invariant for one draw tier**, so
+it moves the draft distribution and needs an owner ruling before it starts.
+
 Slots fail **independently**, so an unfilled slot does not imply an empty hand:
 the Free/Gem decision can leave slots 0 and 1 drawing from a free deck with
 nothing legal on-colour while slot 2 draws a gem room from the gem deck. The

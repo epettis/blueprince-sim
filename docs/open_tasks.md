@@ -204,18 +204,39 @@ default and dealing that colour, 100 seeds:
 | shop | Commissary | **2 in 75/100** |
 | green | Courtyard | **1 in 61/100**, 2 in 25/100 |
 
-**The fix is to model reserve copies**, which needs the wiki's rules for them
-researched first -- how many exist per room, whether a reserve is filtered by
-the one-copy-per-grid rule, and where exactly it sits in the ladder.
-[`drafting.md`](drafting.md)'s colour-selective section owns the gap and is
-where the rule belongs once it exists. Until then a thin colour will keep
-dealing short hands whenever one of its three defaults is on the grid.
+**The fix is to model reserve copies, and their rules are now researched** --
+see [`drafting.md`](drafting.md)'s colour-selective section, which owns the gap.
+The answer to the question this task asked is that a reserve is **not** filtered
+by the one-copy-per-grid rule (*"may be duplicates of rooms in the estate"*),
+which is exactly why it fills a slot the defaults cannot.
+
+Because that relaxes the one-copy invariant for one draw tier and moves the
+draft distribution, building it needs a ruling first: **question (a)** below.
+Until then a thin colour keeps dealing short hands whenever one of its three
+defaults is on the grid.
 
 ## 23. OPEN OWNER QUESTIONS
 
 The single home for questions that need an owner ruling before the work they
-block can start. **Nothing is open here right now**; a new question is added as
-a lettered item, and cited from elsewhere by that letter.
+block can start. A question is added as a lettered item, and cited from
+elsewhere by that letter.
+
+**(a) Should reserve copies be modelled?** They are the fix for task 48's short
+colour hands, and researched in [`drafting.md`](drafting.md). The cost is that a
+reserve *"may be duplicates of rooms in the estate"* -- so building it relaxes
+the one-copy-per-grid rule for one draw tier and moves the draft distribution.
+
+**(b) Should the Garage's West Path door want POWER?** It is gated today on
+`garage_door_breaker` (the Utility Closet breaker), not on the Garage being a
+powered room, though the Garage is a powerable room and the wiki gives it a
+powered behaviour. Switching it would move reachability on a route the greedy
+policies use heavily.
+
+**(c) Should the Boiler Room's daily switch and single-door routing be
+modelled?** The owner's power rule is "shares a doorway", implemented as all
+doors always on; the wiki has the Boiler Room switched on each day and routing
+to one door at a time. Recorded in [`power.md`](power.md). Modelling it needs a
+per-day activation act and a chosen-door state, i.e. an action-space change.
 
 Answered questions are **deleted from this section, not annotated** -- a
 question left in a questions list reads as open whatever note sits under it.
