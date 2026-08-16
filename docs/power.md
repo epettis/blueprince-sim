@@ -103,7 +103,17 @@ for one drafted cell only). So no Guest Bedroom in this engine can ever be a
 source, and it is deliberately absent from `POWER_SOURCE_IDS`. If that mimic is
 ever unblocked, this is the second thing it changes.
 
-## Deliberate divergences from the wiki
+## Deliberate divergences
+
+**OWNER RULING: the Boiler Room's daily switch and single-door routing are not
+modelled, and that is correct rather than a gap.** *"Under the assumption that
+the player can solve all puzzles, assume they can route power as desired."* The
+wiki has the Boiler Room switched on each day and supplying one of its three
+doors at a time; this sim powers all its doors always. That follows the standing
+doctrine that the player solves every puzzle in a room they enter -- the same
+rule that makes `puzzle` gates pass -- so a player who can always route power
+where they want is indistinguishable from a room that supplies every door.
+ from the wiki
 
 - **The Boiler Room powers all of its doors at once.** The wiki says it *"must
   be activated by providing steam from all three tanks"* and then *"supplies

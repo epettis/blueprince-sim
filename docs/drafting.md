@@ -524,8 +524,15 @@ four-room list is exhaustive or illustrative -- the phrasing that follows it
 reads as open-ended. Note the Casino is a shop and the Solarium is green, the
 two colours measured as worst affected (`open_tasks.md` 48).
 
-Building this **relaxes the one-copy-per-grid invariant for one draw tier**, so
-it moves the draft distribution and needs an owner ruling before it starts.
+**OWNER RULING: model it as a redraw, not as duplicate copies.** *"If there are
+no valid rooms to draw, just draw another room at the appropriate rarity."* So
+the slot re-rolls within the same rarity rather than admitting a duplicate of a
+room already on the grid, and **the one-copy-per-grid invariant is left**
+**intact** -- the concern that made this a ruling rather than a chore does not
+arise. The default triple stays as the last resort behind the redraw.
+
+This is what closes `open_tasks.md` 48's short colour hands: a thin colour whose
+first default is already on the grid re-rolls instead of dealing two rooms.
 
 Slots fail **independently**, so an unfilled slot does not imply an empty hand:
 the Free/Gem decision can leave slots 0 and 1 drawing from a free deck with

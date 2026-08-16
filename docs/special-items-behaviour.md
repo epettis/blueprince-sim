@@ -123,11 +123,25 @@ Stopwatch). Its trash rows and `nothing` row carry the wiki's published
 absolute rates and the remainder is scaled to fill; that part still awaits a
 full reconciliation.
 
-**The four vault keys are sourced and stay.** They were recorded as keys "the
-wiki does not list", which was judged from the Dig page alone.
-[Vault Key](https://blueprince.wiki.gg/wiki/Vault_Key) lists **"Dig spots,
-rarely"** as an obtaining location for **all four** of 149, 233, 304 and 370, so
-no per-vault contents test is needed to justify them.
+**All four vault keys stay, and the test that decides it is what each vault
+holds.** The owner's rule: *"Research the items blocked by the keys. Drop any
+keys that only block puzzles or story items. Model those that block items we do
+model, like gems."* Applied against
+[Vault Key](https://blueprince.wiki.gg/wiki/Vault_Key):
+
+| box | modelled contents | story-only contents |
+|---|---|---|
+| 149 | 15 Gold Coin, an Allowance Token | Samantha Hayes' passport |
+| 233 | 25 Gold Coin, an Allowance Token | Grey Daniels' passport |
+| 304 | **three cyan gems**, an Upgrade Disk | Jean Ribbon's passport |
+| 370 | 40 Gold Coin, a **Sanctum Key** | Mary's letter |
+
+Every box holds modelled resources, so none is dropped. The passports and the
+letter are the story-only content, and no box carries only those.
+
+They are also sourced as dig outcomes, which is separate and settles a second
+point: they were recorded as keys "the wiki does not list", judged from the Dig
+page alone. The Vault Key page lists **"Dig spots, rarely"** for all four.
 
 **Two narrower gaps replace that question, and both are unsourced rather than
 wrong:**
