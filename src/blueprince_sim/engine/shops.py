@@ -211,6 +211,14 @@ def _priced_entry(entry: dict, is_sale: bool, discount: int, state) -> dict:
     an overlay entry is priced through this exact same pipeline, not a
     second copy of it, so a registered ``"disabled"`` flag or
     ``requires_item`` gate on either kind of entry behaves identically.
+
+    ``non_consuming`` passes a stock builder's own declaration through to
+    the display dict: True marks a row that buying need not use up, because
+    it never sells out AND its payout can hand back the coins it costs (the
+    Casino's slot rows). It is purely informational here -- the row stays
+    priced, buyable, affordable and unblocked exactly as before. Only
+    ``Game._in_place_actions`` reads it, to keep such a row from holding a
+    day open forever; the action mask and :func:`buy` ignore it.
     """
     raw_price = entry["price"]
     # Sale day: ceil(price / 2)
@@ -254,6 +262,7 @@ def _priced_entry(entry: dict, is_sale: bool, discount: int, state) -> dict:
         "sold_out": sold_out,
         "affordable": state.coins >= raw_price,
         "blocked": blocked,
+        "non_consuming": bool(entry.get("non_consuming")),
     }
 
 

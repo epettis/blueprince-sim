@@ -21,7 +21,7 @@ import random
 
 import pytest
 
-from blueprince_sim.cli.policies import frontier_greedy
+from blueprince_sim.cli.policies import _exhaust_in_place, frontier_greedy
 from blueprince_sim.config import GameConfig
 from blueprince_sim.engine import shops as _shops
 from blueprince_sim.engine import special_items as _si
@@ -99,6 +99,16 @@ def _outer_room_stand(room_id: str, seed: int = 1) -> Game:
 def _in_place_ids(game: Game) -> list[str]:
     """Ids of every in-place action the engine currently counts as purposeful."""
     return [name for name, _do in game._in_place_actions()]
+
+
+def _counted_buy_rows(game: Game) -> list[int]:
+    """Shop display indexes of every "buy" the engine counts as purposeful.
+
+    The generator yields the bare id "buy" for every row, so which row it means
+    is only recoverable from the partial's bound index -- the same way
+    cli/play.py's ``_in_place_label`` names a shop row.
+    """
+    return [do.args[0] for name, do in game._in_place_actions() if name == "buy"]
 
 
 # ------------------------------------------- the day must not end too early
@@ -376,6 +386,67 @@ def test_a_free_and_unlimited_shop_row_does_not_keep_the_day_alive():
     assert display[0]["affordable"] and not display[0]["sold_out"], \
         "scenario needs a row that is free and never sells out"
 
+    game._check_termination()
+
+    assert game.phase is Phase.TERMINAL
+    assert not _in_place_ids(game)
+
+
+def _casino_stand(coins: int, seed: int = 3) -> Game:
+    """A spent house whose north room is the Casino, stock rolled, ``coins`` in
+    hand: every buy left in the day is a slot spin or a roulette play."""
+    game = _spent_house(GameConfig(), "casino", seed=seed)
+    _shops.on_enter_shop(game, game.registry.by_id["casino"])
+    game.state.coins = coins
+    return game
+
+
+def test_the_casino_slot_rows_do_not_keep_the_day_alive():
+    """The slot machine is the second row shape the consuming-bound misses: it
+    never sells out and a winning spin hands back more coins than the 1-coin
+    spin cost, so paying for it is not consuming and it would stay buyable
+    forever. It must not hold the day open. Roulette is checked separately, so
+    only the slot rows are cleared out here."""
+    game = _casino_stand(coins=50)
+    display = game.shop_stock()
+    slots = [d for d in display if d["id"].startswith("slot_")]
+    assert len(slots) == 2 and all(
+        d["affordable"] and not d["sold_out"] and d["non_consuming"] for d in slots), \
+        "scenario needs both slot rows buyable and flagged non-consuming"
+
+    counted = _counted_buy_rows(game)
+
+    assert not any(display[i]["id"].startswith("slot_") for i in counted), \
+        "a slot row must not be counted as work left to do"
+
+
+def test_the_casino_roulette_rows_still_keep_the_day_alive():
+    """The exclusion is keyed on the row, not on the room. Roulette is once per
+    day across all three tiers -- playing any one disables all of them -- so
+    that block shrinks on the buy it allows however the wheel pays, the bound
+    holds, and the day must stay alive for it."""
+    game = _casino_stand(coins=50)
+    display = game.shop_stock()
+    wheels = [d for d in display if d["id"].startswith("roulette_")]
+    assert wheels and not any(d["non_consuming"] for d in wheels), \
+        "scenario needs the roulette rows unflagged"
+
+    game._check_termination()
+
+    assert game.phase is Phase.NAVIGATE, "roulette is still work left to do"
+    counted = _counted_buy_rows(game)
+    assert any(display[i]["id"].startswith("roulette_") for i in counted)
+
+
+def test_a_day_at_the_casino_with_coins_to_burn_runs_out():
+    """The whole point, end to end: a player parked at the Casino with plenty
+    of coins and nothing else to do must reach TERMINAL. Taking every counted
+    in-place action to exhaustion is exactly what the scripted policies do, and
+    with a slot row counted it never returns -- coins climb on a win, the row
+    stays buyable, and _exhaust_in_place raises on its own cap instead."""
+    game = _casino_stand(coins=200)
+
+    _exhaust_in_place(game)
     game._check_termination()
 
     assert game.phase is Phase.TERMINAL
