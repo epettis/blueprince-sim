@@ -13,9 +13,10 @@ by [`rewards.md`](rewards.md). This document owns the **spaces**, the
 
 [`doctrine.md`](doctrine.md) states the rule: model correctness outranks
 observation- and action-space stability, and a retrain is the accepted price.
-No run is live and no checkpoint is being preserved, so if widening the
-observation vector or adding an action is the natural model for a mechanic,
-**do it, and record it**.
+So if widening the observation vector or adding an action is the natural
+model for a mechanic, **do it, and record it** -- but check first whether a
+run is live, because a width change discards every checkpoint trained before
+it. `runs/<name>/latest.json` is the cheapest way to tell.
 
 Two things that rule does **not** license, because neither is about
 checkpoints:
@@ -29,6 +30,35 @@ checkpoints:
   `actions.py` — travel nodes, sigil doors, axe targets, special-key rows —
   uses the same discipline for the same reason.
 - **A dead action id is still a defect.** See below.
+
+## Not every player affordance is an action
+
+Widening the action space is licensed when a *mechanic* needs it. It is not
+licensed by a *person* wanting a button. Those are separate questions, and the
+second one is settled by asking whether an agent would ever want the id.
+
+**"Call it a day" is the worked example.** A human player wants to stop a day
+that still has work left in it, so `Game.call_it_a_day()` exists, `cli/play.py`
+offers it as `c` and the Play tab as a two-click button. It has **no action id,
+no observation field, and never appears in a mask.** An agent has no use for
+"end the episode early": at best the id is dead weight the policy must learn to
+ignore, at worst it learns to press it and truncates its own returns.
+
+What makes that possible is that the affordance is a `Game` method rather than
+an `env/actions.py` entry. `env/blueprince_env.py` never learns it exists;
+`web/play.py::PlaySession` reaches past `env.step()` to call it and then
+replays by hand the day-chain bookkeeping a terminal step would have done. The
+day still lands in `day_records` as a legitimate demonstration — every action
+in it came off a live mask — it simply stops before the engine would have
+stopped it. `rl.behavioral_cloning.replay_demo` handles that natively: it
+raises when a replay ends *early*, never when it ends late.
+
+The recorded `reason` is `"called_it_a_day"` (`engine/game.py`'s
+`CALLED_IT_A_DAY`), alongside the engine's own `out_of_steps` / `dead_end` and
+`cli/batch.py`'s `decision_limit`. Nothing branches on the value — a reason is
+counted (`batch.py`'s `termination_reasons`) and displayed, never switched on —
+but it is what tells `PlaySession._rebuild` that a saved day was ended by hand
+and therefore needs its chain advance re-run.
 
 ## The width-change register
 

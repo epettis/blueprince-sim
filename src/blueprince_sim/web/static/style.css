@@ -350,6 +350,15 @@ td:first-child, th:first-child { text-align: left; }
 #play-start-btn:hover, .play-btn-row button:hover { border-color: var(--accent); }
 .play-btn-row { display: flex; gap: 8px; margin: 8px 0; }
 .play-btn-row button { flex: 1; }
+.play-btn-row button:disabled { opacity: .45; cursor: default; }
+.play-btn-row button:disabled:hover { border-color: var(--line); }
+/* "Call it a day" once armed: the second click ends the day for good, so the
+   armed state borrows the explore red rather than staying visually identical
+   to the click that only armed it. */
+.play-btn-row button.armed {
+  border-color: var(--explore); color: var(--explore); font-weight: 600;
+}
+.play-btn-row button.armed:hover { border-color: var(--explore); }
 #play-progress { font-size: 12px; margin-bottom: 8px; line-height: 1.6; }
 .play-debug-toggle { display: flex; align-items: center; gap: 6px; font-size: 12px; cursor: pointer; }
 #play-save-status { font-size: 11px; min-height: 14px; margin-top: 4px; }

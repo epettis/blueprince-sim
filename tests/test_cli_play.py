@@ -27,7 +27,7 @@ import threading
 from blueprince_sim.cli import play as play_module
 from blueprince_sim.cli.play import _in_place_label, play
 from blueprince_sim.config import GameConfig
-from blueprince_sim.engine.game import ANTECHAMBER_CELL, Game, Phase
+from blueprince_sim.engine.game import ANTECHAMBER_CELL, CALLED_IT_A_DAY, Game, Phase
 from blueprince_sim.engine.grid import N
 from blueprince_sim.engine.locks import DOOR_OPEN, segment_key
 
@@ -305,3 +305,132 @@ def test_room46_menu_entry_absent_when_not_affordable(monkeypatch, capsys):
     _run_play_bounded(GameConfig(), seed=0)
     out = capsys.readouterr().out
     assert "[46]" not in out
+
+
+# ---------------------------------------------------- task 44: call it a day
+
+def _off_grid_scenario(seed: int = 1) -> Game:
+    """A NAVIGATE state standing off the grid at the west path, where the REPL
+    shows its ``outer>`` travel menu instead of the on-grid one.
+
+    The two NAVIGATE prompts are separate code paths with separate command
+    parsers, so a verb added to one is not automatically on the other; this
+    scenario is what lets the off-grid prompt be driven on its own.
+    """
+    game = Game(GameConfig(), seed=seed)
+    game.state.area = "west_path"
+    assert game.off_grid, "scenario needs the player off the grid"
+    assert game.can_call_it_a_day()
+    return game
+
+
+def test_the_on_grid_menu_offers_calling_it_a_day(monkeypatch, capsys):
+    """The verb has to be discoverable, not just implemented: a player who
+    never sees '[c]' printed cannot use it, and the REPL's only other exit is
+    'q', which walks away from the day rather than ending it."""
+    game = _locker_room_scenario()
+    monkeypatch.setattr(play_module, "Game", lambda cfg, seed: game)
+    _scripted_input(monkeypatch, ["q"])
+
+    _run_play_bounded(GameConfig(), seed=1)
+
+    assert "[c] call it a day" in capsys.readouterr().out
+
+
+def test_the_off_grid_menu_offers_calling_it_a_day_too(monkeypatch, capsys):
+    """The off-grid ``outer>`` prompt parses its own commands, so the verb
+    could easily exist on one prompt and not the other. A player who walked
+    out to the west path must be able to stop the day from there."""
+    game = _off_grid_scenario()
+    monkeypatch.setattr(play_module, "Game", lambda cfg, seed: game)
+    _scripted_input(monkeypatch, ["q"])
+
+    _run_play_bounded(GameConfig(), seed=1)
+
+    assert "[c] call it a day" in capsys.readouterr().out
+
+
+def test_confirming_at_the_on_grid_prompt_ends_the_day(monkeypatch):
+    """The mutation proof in the REPL: this is a state the engine keeps alive
+    (a free locker underfoot), and 'c' then 'y' ends it anyway -- with the
+    hand-ended reason, so the summary line does not misreport it as running
+    out of steps."""
+    game = _locker_room_scenario()
+    assert game.can_open_container(), "setup: purposeful work must remain"
+    monkeypatch.setattr(play_module, "Game", lambda cfg, seed: game)
+    _scripted_input(monkeypatch, ["c", "y"])
+
+    _run_play_bounded(GameConfig(), seed=1)
+
+    assert game.phase is Phase.TERMINAL
+    assert game.termination_reason == CALLED_IT_A_DAY
+
+
+def test_confirming_at_the_off_grid_prompt_ends_the_day(monkeypatch):
+    """The same, driven through the ``outer>`` prompt, so the off-grid branch
+    is proven to reach ``Game.call_it_a_day`` rather than merely printing the
+    menu line for it."""
+    game = _off_grid_scenario()
+    monkeypatch.setattr(play_module, "Game", lambda cfg, seed: game)
+    _scripted_input(monkeypatch, ["c", "y"])
+
+    _run_play_bounded(GameConfig(), seed=1)
+
+    assert game.phase is Phase.TERMINAL
+    assert game.termination_reason == CALLED_IT_A_DAY
+
+
+def test_declining_the_confirmation_leaves_the_day_running(monkeypatch):
+    """The confirmation is the request's other half. Answering 'n' must leave
+    the day exactly where it was -- still NAVIGATE, still holding the locker
+    it had -- or the prompt is theatre and a misclick still ends the day."""
+    game = _locker_room_scenario()
+    monkeypatch.setattr(play_module, "Game", lambda cfg, seed: game)
+    _scripted_input(monkeypatch, ["c", "n", "q"])
+
+    _run_play_bounded(GameConfig(), seed=1)
+
+    assert game.phase is Phase.NAVIGATE
+    assert game.termination_reason == ""
+    assert game.can_open_container(), "declining must not have consumed anything"
+
+
+def test_an_empty_answer_does_not_end_the_day(monkeypatch):
+    """The prompt reads '[y/N]', so the default on a bare Enter is no. An
+    irreversible action that fires on an accidental keypress is exactly what
+    the confirmation exists to prevent."""
+    game = _locker_room_scenario()
+    monkeypatch.setattr(play_module, "Game", lambda cfg, seed: game)
+    _scripted_input(monkeypatch, ["c", "", "q"])
+
+    _run_play_bounded(GameConfig(), seed=1)
+
+    assert game.phase is Phase.NAVIGATE
+    assert game.termination_reason == ""
+
+
+def test_calling_it_a_day_prints_the_end_of_day_summary(monkeypatch, capsys):
+    """Ending the day and abandoning it are different outcomes and must read
+    differently: 'q' returns silently, while 'c' + 'y' falls out of the loop
+    into the summary that reports the reason and the rooms placed."""
+    game = _locker_room_scenario()
+    monkeypatch.setattr(play_module, "Game", lambda cfg, seed: game)
+    _scripted_input(monkeypatch, ["c", "y"])
+
+    _run_play_bounded(GameConfig(), seed=1)
+
+    assert f"Day over: {CALLED_IT_A_DAY}" in capsys.readouterr().out
+
+
+def test_quitting_still_leaves_the_day_unfinished(monkeypatch, capsys):
+    """The contrast that keeps the test above honest: 'q' must NOT have
+    quietly become "end the day". It walks away from the REPL with the day
+    still running and prints no summary at all."""
+    game = _locker_room_scenario()
+    monkeypatch.setattr(play_module, "Game", lambda cfg, seed: game)
+    _scripted_input(monkeypatch, ["q"])
+
+    _run_play_bounded(GameConfig(), seed=1)
+
+    assert game.phase is Phase.NAVIGATE
+    assert "Day over:" not in capsys.readouterr().out

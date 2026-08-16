@@ -145,52 +145,6 @@ rate -- roughly 40% of `frontier_greedy` episodes.
 mean rooms placed from 24.1 to 18.1. This needs real off-grid navigation in
 the policy, not another branch at the bottom of the frontier loop.
 
-## 41. Room 46 has no on-grid CLI travel verb
-
-`Game._action_in_budget` counts area travel toward the off-grid `room_46` node
-as a purposeful action while the player is on the grid, but `cli/play.py`
-only prints its "Travel to:" menu inside the `game.off_grid` branch. On-grid,
-there is no verb that takes it.
-
-No silent spin: the NAVIGATE branch always falls through to `input()` and
-`'q'` always works, and no reproduction was constructible -- travel to Room 46
-being the *only* purposeful action left needs the grid simultaneously
-exhausted. It is still a menu the engine believes exists and the CLI does not
-offer.
-
-## 44. There is no "Call it a day" action
-
-> "I need a 'Call it a day' action to end my day. It should ask for confirmation
-> before executing."
-
-The engine ends a day when nothing purposeful remains; a player who simply wants
-to stop has no way to say so. **Confirmation is part of the request**, not a
-nicety — the action is irreversible and cannot be distinguished from a misclick.
-
-Note the interaction with the purposefulness rule: this action must end the day
-*even when* the engine considers work still available, so it cannot be
-implemented as "terminate if `_check_termination` agrees".
-
-## 45. The action log should read newest-first
-
-> "The action log would actually work better in reverse, showing the most recent
-> action on the top and shifting the rest down, so I can see the most recent
-> action and returns without scrolling."
-
-The payout badges added for task 28 are exactly what the owner wants to see
-without scrolling, so this is the other half of that change rather than a
-cosmetic preference.
-
-## 47. Shops should show stock the player cannot yet afford
-
-> "The Commissary (and other shops) should show me what is available, even if I
-> can't afford it. I may eventually have the money and want to return."
-
-A shop menu filtered to affordable rows hides the reason to come back. Note this
-is a **display** change, not an affordability change: the unaffordable rows must
-be shown and remain unbuyable. `shops.py::stock_for` already computes an
-`affordable` flag per row, so the data needed is present.
-
 ## 48. A Secret Passage on the east wing offered two yellow rooms, not three
 
 > "I was only able to draft *two* yellow rooms instead of *three* from a Secret

@@ -196,6 +196,12 @@
         <button id="play-undo-btn">Undo</button>
         <button id="play-save-btn">Save session</button>
       </div>
+      <!-- Ending the day is irreversible, so it takes two clicks: the first
+           arms the button, the second POSTs (see playEndDay in app.js). -->
+      <div class="play-btn-row">
+        <button id="play-end-day-btn">Call it a day</button>
+        <button id="play-end-day-cancel-btn" class="hidden">Cancel</button>
+      </div>
       <div id="play-save-status" class="dim"></div>
     </div>
     <div id="play-draft"></div>
