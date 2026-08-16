@@ -27,7 +27,9 @@ import threading
 from blueprince_sim.cli import play as play_module
 from blueprince_sim.cli.play import _in_place_label, play
 from blueprince_sim.config import GameConfig
-from blueprince_sim.engine.game import Game, Phase
+from blueprince_sim.engine.game import ANTECHAMBER_CELL, Game, Phase
+from blueprince_sim.engine.grid import N
+from blueprince_sim.engine.locks import DOOR_OPEN, segment_key
 
 #: Wall-clock bound for one play() call in these tests. A day this small
 #: (one in-place action, one or two menu round-trips) finishes in well under
@@ -93,6 +95,38 @@ def _laboratory_scenario(seed: int = 0) -> Game:
     assert game.open_doorways() == []
     assert game.adjacent_moves() == []
     assert game.can_start_setup()
+    return game
+
+
+def _room46_scenario(seed: int = 1) -> Game:
+    """Standing in the Antechamber with its north door open (not
+    DOOR_SEALED), no other doors, no adjacent moves, and no in-place action
+    -- task 41's exact reproduction: ``Game._action_in_budget`` is True
+    purely because the off-grid ``room_46`` hop is reachable and affordable,
+    with 1 step left (the boundary case, since the room_46 check is
+    non-strict: ``steps >= cost``, unlike the off-grid menu's own strict
+    ``steps > cost``). Built by direct engine manipulation, not a
+    searched-for seed, per the deterministic-scenario convention. The
+    assertions establish the state is genuinely reachable rather than
+    hypothetical, settling task 41's open question.
+    """
+    game = Game(GameConfig(), seed=seed)
+    st = game.state
+    st.pos = ANTECHAMBER_CELL
+    st.entered[ANTECHAMBER_CELL] = True
+    st.placed_doors[ANTECHAMBER_CELL] = 0
+    st.door_state[segment_key(ANTECHAMBER_CELL, N)] = DOOR_OPEN
+    st.door_version += 1
+    st.steps = 1
+    assert game.open_doorways() == []
+    assert game.adjacent_moves() == []
+    assert list(game._in_place_actions()) == []
+    assert not game.outer_draft_available()
+    route = game.area_route_cost("room_46")
+    assert route is not None and st.steps >= route[0]
+    assert game._action_in_budget(), (
+        "room_46 travel should be the one action keeping the day alive"
+    )
     return game
 
 
@@ -236,3 +270,38 @@ def test_experiment_pending_trigger_and_effect_menu_resolves(monkeypatch):
 
     _run_play_bounded(GameConfig(), seed=0)
     assert game.state.experiment.configured
+
+
+# --------------------------------------------------------- task 41: room 46
+
+def test_room46_menu_entry_travels_and_wins(monkeypatch):
+    """Picking '46' from the on-grid NAVIGATE menu at ``_room46_scenario``'s
+    state reaches Room 46 -- the regression test for task 41's missing CLI
+    verb. Before the fix, ``cli/play.py`` only ever called
+    ``game.travel_to`` inside the ``game.off_grid`` branch, so this
+    on-grid-only route to the objective had no command that could take it
+    and the day could only be abandoned with 'q'."""
+    game = _room46_scenario()
+    monkeypatch.setattr(play_module, "Game", lambda cfg, seed: game)
+    _scripted_input(monkeypatch, ["46", "q"])
+
+    _run_play_bounded(GameConfig(), seed=1)
+    assert game.state.room46_reached
+    assert game.success()
+
+
+def test_room46_menu_entry_absent_when_not_affordable(monkeypatch, capsys):
+    """A fresh day's start (Entrance Hall, no path yet to the Antechamber's
+    open north door) must not print '[46]': the entry is gated on
+    ``area_route_cost('room_46')`` being reachable and affordable -- the
+    same predicate ``_action_in_budget`` uses -- not shown unconditionally,
+    which would let the player "travel" from a state where the engine does
+    not consider the destination reachable."""
+    game = Game(GameConfig(), seed=0)
+    assert game.area_route_cost("room_46") is None
+    monkeypatch.setattr(play_module, "Game", lambda cfg, seed: game)
+    _scripted_input(monkeypatch, ["q"])
+
+    _run_play_bounded(GameConfig(), seed=0)
+    out = capsys.readouterr().out
+    assert "[46]" not in out

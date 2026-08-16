@@ -121,6 +121,17 @@ def play(cfg: GameConfig, seed: int) -> None:
             doors = game.open_doorways()
             moves = game.adjacent_moves()
             in_place = list(game._in_place_actions())
+            # Room 46 (the objective) sits off-grid through the Antechamber's
+            # north door. _action_in_budget counts travelling there as
+            # purposeful whenever it is reachable and affordable (steps >=
+            # cost -- no step needs to be left over after winning, unlike the
+            # off-grid "Travel to:" menu's own destinations), independent of
+            # whatever else is offered above; mirror that exact test rather
+            # than the broader off-grid menu, which lists every modelled area
+            # node.
+            room46_route = game.area_route_cost("room_46")
+            room46_cost = (room46_route[0] if room46_route is not None
+                           and st.steps >= room46_route[0] else None)
             if not doors and not moves and not in_place:
                 # Nothing to draft, walk into, or act on right where the
                 # player stands. _check_termination is authoritative on
@@ -161,6 +172,9 @@ def play(cfg: GameConfig, seed: int) -> None:
                 print("Other actions:")
                 for i, (action_id, do) in enumerate(in_place):
                     print(f"  [x{i + 1}] {_in_place_label(game, action_id, do)}")
+            if room46_cost is not None:
+                print(f"  [46] travel through the Antechamber's north door "
+                      f"to Room 46 ({room46_cost} step(s))")
             if game.outer_draft_available():
                 print("  [o] outer-room draft (West Path)")
             if game.can_toggle_keycard_power():
@@ -183,6 +197,9 @@ def play(cfg: GameConfig, seed: int) -> None:
                     in_place[idx][1]()
                 else:
                     print("  ? invalid choice")
+                continue
+            if cmd == "46" and room46_cost is not None:
+                game.travel_to("room_46")
                 continue
             if cmd == "o" and game.outer_draft_available():
                 result = game.open_outer_draft()
@@ -238,7 +255,7 @@ def play(cfg: GameConfig, seed: int) -> None:
                 cell, d = doors[int(cmd) - 1]
             except (ValueError, IndexError):
                 print("  ? enter a doorway number, a move letter (n/e/s/w), "
-                      "'g/d <cell>', 'x <n>', 'o', 'p', 'v', or 'q'")
+                      "'g/d <cell>', 'x <n>', '46', 'o', 'p', 'v', or 'q'")
                 continue
             if game.doorway_passable(cell, d):
                 game.open_door(cell, d)
