@@ -31,6 +31,7 @@ from ..config import GameConfig
 from ..engine.game import Game, Phase
 from ..engine.grid import DIR_NAMES, N_CELLS
 from ..engine.locks import DOOR_LOCKED, DOOR_OPEN, DOOR_SEALED, DOOR_SECURITY
+from ..engine.shops import stock_for
 from ..env import actions as A
 from ..env.blueprince_env import BluePrinceEnv
 from ..env.multiday import DayChain
@@ -281,6 +282,30 @@ def _debug_info(game: Game) -> dict:
     }
 
 
+def _shop_stock_view(game: Game) -> list | None:
+    """Every entry of the current shop's stock, unaffordable ones included, or
+    None outside a shop.
+
+    ``stock_for`` already prices and flags every entry (sold_out/affordable/
+    blocked); the action mask (``env/actions.py``'s ``BUY_BASE`` block) then
+    legalizes only the buyable ones, which is why the Buy button list built
+    from ``legal_actions`` alone never shows what the player cannot yet
+    afford. This adds the flat action id back onto each entry, set to None
+    wherever the mask's own buyable condition -- not sold out, affordable,
+    not blocked, and inside the fixed 6-wide ``BUY_BASE`` window -- is not
+    met, so a row here can say "buyable" only when the mask agrees; the
+    client can then render every row and grey out the ones with no id.
+    """
+    stock = stock_for(game)
+    if stock is None:
+        return None
+    out = []
+    for i, entry in enumerate(stock):
+        buyable = i < 6 and not entry["sold_out"] and entry["affordable"] and not entry["blocked"]
+        out.append({**entry, "index": i, "action_id": (A.BUY_BASE + i) if buyable else None})
+    return out
+
+
 class PlaySession:
     """One human-played multi-day attempt, recorded action by action.
 
@@ -328,6 +353,7 @@ class PlaySession:
             # not grow fields only the live Play tab uses.
             frame["entered"] = list(self.env.game.state.entered)
             frame["pending_upgrade"] = _pending_upgrade_dict(self.env.game)
+            frame["shop_stock"] = _shop_stock_view(self.env.game)
             return {
                 "frame": frame,
                 "legal_actions": legal,

@@ -13,7 +13,7 @@ import random
 
 import pytest
 
-from blueprince_sim.engine import special_items as si
+from blueprince_sim.engine import shops, special_items as si
 from blueprince_sim.engine.game import Phase
 from blueprince_sim.env import actions as A
 from blueprince_sim.web import replay
@@ -23,6 +23,23 @@ from blueprince_sim.web.play import (
     _payout_diff,
     action_group,
 )
+
+
+def _enter_shop(game, room_id: str, cell: int = 7):
+    """Place ``room_id`` at ``cell``, stand in it, and roll its stock.
+
+    Mirrors test_shops.py's helper of the same purpose: mimics the room-state
+    prerequisites Game._enter sets up, without driving a full move through
+    the engine.
+    """
+    room = game.registry.by_id[room_id]
+    state = game.state
+    state.grid[cell] = room.idx
+    state.placed_doors[cell] = room.door_mask
+    state.entered[cell] = True
+    state.pos = cell
+    shops.on_enter_shop(game, room)
+    return room
 
 
 def _finish_day(session: PlaySession, rng: random.Random, max_steps: int = 600) -> None:
@@ -255,3 +272,50 @@ def test_act_attaches_payout_matching_independent_resource_diff():
     payout = st["frame"]["action"]["payout"]
     resource_deltas = {p["id"]: p["delta"] for p in payout if p["id"] in before}
     assert resource_deltas == expected
+
+
+def test_shop_stock_is_none_outside_a_shop():
+    """frame['shop_stock'] is None whenever the player is not standing in a
+    shop -- e.g. at a fresh day's start -- so the client only ever renders
+    unaffordable-stock rows where a shop is actually open (task 47)."""
+    session = PlaySession(seed=1, n_days=1, reward="shaped", unlocks="all")
+    assert session.state()["frame"]["shop_stock"] is None
+
+
+def test_shop_stock_view_includes_unaffordable_rows_with_no_action_id():
+    """Every rolled stock entry appears in frame['shop_stock'], including ones
+    the player cannot afford -- the display change task 47 asks for, since
+    the action mask alone (legal_actions) only ever shows buyable rows and a
+    shop menu filtered to those hides the reason to come back. An entry gets
+    a real action_id exactly when the BUY_BASE mask would legalize it (not
+    sold out, affordable, not blocked), and None otherwise, so the client can
+    tell a real buy button from a row it must grey out."""
+    session = PlaySession(seed=1, n_days=1, reward="shaped", unlocks="all")
+    game = session.env.game
+    _enter_shop(game, "commissary")
+    game.state.coins = 0  # affords nothing
+
+    stock = session.state()["frame"]["shop_stock"]
+    assert stock  # the Commissary always rolls at least one entry
+    assert all(not entry["affordable"] for entry in stock)
+    assert all(entry["action_id"] is None for entry in stock)
+    # The mask agrees: no BUY_BASE action is legal with zero coins.
+    legal_ids = {a["id"] for a in session.state()["legal_actions"]}
+    assert not legal_ids & set(range(A.BUY_BASE, A.TRADE_BASE))
+
+
+def test_shop_stock_view_action_id_matches_the_legal_buy_action():
+    """Once affordable, a shop_stock entry's action_id is exactly the
+    BUY_BASE-offset id the mask legalized for that slot -- so clicking the
+    row the client renders as a button performs the same purchase the
+    RL-facing mask would offer at that index, never a different one."""
+    session = PlaySession(seed=1, n_days=1, reward="shaped", unlocks="all")
+    game = session.env.game
+    _enter_shop(game, "commissary")
+    game.state.coins = 10_000  # affords everything rolled
+
+    stock = session.state()["frame"]["shop_stock"]
+    legal_ids = {a["id"] for a in session.state()["legal_actions"]}
+    for entry in stock:
+        assert entry["action_id"] == A.BUY_BASE + entry["index"]
+        assert entry["action_id"] in legal_ids
