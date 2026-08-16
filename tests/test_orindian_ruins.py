@@ -17,10 +17,10 @@ Private Drive to Blackbridge Grotto crosses two gates (docs/areas.md's
 "Blackbridge Grotto gate"): ``lab_steam_and_power``, a ``stub: true`` gate
 standing in for the unmodelled power system (passes unconditionally, a known
 upper bound, not something this file's tests attempt to tighten), AND
-``lab_visited``, a real ``kind=room`` gate requiring the Laboratory entered
-today. Every test below
-that crosses this route places and enters the Laboratory directly via
-``_enter_laboratory`` (deterministic setup, not a draft) before travelling.
+``lab_visited``, a real ``kind=flag`` gate requiring the Laboratory entered at
+least once, on this or any earlier day. Every test below that crosses this
+route enters the Laboratory directly via ``_enter_laboratory`` (deterministic
+setup, not a draft) before travelling.
 """
 
 from __future__ import annotations
@@ -40,8 +40,13 @@ def _enter_laboratory(g: Game) -> None:
 
     Cell 12 (rank 3, center column) is free in every test below: none place
     anything else there, and it is clear of ENTRANCE_CELL/ANTECHAMBER_CELL.
+
+    ``_enter`` rather than ``_place_room(entered=True)``: the latch is the
+    room's own ON_ENTER hook (effects/rooms/laboratory.py), and only ``_enter``
+    fires room hooks.
     """
-    g._place_room(g.registry.by_id["laboratory"], 12, N | S, entered=True)
+    g._place_room(g.registry.by_id["laboratory"], 12, N | S)
+    g._enter(12)
 
 
 # ---------------------------------------------------------------------------
@@ -57,8 +62,8 @@ def test_orindian_ruins_is_offered_as_a_travel_destination_with_two_chips(regist
     the route (house -> grounds -> private_drive -> blackbridge_grotto ->
     orindian_ruins, 4 steps) was always reachable -- the gate opens but is
     never offered is exactly the bug this test pins shut. Reachability itself
-    needs the Laboratory entered too (the lab_visited gate, docs/areas.md),
-    so the setup enters it directly.
+    needs the Laboratory entered at least once too (the lab_visited gate,
+    docs/areas.md), so the setup enters it directly.
     """
     g = Game(GameConfig(), seed=1, registry=registry)
     g.state.steps = 50

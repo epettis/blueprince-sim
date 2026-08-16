@@ -1736,6 +1736,14 @@ class Game:
               Permanent once entered (owner decision, docs/areas.md's "graduated" section:
               "assume the player unlocks this room permanently after entering the
               Boiler Room").  Gates Underpass -> Upper Rotating Gear.
+          "lab_visited" -- carried in from cfg, OR earned today the moment the player
+              first enters the Laboratory (effects/rooms/laboratory.py's ON_ENTER hook
+              sets st.lab_visited).  Same OR-from-cfg-or-state permanent shape as
+              boiler_room_steam.  Owner rule: the Grotto is unlocked by powering AND
+              visiting the Laboratory, a one-time unlock.  Gates Private Drive ->
+              Blackbridge Grotto together with "lab_steam_and_power", the POWER
+              conjunct, which is still an unmodelled stub passing unconditionally
+              (docs/areas.md's "Blackbridge Grotto gate").
           "grotto_chip_in_place" -- the Blackbridge Grotto pedestal's own microchip has
               NOT been taken out today (st.grotto_chip_taken is False).  Day-scoped only,
               unlike the flags above: it defaults set on every reset() rather than being
@@ -1769,6 +1777,8 @@ class Game:
             flags.add("mine_south_visited")
         if self.cfg.boiler_room_steam or st.boiler_room_steam:
             flags.add("boiler_room_steam")
+        if self.cfg.lab_visited or st.lab_visited:
+            flags.add("lab_visited")
         if (self.cfg.sealed_entrance_broken or st.sealed_entrance_broken
                 or (self.cfg.special_items and power_hammer.held(st))):
             flags.add("sealed_entrance_broken")

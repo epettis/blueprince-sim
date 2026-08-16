@@ -35,6 +35,14 @@ class GameConfig:
     # The Boiler Room has been entered at least once (any prior day), permanently
     # opening the "boiler_room_steam" gate: Underpass -> Upper Rotating Gear.
     boiler_room_steam: bool = False
+    # The Laboratory has been entered at least once (any prior day), opening the
+    # "lab_visited" gate: Private Drive -> Blackbridge Grotto. SAVE-scoped, so it
+    # survives the DayChain attempt wrap: carried by the named DayChain.lab_visited
+    # attribute, NOT by _CARRYOVER_KEYS, which the wrap clears wholesale
+    # (docs/scoping-and-carryover.md). The edge's other conjunct, POWER
+    # ("lab_steam_and_power"), is a separate gate and is still an unmodelled stub
+    # (docs/areas.md's Blackbridge Grotto gate).
+    lab_visited: bool = False
     # The Treasure Trove blackprint has been picked up at Upper Rotating Gear
     # (any prior day), permanently adding the Treasure Trove to the draft pool
     # (decks.py::eligible_pool) from the following day onward.

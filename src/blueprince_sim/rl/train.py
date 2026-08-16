@@ -163,6 +163,10 @@ def all_unlocks_config(reward: str = "shaped") -> GameConfig:
         mine_south_visited=True,       # opens reservoir_north<->mine_north and rotating_gear<->underpass
         sealed_entrance_broken=True,   # opens grounds<->sealed_entrance<->basement
         boiler_room_steam=True,        # opens Underpass -> Upper Rotating Gear
+        # opens Private Drive -> Blackbridge Grotto (with the POWER stub). Save-scoped,
+        # so it is not a _CARRYOVER_KEYS flag; set here for the same reason mine_unlocked
+        # is -- "every permanent unlock", not only the carry flags.
+        lab_visited=True,
         treasure_trove_blackprint=True,  # adds Treasure Trove to the draft pool (banned below, see _TREASURE_TROVE_EXCLUSION)
         throne_room_blueprint=True,    # adds Throne Room to the draft pool
         conservatory_floorplan_found=True,  # adds Conservatory to the draft pool

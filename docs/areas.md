@@ -146,7 +146,7 @@ once satisfied, **D** = resets daily, **-** = ungated.
 | `west_path` -> `grounds` | unlatch the gate from inside (first time) | P |
 | `west_path` -> outer room | drawn as today's outer room (1 of 8) | D |
 | `grounds` <-> `private_drive` | none | - |
-| `private_drive` -> `blackbridge_grotto` | Laboratory **visited today** + POWER (stub) | D |
+| `private_drive` -> `blackbridge_grotto` | Laboratory **visited once ever** + POWER (stub) | P |
 | `blackbridge_grotto` -> `orindian_ruins` | all 3 microchips in the pedestal | D |
 | `private_drive` <-> `campsite` | none | - |
 | `campsite` -> `apple_orchard` | padlock code 1128 | P |
@@ -311,33 +311,47 @@ stub, so each conjunct can be judged on its own:
   outside this gate's own file, `engine/areas.py`, which only evaluates a
   `GateContext` it is handed. Still an upper bound; still `retire_in:
   "PR-power-system"`.
-- `lab_visited` — new, `kind: "room"`, `stub: false`. The Laboratory must be
-  in `GateContext.rooms_entered`, the same live per-day mechanism
-  `tomb_catacombs` already uses, generic over every room id the grid tracks
-  (`Game._gate_ctx` builds `rooms_entered` from `state.entered` for whichever
-  rooms are on the grid that day — no per-gate code needed).
+- `lab_visited` — `kind: "flag"`, `stub: false`, `permanence: "permanent"`.
+  The Laboratory has been entered at least once, on this day or any prior day.
+  `effects/rooms/laboratory.py`'s `ON_ENTER` hook sets `state.lab_visited`;
+  `shops.py::carryover` ORs that with `cfg.lab_visited`, and the named
+  `DayChain.lab_visited` attribute carries the result into the next day's
+  `GameConfig`; `Game._gate_ctx` puts the `"lab_visited"` flag in the
+  `GateContext` whenever either side is set.
+
+  **Save-scoped, not attempt-scoped.** Owner ruling: *"You only need to unlock
+  the Blackbridge Grotto once for the entire save. However, you need to power
+  and enter the Laboratory for that to happen."* `lab_visited` is therefore
+  left out of the `DayChain` wrap block and survives into the next attempt —
+  unlike `boiler_room_steam`, whose otherwise-identical shape is a
+  `_CARRYOVER_KEYS` bool and so resets with each attempt. It is the only bool
+  among the save-scoped carve-outs (docs/scoping-and-carryover.md).
+
+  **Why a flag gate and not `kind: "room"` with `permanence: "permanent"`.**
+  `permanence` is descriptive metadata; the behaviour lives in
+  `areas.py::gate_open`, whose `"room"` arm tests `room_id in
+  ctx.rooms_entered` and nothing else. `rooms_entered` is rebuilt from
+  `state.entered` every day, so a `kind: "room"` gate is day-scoped by
+  construction — marking one `permanent` would be a label the code does not
+  honour, and teaching the `"room"` arm to latch would wrongly make
+  `tomb_catacombs`, which really is daily, permanent too. A one-time unlock is
+  what the `"flag"` arm is for.
 
 Both must hold (edge `requires` is AND), so a fresh save is closed even
 though POWER's own stub still passes unconditionally: `lab_visited` alone
-blocks the edge until the Laboratory is actually entered, which is what keeps
-the Grotto — and Orindian Ruins behind it — out of reach on a fresh save with
-the Laboratory never drafted.
+blocks the edge until the Laboratory has been entered, which is what keeps
+the Grotto — and Orindian Ruins behind it — out of reach on a save where the
+Laboratory has never been drafted.
 
-**Known gap, not yet "P"** (`open_tasks.md` 37). The edge's table permanence
-above reads **D**, not the **P** an owner-described one-time unlock implies:
-`lab_visited` is checked fresh against `rooms_entered` every day, exactly like
-`tomb_catacombs`, because no state hook exists yet to latch "the Laboratory
-has ever been visited" permanently across days — building that hook is the
-same off-`engine/areas.py` work POWER itself needs (`GameState`/`GameConfig`
-plumbing plus a room-entry callback), so it rides on `PR-power-system`
-alongside POWER rather than shipping separately. Until then, reaching the
-Grotto on any given day requires the Laboratory drafted and entered that same
-day, not merely unlocked once — tighter than the owner's stated rule, but a
-real, verified improvement over a stub that never closed at all.
+**Still an upper bound, because POWER is unbuilt** (`open_tasks.md` 37). The
+permanence half of that task is now closed — the edge's table permanence above
+reads **P**, matching the owner's one-time unlock — but `lab_steam_and_power`
+still passes unconditionally, so the Grotto opens on the Laboratory visit
+alone rather than on power plus a visit.
 
 **Consequence: Orindian Ruins is gated behind the same requirement.**
 `blackbridge_grotto -> orindian_ruins` was already reachable only through
-Blackbridge Grotto, so it now also needs the Laboratory visited that day —
+Blackbridge Grotto, so it now also needs the Laboratory visited at least once —
 including the Throne Room's blueprint pickup, which `orindian_ruins` grants
 (`GameState.throne_room_blueprint`). This reads as intended: the owner's
 report was specifically about the Grotto being open on a fresh save, and nothing
