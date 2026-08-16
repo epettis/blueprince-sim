@@ -3,8 +3,9 @@
 Work the project owner has identified and that is NOT in `docs/plan.md`'s
 delivered set -- each needs its own design pass. Two sources so far: a review of
 the special-items PR stack, and a recorded session of real play through the
-Training Observatory, whose twelve findings have shipped and left the
-remainders in tasks 37-41.
+Training Observatory. That first session's twelve findings have shipped,
+leaving the remainders in tasks 37-41; a second session produced tasks
+42-48.
 
 **Play findings outrank the wiki**, per [`doctrine.md`](doctrine.md) -- but where
 one contradicts a published rule, surface the conflict rather than silently
@@ -155,6 +156,101 @@ No silent spin: the NAVIGATE branch always falls through to `input()` and
 being the *only* purposeful action left needs the grid simultaneously
 exhausted. It is still a menu the engine believes exists and the CLI does not
 offer.
+
+## 42. REGRESSION SUSPECT: the outer room cannot be drafted from the West Path
+
+> "I can no longer draft the outer room from the West Path. I can only draft it
+> from inside the house."
+
+**"No longer" makes this a regression signal, and it is the reason this task
+sits first.** Three changes landed the same day this was played, any of which
+could reach the West Path outer draft:
+
+- gating Blackbridge Grotto behind `lab_visited`, which added a second gate to a
+  `private_drive` edge;
+- teaching `Game._outer_action_in_budget` to skip `modelled: false` nodes so it
+  agrees with the travel mask;
+- flipping `antechamber.modelled` to `true`.
+
+**Bisect before designing anything.** `outer_draft_available()` and
+`Game.open_outer_draft` are the entry points; `west_path` reachability and the
+`garage_door_breaker` route are the likely surfaces. Establish first whether the
+West Path route is now unreachable, or reachable but no longer offering the
+draft — they are different bugs.
+
+## 43. The Blessing of the High Roller granted no dice for a Trading Post draft
+
+> "I did not receive dice when drafting the Trading Post with the Blessing of the
+> High Roller."
+
+`data/shrine.json`'s `high_roller` record is one of the six live blessings.
+Establish by execution whether the grant fires on **draft** or on **entry**, and
+whether the Trading Post is eligible at all — it is an outer-pool room, and
+outer-pool rooms do not receive `ON_DRAFT_ROOM` broadcasts, which is the same
+structural gap that made the Shelter miscount (see task 39).
+
+## 44. There is no "Call it a day" action
+
+> "I need a 'Call it a day' action to end my day. It should ask for confirmation
+> before executing."
+
+The engine ends a day when nothing purposeful remains; a player who simply wants
+to stop has no way to say so. **Confirmation is part of the request**, not a
+nicety — the action is irreversible and cannot be distinguished from a misclick.
+
+Note the interaction with the purposefulness rule: this action must end the day
+*even when* the engine considers work still available, so it cannot be
+implemented as "terminate if `_check_termination` agrees".
+
+## 45. The action log should read newest-first
+
+> "The action log would actually work better in reverse, showing the most recent
+> action on the top and shifting the rest down, so I can see the most recent
+> action and returns without scrolling."
+
+The payout badges added for task 28 are exactly what the owner wants to see
+without scrolling, so this is the other half of that change rather than a
+cosmetic preference.
+
+## 46. The Tomb should pay for itself as a dead end
+
+> "The Tomb collects +5 gold for every dead end, including itself. Therefore, it
+> should have +5 gold upon first entry."
+
+The claim is specific and checkable: the Tomb counts **itself** among the dead
+ends it pays for, so entering it with no other dead end on the grid should still
+pay 5. Establish what the engine does today before changing it, and note that
+PR #334 redefined "Dead End" as *printed dead-end shape AND a one-door placed
+mask* — so whether the Tomb qualifies under its own placed mask is part of the
+question.
+
+## 47. Shops should show stock the player cannot yet afford
+
+> "The Commissary (and other shops) should show me what is available, even if I
+> can't afford it. I may eventually have the money and want to return."
+
+A shop menu filtered to affordable rows hides the reason to come back. Note this
+is a **display** change, not an affordability change: the unaffordable rows must
+be shown and remain unbuyable. `shops.py::stock_for` already computes an
+`affordable` flag per row, so the data needed is present.
+
+## 48. A Secret Passage on the east wing offered two yellow rooms, not three
+
+> "I was only able to draft *two* yellow rooms instead of *three* from a Secret
+> Passage on the east wing (r4c4). I had already drafted the Commissary. Inspect
+> what yellow rooms are draftable in r5c4."
+
+**The count is the finding.** A colour-selective draft rolls each slot
+independently, and a slot whose colour deck has nothing legal at that cell comes
+up unfilled — the same mechanism behind the Secret Passage's free-first-option
+bug, where slots 0 and 1 produced nothing and only slot 2 dealt.
+
+So the question is whether the third slot was legitimately unfillable at r5c4 —
+too few yellow rooms surviving geometry, the deck-size gate, and the Commissary
+already being placed — or whether a legal candidate was wrongly rejected. The
+owner names the cell and the prior draft, so this is directly reproducible.
+Enumerate the yellow pool against r5c4's legal orientations before concluding
+anything.
 
 ## 23. OPEN OWNER QUESTIONS
 
