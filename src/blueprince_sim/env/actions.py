@@ -5,7 +5,7 @@ to draft, or a room to enter) and the engine walks the shortest connected
 path, paying the normal one-step-per-room cost. Re-entering rooms grants
 nothing, so free-form single-tile moves were retired.
 
-Layout (Discrete(479)):
+Layout (Discrete(493)):
   0..179   draft at doorway: cell (45) x direction (4: N,E,S,W) ->
            cell*4 + dir_index. Walks to the room first if needed. Legal for
            every frontier doorway reachable with at least one step to spare
@@ -235,6 +235,16 @@ Layout (Discrete(479)):
            its pile (see effects/rooms/office.py). Cooldown resets the
            coming in-game Saturday after use (owner ruling; day % 7 == 0,
            Day One is Sunday).
+  481..492 click one row of the Conservatory's drawing board and set that
+           floorplan's rarity (NAVIGATE; standing at the board's cell), one
+           id per (row, rarity level) pair in row-major order: row 0's four
+           levels, then row 1's, then row 2's. Drafting the Conservatory
+           stocks the board with three floorplans drawn uniformly at random
+           WITH replacement (owner ruling), and each row answers
+           conservatory.CLICKS_PER_FLOORPLAN clicks. A click writes the same
+           permanent rarity record the Gear Wrench writes; picking the
+           floorplan's own current rarity is how a player declines to change
+           it and still consumes the row (owner ruling).
 """
 
 from __future__ import annotations
@@ -246,6 +256,7 @@ from ..engine.locks import SECURITY_LEVELS
 from ..engine import shops as _shops
 from ..engine import special_items as _si
 from ..engine.effects import Capability, provides_capability
+from ..engine.effects.rooms import conservatory as _conservatory
 from ..engine.effects.rooms import pump_room as _pump_room
 from ..engine.effects.rooms import shrine as _shrine
 from ..engine.model import RARITIES, Registry
@@ -513,8 +524,23 @@ SPREAD_GOLD_ACTION = PUMP_LEVEL_BASE + _N_PUMP_LEVELS  # 479
 # Room interaction (docs/rooms.md).
 RUN_PAYROLL_ACTION = SPREAD_GOLD_ACTION + 1  # 480
 
-# N_ACTIONS = first slot after Run Payroll.
-N_ACTIONS = RUN_PAYROLL_ACTION + 1  # 481
+# 481..492: click one row of the Conservatory's drawing board, setting that
+# floorplan's rarity, one id per (row, rarity level) pair in row-major order
+# (row 0's four levels, then row 1's, then row 2's), appended at the end so no
+# earlier id shifts. NAVIGATE only, standing at the board's own cell; see
+# Game.can_remodel/remodel and engine/effects/rooms/conservatory.py.
+#
+# Row-major rather than a 3-id "pick a row" block feeding the existing 4-id
+# rarity menu: this way a whole click is one atomic action needing no pending
+# phase, the same collapse pump_room.py's docstring documents for the water
+# panel. Picking the floorplan's own current rarity is how a player declines to
+# change it and still consumes the row (owner ruling), so the block always has
+# a legal id while any row is unclicked.
+REMODEL_BASE = RUN_PAYROLL_ACTION + 1  # 481
+_N_REMODEL = _conservatory.BOARD_OFFERS * len(RARITIES)  # 3 rows x 4 rarities = 12
+
+# N_ACTIONS = first slot after the drawing board.
+N_ACTIONS = REMODEL_BASE + _N_REMODEL  # 493
 
 DIR_INDEX = {d: i for i, d in enumerate(DIRS)}
 
@@ -832,6 +858,15 @@ def action_mask(game: Game, prev_action: int | None = None) -> list[bool]:
             mask[SPREAD_GOLD_ACTION] = True
         if game.can_run_payroll():
             mask[RUN_PAYROLL_ACTION] = True
+
+        # The Conservatory's drawing board: row-major (row, rarity) pairs.
+        # Gates on standing at the board's own cell, which is always on-grid,
+        # so it needs no off-grid case either. Every rarity of an unclicked row
+        # is legal, including the floorplan's current one.
+        for _slot in range(_conservatory.BOARD_OFFERS):
+            for _rarity in range(len(RARITIES)):
+                if game.can_remodel(_slot, _rarity):
+                    mask[REMODEL_BASE + _slot * len(RARITIES) + _rarity] = True
 
         # Also outside the split: most ignition targets (chapel, tomb,
         # trading_post) sit on the grid, but mine_south is an off-grid area
@@ -1255,6 +1290,9 @@ def apply_action(game: Game, action: int) -> None:
         game.spread_gold()
     elif action == RUN_PAYROLL_ACTION:
         game.run_payroll()
+    elif REMODEL_BASE <= action < N_ACTIONS:
+        offset = action - REMODEL_BASE
+        game.remodel(offset // len(RARITIES), offset % len(RARITIES))
     else:
         raise ValueError(f"unimplemented action {action}")
 
@@ -1448,4 +1486,10 @@ def describe_action(game: Game, action: int) -> str:
         return "Office: Spread Gold in Estate"
     if action == RUN_PAYROLL_ACTION:
         return "Office: Run Payroll"
+    if REMODEL_BASE <= action < N_ACTIONS:
+        offset = action - REMODEL_BASE
+        slot, rarity = offset // len(RARITIES), offset % len(RARITIES)
+        offers = game.state.remodel_offers
+        room_id = offers[slot] if slot < len(offers) else "?"
+        return f"Conservatory: remodel {room_id} to {RARITIES[rarity]}"
     return f"action {action}"

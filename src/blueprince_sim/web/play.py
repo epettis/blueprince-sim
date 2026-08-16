@@ -149,6 +149,8 @@ def action_group(action_id: int) -> str:
         return "choose"
     if action_id in (A.SPREAD_GOLD_ACTION, A.RUN_PAYROLL_ACTION):
         return "use"
+    if A.REMODEL_BASE <= action_id < A.N_ACTIONS:
+        return "choose"
     return "other"
 
 

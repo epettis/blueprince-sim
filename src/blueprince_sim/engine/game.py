@@ -19,7 +19,7 @@ from .effects.items import (basement_key, crown_of_the_blueprints, gear_wrench, 
                             master_key, paper_crown, power_hammer, prism_key, running_shoes,
                             silver_key, telescope, the_axe)
 from .effects.rooms import (
-    dovecote, foyer, mail_room, office, pump_room, shelter, shrine, tomb)
+    conservatory, dovecote, foyer, mail_room, office, pump_room, shelter, shrine, tomb)
 from .effects.tier1 import _grant
 from .grid import (ADJACENT, DIRS, E, ENTRANCE_CELL, N, N_CELLS, OPPOSITE, W,
                    neighbor, rank_of, rotate_mask)
@@ -2487,24 +2487,66 @@ class Game:
         fallback to ``room.rarity_idx``, so this is correct whether the room
         starts the day in its natal bucket, a previously-wrenched one, or one
         a same-day battery_pack/Conservatory override already moved it to).
-        Records the permanent choice in ``state.permanent_rarity``, popping
-        the entry when ``rarity_idx`` matches the room's own natal rarity --
-        the same idempotent-pop convention ``set_dynamic_rarity`` itself uses
-        -- so the persisted dict only ever holds genuine overrides.
+        Records the permanent choice through :meth:`_write_permanent_rarity`.
         """
         assert self.can_set_wrench_rarity(rarity_idx), f"cannot set rarity {rarity_idx} here"
         st = self.state
         room_id = st.pending_wrench_room_id
         assert room_id is not None, "not awaiting a wrench choice"
+        self._write_permanent_rarity(room_id, rarity_idx, label="gear_wrench_set_rarity")
+        st.pending_wrench_room_id = None
+        self.phase = Phase.NAVIGATE
+        self._check_termination()
+
+    def _write_permanent_rarity(self, room_id: str, rarity_idx: int, label: str) -> None:
+        """Set ``room_id``'s rarity permanently: move today's cards and record
+        the choice in ``state.permanent_rarity``.
+
+        The single writer of that dict, shared by the Gear Wrench
+        (:meth:`set_wrench_rarity`) and the Conservatory's drawing board
+        (:meth:`remodel`), because the wiki gives them one permanent slot
+        between them -- a remodel can reset a wrench-set rarity and vice versa
+        precisely because both land here.
+
+        The card move goes through :func:`decks.set_dynamic_rarity`, whose
+        current-bucket read is ``state.dynamic_rarity``'s own fallback to
+        ``room.rarity_idx``, so this is correct whether the room starts the day
+        in its natal bucket, a previously-set one, or one a same-day
+        battery_pack override already moved it to. The permanent entry is
+        popped rather than written when ``rarity_idx`` matches the room's natal
+        rarity -- the same idempotent-pop convention ``set_dynamic_rarity``
+        itself uses -- so the persisted dict only ever holds genuine overrides.
+        """
+        st = self.state
         room = self.registry.by_id[room_id]
-        set_dynamic_rarity(st, self.registry, room_id, rarity_idx, self.rng,
-                           label="gear_wrench_set_rarity")
+        set_dynamic_rarity(st, self.registry, room_id, rarity_idx, self.rng, label=label)
         if rarity_idx == room.rarity_idx:
             st.permanent_rarity.pop(room_id, None)
         else:
             st.permanent_rarity[room_id] = rarity_idx
-        st.pending_wrench_room_id = None
-        self.phase = Phase.NAVIGATE
+
+    # -------------------------------------------- Conservatory drawing board
+
+    def can_remodel(self, slot: int, rarity_idx: int) -> bool:
+        """Is clicking board row ``slot`` and picking ``rarity_idx`` legal now?
+
+        Standing at the drawing board's own cell, on the grid, mid-day, with
+        that row still unclicked (conservatory.slot_available). All four rarity
+        levels are always offered, including the floorplan's current one --
+        that IS how a player declines to change it, and the owner ruled such a
+        click still counts as a use, so it still consumes the row.
+        """
+        return (self.phase is Phase.NAVIGATE and not self.off_grid
+                and 0 <= rarity_idx < len(RARITIES)
+                and self.state.pos == self._capability_cell(Capability.DRAWING_BOARD) >= 0
+                and conservatory.slot_available(self.state, slot))
+
+    def remodel(self, slot: int, rarity_idx: int) -> None:
+        """Click board row ``slot``, setting that floorplan's rarity permanently
+        -- see conservatory.click_floorplan."""
+        assert self.can_remodel(slot, rarity_idx), (
+            f"cannot remodel board row {slot} to rarity {rarity_idx} here")
+        conservatory.click_floorplan(self, slot, rarity_idx)
         self._check_termination()
 
     # There is no decline: opening a door commits you to drafting one of the
@@ -3655,6 +3697,13 @@ class Game:
           runs when the question is whether any draft is left at all -- and
           **the Axe**, whose 3 uses are save-scoped, so tomorrow serves it
           just as well as the last free moment of today.
+        - **The Conservatory's drawing board** (:meth:`remodel`), for the
+          Scepter's reason: a click grants nothing and opens nothing, it only
+          moves a floorplan between rarity buckets for later drafts. It is
+          bounded anyway -- ``conservatory.CLICKS_PER_FLOORPLAN`` clicks per
+          row, each strictly incrementing ``state.remodel_clicks`` -- so
+          including it would be safe; it is excluded because holding a day open
+          for it would be wrong, not because it could run forever.
         - **The Repellent**, which has no id in the env action space at all.
 
         What bounds the shop block is that a purchase strictly lowers coins,

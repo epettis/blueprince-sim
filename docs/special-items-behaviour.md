@@ -435,8 +435,11 @@ one. Every Mechanical Room has a single deck copy and the one-copy-per-grid
 rule holds, so folding the assignment into deck construction is both correct
 and consumes no RNG.
 
-[`drafting.md`](drafting.md) records the standing divergence that the
-Conservatory's re-roll never writes the same permanent record.
+**The permanent slot has a second writer**: the Conservatory's drawing board
+([`rooms.md`](rooms.md)) sets the same `permanent_rarity` entries through the
+same `Game._write_permanent_rarity`, so a remodel can reset a wrench-set rarity
+and vice versa — the wiki's own rule, and the reason neither mechanic gets a
+record of its own.
 
 ### The Chronograph
 

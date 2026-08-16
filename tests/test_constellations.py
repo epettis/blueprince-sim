@@ -176,7 +176,7 @@ def test_the_action_block_has_one_id_per_record():
 # ------------------------------------------------------- the action space
 
 
-def test_action_space_width_is_481():
+def test_action_space_width_is_493():
     """The constellation block's own id range, and N_ACTIONS, agree with
     docs/rl-environment.md's width-change register.
 
@@ -189,10 +189,12 @@ def test_action_space_width_is_481():
 
     N_ACTIONS is no longer REDRAW_WITH_STAR_ACTION + 1: the Pump Room panel
     block (docs/areas.md's Pump Room section) appends 21 more ids after it
-    (458..478, a source pick plus a target-level pick), and the Office
-    terminal block (docs/rooms.md) appends 2 more after that
-    (479 Spread Gold in Estate, 480 Run Payroll), so this test only pins
-    where the constellation block itself ends, not the space's final width.
+    (458..478, a source pick plus a target-level pick), the Office terminal
+    block (docs/rooms.md) appends 2 more after that (479 Spread Gold in
+    Estate, 480 Run Payroll), and the Conservatory's drawing board appends 12
+    more (481..492, one per board row x rarity level; docs/rooms.md), so this
+    test only pins where the constellation block itself ends, not the space's
+    final width.
     """
     assert A.ACTIVATE_CONSTELLATION_BASE == A.USE_TELESCOPE_PLANETARIUM_ACTION + 1
     assert A.VIEW_NIGHT_SKY_ACTION == A.ACTIVATE_CONSTELLATION_BASE + A._N_CONSTELLATIONS
@@ -202,7 +204,9 @@ def test_action_space_width_is_481():
     assert A.PUMP_LEVEL_BASE == A.PUMP_SOURCE_BASE + A._N_PUMP_SOURCES
     assert A.SPREAD_GOLD_ACTION == A.PUMP_LEVEL_BASE + A._N_PUMP_LEVELS == 479
     assert A.RUN_PAYROLL_ACTION == A.SPREAD_GOLD_ACTION + 1 == 480
-    assert A.N_ACTIONS == A.RUN_PAYROLL_ACTION + 1 == 481
+    assert A.REMODEL_BASE == A.RUN_PAYROLL_ACTION + 1 == 481
+    assert A._N_REMODEL == 12
+    assert A.N_ACTIONS == A.REMODEL_BASE + A._N_REMODEL == 493
 
 
 def test_no_existing_action_id_shifted():
@@ -289,8 +293,10 @@ def test_action_group_buckets_the_constellation_block():
 #: for the Conservatory's conservatory_floorplan_found flag, 17 -> 18 for the
 #: Greenhouse's greenhouse_wall_broken flag, then 18 -> 19 for the Pump Room's
 #: reservoir_13_reached flag (env/multiday.py's _CARRYOVER_KEYS); "phase" has
-#: widened 8 -> 9 for Phase.PUMP_LEVEL_PENDING; and "water_levels" is a new
-#: key for the Pump Room's six source levels (docs/areas.md's Pump Room section) --
+#: widened 8 -> 9 for Phase.PUMP_LEVEL_PENDING; "water_levels" is a new key for
+#: the Pump Room's six source levels (docs/areas.md's Pump Room section); and
+#: "remodel" is a new key for the Conservatory drawing board's three rows
+#: (docs/rooms.md's Conservatory section) --
 #: every other row must stay exactly as it is, because a bound change is a
 #: retrain trigger on the same terms as a shape change (docs/rl-environment.md).
 #: "axed_rooms" stays 48 here because this call never overrides
@@ -330,6 +336,7 @@ _EXPECTED_SPACE = {
     "player_pos": ("Discrete", 45, "int64"),
     "prev_options": ((3, 13), -1, 999, "int16"),
     "progress": ((5,), -1, 999, "int16"),
+    "remodel": ((6,), 0, 999, "int16"),
     "resources": ((7,), -99, 999, "int16"),
     "secret_passage_colour": ("Discrete", 6, "int64"),
     "shop_stock": ((6, 5), -1, 999, "int16"),

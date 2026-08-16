@@ -783,6 +783,18 @@ class GameState:
     # NAVIGATE. Same shape as pending_upgrade_slot: None outside WRENCH_PENDING.
     pending_wrench_room_id: str | None = None
 
+    # --- Conservatory drawing board (engine/effects/rooms/conservatory.py) ---
+    # The floorplans today's board presents, as room ids, drawn uniformly WITH
+    # replacement when the Conservatory is drafted (so the same id may appear
+    # in two rows), plus each row's click count. Both are DAY-scoped: a fresh
+    # GameState starts with an unstocked board and only
+    # conservatory.stock_drawing_board fills them, so a board never survives
+    # the night -- unlike the permanent_rarity entries its clicks write, which
+    # are SAVE-scoped. remodel_clicks is index-parallel to remodel_offers; the
+    # two are only ever resized together.
+    remodel_offers: tuple[str, ...] = ()
+    remodel_clicks: list[int] = field(default_factory=list)
+
     # --- PUMP_LEVEL_PENDING (engine/game.py's Game.set_pump_source / set_pump_level) ---
     # The water source id awaiting a target-level pick, set by Game.set_pump_source
     # instead of returning to NAVIGATE. Same shape as pending_wrench_room_id:

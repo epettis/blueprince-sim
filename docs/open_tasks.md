@@ -293,77 +293,8 @@ built yet.** Each one leaves the log the day its work lands.
 Everything each entry says about *shipped* behaviour is already stated in the
 doc that owns it; when the remaining work lands, the entry goes.
 
-- **The Conservatory remodel, researched to datamined ground truth.** Owner set
-  the research priority: *"Go with whatever comes from the data mining followed
-  by the wiki in that order"*, and offered a hypothesis — *"I suspect it's
-  uniform random irrespective of rarity."*
-
-  **The hypothesis is SUPPORTED.** The Conservatory page's `DataMinedBox` says
-  *"the table presents three random rooms that passed the filters"*, with **no
-  rarity term anywhere** — unlike the normal draft (*"the game first chooses a
-  rarity and then selects a room of that rarity"*), and matching the Duct Draw
-  shape, which the wiki states outright as *"uniformly at random from the list
-  (ignoring rarity and other modifiers)"*.
-
-  **OWNER RULING: uniform random WITH replacement.** *"The Conservatory is
-  quite simple. Select three random rooms to permit their rarity to be
-  changed... Use 'uniform random with replacement' as the model."* This settles
-  the point the datamine left open — it never uses the word "uniform" and never
-  says whether the three are drawn with or without replacement. With
-  replacement means the three offers can repeat a room, which also matches the
-  bug clause — *"this list contains bugged entries that, if they appear, appear
-  like one of the other entries already present"* — reading as a
-  non-de-duplicated draw rather than a special case.
-
-  **The datamined filter chain, which belongs in DATA when this is built:** from
-  86 rooms, drop any whose rarity has been changed **by any method** (so a
-  wrenched room disappears from future offers); Studio Additions and Found
-  Floorplans must have been added or found; Gift Shop drops if never drafted;
-  Freezer, Pump Room and Dovecote always drop. **If fewer than 3 survive, it
-  presents three from the full 86 ignoring every filter.**
-
-  **The sim's matching concept lands at 85, not 86** — `pool in {base,
-  studio_addition}` = 95, minus the 16 named unchangeable rooms = 85. The 8
-  outer rooms are already excluded. **The 1-room gap is unresolved** and was not
-  worth chasing. *"Interior room" is the owner's term, not the game's*: the
-  game-side concept is "rooms whose rarity can be changed", and 16 interior
-  rooms are excluded, so interior alone is not the criterion.
-
-  **OWNER RULING: the rarity change is ALL THREE, not any one** — *"the player
-  may interact with the drawing board to change the rarity of each one"*. The
-  wiki wins here, explicitly reversing the owner's earlier "any of the three".
-
-  **OWNER RULING: a no-op click COUNTS as a use.** *"Clicking a floorplan, even
-  without actually changing the rarity, counts as changing the rarity."*
-  `permanent_rarity` **cannot represent this** — `set_wrench_rarity` *pops* the
-  entry when the pick equals the natal rarity, so it cannot express "consumed
-  but unchanged". This needs a **second save-scoped set**, roughly 40 lines plus
-  an obs key.
-
-  **OWNER RULING: a modified room stays eligible.** *"The modified room can be
-  modified in future days."* **This contradicts the datamine and is recorded as
-  a conflict, not smoothed over.** The datamined filter chain drops from future
-  offers *any room whose rarity has been changed by any method*, and adds that
-  resetting via the Room Directory *"acts like setting the rarity back to the
-  base rarity, rather than as if the rarity was never set in the first place"*
-  — i.e. the room stays filtered out. Owner play governs, so the filter chain
-  loses its "already changed" exclusion entirely and the offer list does not
-  shrink as rooms are used.
-
-  **One datamined rule survives untouched**, because it is about a different
-  thing: the Conservatory writes **the same permanent slot as the Gear
-  Wrench**, so *"if a room's rarity is ever set... that room's Dynamic Rarity is
-  permanently ignored"*. That governs Dynamic Rarity, not Conservatory
-  eligibility, and the ruling above does not disturb it.
-
-  **Frequency is still unsourced**, and the ruling changes what the open
-  question means: with no "already changed" exclusion the offer list never
-  shrinks, so "unlimited re-interaction" would be unbounded rather than
-  self-limiting. Whether the board is once per day, once per Conservatory, or
-  unlimited is the remaining gap.
-
-  **Still unbuilt alongside the remodel: the Conservatory's 15% forced draw.**
-  Its Found Floorplan gate has shipped; the forced-draw entry has not, and
+- **The Conservatory's 15% forced draw.** Its Found Floorplan gate and its
+  remodel have both shipped; the forced-draw entry has not, and
   [`drafting.md`](drafting.md) records that gap.
 
 - **The retrain is owed, and is held on the owner's explicit say-so alone.**
