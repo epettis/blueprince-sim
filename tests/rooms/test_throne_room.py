@@ -41,10 +41,10 @@ def _place_room(g: Game, room_id: str, cell: int, mask: int) -> None:
 def test_throne_room_lever_opens_north_door():
     """Entering the Throne Room opens the Antechamber north door (backup lever).
 
-    Throne Room is a studio_additions room; its lever behaviour is the backup
+    Throne Room is a found floorplan; its lever behaviour is the backup
     path to Room 46 for runs that cannot reach Inner Sanctum in time.
     """
-    g = _game(studio_additions=frozenset({"throne_room"}))
+    g = _game(found_floorplans=frozenset({"throne_room"}))
     _place_room(g, "throne_room", cell=37, mask=0xF)
     assert g.door_state_of(ANTECHAMBER_CELL, N) == DOOR_SEALED
     _enter_at(g, 37)

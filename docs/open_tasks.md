@@ -286,7 +286,6 @@ built yet.** Each one leaves the log the day its work lands.
   rarities. Its *reachability* has shipped, so only the remodel's rules wait
   here.
 - **The Spiral of Stars** — the one constellation of thirteen still inert.
-- **Re-filing seven Found Floorplans** out of the `studio_addition` pool.
 - **The Mail Room's Dynamic Rarity** package, unblocked by `set_dynamic_rarity`.
 - **The jack hammer's four unsourced vault keys**, which need a research pass
   before the table is rebuilt (cited from
@@ -367,26 +366,6 @@ doc that owns it; when the remaining work lands, the entry goes.
   **Still unbuilt alongside the remodel: the Conservatory's 15% forced draw.**
   Its Found Floorplan gate has shipped; the forced-draw entry has not, and
   [`drafting.md`](drafting.md) records that gap.
-
-- **Re-filing seven Found Floorplans out of `studio_addition`.** The
-  Conservatory's build introduced `pool: "found_floorplan"` as a value of its
-  own rather than reusing `studio_addition`. Seven other Found Floorplans still
-  sit under `studio_addition` because the repo conflated the two concepts. The
-  new value stops entrenching that; moving the other seven is this separate
-  pass.
-
-  **OWNER RULING: do it.** *"Move the 'found' floorplans from studio_addition
-  into found_floorplan."*
-
-  **Care is required around `throne_room` and `treasure_trove`.** Both are
-  `pool: "studio_addition"`, and each reaches the pool by two doors:
-  `cfg.studio_additions`, and its own blueprint flag
-  (`cfg.throne_room_blueprint` / `cfg.treasure_trove_blackprint`), which
-  `all_unlocks_config()` sets. Repointing either one therefore no longer drops
-  it from the training pool silently: the Throne Room still arrives by its own
-  flag, and the Treasure Trove is held out of that pool deliberately and
-  visibly by `banned_rooms`, because its black-box reward is unmodelled
-  (`rl/train.py`). Check both doors and the ban before moving either.
 
 - **The Spiral of Stars — OWNER RULING: land it.** *"Just land the spiral of
   stars."* Twelve of the thirteen constellations are

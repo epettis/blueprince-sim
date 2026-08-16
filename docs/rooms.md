@@ -57,6 +57,26 @@ bias. All sixteen now carry real colours. `CATEGORIES` in `env/obs.py` keeps its
 now-inert `studio_addition` / `outer` slots deliberately: removing them would
 renumber every later category for no behavioural gain.
 
+**The two unlockable pools are two mechanics, not one.** Sixteen rooms are
+absent from a fresh save's deck and unlock one at a time, and the wiki splits
+them evenly:
+
+- **`studio_addition`** (8: Casino, Classroom, Clock Tower, Dormitory, Dovecote,
+  Solarium, The Kennel, Vestibule) — the Drafting Studio's drawing board offers
+  three at a time and one is permanently added to the pool. Gated by
+  `cfg.studio_additions`.
+- **`found_floorplan`** (8: Planetarium, Mechanarium, Treasure Trove, Throne
+  Room, Tunnel, Conservatory, Lost & Found, Closed Exhibit) — each is hidden
+  somewhere on the estate and must be found individually. Gated by
+  `cfg.found_floorplans`.
+
+Because a found floorplan is found *individually*, its gate is per room. Three
+of the eight also carry a dedicated `GameConfig` bool
+(`treasure_trove_blackprint`, `throne_room_blueprint`,
+`conservatory_floorplan_found`) recording that the engine watched the player
+find that specific floorplan; `decks.py::eligible_pool` checks each by room id,
+never by pool, so the Conservatory's campsite dig cannot unlock the other seven.
+
 **A large `blueprint` category is correct, not a catch-all bug.** It is by far
 the biggest colour and that is the game's own joke; do not "fix" it. The earlier
 finding it resembles was genuinely different — those rooms carried a *pool name*

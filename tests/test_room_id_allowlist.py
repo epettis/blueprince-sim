@@ -264,32 +264,17 @@ ROOM_DEBT: dict[str, set[str]] = {
         # of comparing room.id/variant_of to a literal, so grant() no
         # longer names "chapel" at all.
     ),
-    "decks.py": {
-        # Pool inclusion has an explicit Treasure Trove blackprint carve-out
-        # (cfg.treasure_trove_blackprint) alongside the pool-tag rule -- a
-        # room-specific exception in eligible_pool's otherwise generic
-        # pool-membership logic. Not converted this phase: unlike the
-        # Conservatory's single dedicated "found_floorplan" pool+flag door,
-        # this room ALSO qualifies for the pool via the shared
-        # cfg.studio_additions membership door (the room's pool is
-        # "studio_addition", not a dedicated value); reusing the
-        # Conservatory's shape would have to move it off that pool value,
-        # severing that first door -- see throne_room's entry below for why
-        # that is a real, not merely stylistic, regression.
-        "treasure_trove",
-        # Pool inclusion has an explicit Throne Room blueprint carve-out
-        # (cfg.throne_room_blueprint), same shape as Treasure Trove above.
-        # Not converted: rl/train.py::all_studio_additions() derives its
-        # frozenset from `room.pool == "studio_addition"` alone, and
-        # rl/train.py::all_unlocks_config() sets cfg.studio_additions from
-        # that derived set WITHOUT ever setting cfg.throne_room_blueprint --
-        # so under that config the Throne Room is on the grid today solely
-        # because its pool is "studio_addition". Moving it to a dedicated
-        # pool value (the Conservatory's shape) would silently drop it from
-        # that training config's draft pool, a real regression this phase
-        # does not risk.
-        "throne_room",
-    },
+    "decks.py": set(
+        # treasure_trove/throne_room moved off this list: eligible_pool's pool
+        # gate no longer carves out the rooms whose found_floorplan unlock is a
+        # dedicated GameConfig bool. config.py::FOUND_FLOORPLAN_FLAGS pairs each
+        # flag with its room and GameConfig.unlocked_found_floorplans() unions
+        # that with cfg.found_floorplans, so decks.py runs one membership test
+        # and names no room. Not a room module -- a room module registers
+        # behaviour for a room already in play, and this decides whether the
+        # room may be dealt at all -- but the binding now lives beside the flags
+        # themselves, which are already named for their rooms.
+    ),
     "experiments.py": set(
         # aquarium/aquarium__experiment moved to ROOM_ARCHITECTURE above:
         # add_aquariums's whole job, per the wiki, is injecting copies of
@@ -365,13 +350,10 @@ ROOM_DEBT: dict[str, set[str]] = {
     ),
 }
 
-#: ROOM_DEBT's total entry count, measured 2026-08-15 (after moving
-#: experiments.py's conference_room/dining_room and special_items.py's
-#: dining_room/lost_and_found/vault debt to Capability facts -- DIG_SPOTS,
-#: DINING_ROOM, LOST_AND_FOUND, VAULT, each registered by that room's own
-#: effects/rooms/<id>.py module -- and reclassifying experiments.py's
-#: aquarium/aquarium__experiment to ROOM_ARCHITECTURE as add_aquariums's own
-#: fixed targets rather than a carve-out; see those entries above).
+#: ROOM_DEBT's total entry count. The remaining entry is game.py's
+#: the_foundation; decks.py's treasure_trove/throne_room were paid down by
+#: moving the found-floorplan flag/room pairing to
+#: config.py::FOUND_FLOORPLAN_FLAGS, leaving eligible_pool naming no room.
 #: test_room_id_debt_matches_the_cap fails in BOTH directions: above means a
 #: new debt entry landed and nobody paid it down; below means a conversion
 #: already shrank ROOM_DEBT and nobody lowered this constant to match, which
@@ -379,7 +361,7 @@ ROOM_DEBT: dict[str, set[str]] = {
 #: module docstring for why this mirrors #332's original bidirectional
 #: ROOM_ID_ALLOWLIST_CAP rather than test_item_id_allowlist.py's
 #: upper-bound-only ITEM_DEBT_CAP.
-ROOM_ID_DEBT_CAP = 3
+ROOM_ID_DEBT_CAP = 1
 
 
 def _combined_allowlist() -> dict[str, set[str]]:

@@ -41,15 +41,23 @@ from .dashboard import emit
 # excluded from training so the agent never sees rooms that do nothing meaningful.
 # Promote a room from this set once its behaviour is implemented.
 # Each entry documents the reason its behaviour is unmodelled.
-_STUDIO_ADDITION_EXCLUSIONS: frozenset[str] = frozenset({
+_STUDIO_ADDITION_EXCLUSIONS: frozenset[str] = frozenset(
+    # Empty: all 8 studio-addition rooms have modelled behaviour.
+    # NOTE: casino is intentionally NOT excluded here, even though its
+    # slot-machine games are unmodelled -- a standing deliberate inconsistency.
+    # Promote this note once Casino games are implemented.
+)
+
+# The same idea for the found_floorplan pool, gated by cfg.found_floorplans.
+# Kept separate from _STUDIO_ADDITION_EXCLUSIONS because the two pools are
+# separate mechanics with separate allowlists; an id excluded here must be
+# absent from all_found_floorplans(), not from all_studio_additions().
+_FOUND_FLOORPLAN_EXCLUSIONS: frozenset[str] = frozenset({
     # Treasure Trove: black-box reward mechanic unmodelled.
     "treasure_trove",
     # Closed Exhibit: security puzzle (Paper Crown pickup simplified to guaranteed) — excluded
     # because the intended locked-puzzle behaviour is unmodelled.
     "closed_exhibit",
-    # NOTE: casino is intentionally NOT excluded here, even though its
-    # slot-machine games are unmodelled -- a standing deliberate inconsistency.
-    # Promote this note once Casino games are implemented.
 })
 
 # Aquarium upgrade-variant room ids excluded from training via banned_rooms
@@ -59,9 +67,10 @@ _STUDIO_ADDITION_EXCLUSIONS: frozenset[str] = frozenset({
 # surface. This does NOT touch the base Aquarium or the add_aquariums effect
 # itself -- only its three upgrade variants (goldfish/starfish/electric eel).
 #
-# This is NOT the same mechanism as _STUDIO_ADDITION_EXCLUSIONS: that one
-# removes an id from a derived "all studio additions" allowlist BEFORE it ever
-# reaches cfg.studio_additions. There is no equivalent allowlist for upgrade
+# This is NOT the same mechanism as _STUDIO_ADDITION_EXCLUSIONS /
+# _FOUND_FLOORPLAN_EXCLUSIONS: those remove an id from a derived allowlist
+# BEFORE it ever reaches cfg.studio_additions /
+# cfg.found_floorplans. There is no equivalent allowlist for upgrade
 # disks here -- both all_unlocks_config and fresh_save_config already pass
 # upgrade_disks=frozenset() (no room upgrades applied at day start, by
 # design), so an Aquarium disk can only enter a training run by the agent
@@ -84,9 +93,9 @@ _UPGRADE_DISK_EXCLUSIONS: frozenset[str] = frozenset({
     "goldfish_aquarium__ix2", "starfish_aquarium__ix3", "electric_eel_aquarium__ix4",
 })
 
-# Treasure Trove is in _STUDIO_ADDITION_EXCLUSIONS above (black-box reward
+# Treasure Trove is in _FOUND_FLOORPLAN_EXCLUSIONS above (black-box reward
 # mechanic unmodelled), but decks.py::eligible_pool gives it a second door
-# independent of cfg.studio_additions: cfg.treasure_trove_blackprint, which
+# independent of cfg.found_floorplans: cfg.treasure_trove_blackprint, which
 # all_unlocks_config sets True. That door routes around the exclusion, so
 # banned_rooms -- checked in eligible_pool ahead of every pool door, the same
 # mechanism _UPGRADE_DISK_EXCLUSIONS already reuses for this purpose -- blocks
@@ -102,10 +111,6 @@ def all_studio_additions() -> frozenset[str]:
     ``test_studio_additions_all_accounted_for``. It can then never be silently
     dropped from training.
 
-    Two inclusions worth naming: ``lost_and_found`` (steal/gift behaviour in
-    ``special_items.py``) and ``tunnel`` (chain-draft mechanic in ``draft.py``)
-    are both implemented and included here.
-
     Lazy and cached deliberately: deriving this at import time would make merely
     importing this module read the data files, and ``web/replay.py`` imports it.
     """
@@ -113,6 +118,26 @@ def all_studio_additions() -> frozenset[str]:
         r.id for r in Registry.load().rooms
         if r.pool == "studio_addition"
     ) - _STUDIO_ADDITION_EXCLUSIONS
+
+
+@functools.cache
+def all_found_floorplans() -> frozenset[str]:
+    """Found-floorplan room ids whose behaviour is modelled, derived from the registry.
+
+    The ``found_floorplan`` counterpart of ``all_studio_additions()``, feeding
+    ``cfg.found_floorplans`` instead of ``cfg.studio_additions``. Derived and
+    guarded the same way, by ``test_found_floorplans_all_accounted_for``.
+
+    Two inclusions worth naming: ``lost_and_found`` (steal/gift behaviour in
+    ``special_items.py``) and ``tunnel`` (chain-draft mechanic in ``draft.py``)
+    are both implemented and included here.
+
+    Lazy and cached for the same reason as ``all_studio_additions()``.
+    """
+    return frozenset(
+        r.id for r in Registry.load().rooms
+        if r.pool == "found_floorplan"
+    ) - _FOUND_FLOORPLAN_EXCLUSIONS
 
 STOP = threading.Event()
 
@@ -190,6 +215,7 @@ def all_unlocks_config(reward: str = "shaped") -> GameConfig:
         greenhouse_wall_broken=True,   # Greenhouse corner rotations draftable without the Power Hammer
         outer_chip_dug=True,           # West Path chip already granted on reaching the doorstep
         studio_additions=all_studio_additions(),
+        found_floorplans=all_found_floorplans(),
         upgrade_disks=frozenset(),     # explicitly: no room upgrades
         # Blocks the 3 Aquarium upgrade variants (_UPGRADE_DISK_EXCLUSIONS) and
         # Treasure Trove (_TREASURE_TROVE_EXCLUSION) from ever being drafted --
@@ -232,6 +258,7 @@ def fresh_save_config(reward: str = "shaped") -> GameConfig:
         stage="auto",                  # resolves to "week1" at day 1
         starting_steps=50,             # base budget; no orchard bonus
         studio_additions=frozenset(),  # no studio rooms unlocked
+        found_floorplans=frozenset(),  # no found floorplans discovered yet
         west_gate_unlatched=False,     # Grounds shortcut not yet open
         orchard_unlocked=False,        # no +20 steps
         mine_unlocked=False,           # no +2 gems

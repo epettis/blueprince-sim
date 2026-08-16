@@ -9,6 +9,24 @@ from pathlib import Path
 
 STAGES = ("week1", "week2", "late", "auto")
 
+#: found_floorplan room id -> the GameConfig bool recording that the engine
+#: watched the player find that specific floorplan. Three of the eight found
+#: floorplans are discovered somewhere the engine models, so their unlock is a
+#: carry flag (env/multiday.py::_CARRYOVER_KEYS) rather than an entry in
+#: ``found_floorplans``; the other five are only ever unlocked through the set.
+#:
+#: Lives here, beside the flags it maps, because a flag NAMED for one room is
+#: already a statement about that room -- this only makes the pairing readable
+#: by ``GameConfig.unlocked_found_floorplans``, which lets
+#: ``decks.py::eligible_pool`` gate the pool without naming any room itself.
+#: Each flag admits its own room and no other: a shovel swung at the campsite is
+#: evidence about the Conservatory, not about the other seven.
+FOUND_FLOORPLAN_FLAGS: dict[str, str] = {
+    "treasure_trove": "treasure_trove_blackprint",
+    "throne_room": "throne_room_blueprint",
+    "conservatory": "conservatory_floorplan_found",
+}
+
 
 @dataclass
 class GameConfig:
@@ -18,7 +36,19 @@ class GameConfig:
     # step budget at day start; OPEN QUESTION: community consensus 50, confidence=wiki
     starting_steps: int = 50
     # --- permanent unlocks (the "enable various unlocks" toggles) ---
-    studio_additions: frozenset[str] = frozenset()   # subset of the 8 studio-addition room ids
+    # Subset of the 8 room ids with pool == "studio_addition": the floorplans the
+    # Drafting Studio's drawing board offers, three at a time, one of which is
+    # permanently added to the draft pool. Gates that pool in decks.py::eligible_pool.
+    studio_additions: frozenset[str] = frozenset()
+    # Subset of the 8 room ids with pool == "found_floorplan": floorplans that are
+    # absent from the initial draft pool and must each be found individually,
+    # hidden somewhere on the estate, before they can be drafted. A separate
+    # mechanic from studio_additions, so a separate field: gates that pool in
+    # decks.py::eligible_pool, per room. Three of the eight ALSO have a dedicated
+    # bool flag below (treasure_trove_blackprint, throne_room_blueprint,
+    # conservatory_floorplan_found) because the engine models where they are found;
+    # for the other five this set is the only door.
+    found_floorplans: frozenset[str] = frozenset()
     # True when the West Gate has been permanently unlatched (Grounds <-> West Path shortcut
     # is open). Maps to the "west_gate_unlatched" flag in GateContext. Earned the first time
     # the player reaches west_path via the Garage route; afterwards, the 2-step Grounds route
@@ -368,6 +398,18 @@ class GameConfig:
         if self.day <= 14:
             return "week2"
         return "late"
+
+    def unlocked_found_floorplans(self) -> frozenset[str]:
+        """Ids of found_floorplan rooms this config makes draftable.
+
+        ``found_floorplans`` plus every room in FOUND_FLOORPLAN_FLAGS whose
+        dedicated bool is set -- the two doors into that pool, unioned here so
+        decks.py::eligible_pool can gate it with one membership test.
+        """
+        return self.found_floorplans | frozenset(
+            room_id for room_id, flag in FOUND_FLOORPLAN_FLAGS.items()
+            if getattr(self, flag)
+        )
 
     def gem_gate_active(self) -> bool:
         """Whether the stricter gem deck-size gates apply to the rarity roll

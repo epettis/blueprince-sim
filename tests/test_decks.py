@@ -60,6 +60,71 @@ def test_pool_respects_unlock_config(registry):
     assert "solarium" in with_solarium
 
 
+#: The two unlockable pools, per blueprince.wiki.gg. Studio Additions are offered
+#: three at a time by the Drafting Studio's drawing board; Found Floorplans are
+#: each hidden somewhere on the estate and must be found individually.
+STUDIO_ADDITIONS = {
+    "casino", "classroom", "clock_tower", "dormitory",
+    "dovecote", "solarium", "the_kennel", "vestibule",
+}
+FOUND_FLOORPLANS = {
+    "planetarium", "mechanarium", "treasure_trove", "throne_room",
+    "tunnel", "conservatory", "lost_and_found", "closed_exhibit",
+}
+
+
+def test_the_two_unlockable_pools_match_the_wiki(registry):
+    """rooms.json splits the unlockable rooms into exactly the wiki's two
+    categories -- 8 Studio Additions and 8 Found Floorplans.
+
+    The two are separate game mechanics with separate unlock conditions, so a
+    room filed under the wrong one is gated by the wrong config field. Pinned
+    as literal sets because the split is external fact from the wiki, not
+    something derivable from the data being checked.
+    """
+    by_pool = {}
+    for room in registry.rooms:
+        by_pool.setdefault(room.pool, set()).add(room.id)
+    assert by_pool.get("studio_addition") == STUDIO_ADDITIONS
+    assert by_pool.get("found_floorplan") == FOUND_FLOORPLANS
+
+
+def test_each_unlockable_pool_is_gated_by_its_own_id_set(registry):
+    """cfg.studio_additions opens studio_addition rooms and cfg.found_floorplans
+    opens found_floorplan rooms, and neither field opens the other's pool.
+
+    The two pools were once one, so the fields could silently be treated as
+    interchangeable; naming a found floorplan in cfg.studio_additions (or the
+    reverse) must be inert rather than quietly working.
+    """
+    both = {r.id for r in eligible_pool(registry, GameConfig(
+        studio_additions=frozenset({"solarium"}),
+        found_floorplans=frozenset({"tunnel"}),
+    ))}
+    assert {"solarium", "tunnel"} <= both
+
+    crossed = {r.id for r in eligible_pool(registry, GameConfig(
+        studio_additions=frozenset({"tunnel"}),
+        found_floorplans=frozenset({"solarium"}),
+    ))}
+    assert not ({"solarium", "tunnel"} & crossed)
+
+
+def test_conservatory_flag_admits_only_the_conservatory(registry):
+    """cfg.conservatory_floorplan_found is evidence about one room, so it adds
+    the Conservatory and no other found floorplan.
+
+    The flag records a shovel swung at the campsite. Gating the whole
+    found_floorplan pool on it would make that one dig unlock all eight rooms
+    -- including closed_exhibit, which rl/train.py deliberately withholds from
+    training -- so this pins the gate as per-room.
+    """
+    ids = {r.id for r in eligible_pool(
+        registry, GameConfig(conservatory_floorplan_found=True))}
+    assert "conservatory" in ids
+    assert not ((FOUND_FLOORPLANS - {"conservatory"}) & ids)
+
+
 def test_upgrade_variant_replaces_base(registry):
     """An unlocked upgrade disk swaps the variant into the pool and removes
     the base room - the two never coexist."""

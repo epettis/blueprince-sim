@@ -822,7 +822,7 @@
         "additional_max": 0,
         "dig_spots": 0
       },
-      "pool": "studio_addition",
+      "pool": "found_floorplan",
       "meta": {
         "source": "wiki",
         "confidence": "wiki",
@@ -858,7 +858,7 @@
         "additional_max": 0,
         "dig_spots": 0
       },
-      "pool": "studio_addition",
+      "pool": "found_floorplan",
       "meta": {
         "source": "wiki",
         "confidence": "wiki",
@@ -892,7 +892,7 @@
         "additional_max": 0,
         "dig_spots": 0
       },
-      "pool": "studio_addition",
+      "pool": "found_floorplan",
       "meta": {
         "source": "wiki",
         "confidence": "wiki",
@@ -921,7 +921,7 @@
         "additional_max": 0,
         "dig_spots": 0
       },
-      "pool": "studio_addition",
+      "pool": "found_floorplan",
       "meta": {
         "source": "wiki",
         "confidence": "wiki",
@@ -952,7 +952,7 @@
         "additional_max": 1,
         "dig_spots": 0
       },
-      "pool": "studio_addition",
+      "pool": "found_floorplan",
       "meta": {
         "source": "wiki",
         "confidence": "wiki",
@@ -984,7 +984,7 @@
         "additional_max": 3,
         "dig_spots": 0
       },
-      "pool": "studio_addition",
+      "pool": "found_floorplan",
       "meta": {
         "source": "wiki",
         "confidence": "wiki",
@@ -1022,7 +1022,7 @@
         "additional_max": 0,
         "dig_spots": 3
       },
-      "pool": "studio_addition",
+      "pool": "found_floorplan",
       "meta": {
         "source": "wiki",
         "confidence": "wiki",
