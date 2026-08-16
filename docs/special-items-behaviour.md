@@ -116,16 +116,42 @@ counts, so a listed room carries one spot unless its own datamined record
 names a count. A per-cell overlay (written by the Cloister of Veia and by the
 `spread_dig_spots` experiment effect) adds to that baseline.
 
-**The `jack_hammer` table is knowingly unreconciled.** The `shovel` and
+**The `jack_hammer` table is partly reconciled.** The `shovel` and
 `detector_shovel` tables reproduce the wiki row for row. The jack hammer's does
 not: it lumps outcomes the wiki lists separately (gem 1/3, dice 1/2/3, the
-Stopwatch) and **adds four vault keys the wiki does not list**. Its trash rows
-and `nothing` row carry the wiki's published absolute rates and the remainder
-is scaled to fill; the rest of the table awaits a full reconciliation. The four
-vault keys stay until each is judged on its own vault's contents — a vault
-holding modelled resources justifies keeping its key, a vault holding only
-puzzle or story content does not — and the outcome belongs in `dig.meta.note`
-so it is not re-opened. Do not let a rebuild delete them first.
+Stopwatch). Its trash rows and `nothing` row carry the wiki's published
+absolute rates and the remainder is scaled to fill; that part still awaits a
+full reconciliation.
+
+**The four vault keys are sourced and stay.** They were recorded as keys "the
+wiki does not list", which was judged from the Dig page alone.
+[Vault Key](https://blueprince.wiki.gg/wiki/Vault_Key) lists **"Dig spots,
+rarely"** as an obtaining location for **all four** of 149, 233, 304 and 370, so
+no per-vault contents test is needed to justify them.
+
+**Two narrower gaps replace that question, and both are unsourced rather than
+wrong:**
+
+- **Which tool.** The page says "dig spots" and never distinguishes a shovel
+  from a jack hammer, so confining the keys to the `jack_hammer` table is a
+  modelling choice, not a published rule. It is the conservative one -- the jack
+  hammer is the rarer tool -- but it is ours.
+- **How rare.** "Rarely" is qualitative. The four weights (149 and 304 at
+  0.612727, 233 at 0.229773, 370 at 0.076591) are scaled to fill the remainder,
+  not published figures.
+
+**The deterministic orders are real and source-specific.** The Music Room tries
+*"Vault Key 149 first, followed by 370, 233, and finally 304"*; the Cloister
+Bunk Room follows *"a priority list of 233, 370, 304, and finally 149"*. The two
+published lists disagree, so there is no global order in the source.
+
+**OWNER RULING: use the Music Room order, 149 -> 370 -> 233 -> 304, wherever no
+source names one.** *"That ordering aligns best with the story progression,
+which suggests that it's the most accurate to me."* So it is the default, not a
+universal rule: the Cloister Bunk Room keeps its own published list, and any
+future source that publishes an order keeps that one. Neither is built yet --
+nothing in the engine picks a vault key by priority today -- so this is the
+rule waiting for the first thing that needs it.
 
 ## Containers
 
