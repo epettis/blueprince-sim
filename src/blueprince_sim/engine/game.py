@@ -10,7 +10,7 @@ from heapq import heappop, heappush
 
 from ..config import GameConfig
 from . import constellations, effects, experiments, shops, special_items
-from .areas import GateContext, path, reachable
+from .areas import GateContext, path, reachable, unlocked_by_visiting
 from .decks import apply_upgrade, build_decks, inject_rooms, set_dynamic_rarity
 from .draft import (COLOUR_CATEGORIES, SECRET_PASSAGE_IDS, DraftContext, deal_draft,
                     redeal, waive_first_option, _pick_dowsing_slot)
@@ -1245,6 +1245,7 @@ class Game:
         result = shops.carryover(self)
         result.update(self._room_pulse_carryover())
         result.update(self._sigil_carryover())
+        result.update(self._basement_carryover())
         result.update(self._shrine_carryover())
         result.update(self._axe_carryover())
         result.update(self._wrench_carryover())
@@ -1305,6 +1306,27 @@ class Game:
                 | set(st.special.sigil_doors_opened)
             ),
         }
+
+    def basement_doors_open(self) -> set[str]:
+        """Gate ids of every Basement door unlocked so far, this day or earlier.
+
+        cfg (unlocked on an earlier day, carried by ``DayChain``) unioned with
+        state (unlocked today by :meth:`travel_to`), the same
+        OR-from-cfg-or-state read ``_gate_ctx`` makes for ``lab_visited`` --
+        widened to a set because each door is unlocked by its own visit.
+        """
+        return set(self.cfg.basement_doors_open) | set(self.state.basement_doors_open)
+
+    def _basement_carryover(self) -> dict:
+        """Cross-day carry for the permanently-unlocked Basement doors.
+
+        A permanent, union-accumulated set of gate ids, the same shape as
+        ``sigil_doors_open`` above -- except SAVE-scoped rather than reset at the
+        attempt wrap, per the owner's ruling that an unlocked Basement door
+        "will remain unlocked for the rest of the seed"
+        (docs/scoping-and-carryover.md's "The save-scoped carve-outs").
+        """
+        return {"basement_doors_open": sorted(self.basement_doors_open())}
 
     def _room_pulse_carryover(self) -> dict:
         """One-day-pulse cross-day bonuses: Sauna, Morning Room, Freezer, Break Room,
@@ -1822,6 +1844,15 @@ class Game:
               OR-from-cfg-or-state permanent shape as west_gate_unlatched -- UNLIKE the
               three live checks above, this latches: once true, it stays open even
               after the level later moves away from 13.
+          "basement_door_foundation_unlocked" / "basement_door_well_unlocked" -- one
+              per already-unlocked Basement door, read from
+              :meth:`basement_doors_open` (cfg OR state) and named by that gate's own
+              ``counts_flag`` rather than hard-coded here.  Each is a ``counts_flag``,
+              not a gate id: it contributes 1 to its own item gate's total, which is
+              what lets an unlocked door be walked through with no Basement Key in
+              hand (areas.py::gate_open's counts_flag handling, the same mechanism
+              the Grotto pedestal's chip uses).  SAVE-scoped, so unlike every
+              permanent flag above it also survives the DayChain attempt wrap.
         """
         st = self.state
         flags: set[str] = set()
@@ -1852,6 +1883,10 @@ class Game:
             flags.add("fountain_water_0")
         if self.cfg.reservoir_13_reached or st.reservoir_13_reached:
             flags.add("reservoir_water_13")
+        for gate_id in self.basement_doors_open():
+            gate = self.registry.area_graph.gates.get(gate_id)
+            if gate is not None and gate.counts_flag is not None:
+                flags.add(gate.counts_flag)
         # North door open: Inner Sanctum or Throne Room lever pulled this day.
         north_seg = segment_key(ANTECHAMBER_CELL, N)
         if self.state.door_state.get(north_seg) != DOOR_SEALED:
@@ -1974,6 +2009,11 @@ class Game:
         anchors), each waiving one of the area_hop steps -- see
         effects/items/running_shoes.py::area_arrival_steps_saved.
 
+        The same route also permanently unlocks any Basement door the player
+        walks up to while holding a Basement Key
+        (:func:`areas.unlocked_by_visiting`), recorded in
+        ``state.basement_doors_open``.
+
         Special case — grid anchors ("house", "garage"):
         sets area=None and pos=<anchor cell>, then fires _enter() when the cell
         has not been entered yet (preserves ON_ENTER effects for the Garage),
@@ -2013,11 +2053,24 @@ class Game:
         assert area_hop is not None, f"area node {dest!r} unreachable from {origin!r}"
         anchors = self._grid_anchors()
         saved = 0
+        route: tuple[str, ...] | None = None
         if self.cfg.special_items:
             route = path(self.registry.area_graph, origin, dest, self._gate_ctx())
             assert route is not None, f"area node {dest!r} unreachable from {origin!r}"
             saved = running_shoes.area_arrival_steps_saved(self, route, anchors)
         st.steps -= (area_hop - saved)
+        if route is not None:
+            # Basement doors: unlocked for the rest of the save by standing at the
+            # door holding a Basement Key (owner ruling, docs/areas.md's "Basement
+            # doors").  Every node on the ROUTE counts, not just dest: the player
+            # walks through each one, and the Well door's two sides are unmodelled
+            # nodes that are never offered as a destination, so a pass-through is
+            # the only way anyone ever stands at that door.  This is deliberately
+            # wider than the dest-only latching the flags below do -- those record
+            # arriving somewhere, this records walking past a lock.
+            st.basement_doors_open |= unlocked_by_visiting(
+                self.registry.area_graph, set(route), st.inventory
+            )
 
         if dest in anchors:
             # Destination is a grid anchor, so the player lands back on the grid.

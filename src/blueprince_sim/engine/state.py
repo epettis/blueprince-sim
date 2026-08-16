@@ -420,6 +420,13 @@ class GameState:
     # carryover() ORs this with cfg.lab_powered to open the
     # "lab_steam_and_power" gate (docs/power.md).
     lab_powered: bool = False
+    # Basement-door gate ids unlocked TODAY: added the moment the player stands
+    # at that door holding a Basement Key (Game.travel_to). Same IN-RUN shape as
+    # lab_visited -- recorded on STATE, never written back to GameConfig, and
+    # ORed with cfg.basement_doors_open by carryover() -- but a SET rather than a
+    # bool, since each door unlocks on its own visit and stays unlocked for the
+    # rest of the save (docs/areas.md's "Basement doors").
+    basement_doors_open: set[str] = field(default_factory=set)
     # True once today's single gem from arriving at Upper Rotating Gear has been
     # granted. Per-day only -- deliberately NOT carried over (a fresh GameState
     # resets it every day, unlike the permanent flags above).

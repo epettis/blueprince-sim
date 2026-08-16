@@ -91,7 +91,8 @@ rather than a crash:
 - **Union-merge** — accumulates forever within the attempt, never shrinks:
   `used_vault_keys`, `lit_targets`, `collected_disks`,
   `collected_allowance_tokens`, `collected_sanctum_keys`, `sigil_doors_open`,
-  `applied_upgrades`.
+  `applied_upgrades`, `basement_doors_open` (the only one of these that is also
+  save-scoped — see the carve-outs below).
 - **Replace** — today's value already *is* the running total, because the
   `GameState` field was seeded from the config at `reset()` and only ever
   grown: `allowance`, `stars`, `main_course_bonus`, `letters_delivered`,
@@ -155,12 +156,19 @@ they survive into the next attempt:
   (docs/power.md). The **only two bools** here, and the reason channel 2 holds
   any: the owner ruled the Grotto unlocks "once for the entire save", and
   channel 1 cannot express that (docs/areas.md's "Blackbridge Grotto gate").
+- `basement_doors_open` — the Basement doors unlocked with a Basement Key, by
+  gate id. The owner ruled that standing at a door with the key unlocks *that*
+  door and that it "will remain unlocked for the rest of the seed", which is
+  two disqualifications from channel 1 at once: it is a set, and it is
+  save-scoped (docs/areas.md's "Basement doors").
 
 Each field above has its own save-scoping test somewhere in the suite (e.g.
 `tests/test_carryover.py::test_shrine_state_is_save_scoped_across_a_daychain_attempt_wrap`,
 plus per-field tests in `tests/test_the_axe.py`, `tests/test_gear_wrench.py`,
-`tests/test_constellations.py`, `tests/rooms/test_planetarium.py` and
-`tests/test_lab_permanence.py`), so a carve-out is a claim about the *game*,
+`tests/test_constellations.py`, `tests/rooms/test_planetarium.py`,
+`tests/test_lab_permanence.py` and
+`tests/test_basement_doors.py::test_unlocked_doors_survive_the_attempt_wrap`),
+so a carve-out is a claim about the *game*,
 not a convenience, and each one above was ruled individually.
 
 The list itself is pinned as a set by
@@ -226,15 +234,11 @@ would pay +20 steps on every remaining day of a 200-day attempt.
   Honouring it does not shift the measurement baseline — day-1 outer-room
   access is unchanged either way.
 - **`carried_items` is narrower than "across an entire save".** An item that is
-  `persistence: "permanent"` is permanent within the attempt only. The visible
-  consequence is the Basement Key: on day 1 of a new attempt the basement doors
-  re-lock until the agent walks back to the Antechamber. Closing it would need
-  a save-scoped **set** (`basement_doors_open`) with `sigil_doors_open`'s
-  union-merge mechanics but carved out of the wrap the way `lab_visited` is
-  (`sigil_doors_open` itself is attempt-scoped and resets to its base preset),
-  not a bool — the ruling was "open *a* basement door", singular, and there are
-  three. Not built: the divergence window is a few days at the start of each
-  attempt.
+  `persistence: "permanent"` is permanent within the attempt only, so on day 1
+  of a new attempt the Basement Key is gone until the agent walks back to the
+  Antechamber. That no longer re-locks the basement doors: what the doors
+  depend on is `basement_doors_open`, which is carved out of the wrap. The
+  divergence is now only about the key itself, and nothing else reads it.
 - **Applied Upgrade Disks reset on wrap.** The game treats them as permanent
   progression; `applied_upgrades` is cleared to the base preset. Unasked and
   unresolved — this is not covered by the `stars` or Joya rulings, both of

@@ -142,6 +142,13 @@ class DayChain:
         # OR-merged, SAVE-scoped shape to lab_visited above, and save-scoped for
         # the same reason -- the two together are the one-time Grotto unlock.
         self.lab_powered: bool = base_cfg.lab_powered
+        # Basement doors permanently unlocked with a Basement Key: gate ids,
+        # union-merged from each day's own carryover value every advance(), the
+        # same shape as sigil_doors_open -- but SAVE-scoped like lab_visited/
+        # lab_powered above, because the owner ruled an unlocked Basement door
+        # "will remain unlocked for the rest of the seed". A set, so it cannot
+        # be a _CARRYOVER_KEYS member even setting the scope aside.
+        self.basement_doors_open: frozenset[str] = frozenset(base_cfg.basement_doors_open)
         # Mail Room order/delivery cycle: REPLACED (not merged) from each
         # day's own carryover value every advance(), the same shape as
         # allowance/chapel_tithes -- state.mail_cycle already IS the day's
@@ -287,6 +294,7 @@ class DayChain:
             letters_delivered=self.letters_delivered,
             lab_visited=self.lab_visited,
             lab_powered=self.lab_powered,
+            basement_doors_open=self.basement_doors_open,
             mail_cycle=self.mail_cycle,
             mail_transit_days=self.mail_transit_days,
             hallway_tomorrow_extra=self.hallway_tomorrow_extra,
@@ -407,6 +415,13 @@ class DayChain:
 
         # --- lab_powered (a Laboratory powered; OR-merge, same as lab_visited) ---
         self.lab_powered = self.lab_powered or bool(carryover.get("lab_powered"))
+
+        # --- basement_doors_open (Basement doors unlocked with a Basement Key;
+        #     union-merge, the same sigil_doors_open shape, and never cleared:
+        #     it is one of the save-scoped carve-outs below) ---
+        bdo_val = carryover.get("basement_doors_open")
+        if bdo_val is not None:
+            self.basement_doors_open = self.basement_doors_open | frozenset(bdo_val)
 
         # --- planetarium_planets (Telescope-in-Planetarium's permanent record;
         #     replace each advance, the same axed_rooms/permanent_rarity shape --
@@ -576,10 +591,10 @@ class DayChain:
             self.chapel_tithes = 0            # fresh attempt; tithe bank reset
             self.allowance = self.base_cfg.allowance  # fresh attempt; back to the base preset
             # stars, main_course_bonus, letters_delivered, lab_visited,
-            # lab_powered, the five shrine_* fields, axed_rooms,
-            # permanent_rarity, and planetarium_planets are absent here: all are
-            # save-scoped and carry through the wrap into the next attempt,
-            # unlike every other value reset above.
+            # lab_powered, basement_doors_open, the five shrine_* fields,
+            # axed_rooms, permanent_rarity, and planetarium_planets are absent
+            # here: all are save-scoped and carry through the wrap into the next
+            # attempt, unlike every other value reset above.
             self.mail_cycle = self.base_cfg.mail_cycle  # fresh attempt; back to the base preset
             self.mail_transit_days = self.base_cfg.mail_transit_days  # fresh attempt; back to base
             self.hallway_tomorrow_extra = self.base_cfg.hallway_tomorrow_extra  # fresh attempt

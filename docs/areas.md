@@ -204,14 +204,59 @@ Well's is `basement_key_well` (on `well -> reservoir_south`), the Foundation's
 is `basement_key_foundation` (on `the_foundation -> basement`), and the Crate
 Tunnel's is **not modelled at all** — `crate_tunnel` is truncated to its
 entrance, and everything past it is "story, not progression" (see the Nodes
-table above). All three model the simplification recorded below.
+table above). All three follow the unlock rule recorded below.
 
-**Modelling simplification, both live gates.** The real rule is "this door has
-been unlocked, permanently, by a Basement Key at some point"; the sim instead
-checks "a Basement Key is currently held". The two coincide because
-`basement_key` is `persistence: "permanent"` and is re-granted from the
-Antechamber pillar every day the player visits it, so once earned it is always
-held — there is no in-game scenario where the key was used and then given up.
+### Basement doors
+
+**The owner's rule, verbatim:** *"The Basement Key will open locked basement
+doors. You need to enter the room with the door holding the Basement Key to
+unlock the door. Once unlocked, the door will remain unlocked for the rest of
+the seed."* Three things follow, and the model owes all three:
+
+- **Per door.** Holding the key opens nothing on its own; it opens the door the
+  player brings it to. So each of the two modelled doors is unlocked by its own
+  visit, and unlocking one says nothing about the other.
+- **A set, not a flag.** The state is *which* doors are open.
+- **Seed-scoped.** It outlives the day, the attempt, and the key itself.
+
+**"Enter the room with the door" resolves to being at an area node listed in
+that gate's `unlock_nodes`** (`data/areas.json`), which is the node or nodes the
+door physically stands at. Every node on the travelled route counts, not only
+the destination (`Game.travel_to` -> `areas.unlocked_by_visiting`): the
+pathfinder routes *through* nodes the player genuinely walks, and both sides of
+the Well's door are `modelled: false`, so they are never offered as a
+destination and a pass-through is the only way anyone ever stands there.
+
+| Door | Gate | `unlock_nodes` | Why those nodes |
+|---|---|---|---|
+| Fountain floor | `basement_key_well` | `well`, `reservoir_south` | Both sides of the doorway; the wiki unlocks a Basement door "from either side" |
+| Foundation elevator | `basement_key_foundation` | `basement` | The door is at the **foot** of the elevator, so the on-grid Foundation at the top is not a place the player can reach it — riding down is, and that arrives at `basement` |
+
+Excluding `the_foundation` is the one judgment call here, and it is what makes
+"enter the room with the door" a real condition on that edge rather than a
+restatement of "hold the key": with it included, every Foundation visit would
+unlock the door, which is the retired shortcut under another name. **No
+grid/`ON_ENTER` machinery is involved** — no `unlock_nodes` entry is an on-grid
+room, so the area graph and the room-entry hooks never have to meet.
+
+**How an unlocked door is remembered, and read back.** The unlock is recorded in
+`GameState.basement_doors_open` (gate ids), ORed with `GameConfig`'s field of
+the same name and carried by the named `DayChain.basement_doors_open` attribute
+— **save-scoped**, deliberately absent from the attempt-wrap block, exactly as
+`lab_visited` is ([`scoping-and-carryover.md`](scoping-and-carryover.md)).
+`_CARRYOVER_KEYS` is bool-only and cleared at the wrap, so this is not a member
+of it. `Game._gate_ctx` then publishes each open door's own `counts_flag`
+(`basement_door_well_unlocked`, `basement_door_foundation_unlocked`), which
+contributes 1 to that item gate's total — the same "an in-place copy of the item
+you do not have to carry" mechanism the Grotto pedestal's chip uses. That is
+what lets an unlocked door be walked through with no key in hand.
+
+**Both directions of the retired shortcut.** The sim used to check "a Basement
+Key is currently held" and record that the two coincided because `basement_key`
+is `persistence: "permanent"` and re-granted daily. Under the ruling they do
+not: a door stays open after the key is gone (a new attempt clears
+`carried_items`, and the doors stay open anyway), and holding the key does not
+open a door whose side the player never walked to.
 
 **The Well's traversal condition has two independent parts.** Per the wiki,
 `well -> reservoir_south` needs the Basement Key unlock (modelled, permanent)
@@ -477,10 +522,12 @@ explicitly decided against; the list stays because it records what each one is
 - `sanctum_key` — one per sigil chamber, consumed. Modelled as eight
   per-source ids, so each respawns independently.
 - `basement_key` — a deliberate **KEEP**: an item that gates traversal is
-  never puzzle-only, and this is the clearest example of it — holding it is
-  the literal difference between `reservoir_south` and the far side of the
-  Basement being reachable or not, via `basement_key_well` and
-  `basement_key_foundation` (both directions of `the_foundation <-> basement`).
+  never puzzle-only, and this is the clearest example of it — carrying it to
+  `well` or to `basement` is the literal difference between `reservoir_south`
+  and the far side of the Basement being reachable or not, via
+  `basement_key_well` and `basement_key_foundation` (both directions of
+  `the_foundation <-> basement`). Each unlock is permanent and per door: see
+  "Basement doors" above.
 - `key_of_aries` — from the Unknown (Underground) clock. The one **decided
   against** rather than pending: `meta.wont_implement`, because its payoff is
   already granted.
@@ -495,7 +542,9 @@ never enters the inventory: it sits in the Grotto pedestal. `Gate.counts_flag`
 resolves this — `three_microchips` keeps `count: 3` and gains
 `counts_flag: "grotto_chip_in_place"`, emitted by `_gate_ctx` while
 `GameState.grotto_chip_taken` is false, so the gate counts an in-place copy the
-player does not carry.
+player does not carry. The Basement doors reuse the same mechanism for the
+opposite reason — there the "in-place copy" stands for a lock already picked,
+so the door opens with the key gone (see "Basement doors").
 
 `grotto_chip_taken` is **day-scoped with no `_CARRYOVER_KEYS` entry**, which
 inverts the obvious reading of "match `entrance_vase_broken` / `outer_chip_dug`".

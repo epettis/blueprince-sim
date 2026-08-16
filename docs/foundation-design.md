@@ -117,7 +117,10 @@ about attempt boundaries; this follows repo convention rather than a source.
   documents — `well -> reservoir_south` (`basement_key_well`) and
   `the_foundation -> basement` (`basement_key_foundation`, added by a later
   change once the Foundation route made the second door reachable). The Crate
-  Tunnel's is not modelled at all (see `areas.md`).
+  Tunnel's is not modelled at all (see `areas.md`). Each door unlocks on the
+  visit that carries the key to it and stays unlocked for the rest of the save,
+  so the hop counts below are the ones a player sees before opening that
+  particular door — `areas.md`'s "Basement doors" owns the rule.
 
 ### The Basement Key is on the critical path to the Sanctum via the Foundation
 
