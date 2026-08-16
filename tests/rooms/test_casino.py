@@ -22,6 +22,7 @@ from blueprince_sim.engine.grid import N, S
 from blueprince_sim.engine.model import Registry
 from blueprince_sim.engine.rng import Rng
 from blueprince_sim.engine.state import GameState
+from blueprince_sim.env import actions
 from luck_utils import suppress_luck
 
 
@@ -476,6 +477,34 @@ def test_buying_a_roulette_tier_disables_the_others_end_to_end():
     for entry_id in ("roulette_5", "roulette_20", "roulette_100"):
         d = next(d for d in stock_after if d["id"] == entry_id)
         assert d["sold_out"] is True
+
+
+def test_the_slot_rows_are_flagged_non_consuming_but_still_fully_gamblable():
+    """The slot rows are marked ``non_consuming`` so ``Game._in_place_actions``
+    stops treating them as work left to do (tests/test_day_end.py). That flag
+    must cost the player nothing: the rows still price and display normally,
+    still light up ``env/actions.py``'s BUY_BASE mask, and still resolve a real
+    spin through the ordinary ``shops.buy`` path.
+    """
+    reg = Registry.load()
+    game = Game(GameConfig(), seed=7, registry=reg)
+    _enter_casino(game)
+    game.state.coins = 50
+
+    stock = shops.stock_for(game)
+    slots = [(i, d) for i, d in enumerate(stock) if d["id"].startswith("slot_")]
+    assert len(slots) == 2, "both slot rows stay in the menu"
+    mask = actions.action_mask(game)
+    for i, d in slots:
+        assert d["non_consuming"] is True
+        assert not d["sold_out"] and d["affordable"] and not d["blocked"]
+        assert mask[actions.BUY_BASE + i], f"slot row {i} must stay in the action mask"
+
+    idx = slots[0][0]
+    shops.buy(game, idx)
+    assert game.state.shops.stock[casino_room.CASINO_ID][idx]["sold"] == 1, \
+        "the spin resolved through the ordinary buy() path"
+    assert not shops.stock_for(game)[idx]["sold_out"], "a slot row never sells out"
 
 
 # ------------------------------------------------------------- room record

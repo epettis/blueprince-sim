@@ -280,14 +280,28 @@ def _build_casino_stock(game, table: dict) -> None:
     stock comes from data/casino.json instead, the same shape
     ``pump_room.py`` reads its own dedicated data file rather than
     shops.json).
+
+    The two slot entries carry ``"non_consuming": True``. They have no
+    purchase limit and their payout can hand back more coins than the spin
+    cost, so buying one is not guaranteed to use anything up -- coins can
+    climb and the row stays buyable forever. ``shops._priced_entry`` passes
+    the flag through to the display dict and ``Game._in_place_actions``
+    drops flagged rows, so a day spent at the slot machine can still end.
+    Nothing else reads it: both rows stay in the shop menu, in the action
+    mask and buyable through ``shops.buy``. The roulette entries are
+    deliberately unflagged -- a play at any tier disables all three for the
+    rest of the day (:func:`resolve_roulette_purchase`), so that block
+    shrinks on the one buy it allows however the wheel pays.
     """
     del table
     rules = load_casino_rules(game.registry.data_dir)
     entries = [
         {"id": "slot_quick_spin", "kind": "casino_slot",
-         "price": rules.slot.spin_cost, "max_bonus": 0, "sold": 0},
+         "price": rules.slot.spin_cost, "max_bonus": 0, "sold": 0,
+         "non_consuming": True},
         {"id": "slot_spin_and_reroll", "kind": "casino_slot",
-         "price": rules.slot.spin_cost, "max_bonus": None, "sold": 0},
+         "price": rules.slot.spin_cost, "max_bonus": None, "sold": 0,
+         "non_consuming": True},
     ]
     for tier in rules.roulette_tiers:
         entries.append({

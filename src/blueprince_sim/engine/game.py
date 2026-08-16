@@ -3550,12 +3550,28 @@ class Game:
           just as well as the last free moment of today.
         - **The Repellent**, which has no id in the env action space at all.
 
-        A shop entry counts only when its resolved price is above 0: the
-        Locksmith's key rows carry no purchase limit, so a free one would stay
-        buyable forever. Only the first ``BUYABLE_DISPLAY_WIDTH`` entries are
-        offered, matching the width of ``env/actions.py``'s ``BUY_BASE`` block
-        -- the engine must not hold a day open for a Commissary row no agent
-        has an action id for.
+        What bounds the shop block is that a purchase strictly lowers coins,
+        which are finite and never restored by buying, so every row goes
+        unaffordable in the end. Two kinds of row break that and are skipped:
+
+        - **Resolved price 0.** The Locksmith's key rows carry no purchase
+          limit, so a free one would stay buyable forever.
+        - **``non_consuming`` rows**, which a shop's own stock builder
+          declares (``shops._priced_entry``) for a row that never sells out
+          AND whose payout can return the coins it costs -- the Casino's slot
+          machine, where a winning spin leaves the player richer and the row
+          still buyable. Nothing else honours the flag: such a row stays in
+          the shop menu, in ``env/actions.py``'s ``BUY_BASE`` mask and
+          buyable through :meth:`buy`. It just stops being a reason to keep
+          the day alive.
+
+        The Casino's roulette rows are neither, and are counted: a play at any
+        tier disables all three for the day, so that block shrinks on the one
+        buy it allows however the wheel pays out.
+
+        Only the first ``BUYABLE_DISPLAY_WIDTH`` entries are offered, matching
+        the width of ``env/actions.py``'s ``BUY_BASE`` block -- the engine must
+        not hold a day open for a Commissary row no agent has an action id for.
         """
         if self.phase is not Phase.NAVIGATE:
             return
@@ -3599,7 +3615,8 @@ class Game:
         if stock is not None:
             for i, entry in enumerate(stock[:BUYABLE_DISPLAY_WIDTH]):
                 if (entry["price"] > 0 and not entry["sold_out"]
-                        and entry["affordable"] and not entry["blocked"]):
+                        and entry["affordable"] and not entry["blocked"]
+                        and not entry["non_consuming"]):
                     yield "buy", partial(self.buy, i)
         if shops._inside_workshop(self):
             for output_id in self.fabricate_options():
