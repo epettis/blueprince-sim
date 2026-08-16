@@ -909,6 +909,17 @@ def action_mask(game: Game, prev_action: int | None = None) -> list[bool]:
             if game.can_axe_room(target_id):
                 mask[AXE_TARGET_BASE + i] = True
 
+        # The outer draft: legal on-grid AND off-grid, because the action is
+        # "walk to the doorstep and draft" and Game.open_outer_draft walks from
+        # wherever the player stands. Standing ON the doorstep (west_path) is
+        # the cheapest such position, not an excluded one: the walk is a 0-step
+        # no-op there. outer_draft_available() is the single source of truth
+        # shared with Game.open_outer_draft's assert and with the purposefulness
+        # checks in _action_in_budget / _outer_action_in_budget, so this mask
+        # entry must gate on it alone and add no position guard of its own.
+        if game.outer_draft_available():
+            mask[OUTER_DRAFT_ACTION] = True
+
         if game.off_grid:
             # Off-grid: only outer-area actions are legal (besides travel above).
             # Buy actions are valid inside any outer shop (inside_outer_room)
@@ -1000,8 +1011,6 @@ def action_mask(game: Game, prev_action: int | None = None) -> list[bool]:
                 mask[OPEN_VAULT_BOX_ACTION] = True
             if game.can_install_lever():
                 mask[INSTALL_LEVER_ACTION] = True
-            if game.outer_draft_available():
-                mask[OUTER_DRAFT_ACTION] = True
             if game.can_toggle_keycard_power():
                 mask[TOGGLE_POWER_ACTION] = True
             if game.can_toggle_darkroom_lights():

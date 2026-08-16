@@ -3324,6 +3324,13 @@ class Game:
         even though the pathfinder still routes through it en route to
         somewhere else (:mod:`env.actions`'s travel mask skips these nodes for
         the same reason).
+
+        Today's outer draft counts too, exactly as it does in the on-grid twin
+        :meth:`_action_in_budget`. It places a room, so it is purposeful, and
+        standing on the doorstep makes it free -- without this term a player who
+        arrives at west_path with one or two steps left would have the day
+        declared over while :meth:`outer_draft_available` still says yes and the
+        action mask still offers it.
         """
         st = self.state
         costs = self.area_route_costs()
@@ -3335,7 +3342,7 @@ class Game:
                 continue  # pure step sink, not a purposeful destination
             if st.steps > result[0]:
                 return True
-        return False
+        return self.outer_draft_available()
 
     def _frontier_lock_affordable(self, cell: int, direction: int,
                                   path_key_cost: int) -> bool:
