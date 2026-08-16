@@ -286,9 +286,6 @@ built yet.** Each one leaves the log the day its work lands.
   rarities. Its *reachability* has shipped, so only the remodel's rules wait
   here.
 - **The Mail Room's Dynamic Rarity** package, unblocked by `set_dynamic_rarity`.
-- **The jack hammer's four unsourced vault keys**, which need a research pass
-  before the table is rebuilt (cited from
-  [`special-items-behaviour.md`](special-items-behaviour.md)).
 
 Everything each entry says about *shipped* behaviour is already stated in the
 doc that owns it; when the remaining work lands, the entry goes.
