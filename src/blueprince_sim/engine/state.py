@@ -354,10 +354,11 @@ class GameState:
     experiment: ExperimentState = field(default_factory=ExperimentState)
 
     pending: PendingDraft | None = None  # in-flight draft hand; None outside the drafting phase
-    # Door mask of the room whose ON_DRAFT_ROOM hook is currently dispatching, set by
-    # Game._place_room immediately before firing (both its own self-fire and the
-    # broadcast to every other placed room use the same just-drafted room, so one
-    # assignment covers both). Handlers that need the room's actual drafted
+    # Door mask of the room whose ON_DRAFT_ROOM hook is currently dispatching, set
+    # immediately before firing by Game._place_room for a grid draft (both its own
+    # self-fire and the broadcast to every other drafted room use the same
+    # just-drafted room, so one assignment covers both) and by Game._choose_outer
+    # for an outer draft. Handlers that need the room's actual drafted
     # orientation -- e.g. the Tomb's coins_per_deadend, Cloister of Draxus' dice grant
     # -- read this instead of Room.layout, which stays a room's canonical shape even
     # when an alt_layouts rotation was drafted (the Greenhouse's two-door corner).

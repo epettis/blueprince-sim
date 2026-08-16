@@ -76,9 +76,9 @@ arbitrate. Check what a count counts before calling it wrong.
 A spreader does not grant on entry. It parks per-cell payouts in
 `GameState.spread_pending`, and `Game._collect_spread` pays each cell out
 when the player arrives there. Everything below shares that pipeline, though
-not every spreader's *trigger* is placement: the Tomb's is *other* rooms'
-drafts, and the Office's Spread Gold in Estate (below) is a player action at
-its terminal, not a draft at all.
+not every spreader's *trigger* is placement: the Tomb's is each Dead End's
+draft, its own included, and the Office's Spread Gold in Estate (below) is a
+player action at its terminal, not a draft at all.
 
 Two invariants hold across every spreader:
 
@@ -87,6 +87,13 @@ Two invariants hold across every spreader:
 - **A spreader with no grid cell spreads nothing.** Drafted from the outer-room
   pool, the Secret Garden has no cell to spread from, which matches the only
   reported evidence.
+
+**The second invariant constrains spreading *outward*, not receiving.** It is
+about a spreader having no cell to reach out *from*, so it does not silence the
+Tomb, whose every payout lands in the Tomb itself: those park under the `-1`
+off-grid sentinel the rest of the outer-room pipeline already uses
+(`effects/rooms/tomb.py`'s `OFF_GRID_CELL`), and `Game.travel_to` drains that
+key on arrival the way `Game._enter` drains a cell's.
 
 ### The Patio's gems
 
@@ -199,12 +206,41 @@ Florealis' effect", and the **Greenhouse drafted as an Outer Room**, which has
 no grid cell to park anything in — the same invariant that already silences the
 outer-room Secret Garden.
 
+### The Tomb's coins
+
+**Every Dead End drafted in the house spreads 5 coins into the Tomb, the Tomb
+itself included** — so a Tomb entered on a day when nothing else Dead-Ended
+still pays 5, which is the owner ruling this models. "Dead End" is the
+drafted orientation having exactly one door on a room whose card can print
+that shape, not `Room.layout` alone: a Greenhouse drafted in a corner rotation
+does not pay, and the Mechanarium's derived one-door mask never counts.
+
+The Tomb qualifies under its own rule on both halves of that test — printed
+`layout` `dead_end` and a one-door `door_mask` of 4 — even though it is never
+*placed* on the grid. An outer room is dealt in its printed shape and never
+rotated, so its own `door_mask` **is** the orientation it was drafted with,
+and that is what `Game._choose_outer` publishes for the hook to read.
+
+**The effect is draft-ordered.** The trigger is each Dead End's draft, so a
+Dead End already standing when the Tomb is drafted pays nothing — there was no
+Tomb to spread into at its draft moment. This is the same direction as the
+first invariant above and the opposite of Run Payroll, which is keyed by room
+id precisely so draft order does *not* matter.
+
+**No Conference Room redirect applies.** These coins are the Tomb's own
+contents accumulating in it rather than a spread reaching out to other cells —
+the same distinction that exempts Florealis's gem flowers — and no source puts
+the Tomb among the spreaders a Conference Room absorbs.
+
 ### The Conference Room absorbs everything, including the self-item
 
 A Conference Room already on the estate redirects **everything** a spreader
 would have spread — its own self-item included — into the Conference Room's own
-cell. For the Locker Room the `no_locker_keys` exclusion list does not apply to
-that redirect.
+cell. The Patio, the Locker Room, the Secret Garden and the Office's Spread
+Gold are what "everything" covers; the two payouts that reach no cell but their
+own, Florealis's gem flowers and the Tomb's coins, are exempt for the reason
+each section above gives. For the Locker Room the `no_locker_keys` exclusion
+list does not apply to that redirect.
 
 *The wiki is asymmetric here and the asymmetry is treated as loose wording:* the
 Patio page says the redirected gems "**include the gem that would spread in the
@@ -718,8 +754,10 @@ allowance. Only the crown objective is genuinely out of scope. The room is
 `rooms.json` change together — see [`doctrine.md`](doctrine.md).
 
 **`tomb`** — 5 coins per Dead End drafted in the house, the Tomb itself
-included, spread into the Tomb. Drafting it as the outer room **and entering
-it** sets `catacombs_unlocked`, opening the Catacombs for that day only.
+included, spread into the Tomb and collected when the player walks in (see
+"The Tomb's coins" above, which owns the rule). Drafting it as the outer room
+**and entering it** sets `catacombs_unlocked`, opening the Catacombs for that
+day only.
 Deliberately **not** a permanent carry-over flag even though the wiki says the
 angel-statue puzzle opens the wall permanently: reaching the Catacombs still
 needs the Tomb present that day. Modelled as `flags.unlocks_catacombs` on the

@@ -180,18 +180,6 @@ The payout badges added for task 28 are exactly what the owner wants to see
 without scrolling, so this is the other half of that change rather than a
 cosmetic preference.
 
-## 46. The Tomb should pay for itself as a dead end
-
-> "The Tomb collects +5 gold for every dead end, including itself. Therefore, it
-> should have +5 gold upon first entry."
-
-The claim is specific and checkable: the Tomb counts **itself** among the dead
-ends it pays for, so entering it with no other dead end on the grid should still
-pay 5. Establish what the engine does today before changing it, and note that
-PR #334 redefined "Dead End" as *printed dead-end shape AND a one-door placed
-mask* — so whether the Tomb qualifies under its own placed mask is part of the
-question.
-
 ## 47. Shops should show stock the player cannot yet afford
 
 > "The Commissary (and other shops) should show me what is available, even if I

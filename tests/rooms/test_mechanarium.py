@@ -17,6 +17,7 @@ from __future__ import annotations
 from blueprince_sim.config import GameConfig
 from blueprince_sim.engine import special_items as si
 from blueprince_sim.engine.draft import DraftContext, MECHANARIUM_ID, _mechanarium_orientation
+from blueprince_sim.engine.effects.rooms.tomb import OFF_GRID_CELL as TOMB_OFF_GRID_CELL
 from blueprince_sim.engine.game import Game
 from blueprince_sim.engine.grid import E, N, OPPOSITE, W, neighbor
 from blueprince_sim.engine.locks import DOOR_OPEN, DOOR_SEALED, segment_key
@@ -189,19 +190,26 @@ def test_interior_only_still_blocks_a_1_door_mechanarium_on_an_edge(registry: Re
 
 def test_one_door_mechanarium_does_not_trigger_the_tombs_dead_end_bonus(registry: Registry):
     """Tomb.py's Dead-End coin spread keys off Room.layout, not the derived
-    door count -- drafting a 1-door Mechanarium next to a placed Tomb must not
-    pay out, matching "the Mechanarium never counts as a Dead End.\""""
+    door count -- drafting a 1-door Mechanarium while the Tomb is drafted must
+    park no pile, matching "the Mechanarium never counts as a Dead End."
+
+    Asserted on GameState.spread_pending rather than on state.coins: the Tomb's
+    coins are parked until the player walks in, so a coins assertion would hold
+    here whatever the Mechanarium did.
+    """
     game = Game(GameConfig(), seed=0, registry=registry)
     tomb = registry.by_id["tomb"]
     game._place_room(tomb, 5, tomb.door_mask)
-    game.state.coins = 0  # zero out whatever the Tomb's own self-fire granted
+    parked_by_the_tomb_itself = list(game.state.spread_pending[TOMB_OFF_GRID_CELL])
+    assert parked_by_the_tomb_itself, "setup: the Tomb's own self-count must have parked a pile"
 
     derived = _mechanarium_orientation(_ctx(registry, game.state), CELL, ENTRY)
     assert derived == OPPOSITE[ENTRY], "setup: must actually be a 1-door Mechanarium"
     mechanarium = registry.by_id[MECHANARIUM_ID]
     game._place_room(mechanarium, CELL, derived)
 
-    assert game.state.coins == 0, "a 1-door Mechanarium must not count as a Dead End"
+    assert game.state.spread_pending[TOMB_OFF_GRID_CELL] == parked_by_the_tomb_itself, \
+        "a 1-door Mechanarium must not count as a Dead End"
 
 
 # ------------------------------------------------------- diagonal compartments
