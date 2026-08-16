@@ -937,7 +937,7 @@
     "confidence": "wiki",
     "absent_spawn_areas": [],
     "blocked_on": null,
-    "notes": "Granted from the pillar that emerges the first time the Antechamber is entered each day (guaranteed_in). Gates the well -> reservoir_south edge (basement_key_well, areas.json); not consumed on use, so it opens every basement door for the rest of the day and every later day."
+    "notes": "Granted from the pillar that emerges the first time the Antechamber is entered each day (guaranteed_in). Opens the two modelled Basement doors ONE AT A TIME (basement_key_foundation and basement_key_well in areas.json): per the owner's ruling the player must stand at a door holding the key to unlock that door, and holding the key never unlocks a door whose side the player has not walked to. Not consumed on use, and each door once unlocked stays unlocked for the rest of the SAVE, key or no key -- recorded in GameConfig.basement_doors_open, which survives the DayChain attempt wrap (docs/scoping-and-carryover.md)."
    }
   },
   {

@@ -10,6 +10,12 @@ not fit an ordinary locked door. fits() below is therefore correctly
 always False for the draft-time lock menu (Phase.LOCK_PENDING, which only
 ever parks on an on-grid segment): a structural fact about this sim's room
 model, not an unimplemented feature.
+
+Each door is unlocked separately, by standing at THAT door holding the key
+(the gates' unlock_nodes), and stays unlocked for the rest of the save once
+it is -- so holding this key and never leaving the house unlocks nothing, and
+a door unlocked on an earlier day opens with the key long gone. Game.travel_to
+records the unlock; docs/areas.md's "Basement doors" owns the rule.
 """
 
 ITEM_ID = "basement_key"

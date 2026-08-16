@@ -48,6 +48,15 @@ class GameConfig:
     # lab_visited is, and for the same reason -- the owner ruled the Grotto
     # unlock is one-time for the entire save.
     lab_powered: bool = False
+    # Basement-door gate ids (areas.json's basement_key_foundation /
+    # basement_key_well) already unlocked with a Basement Key on some earlier
+    # day. Each door unlocks on its own, the first time the player stands at it
+    # holding the key, and stays unlocked once the key is gone -- so this is a
+    # SET, not a bool. SAVE-scoped in exactly the way lab_visited is, per the
+    # owner's "remain unlocked for the rest of the seed": carried by the named
+    # DayChain.basement_doors_open attribute, NOT by _CARRYOVER_KEYS, which is
+    # bool-only and cleared at the attempt wrap (docs/scoping-and-carryover.md).
+    basement_doors_open: frozenset[str] = frozenset()
     # The Treasure Trove blackprint has been picked up at Upper Rotating Gear
     # (any prior day), permanently adding the Treasure Trove to the draft pool
     # (decks.py::eligible_pool) from the following day onward.

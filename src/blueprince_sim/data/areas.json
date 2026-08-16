@@ -439,9 +439,11 @@
    "modelled": false,
    "permanence": "permanent",
    "stub": false,
-   "detail": "The Basement door at the foot of the Foundation's elevator, gating BOTH directions: the wiki unlocks it 'from either side using a Basement Key', so arriving in the Basement by another route does not let you through it. Only a Basement Key opens it (permanently); Lock Pick Kit does not work. Separate lock from the well's door and the unmodelled Crate Tunnel one. Models 'unlocked at some point' as 'key currently held' -- they coincide since basement_key is permanent and re-granted daily.",
+   "detail": "The Basement door at the foot of the Foundation's elevator, gating BOTH directions: the wiki unlocks it 'from either side using a Basement Key', so arriving in the Basement by another route does not let you through it. Only a Basement Key opens it (permanently); Lock Pick Kit does not work. Separate lock from the well's door and the unmodelled Crate Tunnel one. Owner ruling: being at a node in unlock_nodes holding the key unlocks this door for the rest of the SAVE, after which counts_flag reports it open without the key. unlock_nodes is 'basement' alone and deliberately excludes the_foundation: the door stands at the FOOT of the elevator, so standing in the on-grid Foundation at the top is not standing in the room with the door -- riding down is, and that arrives at basement.",
    "item_ids": ["basement_key"],
    "count": 1,
+   "counts_flag": "basement_door_foundation_unlocked",
+   "unlock_nodes": ["basement"],
    "meta": {"source": "docs/areas.md", "confidence": "wiki"}
   },
   {
@@ -469,9 +471,11 @@
    "modelled": false,
    "permanence": "permanent",
    "stub": false,
-   "detail": "Well -> Reservoir South: Basement Key (not consumed; permanent once unlocked).",
+   "detail": "Well -> Reservoir South: the Basement door in the drained Fountain's floor, not consumed. Owner ruling: being at a node in unlock_nodes holding the key unlocks it for the rest of the SAVE, after which counts_flag reports it open without the key. unlock_nodes is both sides of the doorway (the wiki unlocks a Basement door 'from either side'), and both are unmodelled nodes the pathfinder only ever routes THROUGH, so a pass-through is what stands the player at this door.",
    "item_ids": ["basement_key"],
    "count": 1,
+   "counts_flag": "basement_door_well_unlocked",
+   "unlock_nodes": ["well", "reservoir_south"],
    "meta": {"source": "docs/areas.md", "confidence": "wiki"}
   },
   {

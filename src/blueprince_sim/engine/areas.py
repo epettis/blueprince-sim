@@ -49,6 +49,12 @@ class Gate:
     # kind="unmodelled" gate, whether it defaults open (stub=True, passes) or closed
     # (default_closed=True in the data, never passes) -- both are deferred work.
     retire_in: str | None
+    # Area nodes where being present with this gate's item requirement already
+    # satisfied unlocks the gate for good.  Empty on every gate that is
+    # re-evaluated from scratch on each traversal; non-empty only on the
+    # Basement doors, whose unlock is recorded in a save-scoped set and read
+    # back through counts_flag (docs/areas.md's "Basement doors").
+    unlock_nodes: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -124,6 +130,7 @@ def load_areas(raw: dict) -> AreaGraph:
             counts_flag=g.get("counts_flag", None),
             room_id=g.get("room_id", None),
             retire_in=g.get("retire_in", None),
+            unlock_nodes=tuple(g.get("unlock_nodes", [])),
         )
 
     edges_list: list[AreaEdge] = []
@@ -203,6 +210,35 @@ def gate_open(
 
         case _:
             return False
+
+
+def unlocked_by_visiting(
+    graph: AreaGraph, nodes: frozenset[str] | set[str], held_items: Mapping[str, int]
+) -> set[str]:
+    """Gate ids permanently unlocked by being at any of ``nodes`` holding the key.
+
+    A gate qualifies when it declares ``unlock_nodes``, the player is at one of
+    them, and the gate's own item requirement is met by ``held_items`` -- the
+    Basement doors, which unlock the moment the player stands at the door with a
+    Basement Key and stay unlocked once the key is gone (docs/areas.md's
+    "Basement doors").  ``counts_flag`` is deliberately not consulted here: it is
+    how an ALREADY-unlocked door reports itself to :func:`gate_open`, so reading
+    it back would let one unlocked door unlock itself again for free.
+
+    ``nodes`` is every node the player occupies on this move, not only the
+    destination: the pathfinder routes THROUGH unmodelled nodes, and both of the
+    Well door's sides are unmodelled, so a pass-through is the only way a player
+    ever stands at it.
+    """
+    unlocked: set[str] = set()
+    for gate in graph.gates.values():
+        if not gate.unlock_nodes:
+            continue
+        if not any(n in nodes for n in gate.unlock_nodes):
+            continue
+        if sum(held_items.get(iid, 0) for iid in gate.item_ids) >= gate.count:
+            unlocked.add(gate.id)
+    return unlocked
 
 
 # ---------------------------------------------------------------------------

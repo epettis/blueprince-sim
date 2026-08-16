@@ -397,43 +397,6 @@ doc that owns it; when the remaining work lands, the entry goes.
   action-width register; the reserved, permanently-masked slot for this build
   already exists, so landing it costs zero width and no extra retrain.
 
-- **The Basement Key's persistence scope is unsettled, and three sources
-  disagree.** New ground truth from owner play, which **supersedes the wiki**:
-  *"Add the Basement Key to the Antechamber. It appears on a pedestal in the
-  Antechamber when you enter the room, allowing you to take it and go through
-  The Foundation or the fountain door to open a basement door permanently across
-  an entire save, granting permanent access without needing to return to the
-  Antechamber."*
-
-  What shipped is different: `basement_key` is a `persistence: "permanent"` item
-  re-granted daily from the Antechamber pillar, gating the area edges, with
-  [`areas.md`](areas.md) recording the modelling choice — *"Models 'unlocked at
-  some point' as 'key currently held' — they coincide since basement_key is
-  permanent and re-granted daily."*
-
-  **OWNER RULING, and it settles all three readings:** *"The Basement Key will
-  open locked basement doors. You need to enter the room with the door holding
-  the Basement Key to unlock the door. Once unlocked, the door will remain
-  unlocked for the rest of the seed."*
-
-  Three things follow, and each rules out one of the readings that were open:
-  - **Per door, not global.** Unlocking needs the player to *enter the room
-    with that door* while holding the key, so `special_items.json`'s *"opens
-    every basement door"* is wrong: the key opens the door you bring it to.
-  - **A save-scoped SET, not a boolean.** Since doors open one at a time and
-    each stays open, the state is which doors are open --
-    [`scoping-and-carryover.md`](scoping-and-carryover.md)'s
-    `basement_doors_open` reading wins over the save-scoped bool.
-  - **Seed-scoped, so it survives the attempt wrap.** *"For the rest of the
-    seed"* puts it with `lab_visited`/`lab_powered` as a named `DayChain`
-    carve-out rather than a `_CARRYOVER_KEYS` member, which the wrap clears.
-
-  That also retires the shipped modelling choice [`areas.md`](areas.md)
-  records — *"Models 'unlocked at some point' as 'key currently held'"* — since
-  the two no longer coincide: under the ruling a door stays open after the key
-  is gone, and holding the key does not open a door the player has not visited.
-  `_CARRYOVER_KEYS` stays bool-only and does not grow.
-
 - **The retrain is owed, and is held on the owner's explicit say-so alone.**
   `baseline-ep8275991` was trained against rules the sim no longer implements —
   it was built at `N_ACTIONS` 196 against today's width, so by

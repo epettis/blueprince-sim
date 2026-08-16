@@ -2892,6 +2892,39 @@ def main(argv: list[str] | None = None) -> int:
         # a gate id, so it is deliberately NOT checked against a_gate_id_set.
         if g.get("counts_flag") is not None and g.get("kind") != "item":
             errors.append(f"{where}: counts_flag is only meaningful on kind=item gates")
+        # unlock_nodes: the area nodes where holding this gate's item unlocks it for
+        # good (engine/areas.py::unlocked_by_visiting). Three conditions, because a
+        # wrong one here fails silently rather than loudly:
+        #   - kind=item only: the unlock test IS the item test.
+        #   - counts_flag required: that flag is the ONLY way a recorded unlock is
+        #     read back by gate_open, so without it the unlock is written and never
+        #     consulted, and the door behaves as though nothing was ever unlocked.
+        #   - every id must be a declared node AND an endpoint of an edge that
+        #     requires this gate: a node that is not next to the door is not a place
+        #     the player can stand at it.
+        u_nodes = g.get("unlock_nodes")
+        if u_nodes:
+            if g.get("kind") != "item":
+                errors.append(f"{where}: unlock_nodes is only meaningful on kind=item gates")
+            if not g.get("counts_flag"):
+                errors.append(
+                    f"{where}: unlock_nodes gate missing counts_flag; the unlock "
+                    f"would be recorded and never read back"
+                )
+            endpoints = {
+                nid
+                for e in a_edges
+                if g["id"] in e.get("requires", [])
+                for nid in (e["from"], e["to"])
+            }
+            for nid in u_nodes:
+                if nid not in a_node_id_set:
+                    errors.append(f"{where}: unlock_nodes entry {nid!r} not a declared node")
+                elif nid not in endpoints:
+                    errors.append(
+                        f"{where}: unlock_nodes entry {nid!r} is not an endpoint of any "
+                        f"edge requiring this gate"
+                    )
         # room gates: room_id field must exist and name a real room
         if g.get("kind") == "room":
             rid = g.get("room_id")
