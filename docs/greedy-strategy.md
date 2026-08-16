@@ -132,10 +132,10 @@ every carry flag on, Treasure Trove held out via `banned_rooms`), seeds
 
 | policy | P(reach Antechamber) | Wilson 95% CI | P(reach Room 46) | mean deepest rank | mean rooms placed |
 |---|---|---|---|---|---|
-| `frontier_greedy` | **6.675%** | 5.942%–7.491% | 0.000% | 7.19 | 23.99 |
-| `greedy_rank` | **0.975%** | 0.714%–1.330% | 0.000% | 5.56 | 9.57 |
-| `economy` | **0.675%** | 0.464%–0.980% | 0.000% | 4.83 | 8.28 |
-| `random` | **0.000%** | 0.000%–0.096% | 0.000% | 3.04 | 9.16 |
+| `frontier_greedy` | **6.625%** | 5.895%–7.438% | 0.000% | 7.20 | 24.02 |
+| `greedy_rank` | **1.000%** | 0.735%–1.359% | 0.000% | 5.56 | 9.57 |
+| `economy` | **0.650%** | 0.444%–0.951% | 0.000% | 4.83 | 8.26 |
+| `random` | **0.000%** | 0.000%–0.096% | 0.000% | 3.04 | 9.15 |
 
 **P(reach Room 46) = 0.000% for every scripted policy**, across all 16,000
 episodes. "Win rate" is no longer quite the right word for this number: the
@@ -149,8 +149,8 @@ quoted as a ranking.
 
 With `antechamber_levers=False` (the legacy pre-lever arm), same fixture,
 seeds and n, `frontier_greedy`'s Antechamber rate rises to **~22%** (measured
-22.050%, CI 20.792%–23.361%), `greedy_rank`'s to **5.100%** (CI
-4.460%–5.826%) and `economy`'s to **3.375%** (CI 2.859%–3.981%); `random`
+21.775%, CI 20.523%–23.081%), `greedy_rank`'s to **5.200%** (CI
+4.554%–5.932%) and `economy`'s to **3.350%** (CI 2.836%–3.954%); `random`
 stays at **0.000%**, and Room 46 stays at 0.000% for all four. So the levers
 cost each scoring policy a factor of 3.3–5.2 on its Antechamber rate, and cost
 the second tier nothing it was reaching anyway. `frontier_greedy` remains the
@@ -158,10 +158,10 @@ strongest scripted policy under both arms. `random` exists to floor the
 comparison; it drafts and walks uniformly among legal actions.
 
 **Read the legacy arm's `frontier_greedy` row with a caveat the main arm does
-not need.** 356 of its 4000 episodes (8.9%) end in `decision_limit` -- they hit
+not need.** 336 of its 4000 episodes (8.4%) end in `decision_limit` -- they hit
 `run_episode`'s 800-decision cap and were cut off rather than played out. The
 shipped arm truncates none. A truncated episode is scored on where it was
-stopped, so 22.050% is a floor for that arm, not a measurement of it, and the
+stopped, so 21.775% is a floor for that arm, not a measurement of it, and the
 two arms' rates are not measured on quite the same footing. The factor of 3.3
 for `frontier_greedy` is correspondingly a lower bound; `greedy_rank` and
 `economy` truncate nothing under either arm, so their factors are clean.
