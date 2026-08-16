@@ -17,7 +17,7 @@ source .venv/bin/activate          # do this before pytest / ruff / blueprince-*
 - Single test: `pytest tests/test_placement.py::test_garage_placement`.
 - Lint: `ruff check .` (line length 100). Keep it clean before committing.
 - **Validate data (run after any edit to `src/blueprince_sim/data/*.json`, shorthand `data/` below): `python tools/validate_data.py`** — must report 0 errors, 0 warnings.
-- Regenerate `data/rooms.json` from the raw dump + `tools/supplemental_rooms.json`: `python tools/ingest_sheet.py` (rebuilds the file, overwriting manual JSON edits — see caveat below).
+- Report what regenerating `data/rooms.json` would cost: `python tools/ingest_sheet.py` (prints the diff-line count and exits non-zero; writes nothing). Only `python tools/ingest_sheet.py --write` overwrites, losing the manual edits — see caveat below.
 - Play / evaluate: `blueprince-sim play --seed 42`; `blueprince-sim batch --episodes 5000 --policy greedy_rank`. Any `GameConfig` field can be overridden with `--set key=value` or a `--config file.yaml`.
 - Train: `blueprince-train --checkpoint-dir runs/<name>` (continuous MaskablePPO, auto-resumes from `latest.zip`, SIGTERM-graceful).
 - Evaluate a released model: `blueprince-train --evaluate 2000 --model models/<name>/model.zip` (`--model` overrides the default `<checkpoint-dir>/latest.zip`).

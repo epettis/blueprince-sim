@@ -16,8 +16,10 @@ Run: python tools/ingest_sheet.py
 
 from __future__ import annotations
 
+import difflib
 import json
 import re
+import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -645,7 +647,11 @@ def parse_rows() -> list[dict]:
     to resolve later.
     """
     rows = []
-    for line in RAW.read_text().splitlines():
+    # encoding= is explicit because the sheet carries the mojibake currency
+    # glyphs GLYPH_BARE/GLYPH_TAILS match on. Under a non-UTF-8 locale the
+    # default read decodes each one into two characters, no glyph matches, and
+    # resolve_glyphs raises on the entries it never consumed.
+    for line in RAW.read_text(encoding="utf-8").splitlines():
         if not line.startswith("|"):
             continue
         cells = [clean(c) for c in line.strip("|").split("|")]
@@ -792,8 +798,15 @@ def main() -> None:
     """Rebuild data/rooms.json: sheet rows + supplemental rooms, dropping duplicate ids.
 
     Also rewrites second-level ``variant_of`` references to the suffixed ids of
-    the actual variant records. Overwrites the output file (any hand-edits to
-    rooms.json not reflected in the sources are lost).
+    the actual variant records.
+
+    **Reports by default and writes only under ``--write``.** The committed
+    ``rooms.json`` deliberately carries refinements the sources cannot express --
+    CLAUDE.md records that the ingest condition map does not encode the finer
+    wing/rank/direction rules, so they live in the output file -- and a rebuild
+    drops every one of them. Running with no flag prints how many lines a
+    rebuild would change and exits non-zero when that is not zero, so the cost
+    is visible before anything is overwritten.
     """
     rows = parse_rows()
     rooms, seen = [], set()
@@ -819,7 +832,7 @@ def main() -> None:
             r["variant_of"] = by_slug[v]
 
     if SUPPLEMENTAL.exists():
-        for r in json.loads(SUPPLEMENTAL.read_text())["rooms"]:
+        for r in json.loads(SUPPLEMENTAL.read_text(encoding="utf-8"))["rooms"]:
             if r["id"] not in seen:
                 seen.add(r["id"])
                 rooms.append(r)
@@ -849,8 +862,23 @@ def main() -> None:
         "source": "TFMurphy decompiled sheet v1.3 (rooms 1-77 + variants) + supplemental_rooms.json",
         "rooms": rooms,
     }
-    OUT.write_text(json.dumps(out, indent=1) + "\n")
+    rebuilt = json.dumps(out, indent=1) + "\n"
     base = [r for r in rooms if r["pool"] == "base"]
+    if "--write" not in sys.argv:
+        current = OUT.read_text(encoding="utf-8") if OUT.exists() else ""
+        drift = sum(1 for _ in difflib.unified_diff(
+            current.splitlines(), rebuilt.splitlines(), n=0))
+        print(f"{len(rooms)} rooms ({len(base)} in base pool); "
+              f"rebuilding would change {drift} diff lines in {OUT}")
+        if drift:
+            print("Refusing to overwrite: those lines include refinements the "
+                  "sources cannot express (see this function's docstring). "
+                  "Re-run with --write only if you intend to lose them.")
+            raise SystemExit(1)
+        return
+    # newline= is explicit because the repo's data files are CRLF and the
+    # default would depend on the platform's text-mode translation.
+    OUT.write_text(rebuilt, encoding="utf-8", newline="\r\n")
     print(f"Wrote {len(rooms)} rooms ({len(base)} in base pool) -> {OUT}")
 
 
