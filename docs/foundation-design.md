@@ -226,5 +226,4 @@ retrain still never finds Room 46, the two-tier constants in `env/rewards.py`
 (`ANTECHAMBER_REWARD`, `ROOM46_REWARD`) are the knobs, not this route.
 
 The open stub gates elsewhere in the underground (the two Foundation elevator
-gates, and `lab_steam_and_power` on the Grotto) are untouched and still pass
-unconditionally.
+gates) are untouched and still pass unconditionally.

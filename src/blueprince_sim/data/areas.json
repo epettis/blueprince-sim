@@ -329,13 +329,11 @@
   },
   {
    "id": "lab_steam_and_power",
-   "kind": "unmodelled",
-   "modelled": false,
+   "kind": "flag",
    "permanence": "permanent",
-   "stub": true,
-   "detail": "Private Drive -> Blackbridge Grotto: requires POWER, routed to the house by the Laboratory's steam/lever puzzle. Deferred: no power system is modelled anywhere in the engine (no 'is the house powered' state exists to key a real gate off). Passes (stub open); an UPPER BOUND until PR-power-system lands. The edge's other conjunct, actually having visited the Laboratory, is the separate 'lab_visited' gate on the same edge -- it is real, not deferred.",
-   "retire_in": "PR-power-system",
-   "meta": {"source": "docs/areas.md", "confidence": "wiki"}
+   "stub": false,
+   "detail": "Private Drive -> Blackbridge Grotto: a Laboratory has been powered at least once, on this or any prior day. The POWER conjunct of the owner's two-part Grotto rule; the other conjunct, having entered the Laboratory, is the separate 'lab_visited' gate on the same edge. Owner ruling: 'The house isn't powered. A room is powered. A room is powered if it shares a doorway with another powered room.' engine/power.py computes that connectivity over the door graph, seeded at the rooms registering Capability.POWER_SOURCE (the Boiler Room and the Electric Eel Aquarium); effects/rooms/laboratory.py's ON_DRAFT_ROOM hook records the first moment a placed Laboratory is powered on state.lab_powered, and game.py::_gate_ctx sets this flag from that OR the carried-over cfg.lab_powered (shops.py::carryover). SAVE-scoped exactly like lab_visited -- carried on the named DayChain.lab_powered attribute, left out of _CARRYOVER_KEYS -- because the owner ruled the Grotto unlock is one-time for the entire save. docs/power.md owns the mechanic.",
+   "meta": {"source": "docs/power.md", "confidence": "wiki"}
   },
   {
    "id": "lab_visited",
@@ -343,7 +341,7 @@
    "modelled": false,
    "permanence": "permanent",
    "stub": false,
-   "detail": "Private Drive -> Blackbridge Grotto: the Laboratory has been entered at least once, on this or any prior day. Owner ruling: 'You only need to unlock the Blackbridge Grotto once for the entire save. However, you need to power and enter the Laboratory for that to happen.' A one-time unlock, so this is a flag gate rather than a kind=room gate (kind=room checks GateContext.rooms_entered, which is rebuilt every day, and is what tomb_catacombs wants). The engine sets this flag in game.py::_gate_ctx from state.lab_visited (set on Laboratory entry, effects/rooms/laboratory.py) OR the carried-over cfg.lab_visited (shops.py::carryover). SAVE-scoped: carried on the named DayChain.lab_visited attribute and left out of the attempt wrap, NOT in _CARRYOVER_KEYS, which the wrap clears -- so unlike boiler_room_steam it survives into the next attempt (docs/scoping-and-carryover.md). The edge's other conjunct, POWER, is the separate 'lab_steam_and_power' gate on the same edge -- it is still a stub.",
+   "detail": "Private Drive -> Blackbridge Grotto: the Laboratory has been entered at least once, on this or any prior day. Owner ruling: 'You only need to unlock the Blackbridge Grotto once for the entire save. However, you need to power and enter the Laboratory for that to happen.' A one-time unlock, so this is a flag gate rather than a kind=room gate (kind=room checks GateContext.rooms_entered, which is rebuilt every day, and is what tomb_catacombs wants). The engine sets this flag in game.py::_gate_ctx from state.lab_visited (set on Laboratory entry, effects/rooms/laboratory.py) OR the carried-over cfg.lab_visited (shops.py::carryover). SAVE-scoped: carried on the named DayChain.lab_visited attribute and left out of the attempt wrap, NOT in _CARRYOVER_KEYS, which the wrap clears -- so unlike boiler_room_steam it survives into the next attempt (docs/scoping-and-carryover.md). The edge's other conjunct, POWER, is the separate 'lab_steam_and_power' gate on the same edge.",
    "meta": {"source": "docs/areas.md", "confidence": "wiki"}
   },
   {

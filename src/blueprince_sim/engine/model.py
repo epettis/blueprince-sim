@@ -82,7 +82,10 @@ class Room:
     alt_layouts_gate: str | None
     draft_conditions: tuple[str, ...]  # placement gate tags, ALL must hold (placement.py)
     no_library_draft: bool  # never dealt when drafting through the Library's doorway
-    powered: bool  # powered-room flag; the duct-adjacency category bias targets these
+    # Membership of the steam-power network: this room generates, conducts or
+    # consumes power, so engine/power.py propagates power through it (docs/power.md).
+    # Also the target set of the duct-adjacency category bias (priority_draws.json).
+    powered: bool
     duct: bool  # duct-room flag; the powered-adjacency category bias targets these
     disk_reader: bool  # True when this room has an Upgrade Disk terminal (Security, Laboratory, Office, Shelter)
     unlocks_catacombs: bool  # True when entering this room grants same-day Catacombs access (Tomb only)

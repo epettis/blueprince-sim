@@ -62,3 +62,25 @@ def test_all_unlocks_config_sets_every_carryover_key():
         "Set each explicitly True in all_unlocks_config() with a comment "
         "naming what it unlocks."
     )
+
+
+def test_all_unlocks_config_sets_both_grotto_conjuncts():
+    """all_unlocks_config() promises 'every permanent unlock', but the
+    Blackbridge Grotto's two conjuncts are SAVE-scoped carve-outs carried on
+    named DayChain attributes rather than members of _CARRYOVER_KEYS, so the
+    test above cannot see them -- which is how lab_powered came to be missing
+    while lab_visited was set. Each conjunct is judged on its own, so setting
+    one alone still leaves the edge shut.
+
+    This names the two flags instead of deriving them. The obvious general
+    rule -- every GameConfig bool that DayChain mirrors outside
+    _CARRYOVER_KEYS -- also catches sauna_bonus, morning_room_bonus and
+    no_contact_due, which are per-day state that all-unlocks must NOT force
+    true, so a derived assertion would encode something false.
+    """
+    cfg = all_unlocks_config()
+    unset = [k for k in ("lab_visited", "lab_powered") if not getattr(cfg, k)]
+    assert not unset, (
+        f"all_unlocks_config() leaves these Grotto conjuncts False: {unset!r}. "
+        "Both are needed: the edge stays shut while either is unset."
+    )

@@ -3,9 +3,8 @@
 Work the project owner has identified and that is NOT in `docs/plan.md`'s
 delivered set -- each needs its own design pass. Two sources so far: a review of
 the special-items PR stack, and a recorded session of real play through the
-Training Observatory. That first session's twelve findings have shipped,
-leaving the remainders in tasks 37-41; a second session produced tasks
-44-48.
+Training Observatory. That first session's findings have shipped; a second
+session produced tasks 44-48, of which 48 remains.
 
 **Play findings outrank the wiki**, per [`doctrine.md`](doctrine.md) -- but where
 one contradicts a published rule, surface the conflict rather than silently
@@ -64,6 +63,7 @@ action spaces, the width register, replay and measurement discipline),
 [`luck.md`](luck.md),
 [`locking.md`](locking.md), [`rewards.md`](rewards.md) (reward shaping),
 [`foundation-design.md`](foundation-design.md), [`areas.md`](areas.md),
+[`power.md`](power.md) (the steam-power rule, the powered-room lists),
 [`rooms.md`](rooms.md) (per-room mechanics, the spread effects, the Mail
 Room cycle),
 [`drafting.md`](drafting.md) (the whole draft pipeline, concealment, redraws),
@@ -158,77 +158,6 @@ explains why touring beat drafting; it does not calibrate
 `special_item_values`, `PATHS_ONE_PENALTY`/`PATHS_ZERO_PENALTY` or the scepter
 bias. Those still need statistics from a run that actually plays the game, so
 this task stays open behind the next one.
-
-## 37. The Laboratory unlock is day-scoped, and POWER is unmodelled
-
-> "You need to unlock it by powering and visiting the Laboratory first."
-
-The Grotto edge carries the owner's two conjuncts as two gates, and neither is
-finished. `lab_visited` is real and live, but it is checked fresh against
-`GateContext.rooms_entered` every day, so reaching the Grotto needs the
-Laboratory drafted and entered *that day* -- tighter than the owner's wording,
-which reads as a **one-time** unlock. Latching a first-ever visit across days
-needs a `GameState`/`GameConfig` field plus a room-entry hook, both outside
-`engine/areas.py`, which only evaluates the `GateContext` it is handed.
-
-**OWNER RULING on POWER, which reframes the whole task:**
-
-> "The **house** isn't powered. A **room** is powered. A room is powered if it
-> shares a doorway with another powered room. Power sources include the Boiler
-> Room and the Electric Eel Aquarium."
-
-So POWER is not a global boolean at all -- it is **connectivity over the placed
-grid's doorways**, seeded at the source rooms. `lab_steam_and_power` becomes
-"the Laboratory is a powered room", which is reachable state rather than an
-unmodelled stub.
-
-**The room set, researched at the owner's request** (blueprince.wiki.gg/wiki/
-Steam_power, which states the rule in almost the owner's words: *"Any powerable
-or connector room that shares a doorway with a powered room becomes powered
-itself... This power may come from a power source itself, or another powered
-room"*):
-
-| category | rooms |
-|---|---|
-| sources | Boiler Room, Electric Eel Aquarium, Guest Bedroom (when it mimics the Electric Eel) |
-| connectors (pass through only) | Passageway, Archives, Darkroom, Weight Room, **Locker Room**, **Security** |
-| powerable (act when powered) | Laboratory, Garage, Laundry Room, **Pump Room**, **Furnace** |
-
-**The answer to the owner's "are there any more?" is yes**: Locker Room and
-Security are connectors not in the owner's list, Pump Room and Furnace are
-powerable rooms, and the Guest Bedroom is a conditional source.
-
-**Two conflicts to keep visible.** `rooms.json`'s existing `flags.powered` is
-true for ten rooms but **omits `darkroom`, `weight_room` and `furnace`**, so it
-is not the same set; and [`areas.md`](areas.md) records it as a static
-duct-draw classification that "cannot stand in for 'was switched on'".
-Separately, the wiki says the Boiler Room routes power through **one door at a
-time** and must be switched on daily, which is stricter than the owner's
-"shares a doorway" rule -- **the owner's rule governs**, and this is recorded
-rather than smoothed over.
-
-The powered *effects* of the Garage, Pump Room, Laundry Room and Furnace are
-deliberately out of scope for the power build itself and remain separate work.
-
-## 38. A wing excludes its corners (RULED, unbuilt)
-
-`west_or_east_wing` is carried by six rooms, and only three of them also carry
-`no_corner`: the Morning Room, the Greenhouse, and the Secret Garden, whose
-`rank_gte_3`/`rank_lte_8` bounds exclude ranks 1 and 9 anyway. **The Terrace,
-the Patio and the Veranda can therefore be drawn onto a corner tile today**,
-while the wiki says a wing never includes the corners and names the Patio
-specifically -- *"rooms like the Patio can never be drawn on Rank 1"*.
-
-**OWNER RULING: wings exclude corners.** So `west_or_east_wing` becomes
-corner-excluding in `placement.py::satisfies_draft_conditions` rather than
-tagging three rooms individually -- the tag now means what the wiki says it
-means, and the Terrace, Patio and Veranda lose their corner tiles.
-
-Two things to check when building it, neither settled by the ruling. The three
-rooms that carry `no_corner` today become redundant, so decide whether the tag
-is removed from them or kept as harmless belt-and-braces. And this narrows the
-legal tiles of three rooms at once, so **the scripted-policy baselines will
-move**: report the new numbers rather than treating movement as a regression.
 
 ## 49. An outer draft does not increment `draft_counts`
 

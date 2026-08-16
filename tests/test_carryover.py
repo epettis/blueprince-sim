@@ -497,6 +497,7 @@ def test_carryover_shape_is_complete():
         "sealed_entrance_broken",
         "boiler_room_steam",
         "lab_visited",
+        "lab_powered",
         "treasure_trove_blackprint",
         "orchard_unlocked",
         "throne_room_blueprint",
@@ -654,6 +655,7 @@ _SAVE_SCOPED: dict[str, tuple[object, object]] = {
     "permanent_rarity": ({"utility_closet": 3}, {"utility_closet": 3}),
     "planetarium_planets": (("mars",), ("mars",)),
     "lab_visited": (True, True),
+    "lab_powered": (True, True),
 }
 
 #: Attempt-scoped counterparts, one per shape above, with the value the wrap
@@ -672,11 +674,11 @@ _ATTEMPT_SCOPED: dict[str, tuple[object, object]] = {
 
 
 def test_the_save_scoped_carve_out_set_is_exactly_this():
-    """The save-scoped carve-outs are exactly the twelve fields listed in
+    """The save-scoped carve-outs are exactly the thirteen fields listed in
     docs/scoping-and-carryover.md, and everything beside them still resets.
 
     Each carve-out already has its own per-field test, but nothing pinned the
-    LIST, so a thirteenth field could be left out of the wrap block and no test
+    LIST, so a fourteenth field could be left out of the wrap block and no test
     would notice. Both directions are asserted from one real wrap: survivors
     survive, and a representative attempt-scoped field of each shape (int, str,
     decaying int, _CARRYOVER_KEYS bool, set, dict) is cleared -- the second

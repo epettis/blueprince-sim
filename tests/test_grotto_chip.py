@@ -9,11 +9,11 @@ are held (test_areas.py pins the gate-logic truth table directly; this file
 proves the same row through real gameplay), the Apple Orchard sundial
 becoming lightable for the first time, and the next-day respawn.
 
-Reaching the Grotto at all needs the Laboratory entered at least once (the
-lab_visited gate, alongside the still-stub lab_steam_and_power -- see
-docs/areas.md's "Blackbridge Grotto gate"); every setup below enters it
-directly via ``_enter_laboratory``, except the next-day test, which relies on
-the carried unlock instead.
+Reaching the Grotto at all needs the Laboratory both powered and entered at
+least once (the lab_steam_and_power and lab_visited gates -- see docs/areas.md's
+"Blackbridge Grotto gate"); every setup below does both directly via
+``_power_and_enter_laboratory``, except the next-day test, which relies on the
+carried unlock instead.
 """
 
 from __future__ import annotations
@@ -26,17 +26,21 @@ from blueprince_sim.env import actions as A
 from blueprince_sim.env.multiday import DayChain
 
 
-def _enter_laboratory(g: Game) -> None:
-    """Place and enter the Laboratory directly, satisfying the ``lab_visited``
-    gate on private_drive -> blackbridge_grotto without going through a draft.
+def _power_and_enter_laboratory(g: Game) -> None:
+    """Place, power and enter the Laboratory directly, satisfying both gates on
+    private_drive -> blackbridge_grotto without going through a draft.
 
-    Cell 12 (rank 3, center column) is free in every test below.
+    Cells 12 and 17 (rank 3 and rank 4, center column) are free in every test
+    below. The two N|S masks form a door pair across cell 12's north side, which
+    is what carries power from the Boiler Room into the Laboratory
+    (engine/power.py).
 
-    ``_enter`` rather than ``_place_room(entered=True)``: the latch is the
+    ``_enter`` rather than ``_place_room(entered=True)``: the visit latch is the
     room's own ON_ENTER hook (effects/rooms/laboratory.py), and only ``_enter``
     fires room hooks.
     """
     g._place_room(g.registry.by_id["laboratory"], 12, N | S)
+    g._place_room(g.registry.by_id["boiler_room"], 17, N | S)
     g._enter(12)
 
 
@@ -46,7 +50,7 @@ def _at_grotto_with_two_chips(registry) -> Game:
     g = Game(GameConfig(), seed=1, registry=registry)
     g.state.steps = 50
     g.state.inventory["microchip"] = 2
-    _enter_laboratory(g)
+    _power_and_enter_laboratory(g)
     g.travel_to("blackbridge_grotto")
     assert g.state.area == "blackbridge_grotto", "setup must actually reach the Grotto"
     return g
@@ -131,7 +135,7 @@ def test_sundial_becomes_lightable_after_taking_the_grotto_chip(registry):
     g.state.steps = 50
     g.state.inventory["microchip"] = 2
     g.state.inventory["torch"] = 1
-    _enter_laboratory(g)
+    _power_and_enter_laboratory(g)
 
     g.travel_to("apple_orchard")
     mask_before = A.action_mask(g)
@@ -155,9 +159,9 @@ def test_grotto_chip_respawns_the_next_day_through_a_daychain(registry):
     day's Game starts with the flag False and the action legal again at the
     Grotto, even though today's carryover() report does not mention it.
 
-    lab_visited, by contrast, IS carried: tomorrow's Game reaches the Grotto
-    with no Laboratory entry of its own, which is what makes the chip's
-    respawn observable on a day where nothing was re-unlocked.
+    lab_visited and lab_powered, by contrast, ARE carried: tomorrow's Game
+    reaches the Grotto with no Laboratory of its own, which is what makes the
+    chip's respawn observable on a day where nothing was re-unlocked.
     """
     cfg = GameConfig()
     chain = DayChain(cfg)
@@ -165,7 +169,7 @@ def test_grotto_chip_respawns_the_next_day_through_a_daychain(registry):
     g = Game(chain.next_config(), seed=1, registry=registry)
     g.state.steps = 50
     g.state.inventory["microchip"] = 2
-    _enter_laboratory(g)
+    _power_and_enter_laboratory(g)
     g.travel_to("blackbridge_grotto")
     A.apply_action(g, A.TAKE_GROTTO_CHIP_ACTION)
     assert g.state.grotto_chip_taken is True

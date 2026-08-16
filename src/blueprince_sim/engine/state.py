@@ -414,6 +414,12 @@ class GameState:
     # lab_visited attribute rather than in _CARRYOVER_KEYS, so the unlock is
     # SAVE-scoped and survives the attempt wrap.
     lab_visited: bool = False
+    # Set the first time a placed Laboratory is powered today
+    # (effects/rooms/laboratory.py's ON_DRAFT_ROOM hook). Same SAVE-scoped shape as
+    # lab_visited, and the other half of the same one-time Grotto unlock:
+    # carryover() ORs this with cfg.lab_powered to open the
+    # "lab_steam_and_power" gate (docs/power.md).
+    lab_powered: bool = False
     # True once today's single gem from arriving at Upper Rotating Gear has been
     # granted. Per-day only -- deliberately NOT carried over (a fresh GameState
     # resets it every day, unlike the permanent flags above).

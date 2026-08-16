@@ -29,6 +29,7 @@ class Capability(Enum):
     LOST_AND_FOUND = "lost_and_found"  # room's on_enter triggers the Lost & Found steal-and-draw (see special_items.lost_and_found_on_enter)
     NIGHT_SKY = "night_sky"  # room's telescope can view a night sky (Game.can_view_night_sky)
     OFFICE_TERMINAL = "office_terminal"  # room's terminal offers Spread Gold in Estate / Run Payroll (Office; see Game.can_spread_gold/can_run_payroll)
+    POWER_SOURCE = "power_source"  # room generates steam power, seeding propagation (Boiler Room, Electric Eel Aquarium; see engine/power.py)
     PUMP_PANEL = "pump_panel"  # room's water-source/level panel is open (Pump Room; see Game.can_set_pump_source)
     SECURITY_LEVEL = "security_level"  # room's security-level terminal is open (Security)
     TELESCOPE_REVEAL = "telescope_reveal"  # room's Telescope planet-reveal menu is open (Planetarium)
