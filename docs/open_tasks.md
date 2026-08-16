@@ -202,12 +202,28 @@ independently, and a slot whose colour deck has nothing legal at that cell comes
 up unfilled — the same mechanism behind the Secret Passage's free-first-option
 bug, where slots 0 and 1 produced nothing and only slot 2 dealt.
 
-So the question is whether the third slot was legitimately unfillable at r5c4 —
-too few yellow rooms surviving geometry, the deck-size gate, and the Commissary
-already being placed — or whether a legal candidate was wrongly rejected. The
-owner names the cell and the prior draft, so this is directly reproducible.
-Enumerate the yellow pool against r5c4's legal orientations before concluding
-anything.
+**Enumerated, and geometry is not the cause.** Legal candidates at r5c4 drafting
+north, with the Commissary removed, by colour: bedroom 10, red 9, shop 7,
+hallway 6, green 5. No colour is anywhere near exhausted there, so no slot was
+unfillable for want of a legal room.
+
+**Nor does the draw itself come up short on a clean board.** Driving the real
+path -- a Secret Passage placed at r4c4, its north door opened, a colour chosen
+-- over 60 seeds, every one of the 39 that reached the state dealt **three**
+slots. No short hand reproduced.
+
+**So the report needs board state that is not in it.** The remaining candidate
+is deck depletion: drafted rooms leave the pool, so a mid-game day with much of
+the chosen colour already placed can legitimately deal fewer than three. That
+would be correct behaviour rather than a defect. What is missing to settle it is
+the day's board -- which rooms were already placed when the passage was opened.
+A saved profile or replay for that day would answer it immediately; the cell and
+the Commissary alone are not enough.
+
+**Note the colour name is unresolved.** The engine's five colour categories are
+`bedroom`, `hallway`, `green`, `shop`, `red`; nothing in the repo maps "yellow"
+onto one of them. The enumeration above covers all five so the answer does not
+depend on which was meant.
 
 ## 23. OPEN OWNER QUESTIONS
 
