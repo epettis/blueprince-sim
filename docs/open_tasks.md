@@ -117,22 +117,6 @@ draft distribution. **That is an owner ruling, not an implementation
 detail** -- it turns a data question into a semantics change on a shared tag,
 and nothing should move until the ruling exists.
 
-## 39. The Shelter's three charges are not strictly draft-ordered
-
-"The Shelter protects against the next three red rooms that I draft" is exact
-on its forward-looking half: `effects/rooms/shelter.py` snapshots
-`game.placed_ids` at its own `ON_PLACE`, so an already-drafted red room keeps
-its penalty. Among rooms drafted **after** the Shelter, though, the three
-charges are still spent in penalty-resolution order rather than draft order.
-
-The two only diverge when more than three red rooms are drafted after the
-Shelter before the earliest of them is entered, and today only the Maid's
-Chamber has a placement-time penalty, so the window is narrow. Closing it
-is now Shelter-side work only: an outer room does receive `ON_DRAFT_ROOM`
-for later grid drafts, so what remains is a Shelter handler claiming a
-per-room protected set at draft time, and `tier1._red_negated` consuming
-that set instead of decrementing when a penalty happens to resolve. [`rooms.md`](rooms.md) owns the shipped scoping rule.
-
 ## 40. Scripted policies never take the outer draft
 
 `cli/policies.py::_navigate_frontier` never calls `Game.open_outer_draft`,

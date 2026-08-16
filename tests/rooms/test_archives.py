@@ -140,15 +140,16 @@ def test_redraw_rearchives_the_fresh_hand(registry, cfg):
 
 
 def test_shelter_negates_archiving_and_spends_one_charge(registry, cfg):
-    """Shelter (or Knight's Shield) suppresses archiving for the whole day,
-    consumed exactly once at the Archives' placement -- not once per doorway
-    drafted afterward, which would silently drain all three Shelter charges
-    on the first three doors opened."""
+    """Shelter (or Knight's Shield) suppresses archiving for the whole day for
+    one charge, claimed at the Archives' draft and released once at its
+    placement -- not once per doorway drafted afterward, which would silently
+    drain all three Shelter charges on the first three doors opened."""
     g = Game(cfg, seed=3)
     g.red_negations = 3
     g._place_room(registry.by_id["archives"], 7, N | S)
     assert not g.state.archives_active
-    assert g.red_negations == 2, "exactly one charge spent, at placement"
+    assert g.red_negations == 2, "exactly one charge claimed, at the draft"
+    assert "archives" not in g.shelter_protected_ids, "and released at placement"
 
     g._place_room(registry.by_id["corridor"], 12, N | S)
     g.state.pos = 12
@@ -156,7 +157,8 @@ def test_shelter_negates_archiving_and_spends_one_charge(registry, cfg):
     g.state.gems = 9
     pending = g.open_door(12, N)
     assert not any(o.archived for o in pending.options)
-    assert g.red_negations == 2, "no further charge spent by drafting doorways"
+    assert g.red_negations == 2, "no further charge claimed by drafting doorways"
+    assert not g.shelter_protected_ids, "and none held over from the Archives"
 
 
 def test_archives_mystery_still_shows_gem_cost(registry, cfg):

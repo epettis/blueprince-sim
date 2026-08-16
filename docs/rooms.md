@@ -678,15 +678,37 @@ work. This is an invisible-until-the-count-gets-large shape.
 
 **`shelter`** — negates the effects of the next 3 red rooms **drafted after
 it**, and grants its safe gem. It is an **outer** room, so the grant rides
-`Game.travel_to`'s `ON_ENTER` rather than the grid path. Protection is scoped
-by draft order, not by when a room's own penalty happens to resolve: a red
-room already on the board when the Shelter is drafted keeps its penalty even
-if that penalty is entry-triggered and does not fire until later —
-`effects/rooms/shelter.py` snapshots `game.placed_ids` at its own `ON_PLACE`
-into `game.shelter_excluded_ids`, which `effects/tier1.py::_red_negated`
-checks alongside the charge counter. Among rooms drafted *after* the Shelter
-the three charges are spent in penalty-resolution order rather than draft
-order (`open_tasks.md` 39 covers what making that exact would take).
+`Game.travel_to`'s `ON_ENTER` rather than the grid path.
+
+**Protection is scoped by draft order, never by when a room's own penalty
+happens to resolve.** The three protected rooms are exactly the first three red
+rooms drafted after the Shelter, and which three they are is settled the moment
+they are drafted. `effects/rooms/shelter.py`'s `ON_PLACE` grants three
+unclaimed charges into `game.red_negations`; its `on_room_drafted`, called from
+`Game._place_room` before the drafted room's own `ON_PLACE`, hands one charge to
+each red room drafted afterwards until they run out, naming the room in
+`game.shelter_protected_ids`. `effects/tier1.py::_red_negated` negates a
+penalty only for a room in that set, and releases that room's claim as it does.
+
+Two consequences follow, both deliberate:
+
+- A red room already on the board when the Shelter is drafted is never offered
+  a charge, so it keeps its penalty even if that penalty is entry-triggered and
+  does not fire until much later.
+- A charge is spent by *drafting* a red room, not by negating something. A
+  Darkroom drafted with its lights already off keeps its claim unused for the
+  rest of the day rather than returning it to the pool. Returning it would put
+  a fourth red room's protection back at the mercy of which penalties happened
+  to resolve first, which is the whole thing draft-time claiming removes.
+
+The Shelter is a `blueprint` room, not a red one, so its own draft claims
+nothing. Claims are keyed on the room's own id rather than
+`upgrades.root_base_id`: the room claiming and the room whose penalty later
+resolves are the same `Room`, and a red upgrade variant carries its penalty on
+its own record, so both sides already agree without normalising. Both
+`red_negations` and `shelter_protected_ids` are plain `Game` attributes blanked
+by `Game.reset`, so a claim is scoped to the day that made it and rides no
+carryover channel.
 
 **`shrine`** — deposit 1–80 gold and receive one of eight blessings lasting 3–7
 days (the granting day counts as day 1); taking the offering back curses you for
