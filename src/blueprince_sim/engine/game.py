@@ -157,6 +157,13 @@ class Game:
         # tithes, permanently gated item ids) before anything reads them, so the
         # day's first observation reports what was carried, not the field defaults.
         special_items.configure(st, cfg, self.registry)
+        # Mail Room Dynamic Rarity: a package left waiting overnight moves that
+        # room's cards to Commonplace for the day. Runs here because it needs
+        # the mail cycle configure() just seeded, the decks build_decks() built,
+        # and the permanent_rarity/dynamic_rarity pair seeded above -- and not
+        # in shops.on_day_start, which cfg.special_items gates while the mail
+        # cycle itself advances whether or not special items are enabled.
+        mail_room.apply_waiting_package_rarity(self)
         if cfg.special_items:
             for item_id in sorted(cfg.starting_items):
                 special_items.grant(st, self.registry, item_id, source="config")

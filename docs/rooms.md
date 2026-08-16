@@ -432,6 +432,59 @@ package lands tomorrow — not "a package arrived this morning": the key exists 
 `V(s)` can price a cross-day investment, and the investment is the order, not
 the already-collected payout.
 
+### Dynamic Rarity: a waiting package is Commonplace
+
+The wiki, on the Mail Room: *"If a package is delivered and waiting in the Mail
+Room, the Mail Room's Dynamic Rarity is set to Commonplace for the day."* The
+room is displayed Unusual, so this is a two-step jump in the room's own favour
+— **the game makes the package easy to come back for.** Measured on
+`all_unlocks_config()` under `frontier_greedy`, n=400 seeds 0–399: the chance a
+day drafts a Mail Room at all rises from **3.2%** on an empty cycle to **22.0%**
+with a package waiting. Any earlier estimate of how often a delivered package
+gets collected was made against the 3.2% arm and is a floor, not a measurement.
+
+**AWAITING is that waiting package**, and nothing else is. The order went out on
+an earlier day and the next draft of the room hands the package over, which is
+exactly the state the sentence describes. TRANSIT is a Freight order that has
+not arrived. EMPTY has no package. And **the day that places the order is not
+Commonplace**: the package arrives *the day after* drafting, so at the moment
+the order goes out there is nothing waiting yet.
+
+That makes the override a **whole-day state decided once at day start**, which
+is what *"for the day"* says. `mail_room.apply_waiting_package_rarity`, called
+from `Game.reset` right after `special_items.configure` seeds the carried
+cycle, moves the card through `decks.set_dynamic_rarity` — the same card-move
+primitive the Gear Wrench, the Conservatory, the Battery Pack and the
+`add_aquariums` experiment use ([`drafting.md`](drafting.md)). No new state:
+`mail_cycle` was already carried across days, so the override is derived from
+it rather than stored.
+
+**It moves whichever Mail Room card is deck-resident.** An applied Upgrade Disk
+replaces the base floorplan in `decks.eligible_pool`, so exactly one of the four
+ids has cards on any given day, and the cycle is one slot shared across all four
+— the waiting package belongs to whichever of them the player can actually
+draft.
+
+**A permanently set rarity wins.** The wiki: *"If a room's rarity is ever set
+using the Conservatory and/or Gear Wrench (even if the rarity was not changed
+from the default), that room's Dynamic Rarity is permanently ignored, and it
+will always use the rarity it was set to."* A `permanent_rarity` entry for the
+live Mail Room id skips the override entirely, leaving the card in the bucket
+`build_decks` already dealt it into.
+
+*Narrow gap in that guard.* `Game._write_permanent_rarity` **pops** rather than
+writes when the chosen rarity equals the room's natal one, so a Conservatory
+click that sets the Mail Room to its own Unusual leaves no entry and the
+waiting-package override still applies the next day. The wiki's *"even if the
+rarity was not changed from the default"* says it should not. Closing it needs a
+second save-scoped record of *"a rarity was ever set here"* distinct from *"a
+rarity override is in force"*; the Gear Wrench cannot reach the Mail Room at all
+(it targets Mechanical Rooms), so the only route in is a Conservatory click that
+deliberately changes nothing.
+
+**This is the Mail Room specifically, not the wiki's ~25-room Dynamic Rarity
+table**, which [`drafting.md`](drafting.md) still records as unmodelled.
+
 ## Per-room rules
 
 Alphabetical by room id. A room whose whole behaviour already belongs to another
@@ -897,15 +950,12 @@ observable effect.
   the datamine's implied ~85, because no source in this repo names twelve of
   the sixteen rooms whose rarity cannot be changed. See the `conservatory`
   entry above and `data/conservatory.json`.
-- **The Mail Room's Dynamic Rarity effect is not modelled.** A waiting package
-  sets the Mail Room to Commonplace for the day, which makes the delivered room
-  far easier to draw again — a real strategic effect, not flavour. **Any
-  measurement of how often a delivered package is actually collected is an
-  underestimate until this lands.** The original reason for deferring (no
-  rarity-override channel in `decks.py`) has **expired**: `set_dynamic_rarity`
-  is exactly that channel. This is the Mail Room specifically, not the wiki's
-  ~25-room Dynamic Rarity table, which [`drafting.md`](drafting.md) records as
-  unmodelled.
+- **A Conservatory click that changes nothing does not stop the Mail Room's
+  Dynamic Rarity.** The wiki makes any Conservatory/Gear Wrench rarity set
+  permanently disable a room's Dynamic Rarity "even if the rarity was not
+  changed from the default", but a natal-rarity pick leaves no
+  `permanent_rarity` entry to detect. See the Mail Room family's Dynamic Rarity
+  section above for why, and what closing it would cost.
 - **The Mail Room's cycle state is shared across all three variants.**
   `GameState.mail_cycle` and `mail_package_cell` are a single global slot, so an
   `awaiting` cycle placed by one variant is delivered against by a different

@@ -265,7 +265,6 @@ Every entry here is held for one reason only: **it specifies work that is not
 built yet.** Each one leaves the log the day its work lands.
 
 - **The Conservatory's 15% forced draw** — its reachability and its drawing board have both shipped.
-- **The Mail Room's Dynamic Rarity** package, unblocked by `set_dynamic_rarity`.
 
 Everything each entry says about *shipped* behaviour is already stated in the
 doc that owns it; when the remaining work lands, the entry goes.
@@ -280,15 +279,3 @@ doc that owns it; when the remaining work lands, the entry goes.
   [`rl-environment.md`](rl-environment.md)'s own rule it cannot load. **Retrain
   once, after the batch lands**, not per change. Task 24's reward calibration is
   blocked behind it.
-
-- **2026-08-11, the Mail Room's Dynamic Rarity deferral is re-opened.**
-  Owner. It was deferred on 2026-08-09 with the stated reason that
-  `decks.py` had no rarity-override channel and building one was its own work
-  touching the draft hot path. **That reason expires the moment the Aquarium
-  groundwork lands** -- the card-move primitive is exactly the channel it
-  wanted. A waiting package setting the Mail Room to Commonplace becomes a
-  few lines on the same primitive.
-
-  Its own small PR, after the groundwork. Note the wiki publishes a ~25-room
-  Dynamic Rarity table, none of it modelled; this re-opens the Mail Room
-  specifically, not the table.

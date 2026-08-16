@@ -71,13 +71,21 @@ Implemented:
   - next_mail_cycle (called from shops.carryover()) -- the readiness
     decision: promotes a TRANSIT cycle to AWAITING once its transit days
     are spent.
+  - apply_waiting_package_rarity (called from Game.reset) -- the Dynamic
+    Rarity below.
 
-Not modelled: a waiting package sets the Mail Room's Dynamic Rarity to
-Commonplace for the day. decks.py has no rarity-override channel.
+Dynamic Rarity (wiki, Mail Room): "If a package is delivered and waiting in
+the Mail Room, the Mail Room's Dynamic Rarity is set to Commonplace for the
+day." AWAITING is exactly that state -- an order placed on an earlier day
+whose package the next draft of the room hands over -- so the whole-day
+override is decided once at day start, from the cycle value carried in.
+The day that PLACES the order is not Commonplace: the package arrives "the
+day after drafting this room", so it is not yet waiting.
 """
 
 from __future__ import annotations
 
+from ... import decks
 from ... import special_items as si
 from .. import Hook, room_hook
 
@@ -85,11 +93,18 @@ MAIL_EMPTY = "empty"
 MAIL_AWAITING = "awaiting"
 MAIL_TRANSIT = "transit"
 
+BASE_ID = "mail_room"
 SAME_DAY_ID = "mail_room__ix89"
 NO_CONTACT_ID = "mail_room__ix90"
 FREIGHT_ID = "mail_room__ix91"
 
+#: Upgrade variants in the order :func:`_live_mail_room_id` prefers them.
+VARIANT_IDS = (SAME_DAY_ID, NO_CONTACT_ID, FREIGHT_ID)
+
 FREIGHT_TRANSIT_DAYS = 2  # wiki: two days of transit after an order is placed
+
+#: Rarity a waiting package moves the Mail Room's floorplan to for the day.
+DELIVERED_RARITY = "commonplace"
 
 
 def _deliver_into_cell(game, room) -> None:
@@ -261,3 +276,55 @@ def next_mail_cycle(state) -> str:
     if state.mail_cycle == MAIL_TRANSIT and state.mail_transit_days <= 0:
         return MAIL_AWAITING
     return state.mail_cycle
+
+
+# ------------------------------------------------------------- Dynamic Rarity
+
+def _live_mail_room_id(state) -> str:
+    """The Mail Room id whose cards are in today's decks.
+
+    An applied Upgrade Disk REPLACES its base floorplan in
+    ``decks.eligible_pool``, so exactly one of the four Mail Room ids is
+    deck-resident on any given day. ``state.applied_upgrades`` is seeded from
+    ``cfg.upgrade_disks`` at reset, which is the same set that pool consults.
+    """
+    for variant_id in VARIANT_IDS:
+        if variant_id in state.applied_upgrades:
+            return variant_id
+    return BASE_ID
+
+
+def apply_waiting_package_rarity(game) -> None:
+    """Day start: a package waiting for collection makes the Mail Room Commonplace.
+
+    Wiki: "If a package is delivered and waiting in the Mail Room, the Mail
+    Room's Dynamic Rarity is set to Commonplace for the day." A carried
+    AWAITING cycle IS a waiting package -- the order went out on an earlier
+    day and the next draft of the room delivers it -- so the card move runs
+    once here, off the cycle value ``special_items.configure`` has just
+    seeded from config, and holds for the whole day. TRANSIT is not waiting
+    (the package is still in Freight's two-day transit); EMPTY is not
+    waiting; and an order placed later TODAY does not qualify today, since
+    its package only arrives "the day after drafting this room".
+
+    Skipped when the room carries a ``permanent_rarity`` entry: the wiki
+    makes a Conservatory- or Gear-Wrench-set rarity permanently beat Dynamic
+    Rarity, and that entry is the record of such a set. ``build_decks``
+    already dealt the room's cards into the permanent bucket and
+    ``Game.reset`` seeded ``state.dynamic_rarity`` to match, so returning
+    early leaves both agreeing on the permanent choice.
+
+    Moves whichever Mail Room id is deck-resident today. The cycle is one
+    slot shared across the base floorplan and its three Upgrade Disk
+    variants, so the waiting package belongs to whichever of them is the
+    live card.
+    """
+    st = game.state
+    if st.mail_cycle != MAIL_AWAITING:
+        return
+    room_id = _live_mail_room_id(st)
+    if room_id in st.permanent_rarity:
+        return
+    decks.set_dynamic_rarity(st, game.registry, room_id,
+                             decks.RARITIES.index(DELIVERED_RARITY), game.rng,
+                             label="mail_room_delivered_rarity")

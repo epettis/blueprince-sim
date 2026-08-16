@@ -74,7 +74,10 @@ write, and three primitives implement it:
   already-dealt copies just before the destination cursor. Leaving a dealt copy
   behind in the source deck would let it be re-dealt after attempt 3's full
   reshuffle. Used by the Gear Wrench, the Conservatory's drawing board, the
-  Battery Pack and the `add_aquariums` experiment.
+  Battery Pack, the `add_aquariums` experiment, and the Mail Room's
+  waiting-package Dynamic Rarity ([`rooms.md`](rooms.md)) — the last of which
+  is the only one decided at day start rather than mid-day, and so the only
+  one `Game.reset` fires directly.
 
 Every path that touches a deck bucket — `inject_rooms`,
 `inject_rooms_undealt`, `apply_upgrade` — looks the room up through
@@ -765,5 +768,8 @@ was made three times in one session about `test_draft_stats.py` alone.
   from wing drafts leading north into rank 8 or south into rank 2 until another
   vertical wing draft occurs is recorded as a named gap on both records.
 - **The wiki's ~25-room Dynamic Rarity table is not modelled.** The card-move
-  primitive that would carry it exists (`set_dynamic_rarity`); the table does
-  not.
+  primitive that would carry it exists (`set_dynamic_rarity`), and three of the
+  table's rows are built as their own room/item behaviour — the Workshop's
+  Battery Pack row, the Aquarium's experiment row, and the Mail Room's
+  waiting-package row ([`rooms.md`](rooms.md)) — but the table itself, and its
+  day-number and Veteran-mode rows in particular, is not.
