@@ -60,6 +60,54 @@ walks there and drafts):
    scores `h = 99` — a last resort.
 3. With nothing draftable, enter the nearest unentered room for its
    pickups.
+4. With nothing free left underfoot either, take today's outer draft.
+
+## The outer draft and the walk home (`_navigate_offgrid`)
+
+`Game._action_in_budget` counts the once-per-day outer draft as a reason the
+day is not over. A policy that never takes it therefore asks
+`_check_termination` for an ending the engine will not give: the decision
+changes nothing, `cli/batch.py`'s stall detector fires, and the episode is
+recorded as `decision_limit` with steps still on the clock.
+
+**It is deliberately the last resort, after even the free in-place actions.**
+The trip costs the walk to the doorstep and lands the return leg at the
+Entrance Hall, and no frontier doorway that was out of budget from where the
+player stands can be in budget from there — the walk home is itself part of
+that distance. So the outer draft is only ever taken on a house that has
+nothing left to offer, where the steps would otherwise go unspent. Taking it
+any earlier trades grid rooms for one off-grid room: `rooms_placed` counts
+only grid placements (`Game._place_room`), and outer rooms are placed off it.
+
+Off the grid the decision belongs to `_navigate_offgrid`, because every query
+the frontier loop makes is a grid query and `state.pos` keeps naming the last
+grid cell while the player is away. It takes the free actions underfoot (an
+outer room can be a shop), steps into today's outer room for its ON_ENTER
+item roll, then walks back onto the grid at the cheapest reachable anchor.
+**The return leg is what makes the draft worth taking**: `west_path → grounds
+→ house` is 2 steps and is always open by the time a policy is out there,
+since arriving at the doorstep is itself the act that unlatches the west gate
+(`Game.travel_to`) — so the shortcut home exists even on a save that had to
+reach West Path the long way through the Garage.
+
+Its destination list is built from the same predicate as the engine's
+`_outer_action_in_budget` (modelled nodes, no self-travel, strict
+`steps > cost`), for the same reason `_exhaust_in_place` iterates the engine's
+own `_in_place_actions`: whatever the engine counts as work left, the policy
+must be able to do, or the stall simply moves off the grid.
+
+One subtlety the loop exists for: `cli/batch.py`'s stall detector watches
+steps and `state.pos`, but not `state.area`. A Running Shoes hop can waive
+every step of an area move, and off the grid `state.pos` does not change at
+all, so a free hop moves nothing the detector reads. `_navigate_offgrid`
+keeps walking within the one decision until the budget or the position
+actually moves.
+
+`_navigate_north` (`greedy_rank`, `economy`) has the same structural gap but
+never reaches it: it always finds a move and walks until the step budget is
+gone, so it never concedes a day the engine is holding open. Measured over
+599 seeds on `all_unlocks_config()`, none of the three other policies records
+a single `decision_limit` episode.
 
 ## The security doctrine (`_security_admin`, `_security_detour`)
 

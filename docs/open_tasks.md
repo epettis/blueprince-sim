@@ -117,18 +117,6 @@ draft distribution. **That is an owner ruling, not an implementation
 detail** -- it turns a data question into a semantics change on a shared tag,
 and nothing should move until the ruling exists.
 
-## 40. Scripted policies never take the outer draft
-
-`cli/policies.py::_navigate_frontier` never calls `Game.open_outer_draft`,
-though `Game._action_in_budget` has always counted the outer draft as a reason
-the day is not over. The two disagreeing is the pre-existing `decision_limit`
-rate -- roughly 40% of `frontier_greedy` episodes.
-
-**A naive fallback makes it worse.** `open_outer_draft` travels off-grid, and
-`_navigate_frontier` has no off-grid handling at all: a measured trial dropped
-mean rooms placed from 24.1 to 18.1. This needs real off-grid navigation in
-the policy, not another branch at the bottom of the frontier loop.
-
 ## 48. A Secret Passage on the east wing offered two yellow rooms, not three
 
 > "I was only able to draft *two* yellow rooms instead of *three* from a Secret

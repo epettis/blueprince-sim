@@ -337,6 +337,103 @@ def _choose_best(game: Game, weights: dict) -> None:
     game.choose(best.slot)
 
 
+def _offgrid_destinations(game: Game) -> list[tuple[int, str]]:
+    """``(cost, node_id)`` for every off-grid travel the engine counts as
+    purposeful, cheapest first (ties broken by node id, so the order is
+    deterministic).
+
+    Mirrors :meth:`Game._outer_action_in_budget` term for term: modelled nodes
+    only (an unmodelled node holds nothing, so walking there is a pure step
+    sink), never self-travel, and the strict ``steps > cost`` that leaves a
+    step to spend on arrival. Sharing the engine's own predicate is what stops
+    a policy conceding a day the engine still considers live -- the same
+    reason :func:`_exhaust_in_place` iterates ``Game._in_place_actions``
+    instead of a parallel list.
+    """
+    st = game.state
+    nodes = game.registry.area_graph.nodes
+    return sorted((cost, node_id)
+                  for node_id, (cost, _anchor) in game.area_route_costs().items()
+                  if node_id != st.area and nodes[node_id].modelled
+                  and st.steps > cost)
+
+
+def _offgrid_destination(game: Game) -> str | None:
+    """The area node an off-grid policy should walk to next, or None when
+    nothing purposeful is affordable.
+
+    Priority: (1) today's drafted outer room, until its ON_ENTER item roll has
+    fired, (2) the cheapest grid anchor -- back on the 5x9 grid is where the
+    rooms still left to place are, (3) the cheapest other purposeful
+    destination, which only comes up while stranded: no anchor is affordable,
+    and standing still would leave the day open with
+    :meth:`Game._outer_action_in_budget` still answering yes.
+
+    Only anchors :meth:`Game._grid_anchors` actually offers are considered:
+    the area graph carries "garage" and "the_foundation" nodes whether or not
+    those rooms are on today's grid, and :meth:`Game.travel_to` resolves an
+    anchor destination through that same mapping.
+    """
+    dests = _offgrid_destinations(game)
+    outer = game.drafted_outer_room
+    if outer is not None and not game.state.outer_room_entered:
+        for _cost, node_id in dests:
+            if node_id == outer.id:
+                return node_id
+    anchors = game._grid_anchors()
+    for _cost, node_id in dests:
+        if node_id in anchors:
+            return node_id
+    return dests[0][1] if dests else None
+
+
+#: Ceiling on one call to :func:`_navigate_offgrid`. Every iteration either
+#: lands back on the grid, concedes the day, or pays for an area hop, so the
+#: walk is already bounded by the step budget -- except when a held pair of
+#: Running Shoes waives every step of a hop (a 60% roll per node entered, see
+#: effects/items/running_shoes.py::area_arrival_steps_saved), which is also
+#: the only way an area hop can leave ``cli/batch.py``'s stall snapshot
+#: untouched and so the only reason to keep walking inside one decision.
+#: Exceeding the cap means that roll came up saved this many times running;
+#: the day is simply handed back to ``_check_termination``.
+_OFFGRID_CAP = 64
+
+
+def _navigate_offgrid(game: Game) -> None:
+    """One NAVIGATE decision while the player stands off the 5x9 grid: take
+    every free action underfoot, then walk to :func:`_offgrid_destination`.
+
+    Getting back on the grid is what makes the outer draft worth taking:
+    outer rooms sit off the 5x9 grid, so every room still left to place is
+    inside the house. The return is ``west_path -> grounds -> house`` for 2
+    steps, and it is always open by the time a policy is off the grid --
+    arriving at the doorstep is itself the act that unlatches the west gate
+    (:meth:`Game.travel_to`), so the Grounds shortcut home exists even on a
+    save that had to reach West Path the long way through the Garage.
+
+    Keeps walking within the one decision while the walk stays invisible to
+    ``cli/batch.py``'s stall detector, which watches steps and ``state.pos``
+    but not ``state.area``: a Running Shoes hop can cost 0 steps, and off the
+    grid ``state.pos`` holds the last grid cell throughout, so a free hop
+    between two area nodes moves nothing the detector reads and would be
+    force-resolved as a stall. Walking on until the budget or the position
+    actually moves leaves it something to see.
+    """
+    before = (game.state.steps, game.state.pos)
+    for _ in range(_OFFGRID_CAP):
+        if _exhaust_in_place(game) and game.phase is not Phase.NAVIGATE:
+            return  # start_setup parked us in EXPERIMENT_PENDING
+        dest = _offgrid_destination(game)
+        if dest is None:
+            break
+        game.travel_to(dest)
+        if game.phase is not Phase.NAVIGATE:
+            return  # the walk ended the day
+        if not game.off_grid or (game.state.steps, game.state.pos) != before:
+            return
+    game._check_termination()
+
+
 _GREEDY_WEIGHTS = {"connectivity": 1.5, "north": 2.5, "cost": 0.5, "red_penalty": 2.0}
 _ECONOMY_WEIGHTS = {"connectivity": 1.2, "north": 2.0, "items": 0.8, "cost": 0.4,
                     "red_penalty": 2.5, "redraw_below": 2.0}
@@ -350,7 +447,12 @@ def _navigate_frontier(game: Game) -> None:
     the step budget, (2) draft the frontier doorway (anywhere reachable, via
     :meth:`Game.draft_from`) minimizing steps_to_reach + lambda * optimistic
     distance from the doorway's target to the Antechamber, (3) enter the
-    nearest unentered room for its pickups.
+    nearest unentered room for its pickups, (4) take today's outer draft.
+
+    Off the grid, the decision belongs to :func:`_navigate_offgrid`: every
+    query below is a grid query, and ``state.pos`` keeps naming the last grid
+    cell while the player is away, so running them out there would plan a
+    walk from a cell the player is not standing on.
 
     A locked frontier doorway's affordability is judged by
     :meth:`Game._frontier_lock_affordable` -- the same predicate
@@ -367,8 +469,21 @@ def _navigate_frontier(game: Game) -> None:
     container can pay out the very key that makes a locked doorway affordable,
     and conceding on a state the engine no longer considers finished would
     strand the policy exactly the same way.
+
+    Today's outer draft comes after even those, for the same reason it is
+    never declined: :meth:`Game._action_in_budget` counts it as a reason the
+    day is not over, so skipping it leaves the policy asking
+    ``_check_termination`` for an ending the engine will not give. It is
+    genuinely last, though -- it costs the walk to the doorstep and lands the
+    return trip at the Entrance Hall, and no frontier doorway that was out of
+    budget from here can be in budget from there (the walk home is itself
+    part of the distance). Nothing on the grid is left to lose by the time
+    control reaches this line.
     """
     while True:
+        if game.off_grid:
+            _navigate_offgrid(game)
+            return
         st = game.state
         if _security_admin(game):
             return
@@ -407,6 +522,9 @@ def _navigate_frontier(game: Game) -> None:
             game.move_to(unentered[0])
             return
         if not _exhaust_in_place(game):
+            if game.outer_draft_available():
+                game.open_outer_draft()
+                return
             game._check_termination()
             return
         if game.phase is not Phase.NAVIGATE:
