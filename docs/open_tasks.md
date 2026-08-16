@@ -292,13 +292,15 @@ doc that owns it; when the remaining work lands, the entry goes.
   shape, which the wiki states outright as *"uniformly at random from the list
   (ignoring rarity and other modifiers)"*.
 
-  **Two honest qualifications, recorded rather than smoothed over:** the
-  datamine never uses the word "uniform", and it never says whether the three
-  are drawn **with or without replacement**. The bug clause — *"this list
-  contains bugged entries that, if they appear, appear like one of the other
-  entries already present"* — implies the **fallback** path is not
-  de-duplicated. Treat "uniform, without replacement" as the reading and "with
-  replacement" as unverified.
+  **OWNER RULING: uniform random WITH replacement.** *"The Conservatory is
+  quite simple. Select three random rooms to permit their rarity to be
+  changed... Use 'uniform random with replacement' as the model."* This settles
+  the point the datamine left open — it never uses the word "uniform" and never
+  says whether the three are drawn with or without replacement. With
+  replacement means the three offers can repeat a room, which also matches the
+  bug clause — *"this list contains bugged entries that, if they appear, appear
+  like one of the other entries already present"* — reading as a
+  non-de-duplicated draw rather than a special case.
 
   **The datamined filter chain, which belongs in DATA when this is built:** from
   86 rooms, drop any whose rarity has been changed **by any method** (so a
@@ -325,18 +327,27 @@ doc that owns it; when the remaining work lands, the entry goes.
   but unchanged". This needs a **second save-scoped set**, roughly 40 lines plus
   an obs key.
 
-  **Two further datamined rules, each load-bearing:**
-  - It writes **the same permanent slot as the Gear Wrench**: *"If a room's
-    rarity is ever set using the Conservatory and/or Gear Wrench (even if the
-    rarity was not changed from the default), that room's Dynamic Rarity is
-    permanently ignored."*
-  - **Reset does not un-consume.** Resetting via the Room Directory *"acts like
-    setting the rarity back to the base rarity, rather than as if the rarity was
-    never set in the first place"* — the room stays filtered out.
+  **OWNER RULING: a modified room stays eligible.** *"The modified room can be
+  modified in future days."* **This contradicts the datamine and is recorded as
+  a conflict, not smoothed over.** The datamined filter chain drops from future
+  offers *any room whose rarity has been changed by any method*, and adds that
+  resetting via the Room Directory *"acts like setting the rarity back to the
+  base rarity, rather than as if the rarity was never set in the first place"*
+  — i.e. the room stays filtered out. Owner play governs, so the filter chain
+  loses its "already changed" exclusion entirely and the offer list does not
+  shrink as rooms are used.
 
-  **Frequency is unsourced.** Neither source says once per day, once per
-  Conservatory, or unlimited. The likely reading is unlimited re-interaction
-  with a shrinking offer list, but that is inference.
+  **One datamined rule survives untouched**, because it is about a different
+  thing: the Conservatory writes **the same permanent slot as the Gear
+  Wrench**, so *"if a room's rarity is ever set... that room's Dynamic Rarity is
+  permanently ignored"*. That governs Dynamic Rarity, not Conservatory
+  eligibility, and the ruling above does not disturb it.
+
+  **Frequency is still unsourced**, and the ruling changes what the open
+  question means: with no "already changed" exclusion the offer list never
+  shrinks, so "unlimited re-interaction" would be unbounded rather than
+  self-limiting. Whether the board is once per day, once per Conservatory, or
+  unlimited is the remaining gap.
 
   **Still unbuilt alongside the remodel: the Conservatory's 15% forced draw.**
   Its Found Floorplan gate has shipped; the forced-draw entry has not, and
@@ -349,6 +360,9 @@ doc that owns it; when the remaining work lands, the entry goes.
   new value stops entrenching that; moving the other seven is this separate
   pass.
 
+  **OWNER RULING: do it.** *"Move the 'found' floorplans from studio_addition
+  into found_floorplan."*
+
   **Care is required around `throne_room` and `treasure_trove`.** Both are
   `pool: "studio_addition"`, and each reaches the pool by two doors:
   `cfg.studio_additions`, and its own blueprint flag
@@ -359,7 +373,8 @@ doc that owns it; when the remaining work lands, the entry goes.
   visibly by `banned_rooms`, because its black-box reward is unmodelled
   (`rl/train.py`). Check both doors and the ban before moving either.
 
-- **The Spiral of Stars.** Twelve of the thirteen constellations are
+- **The Spiral of Stars — OWNER RULING: land it.** *"Just land the spiral of
+  stars."* Twelve of the thirteen constellations are
   `implemented: true`; the Spiral is the exception, carrying
   `blocked_on: spiral_word_growth_not_modeled`. Its word growth is the only
   permanent, save-scoped quantity in the constellation system and has no
@@ -381,21 +396,28 @@ doc that owns it; when the remaining work lands, the entry goes.
   some point' as 'key currently held' — they coincide since basement_key is
   permanent and re-granted daily."*
 
-  **The three readings that need reconciling**, and this is a design question,
-  not an implementation detail:
-  - Owner play: *"permanently across an entire save"* — a save-scoped
-    **boolean**.
-  - [`scoping-and-carryover.md`](scoping-and-carryover.md): the closure would
-    need a save-scoped **set** (`basement_doors_open`), **not a bool**, because
-    the ruling was "open *a* basement door", singular, and there are three.
-  - `special_items.json`: the key *"opens every basement door for the rest of
-    the day and every later day"*.
+  **OWNER RULING, and it settles all three readings:** *"The Basement Key will
+  open locked basement doors. You need to enter the room with the door holding
+  the Basement Key to unlock the door. Once unlocked, the door will remain
+  unlocked for the rest of the seed."*
 
-  Since `carried_items` is attempt-scoped, none of the three is save-scoped
-  today. `DayChain._CARRYOVER_KEYS` remains **bool-only**, and its length is
-  never frozen, so growing it is available if the boolean reading wins --
-  though not free: `test_all_unlocks_config_sets_every_carryover_key` fails
-  until any new key is enabled in `all_unlocks_config()` too.
+  Three things follow, and each rules out one of the readings that were open:
+  - **Per door, not global.** Unlocking needs the player to *enter the room
+    with that door* while holding the key, so `special_items.json`'s *"opens
+    every basement door"* is wrong: the key opens the door you bring it to.
+  - **A save-scoped SET, not a boolean.** Since doors open one at a time and
+    each stays open, the state is which doors are open --
+    [`scoping-and-carryover.md`](scoping-and-carryover.md)'s
+    `basement_doors_open` reading wins over the save-scoped bool.
+  - **Seed-scoped, so it survives the attempt wrap.** *"For the rest of the
+    seed"* puts it with `lab_visited`/`lab_powered` as a named `DayChain`
+    carve-out rather than a `_CARRYOVER_KEYS` member, which the wrap clears.
+
+  That also retires the shipped modelling choice [`areas.md`](areas.md)
+  records — *"Models 'unlocked at some point' as 'key currently held'"* — since
+  the two no longer coincide: under the ruling a door stays open after the key
+  is gone, and holding the key does not open a door the player has not visited.
+  `_CARRYOVER_KEYS` stays bool-only and does not grow.
 
 - **The retrain is owed, and is held on the owner's explicit say-so alone.**
   `baseline-ep8275991` was trained against rules the sim no longer implements —
