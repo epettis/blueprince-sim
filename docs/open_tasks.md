@@ -89,11 +89,57 @@ has never once reached the Antechamber. `ep_rew_mean` drifted 0.669 -> 0.764
 while `ep_len_mean` stayed near 15.6 actions per day, against
 `frontier_greedy`'s 24.3 rooms placed per day.
 
-So the shaping rewards are being collected without progress toward the win
-condition -- reward climbs, rank does not. Calibration should start from that
-gap rather than from the constants: establish whether the terminal win reward
-is reachable enough to shape toward at all, before retuning the knobs that
-feed it.
+**The cause is measured, and it is the fixture, not the constants.**
+Evaluating `ep1700003.zip` on the same `all_unlocks_config()` the run trains
+against:
+
+| measure | trained policy | `frontier_greedy` | `random` |
+|---|---|---|---|
+| mean deepest rank | **1.00** | 7.19 | 3.04 |
+| mean rooms placed | **1.00** | 23.99 | 9.16 |
+| P(reach Antechamber) | 0.000% | 6.675% | 0.000% |
+
+Rank 1.00 and one room placed means **the Entrance Hall and nothing else**:
+the policy never drafts. It is not merely losing, it is doing worse than
+`random`. This is not a deterministic-evaluation artifact -- sampling the
+stochastic policy instead only moves rank to 1.20.
+
+What it does instead is leave the house and tour the grounds. Its three most
+frequent actions are travel to `blackbridge_grotto`, `mine_south` and
+`upper_rotating_gear`, and over 40 episodes it visited
+`blackbridge_grotto`, `mine_south`, `upper_rotating_gear` and `west_path` in
+**40 of 40**. Two independent measurements agree on this: the action
+histogram and `state.areas_visited`.
+
+The fixture is what makes that possible. Counting legal travel actions on the
+first step of day 1:
+
+- `all_unlocks_config()` -- **9** targets, including `blackbridge_grotto`,
+  `mine_south`, `upper_rotating_gear` and `basement`
+- `fresh_save_config()` -- **3**: `apple_orchard`, `campsite`, `private_drive`
+
+Because the preset's job is to set every carry flag, the whole area graph is
+open from the first decision, and touring it pays shaping reward with no
+drafting required. The agent found the highest-reward-per-step loop available
+and it does not involve playing the game. That is why `ep_rew_mean` rises
+while rank does not.
+
+**This answers the owner's own question** -- *"I would ask why that is called
+for the training baseline instead of a `default_config()`"*. Empirically, it
+should not be: `all_unlocks_config()` is correct as a spec (it must enable
+every unlock) but it is a degenerate training fixture.
+
+**It also raises the stakes on task 37.** `blackbridge_grotto` is the single
+most-taken action in the policy, and its edge only passes because
+`lab_steam_and_power` is a `stub: true` gate that passes unconditionally. The
+`lab_visited` conjunct is real and does bite -- clearing it removes the Grotto
+from the legal set -- but POWER cannot, so the Grotto stays open. Building
+POWER would close the agent's favourite action.
+
+So calibration should not start from the constants. **The order is: settle the
+training fixture, then build POWER, then retune.** Changing the fixture
+invalidates the current run, so it is a retrain decision and held on the
+owner's say-so.
 
 ## 37. The Laboratory unlock is day-scoped, and POWER is unmodelled
 
