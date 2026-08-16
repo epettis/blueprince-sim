@@ -5887,7 +5887,7 @@
    "meta": {
     "source": "wiki",
     "confidence": "wiki",
-    "effect_text": "Each Dead End drafted in the house spreads 5 gold into the Tomb (modeled: +5 coins per dead end, granted immediately)."
+    "effect_text": "Each Dead End drafted in the house spreads 5 gold into the Tomb, the Tomb itself included (modeled: parked as a spread payout and collected on arrival, so a Dead End drafted before the Tomb pays nothing)."
    }
   },
   {
