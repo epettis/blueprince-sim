@@ -139,13 +139,25 @@ POWER would close the agent's favourite action.
 So calibration should not start from the constants. **The order is: settle the
 training fixture, then build POWER, then retune.**
 
-**OWNER RULING: stop the run and switch the fixture.** `runs/postplay-v1` was
-stopped at ~1.85M episodes; its checkpoints remain on disk. The next run needs
-a training fixture that does not hand over the whole area graph on the first
-decision -- `all_unlocks_config()` stays correct as a spec and stops being the
-training baseline. **The replacement fixture is not yet chosen**, and choosing
-it is the remaining work on this task: `fresh_save_config()` is one candidate,
-a `default_config()` between the two extremes is the other.
+**OWNER RULING: stop the run and train from a fresh save.** `runs/postplay-v1`
+was stopped at ~1.85M episodes; its checkpoints remain on disk. *"The training
+should start from a fresh save. The default config should just be a fresh
+save."* So `--unlocks` and `make_single_env` default to `none`, and there is no
+third `default_config()` -- fresh save **is** the default.
+`all_unlocks_config()` remains correct as a spec and stays available as an
+explicit preset; it simply stops being what training starts from.
+
+The reason the fixture carries this much weight is that it is only the
+*starting* state: `DayChain` carries earned flags forward, so a 1000-day chain
+from a fresh save still reaches the late game -- but only by playing into it.
+Measured, the default now starts with **1 of 19 carry flags and 3 legal travel
+targets** instead of 19 and 9.
+
+**What remains on this task is the reward calibration itself.** The fixture
+explains why touring beat drafting; it does not calibrate
+`special_item_values`, `PATHS_ONE_PENALTY`/`PATHS_ZERO_PENALTY` or the scepter
+bias. Those still need statistics from a run that actually plays the game, so
+this task stays open behind the next one.
 
 ## 37. The Laboratory unlock is day-scoped, and POWER is unmodelled
 

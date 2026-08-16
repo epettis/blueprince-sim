@@ -265,3 +265,36 @@ def test_yaml_preset_and_python_preset_do_not_drift() -> None:
         if getattr(from_yaml, f.name) != getattr(from_python, f.name)
     }
     assert not mismatched, f"YAML and Python fresh-save presets disagree: {mismatched}"
+
+
+def test_training_defaults_to_a_fresh_save():
+    """Training starts from a fresh save: both the --unlocks CLI flag and
+    make_single_env default to 'none'. Nothing pinned this before, so the
+    default was free to drift -- and it matters, because all_unlocks_config
+    sets every carry flag on day 1, which opens the whole area graph before a
+    room is drafted and makes touring it out-earn playing (open task 24)."""
+    import inspect
+
+    from blueprince_sim.rl.train import build_parser, make_single_env
+
+    assert inspect.signature(make_single_env).parameters["unlocks"].default == "none"
+    args = build_parser().parse_args([])
+    assert args.unlocks == "none"
+
+
+def test_the_fresh_save_default_hands_over_almost_nothing():
+    """The point of the default, stated as the numbers that make it the
+    default: a fresh save starts with one carry flag set, where all-unlocks
+    starts with all nineteen. DayChain carries earned flags forward, so the
+    fixture is only the starting state -- a long chain still reaches the late
+    game, but has to play into it."""
+    from blueprince_sim.env.multiday import DayChain
+    from blueprince_sim.rl.train import all_unlocks_config, fresh_save_config
+
+    def carried(cfg):
+        return {k for k in DayChain._CARRYOVER_KEYS if getattr(cfg, k, False)}
+
+    fresh, everything = carried(fresh_save_config()), carried(all_unlocks_config())
+    assert len(everything) == len(DayChain._CARRYOVER_KEYS)
+    assert len(fresh) == 1, f"fresh save should hand over one flag, got {fresh}"
+    assert fresh < everything
