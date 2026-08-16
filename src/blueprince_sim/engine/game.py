@@ -18,7 +18,7 @@ from .effects import Capability, Hook
 from .effects.items import (basement_key, crown_of_the_blueprints, gear_wrench, keycard,
                             master_key, paper_crown, power_hammer, prism_key, running_shoes,
                             silver_key, telescope, the_axe)
-from .effects.rooms import dovecote, foyer, mail_room, office, pump_room, shrine
+from .effects.rooms import dovecote, foyer, mail_room, office, pump_room, shrine, tomb
 from .effects.tier1 import _grant
 from .grid import (ADJACENT, DIRS, E, ENTRANCE_CELL, N, N_CELLS, OPPOSITE, W,
                    neighbor, rank_of, rotate_mask)
@@ -2057,19 +2057,24 @@ class Game:
             # which is where the +20 actually lands (see Game.reset).
             if dest == "apple_orchard":
                 st.orchard_unlocked = True
-            # Fire ON_ENTER the first time the player enters the drafted outer room.
+            # Arrival at the drafted outer room: collect whatever is parked
+            # there, then fire ON_ENTER the first time.
             outer_room = self.drafted_outer_room
-            if (outer_room is not None and dest == outer_room.id
-                    and not st.outer_room_entered):
-                st.outer_room_entered = True
-                effects.fire(self, outer_room, Hook.ON_ENTER)
-                roll_room_items(self, outer_room, -1)
-                if self.cfg.special_items:
-                    # Outer rooms spawn special items too (Toolshed's Gear Wrench,
-                    # the Trading Post pool); -1 = off-grid, no cell hooks apply.
-                    special_items.on_enter(self, outer_room, -1)
-                    if effects.provides_capability(outer_room.id, Capability.COMMERCE):
-                        shops.on_enter_shop(self, outer_room)
+            if outer_room is not None and dest == outer_room.id:
+                # Parked resources pay out on every arrival, not just first
+                # entry -- the off-grid twin of :meth:`_enter`'s own call, and
+                # the site the Tomb's per-Dead-End coins are collected at.
+                self._collect_spread(tomb.OFF_GRID_CELL)
+                if not st.outer_room_entered:
+                    st.outer_room_entered = True
+                    effects.fire(self, outer_room, Hook.ON_ENTER)
+                    roll_room_items(self, outer_room, -1)
+                    if self.cfg.special_items:
+                        # Outer rooms spawn special items too (Toolshed's Gear Wrench,
+                        # the Trading Post pool); -1 = off-grid, no cell hooks apply.
+                        special_items.on_enter(self, outer_room, -1)
+                        if effects.provides_capability(outer_room.id, Capability.COMMERCE):
+                            shops.on_enter_shop(self, outer_room)
         self._check_termination()
 
     def _outer_route_cost(self) -> int | None:
@@ -2217,6 +2222,16 @@ class Game:
         self.phase = Phase.NAVIGATE
         shrine.on_room_drafted(self, room)
         effects.fire(self, room, Hook.ON_PLACE)
+        # The outer room's reaction to its OWN draft, the off-grid twin of
+        # :meth:`_place_room`'s self-fire, and the site the Tomb counts itself
+        # among the Dead Ends it collects for. An outer room is dealt in its
+        # printed shape and never rotated, so its own ``door_mask`` is the
+        # orientation it was placed with (see GameState.draft_hook_orientation).
+        # No broadcast to the grid follows: this fire is scoped to the drafted
+        # room itself, so a grid room's relational draft hooks (Nursery,
+        # Cloister, Bunk Room) are unchanged by an outer draft.
+        st.draft_hook_orientation = room.door_mask
+        effects.fire(self, room, Hook.ON_DRAFT_ROOM, context_room=room)
         # Player stays at the doorstep (area == "west_path"); ON_ENTER fires when they enter.
         self._check_termination()
 
@@ -2788,8 +2803,9 @@ class Game:
         placement-site experiment trigger and any active Shrine blessing/curse
         effect (:func:`shrine.on_room_drafted`), then fires the room's ON_PLACE
         hook, its own ON_DRAFT_ROOM hook (effects opted in via include_self
-        react to their own draft), and ON_DRAFT_ROOM on every other placed
-        room (relational effects like the Nursery).
+        react to their own draft), and ON_DRAFT_ROOM on every other drafted
+        room -- every other occupied cell plus today's off-grid outer room
+        (relational effects like the Nursery and the Tomb's coins).
         ``entered=True`` is only used for the Entrance Hall at day start.
         ``entry_dir`` is this room's own doorway direction the player entered
         through (see :meth:`_roll_new_segments`); omitted by callers that
@@ -2875,6 +2891,15 @@ class Game:
             if idx >= 0 and other_cell != cell:
                 effects.fire(self, self.registry.rooms[idx], Hook.ON_DRAFT_ROOM,
                              context_room=room)
+        # Today's outer room is drafted but occupies no cell, so the grid loop
+        # above cannot reach it. The Tomb's per-Dead-End coins are the only
+        # ON_DRAFT_ROOM listener any outer room carries -- no outer room
+        # declares an effect tag that dispatches at this hook, so this fire
+        # consumes no RNG. The ``room_cells`` guard keeps a Tomb placed
+        # directly onto the grid (tests do this) from being paid twice.
+        outer_room = self.drafted_outer_room
+        if outer_room is not None and outer_room.id not in self.room_cells:
+            effects.fire(self, outer_room, Hook.ON_DRAFT_ROOM, context_room=room)
 
     def _park_florealis_gems(self, room: Room, cell: int) -> None:
         """Park a newly drafted Green Room's gem flowers in its own cell.
