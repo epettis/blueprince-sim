@@ -1636,13 +1636,13 @@ class Game:
         pickup and this resolution for a policy to exploit.
 
         A wholly empty ``pending.options`` (only reachable via a
-        colour-selective draft whose default triple is also exhausted -- a
-        modelling artifact of not implementing the wiki's reserve-copies
-        tier, see draft.py's draw_slot docstring) is deliberately NOT cached
-        here: callers (:meth:`open_door`/:meth:`choose_colour`) fall back to
-        NAVIGATE instead of entering DRAFTING on an empty hand, and caching it
-        would trap a later reopen of this same doorway in that dead result
-        forever instead of letting it re-deal.
+        colour-selective draft that found nothing on-colour in either deck
+        class and whose default triple is also exhausted -- see draft.py's
+        draw_slot docstring) is deliberately NOT cached here: callers
+        (:meth:`open_door`/:meth:`choose_colour`) fall back to NAVIGATE
+        instead of entering DRAFTING on an empty hand, and caching it would
+        trap a later reopen of this same doorway in that dead result forever
+        instead of letting it re-deal.
         """
         st = self.state
         if self.cfg.special_items:

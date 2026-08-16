@@ -191,62 +191,6 @@ explains why touring beat drafting; it does not calibrate
 bias. Those still need statistics from a run that actually plays the game, so
 this task stays open behind the next one.
 
-## 48. A colour-selective draft loses a slot when a default is already placed
-
-> "I was only able to draft *two* yellow rooms instead of *three* from a Secret
-> Passage on the east wing (r4c4). I had already drafted the Commissary. Inspect
-> what yellow rooms are draftable in r5c4."
-
-**Reproduced, and the owner is right: the sim is wrong.** "Yellow" is the
-**shop** colour -- the game's borders are violet/bedroom, orange/hallway,
-green, **yellow/shop**, red, black/blackprint, which maps onto the engine's five
-categories exactly (blueprince.wiki.gg). The Commissary is a shop, so the report
-is a shop-colour draft with a shop already on the grid.
-
-Dealing the shop hand at r5c4 (cell 24) entering north, over 200 seeds:
-
-| Commissary already placed | slots dealt |
-|---|---|
-| no | **3** in 200/200 |
-| yes | **2** in 159/200, 3 in 41/200 |
-
-In 159 of those the hand is exactly `(kitchen, locksmith)` -- the two survivors
-of shop's published default triple `[commissary, kitchen, locksmith]`.
-
-**Root cause, and it is already written down.** A colour-locked slot draws from
-the rank/rarity pool, then falls back to that default triple, which for a
-colour-locked slot is the *final* fallback. The wiki's other thin-pool
-fallback -- **reserve copies**, tried between the pool and the triple -- is
-deliberately unmodelled. [`drafting.md`](drafting.md) predicted this exact
-outcome: *"That branch is reachable only because reserve copies are unmodelled:
-it is a modelling artifact, not a game rule."*
-
-So this is not deck depletion and not geometry -- the earlier enumeration found
-7 legal shop rooms at that cell. It is the unmodelled reserve-copy tier, firing
-in the common case rather than a rare one.
-
-**It is not shop-specific, and green is worse.** Placing each colour's first
-default and dealing that colour, 100 seeds:
-
-| colour | first default | slots dealt |
-|---|---|---|
-| bedroom | Bedroom | 3 in 100/100 |
-| red | Gymnasium | 3 in 98/100 |
-| hallway | Hallway | 3 in 87/100 |
-| shop | Commissary | **2 in 75/100** |
-| green | Courtyard | **1 in 61/100**, 2 in 25/100 |
-
-**The fix is to model reserve copies, and their rules are now researched** --
-see [`drafting.md`](drafting.md)'s colour-selective section, which owns the gap.
-The answer to the question this task asked is that a reserve is **not** filtered
-by the one-copy-per-grid rule (*"may be duplicates of rooms in the estate"*),
-which is exactly why it fills a slot the defaults cannot.
-
-Because that relaxes the one-copy invariant for one draw tier and moves the
-draft distribution, building it needs a ruling first: **question (a)** below.
-Until then a thin colour keeps dealing short hands whenever one of its three
-defaults is on the grid.
-
 ## 23. OPEN OWNER QUESTIONS
 
 The single home for questions that need an owner ruling before the work they

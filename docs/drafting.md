@@ -104,10 +104,18 @@ the free deck alone; slots 1–2 pass if *either* class satisfies its gate.
 
 Whether a slot deals from the free decks or the gem decks is a published
 decision step, rolled **once per round** in `draft.py::_resolve_free_gem` and
-threaded through every deal in that round. A Free Draw searches only the free
-deck of the rolled rarity, a Gem Draw only the gem deck: *"Free Draws only use
-the four decks made out of free rooms, while Gem Draws only use the four decks
-made out of gem rooms."* The two are never combined for a single draw.
+threaded through every deal in that round. On an ordinary hand a Free Draw
+searches only the free deck of the rolled rarity, a Gem Draw only the gem deck:
+*"Free Draws only use the four decks made out of free rooms, while Gem Draws
+only use the four decks made out of gem rooms."* The two are never combined for
+a single ordinary draw.
+
+**A colour-selective draft ignores this split entirely** and reads both classes
+— an owner ruling that overrides the sentence just quoted. See
+[Colour-selective drafting](#colour-selective-drafting), which records the
+conflict and the evidence. `draft.py::_deal_classes` is the single place the
+choice is made, so every deal in the module (pool draw, priority draw,
+category-bias re-deal) obeys the same rule.
 
 The cascade, in the order the code evaluates it (this engine's slots are
 0-indexed; the wiki's Slot 1/2/3 are engine slots 0/1/2):
@@ -479,9 +487,63 @@ gate as everything else, so it composes for free with priority draws, forced
 draws and category bias — none of those needs its own colour guard. A Secret
 Passage variant can never itself be drawn during a colour-selective draft.
 
-The pool for a thin colour is often empty, so the deal has a fallback ladder:
+### The Free/Gem split does not apply
 
-1. The ordinary rank/rarity attempts 1–3.
+**OWNER RULING: a colour-selective draft ignores the Free/Gem split. Attempts
+1–3 draw from both classes.** `draft.py::_deal_classes` returns both deck
+classes — free searched first — whenever `DraftContext.colour` is set, and one
+otherwise.
+
+**This contradicts a line the engine quotes verbatim elsewhere**, and the
+contradiction is recorded rather than smoothed over: *"Free Draws only use the
+four decks made out of free rooms, while Gem Draws only use the four decks made
+out of gem rooms"* (Drafting/Advanced). The owner's ruling governs. Two things
+already in the repo point the same way:
+
+- The Free/Gem split is a **Normal Draws** mechanic, and the same page says
+  *"Normal drawing does not normally occur when … drafting [from a] Secret
+  Passage"* — the exact citation `draft.py` already uses to keep the universal
+  forced-Closet attempt out of a colour-locked slot. One quote, two
+  consequences.
+- The wiki describes a colour draft's other fallback as *"drawn separately from
+  the draft pool"*, so the colour path was never meant to be the normal pool
+  procedure with a filter bolted on.
+
+**Why it is load-bearing rather than cosmetic.** Slot 0 is always a Free Draw,
+and on the day's first drafts with under 2 gems all three slots are. Every shop
+floorplan is gem-side except `the_armory`, which is condition-locked — measured
+over 900 (seed, cell) pairs, the free decks held a legal shop room **0/900**
+times while the gem decks held one **900/900**. So a colour-locked Free Draw
+restricted to the free decks finds nothing *at any rarity*, and re-rolling the
+rarity cannot help: the pool draw was a guaranteed miss, and the hand fell
+straight to the default triple.
+
+Measured at r5c4 (cell 24) entering north with the Commissary on the grid, the
+hand dealt 2 slots in **194/200** seeds before and **9/200** after — and the
+short hand was `(kitchen, locksmith)`, shop's default triple minus the placed
+Commissary, in every one of the 194. Green with the Courtyard placed dealt a
+**one-room** hand in 75/100 before and 0/100 after; counting every short hand,
+green went 97/100 → 1/100 and shop 194/200 → 9/200.
+
+**Two things it deliberately does not change.**
+
+- **Gem cost.** Opening the gem decks changes which *deck* a slot reads, never
+  what the option costs: a gem room dealt into a Free Draw slot 1 or 2 carries
+  its ordinary resolved cost. Slot 0's cost is zero as it always was — and slot
+  0 is also the hand's first presented option, which the [free first
+  option](#the-free-first-option) waiver zeroes anyway.
+- **Slot 0's rarity gate.** `decks.py::rarity_deck_ok` still checks the free
+  deck alone for slot 0, colour or not. It gates which *rarity* may be rolled
+  rather than which deck is dealt from, the ruling speaks to the draw, and
+  widening it changed no measured outcome — while it would have made "slot 0
+  unfilled, a later slot dealt" unreachable and with it the non-trivial half of
+  the free-first-option ruling.
+
+### The fallback ladder
+
+The pool can still come up empty, so the deal has a fallback ladder:
+
+1. The ordinary rank/rarity attempts 1–3, across both deck classes.
 2. **Reserve copies** — the wiki's middle tier. **Not modelled.**
 3. The published **default triple** for the colour
    (`priority_draws.json::colour_defaults`). Its swap rule replaces one default
@@ -495,13 +557,17 @@ the colour invariant with no exhaustion exception. A default is still filtered
 through `room_draftable` and can lose to the one-copy-per-grid rule like any
 other candidate; if all three are unavailable the slot is left unfilled and, if
 that empties the whole hand, the caller falls back to NAVIGATE rather than
-parking in DRAFTING with nothing to choose. That branch is reachable only
-because reserve copies are unmodelled: it is a modelling artifact, not a game
-rule.
+parking in DRAFTING with nothing to choose.
+
+Reaching that last branch now needs a pool with nothing legal on-colour at the
+rolled rarity in **either** deck class *and* all three defaults blocked. It is
+no longer the common case — no zero-option hand appeared in the 200-seed shop or
+green samples above — but it stays wider than the real game's, because the
+reserve-copy tier ignores the one-copy-per-grid rule and would have filled it.
 
 ### Reserve copies, researched but unbuilt
 
-The tier that would close that artifact, from
+The tier that would close that remaining gap, from
 blueprince.wiki.gg/wiki/Drafting_effects:
 
 - **When.** *"If there are not enough floorplans of that color, or if there is
@@ -527,21 +593,19 @@ four-room list is exhaustive or illustrative -- the phrasing that follows it
 reads as open-ended. Note the Casino is a shop and the Solarium is green, the
 two colours measured as worst affected (`open_tasks.md` 48).
 
-**OWNER RULING: model it as a redraw, not as duplicate copies.** *"If there are
-no valid rooms to draw, just draw another room at the appropriate rarity."* So
-the slot re-rolls within the same rarity rather than admitting a duplicate of a
-room already on the grid, and **the one-copy-per-grid invariant is left**
-**intact** -- the concern that made this a ruling rather than a chore does not
-arise. The default triple stays as the last resort behind the redraw.
-
-This is what closes `open_tasks.md` 48's short colour hands: a thin colour whose
-first default is already on the grid re-rolls instead of dealing two rooms.
+An earlier ruling aimed at the same short hands — *"If there are no valid rooms
+to draw, just draw another room at the appropriate rarity"* — turned out to be
+a **literal no-op** here, and knowing why is what produced the ruling above:
+re-rolling the rarity searches the same single deck class, and for a shop-colour
+Free Draw that class holds no legal room at any rarity. Nothing to re-roll into.
+The ruling that replaced it is [The Free/Gem split does not
+apply](#the-freegem-split-does-not-apply); the default triple still stands as
+the last resort behind the pool.
 
 Slots fail **independently**, so an unfilled slot does not imply an empty hand:
-the Free/Gem decision can leave slots 0 and 1 drawing from a free deck with
-nothing legal on-colour while slot 2 draws a gem room from the gem deck. The
-[free first option](#the-free-first-option) is what keeps the surviving
-one-option hand takeable.
+one slot's rarity roll can miss the rarity holding the colour's only legal room
+while another slot's hits it. The [free first option](#the-free-first-option) is
+what keeps the surviving one-option hand takeable.
 
 The **Silver Key's cross/T bias is skipped entirely** during a colour-selective
 draft rather than merely narrowed by the filter — *"If the Silver Key is used in
@@ -734,11 +798,13 @@ was made three times in one session about `test_draft_stats.py` alone.
   draws" above), so this is modelled as independent 13% and 3% rolls rather
   than one combined entry. Separate rows reproduce the published **15.61%**
   exactly, at the cost of two extra RNG substreams.
-- **Reserve copies are not modelled** for colour-selective drafting. Filter-only
-  was rejected because the wiki says thin pools are *frequent* for Green Rooms
-  and Shops; full fidelity was rejected because it requires relaxing the
-  out-drafting invariant in `placement.py`/`rotation.py`, which is load-bearing.
-  Default triples are the middle option.
+- **Reserve copies are not modelled** for colour-selective drafting. Full
+  fidelity requires relaxing the out-drafting invariant in
+  `placement.py`/`rotation.py`, which is load-bearing. What carries the thin
+  colours instead is the pool draw reading both deck classes (see
+  [Colour-selective drafting](#colour-selective-drafting)), with the default
+  triples behind it; the residue the reserves would still cover is a slot with
+  nothing legal on-colour in either class *and* every default already placed.
 - **The Garage's passive priority draw and its forced draw are different
   gates.** The passive 3% row is Day-5-or-Veteran; the forced draw is
   Day-3-or-Veteran. The passive draw itself is modelled (the
