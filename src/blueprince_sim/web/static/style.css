@@ -272,7 +272,7 @@ td:first-child, th:first-child { text-align: left; }
 .log-payout-item.pos { color: var(--win); }
 .log-payout-item.neg { color: var(--explore); }
 
-/* Play tab's action log row: flex so the payout badge (task 28) keeps its
+/* Play tab's action log row: flex so the payout badge keeps its
    own space instead of being cut off by the description's own truncation --
    see renderPlayLog(). Distinct from the Runs tab's .log-row on purpose. */
 .play-log-row { display: flex; align-items: baseline; padding: 1px 0; gap: 2px; }
@@ -322,10 +322,10 @@ td:first-child, th:first-child { text-align: left; }
 /* --------------------------------------------------------------- play */
 /* Three-column skeleton (list | map | detail): the Runs tab keeps house and
    areas as separate fixed-width columns, but the Play tab's map is a single
-   tabbed panel (task 27) -- the indoor grid and the outer-area graph take
+   tabbed panel -- the indoor grid and the outer-area graph take
    turns owning the whole middle column instead of splitting it 240px/1fr,
-   which is what made the indoor map "very small" and the outer map "very
-   large" in the same view. */
+   which would make the indoor map very small and the outer map very
+   large in the same view. */
 #view-play {
   flex: 1; display: grid; min-height: 0;
   grid-template-columns: 260px 1fr 320px;
@@ -383,7 +383,7 @@ td:first-child, th:first-child { text-align: left; }
   border: 1px solid var(--line); border-radius: 6px; padding: 6px 10px;
 }
 
-/* Upgrade Disk choice (task 30): readable name + effect_text per variant,
+/* Upgrade Disk choice: readable name + effect_text per variant,
    reusing .opt's visual language instead of the generic bare-id action
    buttons the Choose group would otherwise show for CHOOSE_UPGRADE_BASE. */
 #play-upgrade { margin-bottom: 14px; padding-bottom: 12px; border-bottom: 1px solid var(--line); }
@@ -392,7 +392,7 @@ td:first-child, th:first-child { text-align: left; }
 #play-upgrade .opt .sub { color: var(--fg); opacity: .85; white-space: normal; }
 
 /* Holds the tab bar plus whichever of #play-house-panel/#play-area-panel is
-   current (task 27) -- exactly one is visible (".hidden") at a time, toggled
+   current -- exactly one is visible (".hidden") at a time, toggled
    by renderPlayMapTabs()/updatePlayMapTab() in app.js. */
 #play-map-panel {
   grid-area: map; min-width: 0; min-height: 0; display: flex; flex-direction: column;

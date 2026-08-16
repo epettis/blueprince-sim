@@ -13,7 +13,7 @@ None on the grid), and route costs are derived by BFS rather than declared.
 Delivered in two parts. PR1 shipped the graph as data plus the pure traversal
 library, calling nothing. The second PR adopted it in the engine *and* changed
 the action and observation spaces together — originally planned as two PRs,
-merged once it was clear the retrain they force was already owed for #36, so
+merged once it was clear the retrain they force was already owed for PR #36, so
 splitting them bought nothing and cost a throwaway compatibility layer.
 
 Render the picture with:
@@ -294,7 +294,7 @@ player solves every puzzle in a room they enter" doctrine.
 `engine/areas.py::stub_gates()` derives the stub list from the data, so the
 complement is whatever `areas.json` says it is.
 
-### Blackbridge Grotto gate (open_tasks.md #25)
+### Blackbridge Grotto gate
 
 The owner's rule has two conjuncts: the Laboratory must be **powered AND
 visited**. The edge now carries two separate gates rather than one collapsed
@@ -318,15 +318,14 @@ stub, so each conjunct can be judged on its own:
   rooms are on the grid that day — no per-gate code needed).
 
 Both must hold (edge `requires` is AND), so a fresh save is closed even
-though POWER's own stub still passes unconditionally: `lab_visited` alone now
-blocks the edge until the Laboratory is actually entered, which is the fix
-for open_tasks.md #25 (previously the collapsed stub passed unconditionally,
-so the Grotto — and Orindian Ruins behind it — were reachable from a fresh
-save with the Laboratory never drafted).
+though POWER's own stub still passes unconditionally: `lab_visited` alone
+blocks the edge until the Laboratory is actually entered, which is what keeps
+the Grotto — and Orindian Ruins behind it — out of reach on a fresh save with
+the Laboratory never drafted.
 
-**Known gap, not yet "P".** The edge's table permanence above reads **D**,
-not the **P** an owner-described one-time unlock implies: `lab_visited` is
-checked fresh against `rooms_entered` every day, exactly like
+**Known gap, not yet "P"** (`open_tasks.md` 37). The edge's table permanence
+above reads **D**, not the **P** an owner-described one-time unlock implies:
+`lab_visited` is checked fresh against `rooms_entered` every day, exactly like
 `tomb_catacombs`, because no state hook exists yet to latch "the Laboratory
 has ever been visited" permanently across days — building that hook is the
 same off-`engine/areas.py` work POWER itself needs (`GameState`/`GameConfig`

@@ -13,11 +13,12 @@ The route from Blackbridge Grotto to Orindian Ruins is gated by
 ``three_microchips``: 2 held microchips plus the Grotto's own in-place chip
 (the ``grotto_chip_in_place`` counts_flag) satisfy it -- see
 tests/test_areas.py for the gate's own dedicated coverage. The route from
-Private Drive to Blackbridge Grotto crosses two gates now (open_tasks.md
-#25): ``lab_steam_and_power``, a ``stub: true`` gate standing in for the
-unmodelled power system (passes unconditionally, a known upper bound, not
-something this file's tests attempt to tighten), AND ``lab_visited``, a real
-``kind=room`` gate requiring the Laboratory entered today. Every test below
+Private Drive to Blackbridge Grotto crosses two gates (docs/areas.md's
+"Blackbridge Grotto gate"): ``lab_steam_and_power``, a ``stub: true`` gate
+standing in for the unmodelled power system (passes unconditionally, a known
+upper bound, not something this file's tests attempt to tighten), AND
+``lab_visited``, a real ``kind=room`` gate requiring the Laboratory entered
+today. Every test below
 that crosses this route places and enters the Laboratory directly via
 ``_enter_laboratory`` (deterministic setup, not a draft) before travelling.
 """
@@ -56,8 +57,8 @@ def test_orindian_ruins_is_offered_as_a_travel_destination_with_two_chips(regist
     the route (house -> grounds -> private_drive -> blackbridge_grotto ->
     orindian_ruins, 4 steps) was always reachable -- the gate opens but is
     never offered is exactly the bug this test pins shut. Reachability itself
-    now needs the Laboratory entered too (open_tasks.md #25's lab_visited
-    gate), so the setup enters it directly.
+    needs the Laboratory entered too (the lab_visited gate, docs/areas.md),
+    so the setup enters it directly.
     """
     g = Game(GameConfig(), seed=1, registry=registry)
     g.state.steps = 50

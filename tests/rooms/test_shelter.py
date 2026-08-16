@@ -68,8 +68,8 @@ def test_shelter_category_does_not_activate_the_outer_shop_dead_branch():
 
 
 def test_shelter_has_no_effect_on_a_red_room_already_drafted():
-    """"It has no effect on rooms I have already drafted" (owner ruling,
-    docs/open_tasks.md #29): a Chapel placed on the grid BEFORE the Shelter
+    """"It has no effect on rooms I have already drafted" (docs/rooms.md's
+    shelter entry): a Chapel placed on the grid BEFORE the Shelter
     is drafted keeps paying its -1 coin penalty on first entry, even though
     that entry happens after the Shelter is on the board with charges to
     spend -- protection is scoped by draft order, not by which event happens

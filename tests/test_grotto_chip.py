@@ -9,9 +9,10 @@ are held (test_areas.py pins the gate-logic truth table directly; this file
 proves the same row through real gameplay), the Apple Orchard sundial
 becoming lightable for the first time, and the next-day respawn.
 
-Reaching the Grotto at all needs the Laboratory entered too (open_tasks.md
-#25's lab_visited gate, alongside the still-stub lab_steam_and_power); every
-setup below enters it directly via ``_enter_laboratory``.
+Reaching the Grotto at all needs the Laboratory entered too (the lab_visited
+gate, alongside the still-stub lab_steam_and_power -- see docs/areas.md's
+"Blackbridge Grotto gate"); every setup below enters it directly via
+``_enter_laboratory``.
 """
 
 from __future__ import annotations
@@ -148,7 +149,7 @@ def test_grotto_chip_respawns_the_next_day_through_a_daychain(registry):
     day's Game starts with the flag False and the action legal again at the
     Grotto, even though today's carryover() report does not mention it.
 
-    lab_visited is ALSO day-scoped (open_tasks.md #25): tomorrow's fresh Game
+    lab_visited is ALSO day-scoped (open_tasks.md 37): tomorrow's fresh Game
     needs its own Laboratory entry to reach the Grotto again, same as today's.
     """
     cfg = GameConfig()
