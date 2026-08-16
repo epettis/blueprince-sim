@@ -79,8 +79,21 @@ per-system item rules, commerce, containers, ignition),
 
 All shaping constants (`special_item_values`, `PATHS_ONE_PENALTY` /
 `PATHS_ZERO_PENALTY`, scepter bias) are deliberate knobs, set without real
-multi-day run data behind them. Calibrating them needs training statistics
-from actual attempts, which do not exist yet.
+multi-day run data behind them.
+
+**The statistics now exist, and they are the finding.** `runs/postplay-v1`
+(`--multi-day 1000 --unlocks all`, 30 envs) reached **1.4M episodes across 66
+full 1000-day chains with zero tracebacks** -- the engine holds up over long
+chains. But **`win_rate` is 0.0 for every one of those episodes**: the policy
+has never once reached the Antechamber. `ep_rew_mean` drifted 0.669 -> 0.764
+while `ep_len_mean` stayed near 15.6 actions per day, against
+`frontier_greedy`'s 24.3 rooms placed per day.
+
+So the shaping rewards are being collected without progress toward the win
+condition -- reward climbs, rank does not. Calibration should start from that
+gap rather than from the constants: establish whether the terminal win reward
+is reachable enough to shape toward at all, before retuning the knobs that
+feed it.
 
 ## 37. The Laboratory unlock is day-scoped, and POWER is unmodelled
 
