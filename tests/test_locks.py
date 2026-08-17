@@ -1118,7 +1118,7 @@ def test_a_doorway_stops_being_offered_after_three_abandons(registry):
         g.open_door(cell, d)
         assert g.phase is Phase.LOCK_PENDING
         g.abandon_lock()
-        assert g.state.lock_abandons[seg] == i + 1
+        assert g.state.lock_abandons[seg] == (i + 1, 0)
 
     assert not g.frontier_doorway_triable(cell, d), (
         "the doorway must stop being triable once the limit is reached"
@@ -1166,14 +1166,14 @@ def test_abandon_stays_legal_inside_the_menu_at_the_limit(registry):
     _force_state(g, cell, d, DOOR_LOCKED)
     g.state.keys = 0
     seg = segment_key(cell, d)
-    g.state.lock_abandons[seg] = locks.LOCK_ABANDON_LIMIT - 1
+    g.state.lock_abandons[seg] = (locks.LOCK_ABANDON_LIMIT - 1, 0)
 
     g.open_door(cell, d)
     assert g.phase is Phase.LOCK_PENDING
     assert g.can_abandon_lock(), "abandon must remain legal at the limit"
     assert any(A.action_mask(g)), "LOCK_PENDING must never be a dead end"
     g.abandon_lock()
-    assert g.state.lock_abandons[seg] == locks.LOCK_ABANDON_LIMIT
+    assert g.state.lock_abandons[seg] == (locks.LOCK_ABANDON_LIMIT, 0)
 
 
 def test_spending_a_key_is_unaffected_by_the_abandon_tally(registry):
@@ -1188,8 +1188,8 @@ def test_spending_a_key_is_unaffected_by_the_abandon_tally(registry):
     cell, d = g.open_doorways()[0]
     _force_state(g, cell, d, DOOR_LOCKED)
     seg = segment_key(cell, d)
-    g.state.lock_abandons[seg] = locks.LOCK_ABANDON_LIMIT - 1
     g.state.keys = 1
+    g.state.lock_abandons[seg] = (locks.LOCK_ABANDON_LIMIT - 1, 1)
 
     g.open_door(cell, d)
     assert g.phase is Phase.LOCK_PENDING
@@ -1197,6 +1197,66 @@ def test_spending_a_key_is_unaffected_by_the_abandon_tally(registry):
     g.use_key_at_lock()
     assert g.door_state_of(cell, d) == DOOR_OPEN
     assert g.state.keys == 0
-    assert g.state.lock_abandons[seg] == locks.LOCK_ABANDON_LIMIT - 1, (
+    assert g.state.lock_abandons[seg] == (locks.LOCK_ABANDON_LIMIT - 1, 1), (
         "opening the door must not consume an abandon"
+    )
+
+
+def test_finding_a_key_makes_an_exhausted_doorway_triable_again(registry):
+    """Holding more keys than at the last abandon lifts the bound outright.
+
+    The earlier refusals answered "open this for a key I do not have"; a key
+    found since then makes that a different question, so the doorway is offered
+    again with a fresh tally. Without this the bound would strand a door the
+    player can now afford, for the rest of the day.
+    """
+    g = _game(registry)
+    cell, d = g.open_doorways()[0]
+    _force_state(g, cell, d, DOOR_LOCKED)
+    g.state.keys = 0
+    seg = segment_key(cell, d)
+
+    for _ in range(locks.LOCK_ABANDON_LIMIT):
+        g.open_door(cell, d)
+        g.abandon_lock()
+    assert not g.frontier_doorway_triable(cell, d), "setup: the bound must have applied"
+
+    g.state.keys = 1  # a key turns up elsewhere in the house
+    assert g.frontier_doorway_triable(cell, d), (
+        "a key found since the last abandon must re-offer the doorway"
+    )
+    assert A.action_mask(g)[A.OPEN_BASE + cell * 4 + A.DIR_INDEX[d]], (
+        "the mask must offer it again too -- a reset the mask cannot see is no reset"
+    )
+
+    # And the fresh tally is a full one, not a single grudging retry.
+    g.open_door(cell, d)
+    g.abandon_lock()
+    assert g.state.lock_abandons[seg] == (1, 1)
+    assert g.frontier_doorway_triable(cell, d)
+
+
+def test_the_key_reset_does_not_repeat_without_another_key(registry):
+    """One key buys one fresh tally, not unlimited retries at that key count.
+
+    Otherwise the bound would be trivially defeated by picking up a single key:
+    the comparison is against the keys held at the LAST abandon, which the
+    abandon itself updates, so standing still re-exhausts the tally.
+    """
+    g = _game(registry)
+    cell, d = g.open_doorways()[0]
+    _force_state(g, cell, d, DOOR_LOCKED)
+    g.state.keys = 0
+    for _ in range(locks.LOCK_ABANDON_LIMIT):
+        g.open_door(cell, d)
+        g.abandon_lock()
+
+    g.state.keys = 1
+    for _ in range(locks.LOCK_ABANDON_LIMIT):
+        assert g.frontier_doorway_triable(cell, d)
+        g.open_door(cell, d)
+        g.abandon_lock()
+
+    assert not g.frontier_doorway_triable(cell, d), (
+        "the tally must re-exhaust at the same key count"
     )

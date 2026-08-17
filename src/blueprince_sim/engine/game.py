@@ -590,7 +590,10 @@ class Game:
         at all (Phase.LOCK_PENDING), and no key is budgeted here, but a free
         try that can be repeated without limit is a zero-step loop nothing
         else terminates. Declining and returning later is still expressible;
-        only the unbounded case is refused. The single source both
+        only the unbounded case is refused, and holding MORE keys than at the
+        last abandon lifts the refusal outright, since a key found since then
+        is exactly the thing that makes the question worth asking again. The
+        single source both
         :func:`env.actions.action_mask`'s OPEN_BASE range and
         :meth:`draft_from` read, so the two cannot silently diverge (the
         precise class of drift that produced the bug this feature fixes --
@@ -603,7 +606,8 @@ class Game:
             return self.security_openable()
         if state == DOOR_LOCKED:
             seg = segment_key(cell, direction)
-            return self.state.lock_abandons.get(seg, 0) < LOCK_ABANDON_LIMIT
+            count, keys_then = self.state.lock_abandons.get(seg, (0, -1))
+            return count < LOCK_ABANDON_LIMIT or self.state.keys > keys_then
         return True
 
     def _open_segment(self, cell: int, direction: int) -> None:
@@ -1544,17 +1548,24 @@ class Game:
         """Exit the lock menu without opening the door: back to NAVIGATE,
         the segment still DOOR_LOCKED, nothing spent.
 
-        Tallies the abandon against this doorway's segment. At
-        ``locks.LOCK_ABANDON_LIMIT`` the doorway stops being triable for the
-        rest of the day (:meth:`frontier_doorway_triable`), which is what
-        bounds a pair that otherwise costs no game steps at all.
+        Tallies the abandon against this doorway's segment, alongside the key
+        count held at the time. At ``locks.LOCK_ABANDON_LIMIT`` the doorway
+        stops being triable for the rest of the day
+        (:meth:`frontier_doorway_triable`), which is what bounds a pair that
+        otherwise costs no game steps at all. Finding another key restarts the
+        tally, since the earlier refusals were answers to a different question.
         """
         assert self.can_abandon_lock(), "not awaiting a lock choice"
         cell = self.state.pending_lock_cell
         direction = self.state.pending_lock_direction
         if cell >= 0:
             seg = segment_key(cell, direction)
-            self.state.lock_abandons[seg] = self.state.lock_abandons.get(seg, 0) + 1
+            count, keys_then = self.state.lock_abandons.get(seg, (0, -1))
+            # A key found since the last decline restarts the tally: the
+            # decision genuinely changed, so the earlier refusals say nothing
+            # about this one.
+            count = 1 if self.state.keys > keys_then else count + 1
+            self.state.lock_abandons[seg] = (count, self.state.keys)
             self.state.door_version += 1  # triability changed; invalidate nav caches
         self.state.pending_lock_cell = -1
         self.state.pending_lock_direction = 0

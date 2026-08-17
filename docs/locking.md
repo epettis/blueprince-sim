@@ -68,6 +68,20 @@ by `Game.frontier_doorway_triable` — the single source both the mask's
 place and not the other. Three is set well above what deferral needs and well
 below what idling wants.
 
+**Finding a key lifts the bound.** The tally stores the key count held at the
+last abandon, and a doorway is offered again the moment the player holds more
+than that — with a fresh tally, not one grudging retry. The earlier refusals
+answered *"open this for a key I do not have"*; a key found since makes that a
+different question. One key buys one fresh tally: the comparison is against the
+keys held at the **last** abandon, which each abandon updates, so standing
+still at the same key count re-exhausts the count rather than looping forever.
+
+The key count is stored per segment rather than compared against a global
+watermark for a load-bearing reason: **the triable check has to stay a pure
+query**, because the action mask is what reads it. A reset that only fired
+inside a mutation could never be reached — the doorway would stay masked, so
+the player could never re-enter the menu to trigger it.
+
 The bound refuses **re-entry to the menu, never the exit from it**: abandon
 stays legal inside `LOCK_PENDING` at any tally, so the phase is still never a
 dead end. Spending a key is untouched — a doorway at its limit that you reach
@@ -82,10 +96,11 @@ that loop, at **479 actions per episode** against 78 without it, with 68,103 of
 60 and a maximum of **493** times in one episode — 986 of a 1,000-action budget
 on one door. Throughput fell ~6× at unchanged fps.
 
-**The known cost of the bound**: a doorway declined three times is closed for
-the rest of that day even if a key turns up later. That is a real loss, priced
-deliberately — the alternative rules either reopen the unbounded loop or make
-re-entry conditional on state, which is what this rule exists to refuse.
+**What the bound still costs**: a doorway declined three times at a key count
+the player never improves on is closed for the rest of that day. Finding a key
+reopens it, so the case that remains is "declined three times and never found
+another key" — where the three refusals were all answers to the same question,
+and a fourth would be too.
 
 **A special key may be used even when a regular key would work.** That is the
 point of the menu, not a side effect: the special keys bias the draft pool
