@@ -28,6 +28,13 @@ DOOR_SEALED = 3    # Antechamber lever gate: impassable until its lever is pulle
 
 SECURITY_LEVELS = ("low", "normal", "high")
 
+# How many times one doorway's lock menu may be abandoned in a day before the
+# doorway stops being offered. Declining a lock and coming back after checking
+# other doors is deliberate (docs/locking.md), so the limit is set well above
+# what that needs; what it forbids is the unbounded case, since a probe and an
+# abandon both cost zero game steps and nothing else bounds the pair.
+LOCK_ABANDON_LIMIT = 3
+
 # The Antechamber sits at rank 9, center column; security-door spawning is
 # gated on Euclidean distance to its center (cell centers 10 units apart).
 _ANTE_RANK, _ANTE_COL = 9.0, 2.0
