@@ -247,6 +247,25 @@ reasoning about the horizon from it gives the wrong answer.)
   is the fresh-save floorplan with the same zero-lateral-connectivity shape,
   minus the self-chain.
 
+## The constants this reward ships with are untuned, deliberately
+
+**Owner ruling: the reward is good enough to train on as it stands.** With the
+north-door milestone ordered behind the Antechamber, the owner accepted the
+shape and authorised the retrain rather than tuning first. Two consequences
+worth stating, because both are choices and not oversights:
+
+- **No per-flag unlock bonus was added.** A fresh save earns its first carry
+  flag one action deep (travel to `apple_orchard`), but the day that earns it
+  scores `−0.004` and nothing else, so the flag's value reaches the policy only
+  through the day-boundary bootstrap. Making it visible was considered and
+  declined for now; the case against a flat acquisition bonus is the same one
+  the upgrade proxy below fails, and any future attempt should start there.
+- **`special_item_values`, the `PATHS_*` penalties and the scepter bias are
+  unchanged.** They were set without multi-day run data behind them and still
+  are. `runs/freshsave-v1` (fresh save, `--multi-day 1000`, 30 envs,
+  `reward=shaped`) is the run generating the statistics they were always
+  waiting on.
+
 ## The proposed investment bonus for permanent upgrades
 
 Owner's proposal (2026-07-28): pay **+0.5** for acquiring a permanent upgrade —

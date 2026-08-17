@@ -219,48 +219,36 @@ fresh chain unlocks no found floorplan at all. Under `all_unlocks_config()` it
 appears in 37 of 943 hands. See [`rewards.md`](rewards.md) for the standing
 cheap-depth concern, which outlives the Tunnel.
 
+**OWNER RULING: the reward is good enough to train on, and no unlock shaping
+is added.** With the north-door gate landed, the owner ruled the reward
+function sufficient and authorised the retrain. So the "shape toward the first
+unlock" question is answered **not now**: no per-flag acquisition bonus, and
+the fresh-save chain is left to progress on its own. The argument for a bonus
+is preserved in [`rewards.md`](rewards.md)'s case against the `+0.5` upgrade
+proxy, which is where any future attempt should start.
+
+**The exploration worry was measured against scripted policies, and a learning
+one behaves differently.** Every "no policy ever earns a carry flag" number in
+this task comes from `cli/policies.py`, none of which travels. Within the first
+165 chain-day transitions of `runs/freshsave-v1`, the exploring policy carries
+`orchard_unlocked` on all but one, and some chains additionally carry
+`conservatory_floorplan_found` (11) and the Entrance Hall vase (8). That is an
+early read on a young run, not a settled result, but it is direct evidence that
+the flat-chain prediction does not transfer from scripted play to PPO
+exploration. **Re-check it as the run matures**: the failure mode to watch is
+the carry set going flat at `orchard_unlocked` and staying there.
+
 **What remains on this task is the reward calibration itself.** The fixture and
 the north-door gate together explain why touring beat drafting; neither
 calibrates `special_item_values`, `PATHS_ONE_PENALTY`/`PATHS_ZERO_PENALTY` or
-the scepter bias. Those still need statistics from a run that actually plays
-the game, so this task stays open behind the next one.
-
-**Still unsettled, and needing an owner ruling: whether to shape toward the
-first unlock.** Nothing above changes the fresh-save exploration problem. The
-Apple Orchard detour costs one action on day 1 and pays `+20` starting steps on
-every later day, but within the day that earns it the shaped return is
-`−0.004` and nothing else — the flag's whole value is invisible to the per-day
-signal and reaches the policy only through the truncation bootstrap. A
-per-flag acquisition bonus would make it visible; the structural argument for
-one being safe is that carry flags are permanent, so unlike the north-door
-bounty they cannot be farmed within an attempt. The magnitude is the open
-question, and [`rewards.md`](rewards.md)'s own case against the `+0.5` upgrade
-proxy (calibrate against the measured marginal value, order `+0.02`–`+0.05`,
-never against `1.0`) is the precedent it should be argued from. Recorded as
-question **A** in task 23.
+the scepter bias. Those need statistics from a run that actually plays the
+game, which `runs/freshsave-v1` is now generating.
 
 ## 23. OPEN OWNER QUESTIONS
 
 The single home for questions that need an owner ruling before the work they
 block can start. A question is added as a lettered item, and cited from
 elsewhere by that letter.
-
-**A. Should the reward shape toward earning the first carry flag?** A fresh
-save starts with 1 of 19 carry flags and 3 legal travel targets, and no policy
-this repo has ever earns a single one of the remaining 18 — measured over a
-150-day `frontier_greedy` chain and 60 days each of `greedy_rank`, `economy`
-and `random`. The cheapest unlock is one action deep: travelling to
-`apple_orchard` on day 1 sets `orchard_unlocked` in 40 of 40 fresh saves and
-pays `+20` starting steps on every later day. Within the day that earns it,
-though, the shaped return of that detour is `−0.004` and nothing else, so the
-signal reaching the policy is a pure cost plus whatever the value function
-bootstraps across the day boundary. Three options were laid out under task 24:
-shape toward the first unlock, seed the chain part-way, or accept a long flat
-start. If shaping, the magnitude needs to be argued from
-[`rewards.md`](rewards.md)'s case against the `+0.5` upgrade proxy — calibrate
-against measured marginal value, order `+0.02`–`+0.05`. Not guessed here,
-because a second objective competing with winning is exactly what that section
-warns against.
 
 ## Decisions log
 
@@ -271,9 +259,6 @@ built yet.** Each one leaves the log the day its work lands.
 Everything each entry says about *shipped* behaviour is already stated in the
 doc that owns it; when the remaining work lands, the entry goes.
 
-- **The retrain is owed, and is held on the owner's explicit say-so alone.**
-  `baseline-ep8275991` was trained against rules the sim no longer implements —
-  it was built at `N_ACTIONS` 196 against today's width, so by
-  [`rl-environment.md`](rl-environment.md)'s own rule it cannot load. **Retrain
-  once, after the batch lands**, not per change. Task 24's reward calibration is
-  blocked behind it.
+The log is empty: the retrain it was holding has started
+(`runs/freshsave-v1`, see task 24), and every other ruling recorded here has
+reached the doc that owns its rule.
