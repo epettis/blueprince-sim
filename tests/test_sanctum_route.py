@@ -249,11 +249,13 @@ def test_precipice_still_reachable_with_empty_inventory(registry):
 # ---------------------------------------------------------------------------
 
 def test_inner_sanctum_lever_opens_door_sets_flag_and_pays_reward_once(registry):
-    """Arriving at inner_sanctum opens the Antechamber's north segment, sets
-    north_door_opened, and the sparse reward pays NORTH_DOOR_REWARD exactly on
-    that step -- a second arrival (already open) pays nothing further."""
+    """Arriving at inner_sanctum opens the Antechamber's north segment and sets
+    north_door_opened; with the Antechamber already reached today the sparse
+    reward pays NORTH_DOOR_REWARD exactly on that step -- a second arrival
+    (already open) pays nothing further."""
     g = Game(GameConfig(special_items=True, antechamber_levers=True), seed=1, registry=registry)
     g.state.steps = 50
+    _enter_at(g, ANTECHAMBER_CELL)  # the milestone is ordered behind this arrival
     g.state.area = "underpass"  # off-grid neighbour; the real edge gate always passes
     assert g.door_state_of(ANTECHAMBER_CELL, N) == DOOR_SEALED
     assert g.state.north_door_opened is False
@@ -277,8 +279,10 @@ def test_inner_sanctum_lever_opens_door_sets_flag_and_pays_reward_once(registry)
 def test_throne_room_lever_opens_door_sets_flag_and_pays_reward(registry):
     """Entering the Throne Room pulls the backup north lever exactly like the
     Inner Sanctum: it opens the Antechamber's north segment, sets
-    north_door_opened, and the sparse reward pays NORTH_DOOR_REWARD once."""
+    north_door_opened, and -- the Antechamber having been reached today -- the
+    sparse reward pays NORTH_DOOR_REWARD once."""
     g = Game(GameConfig(special_items=True, antechamber_levers=True), seed=1, registry=registry)
+    _enter_at(g, ANTECHAMBER_CELL)  # the milestone is ordered behind this arrival
     _place_at(g, "throne_room", 7, N | S)
     assert g.door_state_of(ANTECHAMBER_CELL, N) == DOOR_SEALED
     assert g.state.north_door_opened is False
@@ -297,6 +301,7 @@ def test_north_door_reward_pays_once_regardless_of_which_lever_pulls_it(registry
     second time -- the reward is for the door, not for either room specifically."""
     g = Game(GameConfig(special_items=True, antechamber_levers=True), seed=1, registry=registry)
     g.state.steps = 50
+    _enter_at(g, ANTECHAMBER_CELL)
     g.state.area = "underpass"
     g.travel_to("inner_sanctum")
     assert g.state.north_door_opened is True
@@ -309,6 +314,76 @@ def test_north_door_reward_pays_once_regardless_of_which_lever_pulls_it(registry
     assert g.door_state_of(ANTECHAMBER_CELL, N) == DOOR_OPEN  # already open from the Sanctum
     r = R.sparse(g, prev, terminated=False)
     assert r == 0.0, "the Throne Room must not re-pay a reward the Sanctum lever already earned"
+
+
+# ---------------------------------------------------------------------------
+# 4b. The north-door milestone is ordered behind the Antechamber
+# ---------------------------------------------------------------------------
+
+def test_sanctum_lever_pays_nothing_while_the_antechamber_is_unreached(registry):
+    """A lever pulled on a day the Antechamber is never reached pays nothing.
+
+    ``antechamber -> room_46`` is the only edge into Room 46, and every day
+    start re-seals the north segment, so opening it without standing in the
+    Antechamber advances nothing and leaves nothing behind. Ungated, this one
+    travel hop paid the full +0.5 at rank 1 with zero rooms drafted, which is
+    the highest-value action on the board for a policy that never plays."""
+    g = Game(GameConfig(special_items=True, antechamber_levers=True), seed=1, registry=registry)
+    g.state.steps = 50
+    g.state.area = "underpass"
+    assert g.state.antechamber_reached is False
+
+    prev = R.snapshot(g)
+    g.travel_to("inner_sanctum")
+    assert g.state.north_door_opened is True, "setup: the lever must still fire"
+    assert R.sparse(g, prev, terminated=False) == 0.0
+
+
+def test_north_door_milestone_pays_on_a_later_antechamber_arrival(registry):
+    """Pulling the lever first and reaching the Antechamber second pays both
+    milestones on the arrival step, so the total for the day does not depend on
+    the order the two were earned in."""
+    g = Game(GameConfig(special_items=True, antechamber_levers=True), seed=1, registry=registry)
+    g.state.steps = 50
+    g.state.area = "underpass"
+
+    prev = R.snapshot(g)
+    g.travel_to("inner_sanctum")
+    lever_step = R.sparse(g, prev, terminated=False)
+    assert lever_step == 0.0, "nothing is owed while the Antechamber is unreached"
+
+    g.state.area = None
+    prev2 = R.snapshot(g)
+    _enter_at(g, ANTECHAMBER_CELL)
+    arrival_step = R.sparse(g, prev2, terminated=False)
+    assert arrival_step == pytest.approx(R.ANTECHAMBER_REWARD + R.NORTH_DOOR_REWARD)
+
+
+def test_every_reward_mode_pays_the_same_milestone_total(registry):
+    """sparse, shaped and phased must agree on the milestone block exactly.
+
+    They read one shared ``_milestones``; this pins that they stay in step, so
+    the objective signal cannot drift between modes the way three hand-copied
+    blocks could. Compared as a difference between two modes on the same step,
+    which cancels the dense terms sparse does not have."""
+    g = Game(GameConfig(special_items=True, antechamber_levers=True), seed=1, registry=registry)
+    g.state.steps = 50
+    _enter_at(g, ANTECHAMBER_CELL)
+    g.state.area = "underpass"
+
+    prev = R.snapshot(g)
+    baseline = R.shaped(g, prev, terminated=False), R.phased(g, prev, terminated=False)
+    g.travel_to("inner_sanctum")
+    paid_sparse = R.sparse(g, prev, terminated=False)
+    assert paid_sparse == pytest.approx(R.NORTH_DOOR_REWARD), "setup: the milestone must fire"
+
+    # The dense modes must move by the same milestone amount the sparse one paid,
+    # up to the terms that actually differ (steps spent on the travel hop).
+    for mode, base in ((R.shaped, baseline[0]), (R.phased, baseline[1])):
+        moved = mode(g, prev, terminated=False) - base
+        assert moved == pytest.approx(paid_sparse, abs=0.05), (
+            f"{mode.__name__} did not pay the same milestone as sparse"
+        )
 
 
 # ---------------------------------------------------------------------------

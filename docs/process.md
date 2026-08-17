@@ -182,6 +182,18 @@ so they over-represent exactly what they select on: mean deepest rank 7.94
 against 2.84 for random records, and a bug present in 74% of the former and
 0.7% of the latter. Use the random population as the behavioural baseline.
 
+**A probe that reimplements the rule under test measures the copy, not the
+code.** A reward decomposer hard-coded the milestone formula so it could score
+whole episodes from their endpoints. It was float-exact against the real reward
+path when written -- and after the milestone rule changed, it reported the
+before and after numbers as **identical to four decimal places**, because the
+stale copy was doing the arithmetic. A verification pass that agrees with the
+code today is not the guard; importing the function is. Where a probe genuinely
+must restate a rule (to telescope a sum, to invert a calculation), it should
+read every term it can from the module and fail loudly on the ones it cannot.
+This is the *false negative* twin of the harness bugs above: those made a
+working engine look broken, this made a real change look like a no-op.
+
 **A scripted, policy-free probe beats a trained checkpoint for answering
 questions about the model.** One such probe measured 6,153 real grid crossings
 in minutes, validated a fix at population scale, and retired a rebalancing
@@ -322,6 +334,19 @@ record of what has not been audited yet, and it cannot drift from the work the
 way a checklist can. The split also has to ship *first* and alone, because
 per-room files are what make the later PRs genuinely disjoint; without it every
 room fix collides in one shared test file and the audit serialises.
+
+**That progress bar reads false-negative, and the count is the trap.** The
+absence of a per-room file records "not audited" only where nothing *else*
+pins the room, and plenty does: 69 room modules against 87 files in
+`tests/rooms/`, of which only 57 are actually paired -- 12 modules have no
+mirrored file and 30 files have no module. Measured on one of the 12, the
+Boiler Room: deleting its steam gate fails 2 tests in
+`test_upper_rotating_gear.py` and deleting its `POWER_SOURCE` capability fails
+29 in `test_power.py`, so both its mechanisms are pinned and a per-room file
+would have been pure duplication. Reading the directory listing as a to-do
+list would have produced it. **The bar is a prompt to go and check a room, not
+evidence that the room is unchecked** -- and the check is mutation, which is
+the same instruction the audit gives for everything else.
 
 **Work lanes, not numbers.** A metric target set before triage will usually
 price in work that does not exist at that price: a "drop below 70 findings"

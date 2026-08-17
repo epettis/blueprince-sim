@@ -17,7 +17,7 @@ from ..engine.special_items import inventory_value
 PATHS_ONE_PENALTY: float = -0.15   # potential when exactly 1 route survives
 PATHS_ZERO_PENALTY: float = -1.0   # potential when all routes are sealed
 ANTECHAMBER_REWARD: float = 0.25   # first Antechamber arrival each day (milestone)
-NORTH_DOOR_REWARD: float = 0.5     # first north-door opening each day (either lever)
+NORTH_DOOR_REWARD: float = 0.5     # north door open AND Antechamber reached (either lever)
 ROOM46_REWARD: float = 1.0         # first Room 46 arrival each day (win)
 
 
@@ -124,6 +124,43 @@ def _phi_frontier(game: Game) -> float:
     return 0.02 * min(passable, 4)
 
 
+def _north_door_credited(game: Game) -> bool:
+    """Whether the north-door milestone has been earned: the door is open AND
+    the Antechamber has been reached today.
+
+    Both conditions are required because an open north door only advances the
+    objective for a player who can also stand in the Antechamber.  Room 46 sits
+    behind the ``antechamber -> room_46`` area edge, the only way in, so the
+    door on its own leads nowhere; and every day start re-seals the segment
+    (``Game.reset`` under ``antechamber_levers``), so a lever pulled on a day
+    the Antechamber is never reached leaves nothing behind for tomorrow either.
+
+    Order does not matter — whichever condition lands second earns the reward,
+    so the Sanctum route (Antechamber first, lever second) and a lever pulled
+    on the way in both pay exactly once.
+    """
+    return game.state.north_door_opened and game.state.antechamber_reached
+
+
+def _milestones(game: Game, prev: dict) -> float:
+    """The three objective milestones, each paid on the first step that earns it.
+
+    Shared verbatim by :func:`sparse`, :func:`shaped` and :func:`phased`: the
+    milestone signal is the one part of the reward that must not vary between
+    modes, so all three read this single site rather than repeating the block.
+    ``test_sanctum_route.py`` pins the three against each other.
+    """
+    st = game.state
+    r = 0.0
+    if st.antechamber_reached and not prev["antechamber_reached"]:
+        r += ANTECHAMBER_REWARD
+    if _north_door_credited(game) and not prev["north_door_credited"]:
+        r += NORTH_DOOR_REWARD
+    if st.room46_reached and not prev["room46_reached"]:
+        r += ROOM46_REWARD
+    return r
+
+
 def snapshot(game: Game) -> dict:
     """Pre-action baseline (deepest rank, resource counts, shaping potentials)
     for delta-based rewards."""
@@ -136,21 +173,14 @@ def snapshot(game: Game) -> dict:
         "phi_paths": _phi_paths(_ante_paths(game)),
         "inv_value": inventory_value(st, game.registry),
         "antechamber_reached": st.antechamber_reached,
-        "north_door_opened": st.north_door_opened,
+        "north_door_credited": _north_door_credited(game),
         "room46_reached": st.room46_reached,
     }
 
 
 def sparse(game: Game, prev: dict, terminated: bool) -> float:
-    """Milestone signal: +0.25 Antechamber, +0.5 north door opened, +1.0 Room 46 (win)."""
-    r = 0.0
-    if game.state.antechamber_reached and not prev["antechamber_reached"]:
-        r += ANTECHAMBER_REWARD
-    if game.state.north_door_opened and not prev["north_door_opened"]:
-        r += NORTH_DOOR_REWARD
-    if game.state.room46_reached and not prev["room46_reached"]:
-        r += ROOM46_REWARD
-    return r
+    """Milestone signal: +0.25 Antechamber, +0.5 north door credited, +1.0 Room 46 (win)."""
+    return _milestones(game, prev)
 
 
 def shaped(game: Game, prev: dict, terminated: bool) -> float:
@@ -177,6 +207,9 @@ def shaped(game: Game, prev: dict, terminated: bool) -> float:
     Antechamber was already reachable (potential 0), so the +1.0 win bonus is
     undiluted.  A dead_end termination lands with the sealing -1.0 already
     charged on the prior draft.
+
+    The three milestones come from :func:`_milestones`, shared with `sparse`
+    and `phased`.
     """
     values = game.registry.tuning["item_values"]
     r = 0.1 * (game.deepest_rank - prev["deepest_rank"])
@@ -195,12 +228,7 @@ def shaped(game: Game, prev: dict, terminated: bool) -> float:
     # -0.001 flat and multi-step decisions pay proportionally more.
     steps_spent = max(0, prev["steps"] - game.state.steps)
     r -= 0.001 * max(1, steps_spent)
-    if game.state.antechamber_reached and not prev["antechamber_reached"]:
-        r += ANTECHAMBER_REWARD
-    if game.state.north_door_opened and not prev["north_door_opened"]:
-        r += NORTH_DOOR_REWARD
-    if game.state.room46_reached and not prev["room46_reached"]:
-        r += ROOM46_REWARD
+    r += _milestones(game, prev)
     return r
 
 
@@ -227,8 +255,8 @@ def phased(game: Game, prev: dict, terminated: bool) -> float:
       is undiluted.  A dead_end termination lands with the sealing -1.0
       already charged on the prior draft.
 
-    Gems/coins/dice/held-item deltas, time pressure, and the win bonus match
-    `shaped`.
+    Gems/coins/dice/held-item deltas, time pressure, and the three milestones
+    (:func:`_milestones`) match `shaped`.
     """
     values = game.registry.tuning["item_values"]
     r = _rank_potential(game.deepest_rank) - _rank_potential(prev["deepest_rank"])
@@ -248,12 +276,7 @@ def phased(game: Game, prev: dict, terminated: bool) -> float:
     # the kind of thing that surfaces months later as an unreproducible run.
     steps_spent = max(0, prev["steps"] - game.state.steps)
     r -= 0.001 * max(1, steps_spent)
-    if game.state.antechamber_reached and not prev["antechamber_reached"]:
-        r += ANTECHAMBER_REWARD
-    if game.state.north_door_opened and not prev["north_door_opened"]:
-        r += NORTH_DOOR_REWARD
-    if game.state.room46_reached and not prev["room46_reached"]:
-        r += ROOM46_REWARD
+    r += _milestones(game, prev)
     return r
 
 

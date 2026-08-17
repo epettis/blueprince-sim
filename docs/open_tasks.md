@@ -1,10 +1,14 @@
 # Open tasks
 
 Work the project owner has identified and that is NOT in `docs/plan.md`'s
-delivered set -- each needs its own design pass. Two sources so far: a review of
-the special-items PR stack, and a recorded session of real play through the
-Training Observatory. That first session's findings have shipped; a second
-session produced tasks 44-48, of which 48 remains.
+delivered set -- each needs its own design pass. Sources so far: a review of the
+special-items PR stack, recorded sessions of real play through the Training
+Observatory, and the measurement work behind the RL training runs.
+
+**The numbered sections below are the live list.** A task is deleted the day its
+work lands, so what is present is exactly what remains. This header deliberately
+carries no count and no task-number range: either would rot on the next merge
+that closes a task, and has.
 
 **Play findings outrank the wiki**, per [`doctrine.md`](doctrine.md) -- but where
 one contradicts a published rule, surface the conflict rather than silently
@@ -185,17 +189,78 @@ because that flag defaults to True in `GameConfig`. Only 4 of the 19 gate an
 area edge (`west_gate_unlatched`, `mine_south_visited`,
 `sealed_entrance_broken`, `boiler_room_steam`); the rest gate pools and items.
 
-**What remains on this task is the reward calibration itself.** The fixture
-explains why touring beat drafting; it does not calibrate
-`special_item_values`, `PATHS_ONE_PENALTY`/`PATHS_ZERO_PENALTY` or the scepter
-bias. Those still need statistics from a run that actually plays the game, so
-this task stays open behind the next one.
+**The touring behaviour had a second cause, in the reward, and it is now
+fixed.** The fixture was not the whole story: under `all_unlocks_config()` a
+single `travel` hop to `inner_sanctum` pulled the Antechamber's north lever and
+collected the full `+0.5` north-door milestone — `+0.492` net, on **40 of 40**
+seeds, at deepest rank 1 with zero rooms drafted. That is the highest-value
+single action on the board for a policy that never plays, and it repeats every
+day of an attempt, since the segment is re-sealed at every day start. The
+milestone is now ordered behind `antechamber_reached`
+([`rewards.md`](rewards.md)); measured over 60 seeds, that moves a pure-travel
+day return from `+0.518` to `+0.018` and leaves `frontier_greedy` (`+0.694`)
+and `greedy_rank` (`+0.521`) untouched.
+
+**Measured, the reward does not otherwise favour touring.** Per-action-class
+mean reward under masked-uniform-random rollouts on a fresh save: `move`
+`+0.0235`, `choose` `+0.0088`, `open(draft)` `+0.0022`, `travel` `−0.0021` —
+travel is the only negative class. And on whole fresh-save days, cumulative
+`shaped` return already ranks `greedy_rank` (`+0.506`) and `frontier_greedy`
+(`+0.391`) above a pure-travel trajectory (`−0.049`). The `phi_paths` term is
+not a spurious drafting tax either: `frontier_greedy` loses `−0.32` to it
+because it genuinely seals the house on 16 of 60 fresh-save days
+(`dead_end` terminations), which is the doctrine working.
+
+**The Tunnel-spam report does not apply to this fixture.** `tunnel` is
+`pool: found_floorplan` with no unlock flag of any kind, so it is draftable
+only when a config names it in `found_floorplans`. It appeared in **0 of 785**
+hands over 40 `frontier_greedy` days on `fresh_save_config()`, and a 150-day
+fresh chain unlocks no found floorplan at all. Under `all_unlocks_config()` it
+appears in 37 of 943 hands. See [`rewards.md`](rewards.md) for the standing
+cheap-depth concern, which outlives the Tunnel.
+
+**What remains on this task is the reward calibration itself.** The fixture and
+the north-door gate together explain why touring beat drafting; neither
+calibrates `special_item_values`, `PATHS_ONE_PENALTY`/`PATHS_ZERO_PENALTY` or
+the scepter bias. Those still need statistics from a run that actually plays
+the game, so this task stays open behind the next one.
+
+**Still unsettled, and needing an owner ruling: whether to shape toward the
+first unlock.** Nothing above changes the fresh-save exploration problem. The
+Apple Orchard detour costs one action on day 1 and pays `+20` starting steps on
+every later day, but within the day that earns it the shaped return is
+`−0.004` and nothing else — the flag's whole value is invisible to the per-day
+signal and reaches the policy only through the truncation bootstrap. A
+per-flag acquisition bonus would make it visible; the structural argument for
+one being safe is that carry flags are permanent, so unlike the north-door
+bounty they cannot be farmed within an attempt. The magnitude is the open
+question, and [`rewards.md`](rewards.md)'s own case against the `+0.5` upgrade
+proxy (calibrate against the measured marginal value, order `+0.02`–`+0.05`,
+never against `1.0`) is the precedent it should be argued from. Recorded as
+question **A** in task 23.
 
 ## 23. OPEN OWNER QUESTIONS
 
 The single home for questions that need an owner ruling before the work they
 block can start. A question is added as a lettered item, and cited from
 elsewhere by that letter.
+
+**A. Should the reward shape toward earning the first carry flag?** A fresh
+save starts with 1 of 19 carry flags and 3 legal travel targets, and no policy
+this repo has ever earns a single one of the remaining 18 — measured over a
+150-day `frontier_greedy` chain and 60 days each of `greedy_rank`, `economy`
+and `random`. The cheapest unlock is one action deep: travelling to
+`apple_orchard` on day 1 sets `orchard_unlocked` in 40 of 40 fresh saves and
+pays `+20` starting steps on every later day. Within the day that earns it,
+though, the shaped return of that detour is `−0.004` and nothing else, so the
+signal reaching the policy is a pure cost plus whatever the value function
+bootstraps across the day boundary. Three options were laid out under task 24:
+shape toward the first unlock, seed the chain part-way, or accept a long flat
+start. If shaping, the magnitude needs to be argued from
+[`rewards.md`](rewards.md)'s case against the `+0.5` upgrade proxy — calibrate
+against measured marginal value, order `+0.02`–`+0.05`. Not guessed here,
+because a second objective competing with winning is exactly what that section
+warns against.
 
 ## Decisions log
 

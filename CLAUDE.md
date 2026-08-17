@@ -43,8 +43,14 @@ Room *behaviour* splits by how many rooms share it:
   [docs/architecture.md](docs/architecture.md). For the live list, read the
   `@effect` registrations in `engine/effects/tier1.py`.
 - **Belonging to exactly one room → `engine/effects/rooms/<room_id>.py`**,
-  registered with `@room_hook(room_id, Hook.<member>)`, mirroring
-  `tests/rooms/test_<room_id>.py` one-to-one.
+  registered with `@room_hook(room_id, Hook.<member>)`, usually paired with
+  `tests/rooms/test_<room_id>.py`. The pairing is the convention to follow for
+  new work, **not an invariant to reason from**: a room's behaviour is often
+  pinned by the topic test file that owns the mechanism instead (the Boiler
+  Room has no per-room file, and its steam gate and `POWER_SOURCE` capability
+  are pinned by `test_upper_rotating_gear.py` and `test_power.py`). Ask whether
+  a behaviour is covered by deleting it and running the suite, never by
+  checking whether a file exists.
 
 **Choosing between them**: if the mechanic already exists as a parametric tag,
 add a tag instance in data; if it is bespoke to one room, write a `room_hook`

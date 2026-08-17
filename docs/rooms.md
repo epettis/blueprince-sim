@@ -77,6 +77,31 @@ of the eight also carry a dedicated `GameConfig` bool
 find that specific floorplan; `decks.py::eligible_pool` checks each by room id,
 never by pool, so the Conservatory's campsite dig cannot unlock the other seven.
 
+**Those three are the only ones the engine models a discovery for, and the
+other five are therefore unreachable by play.** Closed Exhibit, Lost & Found,
+Mechanarium, Planetarium and Tunnel have no discovery flag and no
+`_CARRYOVER_KEYS` entry, so nothing a player does can add them to a deck: they
+enter only when a `GameConfig` names them in `found_floorplans` directly.
+Measured, this is not a gap a long attempt closes — a `DayChain` from
+`fresh_save_config()` with **all 19 carry flags forced True on every one of 200
+days** still reaches only Conservatory, Throne Room and Treasure Trove, because
+`DayChain.next_config()` overrides the day index and the carry flags and never
+writes `found_floorplans`.
+
+Two consequences worth holding onto:
+
+- **Training from a fresh save permanently excludes five of the eight.** That
+  is a property of the fixture, not of the policy, and it is why a
+  Tunnel-drafting observation cannot come from a fresh-save run (see
+  [`rewards.md`](rewards.md)'s cheap-depth divergence).
+- **`all_unlocks_config()` reaches seven, not eight.** Closed Exhibit is
+  reachable by neither route: `rl/train.py`'s `_FOUND_FLOORPLAN_EXCLUSIONS`
+  holds it out of `all_found_floorplans()` because its security puzzle is
+  unmodelled. The Treasure Trove sits in that same exclusion set but re-enters
+  through its dedicated `treasure_trove_blackprint` bool, and is then blocked
+  from the deck by `banned_rooms` instead — two different backstops, which is
+  why the preset's `unlocked_found_floorplans()` lists it and its decks do not.
+
 **A large `blueprint` category is correct, not a catch-all bug.** It is by far
 the biggest colour and that is the game's own joke; do not "fix" it. The earlier
 finding it resembles was genuinely different — those rooms carried a *pool name*

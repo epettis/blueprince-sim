@@ -524,3 +524,50 @@ def test_audit_flag_prints_findings_and_still_exits_zero(capsys, monkeypatch):
     assert rc == 0
     assert "divergence audit" in out
     assert "audit[kind1]:" in out and "audit[kind2]:" in out
+
+
+def test_summary_reports_the_finding_count_even_when_it_is_zero(capsys):
+    """The summary line always carries the divergence-audit count, zero included.
+
+    An empty worklist that prints nothing is indistinguishable, to a reader who
+    sees only the summary line, from an audit that does not exist -- and the
+    count is the sole evidence on that line that the channel ran at all. The
+    live worklist is currently empty, which is exactly the case this pins.
+    """
+    rc = main([])
+    out = capsys.readouterr().out
+    assert rc == 0
+    summary = [ln for ln in out.splitlines() if "errors," in ln and "warnings" in ln]
+    assert len(summary) == 1, f"expected exactly one summary line, got {summary}"
+    assert re.search(r"; \d+ divergence-audit findings", summary[0]), (
+        f"summary line carries no divergence-audit count: {summary[0]}"
+    )
+
+
+def test_summary_omits_the_audit_hint_only_when_there_is_nothing_to_list(capsys, monkeypatch):
+    """The '(run with --audit to list)' hint appears only alongside a nonzero
+    count: pointing a reader at an empty listing is noise, while suppressing
+    the count itself is what hides the channel. Pinning both halves keeps the
+    two rules from being collapsed back into one conditional."""
+    import tools.validate_data as vd
+
+    real_find_divergences = vd.find_divergences
+    zero_summary = None
+
+    rc = main([])
+    zero_summary = [ln for ln in capsys.readouterr().out.splitlines()
+                    if "errors," in ln and "warnings" in ln][0]
+    assert rc == 0
+    assert "; 0 divergence-audit findings" in zero_summary
+    assert "run with --audit to list" not in zero_summary
+
+    def _fake_when_empty(*args, **kwargs):
+        kind1, kind2 = real_find_divergences(*args, **kwargs)
+        return (kind1, kind2) if (kind1 or kind2) else (["k1_fake"], ["k2_fake"])
+
+    monkeypatch.setattr(vd, "find_divergences", _fake_when_empty)
+    rc = main([])
+    nonzero_summary = [ln for ln in capsys.readouterr().out.splitlines()
+                       if "errors," in ln and "warnings" in ln][0]
+    assert rc == 0
+    assert "; 2 divergence-audit findings (run with --audit to list)" in nonzero_summary
