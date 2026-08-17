@@ -53,6 +53,25 @@ Nine action ids, `LOCK_MENU_BASE + 0` … `LOCK_MENU_BASE + 8` in `env/actions.p
 is a real play: spending steps to find an unlocked door instead of spending a
 key is a strategy the model has to be able to express.
 
+**A doorway you abandoned stays on offer, unconditionally.** The engine does
+not remember that you declined a lock and does not require anything to have
+changed before it will park you in the menu again. That is deliberate, and it
+is the owner's rule: *"Keep offering the lock. Nothing may have changed. I just
+want to check other doors before opening a locked door."* Checking the rest of
+the house and coming back is the normal shape of the decision, so gating
+re-entry on a key gained or a lockpick acquired would forbid the ordinary case
+in order to forbid a degenerate one.
+
+The degenerate one is real and is accepted as a cost. Opening a locked doorway
+and abandoning the menu spends **no game steps**, so the pair is an unbounded
+zero-step loop bounded only by `max_env_steps`; measured, it costs `-0.002` a
+cycle and buys nothing. A policy that has run out of moves it likes will idle
+there rather than end its day — in `runs/freshsave-v1` the pair grew to roughly
+three quarters of all actions by 45k episodes, which is a wall-clock tax on
+training, not a corrupted policy. **The lever for that is the reward's
+zero-step decision floor, never the mask**, because the mask cannot tell idling
+apart from the legitimate deferral this rule exists to protect.
+
 **A special key may be used even when a regular key would work.** That is the
 point of the menu, not a side effect: the special keys bias the draft pool
 toward a room or a room type, so paying with one can be worth more than the
