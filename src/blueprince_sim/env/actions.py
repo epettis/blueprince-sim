@@ -143,12 +143,15 @@ Layout (Discrete(493)):
              430     abandon: exits back to NAVIGATE, door still locked,
                      nothing spent -- always legal in LOCK_PENDING, so the
                      phase is never a dead end (Game.can_abandon_lock/
-                     abandon_lock). The abandoned doorway stays offered:
-                     re-opening it is legal immediately and needs nothing to
-                     have changed, so checking other doors and coming back is
-                     expressible (owner ruling, docs/locking.md). This makes
-                     open+abandon an unbounded zero-step loop by construction;
-                     that is priced in the reward, never masked here.
+                     abandon_lock). The abandoned doorway stays offered, and
+                     re-opening it needs nothing to have changed, so checking
+                     other doors and coming back is expressible (owner ruling,
+                     docs/locking.md) -- but only up to
+                     locks.LOCK_ABANDON_LIMIT times per doorway per day, after
+                     which Game.frontier_doorway_triable stops offering it and
+                     the OPEN id above is masked. Both halves of the pair cost
+                     zero game steps, so that tally is the only thing bounding
+                     it short of max_env_steps.
              431..436 a special key, data/locks.json's special_key_menu.order
                      (the wiki's published fixed row order: Basement Key,
                      Secret Garden Key, Silver Key, Key 8, Master Key, Prism

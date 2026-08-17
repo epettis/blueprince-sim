@@ -53,24 +53,39 @@ Nine action ids, `LOCK_MENU_BASE + 0` … `LOCK_MENU_BASE + 8` in `env/actions.p
 is a real play: spending steps to find an unlocked door instead of spending a
 key is a strategy the model has to be able to express.
 
-**A doorway you abandoned stays on offer, unconditionally.** The engine does
-not remember that you declined a lock and does not require anything to have
-changed before it will park you in the menu again. That is deliberate, and it
-is the owner's rule: *"Keep offering the lock. Nothing may have changed. I just
-want to check other doors before opening a locked door."* Checking the rest of
-the house and coming back is the normal shape of the decision, so gating
-re-entry on a key gained or a lockpick acquired would forbid the ordinary case
-in order to forbid a degenerate one.
+**A doorway you abandoned stays on offer, up to three times a day.** The engine
+does not require anything to have *changed* before it will park you in the menu
+again — no key gained, no lockpick acquired. That much is the owner's rule:
+*"Keep offering the lock. Nothing may have changed. I just want to check other
+doors before opening a locked door."* Checking the rest of the house and coming
+back is the normal shape of the decision, so gating re-entry on a state change
+would forbid the ordinary case in order to forbid a degenerate one.
 
-The degenerate one is real and is accepted as a cost. Opening a locked doorway
-and abandoning the menu spends **no game steps**, so the pair is an unbounded
-zero-step loop bounded only by `max_env_steps`; measured, it costs `-0.002` a
-cycle and buys nothing. A policy that has run out of moves it likes will idle
-there rather than end its day — in `runs/freshsave-v1` the pair grew to roughly
-three quarters of all actions by 45k episodes, which is a wall-clock tax on
-training, not a corrupted policy. **The lever for that is the reward's
-zero-step decision floor, never the mask**, because the mask cannot tell idling
-apart from the legitimate deferral this rule exists to protect.
+What *is* bounded is the count. `locks.LOCK_ABANDON_LIMIT` (3) caps abandons
+**per doorway segment per day**, tallied in `GameState.lock_abandons` and read
+by `Game.frontier_doorway_triable` — the single source both the mask's
+`OPEN_BASE` range and `draft_from` consult, so the bound cannot apply in one
+place and not the other. Three is set well above what deferral needs and well
+below what idling wants.
+
+The bound refuses **re-entry to the menu, never the exit from it**: abandon
+stays legal inside `LOCK_PENDING` at any tally, so the phase is still never a
+dead end. Spending a key is untouched — a doorway at its limit that you reach
+by any route still opens for one key, and opening never consumes an abandon.
+
+**Why a bound was needed at all.** Trying a locked door and abandoning both
+cost **zero game steps**, so the pair is a loop the step budget cannot end;
+only `max_env_steps` bounded it. Measured on `runs/freshsave-v1`'s
+random-sampled replays, the recent third ran **83.7%** of all actions inside
+that loop, at **479 actions per episode** against 78 without it, with 68,103 of
+68,230 lock probes ending in abandon. A single doorway was probed a median of
+60 and a maximum of **493** times in one episode — 986 of a 1,000-action budget
+on one door. Throughput fell ~6× at unchanged fps.
+
+**The known cost of the bound**: a doorway declined three times is closed for
+the rest of that day even if a key turns up later. That is a real loss, priced
+deliberately — the alternative rules either reopen the unbounded loop or make
+re-entry conditional on state, which is what this rule exists to refuse.
 
 **A special key may be used even when a regular key would work.** That is the
 point of the menu, not a side effect: the special keys bias the draft pool

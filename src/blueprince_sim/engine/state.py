@@ -344,6 +344,10 @@ class GameState:
     # (freely passable). Mutate via Game helpers so door_version is bumped.
     door_state: dict[tuple[int, int], int] = field(default_factory=dict)
     door_version: int = 0  # cache stamp for the navigation maps
+    # segment (locks.segment_key) -> times its lock menu was abandoned today;
+    # at locks.LOCK_ABANDON_LIMIT the doorway stops being triable for the rest
+    # of the day (Game.frontier_doorway_triable). Day-scoped like door_state.
+    lock_abandons: dict[tuple[int, int], int] = field(default_factory=dict)
     lock_bias: float = 1.0  # daily lock-chance multiplier (locks.json "bias")
     # security doors rolled so far today (capped by locks.json spawn_limit per security level)
     security_doors_spawned: int = 0

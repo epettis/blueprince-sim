@@ -24,8 +24,8 @@ from .effects.tier1 import _grant
 from .grid import (ADJACENT, DIRS, E, ENTRANCE_CELL, N, N_CELLS, OPPOSITE, W,
                    neighbor, rank_of, rotate_mask)
 from .items import EXTRA_ITEM_TABLE, grant_item, roll_room_items
-from .locks import (DOOR_LOCKED, DOOR_OPEN, DOOR_SEALED, DOOR_SECURITY, SECURITY_LEVELS,
-                    roll_segment, segment_key)
+from .locks import (DOOR_LOCKED, DOOR_OPEN, DOOR_SEALED, DOOR_SECURITY, LOCK_ABANDON_LIMIT,
+                    SECURITY_LEVELS, roll_segment, segment_key)
 from .locks import security_openable as _security_openable
 from .model import RARITIES, Registry, Room
 from .placement import legal_orientations
@@ -583,11 +583,15 @@ class Game:
         cell) be TRIED right now, i.e. is :meth:`open_door` legal on it?
 
         DOOR_SEALED: never. DOOR_SECURITY: only while the keycard system
-        allows it (unaffected by this PR -- no menu, same as always).
-        DOOR_LOCKED and DOOR_OPEN: always -- trying a locked door costs
-        nothing and is how the player finds out it's locked at all
-        (Phase.LOCK_PENDING); no key is budgeted here. The single source
-        both :func:`env.actions.action_mask`'s OPEN_BASE range and
+        allows it (no menu, same as always).
+        DOOR_OPEN: always. DOOR_LOCKED: until its menu has been abandoned
+        ``locks.LOCK_ABANDON_LIMIT`` times today, then no longer -- trying a
+        locked door costs nothing and is how the player finds out it is locked
+        at all (Phase.LOCK_PENDING), and no key is budgeted here, but a free
+        try that can be repeated without limit is a zero-step loop nothing
+        else terminates. Declining and returning later is still expressible;
+        only the unbounded case is refused. The single source both
+        :func:`env.actions.action_mask`'s OPEN_BASE range and
         :meth:`draft_from` read, so the two cannot silently diverge (the
         precise class of drift that produced the bug this feature fixes --
         see the Silver Key's old, unconditional auto-spend).
@@ -597,6 +601,9 @@ class Game:
             return False
         if state == DOOR_SECURITY:
             return self.security_openable()
+        if state == DOOR_LOCKED:
+            seg = segment_key(cell, direction)
+            return self.state.lock_abandons.get(seg, 0) < LOCK_ABANDON_LIMIT
         return True
 
     def _open_segment(self, cell: int, direction: int) -> None:
@@ -1535,8 +1542,20 @@ class Game:
 
     def abandon_lock(self) -> None:
         """Exit the lock menu without opening the door: back to NAVIGATE,
-        the segment still DOOR_LOCKED, nothing spent."""
+        the segment still DOOR_LOCKED, nothing spent.
+
+        Tallies the abandon against this doorway's segment. At
+        ``locks.LOCK_ABANDON_LIMIT`` the doorway stops being triable for the
+        rest of the day (:meth:`frontier_doorway_triable`), which is what
+        bounds a pair that otherwise costs no game steps at all.
+        """
         assert self.can_abandon_lock(), "not awaiting a lock choice"
+        cell = self.state.pending_lock_cell
+        direction = self.state.pending_lock_direction
+        if cell >= 0:
+            seg = segment_key(cell, direction)
+            self.state.lock_abandons[seg] = self.state.lock_abandons.get(seg, 0) + 1
+            self.state.door_version += 1  # triability changed; invalidate nav caches
         self.state.pending_lock_cell = -1
         self.state.pending_lock_direction = 0
         self.phase = Phase.NAVIGATE
