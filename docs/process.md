@@ -335,6 +335,19 @@ way a checklist can. The split also has to ship *first* and alone, because
 per-room files are what make the later PRs genuinely disjoint; without it every
 room fix collides in one shared test file and the audit serialises.
 
+**That progress bar reads false-negative, and the count is the trap.** The
+absence of a per-room file records "not audited" only where nothing *else*
+pins the room, and plenty does: 69 room modules against 87 files in
+`tests/rooms/`, of which only 57 are actually paired -- 12 modules have no
+mirrored file and 30 files have no module. Measured on one of the 12, the
+Boiler Room: deleting its steam gate fails 2 tests in
+`test_upper_rotating_gear.py` and deleting its `POWER_SOURCE` capability fails
+29 in `test_power.py`, so both its mechanisms are pinned and a per-room file
+would have been pure duplication. Reading the directory listing as a to-do
+list would have produced it. **The bar is a prompt to go and check a room, not
+evidence that the room is unchecked** -- and the check is mutation, which is
+the same instruction the audit gives for everything else.
+
 **Work lanes, not numbers.** A metric target set before triage will usually
 price in work that does not exist at that price: a "drop below 70 findings"
 goal turned out to need engine capability for 21 of 34 findings, with only ~10
