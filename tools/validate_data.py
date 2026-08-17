@@ -3267,10 +3267,13 @@ def main(argv: list[str] | None = None) -> int:
 
     base = [r for r in rooms if r.get("pool") == "base"]
     n_shops = len(shops)
-    audit_note = (
-        f"; {n_audit} divergence-audit findings (run with --audit to list)"
-        if n_audit else ""
-    )
+    # Reported unconditionally, zero included. Suppressing the note on an empty
+    # worklist makes "the audit ran and found nothing" and "there is no such
+    # audit" identical on the summary line, and the summary line is all most
+    # readers see -- the count is the only evidence the channel is alive.
+    audit_note = f"; {n_audit} divergence-audit findings"
+    if n_audit:
+        audit_note += " (run with --audit to list)"
     # Unimplemented items split into work still queued vs decisions never to build,
     # so the backlog number reflects what is actually left rather than counting
     # deliberate exclusions forever.
