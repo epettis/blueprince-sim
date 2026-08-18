@@ -26,6 +26,7 @@ const state = {
   speedIdx: 0,        // index into SPEEDS
   areaGraph: null,    // cached /api/areas response
   areaStats: null,    // cached /api/area_stats response
+  replayDebug: false, // runs view: fetch per-option counterfactual rewards
   areaMode: "replay", // "replay" or "agg"
   upgradeStats: null, // cached /api/upgrade_stats response
 };
@@ -610,6 +611,12 @@ async function refreshProgress() {
 /* ---------------------------------------------------------------- runs */
 
 $("#runs-sort").onchange = (e) => { state.runsSort = e.target.value; refreshRuns(); };
+// Debug rewards: built server-side by replaying each option, so the toggle
+// cannot be served from frames already in hand -- refetch the open run.
+$("#replay-debug").onchange = (e) => {
+  state.replayDebug = e.target.checked;
+  if (state.run) loadRun(state.run.episode);
+};
 
 async function refreshRuns() {
   try {
@@ -634,7 +641,7 @@ async function loadRun(episode) {
   state.selectedEp = episode;
   $("#run-title").textContent = `loading run #${fmtInt(episode)}…`;
   try {
-    state.run = await getJSON(`/api/run/${episode}`);
+    state.run = await getJSON(`/api/run/${episode}${state.replayDebug ? "?debug=1" : ""}`);
   } catch (err) {
     $("#run-title").textContent = `failed to load run #${fmtInt(episode)}`;
     return;
@@ -832,6 +839,23 @@ function draftHeaderText(pend) {
   return `Draft options — from ${src}, facing ${pend.direction || "?"}`;
 }
 
+function rewardBadge(dbg) {
+  // Debug mode only: what `shaped` would pay for taking this option, with the
+  // diagnostics that usually explain it. Absent unless the run was fetched
+  // with ?debug=1, so an ordinary viewer sees the card exactly as before.
+  if (!dbg) return "";
+  if (dbg.error || dbg.reward == null) {
+    return '<div class="opt-reward dim" title="the engine refuses this option here">n/a</div>';
+  }
+  const r = dbg.reward;
+  const cls = r > 0.001 ? "good" : r < -0.05 ? "bad" : "flat";
+  const tip = `reward ${r.toFixed(4)} · ways forward ${dbg.open_ways}`
+    + ` · routes to the Antechamber ${dbg.ante_paths}`
+    + ` · Antechamber ${dbg.ante_reachable ? "still reachable" : "NOT reachable"}`
+    + ` · deepest rank ${dbg.deepest_rank}`;
+  return `<div class="opt-reward ${cls}" title="${tip}">${r >= 0 ? "+" : ""}${r.toFixed(3)}</div>`;
+}
+
 function optionCardHtml(o, extra = {}) {
   const cls = ["opt", o.affordable ? "" : "unaffordable", extra.chosen ? "chosen" : "",
                extra.clickable ? "clickable" : ""].filter(Boolean).join(" ");
@@ -846,7 +870,7 @@ function optionCardHtml(o, extra = {}) {
   return `<div class="${cls}"${extra.dataAttrs || ""}>${miniGlyph(o.orientation)}
     <div class="opt-body"><div class="name" style="color:${o.hidden ? "#8a919c" : catColor(o.category)}">${esc(o.name)}</div>
     <div class="sub">${esc(tags)}</div>${altHtml}</div>
-    <div class="cost">${o.cost > 0 ? o.cost + " 💎" : "free"}</div></div>`;
+    <div class="cost">${o.cost > 0 ? o.cost + " 💎" : "free"}${rewardBadge(extra.dbg)}</div></div>`;
 }
 
 function renderFrame() {
@@ -888,8 +912,13 @@ function renderFrame() {
   if (pend) {
     $("#options-head").textContent =
       draftHeaderText(pend) + (chosenSlot != null ? " (picked)" : "");
+    // In debug mode the frame that OWNS the hand carries the rewards; when we
+    // looked back one frame for a picked hand, take them from that frame too.
+    const dbgSrc = (chosenSlot != null ? run.frames[idx - 1] : frame).option_rewards;
+    const byslot = {};
+    for (const d of dbgSrc || []) byslot[d.slot] = d;
     $("#options").innerHTML = pend.options.map((o) =>
-      optionCardHtml(o, { chosen: o.slot === chosenSlot })).join("");
+      optionCardHtml(o, { chosen: o.slot === chosenSlot, dbg: byslot[o.slot] })).join("");
   } else {
     $("#options-head").textContent = "Draft options";
     $("#options").innerHTML = '<div id="options-placeholder">— no draft in progress —</div>';

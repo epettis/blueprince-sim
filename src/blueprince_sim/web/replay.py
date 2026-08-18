@@ -12,15 +12,17 @@ divergences are detected and surfaced rather than silently rendered.
 
 from __future__ import annotations
 
+import copy
 import dataclasses
 
 from ..config import GameConfig, config_digest
-from ..engine.game import Game, Phase, RedrawKind
+from ..engine.game import ANTECHAMBER_CELL, Game, Phase, RedrawKind
 from ..engine.grid import DIR_NAMES
 from ..engine.items import expected_yields
 from ..engine.locks import DOOR_SECURITY
 from ..engine.placement import legal_orientations
 from ..env import actions as A
+from ..env import rewards
 
 
 def rooms_meta(registry) -> list[dict]:
@@ -178,7 +180,8 @@ def _inventory_list(game: Game) -> list[dict]:
     return items
 
 
-def _frame(game: Game, action: dict | None, facing: str | None) -> dict:
+def _frame(game: Game, action: dict | None, facing: str | None,
+           debug: bool = False) -> dict:
     """Snapshot the visible state as one replay frame.
 
     ``action`` describes the step that PRODUCED this state (None for the
@@ -212,6 +215,10 @@ def _frame(game: Game, action: dict | None, facing: str | None) -> dict:
         "deepest_rank": game.deepest_rank,
         "reason": game.termination_reason,
         "pending": _pending_dict(game),
+        # Per-option counterfactual rewards, only when the caller asked: each
+        # entry deep-copies the game, so computing it for every frame of every
+        # run would be paid by viewers who never open the panel.
+        "option_rewards": option_rewards(game) if debug else None,
         "action": action,
         "scepter_color": st.shops.scepter_color,
     }
@@ -264,7 +271,52 @@ def _current_n_actions() -> int:
     return A.N_ACTIONS
 
 
-def build_frames(record: dict) -> tuple[list[dict], dict | None]:
+def option_rewards(game: Game) -> list[dict] | None:
+    """What each option of the open hand would score if it were taken.
+
+    For every dealt option, copies the game, applies ``choose(slot)`` to the
+    copy and scores the resulting step with the ``shaped`` reward, alongside
+    the diagnostics that usually explain the number: the ways forward the
+    placement opens, the surviving routes to the Antechamber, and whether the
+    Antechamber is still walkable at all.
+
+    A copy per option, so nothing here can disturb the replay being rendered.
+    Returns None when no hand is open. Only ``shaped`` is scored: it is what
+    every run to date trains against, and offering three modes would invite
+    reading a number the policy was never shown.
+
+    This answers "why did it take THAT room" directly. On seed 1139797120 the
+    hand at move 37 scored Bedroom +0.009 against Utility Closet -1.001, so
+    the reward was unambiguous and the choice was the policy's, not the
+    reward's -- a distinction no amount of staring at the board can settle.
+    """
+    pending = game.state.pending
+    if pending is None:
+        return None
+    prev = rewards.snapshot(game)
+    out: list[dict] = []
+    for opt in pending.options:
+        sim = copy.deepcopy(game)
+        try:
+            sim.choose(opt.slot)
+        except Exception:
+            # An option the engine refuses (unaffordable, illegal placement)
+            # has no counterfactual reward; say so rather than invent one.
+            out.append({"slot": opt.slot, "reward": None, "error": True})
+            continue
+        out.append({
+            "slot": opt.slot,
+            "reward": rewards.shaped(sim, prev, terminated=False),
+            "open_ways": rewards._open_ways(sim, pending.target_cell),
+            "ante_paths": rewards._ante_paths(sim),
+            "ante_reachable": sim.distance_map()[ANTECHAMBER_CELL] >= 0,
+            "deepest_rank": sim.deepest_rank,
+            "error": False,
+        })
+    return out
+
+
+def build_frames(record: dict, debug: bool = False) -> tuple[list[dict], dict | None]:
     """Frame 0 is the post-reset state; frame i+1 follows ``actions[i]``.
 
     Returns ``(frames, divergence)`` where ``divergence`` is ``None`` when the
@@ -317,7 +369,7 @@ def build_frames(record: dict) -> tuple[list[dict], dict | None]:
     env = BluePrinceEnv(cfg=cfg)
     env.reset(seed=record["seed"])
     facing = "N"
-    frames = [_frame(env.game, None, facing)]
+    frames = [_frame(env.game, None, facing, debug)]
     modes = record.get("modes", "")
     first_invalid: int | None = None
     invalid_count = 0
@@ -364,7 +416,7 @@ def build_frames(record: dict) -> tuple[list[dict], dict | None]:
         frame = _frame(
             env.game,
             {"index": i, "action": action, "text": text, "explore": explore},
-            facing)
+            facing, debug)
         if action_invalid:
             frame["invalid"] = True
         frames.append(frame)

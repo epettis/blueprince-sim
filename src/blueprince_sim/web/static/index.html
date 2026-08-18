@@ -169,7 +169,12 @@
     <div class="panel-head">Inventory</div>
     <div id="inventory" class="inv-chips"></div>
     <div id="mode-line"></div>
-    <div id="options-head" class="panel-head">Draft options</div>
+    <div class="panel-head">Draft options
+      <label class="dbg-toggle" title="Score every option in the hand by replaying it: what `shaped` would pay, the ways forward it opens, and whether the Antechamber stays reachable. Rebuilds the run, so it is off by default.">
+        <input type="checkbox" id="replay-debug"> rewards
+      </label>
+    </div>
+    <div id="options-head" class="panel-head dim"></div>
     <div id="options"></div>
     <div class="panel-head">Action log</div>
     <div id="action-log"></div>

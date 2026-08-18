@@ -739,3 +739,27 @@ def test_every_dispatched_action_leaves_a_day_that_can_still_end(registry):
             assert env.game.state.steps > 0, (
                 f"seed {seed}: still playing at {env.game.state.steps} steps"
             )
+
+
+def test_a_doorway_walled_off_from_the_antechamber_is_not_a_way_forward(registry):
+    """A door into a region already severed from the Antechamber scores nothing.
+
+    That is the illusion of a frontier: the room looks like it opened the house
+    up, while the direction it opened is already cut off. `_ante_paths` applies
+    this same optimistic-distance filter, so the placement bonus has to agree
+    with it or the two terms describe different boards.
+    """
+    g = _game(registry)
+    # Seal rank 2 across its whole width with rooms that have no north or south
+    # door, severing rank 1 from everything above it.
+    for cell in range(5, 10):
+        _plant(g, "corridor", cell, E | W)
+    od = g.optimistic_distances()
+    assert od[1] == -1, f"setup: rank 1 must be severed, got optimistic distance {od[1]}"
+
+    # A room at the rank-1 corner with one spare door east, into empty cell 1.
+    _plant(g, "corridor", 0, E)
+    assert g.state.grid[1] < 0, "setup: the door's target must be empty"
+    assert R._open_ways(g, 0) == 0, (
+        "a door into a severed region is not a way forward and must score nothing"
+    )
