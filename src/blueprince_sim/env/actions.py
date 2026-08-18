@@ -259,6 +259,7 @@ Layout (Discrete(493)):
 
 from __future__ import annotations
 
+from ..engine.areas import AREA_REVISIT_LIMIT
 from ..engine.draft import COLOUR_CATEGORIES
 from ..engine.game import Game, Phase, RedrawKind
 from ..engine.grid import DIR_NAMES, DIRS, N_CELLS, rank_of
@@ -934,6 +935,10 @@ def action_mask(game: Game, prev_action: int | None = None) -> list[bool]:
         graph_nodes = game.registry.area_graph.nodes
         route_costs = game.area_route_costs()
         grid_anchors = None if game.off_grid else game._grid_anchors()
+        # Anchor IDS are needed off-grid too, where grid_anchors is None: the
+        # revisit cap must never apply to the way back onto the grid, and
+        # off-grid is exactly when that matters.
+        anchor_ids = frozenset(game._grid_anchors())
         for i, node_id in enumerate(node_ids):
             # Unmodelled areas have no contents to collect, so offering travel to
             # them is a pure step sink.  They stay in the graph and the pathfinder
@@ -958,6 +963,14 @@ def action_mask(game: Game, prev_action: int | None = None) -> list[bool]:
             if grid_anchors is not None and node_id in grid_anchors:
                 if not _cell_worth_entering(game, grid_anchors[node_id]):
                     continue
+            # Revisit cap: an off-grid node latches its unlocks and hands over
+            # its items on first arrival, so past areas.AREA_REVISIT_LIMIT it
+            # accomplishes nothing and is not offered again today. Grid anchors
+            # are exempt -- travel to one is how the player gets back on the
+            # grid at all, and it already clears _cell_worth_entering above.
+            if (node_id not in anchor_ids
+                    and st.area_visits.get(node_id, 0) >= AREA_REVISIT_LIMIT):
+                continue
             # Strict affordability: steps > cost so at least 1 remains.
             if st.steps > cost:
                 mask[TRAVEL_BASE + i] = True

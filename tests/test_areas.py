@@ -13,6 +13,7 @@ from pathlib import Path
 import pytest
 
 from blueprince_sim.engine.areas import (
+    AREA_REVISIT_LIMIT,
     AreaGraph,
     GateContext,
     gate_open,
@@ -886,3 +887,96 @@ def test_area_round_trip_full_outer_room_lifecycle() -> None:
     assert g.state.pos == ENTRANCE_CELL
 
 
+
+
+# --------------------------------------------- the per-day area revisit cap
+
+
+def _fresh(registry) -> Game:
+    """A day-1 game with enough steps that affordability never masks travel."""
+    g = Game(GameConfig(day=1, special_items=True), seed=1, registry=registry)
+    g.state.steps = 400
+    return g
+
+
+def _travel_legal(g: Game, node_id: str) -> bool:
+    """Whether the mask currently offers travel to ``node_id``."""
+    from blueprince_sim.env import actions as A
+    nodes = A._build_area_node_ids(g.registry)
+    return A.action_mask(g)[A.TRAVEL_BASE + nodes.index(node_id)]
+
+
+def test_an_area_stops_being_offered_after_its_revisit_limit(registry):
+    """An off-grid node may be travelled to AREA_REVISIT_LIMIT times a day.
+
+    Off-grid nodes latch their unlocks and hand over their items on first
+    arrival, so past the limit a further visit accomplishes nothing. Before it,
+    travelling out and coming back stays expressible -- which is what the limit
+    is set above 1 to preserve.
+    """
+    g = _fresh(registry)
+    assert _travel_legal(g, "apple_orchard"), "setup: the orchard must start reachable"
+
+    for i in range(AREA_REVISIT_LIMIT):
+        assert _travel_legal(g, "apple_orchard"), f"visit {i} must still be offered"
+        g.travel_to("apple_orchard")
+        g.travel_to("house")            # leave, so the next travel is a real revisit
+        assert g.state.area_visits["apple_orchard"] == i + 1
+
+    assert not _travel_legal(g, "apple_orchard"), (
+        "past the limit the node must stop being offered"
+    )
+
+
+def test_the_revisit_cap_is_per_node(registry):
+    """Exhausting one area leaves every other still reachable.
+
+    A global travel budget would forbid a player who walked to the orchard
+    twice from ever visiting the campsite, which is a different decision.
+    """
+    g = _fresh(registry)
+    for _ in range(AREA_REVISIT_LIMIT):
+        g.travel_to("apple_orchard")
+        g.travel_to("house")
+    assert not _travel_legal(g, "apple_orchard")
+    assert _travel_legal(g, "campsite"), "a different area must be unaffected"
+
+
+def test_grid_anchors_are_exempt_from_the_cap(registry):
+    """Returning to the house is never blocked, however often it happens.
+
+    Travel to a grid anchor is how an off-grid player gets back on the grid at
+    all; capping it could strand a run outside with steps still in hand.
+    """
+    g = _fresh(registry)
+    for _ in range(AREA_REVISIT_LIMIT + 3):
+        g.travel_to("campsite")
+        g.travel_to("house")
+    assert g.state.area_visits["house"] > AREA_REVISIT_LIMIT
+
+    # Check from OFF-GRID, which is the case the exemption exists for: standing
+    # at the house, travel to the house is self-travel and masked for that
+    # reason, which would hide the property under test.
+    g.travel_to("private_drive")
+    assert g.state.area is not None, "setup: must be off-grid to test the way back"
+    assert _travel_legal(g, "house"), (
+        "the way back onto the grid must stay offered however often it is used"
+    )
+
+
+def test_a_capped_node_can_still_be_routed_THROUGH(registry):
+    """The cap hides a DESTINATION; it never closes an edge.
+
+    Travel is a macro that pathfinds, so a node at its limit must still carry
+    routes to nodes beyond it -- otherwise capping a hub would silently amputate
+    the graph behind it.
+    """
+    g = _fresh(registry)
+    g.state.area_visits["campsite"] = AREA_REVISIT_LIMIT   # cap it without visiting
+    assert not _travel_legal(g, "campsite")
+    costs_after = g.area_route_costs()
+    assert "campsite" in costs_after, (
+        "the pathfinder must still know the route to a capped node"
+    )
+    reachable = {n for n, r in costs_after.items() if r is not None}
+    assert len(reachable) > 1, "capping a node must not collapse reachability"
