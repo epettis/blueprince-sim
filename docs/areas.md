@@ -602,6 +602,51 @@ three *held* microchips and the engine's ceiling is two (Entrance Hall vase,
 West Path dig). It is built correct-and-unreachable deliberately — inventing a
 third source would be making up a game rule, and no ruling exists for one.
 
+## The per-day revisit cap
+
+`areas.AREA_REVISIT_LIMIT` (2) caps how many times one area node may be
+**travelled to** in a day, tallied in `GameState.area_visits` and enforced in
+the action mask. **Grid anchors are exempt** — travel to `house`/`garage`/
+`the_foundation`/`antechamber` is how an off-grid player gets back on the grid
+at all, and capping it could strand a run outside with steps in hand.
+
+The cap hides a **destination**; it never closes an edge. Travel is a macro
+that pathfinds, so a node at its limit still carries routes to everything
+beyond it.
+
+**Why it exists.** Off-grid nodes latch their unlocks and hand over their items
+on first arrival, so past the limit a further visit accomplishes nothing — but
+nothing stopped a policy bouncing between two adjacent ones for a whole day.
+Measured on `runs/freshsave-v3`, 71 of 100 random-sampled episodes reached rank
+≤ 2 and spent **92%** of their actions travelling, bouncing
+`apple_orchard`↔`private_drive` 2,056 times; `runs/freshsave-v2` showed the
+same shape at `blackbridge_grotto`↔`campsite`. Driven directly, that loop pays
+`−0.002` a hop and gains nothing, so it is **avoidance, not farming** — the
+reward failed to make drafting attractive and the loop was the cheapest way to
+spend a day.
+
+Two reward attempts did not fix it, which is what moved the fix into the mask:
+ordering the north-door milestone ([`rewards.md`](rewards.md)) removed a real
+exploit but not this loop, and the placement-frontier bonus raised `choose` to
+a positive mean without changing behaviour at matched episode counts (92% vs
+87% travel, v3 vs v2 at 0–16k).
+
+The measured cause is the **action prior**, not the payoff. Before the cap,
+travel was **49.7%** of the legal action set — a uniform policy picked it half
+the time — while drafting needs a three-action chain (`open` → `choose` →
+`move`) whose only positive term lands on the last link. Effect, masked-random
+over 60 fresh-save days:
+
+| | before | after |
+|---|---|---|
+| travel share of legal actions | 49.7% | **29.2%** |
+| travel share of actions taken | ~50% | **34%** |
+| a pure-touring trajectory | 42 travels/day | **8** |
+| a drafting trajectory | — | **0.4%** travel |
+
+Scripted policies are unaffected: they never travel, and the baselines are
+unmoved at 24.340 / 10.027.
+
 ## How it works in code
 
 - `engine/state.py` — `GameState.area` is `str | None`: None means "on the 5x9
