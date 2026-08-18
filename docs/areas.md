@@ -604,7 +604,7 @@ third source would be making up a game rule, and no ruling exists for one.
 
 ## The per-day revisit cap
 
-`areas.AREA_REVISIT_LIMIT` (2) caps how many times one area node may be
+`areas.AREA_REVISIT_LIMIT` (1) caps how many times one area node may be
 **travelled to** in a day, tallied in `GameState.area_visits` and enforced in
 the action mask. **Grid anchors are exempt** — travel to `house`/`garage`/
 `the_foundation`/`antechamber` is how an off-grid player gets back on the grid
@@ -634,15 +634,26 @@ a positive mean without changing behaviour at matched episode counts (92% vs
 The measured cause is the **action prior**, not the payoff. Before the cap,
 travel was **49.7%** of the legal action set — a uniform policy picked it half
 the time — while drafting needs a three-action chain (`open` → `choose` →
-`move`) whose only positive term lands on the last link. Effect, masked-random
-over 60 fresh-save days:
+`move`) whose only positive term lands on the last link.
 
-| | before | after |
-|---|---|---|
-| travel share of legal actions | 49.7% | **29.2%** |
-| travel share of actions taken | ~50% | **34%** |
-| a pure-touring trajectory | 42 travels/day | **8** |
-| a drafting trajectory | — | **0.4%** travel |
+**Measured on a trained policy**, 80 fresh-seed rollouts of a 2,000-episode
+checkpoint (`runs/freshsave-v6`):
+
+| | travel share |
+|---|---|
+| before the cap (`runs/freshsave-v3`, replays) | **92%** |
+| cap at 2, trained rollout | 20.8% argmax / 24.3% sampled |
+| **cap at 1, trained rollout** | **14.3% argmax / 14.2% sampled** |
+
+At a limit of 2 the policy saturated the allowance exactly — two visits to every
+reachable node, every day — and still spent a fifth of its actions travelling.
+That is what set the limit to 1: the second visit was being spent, and it buys
+nothing, because the node's whole value is on first arrival.
+
+Supporting measurements, masked-random over 60 fresh-save days: travel falls
+from **49.7%** of the legal action set to **29.2%**; a dedicated touring
+trajectory falls from 42 travels a day to 5 and cannot exceed **13.7%** of its
+own actions; a drafting trajectory sits at **0.2%**.
 
 Scripted policies are unaffected: they never travel, and the baselines are
 unmoved at 24.340 / 10.027.
