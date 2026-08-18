@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Protocol
 
 from ..engine.game import ANTECHAMBER_CELL, Game
-from ..engine.grid import neighbor, rank_of
+from ..engine.grid import DIRS, N_CELLS, neighbor, rank_of
 from ..engine.special_items import inventory_value
 
 # ---------------------------------------------------------------------------
@@ -19,6 +19,10 @@ PATHS_ZERO_PENALTY: float = -1.0   # potential when all routes are sealed
 ANTECHAMBER_REWARD: float = 0.25   # first Antechamber arrival each day (milestone)
 NORTH_DOOR_REWARD: float = 0.5     # north door open AND Antechamber reached (either lever)
 ROOM46_REWARD: float = 1.0         # first Room 46 arrival each day (win)
+# Paid per way forward a newly placed room opens (see _open_ways). Small,
+# certain and paid ON the placement, against a phi_paths risk that is also
+# charged there -- see shaped()'s docstring for why the two must land together.
+FRONTIER_PLACEMENT_BONUS: float = 0.01
 
 
 class RewardFn(Protocol):
@@ -124,6 +128,52 @@ def _phi_frontier(game: Game) -> float:
     return 0.02 * min(passable, 4)
 
 
+def _open_ways(game: Game, cell: int) -> int:
+    """Doorways from ``cell`` into an empty in-grid cell: the ways forward the
+    room placed there opens.
+
+    Counts the placed room's OWN outgoing doors, never a global frontier total.
+    The doorway the room was drafted through faces a cell that is already
+    occupied, so it is not counted, and the count is therefore bounded by 3
+    without needing a cap. A Dead End scores 0.
+    """
+    mask = game.state.placed_doors[cell]
+    n = 0
+    for d in DIRS:
+        if not mask & d:
+            continue
+        nb = neighbor(cell, d)
+        if 0 <= nb < N_CELLS and game.state.grid[nb] < 0:
+            n += 1
+    return n
+
+
+def _placement_frontier(game: Game, prev: dict) -> float:
+    """Bonus for the ways forward opened by rooms placed since ``prev``.
+
+    Paid at placement rather than on entry, which is the point: every other
+    positive term in :func:`shaped` lands when the player *enters* a room, one
+    decision later, while the ``phi_paths`` risk of that placement is charged
+    immediately. Measured over masked-random fresh-save days, that left
+    ``choose`` a near-zero-mean action (+0.0009) with a fat negative tail (8.9%
+    of placements at or below -0.15, worst -1.0) against a certain, bounded
+    -0.002 for a travel hop -- so burning the day on outdoor travel dominated
+    drafting on risk without losing anything on mean.
+
+    Not potential-based, so it does change the optimal policy, deliberately.
+    It cannot be farmed: a cell is placed once and the grid holds 45 of them,
+    so the whole term is bounded by the board rather than by a cap. It is
+    deliberately NOT shared with :func:`phased`, which prices forward pathways
+    its own way through :func:`_phi_frontier`.
+    """
+    filled = prev["filled"]
+    total = 0
+    for cell in range(N_CELLS):
+        if game.state.grid[cell] >= 0 and not filled[cell]:
+            total += _open_ways(game, cell)
+    return FRONTIER_PLACEMENT_BONUS * total
+
+
 def _north_door_credited(game: Game) -> bool:
     """Whether the north-door milestone has been earned: the door is open AND
     the Antechamber has been reached today.
@@ -175,6 +225,9 @@ def snapshot(game: Game) -> dict:
         "antechamber_reached": st.antechamber_reached,
         "north_door_credited": _north_door_credited(game),
         "room46_reached": st.room46_reached,
+        # Which cells hold a room, so shaped() can find the ones placed
+        # by THIS decision without the engine having to report them.
+        "filled": tuple(idx >= 0 for idx in st.grid),
     }
 
 
@@ -208,6 +261,15 @@ def shaped(game: Game, prev: dict, terminated: bool) -> float:
     undiluted.  A dead_end termination lands with the sealing -1.0 already
     charged on the prior draft.
 
+    Placement frontier (:func:`_placement_frontier`): +0.01 per way forward a
+    newly placed room opens into an empty cell, so a placement that keeps the
+    house branching is paid at the moment it is made -- the same step the
+    phi_paths risk is charged on. Every other positive term here lands one
+    decision later, on entry, which left choosing a room a near-zero-mean
+    action with a fat negative tail; see that function for the measurement.
+    `phased` does NOT share it: it prices forward pathways through
+    :func:`_phi_frontier` instead.
+
     The three milestones come from :func:`_milestones`, shared with `sparse`
     and `phased`.
     """
@@ -222,6 +284,7 @@ def shaped(game: Game, prev: dict, terminated: bool) -> float:
     )
     r += 0.01 * d_res
     r += _phi_paths(_ante_paths(game)) - prev["phi_paths"]
+    r += _placement_frontier(game, prev)
     # Time pressure priced against the resource that actually ends runs (steps),
     # not decision count: clamp step GAINS to 0 first (food etc. must not turn
     # this term into a bonus), then floor at 1 so zero-step decisions pay
