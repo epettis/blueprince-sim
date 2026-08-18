@@ -116,6 +116,7 @@ class Observatory:
         self.eval_path = ckpt_dir / "eval.jsonl"
         self.draft_stats_path = ckpt_dir / "draft_stats.jsonl"
         self.area_stats_path = ckpt_dir / "area_stats.jsonl"
+        self.copula_stats_path = ckpt_dir / "copula_stats.jsonl"
         self.upgrades_path = ckpt_dir / "upgrades.jsonl"
         self.latest_json = ckpt_dir / "latest.json"
         self.latest_zip = ckpt_dir / "latest.zip"
@@ -462,6 +463,27 @@ class Observatory:
                     b[key][area_id] = b[key].get(area_id, 0) + n
         return {"train": [merged[k] for k in sorted(merged)]}
 
+    def copula_stats(self) -> dict:
+        """Return/depth dependence series from copula_stats.jsonl.
+
+        One entry per bucket in episode order, carrying Spearman's rho, the
+        empirical-copula grid and the marginal summaries. Unlike draft_stats
+        and area_stats these rows are NOT merged by bucket_start: each row is a
+        finished statistic over its own sample, and two rows covering the same
+        range (a resumed run re-emitting a partial bucket) cannot be added
+        together the way counts can. Later rows win.
+
+        Returns an empty structure (not a 500) when the file is absent, which
+        is the normal state for a run trained before this stream existed.
+        """
+        merged: dict[int, dict] = {}
+        for row in _read_jsonl(self.copula_stats_path):
+            start = row.get("bucket_start")
+            if start is None:
+                continue
+            merged[start] = row
+        return {"train": [merged[k] for k in sorted(merged)]}
+
     def upgrade_stats(self) -> dict:
         """Aggregated upgrade-decision statistics from upgrades.jsonl.
 
@@ -657,6 +679,8 @@ class Handler(BaseHTTPRequestHandler):
                     self._send_json(self.obs.areas())
                 case "/api/area_stats":
                     self._send_json(self.obs.area_stats())
+                case "/api/copula_stats":
+                    self._send_json(self.obs.copula_stats())
                 case "/api/upgrade_stats":
                     self._send_json(self.obs.upgrade_stats())
                 case "/api/play/state":

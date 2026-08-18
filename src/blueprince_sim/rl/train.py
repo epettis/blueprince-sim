@@ -559,6 +559,139 @@ def AreaStatsWriter(path: Path, episodes_done: int, bucket: int = 10_000) -> Buc
                              episodes_done=episodes_done, bucket=bucket)
 
 
+def _average_ranks(values: list[float]) -> list[float]:
+    """Ranks of ``values``, ties sharing their average rank (1-based).
+
+    Average ranks rather than ordinal ones because both margins here tie
+    heavily -- ``deepest_rank`` takes nine values at most -- and ordinal ranks
+    would impose an arbitrary order inside a tie group, manufacturing
+    dependence that is not in the data.
+    """
+    order = sorted(range(len(values)), key=lambda i: values[i])
+    ranks = [0.0] * len(values)
+    i = 0
+    while i < len(order):
+        j = i
+        while j + 1 < len(order) and values[order[j + 1]] == values[order[i]]:
+            j += 1
+        shared = (i + j) / 2.0 + 1.0
+        for k in range(i, j + 1):
+            ranks[order[k]] = shared
+        i = j + 1
+    return ranks
+
+
+def _spearman(xs: list[float], ys: list[float]) -> float | None:
+    """Spearman's rho: Pearson correlation of the average ranks.
+
+    Returns None when either margin is constant across the bucket, since the
+    correlation is undefined there rather than zero -- an early bucket where
+    every episode ends at rank 1 must read as "no answer", not "no dependence".
+    """
+    n = len(xs)
+    if n < 2:
+        return None
+    rx, ry = _average_ranks(xs), _average_ranks(ys)
+    mx, my = sum(rx) / n, sum(ry) / n
+    sxy = sum((a - mx) * (b - my) for a, b in zip(rx, ry))
+    sxx = sum((a - mx) ** 2 for a in rx)
+    syy = sum((b - my) ** 2 for b in ry)
+    if sxx <= 0.0 or syy <= 0.0:
+        return None
+    return sxy / (sxx * syy) ** 0.5
+
+
+class CopulaStatsWriter:
+    """Per-bucket dependence between episode return and deepest rank.
+
+    Win rate is 0 for long stretches of a run, so it carries no gradient to
+    watch. What still moves is whether the reward a policy collects is the
+    reward for going *deep*: a policy farming shallow resources scores returns
+    uncorrelated with depth, and one playing the objective scores returns that
+    rise with it. This writer records that dependence over training.
+
+    Each bucket emits Spearman's rho plus ``grid``, a ``GRID``x``GRID`` count
+    matrix of the pairs after both margins are mapped to their rank-based
+    uniforms -- the empirical copula, which is the dependence structure with
+    the marginals divided out. Marginal summaries ride along so the dashboard
+    can show what the raw quantities were doing at the same time.
+
+    **The depth margin is discrete**, taking nine values at most, so the copula
+    is not unique the way it is for continuous margins: the grid is the
+    checkerboard (average-rank) version, and its cells inside a tie group carry
+    the group's mass spread evenly rather than a resolved shape. It is read as
+    a picture of association, not as an estimate of some true continuous
+    copula.
+    """
+
+    GRID = 8  # cells per axis in the empirical-copula matrix
+
+    def __init__(self, path: Path, episodes_done: int, bucket: int = 5_000) -> None:
+        self.path = path                     # output .jsonl
+        self.bucket = bucket                 # episodes per emitted record
+        self._idx = episodes_done // bucket  # current bucket index (resume-aware)
+        self._returns: list[float] = []      # episode returns in this bucket
+        self._depths: list[float] = []       # deepest rank reached, same order
+
+    def on_episode_end(self, episode: int, info: dict) -> None:
+        """Fold one finished episode's (return, depth) pair into the bucket.
+
+        The return comes from the Monitor wrapper's ``info["episode"]["r"]``;
+        an episode without it (an env not wrapped in Monitor) is skipped rather
+        than defaulted, so a missing return can never read as a zero one.
+        """
+        ep = info.get("episode")
+        if not isinstance(ep, dict) or "r" not in ep:
+            return
+        idx = (episode - 1) // self.bucket
+        if idx != self._idx:
+            self.flush()
+            self._idx = idx
+        self._returns.append(float(ep["r"]))
+        self._depths.append(float(info.get("deepest_rank", 0)))
+
+    def _grid(self) -> list[list[int]]:
+        """Empirical-copula counts on rank-transformed margins."""
+        n = len(self._returns)
+        rx, ry = _average_ranks(self._returns), _average_ranks(self._depths)
+        g = [[0] * self.GRID for _ in range(self.GRID)]
+        for a, b in zip(rx, ry):
+            # (rank - 0.5)/n puts each observation at its own quantile midpoint.
+            i = min(self.GRID - 1, int((a - 0.5) / n * self.GRID))
+            j = min(self.GRID - 1, int((b - 0.5) / n * self.GRID))
+            g[j][i] += 1  # row = depth quantile, col = return quantile
+        return g
+
+    def flush(self) -> None:
+        """Write the current bucket's record, if any (also called at shutdown)."""
+        n = len(self._returns)
+        if n:
+            ordered_r = sorted(self._returns)
+            ordered_d = sorted(self._depths)
+
+            def q(vals: list[float], p: float) -> float:
+                return vals[min(len(vals) - 1, int(p * len(vals)))]
+
+            rec = {
+                "bucket_start": self._idx * self.bucket,
+                "bucket_end": (self._idx + 1) * self.bucket,
+                "n": n,
+                "spearman": _spearman(self._returns, self._depths),
+                "grid": self._grid(),
+                "grid_size": self.GRID,
+                "return_mean": sum(self._returns) / n,
+                "return_q": [q(ordered_r, p) for p in (0.1, 0.5, 0.9)],
+                "depth_mean": sum(self._depths) / n,
+                "depth_q": [q(ordered_d, p) for p in (0.1, 0.5, 0.9)],
+                "saved_at": time.strftime("%Y-%m-%dT%H:%M:%S"),
+            }
+            self.path.parent.mkdir(parents=True, exist_ok=True)
+            with self.path.open("a") as f:
+                f.write(json.dumps(rec) + "\n")
+        self._returns.clear()
+        self._depths.clear()
+
+
 def _logger_snapshot(logger) -> dict[str, float]:
     """The subset of ``dashboard.SPECS`` keys currently held in the sb3 logger.
 
@@ -606,6 +739,7 @@ class CheckpointAndStopCallback:
                          recorder: EpisodeRecorder | None = None,
                          draft_stats: DraftStatsWriter | None = None,
                          area_stats: AreaStatsWriter | None = None,
+                         copula_stats: CopulaStatsWriter | None = None,
                          upgrade_logger: UpgradeLogger | None = None,
                          multi_day: int = 0,
                          note_fraction: float = 0.05) -> None:
@@ -618,6 +752,7 @@ class CheckpointAndStopCallback:
                 self.recorder = recorder
                 self.draft_stats = draft_stats
                 self.area_stats = area_stats
+                self.copula_stats = copula_stats
                 self.upgrade_logger = upgrade_logger  # None = disabled via --no-upgrade-log
                 self.recent = deque(maxlen=1000)
                 self.recent_exploit = deque(maxlen=1000)
@@ -662,6 +797,8 @@ class CheckpointAndStopCallback:
                         self.draft_stats.on_episode_end(self.episodes, info)
                     if self.area_stats is not None:
                         self.area_stats.on_episode_end(self.episodes, info)
+                    if self.copula_stats is not None:
+                        self.copula_stats.on_episode_end(self.episodes, info)
                     if mixed and not policy.per_decision:
                         # Attribute the win to the mode the episode ran under
                         # (read BEFORE resampling).
@@ -1170,9 +1307,11 @@ def main(argv: list[str] | None = None) -> int:
 
     draft_stats = DraftStatsWriter(ckpt_dir / "draft_stats.jsonl", episodes_done)
     area_stats = AreaStatsWriter(ckpt_dir / "area_stats.jsonl", episodes_done)
+    copula_stats = CopulaStatsWriter(ckpt_dir / "copula_stats.jsonl", episodes_done)
     callback = CheckpointAndStopCallback(
         ckpt_dir, args.checkpoint_every, episodes_done, args.snapshot_every,
         recorder=recorder, draft_stats=draft_stats, area_stats=area_stats,
+        copula_stats=copula_stats,
         upgrade_logger=upgrade_logger,
         multi_day=args.multi_day, note_fraction=args.dashboard_every)
     _install_signal_handlers()
@@ -1188,6 +1327,7 @@ def main(argv: list[str] | None = None) -> int:
             recorder.flush_top()
         draft_stats.flush()
         area_stats.flush()
+        copula_stats.flush()
         vec_env.close()
         emit(f"[train] done: {callback.episodes} episodes total; "
              f"checkpoint at {latest}")

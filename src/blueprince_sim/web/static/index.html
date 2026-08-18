@@ -34,6 +34,26 @@
   </section>
   <section class="card">
     <div class="card-head">
+      <h2>Reward / depth dependence</h2>
+      <div id="copula-legend" class="legend"></div>
+    </div>
+    <div id="copula-chart" class="chart"></div>
+    <div id="copula-grid"></div>
+    <p class="dim note">
+      <b>Spearman's rho</b> between an episode's return and the deepest rank it reached, per
+      bucket of episodes. Win rate stays at 0 for long stretches and shows nothing; this moves
+      whenever the reward a policy collects starts tracking <i>depth</i> rather than shallow
+      resource farming. <b>+1</b> = deeper episodes always score higher, <b>0</b> = return says
+      nothing about depth.
+      &nbsp;·&nbsp; The grid is the <b>empirical copula</b> of the latest bucket — both margins
+      mapped to their rank uniforms, so it shows dependence with the marginals divided out.
+      Mass on the diagonal means depth and return move together. Depth takes only nine values,
+      so its margin is discrete and the grid is the average-rank (checkerboard) version: read it
+      as a picture of association, not an estimate of a continuous copula.
+    </p>
+  </section>
+  <section class="card">
+    <div class="card-head">
       <h2>Draft frequency</h2>
       <div class="draft-controls">
         <select id="draft-source">
