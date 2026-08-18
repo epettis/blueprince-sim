@@ -93,16 +93,18 @@ $("#tab-play").onclick = () => setTab("play");
 
 async function refreshDashboard() {
   try {
-    const [summary, metrics, draftStats, upgradeStats] = await Promise.all([
+    const [summary, metrics, draftStats, upgradeStats, copulaStats] = await Promise.all([
       getJSON("/api/summary"), getJSON("/api/metrics"),
       // Tolerate a server predating this endpoint (static files reload on
       // refresh, but routes need a server restart).
       getJSON("/api/draft_stats").catch(() => ({ train: [], eval: [] })),
-      getJSON("/api/upgrade_stats").catch(() => ({ variants: [], economy: [], gates: {} }))]);
+      getJSON("/api/upgrade_stats").catch(() => ({ variants: [], economy: [], gates: {} })),
+      getJSON("/api/copula_stats").catch(() => ({ train: [] }))]);
     state.draftStats = draftStats;
     state.upgradeStats = upgradeStats;
     renderTiles(summary, metrics);
     renderChart(metrics);
+    renderCopula(copulaStats);
     renderDraftBars(draftStats);
     renderDraftTs(draftStats);
     renderCkptTable(metrics);
@@ -141,6 +143,92 @@ function niceStep(raw) {
   const mag = Math.pow(10, Math.floor(Math.log10(raw)));
   for (const m of [1, 2, 2.5, 5, 10]) if (m * mag >= raw) return m * mag;
   return 10 * mag;
+}
+
+function renderCopula(stats) {
+  // Spearman's rho between episode return and deepest rank, one point per
+  // bucket, plus the empirical-copula grid of the most recent bucket. Buckets
+  // whose rho is null (a constant margin -- e.g. every episode ending at rank
+  // 1 early on) are dropped from the line rather than plotted as 0: undefined
+  // dependence is not the same claim as no dependence.
+  const rows = (stats.train || []).filter((r) => r.spearman != null);
+  const el = $("#copula-chart"), gridEl = $("#copula-grid");
+  if (!rows.length) {
+    el.innerHTML = '<p class="dim">no copula samples yet — this stream starts with the ' +
+                   'next run trained after it was added</p>';
+    gridEl.innerHTML = "";
+    $("#copula-legend").innerHTML = "";
+    return;
+  }
+  const SW = 900, SH = 260, L = 52, R = 16, T = 14, B = 34;
+  const xmax = Math.max(...rows.map((r) => r.bucket_end), 1) * 1.03;
+  const X = (e) => L + (e / xmax) * (SW - L - R);
+  const Y = (v) => T + (1 - (v + 1) / 2) * (SH - T - B);   // rho in [-1, 1]
+
+  let g = "";
+  for (let v = -1; v <= 1.0001; v += 0.5) {
+    g += `<line x1="${L}" y1="${Y(v)}" x2="${SW - R}" y2="${Y(v)}" ` +
+         `class="${Math.abs(v) < 1e-9 ? "zero" : "grid"}"/>` +
+         `<text x="${L - 7}" y="${Y(v) + 4}" class="tick" text-anchor="end">${v.toFixed(1)}</text>`;
+  }
+  const xstep = niceStep(xmax / 6);
+  for (let e = 0; e <= xmax; e += xstep) {
+    g += `<line x1="${X(e)}" y1="${T}" x2="${X(e)}" y2="${SH - B}" class="grid"/>` +
+         `<text x="${X(e)}" y="${SH - B + 16}" class="tick" text-anchor="middle">${fmtInt(e)}</text>`;
+  }
+  const pts = rows.map((r) => `${X(r.bucket_end).toFixed(1)},${Y(r.spearman).toFixed(1)}`);
+  let s = pts.length > 1 ? `<polyline points="${pts.join(" ")}" class="s-rho"/>` : "";
+  for (const r of rows) {
+    s += `<circle cx="${X(r.bucket_end)}" cy="${Y(r.spearman)}" r="3" class="s-rho-pt">` +
+         `<title>eps ${fmtInt(r.bucket_start)}–${fmtInt(r.bucket_end)}: rho ${r.spearman.toFixed(3)}` +
+         ` (n=${fmtInt(r.n)}, mean return ${r.return_mean.toFixed(3)},` +
+         ` mean depth ${r.depth_mean.toFixed(2)})</title></circle>`;
+  }
+  el.innerHTML =
+    `<svg viewBox="0 0 ${SW} ${SH}" xmlns="http://www.w3.org/2000/svg">
+      <style>
+        .grid { stroke: #2a2e35; stroke-width: 1; }
+        .zero { stroke: #4a515c; stroke-width: 1.4; stroke-dasharray: 4 3; }
+        .tick { fill: #8a919c; font-size: 11px; }
+        .s-rho { fill: none; stroke: #b07cd8; stroke-width: 2.2; }
+        .s-rho-pt { fill: #b07cd8; stroke: #14161a; stroke-width: 1; }
+      </style>${g}${s}</svg>`;
+
+  const last = rows[rows.length - 1];
+  const G = last.grid_size || (last.grid ? last.grid.length : 0);
+  if (!G) { gridEl.innerHTML = ""; }
+  else {
+    // Uniform margins mean every cell's expected count is n/G^2; shade by the
+    // ratio to that, so the picture is dependence rather than sample size.
+    const expected = last.n / (G * G);
+    const CELL = 26, PAD = 34;
+    let cells = "";
+    for (let j = 0; j < G; j++) {
+      for (let i = 0; i < G; i++) {
+        const c = last.grid[j][i];
+        const ratio = expected > 0 ? c / expected : 0;
+        const a = Math.max(0, Math.min(1, ratio / 3));
+        // row 0 is the lowest depth quantile: draw it at the bottom.
+        const x = PAD + i * CELL, y = PAD + (G - 1 - j) * CELL;
+        cells += `<rect x="${x}" y="${y}" width="${CELL - 1}" height="${CELL - 1}" ` +
+                 `fill="rgba(176,124,216,${a.toFixed(3)})" stroke="#2a2e35">` +
+                 `<title>return q${i + 1}/${G}, depth q${j + 1}/${G}: ${c} episodes ` +
+                 `(${ratio.toFixed(2)}x uniform)</title></rect>`;
+      }
+    }
+    const W = PAD + G * CELL + 12, H = PAD + G * CELL + 26;
+    gridEl.innerHTML =
+      `<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" xmlns="http://www.w3.org/2000/svg">
+        <style>.lbl { fill: #8a919c; font-size: 10px; }</style>
+        <text x="${PAD}" y="16" class="lbl">empirical copula, eps ` +
+        `${fmtInt(last.bucket_start)}–${fmtInt(last.bucket_end)} (n=${fmtInt(last.n)})</text>
+        <text x="${PAD}" y="${H - 8}" class="lbl">return quantile →</text>
+        <text x="10" y="${PAD + 8}" class="lbl" transform="rotate(-90 10 ${PAD + 8})">depth q →</text>
+        ${cells}</svg>`;
+  }
+  $("#copula-legend").innerHTML =
+    `<span class="sw" style="background:#b07cd8"></span>Spearman rho &nbsp;·&nbsp; ` +
+    `latest ${last.spearman.toFixed(3)} over ${fmtInt(last.n)} episodes`;
 }
 
 function renderChart(metrics) {
