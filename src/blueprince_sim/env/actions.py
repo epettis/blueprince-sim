@@ -1242,6 +1242,10 @@ def apply_action(game: Game, action: int) -> None:
     _loc = _repetition_location(game)
     _steps_before = game.state.steps
     _apply_action_inner(game, action)
+    # Single site that re-evaluates the day after every action: the zero-step
+    # switches do not check for themselves, and at 0 steps they stay legal, so
+    # without this a day can never end (see Game.settle_day).
+    game.settle_day()
     if game.state.steps >= _steps_before:   # no step spent: unbounded by design
         key = (_loc, action)
         uses = game.state.repeat_counts.get(key, 0) + 1

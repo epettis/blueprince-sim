@@ -20,10 +20,11 @@ import numpy as np
 import pytest
 
 from blueprince_sim import GameConfig, make_env
-from blueprince_sim.engine.game import ANTECHAMBER_CELL, Game
+from blueprince_sim.engine.game import ANTECHAMBER_CELL, Game, Phase
 from blueprince_sim.engine.grid import E, N, S, W, neighbor
 from blueprince_sim.engine.locks import DOOR_LOCKED, DOOR_OPEN, segment_key
 from blueprince_sim.env import actions as A
+from blueprince_sim.env.blueprince_env import BluePrinceEnv
 from blueprince_sim.env import rewards as R
 from blueprince_sim.env.rewards import (
     PATHS_ONE_PENALTY,
@@ -684,3 +685,57 @@ def test_the_tally_is_keyed_by_where_the_player_stands(registry):
     assert A._repetition_location(g) == "apple_orchard", (
         "off-grid, the location is the area node, never the stale grid cell"
     )
+
+
+# ------------------------------------------- the day must always be able to end
+
+
+def test_a_zero_step_switch_ends_the_day_once_the_budget_is_gone(registry):
+    """At 0 steps a zero-step action must end the day, not be repeatable forever.
+
+    Termination fires on "nothing purposeful remains", and a zero-step action
+    stays legal at 0 steps -- so before Game.settle_day a player who spent their
+    last step at the Utility Closet could flip the Darkroom breaker until the env
+    hit max_env_steps. One recorded episode did exactly that, 622 times out of
+    687 actions, with no other legal action available.
+    """
+    g = Game(GameConfig(day=1, door_locks=True, special_items=True), seed=1,
+             registry=registry)
+    g.reset()
+    _plant_entered(g, "utility_closet", 7, N | S)
+    _plant_entered(g, "darkroom", 12, N | S)
+    g.state.pos = 7
+    g.state.steps = 0
+    assert A.action_mask(g)[A.TOGGLE_DARKROOM_ACTION], (
+        "setup: the zero-step toggle must still be legal at 0 steps"
+    )
+
+    A.apply_action(g, A.TOGGLE_DARKROOM_ACTION)
+    assert g.phase is Phase.TERMINAL, "the day must end once the budget is gone"
+    assert not any(A.action_mask(g)), "a terminal day offers no action"
+
+
+def test_every_dispatched_action_leaves_a_day_that_can_still_end(registry):
+    """Drive random legal play and assert the day never outlives its budget.
+
+    An agreement test rather than one check per handler: the rule "an action at
+    0 steps ends the day" lived in twenty handlers and was missing from the
+    zero-step switches, which is the shape this repo keeps paying for. Driving
+    the real mask means a newly added action is covered the day it ships.
+    """
+    import random
+    for seed in range(12):
+        env = BluePrinceEnv(GameConfig(day=1, special_items=True, door_locks=True))
+        env.reset(seed=seed)
+        rnd = random.Random(seed)
+        for _ in range(env.max_env_steps):
+            mask = A.action_mask(env.game, env._prev_action)
+            legal = [i for i, ok in enumerate(mask) if ok]
+            if not legal:
+                break
+            env.step(rnd.choice(legal))
+            if env.game.phase is Phase.TERMINAL:
+                break
+            assert env.game.state.steps > 0, (
+                f"seed {seed}: still playing at {env.game.state.steps} steps"
+            )

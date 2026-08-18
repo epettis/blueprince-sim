@@ -3592,6 +3592,27 @@ class Game:
             if idx >= 0:
                 effects.fire(self, self.registry.rooms[idx], Hook.ON_DAY_END_ALL)
 
+    def settle_day(self) -> None:
+        """Re-evaluate whether the day is over, after an action that did not.
+
+        Most actions end the day themselves through :meth:`_check_termination`.
+        The zero-step switches did not -- the Darkroom lights, the keycard
+        breaker, the Security setpoint, the scepter -- so a player who spent
+        their last step standing at one could go on flipping it forever:
+        termination fires on "nothing purposeful remains", and a zero-step
+        action stays legal at 0 steps. One recorded episode flipped the Darkroom
+        breaker 622 times out of 687 actions for exactly that reason, and it was
+        the trap rather than a preference -- there was no other legal action.
+
+        Called by ``env.actions.apply_action`` after every action, so a handler
+        that forgets to check cannot strand a day again. NAVIGATE only: a
+        pending phase (a dealt hand, a lock menu, an upgrade choice) is mid-
+        decision and has its own exits, and ending the day underneath one would
+        discard a choice the player has already paid for.
+        """
+        if self.phase is Phase.NAVIGATE:
+            self._check_termination()
+
     def _check_termination(self) -> None:
         """End the day when out of steps or no purposeful action remains.
 

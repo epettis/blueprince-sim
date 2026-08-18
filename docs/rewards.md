@@ -138,9 +138,11 @@ milestones:
   action)` pair used more than three times was a `move` — so charging
   step-spending actions would tax normal play for something already priced.
 
-  The case that prompted it: one recorded episode spent **622 of its 687
-  actions** flipping the Darkroom breaker in the Utility Closet, a zero-step
-  action. Under the brake those 622 flips cost **−31.5** against a typical
+  The case that prompted it turned out to be an engine trap rather than a
+  preference: one recorded episode spent **622 of its 687 actions** flipping
+  the Darkroom breaker, but with 0 steps left it had **no other legal
+  action** and the day could not end. `Game.settle_day` fixes that cause;
+  this brake is what prices repetition the player actually chooses. Under the brake those 622 flips cost **−31.5** against a typical
   day's return near `+0.5`. A drafting trajectory accrues **0.0000** penalty
   per day, so the brake is invisible to play that is not looping.
 
