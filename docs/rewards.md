@@ -98,6 +98,33 @@ milestones:
   potential is 0 and the milestone rewards are undiluted; a `dead_end`
   termination arrives with the sealing penalty already charged on the prior
   draft.
+- **Placement frontier**: `+0.01` per way forward a newly placed room opens
+  into an empty in-grid cell (its own outgoing doors; the doorway it was
+  drafted through faces an occupied cell, so the count is bounded by 3 and a
+  Dead End scores 0). Paid at the *placement*, not on entry.
+
+  This exists because every other positive term lands one decision **after**
+  the risk. Choosing a room pays nothing until the player walks in, while the
+  `phi_paths` charge for that choice is immediate. Measured over masked-random
+  fresh-save days, that made `choose` a near-zero-mean action — mean `+0.0009`,
+  sd `0.1353`, worst `−1.001`, with **8.9%** of placements at or below `−0.15`
+  — against a certain, bounded `−0.002` for a travel hop. Touring dominated
+  drafting on risk while giving up nothing on mean, and a policy bouncing
+  between two outdoor areas was the measured result: over 100 random-sampled
+  episodes of `runs/freshsave-v2`, 58 reached rank ≤ 2, spent **75%** of their
+  actions travelling, and bounced `blackbridge_grotto`↔`campsite` **1,411**
+  times. That loop pays `−0.002` a hop and gains nothing — it is avoidance,
+  not farming.
+
+  With the term, `choose` reads mean `+0.0098` and the `choose − travel` gap
+  widens from `+0.0031` to `+0.0120`. The `−1.0` tail is untouched, because
+  that is `phi_paths` doing its job.
+
+  **Not potential-based**, so it does change the optimal policy — deliberately.
+  It cannot be farmed: a cell is placed once and the grid holds 45, so the term
+  is bounded by the board rather than by a cap. `phased` does **not** share it;
+  it prices forward pathways through `_phi_frontier` instead.
+
 - **Time pressure**: `−0.001 × max(1, steps_spent)` — priced against the
   resource that actually ends runs. Step *gains* (food, the Orchard bonus) are
   clamped to zero spent rather than turned into a bonus, and the floor of 1

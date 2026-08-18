@@ -23,6 +23,7 @@ from blueprince_sim import GameConfig, make_env
 from blueprince_sim.engine.game import ANTECHAMBER_CELL, Game
 from blueprince_sim.engine.grid import E, N, S, W, neighbor
 from blueprince_sim.engine.locks import DOOR_LOCKED, DOOR_OPEN, segment_key
+from blueprince_sim.env import rewards as R
 from blueprince_sim.env.rewards import (
     PATHS_ONE_PENALTY,
     _ante_paths,
@@ -491,3 +492,90 @@ def test_ante_paths_open_doorway_counts(registry):
     target = neighbor(32, N)            # cell 37
     assert od[target] != -1             # optimistically reachable from Antechamber
     assert _ante_paths(g) == 1
+
+
+# ------------------------------------------- the placement-frontier bonus
+
+
+def _plant(g: Game, room_id: str, cell: int, mask: int) -> None:
+    """Put a room on the grid directly, bypassing the draft."""
+    room = g.registry.by_id[room_id]
+    g.state.grid[cell] = room.idx
+    g.state.placed_doors[cell] = mask
+    g.state.door_version += 1
+
+
+def test_open_ways_counts_only_doors_into_empty_cells(registry):
+    """A placed room's score is the ways forward it opens, not its door count.
+
+    Doors facing an occupied cell or the outer wall lead nowhere new, so they
+    must not count -- otherwise a room wedged into a filled corner would score
+    the same as one opening the board up.
+    """
+    g = _game(registry)
+    # Cell 22 is rank 5, column 2: interior, so all four neighbours are on-grid.
+    _plant(g, "corridor", 22, N | E | S | W)
+    assert R._open_ways(g, 22) == 4, "all four neighbours empty -> four ways"
+
+    _plant(g, "corridor", neighbor(22, N), N | S)   # block one side
+    assert R._open_ways(g, 22) == 3, "a door into an occupied cell is not a way forward"
+
+
+def test_open_ways_ignores_doors_into_the_outer_wall(registry):
+    """Doors pointing off the grid are not ways forward.
+
+    A wing room's outward door cannot be drafted through, so counting it would
+    pay for a frontier that does not exist.
+    """
+    g = _game(registry)
+    _plant(g, "corridor", 20, N | E | S | W)   # rank 5, column 0: west door faces the wall
+    assert R._open_ways(g, 20) == 3
+
+
+def test_a_dead_end_placement_scores_nothing(registry):
+    """A room whose only door is the one it was entered by opens nothing.
+
+    The bonus exists to separate placements that keep the house branching from
+    placements that close it; a Dead End is the case it must not pay for.
+    """
+    g = _game(registry)
+    _plant(g, "corridor", 21, N | S)
+    _plant(g, "corridor", 22, W)               # its single door faces the placed cell 21
+    assert R._open_ways(g, 22) == 0
+
+
+def test_the_bonus_is_paid_for_cells_placed_since_the_snapshot(registry):
+    """Only rooms placed by THIS decision pay; standing still pays nothing.
+
+    Without the snapshot diff the term would re-pay the whole board on every
+    step, which is the farm the bonus must not become.
+    """
+    g = _game(registry)
+    prev = R.snapshot(g)
+    assert R._placement_frontier(g, prev) == 0.0, "no placement, no bonus"
+
+    _plant(g, "corridor", 22, N | E | S | W)
+    paid = R._placement_frontier(g, prev)
+    assert paid == pytest.approx(4 * R.FRONTIER_PLACEMENT_BONUS)
+
+    # A fresh snapshot now includes that cell, so it cannot be paid for twice.
+    assert R._placement_frontier(g, R.snapshot(g)) == 0.0
+
+
+def test_shaped_pays_the_placement_bonus_and_phased_does_not(registry):
+    """The bonus belongs to `shaped` alone.
+
+    `phased` prices forward pathways through its own _phi_frontier potential;
+    paying both would count the same idea twice, and the two modes are supposed
+    to be distinguishable shaping strategies rather than one plus an extra.
+    """
+    g = _game(registry)
+    prev = R.snapshot(g)
+    _plant(g, "corridor", 22, N | E | S | W)
+
+    shaped_r = shaped(g, prev, terminated=False)
+    phased_r = phased(g, prev, terminated=False)
+    assert shaped_r - phased_r == pytest.approx(
+        4 * R.FRONTIER_PLACEMENT_BONUS - (R._phi_frontier(g) - prev["phi_frontier"]),
+        abs=1e-9,
+    ), "shaped must carry the placement bonus and phased must carry _phi_frontier"
