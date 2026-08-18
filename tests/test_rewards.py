@@ -23,6 +23,7 @@ from blueprince_sim import GameConfig, make_env
 from blueprince_sim.engine.game import ANTECHAMBER_CELL, Game
 from blueprince_sim.engine.grid import E, N, S, W, neighbor
 from blueprince_sim.engine.locks import DOOR_LOCKED, DOOR_OPEN, segment_key
+from blueprince_sim.env import actions as A
 from blueprince_sim.env import rewards as R
 from blueprince_sim.env.rewards import (
     PATHS_ONE_PENALTY,
@@ -579,3 +580,107 @@ def test_shaped_pays_the_placement_bonus_and_phased_does_not(registry):
         4 * R.FRONTIER_PLACEMENT_BONUS - (R._phi_frontier(g) - prev["phi_frontier"]),
         abs=1e-9,
     ), "shaped must carry the placement bonus and phased must carry _phi_frontier"
+
+
+# ------------------------------------------------ the repetition brake
+
+
+def _plant_entered(g: Game, room_id: str, cell: int, mask: int) -> None:
+    """Put an already-entered room on the grid, bypassing the draft."""
+    room = g.registry.by_id[room_id]
+    g.state.grid[cell] = room.idx
+    g.state.placed_doors[cell] = mask
+    g.state.entered[cell] = True
+    g.room_cells[room_id] = cell
+    g.placed_ids.add(room_id)
+    g.state.door_version += 1
+
+
+def test_the_first_three_uses_of_a_pair_are_free_then_it_escalates():
+    """The curve is flat for REPEAT_FREE_USES, then rises a step at a time.
+
+    Flat at the start so the rare legitimate fourth use of a switch is nearly
+    free; rising after so a loop gets more expensive the longer it runs; capped
+    so no single step can return an unbounded value the critic must fit.
+    """
+    free = R.REPEAT_FREE_USES
+    assert [R.repetition_penalty(k) for k in range(1, free + 1)] == [0.0] * free
+    assert R.repetition_penalty(free + 1) == pytest.approx(R.REPEAT_PENALTY_STEP)
+    assert R.repetition_penalty(free + 2) == pytest.approx(2 * R.REPEAT_PENALTY_STEP)
+    ceiling = R.REPEAT_PENALTY_STEP * R.REPEAT_PENALTY_CAP
+    assert R.repetition_penalty(free + R.REPEAT_PENALTY_CAP) == pytest.approx(ceiling)
+    assert R.repetition_penalty(free + R.REPEAT_PENALTY_CAP + 50) == pytest.approx(ceiling)
+
+
+def test_a_repeated_zero_step_switch_gets_progressively_dearer(registry):
+    """Flipping one switch in one room escalates in cost after the free uses.
+
+    The Darkroom breaker spends no game step, so nothing but this brake bounds
+    it; a recorded episode flipped it 622 times out of 687 actions.
+    """
+    g = Game(GameConfig(day=1, door_locks=True, special_items=True), seed=1,
+             registry=registry)
+    g.reset()
+    _plant_entered(g, "utility_closet", 7, N | S)
+    _plant_entered(g, "darkroom", 12, N | S)
+    g.state.pos = 7
+    assert A.action_mask(g)[A.TOGGLE_DARKROOM_ACTION], "setup: the toggle must be legal"
+
+    rewards = []
+    for _ in range(R.REPEAT_FREE_USES + 3):
+        prev = R.snapshot(g)
+        A.apply_action(g, A.TOGGLE_DARKROOM_ACTION)
+        rewards.append(shaped(g, prev, terminated=False))
+
+    free = rewards[:R.REPEAT_FREE_USES]
+    assert max(free) - min(free) < 1e-9, "the free uses must all cost the same"
+    after = rewards[R.REPEAT_FREE_USES:]
+    assert all(b < a for a, b in zip(after, after[1:])), (
+        f"each further use must cost more than the last, got {after}"
+    )
+    assert g.state.steps == 50, "setup check: the toggle really does spend no step"
+
+
+def test_a_step_spending_action_is_never_charged_for_repetition(registry):
+    """Only zero-step actions are tallied; walking is left to the step budget.
+
+    Measured over 60 fresh-save days of drafting play, every (location, action)
+    pair used more than three times was a move. Charging those would tax normal
+    play for something that already pays for itself in steps.
+    """
+    g = Game(GameConfig(day=1, special_items=True), seed=1, registry=registry)
+    g.reset()
+    _plant_entered(g, "corridor", 7, N | S)
+    g.state.entered[7] = False          # so moving in is legal and costs a step
+
+    before_steps = g.state.steps
+    A.apply_action(g, A.MOVE_TO_BASE + 7)
+    assert g.state.steps < before_steps, "setup: the move must spend a step"
+    assert g.state.repeat_counts == {}, "a step-spending action must not be tallied"
+    assert g.state.repeat_penalty == 0.0
+
+
+def test_the_tally_is_keyed_by_where_the_player_stands(registry):
+    """The key is (location, action), so the same id in two places is two habits.
+
+    Keyed by action alone, a switch flipped once in each of four rooms would
+    read as a loop and a player working around the house would be charged for
+    it. Location is the grid cell on-grid and the area node id off it, so an
+    off-grid habit is tallied separately from anything on the board.
+    """
+    g = Game(GameConfig(day=1, door_locks=True, special_items=True), seed=1,
+             registry=registry)
+    g.reset()
+    _plant_entered(g, "utility_closet", 7, N | S)
+    _plant_entered(g, "darkroom", 12, N | S)
+    g.state.pos = 7
+    assert A._repetition_location(g) == 7, "on-grid, the location is the cell"
+
+    for _ in range(R.REPEAT_FREE_USES):
+        A.apply_action(g, A.TOGGLE_DARKROOM_ACTION)
+    assert g.state.repeat_counts == {(7, A.TOGGLE_DARKROOM_ACTION): R.REPEAT_FREE_USES}
+
+    g.state.area = "apple_orchard"
+    assert A._repetition_location(g) == "apple_orchard", (
+        "off-grid, the location is the area node, never the stale grid cell"
+    )

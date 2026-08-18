@@ -260,6 +260,7 @@ Layout (Discrete(493)):
 from __future__ import annotations
 
 from ..engine.areas import AREA_REVISIT_LIMIT
+from .rewards import repetition_penalty
 from ..engine.draft import COLOUR_CATEGORIES
 from ..engine.game import Game, Phase, RedrawKind
 from ..engine.grid import DIR_NAMES, DIRS, N_CELLS, rank_of
@@ -1217,12 +1218,39 @@ def _redraw_kind(game: Game) -> RedrawKind | None:
     return None
 
 
+def _repetition_location(game: Game) -> object:
+    """Where the player is, for repetition accounting: the grid cell on-grid,
+    the area node id off it. Keyed by place so the same switch flipped in two
+    different rooms is two different habits, not one."""
+    return game.state.area if game.state.area is not None else game.state.pos
+
+
 def apply_action(game: Game, action: int) -> None:
     """Execute one flat action id against the Game API.
 
     Assumes the action is legal per :func:`action_mask`; the env checks the
     mask first and turns illegal actions into penalized no-ops instead.
+
+    Tallies repetition for actions that spend NO game step, accruing
+    ``GameState.repeat_penalty`` past ``rewards.REPEAT_FREE_USES``. Step-
+    spending actions are left alone: the step budget already bounds them, and
+    measured over 60 fresh-save days every legitimate over-threshold repeat was
+    a move. A zero-step action is bounded by nothing, which is the whole failure
+    class -- the Darkroom switch, the lock menu, and the outdoor tour all sat in
+    it.
     """
+    _loc = _repetition_location(game)
+    _steps_before = game.state.steps
+    _apply_action_inner(game, action)
+    if game.state.steps >= _steps_before:   # no step spent: unbounded by design
+        key = (_loc, action)
+        uses = game.state.repeat_counts.get(key, 0) + 1
+        game.state.repeat_counts[key] = uses
+        game.state.repeat_penalty += repetition_penalty(uses)
+
+
+def _apply_action_inner(game: Game, action: int) -> None:
+    """The action dispatch itself; see :func:`apply_action` for the wrapper."""
     if action < CHOOSE_BASE:
         cell, dir_idx = divmod(action, 4)
         game.draft_from(cell, DIRS[dir_idx])

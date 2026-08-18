@@ -23,6 +23,14 @@ ROOM46_REWARD: float = 1.0         # first Room 46 arrival each day (win)
 # certain and paid ON the placement, against a phi_paths risk that is also
 # charged there -- see shaped()'s docstring for why the two must land together.
 FRONTIER_PLACEMENT_BONUS: float = 0.01
+# Repetition brake. A (location, action) pair may be applied REPEAT_FREE_USES
+# times a day for nothing; past that each further use costs
+# REPEAT_PENALTY_STEP more than the last, up to REPEAT_PENALTY_CAP steps of
+# escalation. Only zero-step actions are counted -- see
+# GameState.repeat_counts.
+REPEAT_FREE_USES: int = 3
+REPEAT_PENALTY_STEP: float = 0.01
+REPEAT_PENALTY_CAP: int = 5
 
 
 class RewardFn(Protocol):
@@ -174,6 +182,22 @@ def _placement_frontier(game: Game, prev: dict) -> float:
     return FRONTIER_PLACEMENT_BONUS * total
 
 
+def repetition_penalty(uses: int) -> float:
+    """Cost of the ``uses``-th application of one (location, action) pair.
+
+    Zero for the first ``REPEAT_FREE_USES``, then escalating by
+    ``REPEAT_PENALTY_STEP`` per further use and flattening at
+    ``REPEAT_PENALTY_CAP`` steps. Escalating rather than flat so the rare
+    legitimate fourth use is nearly free while a hundredth is not, and capped
+    so a long loop cannot produce an unbounded single-step return that would
+    swamp the value function.
+    """
+    over = uses - REPEAT_FREE_USES
+    if over <= 0:
+        return 0.0
+    return REPEAT_PENALTY_STEP * min(over, REPEAT_PENALTY_CAP)
+
+
 def _north_door_credited(game: Game) -> bool:
     """Whether the north-door milestone has been earned: the door is open AND
     the Antechamber has been reached today.
@@ -225,6 +249,8 @@ def snapshot(game: Game) -> dict:
         "antechamber_reached": st.antechamber_reached,
         "north_door_credited": _north_door_credited(game),
         "room46_reached": st.room46_reached,
+        # Repetition brake; shaped/phased charge the per-step delta.
+        "repeat_penalty": st.repeat_penalty,
         # Which cells hold a room, so shaped() can find the ones placed
         # by THIS decision without the engine having to report them.
         "filled": tuple(idx >= 0 for idx in st.grid),
@@ -292,6 +318,7 @@ def shaped(game: Game, prev: dict, terminated: bool) -> float:
     steps_spent = max(0, prev["steps"] - game.state.steps)
     r -= 0.001 * max(1, steps_spent)
     r += _milestones(game, prev)
+    r -= game.state.repeat_penalty - prev["repeat_penalty"]
     return r
 
 
@@ -340,6 +367,7 @@ def phased(game: Game, prev: dict, terminated: bool) -> float:
     steps_spent = max(0, prev["steps"] - game.state.steps)
     r -= 0.001 * max(1, steps_spent)
     r += _milestones(game, prev)
+    r -= game.state.repeat_penalty - prev["repeat_penalty"]
     return r
 
 
