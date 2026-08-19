@@ -260,7 +260,7 @@ Layout (Discrete(493)):
 from __future__ import annotations
 
 from ..engine.areas import AREA_REVISIT_LIMIT
-from .rewards import repetition_penalty
+from .rewards import REPEAT_FREE_USES, repetition_penalty
 from ..engine.draft import COLOUR_CATEGORIES
 from ..engine.game import Game, Phase, RedrawKind
 from ..engine.grid import DIR_NAMES, DIRS, N_CELLS, rank_of
@@ -576,6 +576,28 @@ _N_REMODEL = _conservatory.BOARD_OFFERS * len(RARITIES)  # 3 rows x 4 rarities =
 N_ACTIONS = REMODEL_BASE + _N_REMODEL  # 493
 
 DIR_INDEX = {d: i for i, d in enumerate(DIRS)}
+
+# The zero-step control switches: flipping one changes a setting and nothing
+# else, spends no game step, and can be flipped straight back. Each is capped
+# at SWITCH_USE_LIMIT applications per (location, action) per day, counted in
+# GameState.repeat_counts and enforced in action_mask.
+#
+# Pricing this in the reward was tried first and did not work: measured on
+# runs/freshsave-v8 at 1.09M episodes, 96% of episodes never touched a switch
+# while 4% flipped one 238-934 times, and those few carried 100% of the
+# toggles. The penalty made those episodes expensive without making them rarer,
+# and the resulting rare large negative returns are what the critic then had to
+# fit (explained_variance fell 0.865 -> 0.399). A mask makes the loop
+# impossible instead of merely costly, which is what worked for the lock menu
+# (locking.md) and the area tour (areas.md).
+SWITCH_ACTIONS: frozenset[int] = frozenset(
+    {TOGGLE_POWER_ACTION, TOGGLE_DARKROOM_ACTION}
+    | set(range(SET_LEVEL_BASE, SET_LEVEL_BASE + len(SECURITY_LEVELS)))
+    | set(range(SCEPTER_BASE, SCEPTER_BASE + 6))
+)
+# Matches rewards.REPEAT_FREE_USES so the repetition brake never charges for a
+# switch: the mask removes it at exactly the use the brake would start pricing.
+SWITCH_USE_LIMIT: int = REPEAT_FREE_USES
 
 
 def _build_lock_special_key_order(registry: Registry) -> tuple[str, ...]:
@@ -1099,6 +1121,14 @@ def action_mask(game: Game, prev_action: int | None = None) -> list[bool]:
                 for i, level in enumerate(SECURITY_LEVELS):
                     if level != st.security_level:
                         mask[SET_LEVEL_BASE + i] = True
+            # Switch cap: a switch already flipped SWITCH_USE_LIMIT times from
+            # this spot today stops being offered. Keyed by (location, action)
+            # like the repetition tally it reads, so the same switch worked from
+            # a different room is a separate allowance.
+            _loc = _repetition_location(game)
+            for _sw in SWITCH_ACTIONS:
+                if mask[_sw] and st.repeat_counts.get((_loc, _sw), 0) >= SWITCH_USE_LIMIT:
+                    mask[_sw] = False
             # Pump Room panel: all six sources are always offered together
             # while standing there, same shape as SET_LEVEL_BASE (no separate
             # "open the panel" id).

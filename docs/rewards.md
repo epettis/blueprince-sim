@@ -146,6 +146,17 @@ milestones:
   day's return near `+0.5`. A drafting trajectory accrues **0.0000** penalty
   per day, so the brake is invisible to play that is not looping.
 
+  **The switches are now capped in the mask, not priced here.** Measured on
+  `runs/freshsave-v8` at 1.09M episodes, pricing did not change behaviour: 96%
+  of episodes never touched a switch while **4% flipped one 238–934 times**,
+  and those few carried **100%** of all toggles. The penalty made those
+  episodes expensive without making them rarer, and the resulting rare large
+  negative returns are what the critic then had to fit — `explained_variance`
+  fell `0.865 → 0.399` and deepest rank was flat at ~3.7 from episode 4,000 to
+  976,000. `actions.SWITCH_ACTIONS` are capped at `SWITCH_USE_LIMIT` uses per
+  `(location, action)` per day, which equals `REPEAT_FREE_USES` so a capped
+  switch never reaches the priced range at all.
+
   This generalises two earlier point fixes of the same shape — the lock-menu
   abandon cap ([`locking.md`](locking.md)) and the area revisit cap
   ([`areas.md`](areas.md)) — which bound specific zero-step loops by masking.

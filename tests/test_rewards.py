@@ -763,3 +763,74 @@ def test_a_doorway_walled_off_from_the_antechamber_is_not_a_way_forward(registry
     assert R._open_ways(g, 0) == 0, (
         "a door into a severed region is not a way forward and must score nothing"
     )
+
+
+# --------------------------------------------------------- the switch cap
+
+
+def test_a_switch_stops_being_offered_after_its_use_limit(registry):
+    """A control switch may be flipped SWITCH_USE_LIMIT times from one spot a day.
+
+    Pricing this in the reward was tried and did not change behaviour: 96% of
+    episodes never touched a switch while 4% flipped one hundreds of times, and
+    the penalty made those episodes expensive without making them rarer. A mask
+    makes the loop impossible, which is what worked for the lock menu and the
+    area tour.
+    """
+    g = Game(GameConfig(day=1, door_locks=True, special_items=True), seed=1,
+             registry=registry)
+    g.reset()
+    _plant_entered(g, "utility_closet", 7, N | S)
+    _plant_entered(g, "darkroom", 12, N | S)
+    g.state.pos = 7
+
+    for i in range(A.SWITCH_USE_LIMIT):
+        assert A.action_mask(g)[A.TOGGLE_DARKROOM_ACTION], f"use {i} must be offered"
+        A.apply_action(g, A.TOGGLE_DARKROOM_ACTION)
+
+    assert not A.action_mask(g)[A.TOGGLE_DARKROOM_ACTION], (
+        "past the limit the switch must stop being offered"
+    )
+    assert any(A.action_mask(g)), "capping one switch must not strand the day"
+
+
+def test_the_switch_cap_does_not_charge_the_repetition_brake(registry):
+    """The mask removes a switch at exactly the use the brake would start pricing.
+
+    Held together so a capped switch never contributes a reward penalty: the two
+    constants are the same number for that reason, and a drift between them would
+    reintroduce the rare large negative returns the mask exists to prevent.
+    """
+    assert A.SWITCH_USE_LIMIT == R.REPEAT_FREE_USES
+    g = Game(GameConfig(day=1, door_locks=True, special_items=True), seed=1,
+             registry=registry)
+    g.reset()
+    _plant_entered(g, "utility_closet", 7, N | S)
+    _plant_entered(g, "darkroom", 12, N | S)
+    g.state.pos = 7
+    for _ in range(A.SWITCH_USE_LIMIT):
+        A.apply_action(g, A.TOGGLE_DARKROOM_ACTION)
+    assert g.state.repeat_penalty == 0.0, (
+        "a switch flipped only as often as the mask allows must cost nothing"
+    )
+
+
+def test_the_switch_cap_is_per_location(registry):
+    """The allowance is keyed by where the switch was worked, not by its id.
+
+    A player who flips a breaker in one room has spent nothing toward the same
+    id elsewhere; keyed by action alone, working around the house would read as
+    a loop.
+    """
+    g = Game(GameConfig(day=1, door_locks=True, special_items=True), seed=1,
+             registry=registry)
+    g.reset()
+    _plant_entered(g, "utility_closet", 7, N | S)
+    _plant_entered(g, "darkroom", 12, N | S)
+    g.state.pos = 7
+    for _ in range(A.SWITCH_USE_LIMIT):
+        A.apply_action(g, A.TOGGLE_DARKROOM_ACTION)
+    assert g.state.repeat_counts[(7, A.TOGGLE_DARKROOM_ACTION)] == A.SWITCH_USE_LIMIT
+    assert (12, A.TOGGLE_DARKROOM_ACTION) not in g.state.repeat_counts, (
+        "another location must carry its own, untouched allowance"
+    )
