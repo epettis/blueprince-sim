@@ -132,7 +132,12 @@ Layout (Discrete(493)):
   428..436 the locked-door menu (Phase.LOCK_PENDING only), entered by
            opening a doorway (0..179 above) that turns out to be DOOR_LOCKED
            -- trying it is free, only a menu choice actually opens it (owner
-           ruling: the player decides how, not the engine):
+           ruling: the player decides how, not the engine). A DOOR_LOCKED
+           doorway whose menu would offer nothing but abandon (no key, no
+           lockpick, no fitting special key) is not offered as an OPEN id at
+           all -- the lock state is already on the observation, so opening
+           such a menu cannot accomplish anything (Game.frontier_doorway_triable
+           / Game.lock_menu_has_real_choice):
              428     use a key: spends lock_open_cost keys (base 1, plus a
                      Great Hall side door's search surcharge), or refunds
                      entirely to an active Stopwatch charge given >=1 key in
@@ -152,8 +157,8 @@ Layout (Discrete(493)):
                      the OPEN id above is masked. Holding more keys than at
                      that last abandon offers it again with a fresh tally.
                      Both halves of the pair cost zero game steps, so that
-                     tally is the only thing bounding it short of
-                     max_env_steps.
+                     tally is what bounds a doorway whose menu does offer a
+                     real choice.
              431..436 a special key, data/locks.json's special_key_menu.order
                      (the wiki's published fixed row order: Basement Key,
                      Secret Garden Key, Silver Key, Key 8, Master Key, Prism

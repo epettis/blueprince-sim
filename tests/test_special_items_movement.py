@@ -385,21 +385,30 @@ def _open_action_legal(game: Game, cell: int, d: int) -> bool:
     return mask[A.OPEN_BASE + cell * 4 + A.DIR_INDEX[d]]
 
 
-def test_open_action_legal_regardless_of_items_or_keys_for_a_locked_doorway():
-    """Trying a locked frontier doorway is legal at 0 keys and with no
-    unlock item held at all -- trying costs nothing (Phase.LOCK_PENDING is
-    how the player finds out it's locked and chooses how to open it, the
-    owner's ruling). Whether an item or key count changes what's legal
-    inside that menu is exercised by the four item-specific tests below;
-    trying itself never depends on either.
+def test_open_action_legal_exactly_when_the_menu_offers_a_real_choice():
+    """Trying a locked frontier doorway is legal in the mask exactly when its
+    menu would offer more than abandon: still legal at 0 keys when a Master
+    Key, Silver Key, or Lock Pick Kit is held (each is its own real choice),
+    but masked out at 0 keys with nothing held, or with only a Stopwatch,
+    which needs a key already in hand to do anything (see
+    test_open_action_stopwatch_does_not_waive_the_key_requirement_at_zero_keys).
+    Whether an item or key count changes what's legal inside that menu is
+    exercised by the four item-specific tests below.
     """
-    for items in (frozenset(), frozenset({"master_key"}), frozenset({"silver_key"}),
-                  frozenset({"lock_pick_kit"}), frozenset({"stopwatch"})):
+    for items in (frozenset({"master_key"}), frozenset({"silver_key"}),
+                  frozenset({"lock_pick_kit"})):
         game = _game(items)
         cell, d = game.open_doorways()[0]
         _force_lock(game, cell, d)
         game.state.keys = 0
         assert _open_action_legal(game, cell, d), f"items={sorted(items)}"
+
+    for items in (frozenset(), frozenset({"stopwatch"})):
+        game = _game(items)
+        cell, d = game.open_doorways()[0]
+        _force_lock(game, cell, d)
+        game.state.keys = 0
+        assert not _open_action_legal(game, cell, d), f"items={sorted(items)}"
 
 
 def test_open_action_master_key_legal_at_zero_keys():
@@ -491,10 +500,10 @@ def test_lock_pending_mask_agrees_with_engine_predicates(registry):
     """Every LOCK_PENDING mask bit must exactly match its Game can_* predicate,
     across several items and key counts: the menu is the surface with two
     independent implementations (env/actions.py's mask and engine/game.py's
-    can_* methods) that could silently disagree. The OPEN action's own
-    legality is unconditional for a locked doorway (see
-    test_open_action_legal_regardless_of_items_or_keys_for_a_locked_doorway),
-    so there is nothing to drift on that side.
+    can_* methods) that could silently disagree. Reached here through the raw
+    engine's open_door (not the OPEN action itself, whose own gating is
+    covered separately by
+    test_open_action_legal_exactly_when_the_menu_offers_a_real_choice).
     """
     order = list(registry.lock_rules["special_key_menu"]["order"])
     for items in (
