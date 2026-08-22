@@ -4,7 +4,11 @@ import numpy as np
 import pytest
 
 from blueprince_sim import GameConfig, make_env
+from blueprince_sim.engine.game import Phase
+from blueprince_sim.engine.grid import N
+from blueprince_sim.engine.locks import DOOR_LOCKED, segment_key
 from blueprince_sim.env import actions as A
+from blueprince_sim.env.rewards import PATHS_ONE_PENALTY, snapshot
 
 
 def test_check_env():
@@ -77,3 +81,54 @@ def test_reward_modes():
     action = int(np.flatnonzero(mask)[0])
     _, reward, *_ = env.step(action)
     assert isinstance(reward, float)
+
+
+def test_env_detected_dead_end_zeroes_phi_paths_before_scoring():
+    """A step that ends the day through BluePrinceEnv.step's own post-mask
+    check (Game.phase never leaves NAVIGATE on its own) still scores with
+    `terminated=True`, so phi_paths is zeroed rather than left at its
+    uncancelled sealed value.
+
+    A locked frontier doorway whose menu has been abandoned
+    ``locks.LOCK_ABANDON_LIMIT`` times stops being offered by the action mask
+    (``Game.frontier_doorway_triable``), but ``Game._action_in_budget`` --
+    what ``Game._check_termination`` actually consults -- only asks whether
+    the door is affordable, not how many times its menu has been abandoned.
+    So the doorway's final abandon can leave the engine satisfied the day
+    goes on while the env's own mask has nothing left to offer: exactly the
+    state ``BluePrinceEnv.step``'s post-mask dead-end check exists for, with
+    `Game._check_termination` never once setting `Phase.TERMINAL` itself.
+    """
+    env = make_env(GameConfig(special_items=False, door_locks=True, reward="shaped"))
+    env.reset(seed=0)
+    g = env.game
+    st = g.state
+    st.grid[2] = -1                 # clear the day-start Entrance Hall
+    st.placed_doors[2] = 0
+    room = g.registry.by_id["entrance_hall"]  # stand-in; only its door mask matters
+    st.grid[32] = room.idx
+    st.placed_doors[32] = N         # one frontier doorway, optimistically reaching the Antechamber
+    st.entered[32] = True
+    st.pos = 32
+    st.steps = 5
+    st.keys = 1
+    seg = segment_key(32, N)
+    st.door_state[seg] = DOOR_LOCKED
+    st.lock_abandons[seg] = (2, 1)  # two prior abandons at 1 key; the next hits the limit
+    st.door_version += 1
+    g.phase = Phase.LOCK_PENDING
+    st.pending_lock_cell = 32
+    st.pending_lock_direction = N
+
+    prev = snapshot(g)
+    assert prev["phi_paths"] == pytest.approx(PATHS_ONE_PENALTY)
+    assert g.can_abandon_lock()
+
+    _, reward, terminated, truncated, info = env.step(A.LOCK_ABANDON_ACTION)
+
+    assert terminated and not truncated
+    assert info["termination_reason"] == "dead_end"
+    # Time pressure is the only other per-step term here (steps unspent,
+    # floored to one decision's worth); the rest of the delta is phi_paths,
+    # which must telescope its -0.15 starting potential to 0 on this step.
+    assert reward == pytest.approx(-PATHS_ONE_PENALTY - 0.001)

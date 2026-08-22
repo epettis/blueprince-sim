@@ -111,7 +111,9 @@ def _phi_paths(n_paths: int) -> float:
       own — ``shaped`` and ``phased`` force the potential to 0.0 on a
       ``terminated`` step regardless of what this function would return, so
       the episode's summed contribution telescopes to 0 rather than ending
-      on a sealed ``-1.0``. See their docstrings.
+      on a sealed ``-1.0``, removing that uncancelled endpoint bias. See
+      their docstrings for why this stops short of exact potential-based-
+      shaping invariance (the delta is undiscounted).
     """
     if n_paths == 0:
         return PATHS_ZERO_PENALTY
@@ -296,7 +298,12 @@ def shaped(game: Game, prev: dict, terminated: bool) -> float:
     undiluted.  On any ``terminated`` step the potential is forced to 0.0
     regardless of the sealed state, so a dead_end day's summed phi_paths
     contribution telescopes to 0 rather than ending on the sealing -1.0 --
-    required for the term to be policy-invariant potential-based shaping.
+    removing that uncancelled endpoint bias.  This is undiscounted (Ng's
+    potential-based-shaping theorem reads ``gamma*Phi(s') - Phi(s)``, and
+    training runs gamma=0.999), so terminal zeroing alone does not make the
+    term exactly policy-invariant; it only removes the one-sided bias a
+    sealed-but-uncancelled potential would otherwise add to every dead_end
+    day.
 
     Placement frontier (:func:`_placement_frontier`): +0.01 per way forward a
     newly placed room opens into an empty cell, so a placement that keeps the
@@ -354,11 +361,17 @@ def phased(game: Game, prev: dict, terminated: bool) -> float:
       room's resource payout.  Dropping from 2 to 1 open path costs -0.15.
       Reopening routes pays the potential back.  On a winning step the
       Antechamber was already reachable (potential 0), so the +1.0 win bonus
-      is undiluted.  On any ``terminated`` step the potential is forced to
-      0.0 regardless of the sealed state, so a dead_end day's summed
-      phi_paths contribution telescopes to 0 rather than ending on the
-      sealing -1.0 -- required for the term to be policy-invariant
-      potential-based shaping.
+      is undiluted.
+
+    All three potentials (phi_keys, phi_frontier, phi_paths) are forced to
+    0.0 on any ``terminated`` step regardless of what they would otherwise
+    read, so a dead_end day's summed contribution from each telescopes to 0
+    rather than ending on its uncancelled terminal value -- e.g. a held key
+    stock or a standing frontier that would otherwise leave a positive
+    residue uncancelled the same way an unsealed phi_paths would. As with
+    `shaped`, this removes that uncancelled endpoint bias but is not exact
+    potential-based-shaping invariance: the delta above is undiscounted,
+    while training runs gamma=0.999.
 
     Gems/coins/dice/held-item deltas, time pressure, and the three milestones
     (:func:`_milestones`) match `shaped`.
@@ -372,8 +385,10 @@ def phased(game: Game, prev: dict, terminated: bool) -> float:
         + (inventory_value(game.state, game.registry) - prev["inv_value"])
     )
     r += 0.01 * d_res
-    r += _phi_keys(game) - prev["phi_keys"]
-    r += _phi_frontier(game) - prev["phi_frontier"]
+    keys_now = 0.0 if terminated else _phi_keys(game)
+    r += keys_now - prev["phi_keys"]
+    frontier_now = 0.0 if terminated else _phi_frontier(game)
+    r += frontier_now - prev["phi_frontier"]
     phi_now = 0.0 if terminated else _phi_paths(_ante_paths(game))
     r += phi_now - prev["phi_paths"]
     # Step-scaled time pressure, identical to `shaped` -- see its comment for

@@ -99,9 +99,14 @@ milestones:
   step (`shaped`/`phased` both take the flag and read it here) the potential
   is forced to `0.0` regardless of the sealed state, so a `dead_end` day's
   summed `phi_paths` contribution telescopes to `phi(end) − phi(start) = 0`
-  rather than ending on the sealing `−1.0` — the property potential-based
-  shaping needs to stay policy-invariant, since a potential that is non-zero
-  at a terminal state is a real bias rather than provably-safe shaping.
+  rather than ending on the sealing `−1.0`, removing the one-sided bias an
+  uncancelled terminal potential would otherwise add to every such day. This
+  is not exact potential-based-shaping invariance in Ng's sense: the delta
+  here is undiscounted (`Phi(s') − Phi(s)`, not `γ·Phi(s') − Phi(s)`) while
+  training runs `γ = 0.999`, so the zeroing removes the endpoint bias without
+  making the term provably policy-invariant on its own. `phased` zeroes its
+  two other potentials (`phi_keys`, `phi_frontier`) the same way and for the
+  same reason.
 - **Placement frontier**: `+0.01` per way forward a newly placed room opens
   into an empty in-grid cell (its own outgoing doors; the doorway it was
   drafted through faces an occupied cell, so the count is bounded by 3 and a

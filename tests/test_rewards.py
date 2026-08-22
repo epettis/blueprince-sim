@@ -596,6 +596,36 @@ def test_phased_shares_the_terminal_zero_fix(registry):
     assert terminal - mid_episode == pytest.approx(1.0)
 
 
+def test_phased_also_zeroes_keys_and_frontier_potentials_at_terminal(registry):
+    """`phased` carries two more potentials besides phi_paths -- phi_keys and
+    phi_frontier -- and forces both to 0.0 on a `terminated` step for the
+    same reason: a dead-ended day must not leave a held key stock or a
+    standing frontier as an uncancelled residue in the reward sum.
+
+    Nothing about the game state changes between the two calls here, so a
+    non-terminal call's delta for each potential is 0 (current value equals
+    `prev`) while a terminal call's delta is `0 - prev[potential]` -- the gap
+    between the two calls is exactly the sum of all three starting
+    potentials.
+    """
+    g = _sealed_game(registry)
+    g.deepest_rank = 8
+    g.state.keys = 3
+    _place(g, 32, N | E | S, pos=True)  # rank 7 == deepest_rank - 1: on the frontier edge
+
+    prev = snapshot(g)
+    assert prev["phi_keys"] == pytest.approx(0.315)   # 0.01 * 3 keys * 3.0 key value * 3.5x
+    assert prev["phi_frontier"] == pytest.approx(0.06)  # 0.02 * 3 passable frontier doors
+    assert prev["phi_paths"] == pytest.approx(0.0)      # 3 optimistic routes: healthy
+
+    mid_episode = phased(g, prev, terminated=False)
+    terminal = phased(g, prev, terminated=True)
+
+    assert mid_episode - terminal == pytest.approx(
+        prev["phi_keys"] + prev["phi_frontier"] + prev["phi_paths"]
+    )
+
+
 # ------------------------------------------- the placement-frontier bonus
 
 
