@@ -261,20 +261,28 @@ placing a drafted room -- is `-0.041` per decision** across 6345 decisions,
 while `travel` is *positive* at `+0.0035`. Drafting is the most punished thing
 the agent can do and touring is safe, which is the behaviour observed.
 
-**All of that term's mass is terminal, and the arithmetic is exact.**
+**The whole of that term's net effect is decided by where the day ends.**
 `phi_paths` is a potential, so its episode sum telescopes to
 `phi(end) - phi(start)`. Every one of the 600 days starts at `ante_paths >= 3`,
 i.e. `phi(start) = 0`. Days end at `paths=0` on 427, `paths=1` on 74, and
-healthy on 99:
+healthy on 99, which reproduces the measured total exactly:
 
 ```
 427 x (-1.00)  +  74 x (-0.15)  =  -438.1
 telescoped phi_paths, measured  =  -438.1
 ```
 
-So the term's **net mid-episode contribution is zero**. It is not steering the
-agent away from sealing the house while it plays; it is a flat `-1.0` stamped
-on the 68% of days (409 of 600 terminate `dead_end`) that end sealed.
+That equality is the telescoping identity holding, which is true of any
+potential -- it is a consistency check on the measurement, not a finding in
+itself. **The signal does arrive during play**, charged on the transition that
+closes a route: over 400 days and 17060 decisions, `phi` changed on 738 of them
+(-1.0 on 84, -0.85 on 172, -0.15 on 353, +0.15 on 129).
+
+**What the potential is bad at is being a gradient.** It takes three values and
+is exactly `0` on **78%** of decisions, changing at all on only **4.33%**. So
+for the overwhelming majority of drafting decisions it says nothing, and the
+agent hears from it only once the house is already one or zero routes from
+sealed. It warns at the cliff edge rather than sloping away from it.
 
 **That breaks the property the term is built on.** Potential-based shaping is
 policy-invariant only when the potential is **zero at terminal states**. Here
@@ -432,10 +440,12 @@ elsewhere by that letter.
 ### (a) Should the path potential be split into guidance and penalty?
 
 `phi_paths` currently does two jobs at once and does the second one by
-accident. Measured in task 24: its whole contribution is `phi(terminal)`, a
-flat `-1.0` on the 68% of days that end sealed, with zero net effect during
-play -- and a non-zero potential at a terminal state is exactly what removes
-the policy-invariance guarantee that justifies shaping this way.
+accident. Measured in task 24: its net effect per episode is entirely
+`phi(terminal)`, a `-1.0` on the 68% of days that end sealed -- and a non-zero
+potential at a terminal state is exactly what removes the policy-invariance
+guarantee that justifies shaping this way. The per-step warnings it gives
+during play are real but sparse (it moves on 4.33% of decisions), so they are
+not what the episode's arithmetic turns on.
 
 The two jobs can be separated:
 
