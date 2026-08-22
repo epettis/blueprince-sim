@@ -20,9 +20,11 @@ import numpy as np
 import pytest
 
 from blueprince_sim import GameConfig, make_env
-from blueprince_sim.engine.game import ANTECHAMBER_CELL, Game
+from blueprince_sim.engine.game import ANTECHAMBER_CELL, Game, Phase
 from blueprince_sim.engine.grid import E, N, S, W, neighbor
 from blueprince_sim.engine.locks import DOOR_LOCKED, DOOR_OPEN, segment_key
+from blueprince_sim.env import actions as A
+from blueprince_sim.env.blueprince_env import BluePrinceEnv
 from blueprince_sim.env import rewards as R
 from blueprince_sim.env.rewards import (
     PATHS_ONE_PENALTY,
@@ -579,3 +581,256 @@ def test_shaped_pays_the_placement_bonus_and_phased_does_not(registry):
         4 * R.FRONTIER_PLACEMENT_BONUS - (R._phi_frontier(g) - prev["phi_frontier"]),
         abs=1e-9,
     ), "shaped must carry the placement bonus and phased must carry _phi_frontier"
+
+
+# ------------------------------------------------ the repetition brake
+
+
+def _plant_entered(g: Game, room_id: str, cell: int, mask: int) -> None:
+    """Put an already-entered room on the grid, bypassing the draft."""
+    room = g.registry.by_id[room_id]
+    g.state.grid[cell] = room.idx
+    g.state.placed_doors[cell] = mask
+    g.state.entered[cell] = True
+    g.room_cells[room_id] = cell
+    g.placed_ids.add(room_id)
+    g.state.door_version += 1
+
+
+def test_the_first_three_uses_of_a_pair_are_free_then_it_escalates():
+    """The curve is flat for REPEAT_FREE_USES, then rises a step at a time.
+
+    Flat at the start so the rare legitimate fourth use of a switch is nearly
+    free; rising after so a loop gets more expensive the longer it runs; capped
+    so no single step can return an unbounded value the critic must fit.
+    """
+    free = R.REPEAT_FREE_USES
+    assert [R.repetition_penalty(k) for k in range(1, free + 1)] == [0.0] * free
+    assert R.repetition_penalty(free + 1) == pytest.approx(R.REPEAT_PENALTY_STEP)
+    assert R.repetition_penalty(free + 2) == pytest.approx(2 * R.REPEAT_PENALTY_STEP)
+    ceiling = R.REPEAT_PENALTY_STEP * R.REPEAT_PENALTY_CAP
+    assert R.repetition_penalty(free + R.REPEAT_PENALTY_CAP) == pytest.approx(ceiling)
+    assert R.repetition_penalty(free + R.REPEAT_PENALTY_CAP + 50) == pytest.approx(ceiling)
+
+
+def test_a_repeated_zero_step_switch_gets_progressively_dearer(registry):
+    """Flipping one switch in one room escalates in cost after the free uses.
+
+    The Darkroom breaker spends no game step, so nothing but this brake bounds
+    it; a recorded episode flipped it 622 times out of 687 actions.
+    """
+    g = Game(GameConfig(day=1, door_locks=True, special_items=True), seed=1,
+             registry=registry)
+    g.reset()
+    _plant_entered(g, "utility_closet", 7, N | S)
+    _plant_entered(g, "darkroom", 12, N | S)
+    g.state.pos = 7
+    assert A.action_mask(g)[A.TOGGLE_DARKROOM_ACTION], "setup: the toggle must be legal"
+
+    rewards = []
+    for _ in range(R.REPEAT_FREE_USES + 3):
+        prev = R.snapshot(g)
+        A.apply_action(g, A.TOGGLE_DARKROOM_ACTION)
+        rewards.append(shaped(g, prev, terminated=False))
+
+    free = rewards[:R.REPEAT_FREE_USES]
+    assert max(free) - min(free) < 1e-9, "the free uses must all cost the same"
+    after = rewards[R.REPEAT_FREE_USES:]
+    assert all(b < a for a, b in zip(after, after[1:])), (
+        f"each further use must cost more than the last, got {after}"
+    )
+    assert g.state.steps == 50, "setup check: the toggle really does spend no step"
+
+
+def test_a_step_spending_action_is_never_charged_for_repetition(registry):
+    """Only zero-step actions are tallied; walking is left to the step budget.
+
+    Measured over 60 fresh-save days of drafting play, every (location, action)
+    pair used more than three times was a move. Charging those would tax normal
+    play for something that already pays for itself in steps.
+    """
+    g = Game(GameConfig(day=1, special_items=True), seed=1, registry=registry)
+    g.reset()
+    _plant_entered(g, "corridor", 7, N | S)
+    g.state.entered[7] = False          # so moving in is legal and costs a step
+
+    before_steps = g.state.steps
+    A.apply_action(g, A.MOVE_TO_BASE + 7)
+    assert g.state.steps < before_steps, "setup: the move must spend a step"
+    assert g.state.repeat_counts == {}, "a step-spending action must not be tallied"
+    assert g.state.repeat_penalty == 0.0
+
+
+def test_the_tally_is_keyed_by_where_the_player_stands(registry):
+    """The key is (location, action), so the same id in two places is two habits.
+
+    Keyed by action alone, a switch flipped once in each of four rooms would
+    read as a loop and a player working around the house would be charged for
+    it. Location is the grid cell on-grid and the area node id off it, so an
+    off-grid habit is tallied separately from anything on the board.
+    """
+    g = Game(GameConfig(day=1, door_locks=True, special_items=True), seed=1,
+             registry=registry)
+    g.reset()
+    _plant_entered(g, "utility_closet", 7, N | S)
+    _plant_entered(g, "darkroom", 12, N | S)
+    g.state.pos = 7
+    assert A._repetition_location(g) == 7, "on-grid, the location is the cell"
+
+    for _ in range(R.REPEAT_FREE_USES):
+        A.apply_action(g, A.TOGGLE_DARKROOM_ACTION)
+    assert g.state.repeat_counts == {(7, A.TOGGLE_DARKROOM_ACTION): R.REPEAT_FREE_USES}
+
+    g.state.area = "apple_orchard"
+    assert A._repetition_location(g) == "apple_orchard", (
+        "off-grid, the location is the area node, never the stale grid cell"
+    )
+
+
+# ------------------------------------------- the day must always be able to end
+
+
+def test_a_zero_step_switch_ends_the_day_once_the_budget_is_gone(registry):
+    """At 0 steps a zero-step action must end the day, not be repeatable forever.
+
+    Termination fires on "nothing purposeful remains", and a zero-step action
+    stays legal at 0 steps -- so before Game.settle_day a player who spent their
+    last step at the Utility Closet could flip the Darkroom breaker until the env
+    hit max_env_steps. One recorded episode did exactly that, 622 times out of
+    687 actions, with no other legal action available.
+    """
+    g = Game(GameConfig(day=1, door_locks=True, special_items=True), seed=1,
+             registry=registry)
+    g.reset()
+    _plant_entered(g, "utility_closet", 7, N | S)
+    _plant_entered(g, "darkroom", 12, N | S)
+    g.state.pos = 7
+    g.state.steps = 0
+    assert A.action_mask(g)[A.TOGGLE_DARKROOM_ACTION], (
+        "setup: the zero-step toggle must still be legal at 0 steps"
+    )
+
+    A.apply_action(g, A.TOGGLE_DARKROOM_ACTION)
+    assert g.phase is Phase.TERMINAL, "the day must end once the budget is gone"
+    assert not any(A.action_mask(g)), "a terminal day offers no action"
+
+
+def test_every_dispatched_action_leaves_a_day_that_can_still_end(registry):
+    """Drive random legal play and assert the day never outlives its budget.
+
+    An agreement test rather than one check per handler: the rule "an action at
+    0 steps ends the day" lived in twenty handlers and was missing from the
+    zero-step switches, which is the shape this repo keeps paying for. Driving
+    the real mask means a newly added action is covered the day it ships.
+    """
+    import random
+    for seed in range(12):
+        env = BluePrinceEnv(GameConfig(day=1, special_items=True, door_locks=True))
+        env.reset(seed=seed)
+        rnd = random.Random(seed)
+        for _ in range(env.max_env_steps):
+            mask = A.action_mask(env.game, env._prev_action)
+            legal = [i for i, ok in enumerate(mask) if ok]
+            if not legal:
+                break
+            env.step(rnd.choice(legal))
+            if env.game.phase is Phase.TERMINAL:
+                break
+            assert env.game.state.steps > 0, (
+                f"seed {seed}: still playing at {env.game.state.steps} steps"
+            )
+
+
+def test_a_doorway_walled_off_from_the_antechamber_is_not_a_way_forward(registry):
+    """A door into a region already severed from the Antechamber scores nothing.
+
+    That is the illusion of a frontier: the room looks like it opened the house
+    up, while the direction it opened is already cut off. `_ante_paths` applies
+    this same optimistic-distance filter, so the placement bonus has to agree
+    with it or the two terms describe different boards.
+    """
+    g = _game(registry)
+    # Seal rank 2 across its whole width with rooms that have no north or south
+    # door, severing rank 1 from everything above it.
+    for cell in range(5, 10):
+        _plant(g, "corridor", cell, E | W)
+    od = g.optimistic_distances()
+    assert od[1] == -1, f"setup: rank 1 must be severed, got optimistic distance {od[1]}"
+
+    # A room at the rank-1 corner with one spare door east, into empty cell 1.
+    _plant(g, "corridor", 0, E)
+    assert g.state.grid[1] < 0, "setup: the door's target must be empty"
+    assert R._open_ways(g, 0) == 0, (
+        "a door into a severed region is not a way forward and must score nothing"
+    )
+
+
+# --------------------------------------------------------- the switch cap
+
+
+def test_a_switch_stops_being_offered_after_its_use_limit(registry):
+    """A control switch may be flipped SWITCH_USE_LIMIT times from one spot a day.
+
+    Pricing this in the reward was tried and did not change behaviour: 96% of
+    episodes never touched a switch while 4% flipped one hundreds of times, and
+    the penalty made those episodes expensive without making them rarer. A mask
+    makes the loop impossible, which is what worked for the lock menu and the
+    area tour.
+    """
+    g = Game(GameConfig(day=1, door_locks=True, special_items=True), seed=1,
+             registry=registry)
+    g.reset()
+    _plant_entered(g, "utility_closet", 7, N | S)
+    _plant_entered(g, "darkroom", 12, N | S)
+    g.state.pos = 7
+
+    for i in range(A.SWITCH_USE_LIMIT):
+        assert A.action_mask(g)[A.TOGGLE_DARKROOM_ACTION], f"use {i} must be offered"
+        A.apply_action(g, A.TOGGLE_DARKROOM_ACTION)
+
+    assert not A.action_mask(g)[A.TOGGLE_DARKROOM_ACTION], (
+        "past the limit the switch must stop being offered"
+    )
+    assert any(A.action_mask(g)), "capping one switch must not strand the day"
+
+
+def test_the_switch_cap_does_not_charge_the_repetition_brake(registry):
+    """The mask removes a switch at exactly the use the brake would start pricing.
+
+    Held together so a capped switch never contributes a reward penalty: the two
+    constants are the same number for that reason, and a drift between them would
+    reintroduce the rare large negative returns the mask exists to prevent.
+    """
+    assert A.SWITCH_USE_LIMIT == R.REPEAT_FREE_USES
+    g = Game(GameConfig(day=1, door_locks=True, special_items=True), seed=1,
+             registry=registry)
+    g.reset()
+    _plant_entered(g, "utility_closet", 7, N | S)
+    _plant_entered(g, "darkroom", 12, N | S)
+    g.state.pos = 7
+    for _ in range(A.SWITCH_USE_LIMIT):
+        A.apply_action(g, A.TOGGLE_DARKROOM_ACTION)
+    assert g.state.repeat_penalty == 0.0, (
+        "a switch flipped only as often as the mask allows must cost nothing"
+    )
+
+
+def test_the_switch_cap_is_per_location(registry):
+    """The allowance is keyed by where the switch was worked, not by its id.
+
+    A player who flips a breaker in one room has spent nothing toward the same
+    id elsewhere; keyed by action alone, working around the house would read as
+    a loop.
+    """
+    g = Game(GameConfig(day=1, door_locks=True, special_items=True), seed=1,
+             registry=registry)
+    g.reset()
+    _plant_entered(g, "utility_closet", 7, N | S)
+    _plant_entered(g, "darkroom", 12, N | S)
+    g.state.pos = 7
+    for _ in range(A.SWITCH_USE_LIMIT):
+        A.apply_action(g, A.TOGGLE_DARKROOM_ACTION)
+    assert g.state.repeat_counts[(7, A.TOGGLE_DARKROOM_ACTION)] == A.SWITCH_USE_LIMIT
+    assert (12, A.TOGGLE_DARKROOM_ACTION) not in g.state.repeat_counts, (
+        "another location must carry its own, untouched allowance"
+    )

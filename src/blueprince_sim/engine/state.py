@@ -560,6 +560,17 @@ class GameState:
 
     # areas entered today, for the Observatory's aggregate heat; reset per day like GameState
     areas_visited: set[str] = field(default_factory=set)
+    # area node id -> times travelled to today; at areas.AREA_REVISIT_LIMIT the
+    # node stops being offered as a destination (grid anchors exempt). Day-scoped.
+    area_visits: dict[str, int] = field(default_factory=dict)
+    # (location, action id) -> times that pair has been applied today WITHOUT
+    # spending a game step. Only zero-step actions are tallied: a repeated move
+    # pays for itself out of the step budget, while a zero-step one is bounded by
+    # nothing. Location is the grid cell on-grid, the area node id off it.
+    repeat_counts: dict[tuple[object, int], int] = field(default_factory=dict)
+    # Repetition penalty accrued today, in reward units; env/rewards.py charges
+    # the per-step DELTA so the reward stays a pure function of state.
+    repeat_penalty: float = 0.0
 
     antechamber_reached: bool = False  # True the first time the player steps onto cell 42 this day
     room46_reached: bool = False       # True the first time the player enters Room 46 this day

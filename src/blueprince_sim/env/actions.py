@@ -132,7 +132,12 @@ Layout (Discrete(493)):
   428..436 the locked-door menu (Phase.LOCK_PENDING only), entered by
            opening a doorway (0..179 above) that turns out to be DOOR_LOCKED
            -- trying it is free, only a menu choice actually opens it (owner
-           ruling: the player decides how, not the engine):
+           ruling: the player decides how, not the engine). A DOOR_LOCKED
+           doorway whose menu would offer nothing but abandon (no key, no
+           lockpick, no fitting special key) is not offered as an OPEN id at
+           all -- the lock state is already on the observation, so opening
+           such a menu cannot accomplish anything (Game.frontier_doorway_triable
+           / Game.lock_menu_has_real_choice):
              428     use a key: spends lock_open_cost keys (base 1, plus a
                      Great Hall side door's search surcharge), or refunds
                      entirely to an active Stopwatch charge given >=1 key in
@@ -152,8 +157,8 @@ Layout (Discrete(493)):
                      the OPEN id above is masked. Holding more keys than at
                      that last abandon offers it again with a fresh tally.
                      Both halves of the pair cost zero game steps, so that
-                     tally is the only thing bounding it short of
-                     max_env_steps.
+                     tally is what bounds a doorway whose menu does offer a
+                     real choice.
              431..436 a special key, data/locks.json's special_key_menu.order
                      (the wiki's published fixed row order: Basement Key,
                      Secret Garden Key, Silver Key, Key 8, Master Key, Prism
@@ -259,6 +264,8 @@ Layout (Discrete(493)):
 
 from __future__ import annotations
 
+from ..engine.areas import AREA_REVISIT_LIMIT
+from .rewards import REPEAT_FREE_USES, repetition_penalty
 from ..engine.draft import COLOUR_CATEGORIES
 from ..engine.game import Game, Phase, RedrawKind
 from ..engine.grid import DIR_NAMES, DIRS, N_CELLS, rank_of
@@ -574,6 +581,28 @@ _N_REMODEL = _conservatory.BOARD_OFFERS * len(RARITIES)  # 3 rows x 4 rarities =
 N_ACTIONS = REMODEL_BASE + _N_REMODEL  # 493
 
 DIR_INDEX = {d: i for i, d in enumerate(DIRS)}
+
+# The zero-step control switches: flipping one changes a setting and nothing
+# else, spends no game step, and can be flipped straight back. Each is capped
+# at SWITCH_USE_LIMIT applications per (location, action) per day, counted in
+# GameState.repeat_counts and enforced in action_mask.
+#
+# Pricing this in the reward was tried first and did not work: measured on
+# runs/freshsave-v8 at 1.09M episodes, 96% of episodes never touched a switch
+# while 4% flipped one 238-934 times, and those few carried 100% of the
+# toggles. The penalty made those episodes expensive without making them rarer,
+# and the resulting rare large negative returns are what the critic then had to
+# fit (explained_variance fell 0.865 -> 0.399). A mask makes the loop
+# impossible instead of merely costly, which is what worked for the lock menu
+# (locking.md) and the area tour (areas.md).
+SWITCH_ACTIONS: frozenset[int] = frozenset(
+    {TOGGLE_POWER_ACTION, TOGGLE_DARKROOM_ACTION}
+    | set(range(SET_LEVEL_BASE, SET_LEVEL_BASE + len(SECURITY_LEVELS)))
+    | set(range(SCEPTER_BASE, SCEPTER_BASE + 6))
+)
+# Matches rewards.REPEAT_FREE_USES so the repetition brake never charges for a
+# switch: the mask removes it at exactly the use the brake would start pricing.
+SWITCH_USE_LIMIT: int = REPEAT_FREE_USES
 
 
 def _build_lock_special_key_order(registry: Registry) -> tuple[str, ...]:
@@ -934,6 +963,10 @@ def action_mask(game: Game, prev_action: int | None = None) -> list[bool]:
         graph_nodes = game.registry.area_graph.nodes
         route_costs = game.area_route_costs()
         grid_anchors = None if game.off_grid else game._grid_anchors()
+        # Anchor IDS are needed off-grid too, where grid_anchors is None: the
+        # revisit cap must never apply to the way back onto the grid, and
+        # off-grid is exactly when that matters.
+        anchor_ids = frozenset(game._grid_anchors())
         for i, node_id in enumerate(node_ids):
             # Unmodelled areas have no contents to collect, so offering travel to
             # them is a pure step sink.  They stay in the graph and the pathfinder
@@ -958,6 +991,14 @@ def action_mask(game: Game, prev_action: int | None = None) -> list[bool]:
             if grid_anchors is not None and node_id in grid_anchors:
                 if not _cell_worth_entering(game, grid_anchors[node_id]):
                     continue
+            # Revisit cap: an off-grid node latches its unlocks and hands over
+            # its items on first arrival, so past areas.AREA_REVISIT_LIMIT it
+            # accomplishes nothing and is not offered again today. Grid anchors
+            # are exempt -- travel to one is how the player gets back on the
+            # grid at all, and it already clears _cell_worth_entering above.
+            if (node_id not in anchor_ids
+                    and st.area_visits.get(node_id, 0) >= AREA_REVISIT_LIMIT):
+                continue
             # Strict affordability: steps > cost so at least 1 remains.
             if st.steps > cost:
                 mask[TRAVEL_BASE + i] = True
@@ -1085,6 +1126,14 @@ def action_mask(game: Game, prev_action: int | None = None) -> list[bool]:
                 for i, level in enumerate(SECURITY_LEVELS):
                     if level != st.security_level:
                         mask[SET_LEVEL_BASE + i] = True
+            # Switch cap: a switch already flipped SWITCH_USE_LIMIT times from
+            # this spot today stops being offered. Keyed by (location, action)
+            # like the repetition tally it reads, so the same switch worked from
+            # a different room is a separate allowance.
+            _loc = _repetition_location(game)
+            for _sw in SWITCH_ACTIONS:
+                if mask[_sw] and st.repeat_counts.get((_loc, _sw), 0) >= SWITCH_USE_LIMIT:
+                    mask[_sw] = False
             # Pump Room panel: all six sources are always offered together
             # while standing there, same shape as SET_LEVEL_BASE (no separate
             # "open the panel" id).
@@ -1204,12 +1253,43 @@ def _redraw_kind(game: Game) -> RedrawKind | None:
     return None
 
 
+def _repetition_location(game: Game) -> object:
+    """Where the player is, for repetition accounting: the grid cell on-grid,
+    the area node id off it. Keyed by place so the same switch flipped in two
+    different rooms is two different habits, not one."""
+    return game.state.area if game.state.area is not None else game.state.pos
+
+
 def apply_action(game: Game, action: int) -> None:
     """Execute one flat action id against the Game API.
 
     Assumes the action is legal per :func:`action_mask`; the env checks the
     mask first and turns illegal actions into penalized no-ops instead.
+
+    Tallies repetition for actions that spend NO game step, accruing
+    ``GameState.repeat_penalty`` past ``rewards.REPEAT_FREE_USES``. Step-
+    spending actions are left alone: the step budget already bounds them, and
+    measured over 60 fresh-save days every legitimate over-threshold repeat was
+    a move. A zero-step action is bounded by nothing, which is the whole failure
+    class -- the Darkroom switch, the lock menu, and the outdoor tour all sat in
+    it.
     """
+    _loc = _repetition_location(game)
+    _steps_before = game.state.steps
+    _apply_action_inner(game, action)
+    # Single site that re-evaluates the day after every action: the zero-step
+    # switches do not check for themselves, and at 0 steps they stay legal, so
+    # without this a day can never end (see Game.settle_day).
+    game.settle_day()
+    if game.state.steps >= _steps_before:   # no step spent: unbounded by design
+        key = (_loc, action)
+        uses = game.state.repeat_counts.get(key, 0) + 1
+        game.state.repeat_counts[key] = uses
+        game.state.repeat_penalty += repetition_penalty(uses)
+
+
+def _apply_action_inner(game: Game, action: int) -> None:
+    """The action dispatch itself; see :func:`apply_action` for the wrapper."""
     if action < CHOOSE_BASE:
         cell, dir_idx = divmod(action, 4)
         game.draft_from(cell, DIRS[dir_idx])

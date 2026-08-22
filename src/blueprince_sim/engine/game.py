@@ -584,16 +584,19 @@ class Game:
 
         DOOR_SEALED: never. DOOR_SECURITY: only while the keycard system
         allows it (no menu, same as always).
-        DOOR_OPEN: always. DOOR_LOCKED: until its menu has been abandoned
-        ``locks.LOCK_ABANDON_LIMIT`` times today, then no longer -- trying a
-        locked door costs nothing and is how the player finds out it is locked
-        at all (Phase.LOCK_PENDING), and no key is budgeted here, but a free
-        try that can be repeated without limit is a zero-step loop nothing
-        else terminates. Declining and returning later is still expressible;
-        only the unbounded case is refused, and holding MORE keys than at the
-        last abandon lifts the refusal outright, since a key found since then
-        is exactly the thing that makes the question worth asking again. The
-        single source both
+        DOOR_OPEN: always. DOOR_LOCKED: only when
+        :meth:`lock_menu_has_real_choice` says the resulting menu would offer
+        more than abandon -- ``grid_locked`` is already on the observation,
+        so opening a menu whose sole option is to back out cannot accomplish
+        anything. Among doors that do offer a real choice: until its menu has
+        been abandoned ``locks.LOCK_ABANDON_LIMIT`` times today, then no
+        longer -- trying a locked door costs nothing (Phase.LOCK_PENDING),
+        and no key is budgeted here, but a free try that can be repeated
+        without limit is a zero-step loop nothing else terminates. Declining
+        and returning later is still expressible; only the unbounded case is
+        refused, and holding MORE keys than at the last abandon lifts the
+        refusal outright, since a key found since then is exactly the thing
+        that makes the question worth asking again. The single source both
         :func:`env.actions.action_mask`'s OPEN_BASE range and
         :meth:`draft_from` read, so the two cannot silently diverge (the
         precise class of drift that produced the bug this feature fixes --
@@ -605,6 +608,8 @@ class Game:
         if state == DOOR_SECURITY:
             return self.security_openable()
         if state == DOOR_LOCKED:
+            if not self.lock_menu_has_real_choice(cell, direction):
+                return False
             seg = segment_key(cell, direction)
             count, keys_then = self.state.lock_abandons.get(seg, (0, -1))
             return count < LOCK_ABANDON_LIMIT or self.state.keys > keys_then
@@ -1480,22 +1485,30 @@ class Game:
         assert st.pending_lock_cell >= 0, "not awaiting a lock choice"
         return st.pending_lock_cell, st.pending_lock_direction
 
-    def can_use_key_at_lock(self) -> bool:
-        """A regular key can be spent at the pending lock right now.
-
-        The full :meth:`lock_open_cost` (base 1, plus a Great Hall side
-        door's search surcharge) is required, UNLESS an active Stopwatch
-        would refund the whole spend -- the wiki: "At least one key is still
-        required for the option to use a key to appear, even though it
-        isn't spent", so only >=1 key is then required.
+    def _key_available_at_lock(self, cell: int, direction: int) -> bool:
+        """The regular-key term: the full :meth:`lock_open_cost` (base 1,
+        plus a Great Hall side door's search surcharge) in keys, UNLESS an
+        active Stopwatch would refund the whole spend -- the wiki: "At least
+        one key is still required for the option to use a key to appear,
+        even though it isn't spent", so only >=1 key is then required.
+        Shared by :meth:`can_use_key_at_lock` and
+        :meth:`lock_menu_has_real_choice` so the two cannot diverge.
         """
-        if self.phase is not Phase.LOCK_PENDING:
-            return False
-        cell, direction = self._lock_pending_target()
         st = self.state
         refund = (self.cfg.special_items and st.special.stopwatch_left > 0)
         needed = 1 if refund else self.lock_open_cost(cell, direction)
         return st.keys >= needed
+
+    def can_use_key_at_lock(self) -> bool:
+        """A regular key can be spent at the pending lock right now.
+
+        Thin phase wrapper around :meth:`_key_available_at_lock`; see there
+        for the Stopwatch refund rule.
+        """
+        if self.phase is not Phase.LOCK_PENDING:
+            return False
+        cell, direction = self._lock_pending_target()
+        return self._key_available_at_lock(cell, direction)
 
     def use_key_at_lock(self) -> PendingDraft | None:
         """Spend a regular key (or an active Stopwatch charge) to open the
@@ -1511,14 +1524,21 @@ class Game:
             st.keys -= self.lock_open_cost(cell, direction)
         return self._resolve_lock_open(cell, direction)
 
+    def _lockpick_available_at_lock(self) -> bool:
+        """The lockpick term: a Lock Pick Kit or Pick Sound Amplifier is
+        held. Shared by :meth:`can_lockpick_at_lock` and
+        :meth:`lock_menu_has_real_choice` so the two cannot diverge."""
+        return (self.cfg.special_items
+                and special_items.can_attempt_lockpick(self.state, self.registry))
+
     def can_lockpick_at_lock(self) -> bool:
         """A Lock Pick Kit or Pick Sound Amplifier is held. Restricted to
         doors that take a regular key -- automatic here, since LOCK_PENDING
         is only ever entered on a DOOR_LOCKED segment, never a security
         door (see :meth:`open_door`)."""
-        if self.phase is not Phase.LOCK_PENDING or not self.cfg.special_items:
+        if self.phase is not Phase.LOCK_PENDING:
             return False
-        return special_items.can_attempt_lockpick(self.state, self.registry)
+        return self._lockpick_available_at_lock()
 
     def lockpick_at_lock(self) -> PendingDraft | None:
         """One Lock Pick Kit / Pick Sound Amplifier attempt at the pending lock.
@@ -1594,8 +1614,8 @@ class Game:
             return prism_key.fits(self, cell, direction)
         return False  # secret_garden_key / key_8: reserved (see below)
 
-    def can_use_special_key_at_lock(self, key_id: str) -> bool:
-        """Is ``key_id`` a legal special-keys-menu row at the pending lock?
+    def _special_key_available_at_lock(self, key_id: str, cell: int, direction: int) -> bool:
+        """One special-keys-menu row's term: is ``key_id`` legal at this lock?
 
         ``secret_garden_key``/``key_8`` are modelled in this sim as
         draft_conditions tags rather than door keys (their menu behaviour is
@@ -1604,15 +1624,52 @@ class Game:
         ``prism_key`` is not reserved: it is legal exactly when held and
         ``fits`` (a Bedroom/Hallway/Green Room/Shop/Red Room -- see
         effects/items/prism_key.py::fits), same shape as master_key/silver_key.
+        Shared by :meth:`can_use_special_key_at_lock` and
+        :meth:`lock_menu_has_real_choice` so the two cannot diverge.
         """
-        if self.phase is not Phase.LOCK_PENDING or not self.cfg.special_items:
-            return False
         if key_id in self._RESERVED_SPECIAL_KEYS:
             return False
         if not self._special_key_held(key_id):
             return False
-        cell, direction = self._lock_pending_target()
         return self._special_key_fits(key_id, cell, direction)
+
+    def can_use_special_key_at_lock(self, key_id: str) -> bool:
+        """Is ``key_id`` a legal special-keys-menu row at the pending lock?
+
+        Thin phase wrapper around :meth:`_special_key_available_at_lock`; see
+        there for the reserved-key and fit rules.
+        """
+        if self.phase is not Phase.LOCK_PENDING or not self.cfg.special_items:
+            return False
+        cell, direction = self._lock_pending_target()
+        return self._special_key_available_at_lock(key_id, cell, direction)
+
+    def lock_menu_has_real_choice(self, cell: int, direction: int) -> bool:
+        """Would opening this DOOR_LOCKED doorway's menu offer anything
+        besides abandon?
+
+        A pure query: no phase requirement and no mutation, so it can be
+        asked before Phase.LOCK_PENDING exists (:meth:`frontier_doorway_triable`
+        asks it while still deciding whether trying the doorway is even
+        legal). True when a regular key, a lockpick tool, or any fitting
+        special key would be usable at this lock -- by the exact same terms
+        :meth:`can_use_key_at_lock`, :meth:`can_lockpick_at_lock`, and
+        :meth:`can_use_special_key_at_lock` check once LOCK_PENDING is
+        actually entered (:meth:`_key_available_at_lock`,
+        :meth:`_lockpick_available_at_lock`,
+        :meth:`_special_key_available_at_lock`), so the menu and this query
+        can never disagree about what the menu contains.
+        """
+        if self._key_available_at_lock(cell, direction):
+            return True
+        if self._lockpick_available_at_lock():
+            return True
+        if not self.cfg.special_items:
+            return False
+        for key_id in self.registry.lock_rules["special_key_menu"]["order"]:
+            if self._special_key_available_at_lock(key_id, cell, direction):
+                return True
+        return False
 
     def use_special_key_at_lock(self, key_id: str) -> PendingDraft | None:
         """Use special key ``key_id`` on the pending lock, then continue the draft.
@@ -2139,6 +2196,7 @@ class Game:
             # Destination is a grid anchor, so the player lands back on the grid.
             dest_cell = anchors[dest]
             st.areas_visited.add(dest)  # grid anchors are area nodes too
+            st.area_visits[dest] = st.area_visits.get(dest, 0) + 1
             st.area = None
             st.pos = dest_cell
             if not st.entered[dest_cell]:
@@ -2149,6 +2207,7 @@ class Game:
         else:
             st.area = dest
             st.areas_visited.add(dest)
+            st.area_visits[dest] = st.area_visits.get(dest, 0) + 1
             # The west gate unlatches from the inside on the player's FIRST arrival
             # at west_path — which must come via the Garage route on a fresh save.
             # Afterwards the 2-step Grounds shortcut is permanently open; DayChain
@@ -3589,6 +3648,27 @@ class Game:
         for idx in st.grid:
             if idx >= 0:
                 effects.fire(self, self.registry.rooms[idx], Hook.ON_DAY_END_ALL)
+
+    def settle_day(self) -> None:
+        """Re-evaluate whether the day is over, after an action that did not.
+
+        Most actions end the day themselves through :meth:`_check_termination`.
+        The zero-step switches did not -- the Darkroom lights, the keycard
+        breaker, the Security setpoint, the scepter -- so a player who spent
+        their last step standing at one could go on flipping it forever:
+        termination fires on "nothing purposeful remains", and a zero-step
+        action stays legal at 0 steps. One recorded episode flipped the Darkroom
+        breaker 622 times out of 687 actions for exactly that reason, and it was
+        the trap rather than a preference -- there was no other legal action.
+
+        Called by ``env.actions.apply_action`` after every action, so a handler
+        that forgets to check cannot strand a day again. NAVIGATE only: a
+        pending phase (a dealt hand, a lock menu, an upgrade choice) is mid-
+        decision and has its own exits, and ending the day underneath one would
+        discard a choice the player has already paid for.
+        """
+        if self.phase is Phase.NAVIGATE:
+            self._check_termination()
 
     def _check_termination(self) -> None:
         """End the day when out of steps or no purposeful action remains.

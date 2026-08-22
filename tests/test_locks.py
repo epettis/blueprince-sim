@@ -915,34 +915,177 @@ def test_mask_seals_and_reopens_security_doorways(registry):
     assert A.action_mask(g)[idx]
 
 
-def test_mask_locked_doorway_is_legal_to_try_at_zero_keys(registry):
-    """Trying a locked doorway is legal in the action mask at any key count,
-    including zero -- trying costs nothing (Phase.LOCK_PENDING). Only the
-    use-a-key row inside that menu is gated on holding a key, via
-    Game.can_use_key_at_lock.
+def test_mask_locked_doorway_needs_a_real_menu_choice(registry):
+    """A locked doorway is only offered in the action mask's OPEN range when
+    its menu would offer something besides abandon: masked out at 0 keys
+    (no key, no lockpick, no fitting special key), reinstated once a key is
+    held. Once triable, trying still costs nothing (Phase.LOCK_PENDING);
+    only the use-a-key row inside that menu is additionally gated on
+    holding a key, via Game.can_use_key_at_lock.
     """
     g = _game(registry)
     cell, d = g.open_doorways()[0]
     _force_state(g, cell, d, DOOR_LOCKED)
     idx = A.OPEN_BASE + cell * 4 + A.DIR_INDEX[d]
     g.state.keys = 0
-    assert A.action_mask(g)[idx], "trying a locked doorway is always legal"
-    g.open_door(cell, d)
-    assert g.phase is Phase.LOCK_PENDING
-    assert not g.can_use_key_at_lock(), "0 keys: use-a-key must not be legal"
-    g.abandon_lock()
+    assert not A.action_mask(g)[idx], "no key, no lockpick, no special key: nothing but abandon"
 
     g.state.keys = 1
-    assert A.action_mask(g)[idx]
+    assert A.action_mask(g)[idx], "a key makes the menu offer a real choice"
     g.open_door(cell, d)
+    assert g.phase is Phase.LOCK_PENDING
     assert g.can_use_key_at_lock(), "1 key: use-a-key must be legal"
+    g.abandon_lock()
+
+    g.state.keys = 0
+    assert not A.action_mask(g)[idx], "back to zero keys: masked off again"
+
+
+# --------------------------------------------------- lock-menu real-choice gate
+#
+# Game.lock_menu_has_real_choice/frontier_doorway_triable: a DOOR_LOCKED
+# frontier doorway is only triable when its menu would offer something
+# besides abandon (a regular key, a lockpick tool, or a fitting special
+# key) -- grid_locked is already on the observation, so opening a menu
+# whose sole option is to back out cannot accomplish anything.
+
+
+def test_locked_doorway_with_no_way_to_open_it_is_not_triable(registry):
+    """A locked doorway with no key, no lockpick, and no fitting special key
+    held is not triable, and its OPEN id is absent from the action mask."""
+    g = _game(registry)
+    cell, d = g.open_doorways()[0]
+    _force_state(g, cell, d, DOOR_LOCKED)
+    g.state.keys = 0
+    assert not g.frontier_doorway_triable(cell, d)
+    idx = A.OPEN_BASE + cell * 4 + A.DIR_INDEX[d]
+    assert not A.action_mask(g)[idx]
+
+
+def test_one_key_makes_the_doorway_triable_again(registry):
+    """Holding enough keys for the door's own lock_open_cost makes a
+    previously untriable locked doorway triable again, and reinstates its
+    OPEN id in the action mask."""
+    g = _game(registry)
+    cell, d = g.open_doorways()[0]
+    _force_state(g, cell, d, DOOR_LOCKED)
+    idx = A.OPEN_BASE + cell * 4 + A.DIR_INDEX[d]
+    g.state.keys = 0
+    assert not A.action_mask(g)[idx]
+
+    g.state.keys = 1
+    assert g.frontier_doorway_triable(cell, d)
+    assert A.action_mask(g)[idx]
+
+
+def test_stopwatch_refund_makes_a_surcharged_door_triable_with_one_key(registry):
+    """An active Stopwatch refunds a search-surcharged door's spend to just
+    1 key (the same rule can_use_key_at_lock applies): 1 key alone does not
+    cover a 3-key lock_open_cost, but 1 key plus the Stopwatch does."""
+    g = _game(registry)
+    _place_and_stand(g, "bedroom")
+    seg = segment_key(PRISM_TEST_CELL, N)
+    _force_state(g, PRISM_TEST_CELL, N, DOOR_LOCKED)
+    g.door_search_cost[seg] = 2  # lock_open_cost == 1 (base) + 2 == 3
+    g.state.keys = 1
+    assert g.lock_open_cost(PRISM_TEST_CELL, N) == 3
+    assert not g.frontier_doorway_triable(PRISM_TEST_CELL, N), "1 key alone can't cover cost 3"
+
+    g.state.special.stopwatch_left = 1
+    assert g.frontier_doorway_triable(PRISM_TEST_CELL, N), "Stopwatch refund: 1 key is enough"
+
+
+def test_lockpick_alone_makes_the_doorway_triable_with_zero_keys(registry):
+    """Holding a Lock Pick Kit, with zero keys and no fitting special key, is
+    by itself enough to make a locked doorway triable -- the lockpick term of
+    lock_menu_has_real_choice; without the kit the same doorway is not
+    triable, isolating the kit as what makes the difference."""
+    for items, expect in ((frozenset(), False), (frozenset({"lock_pick_kit"}), True)):
+        g = _game(registry, starting_items=items)
+        cell, d = g.open_doorways()[0]
+        _force_state(g, cell, d, DOOR_LOCKED)
+        g.state.keys = 0
+        assert g.frontier_doorway_triable(cell, d) == expect, items
+        idx = A.OPEN_BASE + cell * 4 + A.DIR_INDEX[d]
+        assert A.action_mask(g)[idx] == expect, items
+
+
+def test_special_key_alone_makes_the_doorway_triable(registry):
+    """Holding a fitting special key (Master Key), with zero keys and no
+    lockpick, is by itself enough to make a locked doorway triable -- the
+    special-key term of lock_menu_has_real_choice; without it the same
+    doorway is not triable, isolating the key as what makes the difference."""
+    for items, expect in ((frozenset(), False), (frozenset({"master_key"}), True)):
+        g = _game(registry, starting_items=items)
+        cell, d = g.open_doorways()[0]
+        _force_state(g, cell, d, DOOR_LOCKED)
+        g.state.keys = 0
+        assert g.frontier_doorway_triable(cell, d) == expect, items
+        idx = A.OPEN_BASE + cell * 4 + A.DIR_INDEX[d]
+        assert A.action_mask(g)[idx] == expect, items
+
+
+def test_reserved_special_key_alone_does_not_make_it_triable(registry):
+    """A reserved special-keys-menu id (secret_garden_key) held with nothing
+    else does not make the doorway triable -- it never counts as a real
+    choice, matching its permanently-masked-off menu row."""
+    g = _game(registry)
+    cell, d = g.open_doorways()[0]
+    _force_state(g, cell, d, DOOR_LOCKED)
+    g.state.inventory["secret_garden_key"] = 1  # force-held, bypassing spawn gating
+    g.state.keys = 0
+    assert not g.frontier_doorway_triable(cell, d)
+
+
+def test_key_wrapper_agrees_with_lock_menu_has_real_choice(registry):
+    """With no lockpick and no fitting special key held, lock_menu_has_real_choice
+    reduces to the key term alone, so it must exactly track
+    can_use_key_at_lock() at the pending doorway -- proof the refactor kept
+    the LOCK_PENDING wrapper and the pure mask-time query in lockstep."""
+    g = _game(registry)
+    cell, d = g.open_doorways()[0]
+    _force_state(g, cell, d, DOOR_LOCKED)
+    for keys in (0, 1):
+        g.state.keys = keys
+        g.open_door(cell, d)
+        assert g.can_use_key_at_lock() == g.lock_menu_has_real_choice(cell, d)
+        g.abandon_lock()
+
+
+def test_lockpick_wrapper_agrees_with_lock_menu_has_real_choice(registry):
+    """With 0 keys and no fitting special key, lock_menu_has_real_choice
+    reduces to the lockpick term alone, so it must exactly track
+    can_lockpick_at_lock() at the pending doorway."""
+    g = _game(registry, starting_items=frozenset({"lock_pick_kit"}))
+    cell, d = g.open_doorways()[0]
+    _force_state(g, cell, d, DOOR_LOCKED)
+    g.state.keys = 0
+    g.open_door(cell, d)
+    assert g.phase is Phase.LOCK_PENDING
+    assert g.can_lockpick_at_lock() == g.lock_menu_has_real_choice(cell, d)
+
+
+def test_open_doorway_triability_unaffected_by_the_new_gate(registry):
+    """An ordinary DOOR_OPEN frontier doorway stays triable regardless of
+    keys or items held -- the real-choice gate only applies to DOOR_LOCKED
+    segments."""
+    g = _game(registry)
+    cell, d = g.open_doorways()[0]
+    assert g.door_state_of(cell, d) == DOOR_OPEN
+    g.state.keys = 0
+    assert g.frontier_doorway_triable(cell, d)
+    idx = A.OPEN_BASE + cell * 4 + A.DIR_INDEX[d]
+    assert A.action_mask(g)[idx]
 
 
 def test_mask_accounts_for_the_walks_keys_but_the_door_itself_is_free_to_try(registry):
     """The mask still budgets keys for the WALK (crossing a locked interior
     door to reach the doorway) via key_cost_map; trying the frontier
-    doorway itself, once there, is free regardless -- only spending a key on
-    it (use_key_at_lock) needs a key left over after the walk.
+    doorway itself, once there, is free regardless of whether a key is
+    spent on it. But if the walk would spend the player's only key getting
+    there, leaving nothing and no other way to open the door, draft_from now
+    declines the trip rather than walking into a menu with nothing but
+    abandon (Game.lock_menu_has_real_choice).
     """
     straight = next(r for r in registry.rooms
                     if r.layout == "straight" and r.rarity is not None)
@@ -960,11 +1103,11 @@ def test_mask_accounts_for_the_walks_keys_but_the_door_itself_is_free_to_try(reg
     _force_state(g1, 2, N, DOOR_LOCKED)
     _force_state(g1, 7, N, DOOR_LOCKED)
     g1.state.keys = 1
-    assert A.action_mask(g1)[idx], "1 key: the walk is affordable, trying the door is free"
+    assert A.action_mask(g1)[idx], "the menu looks live before the walk spends the only key"
     g1.draft_from(7, N)
-    assert g1.state.keys == 0, "the walk spent the interior door's key"
-    assert g1.phase is Phase.LOCK_PENDING
-    assert not g1.can_use_key_at_lock(), "nothing left over to spend on the door itself"
+    assert g1.state.keys == 0, "the walk still spent the interior door's key"
+    assert g1.phase is Phase.NAVIGATE, "nothing left for the door: draft_from declines the trip"
+    assert g1.door_state_of(7, N) == DOOR_LOCKED, "the frontier door itself was never tried"
 
     g2 = _game(registry)
     g2._place_room(straight, 7, N | S)
@@ -1103,8 +1246,12 @@ def test_a_doorway_stops_being_offered_after_three_abandons(registry):
     of a single doorway in one episode before this bound existed. Declining and
     returning after checking other doors stays expressible; only the unbounded
     case is refused.
+
+    Holds a Lock Pick Kit throughout so the doorway's menu always offers a
+    real choice regardless of the (zero) key count: the abandon tally, not
+    Game.lock_menu_has_real_choice, is what this test isolates.
     """
-    g = _game(registry)
+    g = _game(registry, starting_items=frozenset({"lock_pick_kit"}))
     cell, d = g.open_doorways()[0]
     _force_state(g, cell, d, DOOR_LOCKED)
     g.state.keys = 0
@@ -1134,8 +1281,12 @@ def test_the_abandon_limit_is_counted_per_doorway_not_per_day(registry):
     The tally is keyed by segment, so a player who declines one locked door
     three times has spent nothing at any other door -- which is what makes
     "check the other doors first" still work after the bound applies.
+
+    Holds a Lock Pick Kit throughout so both doorways' menus always offer a
+    real choice regardless of the (zero) key count: the per-segment tally,
+    not Game.lock_menu_has_real_choice, is what this test isolates.
     """
-    g = _game(registry)
+    g = _game(registry, starting_items=frozenset({"lock_pick_kit"}))
     doors = g.open_doorways()
     assert len(doors) >= 2, "setup: need two doorways to tell per-door from per-day"
     (cell_a, d_a), (cell_b, d_b) = doors[0], doors[1]

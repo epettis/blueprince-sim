@@ -473,3 +473,11 @@ td:first-child, th:first-child { text-align: left; }
 #house-panel.scepter-bedroom   { background: rgba(180, 92, 192, 0.12); }
 #house-panel.scepter-hallway   { background: rgba(224, 123, 40,  0.12); }
 #house-panel.scepter-shop      { background: rgba(242, 208, 36,  0.12); }
+
+/* Replay debug: per-option counterfactual reward badge. */
+.dbg-toggle { float: right; font-weight: 400; font-size: 11px; color: #8a919c; cursor: pointer; }
+.dbg-toggle input { vertical-align: middle; margin-right: 3px; }
+.opt-reward { font-size: 11px; margin-top: 2px; text-align: right; }
+.opt-reward.good { color: #57c46a; }
+.opt-reward.bad  { color: #e0453a; }
+.opt-reward.flat { color: #8a919c; }

@@ -232,7 +232,7 @@ class Observatory:
             metas.sort(key=lambda m: m["episode"], reverse=True)
         return metas
 
-    def run_frames(self, episode: int) -> dict | None:
+    def run_frames(self, episode: int, debug: bool = False) -> dict | None:
         """Full frame-by-frame replay of one episode, or None if unknown.
 
         Frames are rebuilt by re-simulating the recorded actions, which is
@@ -240,6 +240,11 @@ class Observatory:
         outside the lock. The single JSONL line is re-read via the stored
         byte offset/length; a stale offset (rotated file, corrupt read) is
         treated as "unknown episode" rather than raising a 500.
+
+        ``debug`` attaches per-option counterfactual rewards to every frame
+        with an open hand (``replay.option_rewards``). Cached separately from
+        the plain build: the two differ in content, so one key would serve a
+        debug viewer a frame set with no rewards in it, or the reverse.
         """
         with self._lock:
             self._refresh_replays()
@@ -248,9 +253,10 @@ class Observatory:
                 meta = self._recent.get(episode)
             if meta is None:
                 return None
-            cached = self._frames_cache.get(episode)
+            cache_key = (episode, debug)
+            cached = self._frames_cache.get(cache_key)
             if cached is not None:
-                self._frames_cache.move_to_end(episode)
+                self._frames_cache.move_to_end(cache_key)
                 return cached
         try:
             with self.replays_path.open("rb") as f:
@@ -262,7 +268,7 @@ class Observatory:
         if rec.get("episode") != episode:
             return None
         rec["top"] = meta.top
-        frames, divergence = replay.build_frames(rec)
+        frames, divergence = replay.build_frames(rec, debug=debug)
         result = {
             "episode": episode, "seed": rec["seed"], "win": rec.get("win", False),
             "deepest_rank": rec.get("deepest_rank", 0),
@@ -271,7 +277,7 @@ class Observatory:
             "divergence": divergence,
         }
         with self._lock:
-            self._frames_cache[episode] = result
+            self._frames_cache[cache_key] = result
             while len(self._frames_cache) > FRAMES_CACHE_SIZE:
                 self._frames_cache.popitem(last=False)
         return result

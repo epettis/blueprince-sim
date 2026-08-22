@@ -332,3 +332,70 @@ def test_metrics_merge_and_downsample(tmp_path: Path):
     assert len(m["train"]) == 5
     assert m["train"][-1]["episodes"] == 400
     assert m["eval"][0]["p_antechamber"] == pytest.approx(0.02)
+
+
+# ---------------------------------------------- per-option counterfactual rewards
+
+
+def test_option_rewards_scores_every_option_without_disturbing_the_game(registry):
+    """Debug mode reports what each dealt option would pay, and changes nothing.
+
+    Each option is scored on a copy, so the replay being rendered must come out
+    of the call byte-identical -- otherwise inspecting a run would alter it.
+    """
+    from blueprince_sim.config import GameConfig
+    from blueprince_sim.engine.game import Game, Phase
+    from blueprince_sim.web import replay as RP
+
+    g = Game(GameConfig(day=1, special_items=True), seed=7, registry=registry)
+    g.reset()
+    cell, d = g.open_doorways()[0]
+    g.open_door(cell, d)
+    assert g.phase is Phase.DRAFTING, "setup: a hand must be open"
+
+    before = (list(g.state.grid), list(g.state.placed_doors), g.state.steps,
+              g.state.gems, g.phase, len(g.state.pending.options))
+    out = RP.option_rewards(g)
+    after = (list(g.state.grid), list(g.state.placed_doors), g.state.steps,
+             g.state.gems, g.phase, len(g.state.pending.options))
+    assert before == after, "scoring the hand must not mutate the game"
+
+    assert out is not None and len(out) == len(g.state.pending.options)
+    for entry in out:
+        assert entry["slot"] in {o.slot for o in g.state.pending.options}
+        if not entry["error"]:
+            assert isinstance(entry["reward"], float)
+            assert entry["open_ways"] >= 0
+            assert isinstance(entry["ante_reachable"], bool)
+
+
+def test_option_rewards_is_none_with_no_hand_open(registry):
+    """No draft, nothing to score -- None rather than an empty list.
+
+    An empty list would read as "a hand with no options", which is a different
+    state the UI would render as an empty draft panel.
+    """
+    from blueprince_sim.config import GameConfig
+    from blueprince_sim.engine.game import Game
+    from blueprince_sim.web import replay as RP
+
+    g = Game(GameConfig(day=1), seed=1, registry=registry)
+    g.reset()
+    assert RP.option_rewards(g) is None
+
+
+def test_frames_carry_option_rewards_only_when_debug_is_asked_for(registry):
+    """The rewards cost a deep copy per option, so they are opt-in.
+
+    A viewer who never opens the panel must not pay for them, and the plain
+    build has to stay byte-compatible with what the UI already renders.
+    """
+    from blueprince_sim.web import replay as RP
+
+    rec, _ = _play_random_episode(seed=5)
+    plain, _ = RP.build_frames(rec)
+    debug, _ = RP.build_frames(rec, debug=True)
+    assert all(f["option_rewards"] is None for f in plain)
+    assert any(f["option_rewards"] for f in debug if f.get("pending")), (
+        "at least one frame with a hand must carry scores under debug"
+    )

@@ -10,6 +10,17 @@ from collections import deque
 from dataclasses import dataclass, field
 from typing import Mapping
 
+# How many times one area node may be TRAVELLED TO in a day. Grid anchors are
+# exempt: returning to the house is how an off-grid player gets back on the
+# grid at all, and capping it could strand a run outside with steps in hand.
+#
+# One, because an off-grid node latches its unlocks and hands over its items on
+# FIRST arrival -- that is the whole of what a visit is worth. At two, a
+# trained policy saturated the allowance exactly (two visits to every reachable
+# node, every day) and still spent 21% of its actions travelling, which is the
+# measurement that set this to one. See docs/areas.md.
+AREA_REVISIT_LIMIT = 1
+
 # ---------------------------------------------------------------------------
 # Frozen dataclasses
 # ---------------------------------------------------------------------------

@@ -125,6 +125,45 @@ milestones:
   is bounded by the board rather than by a cap. `phased` does **not** share it;
   it prices forward pathways through `_phi_frontier` instead.
 
+- **Repetition brake**: a `(location, action)` pair may be applied
+  `REPEAT_FREE_USES` (3) times a day for nothing; each further use costs
+  `REPEAT_PENALTY_STEP` (0.01) more than the last, flattening after
+  `REPEAT_PENALTY_CAP` (5) steps at `−0.05`. Location is the grid cell on-grid
+  and the area node id off it, so the same switch in two rooms is two habits.
+
+  **Only actions that spend no game step are counted.** That is the whole
+  failure class: a step-spending action pays for itself out of the day's
+  budget, while a zero-step one is bounded by nothing but `max_env_steps`.
+  Measured over 60 fresh-save days of drafting play, **every** `(location,
+  action)` pair used more than three times was a `move` — so charging
+  step-spending actions would tax normal play for something already priced.
+
+  The case that prompted it turned out to be an engine trap rather than a
+  preference: one recorded episode spent **622 of its 687 actions** flipping
+  the Darkroom breaker, but with 0 steps left it had **no other legal
+  action** and the day could not end. `Game.settle_day` fixes that cause;
+  this brake is what prices repetition the player actually chooses. Under the brake those 622 flips cost **−31.5** against a typical
+  day's return near `+0.5`. A drafting trajectory accrues **0.0000** penalty
+  per day, so the brake is invisible to play that is not looping.
+
+  **The switches are now capped in the mask, not priced here.** Measured on
+  `runs/freshsave-v8` at 1.09M episodes, pricing did not change behaviour: 96%
+  of episodes never touched a switch while **4% flipped one 238–934 times**,
+  and those few carried **100%** of all toggles. The penalty made those
+  episodes expensive without making them rarer, and the resulting rare large
+  negative returns are what the critic then had to fit — `explained_variance`
+  fell `0.865 → 0.399` and deepest rank was flat at ~3.7 from episode 4,000 to
+  976,000. `actions.SWITCH_ACTIONS` are capped at `SWITCH_USE_LIMIT` uses per
+  `(location, action)` per day, which equals `REPEAT_FREE_USES` so a capped
+  switch never reaches the priced range at all.
+
+  This generalises two earlier point fixes of the same shape — the lock-menu
+  abandon cap ([`locking.md`](locking.md)) and the area revisit cap
+  ([`areas.md`](areas.md)) — which bound specific zero-step loops by masking.
+  Those stay: a mask stops a loop outright, while this prices any future one
+  the mask does not know about. `sparse` is deliberately exempt, being the
+  milestones and nothing else.
+
 - **Time pressure**: `−0.001 × max(1, steps_spent)` — priced against the
   resource that actually ends runs. Step *gains* (food, the Orchard bonus) are
   clamped to zero spent rather than turned into a bonus, and the floor of 1
