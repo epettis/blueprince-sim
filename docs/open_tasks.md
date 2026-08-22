@@ -238,11 +238,66 @@ the flat-chain prediction does not transfer from scripted play to PPO
 exploration. **Re-check it as the run matures**: the failure mode to watch is
 the carry set going flat at `orchard_unlocked` and staying there.
 
-**What remains on this task is the reward calibration itself.** The fixture and
-the north-door gate together explain why touring beat drafting; neither
-calibrates `special_item_values`, `PATHS_ONE_PENALTY`/`PATHS_ZERO_PENALTY` or
-the scepter bias. Those need statistics from a run that actually plays the
-game, which `runs/freshsave-v1` is now generating.
+**What remains on this task is the reward calibration itself**, and the
+statistics it was waiting on now exist. Measured on `runs/lockfix-v1`'s
+checkpoint at ~1.37M episodes, over 600 chained fresh-save days, by
+decomposing `shaped()` term by term -- the split was cross-checked against the
+real function on 3000 consecutive rewards, 0 mismatches, worst absolute
+difference 1.1e-16, so it is a decomposition rather than a reconstruction.
+
+| term | total | per day | share of reward mass |
+|---|---|---|---|
+| `phi_paths` | **-406.0** | **-0.677** | **42.9%** |
+| resources | +301.9 | +0.503 | 31.9% |
+| rank | +144.1 | +0.240 | 15.2% |
+| placement_frontier | +50.2 | +0.084 | 5.3% |
+| time | -40.9 | -0.068 | 4.3% |
+| repeat | -2.9 | -0.005 | 0.3% |
+| milestones | 0.0 | 0.000 | 0.0% |
+
+Net return is **+0.077 per day**, so the `phi_paths` term alone is roughly nine
+times the size of everything the policy nets. Per action class, **`choose` --
+placing a drafted room -- is `-0.041` per decision** across 6345 decisions,
+while `travel` is *positive* at `+0.0035`. Drafting is the most punished thing
+the agent can do and touring is safe, which is the behaviour observed.
+
+**All of that term's mass is terminal, and the arithmetic is exact.**
+`phi_paths` is a potential, so its episode sum telescopes to
+`phi(end) - phi(start)`. Every one of the 600 days starts at `ante_paths >= 3`,
+i.e. `phi(start) = 0`. Days end at `paths=0` on 427, `paths=1` on 74, and
+healthy on 99:
+
+```
+427 x (-1.00)  +  74 x (-0.15)  =  -438.1
+telescoped phi_paths, measured  =  -438.1
+```
+
+So the term's **net mid-episode contribution is zero**. It is not steering the
+agent away from sealing the house while it plays; it is a flat `-1.0` stamped
+on the 68% of days (409 of 600 terminate `dead_end`) that end sealed.
+
+**That breaks the property the term is built on.** Potential-based shaping is
+policy-invariant only when the potential is **zero at terminal states**. Here
+`phi(terminal)` is `-1.0`, and `shaped()` takes a `terminated` argument it never
+reads. The term is therefore not the provably-safe shaping it is designed as --
+it is a real bias, and it points at drafting.
+
+Two magnitudes to weigh together: sealing the house costs `-1.0`, exactly what
+winning pays (`ROOM46_REWARD`), and sealing happens on 68% of days while
+winning happens on ~0%. And the trained policy seals far more than the scripted
+baseline it loses to -- `frontier_greedy` seals on 27% of fresh-save days
+(16 of 60), against 68% here. It is not merely shallower than the baseline
+(mean deepest rank 3.24 against 6.54); it is worse at keeping the house open
+while being punished harder for it.
+
+**A good target for the calibration work is the depth gap, not the win rate.**
+Win rate is 4 events in ~2M episodes and cannot steer a decision; mean deepest
+rank moves continuously, is cheap to measure, sits on the critical path to
+every win, and has a demonstrated reference value in `frontier_greedy`'s 6.54.
+This follows [`process.md`](process.md)'s "work lanes, not numbers".
+
+What to do about the terminal bias needs an owner ruling -- see question (a) in
+task 23.
 
 ## 50. The observatory timeline should be indexed by run number, not wall time
 
@@ -373,6 +428,30 @@ audit's value is the ones that are not.
 The single home for questions that need an owner ruling before the work they
 block can start. A question is added as a lettered item, and cited from
 elsewhere by that letter.
+
+### (a) Should the path potential be split into guidance and penalty?
+
+`phi_paths` currently does two jobs at once and does the second one by
+accident. Measured in task 24: its whole contribution is `phi(terminal)`, a
+flat `-1.0` on the 68% of days that end sealed, with zero net effect during
+play -- and a non-zero potential at a terminal state is exactly what removes
+the policy-invariance guarantee that justifies shaping this way.
+
+The two jobs can be separated:
+
+- **Guidance** -- keep `phi_paths` as a true potential, zeroed at terminal
+  states. It then contributes exactly 0 over every episode and still orders
+  the agent's learning during play, which is what potential-based shaping is
+  for.
+- **Penalty** -- if sealing the house should cost something (the owner's
+  two-open-paths doctrine says it should), make that an *explicit* terminal
+  penalty with a deliberately chosen magnitude, priced against
+  `ROOM46_REWARD`, rather than falling out of a potential's endpoint.
+
+The ruling needed is whether to make that split, and if so what the explicit
+dead-end penalty should be worth relative to a win. Doing nothing is a real
+option: the bias is against drafting, and the argument that the house-sealing
+doctrine should bite hard is the owner's own.
 
 ## Decisions log
 
