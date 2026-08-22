@@ -69,6 +69,10 @@ def registered_capability_rooms() -> frozenset[str]:
     return frozenset(room_id for room_id, _cap in _CAPABILITY_REGISTRY)
 
 
+_ROOMS_WITH_CAPABILITY_CACHE: dict[Capability, frozenset[str]] = {}
+_ROOMS_WITH_CAPABILITY_REGISTRY_LEN = -1  # size of _CAPABILITY_REGISTRY as of the last cache fill
+
+
 def rooms_with_capability(capability: Capability) -> frozenset[str]:
     """Room ids registered as providing this specific ``capability``.
 
@@ -76,9 +80,23 @@ def rooms_with_capability(capability: Capability) -> frozenset[str]:
     this narrows to one capability -- letting a caller resolve "which room
     provides X" generically instead of naming that room's id directly (e.g.
     ``Game._capability_cell``, which turns a capability into the grid cell
-    of whichever placed room provides it).
+    of whichever placed room provides it, on the per-step hot path).
+
+    ``_CAPABILITY_REGISTRY`` only grows, via ``provides()`` at room-module
+    import time, and is static by the time any Game runs -- so this memoises
+    per capability, invalidating the whole cache if the registry's size ever
+    changes (defensive: not expected once imports finish, but cheaper than
+    trusting it and cheaper than hashing/scanning the registry every call).
     """
-    return frozenset(room_id for room_id, cap in _CAPABILITY_REGISTRY if cap is capability)
+    global _ROOMS_WITH_CAPABILITY_REGISTRY_LEN
+    if len(_CAPABILITY_REGISTRY) != _ROOMS_WITH_CAPABILITY_REGISTRY_LEN:
+        _ROOMS_WITH_CAPABILITY_CACHE.clear()
+        _ROOMS_WITH_CAPABILITY_REGISTRY_LEN = len(_CAPABILITY_REGISTRY)
+    cached = _ROOMS_WITH_CAPABILITY_CACHE.get(capability)
+    if cached is None:
+        cached = frozenset(room_id for room_id, cap in _CAPABILITY_REGISTRY if cap is capability)
+        _ROOMS_WITH_CAPABILITY_CACHE[capability] = cached
+    return cached
 
 
 def validate_capability_registry(registry) -> list[str]:

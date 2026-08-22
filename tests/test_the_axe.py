@@ -303,6 +303,27 @@ def test_axe_target_action_masked_off_once_already_axed():
     assert mask[AXE_TARGET_BASE + i] is False
 
 
+def test_axe_target_mask_matches_per_target_legality_with_axe_held():
+    """With the Axe held and one family already axed, EVERY AXE_TARGET mask
+    bit -- not just kitchen's -- must equal can_axe_room(that target) exactly:
+    kitchen (spent) reads False, an untouched family (attic) still reads True.
+    Guards can_axe_any_room (the hoisted, target-independent guard the mask
+    loop now checks once before iterating) from a bug that folds a per-target
+    fact -- e.g. 'something has been axed' instead of 'THIS target is axed' --
+    into the shared guard, which would silently mask off every other target
+    the moment any one family is spent."""
+    g = _game()
+    g.state.inventory["the_axe"] = 2
+    g.axe_room("kitchen")
+    g.state.inventory["the_axe"] = 1
+    target_ids = _build_axe_target_ids(g.registry)
+    mask = action_mask(g)
+    for i, target_id in enumerate(target_ids):
+        assert mask[AXE_TARGET_BASE + i] == g.can_axe_room(target_id), target_id
+    assert mask[AXE_TARGET_BASE + target_ids.index("kitchen")] is False
+    assert mask[AXE_TARGET_BASE + target_ids.index("attic")] is True
+
+
 def test_apply_action_axe_dispatches_to_axe_room():
     """Dispatching an AXE_TARGET id through apply_action (not calling
     Game.axe_room directly) consumes the item and records the target."""

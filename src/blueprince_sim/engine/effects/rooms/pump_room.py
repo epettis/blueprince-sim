@@ -40,6 +40,8 @@ class PumpSource:
 
 
 _SOURCES_CACHE: dict[Path, tuple[PumpSource, ...]] = {}
+_last_dir: Path | None = None    # identity memo: the data_dir object from the last call
+_last_sources: tuple[PumpSource, ...] | None = None  # ...and the sources it resolved to
 
 
 def load_sources(data_dir: Path) -> tuple[PumpSource, ...]:
@@ -47,10 +49,19 @@ def load_sources(data_dir: Path) -> tuple[PumpSource, ...]:
 
     File order (alphabetical by id) is the action-index order for
     env/actions.py's PUMP_SOURCE_BASE block.
+
+    Checks by identity first (Registry.data_dir is the same object for a whole
+    run, so this never hashes a Path on the hot path) before falling back to
+    the path-keyed dict for the case data_dir actually varies between calls.
     """
+    global _last_dir, _last_sources
+    orig_dir = data_dir
+    if orig_dir is _last_dir:
+        return _last_sources
     data_dir = Path(data_dir)
     cached = _SOURCES_CACHE.get(data_dir)
     if cached is not None:
+        _last_dir, _last_sources = orig_dir, cached
         return cached
     raw = json.loads((data_dir / DATA_FILENAME).read_text())
     sources = tuple(
@@ -58,4 +69,5 @@ def load_sources(data_dir: Path) -> tuple[PumpSource, ...]:
         for s in raw["sources"]
     )
     _SOURCES_CACHE[data_dir] = sources
+    _last_dir, _last_sources = orig_dir, sources
     return sources

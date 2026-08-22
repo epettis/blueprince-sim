@@ -309,6 +309,10 @@ def _build_area_node_ids(registry: Registry) -> tuple[str, ...]:
     return result
 
 
+_axe_target_ids_registry: Registry | None = None  # identity memo: last registry seen
+_axe_target_ids_cache: tuple[str, ...] | None = None  # ...and the ids it resolved to
+
+
 def _build_axe_target_ids(registry: Registry) -> tuple[str, ...]:
     """Sorted tuple of every floorplan family The Axe can target.
 
@@ -330,7 +334,15 @@ def _build_axe_target_ids(registry: Registry) -> tuple[str, ...]:
     LOCK_MENU_BASE's mask bit -- exactly what happened when the Conservatory
     (PR #329) did this, marking "use a key at a lock" legal outside any lock
     menu.
+
+    Memoised by registry identity (a Registry is immutable and, in practice,
+    the same object for a whole run) so the assert below runs once per
+    distinct registry rather than on every call -- it stays load-bearing,
+    just no longer on the per-step hot path.
     """
+    global _axe_target_ids_registry, _axe_target_ids_cache
+    if registry is _axe_target_ids_registry:
+        return _axe_target_ids_cache
     roots = {
         root_base_id(registry, r)
         for r in registry.rooms
@@ -344,6 +356,7 @@ def _build_axe_target_ids(registry: Registry) -> tuple[str, ...]:
         f"N_ACTIONS) to match. This is a deliberate width change, never a "
         f"silent one."
     )
+    _axe_target_ids_registry, _axe_target_ids_cache = registry, result
     return result
 
 
@@ -363,6 +376,10 @@ def _build_mechanical_room_ids(registry: Registry) -> tuple[str, ...]:
     return tuple(sorted(r.id for r in registry.rooms if r.is_category("mechanical")))
 
 
+_permanent_rarity_room_ids_registry: Registry | None = None  # identity memo: last registry seen
+_permanent_rarity_room_ids_cache: tuple[str, ...] | None = None  # ...and the ids it resolved to
+
+
 def _build_permanent_rarity_room_ids(registry: Registry) -> tuple[str, ...]:
     """Sorted tuple of every room whose permanent rarity slot can be written.
 
@@ -374,12 +391,19 @@ def _build_permanent_rarity_room_ids(registry: Registry) -> tuple[str, ...]:
     rooms the wrench never touches.
 
     Registry-derived, so it cannot drift from rooms.json and does not vary with
-    a GameConfig. Obs-only, like :func:`_build_mechanical_room_ids`.
+    a GameConfig. Obs-only, like :func:`_build_mechanical_room_ids`. Memoised by
+    registry identity, matching :func:`_build_axe_target_ids`.
     """
+    global _permanent_rarity_room_ids_registry, _permanent_rarity_room_ids_cache
+    if registry is _permanent_rarity_room_ids_registry:
+        return _permanent_rarity_room_ids_cache
     mechanical = {r.id for r in registry.rooms if r.is_category("mechanical")}
     board = {r.id for r in registry.rooms
              if r.pool in ("base", "studio_addition", "found_floorplan")}
-    return tuple(sorted(mechanical | board))
+    result = tuple(sorted(mechanical | board))
+    _permanent_rarity_room_ids_registry = registry
+    _permanent_rarity_room_ids_cache = result
+    return result
 
 
 # ---------------------------------------------------------------------------
@@ -1012,9 +1036,14 @@ def action_mask(game: Game, prev_action: int | None = None) -> list[bool]:
 
         # The Axe: legal on-grid AND off-grid, like the Sigil doors above --
         # can_axe_room already checks phase/item/cap/target, no position guard.
-        for i, target_id in enumerate(_build_axe_target_ids(game.registry)):
-            if game.can_axe_room(target_id):
-                mask[AXE_TARGET_BASE + i] = True
+        # can_axe_any_room hoists the target-independent quarter of that check
+        # (phase/cfg/held/cap) so the ~49-target loop is skipped entirely
+        # without an Axe held, the common case -- can_axe_room re-runs the same
+        # guard internally, so this is a pure skip, never a behaviour change.
+        if game.can_axe_any_room():
+            for i, target_id in enumerate(_build_axe_target_ids(game.registry)):
+                if game.can_axe_room(target_id):
+                    mask[AXE_TARGET_BASE + i] = True
 
         # The outer draft: legal on-grid AND off-grid, because the action is
         # "walk to the doorstep and draft" and Game.open_outer_draft walks from

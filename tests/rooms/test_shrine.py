@@ -10,6 +10,7 @@ active at a time.
 from __future__ import annotations
 
 import dataclasses
+import json
 import random
 
 import pytest
@@ -306,6 +307,13 @@ def _with_mutated_curse(monkeypatch, reg, **curse_overrides) -> None:
     mutated_curse = dataclasses.replace(real_rules.curse, **curse_overrides)
     mutated_rules = dataclasses.replace(real_rules, curse=mutated_curse)
     monkeypatch.setitem(shrine._RULES_CACHE, reg.data_dir, mutated_rules)
+    # load_shrine_rules also checks a one-slot identity memo ahead of this dict
+    # (perf: skips hashing/normalising data_dir on the hot path) -- the call
+    # above already warmed that memo with real_rules, so reset it too or the
+    # next load_shrine_rules(reg.data_dir) would return the stale real rules
+    # instead of consulting the dict this helper just mutated.
+    monkeypatch.setattr(shrine, "_last_dir", None)
+    monkeypatch.setattr(shrine, "_last_rules", None)
 
 
 def test_curse_duration_follows_the_loaded_rules_data(monkeypatch):
@@ -649,3 +657,32 @@ def test_day_replays_clean_through_shrine_interactions():
             if term or trunc:
                 break
         assert env.game.phase is Phase.TERMINAL
+
+
+# --------------------------------------------------------------- data_dir cache
+
+
+def test_load_shrine_rules_keeps_distinct_dirs_separate(tmp_path, registry):
+    """load_shrine_rules memoises by data_dir identity for speed (a one-slot
+    cache ahead of the path-keyed dict, skipping Path hashing on the hot path),
+    but a genuinely different data_dir must still get its own answer: alternating
+    calls between two dirs with different shrine.json contents must not return
+    a stale value carried over from whichever dir was loaded most recently."""
+    raw = json.loads((registry.data_dir / shrine.DATA_FILENAME).read_text())
+    raw_bumped = json.loads(json.dumps(raw))  # deep copy
+    for band in raw_bumped["bands"]:
+        band["duration_days"] += 1
+
+    dir_a, dir_b = tmp_path / "a", tmp_path / "b"
+    dir_a.mkdir()
+    dir_b.mkdir()
+    (dir_a / shrine.DATA_FILENAME).write_text(json.dumps(raw))
+    (dir_b / shrine.DATA_FILENAME).write_text(json.dumps(raw_bumped))
+
+    rules_a = shrine.load_shrine_rules(dir_a)
+    rules_b = shrine.load_shrine_rules(dir_b)
+    assert rules_b.bands[0].duration_days == rules_a.bands[0].duration_days + 1
+
+    # dir_a again, right after dir_b was the most recent call: must read
+    # dir_a's own data, not the identity memo's leftover dir_b value.
+    assert shrine.load_shrine_rules(dir_a).bands[0].duration_days == rules_a.bands[0].duration_days
