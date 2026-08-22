@@ -383,6 +383,68 @@ built yet.** Each one leaves the log the day its work lands.
 Everything each entry says about *shipped* behaviour is already stated in the
 doc that owns it; when the remaining work lands, the entry goes.
 
-The log is empty: the retrain it was holding has started
-(`runs/freshsave-v1`, see task 24), and every other ruling recorded here has
-reached the doc that owns its rule.
+### Pulling an Antechamber side lever pays a potential, not a milestone
+
+**OWNER RULING.** Opening one of the Antechamber's three sealed side doors is
+worth **50% of `ANTECHAMBER_REWARD`** (0.125 against today's 0.25), expressed
+as a **shaping potential** rather than a milestone bonus, and **credited only
+while a live path to the opened door still exists** -- so a later draft that
+walls the door off takes the credit back at the moment it seals it.
+
+This concerns the three **side** levers only. The north lever already pays
+`NORTH_DOOR_REWARD`, gated behind `north_door_opened AND antechamber_reached`.
+
+**What prompted it: the reward is currently flat across every lever pull.**
+`_ante_paths` returns >= 2 before a pull and 99 after, and `_phi_paths` maps
+both to 0.0, so the potential cannot see whether any door is open. Measured
+over scripted play, the `phi_paths` delta on a lever pull was non-zero on
+**0 of 40** fresh-save lever entries and **1 of 198** all-unlocks entries. The
+step that converts an unreachable objective into a reachable one paid nothing.
+
+**Why a potential and not a milestone.** Potential-based shaping cannot change
+the optimal policy, only the speed of finding it -- and speed is the whole
+goal here. A milestone can change it, and this project has twice paid for that:
+the touring policy, and the `+0.5` north-door milestone a single travel hop
+collected at rank 1 on 40 of 40 seeds. Both were fixed by ordering the reward
+behind `antechamber_reached`. **That fix is unavailable here**, because a side
+lever is the *precondition* for `antechamber_reached`; gating on it would pay
+only once the payment is pointless. A potential sidesteps the question.
+
+**Pay once per day, not once per lever.** Three side doors all lead into cell
+42 and only one is needed, so a per-lever bonus would pay 0.375 for opening all
+three -- more than the 0.25 for the arrival they exist to enable, inverting the
+dependency chain. A potential expressed as a property of the day's board
+("is the Antechamber enterable?") is paid once by construction. Measured, the
+redundancy is currently small (8 of 400 all-unlocks days open a second door,
+0 of 400 on a fresh save), so this is a correctness argument, not an urgent one.
+
+**The implementation turns on a map that does not exist yet.** Neither existing
+map can express the credit: `distance_map` respects seals but walks only placed
+rooms under a key budget, and `optimistic_distances` deliberately ignores door
+state entirely, so it cannot tell a route through an open east door from one
+through a still-sealed south door. The term needs a third map -- empty cells
+freely passable, placed rooms only through their own doors, sealed segments
+impassable, locked and security segments passable-in-principle.
+
+That map answers both halves of the ruling at once. Cell 42's only grid
+entrances are the three side segments (the north edge leads to Room 46 and is
+usable only from inside), so with no lever pulled it reports 42 unreachable and
+the credit is absent for free -- there is no separate "is a door open?" test to
+write. Two things to establish rather than assume: that no room or item can
+deposit the player into the Antechamber directly, and the terminal-state
+handling, since a potential non-zero at episode end biases the return
+(`_phi_paths` already solved that for `PATHS_ZERO_PENALTY`). It is also a third
+BFS per `door_version` on a path that is ~91% env-bound and was optimised in
+#425, so it needs that PR's before/after throughput measurement and a cheap
+early-out when no lever room is placed.
+
+**Stated plainly so it is not oversold: this will not move the win rate on its
+own.** A side door opens on 1.00% of fresh-save days, so a 0.125 potential gap
+at that frequency perturbs a ~0.10 mean return by about 1%. It corrects a wrong
+zero and makes self-sealing visibly bad; it creates almost no pressure toward
+lever rooms, because the gradient only exists once the agent is already doing
+the rare thing. Shaping the *approach* to a lever room is a separate and larger
+question, and it has not been ruled on.
+
+This entry moves into [`rewards.md`](rewards.md) when the work lands; the
+retune it feeds is task 24.
