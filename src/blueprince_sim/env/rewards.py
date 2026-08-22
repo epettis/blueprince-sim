@@ -15,6 +15,7 @@ from ..engine.special_items import inventory_value
 # Antechamber open; drafting the last route closed should be scored very
 # negatively, dwarfing any dead-end room's resource payout.
 PATHS_ONE_PENALTY: float = -0.15   # potential when exactly 1 route survives
+PATHS_TWO_PENALTY: float = -0.05   # potential when exactly 2 routes survive
 PATHS_ZERO_PENALTY: float = -1.0   # potential when all routes are sealed
 ANTECHAMBER_REWARD: float = 0.25   # first Antechamber arrival each day (milestone)
 NORTH_DOOR_REWARD: float = 0.5     # north door open AND Antechamber reached (either lever)
@@ -99,9 +100,11 @@ def _ante_paths(game: Game) -> int:
 def _phi_paths(n_paths: int) -> float:
     """Potential encoding the owner's two-open-paths doctrine.
 
-    Returns 0.0 when two or more routes survive (healthy), PATHS_ONE_PENALTY
-    (-0.15) when exactly one remains (danger), and PATHS_ZERO_PENALTY (-1.0)
-    when all routes are sealed (fatal).
+    Returns 0.0 when three or more routes survive (healthy), PATHS_TWO_PENALTY
+    (-0.05) at exactly two (an early warning), PATHS_ONE_PENALTY (-0.15) at
+    exactly one (danger), and PATHS_ZERO_PENALTY (-1.0) when all routes are
+    sealed (fatal). The three nonzero steps slope monotonically toward the
+    fatal state rather than fencing it off with a single cliff.
 
     Interaction with terminals:
     - Winning (walking into the Antechamber): at that moment the Antechamber
@@ -115,6 +118,8 @@ def _phi_paths(n_paths: int) -> float:
         return PATHS_ZERO_PENALTY
     if n_paths == 1:
         return PATHS_ONE_PENALTY
+    if n_paths == 2:
+        return PATHS_TWO_PENALTY
     return 0.0
 
 

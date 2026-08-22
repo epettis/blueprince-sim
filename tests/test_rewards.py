@@ -8,10 +8,10 @@ progress is back-loaded past rank 4, and the mode is selectable through
 the env config.
 
 Also covers the path-preservation potential (_phi_paths / _ante_paths):
-sealing the last viable route to the Antechamber costs ~-1.0, dropping
-from two routes to one costs -0.15, reopening routes pays back the
-potential, and when the Antechamber is already reachable on foot the
-potential is 0 so the win bonus is undiluted.
+sealing the last viable route to the Antechamber costs ~-1.0, the
+potential slopes monotonically as routes fall from 3 to 0, reopening
+routes pays back the potential, and when the Antechamber is already
+reachable on foot the potential is 0 so the win bonus is undiluted.
 """
 
 from __future__ import annotations
@@ -28,6 +28,7 @@ from blueprince_sim.env.blueprince_env import BluePrinceEnv
 from blueprince_sim.env import rewards as R
 from blueprince_sim.env.rewards import (
     PATHS_ONE_PENALTY,
+    PATHS_TWO_PENALTY,
     _ante_paths,
     _phi_paths,
     phased,
@@ -309,11 +310,9 @@ def test_sealing_last_route_phased_is_very_negative(registry):
 
 
 def test_two_to_one_path_costs_less_than_one_to_zero(registry):
-    """Dropping from 2 open paths to 1 costs PATHS_ONE_PENALTY (-0.15), which
-    is strictly better (less negative) than the 1→0 drop (-0.85 delta).
-
-    The two-paths doctrine treats 1-path-remaining as a danger zone but not
-    yet a fatal outcome; the policy must see a real cost difference.
+    """Dropping from 2 open paths to 1 costs strictly less than the 1→0 drop:
+    the two-paths doctrine grades danger by how many routes remain rather than
+    treating any loss below three as equally severe.
     """
     g = _sealed_game(registry)
     # Two frontier doorways: N→cell 37 and E→cell 33, both with optdist != -1
@@ -321,7 +320,7 @@ def test_two_to_one_path_costs_less_than_one_to_zero(registry):
 
     assert _ante_paths(g) == 2
     prev_two = snapshot(g)
-    assert prev_two["phi_paths"] == pytest.approx(0.0)
+    assert prev_two["phi_paths"] == pytest.approx(PATHS_TWO_PENALTY)
 
     # Seal the east route: place room at cell 33 with W-only (connects but has no N/S frontier)
     _place(g, 33, W)
@@ -341,14 +340,14 @@ def test_two_to_one_path_costs_less_than_one_to_zero(registry):
     assert cost_two_to_one > cost_one_to_zero   # but far less than sealing the last
 
 
-def test_two_or_more_paths_no_penalty(registry):
-    """When two or more open routes exist throughout a step, the phi_paths
+def test_three_or_more_paths_no_penalty(registry):
+    """When three or more open routes exist throughout a step, the phi_paths
     delta is exactly 0.0 and only the time-pressure term affects the reward.
     """
     g = _sealed_game(registry)
-    _place(g, 32, N | E, pos=True)     # two frontier doorways → n_paths=2, phi=0.0
+    _place(g, 32, N | E | S, pos=True)  # three frontier doorways → n_paths=3, phi=0.0
 
-    assert _ante_paths(g) == 2
+    assert _ante_paths(g) == 3
     prev = snapshot(g)
     assert prev["phi_paths"] == pytest.approx(0.0)
 
@@ -358,8 +357,8 @@ def test_two_or_more_paths_no_penalty(registry):
 
 
 def test_reopening_path_gives_positive_delta(registry):
-    """Going from 1 surviving path back to 2 yields a positive reward delta
-    of roughly PATHS_ONE_PENALTY magnitude, as the potential is reclaimed.
+    """Going from 1 surviving path back to 2 yields a positive reward delta,
+    as part of the sealed-route potential is reclaimed.
 
     Adding an east door to a room that previously had only a north door
     models a scenario where a new branch route is opened.
@@ -377,8 +376,56 @@ def test_reopening_path_gives_positive_delta(registry):
 
     assert _ante_paths(g) == 2
     r = shaped(g, prev, terminated=False)
-    # Delta is 0.0 - (-0.15) = +0.15, minus time pressure 0.001 ≈ +0.149
+    # Delta is PATHS_TWO_PENALTY - PATHS_ONE_PENALTY = +0.10, minus time pressure 0.001
     assert r > 0.0                      # positive: reclaiming potential is rewarded
+
+
+def test_phi_paths_slopes_monotonically_toward_zero_routes(registry):
+    """_phi_paths grades danger by degree: it is strictly more negative at
+    each step down from 3 routes to 0, rather than treating every count below
+    3 as an equally severe cliff edge.
+    """
+    phi_three = _phi_paths(3)
+    phi_two = _phi_paths(2)
+    phi_one = _phi_paths(1)
+    phi_zero = _phi_paths(0)
+
+    assert phi_three == pytest.approx(0.0)
+    assert phi_three > phi_two > phi_one > phi_zero
+
+
+def test_day_start_has_zero_paths_potential(registry):
+    """A freshly reset day always opens with the healthy (3+ routes) potential
+    of 0.0, measured from real Game instances rather than assumed from the
+    route count -- this is the property the whole path-preservation term
+    depends on, since a nonzero start would add a constant offset to every
+    episode's cumulative phi_paths delta.
+    """
+    for seed in range(5):
+        g = Game(GameConfig(), seed=seed, registry=registry)
+        assert snapshot(g)["phi_paths"] == pytest.approx(0.0)
+
+
+def test_three_to_two_paths_charges_more_than_time_pressure_alone(registry):
+    """A draft that drops the live route count from 3 to 2 charges a shaped
+    delta strictly worse than the flat time-pressure floor a same-potential
+    step pays, so the phi_paths term itself contributes a real cost here.
+    """
+    g = _sealed_game(registry)
+    _place(g, 32, N | E | S, pos=True)  # three frontier doorways → n_paths=3, phi=0.0
+
+    assert _ante_paths(g) == 3
+    prev = snapshot(g)
+    assert prev["phi_paths"] == pytest.approx(0.0)
+
+    # Seal the east route: room at cell 33 with W-only (connects back, no further frontier)
+    _place(g, 33, W)
+
+    assert _ante_paths(g) == 2
+    r = shaped(g, prev, terminated=False)
+    # -0.001 is what a same-potential step costs from time pressure alone (see
+    # test_three_or_more_paths_no_penalty); this drop must cost strictly more.
+    assert r < -0.001
 
 
 def test_time_term_scales_with_steps_not_flat_per_decision(registry):

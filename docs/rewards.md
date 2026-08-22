@@ -91,13 +91,16 @@ milestones:
   resources (keys on locks, gems on rooms) is a small negative that the
   downstream progress reward has to justify.
 - **Path preservation** (`phi_paths`): a potential encoding the two-open-paths
-  doctrine — `0.0` while two or more routes to the Antechamber survive,
-  `−0.15` at exactly one, `−1.0` at zero. The draft that seals the last route
-  eats ~`−1.0`, dwarfing any dead-end room's payout, and reopening a route
-  pays it back. On a winning step the Antechamber is already reachable, so the
-  potential is 0 and the milestone rewards are undiluted; a `dead_end`
-  termination arrives with the sealing penalty already charged on the prior
-  draft.
+  doctrine — `0.0` while three or more routes to the Antechamber survive,
+  `−0.05` at exactly two, `−0.15` at exactly one, `−1.0` at zero. The four
+  values slope monotonically toward the sealed state instead of fencing it off
+  behind a single cliff edge, so a drop from three routes to two is already
+  charged rather than passing unnoticed. The draft that seals the last route
+  still eats ~`−1.0`, dwarfing any dead-end room's payout, and reopening a
+  route pays the potential back. On a winning step the Antechamber is already
+  reachable, so the potential is 0 and the milestone rewards are undiluted; a
+  `dead_end` termination arrives with the sealing penalty already charged on
+  the prior draft.
 - **Placement frontier**: `+0.01` per way forward a newly placed room opens
   into an empty in-grid cell (its own outgoing doors; the doorway it was
   drafted through faces an occupied cell, so the count is bounded by 3 and a
