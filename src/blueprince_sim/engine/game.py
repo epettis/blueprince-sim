@@ -2752,6 +2752,14 @@ class Game:
         the history costs nothing to keep and the Chronograph's REWIND is
         gated on holding the item at :meth:`can_rewind` time, not on whether
         it was held when the redraw happened.
+
+        A colour-locked redeal (``draft.redeal`` keeps ``pending.colour`` as
+        drawn) can legitimately come back with zero options -- the on-colour
+        pool exhausted in both deck classes and the default triple also
+        placed/illegal. When that happens this drops straight back to
+        NAVIGATE, the same fallback :meth:`open_door`/:meth:`choose_colour`
+        use for an empty initial deal, and evicts the doorway cache entry so
+        a later reopen re-deals instead of replaying the dead hand.
         """
         pending.rewind_stack.append(list(pending.options))
         pending.options.clear()
@@ -2765,6 +2773,10 @@ class Game:
         # redraw is itself the event this hook exists to model.
         for opt in pending.options:
             effects.fire(self, self.registry.rooms[opt.room_idx], Hook.ON_HAND_DEALT)
+        if not pending.options:
+            self.doorway_drafts.pop((pending.from_cell, pending.direction), None)
+            self.state.pending = None
+            self.phase = Phase.NAVIGATE
 
     def can_crown_block(self, slot: int) -> bool:
         """True when the Crown of the Blueprints' once-per-hand filter can be
@@ -2904,6 +2916,8 @@ class Game:
             return False
         st = self.state
         pending = st.pending
+        if not pending.options:  # empty hand: nothing to rotate
+            return False
         budget = max(
             len(legal_orientations(self.registry.rooms[o.room_idx],
                                    pending.target_cell, pending.direction,
