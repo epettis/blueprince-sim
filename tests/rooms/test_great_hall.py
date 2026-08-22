@@ -23,6 +23,7 @@ from __future__ import annotations
 from blueprince_sim.config import GameConfig
 from blueprince_sim.engine.game import ANTECHAMBER_CELL, Game, Phase
 from blueprince_sim.engine.grid import E, N, S, W
+from blueprince_sim.engine.items import roll_room_items
 from blueprince_sim.engine.locks import DOOR_LOCKED, DOOR_OPEN, DOOR_SEALED, segment_key
 from blueprince_sim.engine.placement import legal_orientations
 from blueprince_sim.engine.state import GameState
@@ -129,6 +130,45 @@ def test_a_lever_pull_that_could_not_be_paid_retries_on_a_later_arrival(registry
 
     assert g.door_state_of(ANTECHAMBER_CELL, E) == DOOR_OPEN
     assert g.state.keys == 0  # exactly the one key spent
+
+
+def _seed_with_first_entry_item_key(registry=None) -> int:
+    """First seed where the Great Hall's own first-entry item roll (special_items
+    on, the room's ``items.additional_max`` roll, unrelated to the lever) hands
+    over a key -- the case where the lever pull's own affordability check must
+    see that grant land before it runs.
+
+    Probes with :func:`roll_room_items` directly rather than through
+    :meth:`Game._enter`, so the search is independent of the ordering the test
+    below actually pins -- reversing that ordering must not change which seeds
+    this finds. Search rather than a hardcoded seed, so this stays correct if
+    the RNG derivation ever changes shape without needing a new magic number.
+    """
+    for seed in range(400):
+        g = _game(levers=True, keys=0, seed=seed, registry=registry)
+        _place_at(g, "great_hall", 43, E | W)
+        room = g.registry.by_id["great_hall"]
+        roll_room_items(g, room, 43)
+        if g.state.keys > 0:
+            return seed
+    raise AssertionError("no seed in range(400) rolled a key on the Great Hall's first entry")
+
+
+def test_a_first_entry_item_key_lets_the_lever_fire_on_that_same_entry(registry):
+    """The Great Hall's own first-entry item roll can hand over a key (its
+    ``items.additional_max`` roll, unrelated to the lever), and when it does,
+    that SAME entry's lever pull sees the key and opens the east segment on
+    the spot -- the pull must run after the first-entry grants land, not
+    before them. Regression guard: this fails if the lever pull is ever moved
+    back above the first-entry block, since re-ordering would make the pull
+    check affordability before the roll that pays for it."""
+    seed = _seed_with_first_entry_item_key(registry=registry)
+    g = _game(levers=True, keys=0, seed=seed, registry=registry)
+    _place_at(g, "great_hall", 43, E | W)
+    _enter_at(g, 43)
+
+    assert g.door_state_of(ANTECHAMBER_CELL, E) == DOOR_OPEN
+    assert g.state.keys == 0  # the rolled key was spent on this same entry
 
 
 def test_walking_into_the_great_hall_is_charged_to_the_route(registry):

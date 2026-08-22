@@ -26,7 +26,7 @@ class Capability(Enum):
     DRAWING_BOARD = "drawing_board"  # room's remodel drawing board is open (Conservatory; see Game.can_remodel)
     EXPERIMENT_TERMINAL = "experiment_terminal"  # room's Experimental Setup menu is open (Laboratory)
     FABRICATION = "fabrication"  # room's fabricate menu is open (Workshop; see shops.py)
-    LEVER = "lever"  # room pulls an Antechamber lever on first entry
+    LEVER = "lever"  # room pulls an Antechamber lever on entry, retried on every arrival
     LOST_AND_FOUND = "lost_and_found"  # room's on_enter triggers the Lost & Found steal-and-draw (see special_items.lost_and_found_on_enter)
     NIGHT_SKY = "night_sky"  # room's telescope can view a night sky (Game.can_view_night_sky)
     OFFICE_TERMINAL = "office_terminal"  # room's terminal offers Spread Gold in Estate / Run Payroll (Office; see Game.can_spread_gold/can_run_payroll)

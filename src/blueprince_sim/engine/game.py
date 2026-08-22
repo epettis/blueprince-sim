@@ -82,6 +82,15 @@ class Game:
             r for r in self.registry.rooms if r.pool == "outer")
         self._garage_ids: tuple[str, ...] = tuple(
             r.id for r in self.registry.rooms if r.id.startswith("garage"))
+        # Grid-index cheap pre-filter for the Antechamber lever check, used by
+        # both _enter (now runs every arrival, not just first entry) and
+        # lever_key_cost (called for every cell on every _nav_bfs cache miss,
+        # the hotter of the two): a plain int membership test here skips a
+        # Capability enum hash (a known hot spot) at every non-lever cell,
+        # which is nearly all of them.
+        self._lever_room_indices: frozenset[int] = frozenset(
+            r.idx for r in self.registry.rooms
+            if effects.provides_capability(r.id, Capability.LEVER))
         self.seed = seed
         self.reset(seed)
 
@@ -261,9 +270,12 @@ class Game:
 
         Keyed on a fingerprint of everything those functions read (player
         position, outer-area location, grid, door masks, keys, security
-        access, and which cells have been entered), so any state change -
-        including tests poking ``state`` directly - starts a fresh dict.
-        Cached values are shared between callers and must not be mutated.
+        access, and which cells have been entered - the last because this
+        same memo dict also holds :meth:`area_route_costs`, which calls
+        :meth:`_gate_ctx`, which reads ``st.entered`` to build
+        ``rooms_entered``), so any state change - including tests poking
+        ``state`` directly - starts a fresh dict. Cached values are shared
+        between callers and must not be mutated.
         """
         st = self.state
         fp = (st.pos, st.area, tuple(st.grid), tuple(st.placed_doors),
@@ -3297,7 +3309,11 @@ class Game:
         arrival, not just the first, since an access cost that could not be
         paid on an earlier visit (no key, no Power Hammer) must be payable on
         a later one -- each registered pull function is a no-op once its own
-        segment is no longer sealed, so retrying it is safe.
+        segment is no longer sealed, so retrying it is safe. It fires AFTER
+        the first-entry block below, not before: a first entry can itself
+        grant the access the pull needs (e.g. the Great Hall's own item roll
+        sometimes hands over the key its lever wants), so the pull has to see
+        that grant land first.
         """
         st = self.state
         if cell == ANTECHAMBER_CELL:
@@ -3309,35 +3325,37 @@ class Game:
             # Same Day Delivery's trigger; idempotent after the first Rank 8 arrival.
             mail_room.reach_rank8(self)
         room = self.registry.rooms[st.grid[cell]]
+        if not st.entered[cell]:
+            st.entered[cell] = True
+            experiments.on_room_entered(self, cell)
+            effects.fire(self, room, Hook.ON_ENTER)
+            roll_room_items(self, room, cell)
+            if cell in st.cloister_mila_bonus_cells:
+                # Cloister of Mila's extra item: a guaranteed, luck-immune pull
+                # from the same table roll_room_items uses for its own luck-
+                # immune "random" guaranteed items (Closet/Walk-In/Attic).
+                idx = self.rng.roll_weighted(
+                    "extra_item_kind", tuple(w for _, w in EXTRA_ITEM_TABLE))
+                grant_item(self, EXTRA_ITEM_TABLE[idx][0], 1)
+            if self.cfg.special_items:
+                special_items.on_enter(self, room, cell)
+                if effects.provides_capability(room.id, Capability.COMMERCE):
+                    shops.on_enter_shop(self, room)
+            if self.cfg.door_locks:
+                keycard.roll_source_room_grant(self, room)
         # Antechamber lever gate: entering a lever room (re-)attempts its pull on
-        # every arrival. Per the sim's "player solves the puzzle of any room they
-        # enter" doctrine, entering the room pulls its lever subject to the access
-        # cost below. Only fires when antechamber_levers is True (config gate).
-        # Each lever room's own eligibility and cost logic lives in its
-        # effects/rooms module (design doc antechamber-lever-design.md),
-        # registered via Capability.LEVER. The Greenhouse's South lever is a
-        # separate path, handled entirely by special_items.install_lever.
-        if self.cfg.antechamber_levers and effects.provides_capability(room.id, Capability.LEVER):
+        # every arrival, after any first-entry grants above have already landed.
+        # Per the sim's "player solves the puzzle of any room they enter" doctrine,
+        # entering the room pulls its lever subject to the access cost below. Only
+        # fires when antechamber_levers is True (config gate). Each lever room's
+        # own eligibility and cost logic lives in its effects/rooms module
+        # (design doc antechamber-lever-design.md), registered via
+        # Capability.LEVER. The Greenhouse's South lever is a separate path,
+        # handled entirely by special_items.install_lever. Gated on
+        # ``_lever_room_indices`` rather than ``effects.provides_capability``
+        # directly -- see that field's comment in ``__init__`` for why.
+        if self.cfg.antechamber_levers and st.grid[cell] in self._lever_room_indices:
             effects.pull_lever(self, room.id, cell)
-        if st.entered[cell]:
-            return
-        st.entered[cell] = True
-        experiments.on_room_entered(self, cell)
-        effects.fire(self, room, Hook.ON_ENTER)
-        roll_room_items(self, room, cell)
-        if cell in st.cloister_mila_bonus_cells:
-            # Cloister of Mila's extra item: a guaranteed, luck-immune pull
-            # from the same table roll_room_items uses for its own luck-
-            # immune "random" guaranteed items (Closet/Walk-In/Attic).
-            item_idx = self.rng.roll_weighted(
-                "extra_item_kind", tuple(w for _, w in EXTRA_ITEM_TABLE))
-            grant_item(self, EXTRA_ITEM_TABLE[item_idx][0], 1)
-        if self.cfg.special_items:
-            special_items.on_enter(self, room, cell)
-            if effects.provides_capability(room.id, Capability.COMMERCE):
-                shops.on_enter_shop(self, room)
-        if self.cfg.door_locks:
-            keycard.roll_source_room_grant(self, room)
 
     def lever_key_cost(self, cell: int) -> int:
         """Keys that pulling ``cell``'s Antechamber lever would spend right now.
@@ -3347,17 +3365,19 @@ class Game:
         (Capability.LEVER). A lever's own pull function retries on every
         arrival and is a no-op once its segment is no longer sealed, so this
         already returns 0 for a lever already pulled - a caller reasoning
-        about a future walk needs nothing beyond this method.
+        about a future walk needs nothing beyond this method. Called for
+        every cell on every :meth:`_nav_bfs` cache miss, so the capability
+        check is a ``_lever_room_indices`` membership test (see that field's
+        comment in ``__init__``) rather than ``effects.provides_capability``
+        directly -- this is the hottest of the two call sites that check.
         """
         st = self.state
         if not self.cfg.antechamber_levers:
             return 0
-        if st.grid[cell] < 0:
+        idx = st.grid[cell]
+        if idx not in self._lever_room_indices:
             return 0
-        room = self.registry.rooms[st.grid[cell]]
-        if not effects.provides_capability(room.id, Capability.LEVER):
-            return 0
-        return effects.lever_key_cost(room.id, self, cell)
+        return effects.lever_key_cost(self.registry.rooms[idx].id, self, cell)
 
     def inject_rooms(self, room_ids: list[str]) -> None:
         inject_rooms(self.state, self.registry, room_ids, self.rng)
