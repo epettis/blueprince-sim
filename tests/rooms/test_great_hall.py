@@ -171,14 +171,16 @@ def _hall_with_locked_east(keys: int, registry) -> Game:
 
 def test_lock_pending_never_lets_the_lever_key_pay_for_the_door_too(registry):
     """A locked frontier doorway past the Great Hall needs two keys: one the
-    walk itself spends pulling the lever, one for the door. Trying the door
-    is legal as soon as the WALK there is affordable (trying itself is
-    free), but the use-a-key row inside the menu must not let the lever's
-    own spend double as the door's key too.
+    walk itself spends pulling the lever, one for the door. With only 1 key,
+    the walk affords the lever pull but leaves nothing for the door and no
+    other way to open it, so draft_from declines the trip rather than
+    walking into a menu with nothing but abandon (the lever's own spend
+    never doubles as the door's key). With 2 keys, one remains after the
+    lever pull and the use-a-key row is legal.
 
     Two separate games (rather than one game re-used across both key counts)
     because the walk must actually happen and spend the lever key before the
-    use-a-key row is checked -- see
+    outcome is checked -- see
     test_unaffordable_search_cost_blocks_use_key_not_the_try for the matching
     setup on the side-doorway case.
     """
@@ -187,11 +189,11 @@ def test_lock_pending_never_lets_the_lever_key_pay_for_the_door_too(registry):
     g1 = _hall_with_locked_east(1, registry)
     assert g1.door_state_of(ANTECHAMBER_CELL, E) == DOOR_SEALED  # setup: lever unpulled
     assert g1.key_cost_map()[7] == 1, "setup: walking into the Hall drains 1 key (the lever)"
-    assert A.action_mask(g1)[action], "trying is free once the walk (lever pull) is affordable"
+    assert A.action_mask(g1)[action], "the menu looks live before the walk spends the lever key"
     g1.draft_from(7, E)
     assert g1.state.keys == 0, "the walk spent the lever's 1 key"
-    assert g1.phase is Phase.LOCK_PENDING
-    assert not g1.can_use_key_at_lock(), "1 key covers only the lever pull, not the locked door too"
+    assert g1.phase is Phase.NAVIGATE, "nothing left for the door: draft_from declines the trip"
+    assert g1.door_state_of(7, E) == DOOR_LOCKED, "the door itself was never tried"
 
     g2 = _hall_with_locked_east(2, registry)
     g2.draft_from(7, E)
@@ -279,24 +281,23 @@ def _seed_with_side_cost_at_least(min_cost: int, registry=None) -> tuple[int, in
 
 
 def test_unaffordable_search_cost_blocks_use_key_not_the_try(registry):
-    """A side doorway whose rolled search cost exceeds the player's keys still
-    lets the player TRY the door for free -- trying a locked door costs
-    nothing regardless of the rolled cost, per the owner's ruling that the
-    player only finds out a door is locked, and chooses how to open it,
-    after clicking it (Phase.LOCK_PENDING). The acceptance bar moves to the
-    use-a-key menu row: it must not let a player short of the rolled cost
-    spend keys they don't have.
+    """A side doorway whose rolled search cost exceeds the player's keys is
+    masked out of the OPEN range entirely -- one key short of the rolled
+    cost, with no lockpick or fitting special key, leaves the menu with
+    nothing but abandon (Game.lock_menu_has_real_choice). Forcing the raw
+    engine into LOCK_PENDING anyway (bypassing the mask) confirms the
+    use-a-key row itself is still gated on the exact rolled cost, not a
+    fixed 1.
 
-    Trying the door is always free and is checked before the use-a-key row,
-    which isolates the acceptance bar tested here to the rolled cost itself
-    -- see Game.can_use_key_at_lock.
+    Reaching exactly the rolled cost restores the OPEN id and makes the
+    use-a-key row legal, spending the FULL rolled cost.
     """
     seed, cost = _seed_with_side_cost_at_least(2, registry=registry)
     g = _placed_hall(seed=seed, registry=registry)
     action = A.OPEN_BASE + HALL_CELL * 4 + A.DIR_INDEX[E]
 
     g.state.keys = cost - 1
-    assert A.action_mask(g)[action], "trying the door is free, regardless of the rolled cost"
+    assert not A.action_mask(g)[action], "one key short of the rolled cost: nothing but abandon"
     g.state.pos = HALL_CELL
     g.open_door(HALL_CELL, E)
     assert g.phase is Phase.LOCK_PENDING
@@ -305,6 +306,7 @@ def test_unaffordable_search_cost_blocks_use_key_not_the_try(registry):
     assert g.door_state_of(HALL_CELL, E) == DOOR_LOCKED  # abandon leaves it locked
 
     g.state.keys = cost
+    assert A.action_mask(g)[action], "exactly the rolled cost makes the menu offer a real choice"
     g.open_door(HALL_CELL, E)
     assert g.phase is Phase.LOCK_PENDING
     assert g.can_use_key_at_lock(), "exactly the rolled cost must be affordable"
