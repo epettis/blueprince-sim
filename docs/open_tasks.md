@@ -244,6 +244,130 @@ calibrates `special_item_values`, `PATHS_ONE_PENALTY`/`PATHS_ZERO_PENALTY` or
 the scepter bias. Those need statistics from a run that actually plays the
 game, which `runs/freshsave-v1` is now generating.
 
+## 50. The observatory timeline should be indexed by run number, not wall time
+
+Owner request. Every time series on the Dashboard is keyed on wall-clock time,
+which is the wrong axis for a project whose training runs are stopped and
+restarted constantly: an idle stretch becomes an axis gap that means nothing, and
+two runs of the same length look different because one sat paused overnight.
+
+Concretely, `app.js::renderChart` derives its x from `m.sampled_at`, plotting
+elapsed hours (`hrs()`) since the first sample, with tick labels in `h` and `d`;
+`app.js::renderMetricSpark` keys on `sampled_at` the same way. The replacement
+value is already recorded next to it -- checkpoint records carry `episodes` and
+`timesteps`, and `renderChart` already reads `m.episodes` for the eval tooltip --
+so this is a change of axis, not a change of what gets recorded.
+
+**Restarts become annotations on the timeline rather than gaps in it.** The axis
+stays continuous and monotonic across a restart, because the episode counter
+resumes from the checkpoint; the restart is marked in place.
+
+## 51. The Runs tab does not fit on a laptop screen
+
+Owner report: the Runs display is too cluttered to see at once on a laptop.
+Four specific changes, all in `web/static/index.html`, `app.js` and `style.css`.
+
+- **Make the inventory display collapsible.** `#inventory` (`.inv-chips`) in the
+  Runs detail panel grows without bound as items accumulate.
+- **Shrink the vertical space taken by steps, gems, keys, coins, dice and luck.**
+  `#resources` (`.resources`) in the same panel.
+- **Put the outdoor graph behind the house map as a tab, switching automatically
+  as the replay crosses between indoors and outdoors.** Today `#house-panel` and
+  `#area-panel` are both always present in `view-runs`, side by side.
+- **Add a "step forward one move" button to the VCR controls.** `#controls` has
+  `#pb-start` ⏮, `#pb-back` ◀, `#pb-play` ▶, `#pb-speed`, `#pb-end` ⏭
+  and the scrubber -- there is a step-back button and no step-forward
+  counterpart.
+
+**The tabbed-map behaviour already exists and should be reused, not rewritten.**
+The Play tab implements exactly what is being asked for here:
+`#play-map-tabs` with `#play-map-tab-house` / `#play-map-tab-area`, driven by
+`updatePlayMapTab(frame)` and `renderPlayMapTabs()` in `app.js`. It already
+handles the subtle part -- the view follows the player only on an actual
+on-grid/off-grid *crossing* (`frame.area` null <-> non-null), so a manual tab
+click is respected until the next real transition rather than being yanked back
+every frame. Porting that to the Runs replay is the work; inventing a second
+auto-follow rule is not.
+
+## 52. Draft frequency plot should show realised returns, not expected ones
+
+Owner request. The 👣🔑💎🪙🍀 badges on the Draft frequency bars
+(`web/static/index.html`, the `#draft-bars` card) are **expected** values, not
+observed ones: `web/replay.py:37` calls
+`engine.items.expected_yields(room, registry)`, which computes guaranteed items
+plus luck-rolled extras at day-start luck plus flat entry effects, with coin
+piles taken at their size midpoint. The plot should show what each room
+**actually returned** across recorded episodes instead.
+
+**The data does not exist yet, and that is the bulk of the work.**
+`draft_stats.jsonl` records only counts per 10k-seed bucket -- `drafts` and
+`seeds_with`, keyed by room name. Nothing attributes a resource delta to a room.
+The recorder has to start capturing realised per-room yields and bucketing them
+the same way.
+
+**Attribution needs a definition before any code, and it is not obvious.** A
+room's realised return is not simply the resource delta on the step it was
+entered. All of these are genuinely that room's yield and none of them land at
+that moment:
+
+- `ON_PLACE` grants, which land at draft time, before entry;
+- luck-rolled items from `roll_room_items`, which land on first entry;
+- parked resources -- the Locker Room's keys sit in other cells and are
+  collected on arrival there, possibly many steps later;
+- spread effects, collected by `_collect_spread` on every arrival;
+- the Mail Room's Same Day Delivery, which pays out on reaching rank 8.
+
+A per-step resource diff attributes all of those to the wrong room. Deciding what
+"the room's return" means -- and whether the answer is one number or a split
+between draft-time, entry-time and deferred -- is the design question this task
+turns on. Settle it before touching the recorder, because it determines what gets
+written to disk and a recorded quantity is expensive to change afterwards.
+
+Keep the expected values available for comparison rather than deleting them:
+expected-versus-realised is the more useful reading, and the gap between them is
+itself a signal about the luck model.
+
+## 53. Exhaustive audit of every room's special behaviour
+
+Owner request. Research each room's special functions **beyond drop
+frequencies** against the wiki, check that a unit test pins each function and
+its edge cases, and produce a report of what is missing.
+
+This is a research-and-report task, not an implementation task: the deliverable
+is the report. Fixes it identifies are separate work, triaged into the lanes
+[`process.md`](process.md) defines.
+
+**Read [`process.md`](process.md)'s "Keep an audit's progress bar in the tree it
+audits" before starting, and take its warning literally.** The absence of a
+`tests/rooms/test_<room_id>.py` file is *not* evidence a room is unaudited: 69
+room modules against 87 files in `tests/rooms/`, of which only 57 are paired --
+12 modules have no mirrored file and 30 files have no module. The Boiler Room is
+the measured counter-example: it has no per-room file, and deleting its steam
+gate fails 2 tests in `test_upper_rotating_gear.py` while deleting its
+`POWER_SOURCE` capability fails 29 in `test_power.py`. Both mechanisms are
+pinned; a per-room file would have been pure duplication. **Reading the directory
+listing as a to-do list produces exactly the wrong answer.**
+
+So coverage must be established the way the rest of the repo establishes it:
+**delete the behaviour and run the suite.** A behaviour whose removal breaks no
+test is uncovered, wherever its test does or does not live. A room whose
+behaviour is covered by a topic test file is covered.
+
+The audit spans three sources that disagree, and the report must say which it
+followed each time, per [`doctrine.md`](doctrine.md):
+
+- the room's `effects` list in `data/rooms.json` and any
+  `effects/rooms/<room_id>.py` module,
+- the wiki's page for the room,
+- what the engine actually does when the room is entered.
+
+Known-inert records are a starting point rather than the whole list:
+`tools/validate_data.py` prints the `implemented: false` census on every run, and
+the "Known gaps" section of `CLAUDE.md` names the rooms whose behaviour is still
+absent (Closed Exhibit's security puzzle, the Treasure Trove's black box, the
+Chamber of Mirrors' gated arm traversal). Those are the gaps already known; the
+audit's value is the ones that are not.
+
 ## 23. OPEN OWNER QUESTIONS
 
 The single home for questions that need an owner ruling before the work they
