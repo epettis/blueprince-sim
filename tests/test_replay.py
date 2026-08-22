@@ -399,3 +399,55 @@ def test_frames_carry_option_rewards_only_when_debug_is_asked_for(registry):
     assert any(f["option_rewards"] for f in debug if f.get("pending")), (
         "at least one frame with a hand must carry scores under debug"
     )
+
+
+def test_option_rewards_scores_a_day_ending_choice_as_terminal(registry):
+    """An option that ends the day on the spot is scored with the same
+    `terminated=True` BluePrinceEnv.step would have used, not as if play
+    continued.
+
+    Choosing the dealt Dead End seals the house's only frontier doorway, so
+    ``Game.choose`` itself flips the copy to ``Phase.TERMINAL`` before this
+    function's own reward call runs. Scoring it as non-terminal would leave
+    phi_paths' sealing penalty uncancelled -- a number the policy, scored
+    through the real env, would never have been shown.
+    """
+    from blueprince_sim.config import GameConfig
+    from blueprince_sim.engine.game import Game, Phase
+    from blueprince_sim.engine.grid import N, S
+    from blueprince_sim.engine.state import DraftOption, PendingDraft
+    from blueprince_sim.env import rewards
+    from blueprince_sim.web import replay as RP
+
+    g = Game(GameConfig(), seed=1, registry=registry)
+    st = g.state
+    st.grid[2] = -1               # clear the day-start Entrance Hall
+    st.placed_doors[2] = 0
+    room = registry.by_id["entrance_hall"]  # stand-in; only its door mask matters
+    st.grid[32] = room.idx
+    st.placed_doors[32] = N       # the house's only frontier doorway
+    st.entered[32] = True
+    st.pos = 32
+    st.steps = 5
+    st.door_version += 1
+    g.deepest_rank = 8            # matches the target cell's own rank: isolates
+                                   # the assertion to phi_paths, no rank-delta term
+
+    g.phase = Phase.DRAFTING
+    pending = PendingDraft(
+        from_cell=32, direction=N, target_cell=37,
+        # orientation=S only: placed with no door but the one it was
+        # entered by, so choosing it seals the house's last route.
+        options=[DraftOption(room_idx=room.idx, orientation=S, gem_cost=0, slot=0)],
+    )
+    st.pending = pending
+    g.doorway_drafts[(32, N)] = pending
+
+    prev = rewards.snapshot(g)
+    assert prev["phi_paths"] < 0, "setup: one open route, so sealing it costs something"
+
+    out = RP.option_rewards(g)
+
+    assert out is not None and len(out) == 1
+    assert not out[0]["error"]
+    assert out[0]["reward"] == pytest.approx(prev["phi_paths"] * -1 - 0.001)

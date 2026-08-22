@@ -221,7 +221,12 @@ class BluePrinceEnv(gymnasium.Env):
             A.apply_action(self.game, action)
             self._prev_action = action  # record only legal applied actions
             terminated = self.game.phase is Phase.TERMINAL
-            reward = self.reward_fn(self.game, prev, terminated)
+            # reward_fn is called below, once `terminated` is settled by the
+            # post-step dead-end check -- a reward function forced to zero its
+            # potential on a terminal step (see rewards.shaped/phased) must
+            # never be called with a stale `terminated=False` on the very
+            # step that flips it, or the zeroing it relies on never fires.
+            reward = None
         self._env_steps += 1
         truncated = self._env_steps >= self.max_env_steps
         # Post-step mask, computed once and shared with _info. A NAVIGATE
@@ -231,6 +236,8 @@ class BluePrinceEnv(gymnasium.Env):
         if not terminated and not any(post_mask):
             self.game._terminate("dead_end")
             terminated = True
+        if reward is None:
+            reward = self.reward_fn(self.game, prev, terminated)
         # Day-chain horizon: mid-attempt day ends are truncations, not terminations.
         # Evaluate is_last_day BEFORE advance() because advance() increments current_day
         # (and wraps it to 1 on an attempt boundary). After this block, advance() runs

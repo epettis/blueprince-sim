@@ -10,8 +10,10 @@ the env config.
 Also covers the path-preservation potential (_phi_paths / _ante_paths):
 sealing the last viable route to the Antechamber costs ~-1.0, dropping
 from two routes to one costs -0.15, reopening routes pays back the
-potential, and when the Antechamber is already reachable on foot the
-potential is 0 so the win bonus is undiluted.
+potential, when the Antechamber is already reachable on foot the
+potential is 0 so the win bonus is undiluted, and the potential is forced
+to 0.0 on a `terminated` step so a dead-ended day's phi_paths contribution
+telescopes to 0 rather than ending on the sealing penalty.
 """
 
 from __future__ import annotations
@@ -494,6 +496,134 @@ def test_ante_paths_open_doorway_counts(registry):
     target = neighbor(32, N)            # cell 37
     assert od[target] != -1             # optimistically reachable from Antechamber
     assert _ante_paths(g) == 1
+
+
+# ------------------------------------------------- terminal-zero phi_paths
+
+
+def test_dead_ended_episode_nets_zero_phi_paths_contribution(registry):
+    """Over a scripted episode that ends dead-ended, the phi_paths component
+    summed across every step is 0.0.
+
+    Potential-based shaping is policy-invariant only when the potential is
+    zero at terminal states; forcing it to 0.0 on the `terminated` step makes
+    the episode sum telescope to phi(end) - phi(start) = 0 - 0, rather than
+    ending on the sealing -1.0 as an uncancelled bias against drafting.
+    """
+    g = _sealed_game(registry)
+    _place(g, 32, N | E, pos=True)   # two open routes: N->37, E->33; phi=0.0
+
+    prev1 = snapshot(g)
+    assert prev1["phi_paths"] == pytest.approx(0.0)
+    g.state.placed_doors[32] = N     # drop the east route: 2 paths -> 1
+    g.state.door_version += 1
+    r1 = shaped(g, prev1, terminated=False)
+
+    prev2 = snapshot(g)
+    assert prev2["phi_paths"] == pytest.approx(PATHS_ONE_PENALTY)
+    g.state.placed_doors[32] = 0     # drop the last route: 1 path -> 0 (sealed)
+    g.state.door_version += 1
+    r2 = shaped(g, prev2, terminated=False)
+
+    prev3 = snapshot(g)
+    assert prev3["phi_paths"] == pytest.approx(-1.0)
+    r3 = shaped(g, prev3, terminated=True)   # the step the dead-ended day ends on
+
+    # No cell is ever newly filled (only placed_doors on an already-placed
+    # cell changes), so placement_frontier is 0.0 throughout; no steps,
+    # resources, rank or milestones change either, so the only per-step
+    # constant is the -0.001 time-pressure floor on each of the 3 decisions.
+    total = r1 + r2 + r3
+    phi_component_total = total - (-0.001 * 3)
+    assert phi_component_total == pytest.approx(0.0, abs=1e-9)
+
+
+def test_a_non_terminal_seal_still_charges_the_full_delta(registry):
+    """A mid-episode draft that seals the last route still charges the full
+    sealing delta; only a step where `terminated=True` zeroes the potential.
+
+    The fix must key off the `terminated` flag, not off the potential's
+    value, or it would silently swallow the per-step warning phi_paths gives
+    during ordinary play (the property `test_sealing_last_route_shaped_is_
+    very_negative` already pins for the non-terminal case).
+    """
+    g = _sealed_game(registry)
+    _place(g, 32, N, pos=True)       # one open route -> 37; phi=-0.15
+    prev = snapshot(g)
+    assert prev["phi_paths"] == pytest.approx(PATHS_ONE_PENALTY)
+
+    _place(g, 37, S)                 # seals the last route: zero paths remain
+    assert _ante_paths(g) == 0
+
+    mid_episode = shaped(g, prev, terminated=False)
+    terminal = shaped(g, prev, terminated=True)
+
+    assert mid_episode == pytest.approx(-0.851)  # full ~-0.85 delta, not zeroed
+    assert terminal == pytest.approx(0.149)      # potential forced to 0 instead
+
+
+def test_a_healthy_terminal_step_is_unaffected(registry):
+    """A day that ends with two or more routes still open pays the same
+    reward whether or not the step is flagged `terminated`.
+
+    The potential was already 0.0 before the terminal override in this case,
+    so the fix has nothing to zero and must not perturb a healthy ending.
+    """
+    g = _sealed_game(registry)
+    _place(g, 32, N | E, pos=True)   # two open routes: N->37, E->33; phi=0.0
+    prev = snapshot(g)
+    assert prev["phi_paths"] == pytest.approx(0.0)
+
+    non_terminal = shaped(g, prev, terminated=False)
+    terminal = shaped(g, prev, terminated=True)
+    assert terminal == pytest.approx(non_terminal)
+
+
+def test_phased_shares_the_terminal_zero_fix(registry):
+    """`phased` charges the identical `_phi_paths` telescoping construct as
+    `shaped`, so the same terminal-zero delta applies to it: flagging the
+    sealing step `terminated` recovers exactly the 1.0 that a non-terminal
+    call to the same state would have left charged.
+    """
+    g = _sealed_game(registry)
+    _place(g, 32, N, pos=True)
+    prev = snapshot(g)
+    _place(g, 37, S)                 # seals the last route
+    assert _ante_paths(g) == 0
+
+    mid_episode = phased(g, prev, terminated=False)
+    terminal = phased(g, prev, terminated=True)
+    assert terminal - mid_episode == pytest.approx(1.0)
+
+
+def test_phased_also_zeroes_keys_and_frontier_potentials_at_terminal(registry):
+    """`phased` carries two more potentials besides phi_paths -- phi_keys and
+    phi_frontier -- and forces both to 0.0 on a `terminated` step for the
+    same reason: a dead-ended day must not leave a held key stock or a
+    standing frontier as an uncancelled residue in the reward sum.
+
+    Nothing about the game state changes between the two calls here, so a
+    non-terminal call's delta for each potential is 0 (current value equals
+    `prev`) while a terminal call's delta is `0 - prev[potential]` -- the gap
+    between the two calls is exactly the sum of all three starting
+    potentials.
+    """
+    g = _sealed_game(registry)
+    g.deepest_rank = 8
+    g.state.keys = 3
+    _place(g, 32, N | E | S, pos=True)  # rank 7 == deepest_rank - 1: on the frontier edge
+
+    prev = snapshot(g)
+    assert prev["phi_keys"] == pytest.approx(0.315)   # 0.01 * 3 keys * 3.0 key value * 3.5x
+    assert prev["phi_frontier"] == pytest.approx(0.06)  # 0.02 * 3 passable frontier doors
+    assert prev["phi_paths"] == pytest.approx(0.0)      # 3 optimistic routes: healthy
+
+    mid_episode = phased(g, prev, terminated=False)
+    terminal = phased(g, prev, terminated=True)
+
+    assert mid_episode - terminal == pytest.approx(
+        prev["phi_keys"] + prev["phi_frontier"] + prev["phi_paths"]
+    )
 
 
 # ------------------------------------------- the placement-frontier bonus

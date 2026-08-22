@@ -285,6 +285,13 @@ def option_rewards(game: Game) -> list[dict] | None:
     every run to date trains against, and offering three modes would invite
     reading a number the policy was never shown.
 
+    ``choose`` can end the day on the spot (e.g. a Dead End placed with
+    nothing else left to do), so ``terminated`` is read off ``sim.phase``
+    after the copy's own draft rather than assumed False -- the same
+    "never show a number the policy wasn't shown" doctrine above: a
+    counterfactual that ends the day must be scored the way ``BluePrinceEnv``
+    would actually score it, phi_paths zeroed and all.
+
     This answers "why did it take THAT room" directly. On seed 1139797120 the
     hand at move 37 scored Bedroom +0.009 against Utility Closet -1.001, so
     the reward was unambiguous and the choice was the policy's, not the
@@ -306,7 +313,7 @@ def option_rewards(game: Game) -> list[dict] | None:
             continue
         out.append({
             "slot": opt.slot,
-            "reward": rewards.shaped(sim, prev, terminated=False),
+            "reward": rewards.shaped(sim, prev, terminated=sim.phase is Phase.TERMINAL),
             "open_ways": rewards._open_ways(sim, pending.target_cell),
             "ante_paths": rewards._ante_paths(sim),
             "ante_reachable": sim.distance_map()[ANTECHAMBER_CELL] >= 0,
