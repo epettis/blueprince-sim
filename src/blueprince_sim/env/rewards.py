@@ -107,9 +107,11 @@ def _phi_paths(n_paths: int) -> float:
     - Winning (walking into the Antechamber): at that moment the Antechamber
       was reachable, so _ante_paths returned 99 and the potential is 0 — the
       +1.0 win bonus is undiluted.
-    - dead_end termination: the sealing draft already charged ~-1.0 (or -0.15
-      for the second-to-last route), so the penalty is already baked in before
-      the terminal step fires.
+    - dead_end termination: this function has no terminal-awareness of its
+      own — ``shaped`` and ``phased`` force the potential to 0.0 on a
+      ``terminated`` step regardless of what this function would return, so
+      the episode's summed contribution telescopes to 0 rather than ending
+      on a sealed ``-1.0``. See their docstrings.
     """
     if n_paths == 0:
         return PATHS_ZERO_PENALTY
@@ -291,8 +293,10 @@ def shaped(game: Game, prev: dict, terminated: bool) -> float:
     room's resource payout.  Dropping from 2 to 1 open path costs -0.15.
     Reopening routes pays the potential back.  On a winning step the
     Antechamber was already reachable (potential 0), so the +1.0 win bonus is
-    undiluted.  A dead_end termination lands with the sealing -1.0 already
-    charged on the prior draft.
+    undiluted.  On any ``terminated`` step the potential is forced to 0.0
+    regardless of the sealed state, so a dead_end day's summed phi_paths
+    contribution telescopes to 0 rather than ending on the sealing -1.0 --
+    required for the term to be policy-invariant potential-based shaping.
 
     Placement frontier (:func:`_placement_frontier`): +0.01 per way forward a
     newly placed room opens into an empty cell, so a placement that keeps the
@@ -316,7 +320,8 @@ def shaped(game: Game, prev: dict, terminated: bool) -> float:
         + (inventory_value(game.state, game.registry) - prev["inv_value"])
     )
     r += 0.01 * d_res
-    r += _phi_paths(_ante_paths(game)) - prev["phi_paths"]
+    phi_now = 0.0 if terminated else _phi_paths(_ante_paths(game))
+    r += phi_now - prev["phi_paths"]
     r += _placement_frontier(game, prev)
     # Time pressure priced against the resource that actually ends runs (steps),
     # not decision count: clamp step GAINS to 0 first (food etc. must not turn
@@ -349,8 +354,11 @@ def phased(game: Game, prev: dict, terminated: bool) -> float:
       room's resource payout.  Dropping from 2 to 1 open path costs -0.15.
       Reopening routes pays the potential back.  On a winning step the
       Antechamber was already reachable (potential 0), so the +1.0 win bonus
-      is undiluted.  A dead_end termination lands with the sealing -1.0
-      already charged on the prior draft.
+      is undiluted.  On any ``terminated`` step the potential is forced to
+      0.0 regardless of the sealed state, so a dead_end day's summed
+      phi_paths contribution telescopes to 0 rather than ending on the
+      sealing -1.0 -- required for the term to be policy-invariant
+      potential-based shaping.
 
     Gems/coins/dice/held-item deltas, time pressure, and the three milestones
     (:func:`_milestones`) match `shaped`.
@@ -366,7 +374,8 @@ def phased(game: Game, prev: dict, terminated: bool) -> float:
     r += 0.01 * d_res
     r += _phi_keys(game) - prev["phi_keys"]
     r += _phi_frontier(game) - prev["phi_frontier"]
-    r += _phi_paths(_ante_paths(game)) - prev["phi_paths"]
+    phi_now = 0.0 if terminated else _phi_paths(_ante_paths(game))
+    r += phi_now - prev["phi_paths"]
     # Step-scaled time pressure, identical to `shaped` -- see its comment for
     # the clamp and the floor. Kept in lockstep deliberately: this docstring
     # promises the two match, and a silent divergence between reward modes is
