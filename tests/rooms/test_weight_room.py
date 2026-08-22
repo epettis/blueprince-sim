@@ -80,6 +80,23 @@ def test_weight_room_no_hammer_no_break_stays_sealed(registry):
     assert g.door_state_of(ANTECHAMBER_CELL, S) == DOOR_SEALED
 
 
+def test_a_lever_pull_that_could_not_be_paid_retries_on_a_later_arrival(registry):
+    """A Weight Room visited with no Power Hammer stays sealed, but picking one
+    up and walking back in pulls the lever then: the day's only chance at the
+    south door is not lost just because the first arrival could not break the
+    wall."""
+    g = _game(levers=True, registry=registry)  # no power_hammer yet
+    _place_at(g, "weight_room", 37, N | S)
+    _enter_at(g, 37)
+
+    assert g.door_state_of(ANTECHAMBER_CELL, S) == DOOR_SEALED
+
+    g.state.inventory["power_hammer"] = 1
+    _enter_at(g, 37)  # re-arrival: the lever retries even though the room was entered already
+
+    assert g.door_state_of(ANTECHAMBER_CELL, S) == DOOR_OPEN
+
+
 # Test 4: wall-break carry-over lets Weight Room open South on a later day
 
 def test_weight_room_wall_broken_carryover_opens_south(registry):

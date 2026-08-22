@@ -667,8 +667,10 @@ door** — the wiki's theoretical table gives the centre door 50% and each edge
 extra keys beyond the base 1. [`locking.md`](locking.md) owns how that surcharge
 reaches the agent through `grid_search_cost`. Entering pulls the Antechamber's
 east lever, behind the prize room's own locked side door, so a key is spent and
-no key in hand means no lever. A Foyer on the estate overrides the guaranteed
-locks, matching "unless some other effect forces them to be unlocked".
+no key in hand means no lever — but the pull is retried on every later arrival,
+so acquiring a key after an unaffordable first visit still opens the door that
+same day. A Foyer on the estate overrides the guaranteed locks, matching
+"unless some other effect forces them to be unlocked".
 
 **`guess_bedroom__ix70`** — loses the base Guest Bedroom's +10 steps and instead
 secretly picks one Bedroom from today's draft pool **when it is drafted**,
