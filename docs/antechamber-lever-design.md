@@ -156,6 +156,14 @@ gated on its segment still being `DOOR_SEALED`, so retrying it once the segment
 is open is a no-op — nothing about a repeat arrival can pull a lever twice or
 spend a second key.
 
+The pull fires **after** the arrival's first-entry effects, not before, and the
+order is load-bearing: a room's own entry item roll can produce the very access
+its lever needs. The Great Hall grants no resources on entry but does roll an
+item, and that item is sometimes a key — measured over 400 seeds, entering it
+with an empty pocket opens the east door on 29 of them, purely because the roll
+lands before the pull. Moving the pull ahead of the first-entry block silently
+deletes those, so `tests/rooms/test_great_hall.py` pins the ordering directly.
+
 ## B2 — Room 46, the north door, and the two-tier objective
 
 **Room 46 is the objective; the Antechamber is a prerequisite, not a victory**
