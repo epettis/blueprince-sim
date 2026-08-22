@@ -261,8 +261,7 @@ class Game:
 
         Keyed on a fingerprint of everything those functions read (player
         position, outer-area location, grid, door masks, keys, security
-        access, and which cells have been entered - the last because a lever
-        room's key drain only fires on first entry), so any state change -
+        access, and which cells have been entered), so any state change -
         including tests poking ``state`` directly - starts a fresh dict.
         Cached values are shared between callers and must not be mutated.
         """
@@ -316,9 +315,9 @@ class Game:
         open segments are free. A locked door en route is therefore keyed
         through or walked around, whichever fits the step budget - and with
         no keys the detour distance is what counts against the budget. Walking
-        into an unentered lever room (see :meth:`lever_key_cost`) also drains
-        a key on arrival, before any locked door further along the path, so
-        that drain is charged to the route too.
+        into a lever room whose segment is still sealed (see
+        :meth:`lever_key_cost`) also drains a key on arrival, before any locked
+        door further along the path, so that drain is charged to the route too.
         In-drafting keeps every naturally formed placed-room door pair open
         today, but honest distances here are groundwork for rooms that
         re-lock their own doors (Vestibule, not yet modeled).
@@ -340,7 +339,7 @@ class Game:
         search_cost = self.door_search_cost
         locked_and_drains = (
             sum(1 + search_cost.get(k, 0) for k, v in door_state.items() if v == DOOR_LOCKED)
-            + sum(1 for c in range(N_CELLS) if not st.entered[c] and self.lever_key_cost(c))
+            + sum(1 for c in range(N_CELLS) if self.lever_key_cost(c))
         )
         keys_cap = min(st.keys, locked_and_drains)
         sec_ok = self.security_openable()
@@ -371,14 +370,14 @@ class Game:
                             continue
                 elif seg == DOOR_SECURITY and not sec_ok:
                     continue
-                # Walking into a lever room drains a key on arrival (the Great Hall's
-                # prize door). It never blocks passage - with nothing left to spend the
-                # lever simply is not pulled - but it is spent BEFORE any locked door
-                # further along the path, so the walk has to carry it.
-                if not st.entered[nb]:
-                    drain = self.lever_key_cost(nb)
-                    if drain:
-                        nspent = min(nspent + drain, keys_cap)
+                # Walking into a lever room whose segment is still sealed drains a
+                # key on arrival (the Great Hall's prize door). It never blocks
+                # passage - with nothing left to spend the lever simply is not
+                # pulled - but it is spent BEFORE any locked door further along
+                # the path, so the walk has to carry it.
+                drain = self.lever_key_cost(nb)
+                if drain:
+                    nspent = min(nspent + drain, keys_cap)
                 # Keep only Pareto-optimal states: a later arrival is worth
                 # exploring iff it spends strictly fewer keys (a longer but
                 # cheaper path may unlock cells beyond a further locked door).
@@ -421,7 +420,7 @@ class Game:
     def key_cost_map(self) -> list[int]:
         """Keys spent along the shortest path :meth:`move_to` would walk.
 
-        Covers both locked segments crossed and any unentered lever room's
+        Covers both locked segments crossed and any still-sealed lever room's
         on-arrival key drain (see :meth:`lever_key_cost`), so the number here
         is exactly what :meth:`move_to` would deduct from ``st.keys``.
         Meaningful only where :meth:`distance_map` is >= 0.
@@ -3289,11 +3288,16 @@ class Game:
             grant_item(self, what, count)
 
     def _enter(self, cell: int) -> None:
-        """First-entry bookkeeping for ``cell``; no-op if already entered.
+        """Arrival bookkeeping for ``cell``; most of it fires only on first entry.
 
         Fires the room's ON_ENTER effects and item rolls exactly once. With
         door locks on, visiting Security unlocks the terminal's offline mode,
         and keycard source rooms roll their chance to hand over the Keycard.
+        A lever room's pull (see :meth:`lever_key_cost`) is retried on every
+        arrival, not just the first, since an access cost that could not be
+        paid on an earlier visit (no key, no Power Hammer) must be payable on
+        a later one -- each registered pull function is a no-op once its own
+        segment is no longer sealed, so retrying it is safe.
         """
         st = self.state
         if cell == ANTECHAMBER_CELL:
@@ -3304,45 +3308,46 @@ class Game:
         if rank_of(cell) >= 8:
             # Same Day Delivery's trigger; idempotent after the first Rank 8 arrival.
             mail_room.reach_rank8(self)
+        room = self.registry.rooms[st.grid[cell]]
+        # Antechamber lever gate: entering a lever room (re-)attempts its pull on
+        # every arrival. Per the sim's "player solves the puzzle of any room they
+        # enter" doctrine, entering the room pulls its lever subject to the access
+        # cost below. Only fires when antechamber_levers is True (config gate).
+        # Each lever room's own eligibility and cost logic lives in its
+        # effects/rooms module (design doc antechamber-lever-design.md),
+        # registered via Capability.LEVER. The Greenhouse's South lever is a
+        # separate path, handled entirely by special_items.install_lever.
+        if self.cfg.antechamber_levers and effects.provides_capability(room.id, Capability.LEVER):
+            effects.pull_lever(self, room.id, cell)
         if st.entered[cell]:
             return
         st.entered[cell] = True
         experiments.on_room_entered(self, cell)
-        room = self.registry.rooms[st.grid[cell]]
         effects.fire(self, room, Hook.ON_ENTER)
         roll_room_items(self, room, cell)
         if cell in st.cloister_mila_bonus_cells:
             # Cloister of Mila's extra item: a guaranteed, luck-immune pull
             # from the same table roll_room_items uses for its own luck-
             # immune "random" guaranteed items (Closet/Walk-In/Attic).
-            idx = self.rng.roll_weighted(
+            item_idx = self.rng.roll_weighted(
                 "extra_item_kind", tuple(w for _, w in EXTRA_ITEM_TABLE))
-            grant_item(self, EXTRA_ITEM_TABLE[idx][0], 1)
+            grant_item(self, EXTRA_ITEM_TABLE[item_idx][0], 1)
         if self.cfg.special_items:
             special_items.on_enter(self, room, cell)
             if effects.provides_capability(room.id, Capability.COMMERCE):
                 shops.on_enter_shop(self, room)
         if self.cfg.door_locks:
             keycard.roll_source_room_grant(self, room)
-        # Antechamber lever gate: entering a lever room opens its sealed segment.
-        # Per the sim's "player solves the puzzle of any room they enter" doctrine,
-        # entering the room pulls its lever subject to the access cost below.
-        # Only fires when antechamber_levers is True (config gate). Each lever
-        # room's own eligibility and cost logic lives in its effects/rooms
-        # module (design doc antechamber-lever-design.md), registered via
-        # Capability.LEVER. The Greenhouse's South lever is a separate path,
-        # handled entirely by special_items.install_lever.
-        if self.cfg.antechamber_levers and effects.provides_capability(room.id, Capability.LEVER):
-            effects.pull_lever(self, room.id, cell)
 
     def lever_key_cost(self, cell: int) -> int:
         """Keys that pulling ``cell``'s Antechamber lever would spend right now.
 
         Only the Great Hall's locked prize-room side door costs a key; every
         other lever room is free (0), per its own registered cost function
-        (Capability.LEVER). Deliberately ignores ``state.entered[cell]`` - the
-        lever only fires on first entry, so a caller reasoning about a
-        *future* walk must check ``state.entered`` itself.
+        (Capability.LEVER). A lever's own pull function retries on every
+        arrival and is a no-op once its segment is no longer sealed, so this
+        already returns 0 for a lever already pulled - a caller reasoning
+        about a future walk needs nothing beyond this method.
         """
         st = self.state
         if not self.cfg.antechamber_levers:

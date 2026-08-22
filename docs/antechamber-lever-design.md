@@ -135,15 +135,26 @@ listed so they can be revisited rather than rediscovered:
 
 ### The lever key is part of the route cost
 
-The Great Hall's lever key is spent by *walking in* — on first entry, before any
-locked door the route was planned around. A caller that only budgets keys for the
-locked doors it will open (e.g. the action mask, or anything reading
-`key_cost_map`) can therefore be handed a route that looks affordable and then run
-out of keys mid-walk. `_nav_bfs` charges the lever's key drain to the route the same
-way it charges a locked segment, so `key_cost_map` (and everything built on it — the
-action mask, `move_to`) already accounts for it. As with the door-level cost, it
-never blocks passage: with no key left to spend, the lever simply is not pulled and
-the walk continues.
+The Great Hall's lever key is spent by *walking in* — while the east segment is
+still sealed, before any locked door the route was planned around. A caller that
+only budgets keys for the locked doors it will open (e.g. the action mask, or
+anything reading `key_cost_map`) can therefore be handed a route that looks
+affordable and then run out of keys mid-walk. `_nav_bfs` charges the lever's key
+drain to the route the same way it charges a locked segment, so `key_cost_map`
+(and everything built on it — the action mask, `move_to`) already accounts for
+it. As with the door-level cost, it never blocks passage: with no key left to
+spend, the lever simply is not pulled and the walk continues.
+
+### The pull retries on every arrival
+
+An access cost that could not be paid on one visit — no key in hand for the
+Great Hall, no Power Hammer and no broken wall for the Weight Room — is not the
+lever's only chance: entering a lever room re-attempts its pull on every
+arrival, not just the first, so acquiring the key or the item later in the same
+day and walking back in still opens the door. Each room's own pull function is
+gated on its segment still being `DOOR_SEALED`, so retrying it once the segment
+is open is a no-op — nothing about a repeat arrival can pull a lever twice or
+spend a second key.
 
 ## B2 — Room 46, the north door, and the two-tier objective
 

@@ -112,6 +112,25 @@ def test_great_hall_no_key_stays_sealed(registry):
     assert g.state.keys == 0  # no key spent
 
 
+def test_a_lever_pull_that_could_not_be_paid_retries_on_a_later_arrival(registry):
+    """A Great Hall visited with no key stays sealed and spends nothing, but
+    picking up a key and walking back in pulls the lever then: the day's
+    only chance at the east door is not lost just because the first arrival
+    could not afford it."""
+    g = _game(levers=True, keys=0, registry=registry)
+    _place_at(g, "great_hall", 43, E | W)
+    _enter_at(g, 43)
+
+    assert g.door_state_of(ANTECHAMBER_CELL, E) == DOOR_SEALED
+    assert g.state.keys == 0
+
+    g.state.keys = 1
+    _enter_at(g, 43)  # re-arrival: the lever retries even though the hall was entered already
+
+    assert g.door_state_of(ANTECHAMBER_CELL, E) == DOOR_OPEN
+    assert g.state.keys == 0  # exactly the one key spent
+
+
 def test_walking_into_the_great_hall_is_charged_to_the_route(registry):
     """key_cost_map() prices in the Great Hall's on-arrival lever key spend
     before the caller ever walks - and move_to actually deducts exactly that
@@ -135,11 +154,12 @@ def test_walking_into_the_great_hall_is_charged_to_the_route(registry):
     assert g.state.keys == 0  # the map matched what the walk actually spent
 
 
-def test_the_nav_cache_notices_a_lever_room_that_has_already_been_entered(registry):
-    """The nav memo must key on state.entered: an already-entered Great Hall
-    charges nothing, because its lever only ever fires on first entry, and a
-    map cached from before that entry would over-charge the route and could
-    strand the player behind a road it wrongly reads as unaffordable."""
+def test_the_nav_cache_notices_the_lever_has_actually_fired(registry):
+    """The nav memo must key on door state, not on entry: a Great Hall whose
+    east segment is still sealed charges its route the lever's key, but once
+    the lever has actually fired (the segment open, via a real walk in) the
+    memo notices and the route charges nothing more -- an entered-but-still-
+    sealed hall (e.g. no key on the first visit) must keep charging."""
     g = Game(GameConfig(door_locks=True, antechamber_levers=True), seed=1, registry=registry)
     hall = registry.by_id["great_hall"]
     g._place_room(hall, 7, hall.door_mask)
@@ -148,11 +168,11 @@ def test_the_nav_cache_notices_a_lever_room_that_has_already_been_entered(regist
     g.state.keys = 1
 
     assert g.door_state_of(ANTECHAMBER_CELL, E) == DOOR_SEALED  # setup: lever unpulled
-    assert g.key_cost_map()[7] == 1  # unentered: walking in will pull the lever
+    assert g.key_cost_map()[7] == 1  # sealed: walking in will pull the lever
 
-    # Entry is the only thing that changes here, and the lever cannot fire twice.
-    g.state.entered[7] = True
-    assert g.key_cost_map()[7] == 0
+    g.move_to(7)  # actually walks in, spends the key, opens the east segment
+    assert g.door_state_of(ANTECHAMBER_CELL, E) == DOOR_OPEN
+    assert g.key_cost_map()[7] == 0  # lever already pulled: nothing left to charge
 
 
 def _hall_with_locked_east(keys: int, registry) -> Game:
