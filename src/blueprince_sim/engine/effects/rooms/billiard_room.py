@@ -61,13 +61,25 @@ class DartboardBand:
 
 
 _BANDS_CACHE: dict[Path, tuple[DartboardBand, ...]] = {}
+_last_dir: Path | None = None    # identity memo: the data_dir object from the last call
+_last_bands: tuple[DartboardBand, ...] | None = None  # ...and the bands it resolved to
 
 
 def load_bands(data_dir: Path) -> tuple[DartboardBand, ...]:
-    """Parse data/billiard_room.json's band table, cached per data_dir."""
+    """Parse data/billiard_room.json's band table, cached per data_dir.
+
+    Checks by identity first (Registry.data_dir is the same object for a whole
+    run, so this never hashes a Path on the hot path) before falling back to
+    the path-keyed dict for the case data_dir actually varies between calls.
+    """
+    global _last_dir, _last_bands
+    orig_dir = data_dir
+    if orig_dir is _last_dir:
+        return _last_bands
     data_dir = Path(data_dir)
     cached = _BANDS_CACHE.get(data_dir)
     if cached is not None:
+        _last_dir, _last_bands = orig_dir, cached
         return cached
     raw = json.loads((data_dir / DATA_FILENAME).read_text())
     bands = tuple(
@@ -78,6 +90,7 @@ def load_bands(data_dir: Path) -> tuple[DartboardBand, ...]:
         for b in raw["bands"]
     )
     _BANDS_CACHE[data_dir] = bands
+    _last_dir, _last_bands = orig_dir, bands
     return bands
 
 

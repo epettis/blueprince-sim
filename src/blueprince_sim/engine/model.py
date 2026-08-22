@@ -98,6 +98,16 @@ class Room:
     pool: str  # base|studio_addition|found_floorplan|outer|pool_temp|upgrade_variant|conditional|none
     variant_of: str | None = None  # base room id this upgrade variant replaces
     confidence: str = "wiki"  # data provenance: datamined > wiki > inferred > placeholder
+    # Precomputed `category` + `extra_categories` union, set by __post_init__ so it is
+    # derived exactly once per instance (construction time) rather than rebuilt on every
+    # is_category()/categories call -- ~180 calls/env-step in RL rollout. Never pass this
+    # to the constructor: __post_init__ recomputes it from scratch every time, including
+    # from dataclasses.replace(room, category=...), so it self-heals and cannot drift the
+    # way a hand-populated field could.
+    _categories: frozenset[str] = field(init=False, repr=False, compare=False)
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "_categories", frozenset({self.category}) | self.extra_categories)
 
     @property
     def is_free(self) -> bool:
@@ -131,11 +141,12 @@ class Room:
     def categories(self) -> frozenset[str]:
         """Every category this room counts as: its primary plus any extras.
 
-        Derived rather than stored so it cannot drift from ``category`` —
-        ``dataclasses.replace(room, category=...)`` yields a room whose
-        membership matches the category it was just given.
+        Reads the ``_categories`` field ``__post_init__`` derives from
+        ``category``/``extra_categories`` at construction time, so it cannot
+        drift from them — ``dataclasses.replace(room, category=...)`` reruns
+        ``__post_init__`` and recomputes it, the same as building a fresh Room.
         """
-        return frozenset({self.category}) | self.extra_categories
+        return self._categories
 
     def is_category(self, category: str) -> bool:
         """True when this room counts as ``category`` for colour-membership checks.
@@ -144,7 +155,7 @@ class Room:
         extras it carries (the Aquarium family counts as every colour; Maid's
         Chamber counts as bedroom alongside its primary red).
         """
-        return category in self.categories
+        return category in self._categories
 
 
 def _parse_effects(raw: list[dict]) -> tuple[Effect, ...]:

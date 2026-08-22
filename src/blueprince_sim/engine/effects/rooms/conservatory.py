@@ -75,13 +75,25 @@ class RemodelRules:
 
 
 _RULES_CACHE: dict[Path, RemodelRules] = {}
+_last_dir: Path | None = None    # identity memo: the data_dir object from the last call
+_last_rules: RemodelRules | None = None  # ...and the rules it resolved to
 
 
 def load_remodel_rules(data_dir: Path) -> RemodelRules:
-    """Parse data/conservatory.json's offer-filter lists, cached per data_dir."""
+    """Parse data/conservatory.json's offer-filter lists, cached per data_dir.
+
+    Checks by identity first (Registry.data_dir is the same object for a whole
+    run, so this never hashes a Path on the hot path) before falling back to
+    the path-keyed dict for the case data_dir actually varies between calls.
+    """
+    global _last_dir, _last_rules
+    orig_dir = data_dir
+    if orig_dir is _last_dir:
+        return _last_rules
     data_dir = Path(data_dir)
     cached = _RULES_CACHE.get(data_dir)
     if cached is not None:
+        _last_dir, _last_rules = orig_dir, cached
         return cached
     raw = json.loads((data_dir / DATA_FILENAME).read_text())["remodel"]
     rules = RemodelRules(
@@ -89,6 +101,7 @@ def load_remodel_rules(data_dir: Path) -> RemodelRules:
         draft_gated=frozenset(raw["draft_gated"]),
     )
     _RULES_CACHE[data_dir] = rules
+    _last_dir, _last_rules = orig_dir, rules
     return rules
 
 
